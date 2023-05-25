@@ -1,0 +1,56 @@
+// Part of the Tapl Language project, under the Apache License v2.0 with LLVM
+// Exceptions. See /LICENSE for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Bazel Test",
+            "type": "shell",
+            "command": "bazel test ${relativeFileDirname}:${fileBasenameNoExtension}",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+        },
+        {
+            "label": "Bazel Test Selected",
+            "type": "shell",
+            "command": "bazel test ${relativeFileDirname}:${fileBasenameNoExtension} --test_filter=*${selectedText}*",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+        },
+        {
+            "label": "Bazel Build (Debug)",
+            "type": "shell",
+            "command": "bazel build ${relativeFileDirname}:${fileBasenameNoExtension} -c dbg",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+        },
+        {
+            "label": "Bazel Build (Run)",
+            "type": "shell",
+            "command": "bazel build ${relativeFileDirname}:${fileBasenameNoExtension}",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+        },
+        {
+            "label": "Bazel Build (Run Opt)",
+            "type": "shell",
+            "command": "bazel build ${relativeFileDirname}:${fileBasenameNoExtension} -c opt",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+        },
+    ]
+}

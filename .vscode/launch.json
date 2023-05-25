@@ -1,0 +1,34 @@
+// Part of the Tapl Language project, under the Apache License v2.0 with LLVM
+// Exceptions. See /LICENSE for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "preLaunchTask": "Bazel Build (Debug)",
+            "name": "CodeLLDB",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/bazel-bin/${relativeFileDirname}/${fileBasenameNoExtension}",
+            "args": [],
+            "sourceMap": {
+                "/proc/self/cwd": "${workspaceFolder}" 
+            },
+        },
+        {
+            "preLaunchTask": "Bazel Build (Debug)",
+            "name": "CodeLLDB Selected",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/bazel-bin/${relativeFileDirname}/${fileBasenameNoExtension}",
+            "args": ["--gtest_filter=*${selectedText}*"],
+            "sourceMap": {
+                "/proc/self/cwd": "${workspaceFolder}" 
+            },
+        },
+    ]
+}
