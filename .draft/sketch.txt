@@ -1,0 +1,569 @@
+($x:Int. x) 20
+($x. x): Int->Int y:Int
+
+check = $funcType.$argType. 
+
+((\x. x) y): check Int->Int Int
+((\x. x) y): Int
+ 
+
+ id = \X. \x:X. x
+
+ id: * -> X -> X
+ id: \X. X -> X
+
+ idNat = id Nat
+ = (\X. \x:X. x) Nat
+ = \x:Nat. x
+ idNat: Nat -> Nat
+
+((\X. \x:X. x):(\X. X -> X))
+(\X. (\x:X.x): X->X)
+
+id = (\X. \x:X.x): (\X. X->X)
+
+id Nat
+= (\X. \x:X.x): (\X. X->X) Nat
+[X -> Nat](\x:X. x): [X->Nat](X->X)
+\x:Nat. x : Nat->Nat
+
+
+id = (\x: Nat. x): Nat -> Nat
+id 20
+((\x: Nat. x): Nat -> Nat) 20
+[x->20](\x:Nat. x):[x->20](\x:Nat. Nat)
+20: Nat
+
+id = (\x: Nat.x)
+= (\x:Nat.x:Nat)
+= (\x.x):(\x:Nat.Nat)
+
+id 20
+((\x.x):(\x:Nat.Nat)) 20
+[x->20](\x.x):(\x:Nat.Nat) 20
+
+
+\x=Nat.Nat
+
+id = \x:Nat.x
+id:typeof(id)
+id:\x=Nat.x
+id:\x=Nat.Nat
+=(\x:Nat.x):(\x=Nat.Nat)
+
+id 20
+=((\x:Nat.x):(\x=Nat.Nat)) 20:Nat
+=[x->20]x:
+
+
+id = \x:Nat.x
+=(\x:Nat.x:Nat):(\x.Nat)
+
+id 20
+=((\x:Nat.x:Nat):(\x.Nat)) 20
+=[x->20](x:Nat):[x->20](Nat)
+=(20:Nat):Nat
+=
+
+id = \x:Nat.x
+=(\x.x):(\x=Nat.Nat)
+
+id 20
+((\x.x):(\x=Nat.Nat)) 20
+((\x.x):(\x.x)) 20:Nat
+[x->20]x:[x->Nat]x
+20:Nat
+
+((\x.x):(\x=Nat.Nat)) 20:Nat
+[x->20]x:[Nat=Nat]Nat
+[x->20]x:Nat
+20:Nat
+
+((x\.x):(x=Nat.Nat)) 20:Nat
+[x\20]x:[Nat=Nat]Nat
+[x\20]x:Nat
+20:Nat
+
+
+id = \X. \x:X. x
+=\X. \x:X. x:X
+=\X. (\x. x):(=X. X)
+=(\X. (\x. x)):(=*. (=X. X))
+
+id Nat:*
+=(\X. (\x. x)):(=*. (=X. X)) Nat:*
+=[Nat\X](\x. x):[*=*](=X. X)
+=(\x. x): (=X. X)
+
+id = \X:*. \x:X. x
+=\X:*. \x:X. x:X
+=\X:*. (\x. x):(\x=X. X)
+=(\X. (\x. x)):(\X=*. (\x=X. X))
+=\X.\x.x:\X=*.\x=X.X
+
+id Nat:*
+= (\X.\x.x:\X=*.\x=X.X) Nat:*
+= (\X.\x.x) Nat:* : (\X=*.\x=X.X) Nat:*
+= (\X.\x.x) Nat:* : [X->Nat,*=*](\x=X.X)
+= (\X.\x.x) Nat:* : (\x=Nat.Nat)
+= [X->Nat](\X.\x.x) : (\x=Nat.Nat)
+= \x.x : \x=Nat.Nat
+
+(\x.x : \x=Nat.Nat) 20:Nat
+= ((\x.x) 20:Nat) : (\x=Nat.Nat) 20:Nat
+= [x->20] x : [x->20,Nat=Nat] Nat
+= 20 : Nat
+
+
+id=\X:*.\x:X.x
+=\X:*.\x:X.x:X
+=\X:*.(\x.x):(\x:X.X)
+=(\X.(\x.x)):(\X:*.(\x:X.X))
+=\X.\x.x:(\X:*.\x:X.X)
+
+id Nat:*
+=(\X.\x.x:(\X:*.\x:X.X)) Nat:*
+=((\X.\x.x) Nat):((\X:*.\x:X.X) Nat:*)
+=((\X.\x.x) Nat):((\X:*.\x:X.X) Nat:*)
+=((\X.\x.x) Nat):((\X.\x:X.X) Nat)
+=((\X.\x.x) Nat):([X->Nat](\x:X.X))
+=((\X.\x.x) Nat):(\x:Nat.Nat)
+=(\x.x):(\x:Nat.Nat)
+
+(\x.x):(\x:Nat.Nat) 20:Nat
+=((\x.x) 20):((\x:Nat.Nat) 20:Nat)
+=((\x.x) 20):((\x.Nat) 20)
+=((\x.x) 20):Nat
+=20:Nat
+
+
+def pair=\a.\b.\f.((f a) b)
+
+def List = \n:Nat. []:<List,n>
+=(\n. []):(\n:Nat. <List,n>)
+
+def nil = []:<List,0>
+def cons = \n:Nat.\a:<List,n>.\e:Nat. (append a e):<List, + n 1>
+= \n:Nat.\a:<List,n>.(\e. append a e):(\e:Nat. <List, + n 1>)
+= \n:Nat.(\a.\e. append a e):(\a:<List,n>.(\e:Nat. <List, + n 1>))
+= (\n.\a.\e. append a e):(\n:Nat.\a:<List,n>.\e:Nat. <List, + n 1>)
+
+cons 0 nil 1
+= (\n.\a.\e. append a e):(\n:Nat.\a:<List,n>.\e:Nat. <List, + n 1>) 0:Nat
+= ((\n.\a.\e. append a e) 0):((\n:Nat.\a:<List,n>.\e:Nat. <List, + n 1>) 0:Nat)
+= ((\n.\a.\e. append a e) 0):((\n.\a:<List,n>.\e:Nat. <List, + n 1>) 0)
+= ((\n.\a.\e. append a e) 0):([n->0](\a:<List,n>.\e:Nat. <List, + n 1>) 0)
+= ((\n.\a.\e. append a e) 0):(\a:<List,0>.\e:Nat. <List, + 0 1>)
+= ((\n.\a.\e. append a e) 0):(\a:<List,0>.\e:Nat. <List, 1>)
+= (\a.\e. append a e):(\a:<List,0>.\e:Nat. <List, 1>)
+
+(\a.\e. append a e):(\a:<List,0>.\e:Nat. <List, 1>) []:<List,0>
+=((\a.\e. append a e) []):((\a:<List,0>.\e:Nat. <List, 1>) []:<List,0>)
+=((\a.\e. append a e) []):((\a.\e:Nat. <List, 1>) [])
+=((\a.\e. append a e) []):(\e:Nat. <List, 1>)
+=(\a.\e. append [] e):(\e:Nat. <List, 1>)
+
+(\e. append [] e):(\e:Nat. <List, 1>) 3:Nat
+=((\e. append [] e) 3): ((\e:Nat. <List, 1>) 3:Nat)
+=((\e. append [] e) 3): ((\e. <List, 1>) 3)
+=((\e. append [] e) 3): <List, 1>
+=((\e. append [] e) 3): <List, 1>
+=(append [] 3): <List, 1>
+=[3]: <List, 1>
+
+
+double = \X:*.\f:X→X.\a:X. f (f a)
+Normalize double
+=\X:*.\f:X→X.\a:X. f (f a)
+=\X:*.\f:X→X.\a:X. f:X→X (f:X→X a:X)
+=\X:*.\f:X→X.\a:X. f:X→X (f a):X
+=\X:*.\f:X→X.\a:X. (f (f a)):X
+=\X:*.\f:X→X.(\a. f (f a)):(\a:X.X)
+=\X:*.(\f.\a. f (f a)):(\f:(\x:*.x).\a:X.X)
+=(\X.(\f.\a. f (f a))):(\X:*.(\f:(\x:*.x).\a:X.X))
+=(\X.\f.\a. f (f a)):(\X:*.\f:(\x:*.x).\a:X.X)
+
+
+
+f:X→X a:X
+=f:(\X:*.X) X
+= (f a):((\X:*.X) X)
+= (f a):((\X:*.X) X:*)
+= (f a):((\X.X) X)
+= (f a):X
+
+f:(\x:*.x) (f a):X
+= (f (f a)):((\x:*.x) X)
+= (f (f a)):((\x:*.x) X:*)
+= (f (f a)):((\x.x) X)
+= (f (f a)):X
+
+double Nat
+=(\X.\f.\a. f (f a)):(\X:*.\f:(\x:*.x).\a:X.X) Nat
+=(\X.\f.\a. f (f a)):(\X:*.\f:(\x:*.x).\a:X.X) Nat:*
+=((\X.\f.\a. f (f a)) Nat):((\X:*.\f:(\x:*.x).\a:X.X) Nat:*)
+=((\X.\f.\a. f (f a)) Nat):((\X.\f:(\x:*.x).\a:X.X) Nat)
+=((\X.\f.\a. f (f a)) Nat):(\f:(\x:*.x).\a:Nat.Nat)
+
+double = \X:*.\f:(x:X.X).\a:X. f (f a)
+=\X:*.\f:(x:X.X).\a:X. (f (f a)):X
+=\X:*.\f:(x:X.X).(\a.f (f a)):(\a:X. X)
+=\X:*.(\f.\a.f (f a)):(\f:(\x:X.X).\a:X. X)
+=(\X.\f.\a.f (f a)):(\X:*.\f:(\x:X.X).\a:X.X)
+
+double Nat
+=(\X.\f.\a.f (f a)):(\X:*.\f:(\x:X.X).\a:X.X) Nat:*
+=((\X.\f.\a.f (f a)) Nat):((\X:*.\f:(\x:X.X).\a:X.X) Nat:*)
+=((\X.\f.\a.f (f a)) Nat):((\X.\f:(\x:X.X).\a:X.X) Nat)
+=(\f.\a.f (f a)):(\f:(\x:Nat.Nat).\a:Nat.Nat)
+
+inc: (\x:Nat.Nat)
+
+
+double Nat inc
+=(\f.\a.f (f a)):(\f:(\x:Nat.Nat).\a:Nat.Nat) inc:(\x:Nat.Nat)
+=((\f.\a.f (f a)) inc):((\f:(\x:Nat.Nat).\a:Nat.Nat) inc:(\x:Nat.Nat))
+=((\f.\a.f (f a)) inc):((\f.\a:Nat.Nat) inc)
+=((\f.\a.f (f a)) inc):(\a:Nat.Nat)
+=(\a.inc (inc a)):(\a:Nat.Nat)
+
+doulbe Nat inc 20:Nat
+=(\a.inc (inc a)):(\a:Nat.Nat) 20:Nat
+=((\a.inc (inc a)) 20):((\a:Nat.Nat) 20:Nat)
+=((\a.inc (inc a)) 20):((\a.Nat) 20)
+=((\a.inc (inc a)) 20):Nat
+=(inc (inc 20)):Nat
+=(inc 21):Nat
+=22:Nat
+
+
+------------
+
+double = \X:*. \f:(\x:X.X). \a:X. f (f a)
+
+
+id = \X:*.\x:X.x
+=(\X.\x.x):(\X:*.\x:X.X)
+
+
+def Nat:*
+
+def idNat = \x:Nat.x
+=\x:Nat.x:Nat
+
+
+idNat 20:Nat
+=(\x:Nat.x:Nat) 20:Nat
+=20:Nat
+
+id = \X:*.\x:X.x
+=\X:*.\x:X.x:X
+
+id Nat:*
+=(\X:*.\x:X.x:X) Nat:*
+=\x:Nat.x:Nat
+
+
+double = \X:*.\f:(\y:X.X).\a:X. f (f a)
+=\X:*.\f:(\y:X.X).\a:X. f:(\y:X.X) (f:(\y:X.X) a:X)
+=\X:*.\f:(\y:X.X).\a:X. f:(\y:X.X) (f:(\y:X.X) a:X):((\y:X.X) a:X)
+=\X:*.\f:(\y:X.X).\a:X. f:(\y:X.X) (f:(\y:X.X) a:X):X
+=\X:*.\f:(\y:X.X).\a:X. (f:(\y:X.X) (f:(\y:X.X) a:X):X):X 
+
+
+double Nat:*
+=(\X:*.\f:(\y:X.X).\a:X. (f:(\y:X.X) (f:(\y:X.X) a:X):X):X) Nat:*
+=\f:(\y:Nat.Nat).\a:Nat. (f:(\y:Nat.Nat) (f:(\y:Nat.Nat) a:Nat):Nat):Nat
+
+inc:(\x:Nat.Nat)
+
+double Nat inc
+=(\f:(\y:Nat.Nat).\a:Nat. (f:(\y:Nat.Nat) (f:(\y:Nat.Nat) a:Nat):Nat):Nat) inc:(\x:Nat.Nat)
+=[f -> (\x:Nat. succ x)](\a:Nat. (f:(\y:Nat.Nat) (f:(\y:Nat.Nat) a:Nat):Nat):Nat)
+=(\a:Nat. ((\x:Nat. succ x):(\y:Nat.Nat) ((\x:Nat. succ x):(\y:Nat.Nat) a:Nat):Nat):Nat)
+=(\a:Nat. ((\x:Nat. succ x):(\y:Nat.Nat) (succ a)):Nat):Nat)
+
+doulbeD = \f:(\y:d.d:*).\a:d. (f (f a)):d
+
+inc=\y:d.y:d
+=(\y.y):(\y:d.d)
+
+doubleD inc
+=(\f:(\y:d.d).\a:d. (f (f a)):d) inc
+=
+
+\x:Nat.x
+=\x:Nat.x:Nat
+=(\x:Nat.x:Nat):(\x:Nat.Nat)
+=(\x:Nat.x:Nat):(\x:Nat.Nat)
+=(\x:Nat.x:Nat):(\x:Nat.Nat)
+=(\x:Nat.x:Nat):Nat->Nat
+
+id=\x:Nat.x
+=\x:Nat.x:Nat
+=\x:Nat.x:Nat:*
+
+id 20:Nat:*
+=(\x:Nat:*.x:Nat:*) 20:Nat:*
+=[x->20]x:Nat:*
+=20:Nat:*
+
+=\x:Nat.x:Nat
+=(\x:Nat.x:Nat):(\x:Nat.Nat)
+=(\x:Nat.x:Nat):Nat->Nat
+=(\x:Nat.x:Nat):Nat->Nat:*
+
+=\x:Nat. newList:(\x:Nat.List[x:Nat]) x:Nat
+=\x:Nat. (newList:(\x:Nat.List[x:Nat]) x:Nat):((\x:Nat.List[x:Nat]) x:Nat)
+=\x:Nat. (newList:(\x:Nat.List[x:Nat]) x:Nat):List[x:Nat]
+=(\x:Nat. (newList:(\x:Nat.List[x:Nat]) x:Nat):List[x:Nat]):(\x:Nat.List[x:Nat])
+=(\x:Nat. (newList:(\x:Nat.List[x:Nat]) x:Nat):List[x:Nat]):(\x:Nat.List[x:Nat]:*)
+  :(\x:Nat.*)
+  :(Nat:*)->*:*
+
+
+=λY. λZ. ∀X. (Y→Z→X) → X
+=λY. λZ. ∀X. (Y→Z→X) → X
+
+
+pairNat = λn1:CNat. λn2:CNat. λX. λf:CNat→CNat→X. f n1 n2;
+fstNat = λp:PairNat. p [CNat] (λn1:CNat. λn2:CNat. n1); 
+sndNat = λp:PairNat. p [CNat] (λn1:CNat. λn2:CNat. n2);
+
+CBool = ∀X.X→X→X;
+tru = λX. λt:X. λf:X. t;
+fls = λX. λt:X. λf:X. f;
+
+tru = \X. \t:X. \f:X. t
+=\X:*.\t:X.\f:X.t
+=\X:*.\t:X.\f:X.t:X
+=\X:*.\t:X.(\f:X.t:X):(\f:X.X)
+=\X:*.(\t:X.(\f:X.t:X):(\f:X.X)):(\t:X.\f:X.X)
+=(\X:*.(\t:X.(\f:X.t:X):(\f:X.X)):(\t:X.\f:X.X)):(\X:*.\t:X.\f:X.X)
+
+(\X:*.\t:X.\f:X.X)
+=(\X:*.X→X→X) == ∀X.X→X→X
+
+Universal type
+id = λX. λx:X. x;
+=\X:*.\x:X.x:X
+=\X:*.(\x:X.x:X):(\x:X.X:*)
+=(\X:*.(\x:X.x:X):(\x:X.X:*)):(\X:*.\x:X.X:*)
+
+=(\X:*.\x:X.X:*)
+
+(\X.\x:X.x:X):(\X.X->X)
+(\X.\x:X.x:X):(∀X.X→X)
+
+
+List=\a:Nat.[0*a]:'List_$a'
+
+List 2
+=(\a:Nat.[0*a]:'List_$a') 2:Nat
+=[0,0]:'List_2'
+
+id = \x:Nat.x
+
+
+id 2:Nat
+=\x:Nat.x 2:Nat
+=\x:Nat.x:Nat 2:Nat
+=2:Nat
+
+id=\X.\x:X.x
+
+id Nat 2:Nat
+=(\X:*.\x:X.x) Nat 2:Nat
+=(\X:*.\x:X.x:X) Nat:* 2:Nat
+=(\X:*.\x:X.x:X) Nat:* 2:Nat
+
+
+=(\X:*.\x:X.x:X)
+=(\X:*.(\x:X.x:X):(\x:X.X))
+=(\X:*.(\x:X.x:X):(\x:X.X)):(\X:*.(\x:X.X))
+
+=\x:Nat.x:Nat
+=(\x:Nat.x:Nat):Nat->Nat
+
+id = \x:Nat.x
+=\x:Nat.x:Nat
+
+id 2:Nat
+=(\x:Nat.x:Nat) 2:Nat
+=((\x:Nat.x:Nat)!2):((\x:Nat.Nat) 2:Nat)
+=((\x:Nat.x:Nat)!2):((\x:Nat.Nat) 2:Nat)
+
+
+4:Nat
+
+(add1:(\x:Nat.Nat) 4:Nat):Nat
+=(5:Nat):Nat
+=5:Nat
+
+id=\X:*.\x:X.x
+=\X:*.\x:X.x:X
+=(\X:*.(\x:X.x:X):(\x:X.X))
+=(\X:*.(\x:X.x:X):(\x:X.X)):(\X:*.\x:X.X)
+
+id = \x:Nat.x
+=\x:Nat.x:Nat
+=(\x:Nat.x:Nat):(\x:Nat.Nat)
+=(\x:Nat.x:Nat):(\x:Nat.Nat:*)
+=(\x:Nat.x:Nat):(\x:Nat.Nat:*):*
+
+
+id 2:Nat:*
+=(\x:Nat:*.x:Nat:*):(\x:Nat:*.Nat:*):* 2:Nat:*
+=((\x:Nat:*.x:Nat:*)!2):((\x:Nat:*.Nat:*):* 2:Nat:*)
+=((\x:Nat:*.x:Nat:*)!2):((\x:Nat:*.Nat:*):* 2:Nat:*)
+=((\x:Nat:*.x:Nat:*)!2):((\x:Nat:*.Nat:*)!2):(* 2:Nat:*)   error
+=((\x:Nat:*.x:Nat:*)!2):((\x:Nat:*.Nat:*)!2):*
+=((\x:Nat:*.x:Nat:*)!2):(Nat:*):*
+=((\x:Nat:*.x:Nat:*)!2):Nat:*
+=((\x:Nat:*.x:Nat:*)!2):Nat:*
+=(2:Nat:*):Nat:*
+=2:Nat:*
+
+id = \x:Nat.x
+=\x:Nat:*.x:Nat:*
+=(\x:Nat:*.x:Nat:*):(\x:Nat:*.Nat:*)
+=(\x:Nat:*.x:Nat:*):(Nat:*->Nat:*)
+=(\x:Nat:*.x:Nat:*):(Nat:*->Nat:*):*
+
+id 2:Nat:*
+=(\x:Nat:*.x:Nat:*):(Nat:*->Nat:*):* 2:Nat:*
+=((\x:Nat:*.x:Nat:*)!2):((Nat:*->Nat:*):* 2:Nat:*)
+
+
+id = \x:Nat.x
+
+id 2:Nat
+=(id 2:Nat):t[id 2:Nat]
+=(id 2:Nat):t[id 2:Nat]
+
+t[id 2:Nat]
+=t[id] 2:Nat
+=t[\x:Nat.x] 2:Nat
+=\x:Nat.t[x] 2:Nat
+=\x:Nat.Nat 2:Nat
+
+=(id 2:Nat):(\x:Nat.Nat 2:Nat)
+=(id 2:Nat): (Nat->Nat 2:Nat)
+
+id = \x:Nat.x
+=\x:Nat.x:Nat
+=(\x:Nat.x:Nat):(\x:Nat.Nat)
+
+id 2:Nat
+=(\x:Nat.x:Nat):(\x:Nat.Nat) 2:Nat
+=((\x:Nat.x:Nat):(\x:Nat.Nat) 2:Nat):((\x:Nat.Nat) 2:Nat)
+
+t
+eval(t)
+=t:typeof(t)
+if typeof(t) is binary or type-of-function
+  eval(t)
+else:
+  eval(typeof(t))
+
+
+(\x:A.y:B) z:C
+=((\x:A.y:B) z:C):(A=C->B)
+
+(\x:Nat.x:Nat) 2:A
+=((\x:Nat.x:Nat) 2:A):((\x:Nat.Nat) 2:A)
+=((\x:Nat.x:Nat) 2:A):((\Nat<=?.Nat) A)
+=((\x:Nat.x:Nat) 2:A):
+
+t:(\x:A.b) z:C
+if A == C: beta-reduction -> [x->z]b
+elif A != C: raise type-error
+else: type-it -> (t:(\x:A.b) z:C):((\x:A.b) z:C)
+
+(\a:A.b:B) c:C
+if A==C:
+  beta-reduction -> [a->c]b:B
+elif A!=C:
+  raise type-error
+elif a not in FV(B):
+  ((\a:A.b:B) c:C):A=C->B
+else:
+  stuck
+
+\x:Nat.x:Nat 2:Nat
+2:Nat
+
+\X:*.\x:X.x:X Nat:* 2:Nat
+=\x:Nat.x:Nat 2:Nat
+=2:Nat
+
+
+(\a:A.b:B) c:C
+=((\a:A.b:B) c:C):((\x:Unit.(\x:A.B) c:C) (equiv A C))
+
+Operators
+=[T1,T2, t]  equivalent
+$[t]      evaluation (unprotected call)
+@[t]      typeof
+%[t]      erasure
+
+
+$[(\a:A.b:B) c:C]
+> [a->c]b:B
+
+@[(\a:A.b:B) c:C]
+> (\a:A.B) c:C
+> if a not in b:B then: =[A,C, B]
+> else: =[A,C, $[(\a:A.B) c:C]]
+
+
+((\a:A.b:B) c:C):(=[A,C, $[(\a:A.B) c:C]])
+
+
+@[(\x:Nat.x:Nat) 2:Nat]
+> =[Nat, Nat, $[(\x:Nat.Nat) 2:Nat]]
+> =[Nat, Nat, Nat]
+> Nat
+
+$[(\a:A.b:B) c:C]:@[(\x:Nat.x:Nat) 2:Nat]
+> $[(\a:A.b:B) c:C]:Nat
+> [a->c]b:B:Nat
+
+
+(\x:Nat.x) 2:Nat
+
+eval[(\x:Nat.x) 2:Nat]:typeof[(\x:Nat.x) 2:Nat]
+
+
+typeof[(\x:Nat.x) 2:Nat]
+> (\x:Nat.Nat) 2:Nat
+
+
+(\a:A.b:B) c:C
+
+typeof[(\a:A.b:B) c:C]
+> typeof[(\a:A.b:B)] c:C
+> (\a:A.typeof(b:B)) c:C
+> (\a:A.B) c:C
+
+((\a:A.b:B) c:C):(if (= A C) ((\a:A.B) c:C) error)
+((\a:A.b:B) c:C):M[A, C, ((\a:A.B) c:C)]
+
+typeof(\x:Nat.x)
+\x:Nat.typeof(x)
+\x:Nat.Nat
+
+typeof(id 2:Nat)
+typecheck(typeof(id) 2:Nat)
+\x:Nat.Nat 2:Nat
+Nat
+
+id = \x:Nat.x
+=\x:Nat.x:Nat
+=(\x:Nat.x:Nat):(\x:Nat.Nat)
+
+id 2:Nat
+=(\x:Nat.x:Nat):(\x:Nat.Nat) 2:Nat
+=((\x:Nat.x:Nat):(\x:Nat.Nat) 2:Nat):((\x:Nat.Nat) 2:Nat)
+=((\x:Nat.x:Nat):(\x:Nat.Nat) 2:Nat):(TRW [Nat Nat Nat])
+=((\x:Nat.x:Nat):(\x:Nat.Nat) 2:Nat):Nat
