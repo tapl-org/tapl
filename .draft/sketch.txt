@@ -567,3 +567,22 @@ id 2:Nat
 =((\x:Nat.x:Nat):(\x:Nat.Nat) 2:Nat):((\x:Nat.Nat) 2:Nat)
 =((\x:Nat.x:Nat):(\x:Nat.Nat) 2:Nat):(TRW [Nat Nat Nat])
 =((\x:Nat.x:Nat):(\x:Nat.Nat) 2:Nat):Nat
+
+
+eval(id 2:Nat)
+=eval(\x:Nat.x 2:Nat)
+=2
+
+typeof(id 2:Nat)
+=eval(typeof(id) 2:Nat)
+=eval(\x:Nat.Nat 2:Nat)
+=Nat
+
+\x:A.t:T
+
+     x in FV(t)      x in FV(T)
+#A       false           false          closed value: For example: function type A->t
+#B       false           true           dependent type
+#C       true            false          function
+#D       true            true           dependent type & function
+
