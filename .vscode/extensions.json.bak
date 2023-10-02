@@ -1,0 +1,10 @@
+{
+    "recommendations": [
+      "bazelbuild.vscode-bazel",
+      "bierner.github-markdown-preview",
+      "esbenp.prettier-vscode",
+      "llvm-vs-code-extensions.vscode-clangd",
+      "vadimcn.vscode-lldb",
+      "ms-python.python"
+    ]
+  }
