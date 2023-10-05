@@ -586,3 +586,42 @@ typeof(id 2:Nat)
 #C       true            false          function
 #D       true            true           dependent type & function
 
+id = \x:Nat.x
+=\x:Nat.x:Nat
+=(\x:Nat.x:Nat):(\x:Nat.Nat)
+=(\x:Nat.x:Nat):(\x:Nat.Nat:*)
+
+Safe:
+id 2:Nat
+=(\x:Nat.x:Nat):(\x:Nat.Nat:*) 2:Nat
+# delete types because we do not need them in safe application
+=(\x:Nat.x:Nat) 2
+=[x->2] x:Nat
+=2:Nat
+
+Unsafe:
+!(id 2:Nat)
+=(\R:*.(id 2:Nat):R) !(typeof(id 2:Nat))
+=(\R:*.(id 2:Nat):R) !(typeof(id) 2:Nat)
+=(\R:*.(id 2:Nat):R) !((\x:Nat.Nat:*) 2:Nat)
+=(\R:*.(id 2:Nat):R) ((\_:*.(\x:Nat.Nat:*) 2:Nat) {~3^check Nat Nat Nat:*})
+
+!(x:X y:Y)
+=(\R:*.(x:X y:Y):R) !(typeof(x:X) y:Y)
+=(\R:*.(x:X y:Y):R) !(X y:Y)
+
+~2^termEqual: term -> term -> ok|fail
+
+!((\a:A.b:B) y:Y)
+if a not in FV(b:B):
+  (\_:*. b:B) (~2^termEqual A Y)
+else if a not in FV(B):
+  (\_:*. (\a:A.b:B) y:Y) (~2^termEqual A Y)
+else:
+  (\_:*. (\a:A.b:B) y:Y) !((\a:A.B) y:Y)
+
+def t1;t2 === (\_:_. t2) t1 where we do not use the result of t1
+
+!((\a:A.b:B) y:Y)
+=
+(~2^termEqual A Y); !([a->y]B); ((\a:A.b:B) y:Y)
