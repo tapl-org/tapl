@@ -1,50 +1,49 @@
 &nbsp;|**Syntax**|&nbsp;
 ---|---|---:
-$e,E ::=$ || *expression:*
+$t,T ::=$ || *term:*
 &nbsp;| $x$ | *variable*
-&nbsp;| $b$ | *bits*
-&nbsp;| $`\lambda x{:}E.\;t`$ | *abstraction*
-&nbsp;| $`t \; t`$ | *application*
-&nbsp;| $\tau[t]$ | *typeof*
-&nbsp;| $![t]$ | *unsafe expression*
-$t,T ::=$|| *term:*
-&nbsp;| $e$ | *expression*
-&nbsp;| $e{:}E$ | *typed expression*
+&nbsp;| $b$ | *binary data*
+&nbsp;| $`\{b \; {t_i}^{i\in1..n}\}`$ | *built-in function*
+&nbsp;| $`\lambda x{:}T.\;e`$ | *abstraction*
+&nbsp;| $`e \; e`$ | *application*
+&nbsp;| $\tau[e]$ | *type of expression*
+&nbsp;| $![e]$ | *safe expression*
+&nbsp;| $\text{error}$ | *run-time error*
+$e ::=$|| *expression:*
+&nbsp;| $t$ | *term*
+&nbsp;| $t{:}T$ | *typed term*
 $\Gamma ::=$ || *context:*
 &nbsp;| $\varnothing$ | *empty context*
 &nbsp;| $\Gamma ,x{:}T$  | *variable binding*
 
 **Derived forms**|&nbsp;|&nbsp;
 ---|:---:|---:
-$c,C$| $\lambda x{:}T.\;t \quad \|\text{FV}(\lambda x{:}T.\;t)\|{=}0$| closed abstraction
-$d,D$| $b \mid c $|datum
+$(e)$| $`(e_1\;e_2)\;e_3\;\equiv\;e_1\;e_2\;e_3\;\not\equiv\;e_1\;(e_2\;e_3)`$|grouping
+$d,D$| $b\;\mid\;\lambda x{:}T.\;e $|datum
+$v,V$| $d\;\mid\;d{:}T$|value
+$e_1;e_2$| $`(\lambda x{:}T.\;e_2) \; e_1 \quad \text{where } x \notin \text{FV}(e_2) \text{ and } \tau[e_1]\equiv T`$| sequencing notation
 $T_1{\to}T_2$| $\lambda x{:}T_1.\;T_2 \quad x\notin \text{FV}(T_2)$|type of function
-$v,V$| $b \mid \lambda x{:}V.\;t$|value
-$t_1;t_2$| $`(\lambda x{:}X.\;t_2) \; t_1 \quad \text{where } x \notin \text{FV}(t_2) \text{ and typeof}(t_1)\equiv X`$| sequence statements
-$(t)$| $ t_1 (t_2 t_3) \equiv R=t_2 t_3; t_1 R $|grouping
-
-**Bits encoding**|&nbsp;
----|---:
-~[number]\^[string] | builtin function pointer: [number]=number of arguments, [string]=id
-~[number] | number literal
-~[string] | string literal
-{~[number]\^[string] arg1 arg2 .. argn} | closure
+$c,C$| $\lambda x{:}T.\;e \quad \text{where }\|\text{FV}(\lambda x{:}T.\;e)\|{=}0$| closed abstraction
 
 
-&nbsp;|**Rules**|&nbsp;
+&nbsp;|**Evaluation rules**|&nbsp;
 --:|:---:|---:
-2|$`\dfrac{t_1 \longrightarrow t_1'}{t_1 \; t_2 \longrightarrow t_1' \; t_2}`$ | *eval application 1*
-3|$`\dfrac{t_2 \longrightarrow t_2'}{d_1 \; t_2 \longrightarrow d_1 \; t_2'}`$ | *eval application 2*
-4|$`\dfrac{(c \equiv \lambda x{:}T_1.\;t)\;d{:}T_2 \qquad d}{[x\mapsto d]t}`$ | $\beta$*-reduction*
-5|$`\dfrac{b \; d}{{\ll}\text{built-in call}{\gg}\;b(d)}`$ | $\delta$*-reduction*
-8|$`\dfrac{x{:}T\in\Gamma\;\vdash\; \tau[x]}{T}`$ | *type variable*
-9|$`\dfrac{\tau[\lambda x{:}T.\;t]}{\lambda x{:}T.\tau[t]}`$ | *type abstraction*
-10|$`\dfrac{\tau[t_1 \; t_2]}{\tau[t_1]\; t_2}`$ | *type application*
-10|$`\dfrac{![x]}{![\tau[x]]; x}`$ | *unsafe variable*
-10|$`\dfrac{![b]}{b}`$ | *unsafe variable*
-10|$`\dfrac{![b]}{b}`$ | *unsafe bits*
-10|$`\dfrac{![\lambda x{:}E.\;t]}{\lambda x{:}E.\;t}`$ | *unsafe abstraction*
-10|$`\dfrac{![(\lambda a{:}A.\;b{:}B)\;y{:}Y]}{(\sim2\text{:termEqual A Y});\;![[a->y]B];\;((\lambda a{:}A.\;b{:}B)\;y{:}Y)}`$ | *unsafe abstraction*
+1|$`\dfrac{\{b \; {v_i}^{i\in1..n}\}}{{\ll}\text{built-in call}{\gg}}`$ | $\delta$*-reduction*
+2|$`\dfrac{e_1 \longrightarrow e_1'}{e_1 \; e_2 \longrightarrow e_1' \; e_2}`$ | *application 1*
+3|$`\dfrac{e_2 \longrightarrow e_2'}{v_1 \; e_2 \longrightarrow v_1 \; e_2'}`$ | *application 2*
+4|$`\dfrac{(\lambda x{:}T.\;e)\;v}{[x\mapsto v]\;e}`$ | $\beta$*-reduction*
+4|$`\dfrac{v_1\;v_2}{\text{error}}`$ | *error application*
+5|$`\dfrac{x{:}T\in\Gamma\;\;\text{and}\;\; \tau[x]}{\Gamma\;\vdash\;T}`$ | *type variable*
+8|$`\dfrac{\tau[b]}{\text{error}}`$ | *type binary*
+6|$`\dfrac{\tau[\{b\;{t_i}^{i\in1..n}\}]}{\text{error}}`$ | *type built-in*
+7|$`\dfrac{\tau[\lambda x{:}T.\;e]}{\lambda x{:}T.\tau[e]}`$ | *type abstraction*
+8|$`\dfrac{\tau[e_1 \; e_2]}{\tau[e_1]\; e_2}`$ | *type application*
+9|$`\dfrac{\tau[t{:}T]}{T}`$ | *type typed term*
+10|$`\dfrac{![x]}{![\tau[x]];\;x}`$ | *safe variable*
+11|$`\dfrac{![b]}{b}`$ | *safe binary data*
+12|$`\dfrac{![\{b\;{t_i}^{i\in1..n}\}]}{\{b\;{t_i}^{i\in1..n}\}}`$ | *safe built-in*
+13|$`\dfrac{![\lambda x{:}T.\;e]}{\lambda x{:}T.\;e}`$ | *safe abstraction*
+14|$`\dfrac{![(\lambda x{:}T_1.\;e)\;v{:}T_2]}{\{\text{termEqual}\;T_1\;T_2\};\;![[x\to v]\tau[e]];\;(\lambda x{:}T_1.\;e)\;v{:}T_2}`$ | *safe application*
 
 &nbsp;
 

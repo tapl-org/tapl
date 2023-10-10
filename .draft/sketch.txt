@@ -625,3 +625,35 @@ def t1;t2 === (\_:_. t2) t1 where we do not use the result of t1
 !((\a:A.b:B) y:Y)
 =
 (~2^termEqual A Y); !([a->y]B); ((\a:A.b:B) y:Y)
+
+![a b c]
+=![(a b) c]
+= (\x. x c) ![(\x.T1.e) b.T2]
+= (\x. x c) ({termEqual T1 T2}; ![[x->b]typeof(e)]; (\x.T1.e) b.T2)
+
+= ![({termEqual T1 T2}; ![[x->b]typeof(e)]; (\x.T1.e) b.T2) c]
+
+Goal
+![a b c] --> typechecking code; a b c
+
+tru=\t:Nat.\f:Nat.t
+=\t:Nat.\f:Nat.t:Nat
+=\t:Nat.(\f:Nat.t:Nat):(\f:Nat.Nat)
+=(\t:Nat.(\f:Nat.t:Nat):(\f:Nat.Nat)):(\t:Nat.\f:Nat.Nat)
+
+
+
+tru 2:Nat 3:Nat
+=(\t:Nat.\f:Nat.t) 2:Nat 3:Nat
+=(\f:Nat.2) 3
+=2
+
+![tru 2:Nat 3:Nat]
+=![typeof(true) 2:Nat 3:Nat]; tru 2:Nat 3:Nat
+=![(\t:Nat.\f:Nat.Nat) 2:Nat 3:Nat]; tru 2:Nat 3:Nat
+
+![(\t:Nat.\f:Nat.Nat) 2:Nat 3:Nat]
+
+![a b c]
+![typeof(a b c)]; a b c
+![(\t:Nat.\f:Nat.Nat) 2:Nat 3:Nat]
