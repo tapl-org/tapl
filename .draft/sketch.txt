@@ -657,3 +657,25 @@ tru 2:Nat 3:Nat
 ![a b c]
 ![typeof(a b c)]; a b c
 ![(\t:Nat.\f:Nat.Nat) 2:Nat 3:Nat]
+
+@==typeof
+
+![(\x:T.a) b]
+(\B:*. {= T B}; \x:*.![a]) @[b]:*
+
+dynamic typechecking
+id=\x.x
+=(\x.x):@[\x.x]
+
+@[\x.x]
+=\x.@[x]
+
+((\x.x):(\x.@[x])) 2:Nat
+2:@[2]
+
+
+id=\X:*.\x:X.x
+
+![(a b) c]
+=(\x:*. ![x c]) ![a b]
+

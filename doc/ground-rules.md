@@ -39,11 +39,10 @@ $c,C$| $\lambda x{:}T.\;e \quad \text{where }\|\text{FV}(\lambda x{:}T.\;e)\|{=}
 7|$`\dfrac{\tau[\lambda x{:}T.\;e]}{\lambda x{:}T.\tau[e]}`$ | *type abstraction*
 8|$`\dfrac{\tau[e_1 \; e_2]}{\tau[e_1]\; e_2}`$ | *type application*
 9|$`\dfrac{\tau[t{:}T]}{T}`$ | *type typed term*
-10|$`\dfrac{![x]}{![\tau[x]];\;x}`$ | *safe variable*
 11|$`\dfrac{![b]}{b}`$ | *safe binary data*
 12|$`\dfrac{![\{b\;{t_i}^{i\in1..n}\}]}{\{b\;{t_i}^{i\in1..n}\}}`$ | *safe built-in*
-13|$`\dfrac{![\lambda x{:}T.\;e]}{\lambda x{:}T.\;e}`$ | *safe abstraction*
 14|$`\dfrac{![(\lambda x{:}T_1.\;e)\;v{:}T_2]}{\{\text{termEqual}\;T_1\;T_2\};\;![[x\to v]\tau[e]];\;(\lambda x{:}T_1.\;e)\;v{:}T_2}`$ | *safe application*
+10|$`\dfrac{![e]}{![\tau[e]];\;e}`$ | *safe expression*
 
 &nbsp;
 
