@@ -16,7 +16,7 @@ SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 ## What is TAPL? 
 
-TAPL is a new syntax extendable programming language with high-order type system. TAPL is still under development, and it is considered to be an experimental language
+TAPL is a new syntax extendable programming language frontend with high-order type system. TAPL is still under development, and it is considered to be an experimental.
 
 TAPL is named after ["Types and Programming Languages" by Benjamin C. Pierce ](https://www.cis.upenn.edu/~bcpierce/tapl/) book.
 
@@ -34,7 +34,7 @@ Experiment and explore the following programming language features:
   * type ⭢ type: type operators (aka Type constructors)
   * term ⭢ type: dependent types
 * Support Substructural Type Systems
-* Support high-order type system (value -> type -> kind -> sort -> ...)
+* Support high-order type system (value -> type -> kind/sort)
 
 
 ## Project status
