@@ -679,3 +679,67 @@ id=\X:*.\x:X.x
 ![(a b) c]
 =(\x:*. ![x c]) ![a b]
 
+id=(\x:Nat.x):(\x:Nat.Nat):(\x:Nat.*)
+id=(\x:Nat.x):Nat->Nat:*
+
+List::*->*
+
+ss=\x:*->*.
+
+--------------------------------------------------------------------------------
+set, term, and type
+
+X = {a, b}
+Y = {1, 2}
+
+a1 = (a, 1)
+a2 = (a, 2)
+b1 = (b, 1)
+b2 = (b, 2)
+
+X * Y = {a1, a2, b1, b2}
+
+P - Partial
+T - Total
+D - Deterministic
+S - Stochastic
+F - Function
+
+Emty = {}
+
+PDF1 = {a1}
+PDF2 = {a2}
+PDF3 = {b1}
+PDF4 = {b2}
+
+TDF1 = {a1, b1}
+TDF2 = {a1, b2}
+TDF3 = {a2, b1}
+TDF4 = {a2, b2}
+
+PSF1 = {a1, a2}
+PSF2 = {b1, b2}
+
+TSF1 = {a1, a2, b1}
+TSF2 = {a1, a2, b2}
+TSF3 = {b1, b2, a1}
+TSF4 = {b1, b2, a2}
+
+Full = X * Y
+
+Power(X*Y) = {Empty, PDF1-4, TDF1-4, PSF1-2, TSF1-4, Full}
+
+Px:X.Y == X -> Y == P(Full)  because Y is constant
+Sx:X.Y == X * Y == Full
+
+--------------------------------------------------------------------------------
+k=\x:*1.7:Nat
+=(\x:*1.7:Nat):(\x:*1.Nat)
+
+
+k typeof(k)
+=(\x:*1.1:Nat) (\x:*1.Nat):*2
+Universe inconsistency error
+
+
+*1->Nat === *1
