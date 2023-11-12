@@ -755,3 +755,360 @@ Universe inconsistency error
 
 
 *1->Nat === *1
+
+
+--------------------------------------------------------------------------------
+id = \x:Nat.x
+
+id 2:Nat
+=(\x:Nat.x) 2:Nat
+=(\A. ((\x.x) 2):A) t[(\x:Nat.x) 2:Nat]
+=(\A. ((\x.x) 2):A) ((\x:Nat.t[x]) 2:Nat)
+=(\A. ((\x.x) 2):A) ((\x:Nat.Nat) 2:Nat)
+=(\A. ((\x.x) 2):A) Nat
+=((\x.x) 2):Nat
+=2:Nat
+
+ID = \X:*.\x:X.x
+
+ID Nat:*
+=(\X:*.\x:X.x) Nat:*
+=\x:Nat.x
+
+list = \A:*. 'List[${A}]:*
+emptyList = \A:*. (\X:*. '[]:X) (list A)
+
+emptyList Nat:*
+=(\A:*. (\X:*. '[]:X) (list A)) Nat:*
+=let Y=((\A:*. t[(\X:*. '[]:X) (list A)]) Nat:*) in ((\A. (\X. '[]) (list A)) Nat:*):Y
+=let Y=((\A:*. t[(\X:*. '[]:X) (list A)]) Nat:*) in ((\A. (\X. '[]) (list A)) Nat:*):Y
+
+id 2:Nat
+=(\x:Nat.x) 2:Nat
+=let A=(t[(\x:Nat.x) 2:Nat]) in ((\x.x) 2):A
+=let A=(t[(\x:Nat.x)] 2:Nat) in ((\x.x) 2):A
+=let A=((\x:Nat.t[x]) 2:Nat) in ((\x.x) 2):A
+=let A=((\x:Nat.Nat) 2:Nat) in ((\x.x) 2):A
+=let A=Nat in ((\x.x) 2):A
+=((\x.x) 2):Nat
+=2:Nat
+
+emptyList Nat:*
+=(\A:*. (\X:*. '[]:X) (list A)) Nat:*
+=let B=(t[(\A:*. (\X:*. '[]:X) (list A)) Nat:*]) in ((\A. (\X. '[]) (list A)) Nat):B
+=let B=(t[(\A:*. (\X:*. '[]:X) (list A))] Nat:*) in ((\A. (\X. '[]) (list A)) Nat):B
+=let B=((\A:*. t[(\X:*. '[]:X) (list A)]) Nat:*) in ((\A. (\X. '[]) (list A)) Nat):B
+=let B=((\A:*. t[(\X:*. '[]:X)] (list A)) Nat:*) in ((\A. (\X. '[]) (list A)) Nat):B
+=let B=((\A:*. (\X:*. t['[]:X]) (list A)) Nat:*) in ((\A. (\X. '[]) (list A)) Nat):B
+=let B=((\A:*. (\X:*.X) (list A)) Nat:*) in ((\A. (\X. '[]) (list A)) Nat):B
+
+(\A:*. (\X:*.X) (list A)) Nat:*
+=let E=(t[(\A:*. (\X:*.X) (list A)) Nat:*]) in ((\A. (\X.X) (list A)) Nat):E
+=let E=(t[(\A:*. (\X:*.X) (list A))] Nat:*) in ((\A. (\X.X) (list A)) Nat):E
+=let E=((\A:*. t[(\X:*.X) (list A)]) Nat:*) in ((\A. (\X.X) (list A)) Nat):E
+=let E=((\A:*. t[(\X:*.X)] (list A)) Nat:*) in ((\A. (\X.X) (list A)) Nat):E
+=let E=((\A:*. (\X:*.t[X]) (list A)) Nat:*) in ((\A. (\X.X) (list A)) Nat):E
+=let E=((\A:*. (\X:*.*) (list A)) Nat:*) in ((\A. (\X.X) (list A)) Nat):E
+
+
+idd = \x:Nat. (\y:Nat.y) x
+
+idd 2:Nat
+=(\x:Nat. (\y:Nat.y) x) 2:Nat
+=let A=(t[(\x:Nat. (\y:Nat.y) x) 2:Nat]) in ((\x. (\y.y) x) 2):A
+=let A=(t[(\x:Nat. (\y:Nat.y) x)] 2:Nat) in ((\x. (\y.y) x) 2):A
+=let A=((\x:Nat. t[(\y:Nat.y) x]) 2:Nat) in ((\x. (\y.y) x) 2):A
+=let A=((\x:Nat. t[(\y:Nat.y)] x) 2:Nat) in ((\x. (\y.y) x) 2):A
+=let A=((\x:Nat. (\y:Nat.t[y]) x) 2:Nat) in ((\x. (\y.y) x) 2):A
+=let A=((\x:Nat. (\y:Nat.Nat) x) 2:Nat) in ((\x. (\y.y) x) 2):A
+--
+=let A=((\x:Nat. Nat) 2:Nat) in ((\x. (\y.y) x) 2):A
+=let A=Nat in ((\x. (\y.y) x) 2):A
+=((\x. (\y.y) x) 2):Nat
+=((\y.y) 2):Nat
+=2:Nat
+
+
+idd 2:Nat
+=(\x:Nat. (\y:Nat.y) x) 2:Nat
+=let A=(t[(\x:Nat. (\y:Nat.y) x) 2:Nat]) in (e[(\x:Nat. (\y:Nat.y) x) 2:Nat]):A
+=let A=(t[(\x:Nat. (\y:Nat.y) x) 2:Nat]) in ((\x. (\y.y) x) 2):A
+
+id 2:Nat
+=(\x:Nat.x) 2:Nat
+
+const = \x:Nat.Atom
+
+const 2:Nat
+=(\x:Nat.Atom) 2:Nat
+={= Nat Nat}; Atom
+
+id 2:Nat
+=(\x:Nat.x) 2:Nat
+=(\A:*. (e[]):A) (t[])
+=(\A:*. (e[(\x:Nat.x) 2:Nat]):A) (t[(\x:Nat.x) 2:Nat])
+=(\A:*. ((\x.x) 2):A) (t[(\x:Nat.x)] 2:Nat)
+=(\A:*. ((\x.x) 2):A) ((\x:Nat.t[x]) 2:Nat)
+=(\A:*. ((\x.x) 2):A) ((\x:Nat.Nat:*) 2:Nat)
+=(\A:*. ((\x.x) 2):A) Nat:*
+
+id 2:Nat
+=(\x:Nat.x) 2:Nat
+=(\A. (e[]):A)
+
+
+idd 2:Nat
+=(\x:Nat. (\y:Nat.y) x) 2:Nat
+=let A=(t[]) in (e[]):A
+=let A=(t[(\x:Nat. (\y:Nat.y) x) 2:Nat]) in (e[(\x:Nat. (\y:Nat.y) x) 2:Nat]):A
+=let A=(t[(\x:Nat. (\y:Nat.y) x) 2:Nat]) in ((\x. (\y.y) x) 2):A
+
+t[(\x:Nat. (\y:Nat.y) x) 2:Nat]
+=let x=2:Nat in t[(\y:Nat.y) x]       G=x:Nat
+=let x=2:Nat in let y=x in t[y]       G=x:Nat,y:Nat
+=let x=2:Nat in let y=x in Nat       G=x:Nat,y:Nat
+=let x=2:Nat in let y=x in Nat
+=let y=2 in Nat
+=Nat
+
+
+id 2:Nat
+=(\x:Nat.x) 2:Nat
+=let x=2:Nat in x
+=let x=2:Nat in 
+
+let x=v in e
+let R=[x->v]typeof[e] in [x->v]erasure[e]:R
+
+
+id 2:Nat
+=(\x:Nat.x) 2:Nat
+=let x=2:Nat in x
+~let R=[x->2]typeof[x] in [x->2]erasure[x]:R
+~let R=[x->2]Nat in [x->2]x:R
+=let R=Nat in 2:R
+=2:Nat
+
+idd 2:Nat
+=(\x:Nat. (\y:Nat.y) x) 2:Nat
+=let a=2:Nat in ((\y:Nat.y) x)
+~let R=[x->2]typeof[((\y:Nat.y) x)] in [x->2]erasure[((\y:Nat.y) x)]:R
+~let R=[x->2]((\y:Nat.t[y]) x) in [x->2]((\y.y) x):R
+~let R=[x->2]((\y:Nat.Nat) x) in [x->2]((\y.y) x):R
+=let R=((\y:Nat.Nat) 2) in ((\y.y) 2):R
+=let R=Nat in ((\y.y) 2):R
+=((\y.y) 2):Nat
+=2:Nat
+
+let b=Nat:* in list b
+~let R=[b->Nat](typeof[list b]) in [b->Nat](erasure[list b]):R
+~let R=[b->Nat]((\A:*. *) b) in [b->Nat]((\A. 'List[${A}]') b):R
+~let R=((\A:*. *) Nat) in ((\A. 'List[${A}]') Nat):R
+
+-----
+
+id 2:Nat
+=(\x:Nat.x) 2:Nat
+=let x=2:Nat in x
+=2:Nat
+
+idd 2:Nat
+=(\x:Nat. (\y:Nat.y) x) 2:Nat
+=let x=2:Nat in (\y:Nat.y) x
+=(\y:Nat.y) 2:Nat
+=let y=2:Nat in y
+=2:Nat
+
+* == 'Type'
+list = \A:*. 'List[${A}]':*
+emptyList = \A:*. let R=(list A) in '[]':R
+
+emptyList Nat:*
+=(\A:*. let R=(list A) in '[]':R) Nat:*
+=let A=Nat:* in let R=(list A) in '[]':R
+=let R=(list Nat:*) in '[]':R
+=let R=((\A:*. 'List[${A}]':*) Nat:*) in '[]':R
+=let R=(let A=Nat:* in 'List[${A}]':*) in '[]':R
+=let R='List[Nat]':* in '[]':R
+='[]':List[Nat]
+
+
+plus = \a:Nat.\b:Nat.{+ a b}:Nat
+
+plus 2:Nat 3:Nat
+=(\a:Nat.\b:Nat.{+ a b}:Nat) 2:Nat 3:Nat
+=(let a=2:Nat in \b:Nat.{+ a b}:Nat) 3:Nat
+=(\b:Nat.{+ 2 b}:Nat) 3:Nat
+=let b=3:Nat in {+ 2 b}:Nat
+={+ 2 3}:Nat
+=5:Nat
+
+typeof[plus]
+=typeof[\a:Nat.\b:Nat.{+ a b}:Nat]
+=\a:Nat.b:Nat.Nat
+=Nat->Nat->Nat
+
+plus2 = typeit[plus]
+=let R=typeof[plus] in erasure[plus]:R
+=let R=(\a:Nat.\b:Nat.Nat) in (\a.\b.{+ a b}):R
+=let R=Nat->Nat->Nat in (\a.\b.{+ a b}):R
+=(\a.\b.{+ a b}):Nat->Nat->Nat
+
+plus2 2:Nat 3:Nat
+=((\a.\b.{+ a b}):Nat->Nat->Nat) 2:Nat 3:Nat
+=(let a=2:Nat in (\b.{+ a b}):Nat->Nat) 3:Nat
+=(\b.{+ 2 b}):Nat->Nat 3:Nat
+=let b=3:Nat in {+ 2 b}:Nat
+={+ 2 3}:Nat
+=5:Nat
+
+id=\x:Nat.x
+
+typeof[id]
+=typeof[\x:Nat.x]
+=\x:Nat.typeof[x]
+=\x:Nat.Nat
+
+typeof[let x=2:Nat in x]
+=(\x.x) typeof(2:Nat)
+=(\x.x) Nat
+=Nat
+
+typeof[let x=Nat:Type in 3:x]
+=(\x.typeof(3:x)) Nat
+=(\x.x) Nat
+
+typeof[let x=2:Nat in x]
+=Nat:Type
+=(\x.x:Type) Nat
+=(\x.x:Type) typeof(2:Nat)
+=(\x:Type.x) typeof(2:Nat)
+=(\x:Type.x) Nat:Type
+=let x=Nat:Type in x
+=Nat:Type
+
+typeof[let x=2:Nat in x]
+=let x=typeof(2:Nat) in x
+=let x=Nat:Type in x
+=Nat:Type
+
+typeof[let x=Nat:Type in List x]
+=let x=typeof(Nat:Type) in List x
+=let x=Type:Type in List x
+=List Type:Type
+=(\A:Type. 'List[${A}]':Type) Type:Type
+=let A=Type:Type in 'List[${A}]':Type
+='List[Type]':Type
+
+let x=Nat:Type in List x
+=List Nat:Type
+=(\A:Type. 'List[${A}]':Type) Nat:Type
+=let A=Nat:Type in 'List[${A}]':Type
+='List[Nat]':Type
+
+typeof[let x=Nat:Type in List x]
+=Type:Type
+=typeof('List[Nat]':Type)
+=typeof(let A=Nat:Type in 'List[${A}]':Type)
+=typeof((\A:Type. 'List[${A}]':Type) Nat:Type)
+=typeof(List Nat:Type)
+
+typeof[let x=Nat:Type in List x]
+=let x=Nat:Type in typeof(List x)
+=let x=Nat:Type in typeof(List) x
+=let x=Nat:Type in typeof(\A:Type. 'List[${A}]':Type) x
+=let x=Nat:Type in (\A:Type. typeof('List[${A}]':Type)) x
+=let x=Nat:Type in (\A:Type. Type:Type) x
+=(\A:Type. Type:Type) Nat:Type
+=let R=Nat:Type in Type:Type
+=Type:Type
+
+typeof[let x=2:Nat in x]
+=Nat:Type
+=let x=2:Nat in typeof(x)
+=let x=2:Nat in Nat:Type
+=Nat:Type
+
+id = \x:Nat.x
+
+typeof[let x=(id 2:Nat) in x]
+=let x=(id 2:Nat) in typeof(x)
+=let x=(id 2:Nat) in let y=typeof(id 2:Nat) in y
+=let x=(id 2:Nat) in let y=(typeof(id) 2:Nat) in y
+=let x=(id 2:Nat) in let y=(typeof(\x:Nat.x) 2:Nat) in y
+=let x=(id 2:Nat) in let y=((\a:Nat.typeof[a]) 2:Nat) in y
+=let x=(id 2:Nat) in let y=((\a:Nat.Nat:Type) 2:Nat) in y
+=let x=(id 2:Nat) in let y=(let a=2:Nat in Nat:Type) in y
+=let x=(id 2:Nat) in let y=Nat:Type in y
+=let x=(id 2:Nat) in Nat:Type
+=let x=(id 2:Nat) in Nat:Type
+
+typeof[let x=(id 2:Nat) in x]
+=let x=erasure[id 2:Nat]:typeof[id 2:Nat] in typeof[x]
+=let x=erasure[(\x:Nat.x) 2:Nat]:typeof[(\x:Nat.x) 2:Nat] in typeof[x]
+=let x=((\x.x) 2):(typeof[\x:Nat.x] 2:Nat) in typeof[x]
+=let x=((\x.x) 2):((\x:Nat.typeof[x]) 2:Nat) in typeof[x]
+=let x=((\x.x) 2):((\x:Nat.Nat:Type) 2:Nat) in typeof[x]
+=let x=((\x.x) 2):(let x=2:Nat in Nat:Type) in typeof[x]
+=let x=((\x.x) 2):()
+
+------
+
+a=(\x:Nat.x) 2:Nat
+typeit[a]
+=let R=typeof[a] in erasure[a]:R
+  erasure[a]
+    =erasure[(\x:Nat.x) 2:Nat]
+    =(\x.x) 2
+  typeof[a]
+    =typeof[(\x:Nat.x) 2:Nat]
+    =typeof[\x:Nat.x] 2:Nat
+    =(\x:Nat.typeof[x]) 2:Nat
+    =(\x:Nat.Nat:Type) 2:Nat
+=let R=((\x:Nat.Nat:Type) 2:Nat) in ((\x.x) 2):R
+=let R=(let x=2:Nat in Nat:Type) in ((\x.x) 2):R
+=let R=Nat:Type in ((\x.x) 2):R
+=((\x.x) 2):Nat
+=2:Nat
+
+typeof[let x=(id 2:Nat) in x]
+=let y=typeof[id 2:Nat] in let x=erasure[id 2:Nat]:y in typeof(x)
+=let y=(typeof[id] 2:Nat) in let x=((\x.x) 2):y in y
+=let y=((\x:Nat.typeof(x)) 2:Nat) in let x=((\x.x) 2):y in y
+=let y=((\x:Nat.Nat:Type) 2:Nat) in let x=((\x.x) 2):y in y
+=let y=(let x=2:Nat in Nat:Type) in let x=((\x.x) 2):y in y
+=let y=Nat:Type in let x=((\x.x) 2):y in y
+=let x=((\x.x) 2):Nat in Nat:Type
+  ??? there is no need to evaluate term part when computing type
+  maybe introduce lazy keyword
+
+list = \A:Type. 'List[${A}]':Type
+let x=Nat:Type in list x
+=list Nat:Type
+=(\A:Type. 'List[${A}]':Type) Nat:Type
+=let A=Nat:Type in 'List[${A}]':Type
+='List[Nat]':Type
+
+type[let x=Nat:Type in list x]
+=let x=Nat:Type in typeof[list x]
+=let x=Nat:Type in typeof[list] x
+=let x=Nat:Type in (typeof[\A:Type. 'List[${A}]':Type]) x
+=let x=Nat:Type in (\A:Type.typeof['List[${A}]':Type] x)
+=let x=Nat:Type in (\A:Type.Type) x
+=(\A:Type.Type) Nat:Type
+=let A=Nat:Type in Type
+=Type
+
+typeof[let x=(id 2:Nat) in x]
+=let y=typeof(id 2:Nat) in let lazy y=erasure(id 2:Nat):y in typeof(x)
+=let y=Nat:Type in let lazy x=((\x.x) 2):y in y
+=let lazy x=((\x.x) 2):Nat in Nat:Type
+=Nat:Type
+
+(\x.3):Nat->Nat 2:Nat
+=let x=2:Nat in 3:Nat
+=3:Nat
+
+(\x.x):Nat->Nat 2:Nat
+=let x=2:Nat in x:Nat
+=2:Nat
