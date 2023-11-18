@@ -1112,3 +1112,37 @@ typeof[let x=(id 2:Nat) in x]
 (\x.x):Nat->Nat 2:Nat
 =let x=2:Nat in x:Nat
 =2:Nat
+
+typeof[\x:Nat.x]
+=\x:Nat.typeof[x]
+=\x:Nat.Nat:Type
+=Nat->Nat:Type
+
+typeit[\x:Nat.x]
+=let r=typeof[\x:Nat.x] in erasure[\x:Nat.x]:r
+=let r=\x:Nat.Nat:Type in (\x.x):r
+
+typeof(\x:Nat.Nat:Type)
+=\x:Nat.Type:Type
+
+typeof[(\x:Nat.x) 2:Nat]
+=typeof[\x:Nat.x] 2:Nat
+=(\x:Nat.typeof[x]) 2:Nat
+=(\x:Nat.Nat:*) 2:Nat
+=let x=2:Nat in Nat:*
+=Nat:*
+
+
+typeof[\x:*.2:x]
+=\x:*.x:*
+
+(\x:*.2:x) Nat:*
+=let x=Nat:* in 2:x
+=2:Nat
+
+???
+let y=(\x:*.x:*) in (\x.2):y
+
+(\x.x):Nat->Nat 2:Nat
+=((\x.x) 2):Nat
+=2:Nat
