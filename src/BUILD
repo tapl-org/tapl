@@ -7,3 +7,13 @@ cc_binary(
     srcs = ["main.cpp"],
     deps = [],
 )
+
+cc_library(
+    name = "syntax",
+    srcs = ["syntax.cc"],
+    hdrs = ["syntax.h"],
+    deps = [
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:check",
+    ],
+)

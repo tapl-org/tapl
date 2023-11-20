@@ -21,4 +21,7 @@ which buildifier
 sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
 sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-17 100
 ```
-
+4. Download absl
+```
+bazel build @com_google_absl//...
+```

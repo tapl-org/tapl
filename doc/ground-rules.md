@@ -3,12 +3,12 @@
 &nbsp;|**Syntax**|&nbsp;
 ---|---|---:
 $d ::=$ || *datum:*
-&nbsp;| $b$ | *binary data*
+&nbsp;| $b$ | *bytes*
 &nbsp;| $d{\to}d$ | *type of function*
 $t ::=$ || *term:*
 &nbsp;| $x$ | *variable*
 &nbsp;| $d$ | *datum*
-&nbsp;| $\lbrace {(x{\mid}d)_i}^{i\in1..n}\rbrace$ | *built-in function*
+&nbsp;| $\lbrace {(x{\mid}d)_i}^{i\in1..n}\rbrace$ | *native call*
 &nbsp;| $\lambda x.\ t$ | *abstraction*
 &nbsp;| $t \ t$ | *application*
 &nbsp;| $\text{error}$ | *run-time error*
@@ -33,10 +33,10 @@ $\Gamma ::=$ || *context:*
 
 ## Notes
 
-&nbsp;|**Builtin binary data, functions, or notes**
+&nbsp;|**Built-in bytes, or notes**
 :---:|:--
-$*$| binary data which contains '*' char. Represents for type of type.
-$!$| binary data which contains '!' char. Just to annotate unknown type or type error.
+$*$| bytes{'*'}. Represents for type of type.
+$!$| bytes{'!'}. Just to annotate unknown type or type error.
 $\dfrac{a}{a'}$|$a$ evaluates to $a'$ in one step.
 
 ## Operators
@@ -75,7 +75,7 @@ $\xi[w]$| **Whole Expression to Type** | $\xi[w]\to T$
 
 &nbsp;| **Term** |$t\to t'$
 :-:|:--:|---:
-&nbsp;|$\dfrac{\lbrace{d_i}^{i\in1..n}\rbrace}{{\ll}\text{built-in call}{\gg}}$ | $\delta$*-reduction*
+&nbsp;|$\dfrac{\lbrace{d_i}^{i\in1..n}\rbrace}{{\ll}\text{native call}{\gg}}$ | $\delta$*-reduction*
 $t\ t$|$\dfrac{t_1}{t_1'} \vdash \dfrac{t_1 \ t_2}{t_1' \ t_2}$ | *application progres 1*
 &nbsp;|$\dfrac{\text{error}\ t_2}{\text{error}}$ | *term error 1*
 $v\ t$|$\dfrac{t_2}{t_2'} \vdash \dfrac{v_1 \ t_2}{v_1 \ t_2'}$ | *application progress 2*
