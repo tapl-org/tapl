@@ -1135,6 +1135,7 @@ typeof[(\x:Nat.x) 2:Nat]
 
 typeof[\x:*.2:x]
 =\x:*.x:*
+=Ax.x
 
 (\x:*.2:x) Nat:*
 =let x=Nat:* in 2:x
@@ -1145,4 +1146,101 @@ let y=(\x:*.x:*) in (\x.2):y
 
 (\x.x):Nat->Nat 2:Nat
 =((\x.x) 2):Nat
+=2:Nat
+
+let Y=(\x:*.2:x) in Y Nat:*
+=(\x:*.2:x) Nat:*
+=let x=Nat:* in 2:x
+2:Nat
+
+(\Y:(Ax.x).Y Nat:*) (\x:*.2:x)
+=(\Y:(Ax.x).Y Nat:*) (\x.2):(Ax.x)
+=let Y=(\x.2):(Ax.x) in Y Nat:*
+=(\x.2):(Ax.x) Nat:*
+=((\x.2) Nat)
+
+
+id=\A:*.\x:A.x
+t[id]
+=t[\A:*.\x:A.x]
+=\A:*.t[\x:A.x]
+=\A:*.\x:A.t[x]
+=\A:*.\x:A.A:*
+\A:*.A->A
+
+empty='[]':'List[Nat][0]'
+append=\n:Nat.\l:'List[Nat][$n]'.\d:Nat.('[]'+'[$d]'):'List[Nat][$n+1]'
+t[append]
+=\n:Nat.\l:'List[Nat][$n]'.\d:Nat.'List[Nat][$n+1]'
+=\n:Nat.'List[Nat][$n]'->Nat->'List[Nat][$n+1]'
+
+------------
+Tests
+
+id=\A:*.\x:A.x
+idNat=id Nat:*
+idNat 2:Nat
+Pair=\A:*.\B:*."Pair[$A][$B]"
+pair=\A:*.\B:*.\a:A.\b:B.\f:A->B->(Pair A B).f a b
+List=\A:*.\n:Nat."List[$A][$n]"
+emptyList=\A:*."[]":(List A 0)
+
+plus = \a:Nat.\b:Nat.{+ a b}:Nat
+inc:(\x:Nat.Nat)
+
+double=\A:*.\f:A->A.\a:A. f (f a)
+
+double Nat:* inc 2:Nat
+
+idd=\x:Nat. (\y:Nat.y) x
+idd 2:Nat
+
+let y=(\x:*.x:*) in (\x.2):y
+(\x.x):Nat->Nat 2:Nat
+
+------------
+
+id=\A:*.\x:A.x
+id Nat:*
+(\A:*.\x:A.x) Nat:*
+let A=Nat:* in \x:A:*.x
+idNat=\x:Nat:*.x
+
+idNat 2:Nat:*
+(\x:Nat:*.x) 2:Nat:*
+let x=2:Nat:* in x
+2:Nat:*
+
+t[id]
+=\A:*.\x:A.t[x]
+=\A:*.\x:A.A
+
+t[t[id]]
+t[\A:*.\x:A.A]
+=\A:*.\x:A.*
+
+idd 2:Nat
+=(\x:Nat.(\y:Nat.y) x) 2:Nat
+=let x=2:Nat in (\y:Nat.y) x
+=(\y:Nat.y) 2:Nat
+=let y=2:Nat in y
+2:Nat
+
+t[idd 2:Nat]
+=t[(\x:Nat.(\y:Nat.y) x) 2:Nat]
+=t[(\x:Nat.(\y:Nat.y) x)] 2:Nat
+=(\x:Nat.t[(\y:Nat.y) x]) 2:Nat
+=(\x:Nat.t[(\y:Nat.y)] x) 2:Nat
+=(\x:Nat.(\y:Nat.t[y]) x) 2:Nat
+=(\x:Nat.(\y:Nat.Nat:*) x) 2:Nat
+=let x=2:Nat in (\y:Nat.Nat:*) x
+=(\y:Nat.Nat:*) 2:Nat
+=let y=2:Nat in Nat:*
+=Nat:* 
+
+e[idd 2:Nat]
+=(\x.(\y.y) x) 2
+
+((\x.(\y.y) x) 2):Nat
+=((\y.y) 2):Nat
 =2:Nat
