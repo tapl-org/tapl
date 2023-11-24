@@ -1244,3 +1244,28 @@ e[idd 2:Nat]
 ((\x.(\y.y) x) 2):Nat
 =((\y.y) 2):Nat
 =2:Nat
+
+---
+Type of functions
+T1 -> T2    === \x:T1:*.T2:*
+
+universal types
+Ax.x        ===  \x:*.x
+
+dependent types
+\n:Nat.'List[$n]':*  === same
+
+t[\x:Nat:*.x]
+=\x:Nat:*.Nat:*
+
+t[\x:Nat:*.Nat:*]
+=\x:Nat:*.*
+e[\x:Nat:*.Nat:*]
+=\x.Nat
+
+o[(\x:Nat):(\x:Nat:*.*)]
+=\x:Nat:*.o[Nat:*]
+=\x:Nat:*.Nat:*
+
+\b:Bool. if b then Nat:* else String:*
+\b:Bool. if not b then String:* else Nat:*
