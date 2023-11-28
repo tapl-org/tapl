@@ -1269,3 +1269,85 @@ o[(\x:Nat):(\x:Nat:*.*)]
 
 \b:Bool. if b then Nat:* else String:*
 \b:Bool. if not b then String:* else Nat:*
+
+(\x:(\x:C.D).b:B) (\x:C.d:D)
+=(\x:(\x:C.D).b:B) (\x.d):(\x:C.D)
+=let x=(\x.d):(\x:C.D) in b:B
+
+---
+# Kind and Types
+
+$K ::=$ || *kinds:*
+&nbsp;| $\star$ | *proper-kind*
+&nbsp;| $\lambda x{:}T.K$ | *function-kind*
+$T ::=$ || *well-formed types/keys:*
+&nbsp;| $x$ | *variable*
+&nbsp;| $b{:}\star$ | *proper-type*
+&nbsp;| $\lambda x{:}T.e \quad\text{where }\tau[e]{\equiv}K$ | *function-type*
+---
+
+pair=\A:*.\B:*.\a:A.\b:B.\f:A->B->(Pair A B).f a b
+
+id=\A:*.\x:A.x
+=(\A.\x.x):(\A:*.\x:A.A)
+
+id Nat:* 2:Nat:*
+=(\A.\x.x):(\A:*.\x:A.A) Nat:* 2:Nat:*
+=((\A.\x.x) Nat):((\A:*.\x:A.A) Nat:*) 2:Nat:*
+=((\A.\x.x) Nat):(let A=Nat:* in \x:A.A) 2:Nat:*
+=((\A.\x.x) Nat):(\x:Nat:*.Nat:*) 2:Nat:*
+=((\A.\x.x) Nat 2):((\x:Nat:*.Nat:*) 2:Nat:*)
+=((\A.\x.x) Nat 2):(let x=2:Nat:* in Nat:*)
+=((\A.\x.x) Nat 2):(Nat:*)
+=2:Nat:*
+
+inc=(\x.{+1 x}):(\x:Nat:*.Nat:*)
+
+inc 2:Nat:*
+=(\x.{+1 x}):(\x:Nat:*.Nat:*) 2:Nat:*
+=((\x.{+1 x}) 2):((\x:Nat:*.Nat:*) 2:Nat:*)
+=((\x.{+1 x}) 2):(let x=2:Nat:* in Nat:*)
+=((\x.{+1 x}) 2):Nat:*
+={+1 2}:Nat:*
+=3:Nat:*
+
+-----
+Even dependent type
+
+-native-calls
+isEven x = if x%2==0 then 'Even' else 'Odd'
+
+typeNat=\x:Nat:*.{isEven x}:*
+
+castNat=\x:Nat:*.x:(typeNat x)
+
+typeNat 2:Nat:*
+=(\x:Nat:*.{isEven x}:*) 2:Nat:*
+=let x=2:Nat:* in {isEven x}:*
+={isEven 2}:*
+=Even:*
+
+typeNat 3:Nat:*
+=Odd:*
+
+
+NatTypeCons=\x:Nat:*.*
+NatTypeCons=\x:Nat:*.Even|Odd:*
+
+zero=\f:Nat:*->Nat:*.\z:Nat:*. z
+t[zero]
+=\f:Nat:*->Nat:*.\z:Nat:*.Nat:*
+
+Number=\f:Nat:*->Nat:*.\z:Nat:*.Nat:*
+
+two=\f:Nat:*->Nat:*.\z:Nat:*. f (f z)
+four=\f:Nat:*->Nat:*.\z:Nat:*. f (f (f (f z)))
+add=\m:Number.\n:Number.\f:Nat->Nat.\z:Nat. m f (n f z)
+
+add two
+=add (\f:Nat:*->Nat:*.\z:Nat:*. f (f z))
+=add (\f.\z.f (f z)):(\f:Nat:*->Nat:*.\z:Nat:*. Nat:*->Nat:* (Nat:*->Nat:* Nat:*))
+
+Number === (\f:Nat:*->Nat:*.\z:Nat:*. Nat:*->Nat:* (Nat:*->Nat:* Nat:*))
+
+(\x:Nat:*.x) 2:((\x:*.x) Nat:*)
