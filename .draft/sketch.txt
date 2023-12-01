@@ -1351,3 +1351,186 @@ add two
 Number === (\f:Nat:*->Nat:*.\z:Nat:*. Nat:*->Nat:* (Nat:*->Nat:* Nat:*))
 
 (\x:Nat:*.x) 2:((\x:*.x) Nat:*)
+
+Note: It was the bad idea to compare to dependent types. Because even they are equal, they can be evaluated to error.
+In this case we should throw the error, instead of unlocking the expression.
+Maybe I am wrong. What about compare error:* in unlock, but throw error in let-binding.
+
+List=\n:Nat:*.'ListType[$n]':*
+nil='[]':(List 0:Nat:*)
+cons=\n:Nat:*.\head:Nat:*.\tail:(List n). {'cons' head tail}:(List {+ n 1}:Nat:*)
+
+cons 0:Nat:* 2:Nat:* nil
+=(\n:Nat:*.\head:Nat:*.\tail:(List n). {'cons' head tail}:(List {+ n 1}:Nat:*)) 0:Nat:* 2:Nat:* nil
+=(let n=0:Nat:* in \head:Nat:*.\tail:(List n). {'cons' head tail}:(List {+ n 1}:Nat:*)) 2:Nat:* nil
+=(\head:Nat:*.\tail:(List 0:Nat:*). {'cons' head tail}:(List {+ 0 1}:Nat:*)) 2:Nat:* nil
+=(let head=2:Nat:* in \tail:(List 0:Nat:*). {'cons' head tail}:(List {+ 0 1}:Nat:*)) nil
+=(\tail:(List 0:Nat:*). {'cons' 2  tail}:(List {+ 0 1}:Nat:*)) nil
+=(\tail:((\n:Nat:*.'ListType[$n]':*) 0:Nat:*). {'cons' 2  tail}:(List {+ 0 1}:Nat:*)) nil
+=(\tail:(let n=0:Nat:* in 'ListType[$n]':*). {'cons' 2 tail}:(List {+ 0 1}:Nat:*)) nil
+=(\tail:'ListType[0]':*. {'cons' 2  tail}:(List {+ 0 1}:Nat:*)) nil
+=(\tail:'ListType[0]':*. {'cons' 2  tail}:(List {+ 0 1}:Nat:*)) '[]':(List 0:Nat:*)
+=(\tail:'ListType[0]':*. {'cons' 2  tail}:(List {+ 0 1}:Nat:*)) '[]':((\n:Nat:*.'ListType[$n]':*) 0:Nat:*)
+=(\tail:'ListType[0]':*. {'cons' 2  tail}:(List {+ 0 1}:Nat:*)) '[]':(let n=0:Nat:* in 'ListType[$n]':*)
+=(\tail:'ListType[0]':*. {'cons' 2  tail}:(List {+ 0 1}:Nat:*)) '[]':'ListType[0]':*
+=let tail='[]':'ListType[0]':* in {'cons' 2  tail}:(List {+ 0 1}:Nat:*)
+={'cons' 2 '[]'}:(List {+ 0 1}:Nat:*)
+={'cons' 2 '[]'}:(List 1:Nat:*)
+={'cons' 2 '[]'}:((\n:Nat:*.'ListType[$n]':*) 1:Nat:*)
+={'cons' 2 '[]'}:(let n=1:Nat:* in 'ListType[$n]':*)
+={'cons' 2 '[]'}:'ListType[1]':*
+='[2]':'ListType[1]':*
+
+t[cons 0:Nat:* 2:Nat:* nil]
+=t[cons 0:Nat:* 2:Nat:*] nil
+=t[cons 0:Nat:*] 2:Nat:* nil
+=t[cons] 0:Nat:* 2:Nat:* nil
+=t[\n:Nat:*.\head:Nat:*.\tail:(List n). {'cons' head tail}:(List {+ n 1}:Nat:*)] 0:Nat:* 2:Nat:* nil
+=(\n:Nat:*.\head:Nat:*.\tail:(List n). t[{'cons' head tail}:(List {+ n 1}:Nat:*)]) 0:Nat:* 2:Nat:* nil
+=(\n:Nat:*.\head:Nat:*.\tail:(List n). (List {+ n 1}:Nat:*)) 0:Nat:* 2:Nat:* nil
+=(let n=0:Nat:* in \head:Nat:*.\tail:(List n). (List {+ n 1}:Nat:*)) 2:Nat:* nil
+=(\head:Nat:*.\tail:(List n). (List {+ n 1}:Nat:*)) 2:Nat:* nil
+
+In let-binding, I need to ignore bound variable if it is not used in the body of let-binding. This vay I will
+ignore dependent type. So in let-binding ignores.
+No, no, and NO. There should be 2 lock: with argument, without argument
+
+With argument:
+(\head:Nat:*.\tail:(List n). (List {+ n 1}:Nat:*)) 2:Nat:*
+Without argument:
+(Nat:*->\tail:(List n). (List {+ n 1}:Nat:*)) 2:Nat:*
+
+Or in typing operator, I should unlock "unlock" expression when I see that argument is free in the body of lock.
+But how can I unlock it without type checking.
+I need a signal to determine the argument is needed or not.
+
+(\x:(List 2).2:Nat:*) {+ 1 2}:(List 2)
+=(\x:'List[2]':*.2:Nat:*) {+ 1 2}:'List[2]':*
+
+(\x:Nat:*.5:Nat:*)  2:Nat:*
+
+Nat:*->(5:Nat:*)  Nat:*
+=5:Nat:*
+
+(\x:Nat:*.x) 2:Nat:*
+=Nat:*->(\x.x)  Nat:* 2
+=(\x.x) 2
+
+Nat:*->(\x.x):Nat:* Nat:* 2
+=(\x.x):Nat:* 2
+=2:Nat:*
+
+Nat->Nat.(\x.x)  Nat 2
+Nat (\x.x) 2
+Nat 2
+
+E1->t:E2 t:E3
+if E1 == E2 then (t t):E2
+
+E1->t:E2 E3
+if E1 == E3 then t:E2
+
+t:E2 t
+(t t):E2
+
+E->t1:E1 t2:E2
+if E==E2 then (t1 t2):E1
+
+E->E1.t1 t2:E2
+if E==E2 then (t1 t2):E1
+
+E->E1.t1 E2
+if E==E2 then t1:E1
+
+E->E1.\x.t1  t2:E2
+E==E2 |- ((\x.t1) t2):E1
+
+E->E1.t1  ->E2.t2
+E==E2.->E1.(t1 t2)
+
+E->E1.t1 ->E2
+E==E2. ->E1.t1
+
+id=Nat->Nat.\x.x
+
+id ->Nat.2
+=(Nat->Nat.\x.x) ->Nat.2
+=->Nat.(\x.x) 2
+
+id (id ->Nat.2)
+=id ->Nat.((\x.x) 2)
+=(Nat->Nat.\x.x) ->Nat.((\x.x) 2)
+=->Nat.(\x.x) ((\x.x) 2)
+=->Nat.(\x.x) 2
+=->Nat.2
+
+K->R.term
+
+->R.term
+
+id=Nat->Nat.(\x.x)
+
+(\x:E1.e) t:E2
+=let X=E1==E2 in let x:X in e
+
+t[let X=E1==E2 in let x:X in e]
+=let X=t[E1]==t[E2] in t[e]
+
+t[(\x:E1.e) t:E2]
+=let X=E1==E2 in (x:X |- t[e])
+
+(\x:Nat:*.Nat:*)==(\x:Nat:*.Nat:*)
+=\x:Nat:*.Nat:*==Nat:*
+=\x:Nat:*.Nat:*
+
+A=Nat:*
+
+t[\x:A.x]
+
+------
+
+id=\A:*.\x:A.x
+
+idNat = id Nat:*
+=(\A:*.\x:A.x) Nat:*
+=let A=Nat:* in \x:A.x
+=\x:Nat:*.x
+
+id idNat
+=id e[idNat]:t[idNat]
+=id (\x.x):(\x:Nat:*.Nat:*)
+=(\A:*.\x:A.x) (\x:Nat:*.Nat:*) (\x.x):(\x:Nat:*.Nat:*)
+
+??? any expression is considered as type
+I am going to rollback syntax to t:t one insead of t:e syntax
+
+Literal=\k:Nat. [String Nat]:* k
+toString=\k:Nat.\v:(Literal k) [(v) ({str v}:String)] k
+
+Literal 0:Nat
+=(\k:Nat. [String Nat]:* k) 0:Nat
+=let k=0:Nat in [String Nat]:* k
+=[String Nat]:* 0:Nat
+=String:*
+
+stringToString=toString 0:Nat
+=(\k:Nat.\v:(Literal k) [(v) ({str v}:String)] k) 0:Nat
+=let k=0:Nat in \v:(Literal k) [(v) ({str v}:String)] k
+=\v:(Literal 0:Nat) [(v) ({str v}:String)] 0:Nat
+=\v:(Literal 0:Nat) [(v) ({str v}:String)] 0:Nat
+=\v:String. [(v) ({str v}:String)] 0:Nat
+=\v:String. v
+
+t[toString 0:Nat]
+=t[(\k:Nat.\v:(Literal k) [(v) ({str v}:String)] k) 0:Nat]
+=let X=Nat==Nat in let k=0:X in t[\v:(Literal k) [(v) ({str v}:String)] k]
+=let X=Nat==Nat in let k=0:X in \v:(Literal k).t[ [(v) ({str v}:String)] k]
+=let X=Nat==Nat in let k=0:X in \v:(Literal k).t[ [t[(v)] ({str v}:String)] k]
+
+t[id Nat->Nat:*]
+=t[((\A:*.\x:A.x) Nat:*) Nat->Nat:*]
+=let X=*==* in let A=Nat->Nat:X in t[\x:A.x]
+=let X=*==* in let A=Nat->Nat:X in \x:A.t[x]
+=let X=*==* in let A=Nat->Nat:X in \x:A.A:*
+=let A=Nat->Nat:* in \x:A.A:*
+=\x:Nat->Nat.Nat->Nat

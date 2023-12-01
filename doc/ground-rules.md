@@ -1,3 +1,7 @@
+<? Part of the Tapl Language project, under the Apache License v2.0 with LLVM
+   Exceptions. See /LICENSE for license information.
+   SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception ?>
+
 ## Syntax
 
 &nbsp;|**Syntax**|&nbsp;
@@ -9,17 +13,6 @@ $t ::=$ || *terms:*
 &nbsp;| $\lambda x.\ t$ | *abstraction*
 &nbsp;| $t \ t$ | *application*
 &nbsp;| $\text{error}$ | *run-time-error*
-$d ::=$ || *datum terms:*
-&nbsp;| $x$ | *variable*
-&nbsp;| $b$ | *bytes*
-&nbsp;| $\lambda x.t$ | *abstraction*
-$u ::=$ || *reducible terms:*
-&nbsp;| $\lbrace {b_i}^{i\in1..n}\rbrace$ | *native-call*
-&nbsp;| $t \ t$ | *application*
-$T ::=$ || *well-formed types/keys:*
-&nbsp;| $\star$ | *type-of-types*
-&nbsp;| $b{:}\star$ | *proper-type*
-&nbsp;| $\lambda x{:}T.T$ | *function-type*
 $e,E ::=$|| *expressions:*
 &nbsp;| $x$ | *variable*
 &nbsp;| $\star$ | *type-of-types*
@@ -27,21 +20,9 @@ $e,E ::=$|| *expressions:*
 &nbsp;| $\text{let } x{=}e \text{ in } e$| *let-binding*
 &nbsp;| $\lambda  x{:}E.\ e$ | *lock*
 &nbsp;| $e \ e$ | *unlock*
-$v,V ::=$|| *value expressions:*
-&nbsp;| $x$ | *variable*
-&nbsp;| $\star$ | *type-of-types*
-&nbsp;| $t{:}V$ | *typed value*
-&nbsp;| $\lambda  x{:}V.\ e$ | *lock*
-$r,R ::=$|| *reducible expressions:*
-&nbsp;| $\text{let } x{=}e \text{ in } e$| *let-binding*
-&nbsp;| $e \ e$ | *unlock*
 $\Gamma ::=$ || *context:*
 &nbsp;| $\varnothing$ | *empty context*
 &nbsp;| $\Gamma ,x{:}e$  | *variable binding*
-&nbsp;
-$f_i$| $\lambda x_i{:}E_i.e_i$ | *function*
-
-## Notes
 
 &nbsp;| **Notes**
 :-:|:-- 
@@ -49,46 +30,63 @@ $\dfrac{a}{a'}$| $a$ evaluates to $a'$ in one step.
 $!a$| all term or expression except $a$ one
 $\circeq$ | unknown equality, needs further evaluation
 redex| *REDucible EXpression* is an expression on which we can perform a computation step.
-## Operators
+
+&nbsp;|**Handy terms**|&nbsp;
+---|---|---:
+$d ::=$| $x\ \mid\ b \ \mid\ \lambda x.t$ | *datum terms*
+$u ::=$| $\lbrace {b_i}^{i\in1..n}\rbrace\ \mid\  t\ t$ | *reducible terms*
+
+&nbsp;|**Handy expressions**|&nbsp;
+---|---|---:
+$T ::=$| $x\ \mid\ \star\ \mid\ b{:}\star\ \mid\ \lambda x{:}T.T$ | *well-formed types/keys*
+$v,V ::=$| $x\ \mid\ \star\ \mid\ d{:}T\ \mid\ \lambda  x{:}E.\ e$ | *value expressions*
+$q,Q ::=$| $\text{let } x{=}e \text{ in } e\ \mid\ e\ e$ | *beta-reducible expressions*
+$r,R ::=$| $t{:}R\ \mid\ u{:}T\ \mid\ q$ | *reducible expressions*
+$f$| $\lambda x{:}E.e$ | *function*
 
 $\omicron^{\star}[a]$| **Multi-Step Operator** |$\omicron^{\star}[t] \to t$
 :-:|:-:|--:
-&nbsp;|$\dfrac{\omicron[a]}{a'}\vdash\dfrac{\omicron^{\star}[a]}{\omicron^{\star}[a']}$| *progress*
-&nbsp;|$\dfrac{\omicron[a]}{a}\vdash\dfrac{\omicron^{\star}[a]}{a}$| *no-progress*
+&nbsp;|$\dfrac{\omicron[a]}{a'}\vdash\dfrac{\omicron^{\star}[a]}{\omicron^{\star}[a']}$| *can progress*
+&nbsp;|$\dfrac{\omicron[a]}{a}\vdash\dfrac{\omicron^{\star}[a]}{a}$| *no progress*
 &nbsp;
-$\psi[t]$| **Term Evaluation** |$\psi[t] \to t$
+$\psi[t]$| **Term Beta Reduction** |$\psi[t] \to t$
 &nbsp;|$\dfrac{\psi[\lbrace{b_i}^{i\in1..n}\rbrace]}{b_{result}}$ | $\delta$*-reduction*
-&nbsp;|$\dfrac{\psi[u_1 \ t_2]}{\psi^\star[u_1] \ t_2}$ | *function progress*
-&nbsp;|$\dfrac{\psi[b\ t_2]}{\text{error}}$ | *wrong function*
-&nbsp;|$\dfrac{\psi[\text{error}\ t_2]}{\text{error}}$ | *error function*
-&nbsp;|$\dfrac{\psi[(\lambda x.t_1) \ u_2]}{(\lambda x.t_1) \ \psi^\star[u_2]}$ | *argument progress*
+&nbsp;|$\dfrac{\psi[u \ t]}{\psi^\star[u] \ t}$ | *function progress*
+&nbsp;|$\dfrac{\psi[b\ t]}{\text{error}}$ | *not function*
+&nbsp;|$\dfrac{\psi[\text{error}\ t]}{\text{error}}$ | *error function*
+&nbsp;|$\dfrac{\psi[(\lambda x.t) \ u]}{(\lambda x.t) \ \psi^\star[u]}$ | *argument progress*
 &nbsp;|$\dfrac{\psi[(\lambda x.t_1)\ \text{error}]}{\text{error}}$ | *error argument*
 &nbsp;|$\dfrac{\psi[(\lambda x.\ t)\ d]}{[x\mapsto d]\ t}$ | $\beta$*-reduction*
 &nbsp;|$\dfrac{\psi[t]}{t}$ | *otherwise (no evaluation rule)*
 &nbsp;
-$\xi[e]$|**Expression Evaluation**|$\xi[e]\longrightarrow e$
+$\psi[e]$|**Expression Beta Reduction**|$\psi[e]\longrightarrow e$
+&nbsp;|| *let-binding*
+&nbsp;|$\dfrac{\psi[\text{let }x{=}r\text{ in }e]}{\text{let }x{=}\xi^\star[r]\text{ in }e}$| *value progress*
+&nbsp;|$\dfrac{\psi[\text{let } x{=}\text{error}{:}\star \text{ in } e]}{\text{error}{:}\star}$| *error value*
+&nbsp;|$\dfrac{\psi[\text{let } x{=}v \text{ in } e]}{[x\mapsto v]\ e}$| *substitution*
+&nbsp;|| *unlock*
+&nbsp;|$\dfrac{\psi[q \ e]}{\psi^\star[q] \ e}$| *function progress*
+&nbsp;|$\dfrac{\psi[\star\ e]}{\text{error}{:}\star}$| *not function*
+&nbsp;|$\dfrac{\psi[t{:}E\ e]}{(t\ \epsilon[e]){:}(E\ e)}$| *typed-term*
+&nbsp;|$\dfrac{\psi[f\ q]}{f\ \psi^\star[q]}$| *argument progress*
+&nbsp;|$\dfrac{\psi[f\ \star]}{\text{error}{:}\star}$| *not argument*
+&nbsp;|$\dfrac{\psi[f_1\ f_2]}{f_1\ \ \epsilon[f_2]{:}\tau[f_2]}$| *type argument*
+&nbsp;|$E_1{=} E_2 \vdash \dfrac{\psi[(\lambda x{:}E_1.e)\ \ t{:}E_2]}{\text{let } x{=}t{:}E_2\text{ in }e}$| *unlock*
+&nbsp;|$E_1{\ne} E_2 \vdash \dfrac{\psi[(\lambda x{:}E_1.e_1)\ \ t_2{:}E_2]}{\text{error}{:}\star}$| *type eror*
+&nbsp;|$E_1{\circeq} E_2 \vdash \dfrac{\psi[(\lambda x{:}E_1.e)\ \ t{:}E_2]}{(\lambda x{:}\xi^\star[E_1].e)\ \ t{:}\xi^\star[E_2]}$| *full eval types*
+&nbsp;
+&nbsp;|$\dfrac{\psi[e]}{e}$ | *otherwise (no evaluation rule)*
+&nbsp;
+$\xi[e]$|**Expression Value Evaluation**|$\xi[e]\longrightarrow e$
 &nbsp;|| *typed-term*
 &nbsp;|$\dfrac{\xi[t{:}R]}{t{:}\xi[R]}$ | *type progress*
 &nbsp;|$\dfrac{\xi[t{:}t_1{:}E_1]}{t{:}\phi^\star[t_1{:}E_1]}$ | *typed-term fusion*
 &nbsp;|$\dfrac{\xi[t{:}(\lambda x_1{:}E_2.e_3))]}{t{:}(\lambda x_1{:}\xi^\star[E_2].\xi^\star[e_3])}$ | *under abstraction*
 &nbsp;|$\dfrac{\xi[t{:}\text{error}{:}\star]}{\text{error}{:}\star}$ | *error type*
 &nbsp;|$\dfrac{\xi[u{:}T{:}\star]}{\xi[u]{:}T{:}\star}$ | *well-typed term progress*
-&nbsp;|| *let-binding*
-&nbsp;|$\dfrac{\xi[\text{let }x{=}r\text{ in }e]}{\text{let }x{=}\xi^\star[r]\text{ in }e}$| *value progress*
-&nbsp;|$\dfrac{\xi[\text{let } x{=}\text{error}{:}\star \text{ in } e]}{\text{error}{:}\star}$| *error value*
-&nbsp;|$\dfrac{\xi[\text{let } x{=}v \text{ in } e]}{[x\mapsto v]\ e}$| *substitution*
 &nbsp;|| *lock*
 &nbsp;|$\dfrac{\xi[\lambda x{:}R.e]}{\lambda x{:}\xi[R].e}$ | *argument type progress*
 &nbsp;|$\dfrac{\xi[\lambda x{:}\text{error}{:}\star.e]}{\text{error}{:}\star}$ | *error-typed argument*
-&nbsp;|| *unlock*
-&nbsp;|$\dfrac{\xi[r_1 \ e_2]}{\xi[r_1] \ e_2}$| *function progress*
-&nbsp;|$\dfrac{\xi[\star\ e_2]}{\text{error}{:}\star}$| *wrong function*
-&nbsp;|$\dfrac{\xi[t_1{:}E_1\ e_2]}{(t_1\ \epsilon[e_2]){:}(E_1\ e_2)}$| *typed-term*
-&nbsp;|$\dfrac{\xi[f_1\ r_2]}{(\lambda x{:}E_1.e_1)\ \xi^\star[r_2]}$| *argument progress*
-&nbsp;|$\dfrac{f_1\ f_2}{f_1\ \ \epsilon[f_2]{:}\tau[f_2]}$| *type argument*
-&nbsp;|$E_1{=} E_2 \vdash \dfrac{(\lambda x_1{:}E_1.e_1)\ \ t_2{:}E_2}{\text{let } x_1{=}t_2{:}E_2\text{ in }e_1}$| *unlock*
-&nbsp;|$E_1{\ne} E_2 \vdash \dfrac{(\lambda x_1{:}E_1.e_1)\ \ t_2{:}E_2}{\text{error}{:}\star}$| *type eror*
-&nbsp;|$E_1{\circeq} E_2 \vdash \dfrac{(\lambda x_1{:}E_1.e_1)\ \ t_2{:}E_2}{(\lambda x_1{:}\xi^\star[E_1].e_1)\ \ t_2{:}\xi^\star[E_2]}$| *further eval*
 &nbsp;
 &nbsp;|$\dfrac{\xi[e]}{e}$ | *otherwise (no evaluation rule)*
 &nbsp;
