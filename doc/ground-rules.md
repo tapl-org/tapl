@@ -9,40 +9,43 @@
 $t ::=$ || *terms:*
 &nbsp;| $x$ | *variable*
 &nbsp;| $b$ | *bytes*
-&nbsp;| $\lbrace {(x{\mid}b)_i}^{i\in1..n}\rbrace$ | *native-call*
+&nbsp;| $\lbrace {t_i}^{i\in1..n}\rbrace$ | *native-call*
 &nbsp;| $\lambda x.\ t$ | *abstraction*
 &nbsp;| $t \ t$ | *application*
+&nbsp;| $'t$ | *lazy*
 &nbsp;| $\text{error}$ | *run-time-error*
+&nbsp;| $t{\equiv}t$ | *equivalent*
 $e,E ::=$|| *expressions:*
 &nbsp;| $x$ | *variable*
-&nbsp;| $\star$ | *type-of-types*
+&nbsp;| $\star_{level}$ | *universe*
 &nbsp;| $t{:}E$ | *typed-term*
 &nbsp;| $\text{let } x{=}e \text{ in } e$| *let-binding*
 &nbsp;| $\lambda  x{:}E.\ e$ | *lock*
 &nbsp;| $e \ e$ | *unlock*
+&nbsp;| $E{\equiv}E$ | *equivalent*
 $\Gamma ::=$ || *context:*
 &nbsp;| $\varnothing$ | *empty context*
 &nbsp;| $\Gamma ,x{:}e$  | *variable binding*
 
-&nbsp;| **Notes**
-:-:|:-- 
-$\dfrac{a}{a'}$| $a$ evaluates to $a'$ in one step.
-$!a$| all term or expression except $a$ one
-$\circeq$ | unknown equality, needs further evaluation
-redex| *REDucible EXpression* is an expression on which we can perform a computation step.
-
-&nbsp;|**Handy terms**|&nbsp;
----|---|---:
-$d ::=$| $x\ \mid\ b \ \mid\ \lambda x.t$ | *datum terms*
-$u ::=$| $\lbrace {b_i}^{i\in1..n}\rbrace\ \mid\  t\ t$ | *reducible terms*
-
+&nbsp;|**Reserved letters**
+---|---
+&nbsp;| $i,j,k$
+&nbsp;|**Handy terms**
+$c ::=$| $b \ \mid\ \lambda x.t$
+$d ::=$| $c\ \mid\ x$
+$g ::=$| $\lbrace {t_i}^{i\in1..n}\rbrace\ \mid\  t\ t\ \mid\ t{\equiv}t$
+$h ::=$| $g\ \mid\ 't$
+&nbsp;
 &nbsp;|**Handy expressions**|&nbsp;
----|---|---:
-$T ::=$| $x\ \mid\ \star\ \mid\ b{:}\star\ \mid\ \lambda x{:}T.T$ | *well-formed types/keys*
-$v,V ::=$| $x\ \mid\ \star\ \mid\ d{:}T\ \mid\ \lambda  x{:}E.\ e$ | *value expressions*
-$q,Q ::=$| $\text{let } x{=}e \text{ in } e\ \mid\ e\ e$ | *beta-reducible expressions*
-$r,R ::=$| $t{:}R\ \mid\ u{:}T\ \mid\ q$ | *reducible expressions*
-$f$| $\lambda x{:}E.e$ | *function*
+$T ::=$| $x\ \mid\ \star\ \mid\ b{:}\star\ \mid\ \lambda x{:}T.T$
+$q,Q ::=$| $\text{let } x{=}e \text{ in } e\ \mid\ e\ e$
+$r,R ::=$| $t{:}R\ \mid\ u{:}T\ \mid\ q$
+$v ::=$| $x\ \mid\ d{:}T\ \mid\ \lambda  x{:}E.\ e$
+$f$| $\lambda x{:}E.e$
+&nbsp;
+&nbsp;| **Notes** 
+$\dfrac{a}{a'}$| $a$ evaluates to $a'$ in one step.
+$()$| groupping: $t{=}(t)$ and $e{=}(e)$
 
 $\omicron^{\star}[a]$| **Multi-Step Operator** |$\omicron^{\star}[t] \to t$
 :-:|:-:|--:
@@ -50,6 +53,7 @@ $\omicron^{\star}[a]$| **Multi-Step Operator** |$\omicron^{\star}[t] \to t$
 &nbsp;|$\dfrac{\omicron[a]}{a}\vdash\dfrac{\omicron^{\star}[a]}{a}$| *no progress*
 &nbsp;
 $\psi[t]$| **Term Beta Reduction** |$\psi[t] \to t$
+&nbsp;|$\dfrac{\psi[\lbrace{b_i}^{i\in1..j-1},h_j,{t_k}^{k\in{j+1}..n}\rbrace]}{\lbrace{b_i}^{i\in1..j-1},h_j,{t_k}^{k\in{j+1}..n}\rbrace}$
 &nbsp;|$\dfrac{\psi[\lbrace{b_i}^{i\in1..n}\rbrace]}{b_{result}}$ | $\delta$*-reduction*
 &nbsp;|$\dfrac{\psi[u \ t]}{\psi^\star[u] \ t}$ | *function progress*
 &nbsp;|$\dfrac{\psi[b\ t]}{\text{error}}$ | *not function*
@@ -63,17 +67,16 @@ $\psi[e]$|**Expression Beta Reduction**|$\psi[e]\longrightarrow e$
 &nbsp;|| *let-binding*
 &nbsp;|$\dfrac{\psi[\text{let }x{=}r\text{ in }e]}{\text{let }x{=}\xi^\star[r]\text{ in }e}$| *value progress*
 &nbsp;|$\dfrac{\psi[\text{let } x{=}\text{error}{:}\star \text{ in } e]}{\text{error}{:}\star}$| *error value*
+&nbsp;|$\dfrac{\psi[\text{let } x{=}\star \text{ in } e]}{[x\mapsto v]\ e}$| *error-star*
 &nbsp;|$\dfrac{\psi[\text{let } x{=}v \text{ in } e]}{[x\mapsto v]\ e}$| *substitution*
 &nbsp;|| *unlock*
 &nbsp;|$\dfrac{\psi[q \ e]}{\psi^\star[q] \ e}$| *function progress*
 &nbsp;|$\dfrac{\psi[\star\ e]}{\text{error}{:}\star}$| *not function*
 &nbsp;|$\dfrac{\psi[t{:}E\ e]}{(t\ \epsilon[e]){:}(E\ e)}$| *typed-term*
 &nbsp;|$\dfrac{\psi[f\ q]}{f\ \psi^\star[q]}$| *argument progress*
-&nbsp;|$\dfrac{\psi[f\ \star]}{\text{error}{:}\star}$| *not argument*
 &nbsp;|$\dfrac{\psi[f_1\ f_2]}{f_1\ \ \epsilon[f_2]{:}\tau[f_2]}$| *type argument*
-&nbsp;|$E_1{=} E_2 \vdash \dfrac{\psi[(\lambda x{:}E_1.e)\ \ t{:}E_2]}{\text{let } x{=}t{:}E_2\text{ in }e}$| *unlock*
-&nbsp;|$E_1{\ne} E_2 \vdash \dfrac{\psi[(\lambda x{:}E_1.e_1)\ \ t_2{:}E_2]}{\text{error}{:}\star}$| *type eror*
-&nbsp;|$E_1{\circeq} E_2 \vdash \dfrac{\psi[(\lambda x{:}E_1.e)\ \ t{:}E_2]}{(\lambda x{:}\xi^\star[E_1].e)\ \ t{:}\xi^\star[E_2]}$| *full eval types*
+&nbsp;|$\dfrac{\psi[(\lambda x{:}E_1.e)\ \ t{:}E_2]}{\text{let }X=\zeta[E_1,E_2]\text{ in let } x{=}t{:}X\text{ in }e}$| *unlock*
+*full eval types*
 &nbsp;
 &nbsp;|$\dfrac{\psi[e]}{e}$ | *otherwise (no evaluation rule)*
 &nbsp;

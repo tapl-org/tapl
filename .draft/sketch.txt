@@ -1534,3 +1534,441 @@ t[id Nat->Nat:*]
 =let X=*==* in let A=Nat->Nat:X in \x:A.A:*
 =let A=Nat->Nat:* in \x:A.A:*
 =\x:Nat->Nat.Nat->Nat
+
+-------
+
+List=\n:Nat.{concat 'List' n}:*
+nil='[]':'List0'
+cons=\n:Nat.\head:String.let Tail=(List n) in \tail:Tail. let Result=(List {+ n 1}:Nat) in {'cons' head tail}:Result
+
+list1 = cons 0:Nat 'hello':String nil
+=(\n:Nat.\head:String.let Tail=(List n) in \tail:Tail. let Result=(List {+ n 1}:Nat) in {'cons' head tail}:Result) 0:Nat 'hello':String nil
+=(let N={typeEqual Nat Nat}:* in let n=0:N in \head:String.let Tail=(List n) in \tail:Tail. let Result=(List {+ n 1}:Nat) in {'cons' head tail}:Result) 'hello':String nil
+=(let N=Nat:* in let n=0:N in \head:String.let Tail=(List n) in \tail:Tail. let Result=(List {+ n 1}:Nat) in {'cons' head tail}:Result) 'hello':String nil
+=(let n=0:Nat in \head:String.let Tail=(List n) in \tail:Tail. let Result=(List {+ n 1}:Nat) in {'cons' head tail}:Result) 'hello':String nil
+=(\head:String.let Tail=(List 0:Nat) in \tail:Tail. let Result=(List {+ 0 1}:Nat) in {'cons' head tail}:Result) 'hello':String nil
+=(let Head={typeEqual String String}:* in let head='hello':Head in let Tail=(List 0:Nat) in \tail:Tail. let Result=(List {+ 0 1}:Nat) in {'cons' head tail}:Result) nil
+=(let Head=String:* in let head='hello':Head in let Tail=(List 0:Nat) in \tail:Tail. let Result=(List {+ 0 1}:Nat) in {'cons' head tail}:Result) nil
+=(let head='hello':String in let Tail=(List 0:Nat) in \tail:Tail. let Result=(List {+ 0 1}:Nat) in {'cons' head tail}:Result) nil
+=(let Tail=(List 0:Nat) in \tail:Tail. let Result=(List {+ 0 1}:Nat) in {'cons' 'hello' tail}:Result) nil
+=(let Tail=((\n:Nat.{concat 'List' n}:*) 0:Nat) in \tail:Tail. let Result=(List {+ 0 1}:Nat) in {'cons' 'hello' tail}:Result) nil
+=(let Tail=(let N={typeEqual Nat Nat}:* in let n:N in {concat 'List' n}:*) in \tail:Tail. let Result=(List {+ 0 1}:Nat) in {'cons' 'hello' tail}:Result) nil
+=(let Tail=(let N=Nat:* in let n:N in {concat 'List' n}:*) in \tail:Tail. let Result=(List {+ 0 1}:Nat) in {'cons' 'hello' tail}:Result) nil
+=(let Tail=(let n=0:Nat in {concat 'List' n}:*) in \tail:Tail. let Result=(List {+ 0 1}:Nat) in {'cons' 'hello' tail}:Result) nil
+=(let Tail=({concat 'List' 0}:*) in \tail:Tail. let Result=(List {+ 0 1}:Nat) in {'cons' 'hello' tail}:Result) nil
+=(let Tail='List0':* in \tail:Tail. let Result=(List {+ 0 1}:Nat) in {'cons' 'hello' tail}:Result) nil
+=(\tail:'List0'. let Result=(List {+ 0 1}:Nat) in {'cons' 'hello' tail}:Result) '[]':'List0'
+=let Tail={typeEqual 'List0' 'List0'}:* in let tail='[]':Tail in let Result=(List {+ 0 1}:Nat) in {'cons' 'hello' tail}:Result
+=let Tail='List0':* in let tail='[]':Tail in let Result=(List {+ 0 1}:Nat) in {'cons' 'hello' tail}:Result
+=let tail='[]':'List0' in let Result=(List {+ 0 1}:Nat) in {'cons' 'hello' tail}:Result
+=let Result=(List {+ 0 1}:Nat) in {'cons' 'hello' '[]'}:Result
+=let Result=(List 1:Nat) in {'cons' 'hello' '[]'}:Result
+=let Result=((\n:Nat.{concat 'List' n}:*) 1:Nat) in {'cons' 'hello' '[]'}:Result
+=let Result=(let N={typeEqual Nat Nat}:* in let n=1:N in {concat 'List' n}:*) in {'cons' 'hello' '[]'}:Result
+=let Result=(let N=Nat:* in let n=1:N in {concat 'List' n}:*) in {'cons' 'hello' '[]'}:Result
+=let Result=(let n=1:Nat in {concat 'List' n}:*) in {'cons' 'hello' '[]'}:Result
+=let Result=({concat 'List' 1}:*) in {'cons' 'hello' '[]'}:Result
+=let Result='List1':* in {'cons' 'hello' '[]'}:Result
+={'cons' 'hello' '[]'}:'List1'
+='["hello"]':'List1'
+
+e[cons 0:Nat 'hello':String nil]
+=e[cons] e[0:Nat] e['hello':String] e[nil]
+=e[\n:Nat.\head:String.let Tail=(List n) in \tail:Tail. let Result=(List {+ n 1}:Nat) in {'cons' head tail}:Result] 0 'hello' e['[]':'List0']
+=(\n.\head.(\Tail.e[\tail:Tail. let Result=(List {+ n 1}:Nat) in {'cons' head tail}:Result]) e[List n]) 0 'hello' '[]
+=(\n.\head.(\Tail.\tail. e[let Result=(List {+ n 1}:Nat) in {'cons' head tail}:Result]) e[(\n:Nat.{concat 'List' n}:*) n]) 0 'hello' '[]
+=(\n.\head.(\Tail.\tail. (\Result.{'cons' head tail}) (List {+ n 1}:Nat) e[let Result=(List {+ n 1}:Nat) in {'cons' head tail}:Result]) e[(\n:Nat.{concat 'List' n}:*) n]) 0 'hello' '[]
+
+t[cons 0:Nat 'hello':String nil]
+=t[(\n:Nat.\head:String.let Tail=(List n) in \tail:Tail. let Result=(List {+ n 1}:Nat) in {'cons' head tail}:Result) 0:Nat 'hello':String nil]
+=(let N={typeEqual Nat Nat} in let n=0:N in \head:String.let Tail=(List n) in \tail:Tail. let Result=(List {+ n 1}:Nat) in {'cons' head tail}:Result) 'hello':String nil
+
+sum=\a:Nat.\b:Nat.{plus a b}:Nat
+
+sum 2:Nat 3:Nat
+=(\a:Nat.\b:Nat.{plus a b}:Nat) 2:Nat 3:Nat
+=(let A={= Nat Nat}:* in let n=2:N in \b:Nat.{plus a b}:Nat) 3:Nat
+=(let A=Nat:* in let n=2:N in \b:Nat.{plus a b}:Nat) 3:Nat
+=(let n=2:Nat in \b:Nat.{plus a b}:Nat) 3:Nat
+=(\b:Nat.{plus 2 b}:Nat) 3:Nat
+=let B={= Nat Nat}:* in let b=3:B in {plus 2 b}:Nat
+=let B=Nat:* in let b=3:B in {plus 2 b}:Nat
+=let b=3:Nat in {plus 2 b}:Nat
+={plus 2 3}:Nat
+=5:Nat
+
+e[sum 2:Nat 3:Nat]
+=e[sum] e[2:Nat] e[3:Nat]
+=e[(\a:Nat.\b:Nat.{plus a b}:Nat) 2:Nat 3:Nat] 2 3
+=(\a.\b.{plus a b}) 2 3
+
+t[sum]
+=t[(\a:Nat.\b:Nat.{plus a b}:Nat)]
+=let R=t[{plus a b}:Nat] in Nat->Nat->R:*
+=let R=Nat in Nat->Nat->R:*
+=Nat->Nat->Nat:*
+=\a:Nat.b:Nat.Nat:*
+
+t[sum 2:Nat]
+=(\a:Nat. sum a) 2:Nat
+=let a=2:Nat in t[sum] a
+=let a=2:Nat in Nat->Nat->Nat:* a
+
+List=\n:Nat.{concat 'List' n}:*
+t[\n:Nat.{concat 'List' n}:*]
+=\n:Nat.*:*
+
+??? Now I recall that why I chose t:e syntax. For making dependent type as parameter to function
+
+id=\A:*.\x:A.x
+t[id]=\A:*.\x:A.A
+e[id]=\A.\x.x
+
+(id t[id] id) == id
+
+id t[id]
+=(\A:*.\x:A.x) (\A:*.\x:A.A)
+=\x:(\A:*.\x:A.A).x
+
+(\x:(\A:*.\x:A.A).x) (\A.\x.x):(\A:*.\x:A.A)
+=let X=(\A:*.\x:A.A)==(\A:*.\x:A.A) in let x=(\A.\x.x):X in x
+=let X=(\A:*.\x:A.A==A) in let x=(\A.\x.x):X in x
+=let X=(\A:*.\x:A.A) in let x=(\A.\x.x):X in x
+=let x=(\A.\x.x):(\A:*.\x:A.A) in x
+=(\A.\x.x):(\A:*.\x:A.A)
+
+f[(\A.\x.x):(\A:*.\x:A.A)]
+=\A:*.f[(\x.x):(\x:A.A)]
+=\A:*.\x:A.f[(x):(A)]
+=\A:*.\x:A.let X=t[x]==A in x
+=\A:*.\x:A.let X=A==A in x
+=\A:*.\x:A.let X=A in x
+=\A:*.\x:A.x
+
+id t[id]
+=(\A:*1.\x:A.x) (\A:*0.\x:A.A)
+
+------
+How to reduce dependent type of lock's parameter???
+
+q=\n:Nat. "[0^n]":"List[$n]"
+D=t[q]=\n:Nat. "List[$n]":*
+
+r=\n:Nat. "[1^n]":"List[$n]"
+D=t[r]=\n:Nat. "List[$n]":*
+
+s=\d:D.\n:Nat. d n
+t[s]
+=\d:D.\n:Nat. t[d] n
+=\d:D.\n:Nat. D n
+
+s q 2
+=(\d:D.\n:Nat. d n) (\n."[0^n]"):D
+=let X=D1==D2 in let d:X in \n:Nat. d n
+=(let d=D1 in \n:Nat. d n)==(let d=D2 in \n:Nat. d n)
+=(\n:Nat. D1 n)==(\n:Nat. D2 n)
+
+(\n:Nat. D1 n)==(\n:Nat. D2 n) 2:Nat
+((\n:Nat. D1 n) 2:Nat)==((\n:Nat. D2 n) 2:Nat)
+(let n=2:Nat in D1 n)==(let=n2:Nat in D2 n)
+(D1 2:Nat)==(D2 2:Nat)
+
+s q 2
+=(\d:D1.\n:Nat. d n) (\n."[0^n]"):D2
+=let X=D1==D2 in let d=(\n."[0^n]"):X in \n:Nat.d n
+=(\d.\n.d n):(let d=D1 in \n:Nat.d n)==(let d=D1 in \n:Nat.d n)
+
+idNat=:Nat.\x.x
+
+idNat 2:Nat
+=:Nat.\x.x 2:Nat
+=let x=2:Nat=Nat in x
+
+id=\A.:A.\x.x
+
+id Nat 3:Nat
+=(\A.:A.\x.x) Nat 3:Nat
+=:Nat.\x.x 3:Nat
+=let x=3:Nat=Nat in x
+=let x=3:Nat in x
+3:Nat
+
+const=:Nat.3:Nat
+
+just unlocking
+const :Nat
+=(:Nat.3:Nat) :Nat
+=let R=Nat=Nat in 3:Nat
+
+t[id]
+=\A.:A.\x.A
+
+const=\:Nat.3:Nat
+
+id2=\a:Nat.(\b:Nat.b) a
+
+t[id2]
+=\a:Nat. let b=a==Nat in t[b]
+
+t[(\b:Nat.b) a:Nat]
+=t[let b=a:Nat in b]
+=let b=Nat:* in b
+=Nat:*
+
+t[a b]
+=t[a] b
+
+id=\A:*.\x:A.x
+t[id]=\A:*.\x:A.A=\A:*.A->A
+
+Nat->Nat {+ 2 3}:Nat
+let R=Nat==Nat in Nat
+
+\_:Nat.Nat {+ 2 4}:Nat
+=let _=Nat==Nat in Nat
+
+\x:Nat.Nat {+ 2 4}:Nat
+=let x={+ 2 4}:Nat in Nat
+
+t[\a:Nat.(\b:Nat.b) a]
+=\a:Nat.t[(\b:Nat.b) a]
+=\a:Nat.t[(\b:Nat.b)] a
+=\a:Nat.(\b:Nat.t[b]) a
+=\a:Nat.(\:Nat.Nat) a
+=\a:Nat.let _=Nat==Nat in Nat
+=\a:Nat.let _=Nat in Nat
+=\a:Nat.Nat
+
+\:Nat.Nat
+
+???
+let x=(\:Nat.Nat)==(\:Nat.String) in x 2:Nat
+=let x=\:Nat.Nat==String in x 2:Nat
+=let x=\:Nat.error:* in x 2:Nat
+
+let x=(\x:Nat.Nat)==(\x:Nat.String) in x 2:Nat
+(\x:Nat.Nat 2:Nat)==(\x:Nat.String 2:Nat)
+
+\a:Nat.(\b:Nat.b) a
+=\a:Nat. let b=e[a]:t[a]==Nat in b
+=\a:Nat. let b=a:Nat==Nat in b
+=\a:Nat. let b=a:Nat in b
+=\a:Nat. a:Nat
+
+q=let r=(\x:Nat.Nat)==(\x:Nat.Nat) in r
+e[q]=(\r.r)==(\r.r) in r
+
+id=\x:Nat.x
+e[id]=\x.x
+t[id]=\:Nat.Nat
+apply=\f:(\:Nat.Nat).\a:Nat. f a
+e[apply]=\f.\a.f a
+t[apply]=\:(\:Nat.Nat).\:Nat. (\:Nat.Nat) :Nat
+
+(\:Nat.Nat) :Nat
+=let R=Nat==Nat in Nat
+=Nat
+
+let x=Nat:*==Nat:* in 3:Nat    ((\x.3) Nat):(let x=*==* in Nat)
+=let x=Nat:* in 3:Nat          ((\x.3) Nat):(let x=* in Nat)
+=3:Nat
+
+(\x:Nat:*.3:Nat:*) 'hello':String:*                 ((\x.3) 'hello'):((\:Nat:*.Nat:*) 'hello':String:*)
+=let x='hello':(String:* == Nat:*) in 3:Nat:*       ((\x.3) 'hello'):(let r=String:*==Nat:* in Nat:*)
+=let x='hello':error:* in 3:Nat:*                   ((\x.3) 'hello'):(let r=error:* in Nat:*)
+=let x=error:* in 3:Nat:*                           ((\x.3) 'hello'):error:*
+=error:*                                            error:*
+
+(\:Nat:*.Nat:*) 'hello':String:*                    (Nat):((\:Nat:*.*) 'hello':String:*)
+=let a=String:*==Nat:* in Nat:*                     (Nat):(let a=* in *)
+
+(\:Nat:*.String:*) 3:Nat:*
+=let q=Nat:*==Nat:* in 
+
+q=(\a:Nat.\b:Nat. {concat a b}:String) 3:Nat 4:Nat
+=let a=3:Nat==Nat in let b=4:Nat==Nat in {concat a b}:String
+="34":String
+
+e[q]
+=(\a.\b.{concat a b}) 3 4
+t[q]
+=(\:Nat.\:Nat.String) 3:Nat 4:Nat
+=let a=Nat==Nat in let b=Nat==Nat in String
+=String
+
+e[t[q]]
+=e[(\:Nat.\:Nat.String) 3:Nat 4:Nat]
+=\.\.String 3 4
+t[t[q]]
+=t[(\:Nat.\:Nat.String) 3:Nat 4:Nat]
+=\:Nat.\:Nat.* 3:Nat 4:Nat
+let R=Nat==Nat in let Q=Nat==Nat in *
+
+q=\x:Nat.{toString x}:String
+q 3:Nat
+=(\x:Nat.{toString x}:String) 3:Nat
+=let x=3:Nat==Nat in {toString x}:String
+=let x=3:Nat in {toString x}:String
+={toString 3}:String
+='3':String
+
+e[q 3:Nat]:t[q 3:Nat]
+=((\x.{toString x}) 3):((\:Nat.String) 3:Nat)
+=((\x.{toString x}) 3):(let r=Nat==Nat in String)
+=((\x.{toString x}) 3):(let r=Nat in String)
+=((\x.{toString x}) 3):String
+={toString 3}:String
+='3':String
+
+r=((\:Nat:*.String:*) 3:Nat:*)
+e[r]:t[r]
+=((\.String) 3):((\:Nat:*.*) 3:Nat:*)
+=((\.String) 3):(let _=Nat:*==Nat:* in *)
+=((\.String) 3):(let _=Nat:* in *)
+=((\.String) 3):*
+=String:*
+
+=(\:Nat:*.String:*) 3:Nat:*
+=let _=Nat:*==Nat:* in String:*
+=let _=*==* in *
+
+t1:E1==t2:E2
+(t1==t2):(E1==E2)
+(\x.t2) t1=t2
+
+(\x.Nat)==(\x.Str)
+=\x.Nat==Str
+=\x.error
+=error
+
+(\a:A.e) b:B
+=A==B;let a=b:A in e
+
+??? test
+(\f:(\n:Nat. {+ {* 2 n} 10}:*).\a:Nat. f a) (\n. {* n 7}):(\n:Nat. {* 2 {+ n 5}}:*)
+=let f=(\n. {* n 7}):(\n:Nat. ({+ {* 2 n} 10}=={* 2 {+ n 5}}):*) in \a:Nat. f a
+
+t[^]
+=\a:Nat. (\n:Nat. ({+ {* 2 n} 10}=={* 2 {+ n 5}}):*) a
+=\a:Nat. ({+ {* 2 a} 10}=={* 2 {+ a 5}}):*
+
+(\f:(\n:Nat. {2n+10}:*). f 3:Nat) (\n. {7n}):(\n:Nat. {2(n+5)}:*)
+=let f=(\n. {7n}):(\n:Nat. {2(n+5)}:*)==(\n:Nat. {2n+10}:*) in f 3:Nat
+=let f=(\n. {7n}):(\n:Nat. ({2(n+5)}=={2n+10}):*) in f 3:Nat
+=((\f. f 3) (\n. {7n})):((\n:Nat. ({2(n+5)}=={2n+10}):*) 3:Nat)
+=((\f. f 3) (\n. {7n})):(let n=3:Nat==Nat in ({2(n+5)}=={2n+10}):*)
+=((\f. f 3) (\n. {7n})):(let n=3:Nat in ({2(n+5)}=={2n+10}):*)
+=((\f. f 3) (\n. {7n})):({2(3+5)}=={2*3+10}):*
+=((\f. f 3) (\n. {7n})):(16==16):*
+=((\f. f 3) (\n. {7n})):16:*
+=((\n. {7n}) 3):16:*
+={7*3}:16:*
+=21:16:*
+
+q=(\f:(\n:Nat. {2n+10}:*). f 3:Nat)
+=e[q]:t[q]
+=(\f.f 3):(\f:(\n:Nat. {2n+10}:*). t[f] 3:Nat)
+=(\f.f 3):(\:(\n:Nat. {2n+10}:*). (\n:Nat. {2n+10}:*) 3:Nat)
+=(\f.f 3):(\:(\n:Nat. {2n+10}:*). 16:*)
+
+
+(\a:Nat.Nat:*)==(\b:Nat.String:*)
+\a:Nat.Nat==String:*
+\a:Nat. error:*
+
+(\f:(\n:Nat. {2n+10}:*). f 3:Nat) (\n. {7n}):(\n:Nat. {2(n+5)}:*)
+=let f=(\n. {7n}):(\n:Nat. {2(n+5)}:*)==(\n:Nat. {2n+10}:*) in f 3:Nat
+=e[^]:t[^]
+=((\f.f 3) (\n. {7n})):t[f 3:Nat]
+=((\f.f 3) (\n. {7n})):(t[f] 3:Nat)
+=((\f.f 3) (\n. {7n})):((\n:Nat. {2(n+5)}:*)==(\n:Nat. {2n+10}:*) 3:Nat)
+=((\f.f 3) (\n. {7n})):((\n:Nat. {2(n+5)}:*) 3:Nat)==((\n:Nat. {2n+10}:*) 3:Nat)
+=((\f.f 3) (\n. {7n})):(let n=3:Nat==Nat in {2(n+5)}:*)==(let n=3:Nat==Nat in {2n+10}:*)
+=((\f.f 3) (\n. {7n})):({2(3+5)}:*)==({2*3+10}:*)
+=((\f.f 3) (\n. {7n})):(16:*)==(16:*)
+=((\f.f 3) (\n. {7n})):16:*
+
+??? test
+(\f:(\:Nat:*.String:*). f 3:Nat) (\n.n):(\:Nat.Nat:*)
+=let f=(\n.n):(\:Nat.Nat:*)==(\:Nat:*.String:*) in f 3:Nat
+=let f=(\n.n):(\:Nat.Nat==String:*) in f 3:Nat
+=let f=(\n.n):(\:Nat.error:*) in f 3:Nat
+=let f=(\n.n):error:* in f 3:Nat
+=let f=error:* in f 3:Nat
+=error:*
+
+t[\f:(\n:Nat. {2n+10}:*). f 3:Nat]
+=\f:(\n:Nat. {2n+10}:*). (\n:Nat. {2n+10}:*) 3:Nat
+=\f:(\n:Nat. {2n+10}:*). let n=3:Nat==Nat in {2n+10}:*
+=\f:(\n:Nat. {2n+10}:*). {2*3+10}:*
+=\f:(\n:Nat. {2n+10}:*). 16:*
+
+let f=(\n:Nat. {2(n+5)}:*)==(\n:Nat. {2n+10}:*) in f
+=((\f.f) (\n. {2(n+5)})==(\n. {2n+10})):t[(\n:Nat. {2(n+5)}:*)==(\n:Nat. {2n+10}:*)]
+=((\f.f) (\n. {2(n+5)})==(\n. {2n+10})):(\n:Nat. *)==(\n:Nat. *)
+=((\f.f) (\n. {2(n+5)})==(\n. {2n+10})):(\n:Nat. *)
+
+(\n:Nat. {2(n+5)}:*)==(\n:Nat. {2n+10}:*)
+=\n:Nat. ({2(n+5)}=={2n+10}):*
+=(\n.({2(n+5)}=={2n+10})):(\n:Nat.*)
+
+??? test
+id=\x:Nat.x
+t[id]=\:Nat.Nat
+id2=\x:Nat. id x
+t[id2]
+=t[\x:Nat. id x]
+=\x:Nat. t[id] x
+=\x:Nat. \:Nat.Nat x
+
+??? Test
+NAT=Nat:*
+SUCC=\z:NAT.NAT
+NUMBER=\s:SUCC.\z:NAT.NAT
+one=\s:SUCC.\z:NAT. s z
+two=\s:SUCC.\z:NAT. s (s z)
+four=\s:SUCC.\z:NAT. s (s (s (s z)))
+
+one
+=\s:SUCC.\z:NAT. s z
+=\s:SUCC.\z:NAT. (s z):(SUCC _:NAT)
+=\s:SUCC.\z:NAT. (s z):NAT
+=\s:SUCC.(\z.(s z)):\z:NAT.NAT
+=\s.(\z.(s z)):\s:SUCC.\z:NAT.NAT
+
+add
+=\m:NUMBER.\n:NUMBER.\s:SUCC.\z:NAT. m f (n f z)
+=\m:NUMBER.\n:NUMBER.\s:SUCC.\z:NAT. m f ((n f):(NUMBER _:SUCC) z)
+
+id=\A:*.\x:A.x
+=(\A.\x.x):(\A:*.\x:A.A)
+=(\A.\x.x):(\A.\x.A):(\A:*.\x:A.*)
+
+id Nat:*
+=(\A.\x.x):(\A.\x.A):(\A:*.\x:A.*) Nat:*
+=let z=Nat:* in ((\A.\x.x) z):((\A.\x.A) z):((\A:*.\x:A.*) z)
+=((\A.\x.x) Nat):((\A.\x.A) Nat):((\A:*.\x:A.*) Nat:*)
+=((\A.\x.x) Nat):((\A.\x.A) Nat):(let A=Nat:*==* in \x:A.*)
+=((\A.\x.x) Nat):((\A.\x.A) Nat):(let A=Nat:* in \x:A.*)
+=((\A.\x.x) Nat):((\A.\x.A) Nat):(\x:Nat:*.*)
+=((\A.\x.x) Nat):(\x.Nat):(\x:Nat:*.*)
+
+(\s:Nat:*. {+ 2 s}:{toString s}:*) 3:Nat:*
+=(\s.{+ 2 s}):(\s:Nat:*.{toString s}:*) 3:Nat:*
+=(\s.{+ 2 s}):(\s.{toString s}):(\s:Nat:*.*) 3:Nat:*
+=let R=((\s:Nat:*.*) _:Nat:*) in let s=3:Nat:* in {+ 2 s}:{toString s}:R
+=let R=((\s:Nat:*.*) _:Nat:*) in let s=3:Nat:* in {+ 2 s}:{toString s}:R
+
+(\s:Nat:*. {+ 2 s}:{toString s}:*) 3:Nat:*
+=let s=3:Nat:*==Nat:* in {+ 2 s}:{toString s}:*
+=let s=3:Nat:* in {+ 2 s}:{toString s}:*
+={+ 2 3}:{toString 3}:*
+={+ 2 3}:"3":*
+=5:"3":*
+
+q=(\s:Nat:*. {+ 2 s}:{toString s}:*) {+ 5 7}:Nat:*
+=e[q]:t[q]
+=((\s. {+ 2 s}) {+ 5 7}):((\s:Nat:*. {toString s}:*) {+ 5 7}:Nat:*)
+=let x={+ 5 7}:Nat:* in ((\s. {+ 2 s}) x):((\s:Nat:*. {toString s}:*) x)
+
+One way to make dependent type argument as lazy is to implement store, and replace the term with store label.

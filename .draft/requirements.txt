@@ -1,0 +1,6 @@
+1. Dependent types must be first citizen
+2. Type system must be predicative, because the code "don't go wrong" in a very broad sense,
+ and also it may not suffer from any kinds of code-injection attacks, and
+ it may also not use improper marshaling or unmarshaling in communication. right?
+ typical ambiguity
+do not support \level:Nat.U_level - get universe level by its index
