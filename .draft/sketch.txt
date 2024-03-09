@@ -1972,3 +1972,224 @@ q=(\s:Nat:*. {+ 2 s}:{toString s}:*) {+ 5 7}:Nat:*
 =let x={+ 5 7}:Nat:* in ((\s. {+ 2 s}) x):((\s:Nat:*. {toString s}:*) x)
 
 One way to make dependent type argument as lazy is to implement store, and replace the term with store label.
+
+f=a1:a2:a3:b1:b2:b3 c1:c2:c3:c4
+=let R=(b1:b2:b3 _:c2:c3:c4) in let r=c1:c2:c3:c4 in (a1 r):(a2 r):(a3 r):R
+
+str=\n:Nat:*. {toString n}:String:*
+=(\n.{toString n}):(\n:Nat:*.String:*)
+
+str 3:Nat:*
+=(\n.{toString n}):(\n:Nat:*.String:*) 3:Nat:*
+=let R=((\n:Nat:*.String:*) _:Nat:*) in let x=3:Nat:* in ((\n.{toString n}) x):R
+=let R=String:* in let x=3:Nat:* in ((\n.{toString n}) x):R
+=let x=3:Nat:* in ((\n.{toString n}) x):String:*
+=((\n.{toString n}) 3):String:*
+={toString 3}:String:*
+="3":String:*
+
+dt=\s:Nat. {+ 2 s}:{toString s}
+=\s:Nat. {+ 2 s}:{toString s}:*
+=(\s.{+ 2 s}):(\s:Nat. {toString s}:*)
+=(\s.{+ 2 s}):(\s. {toString s}):(\s:Nat.*)
+
+n===s
+dt 3:Nat:*
+=(\n.{+ 2 s}):(\n. {toString s}):(\n:Nat.*) 3:Nat:*
+=let R=((\n:Nat.*) _:Nat:*) in let r=3:Nat:* in ((\n.{+ 2 s}) r):((\n. {toString s}) r):R
+=let R=* in let r=3:Nat:* in ((\n.{+ 2 s}) r):((\n. {toString s}) r):R
+=let r=3:Nat:* in ((\n.{+ 2 s}) r):((\n. {toString s}) r):*
+=((\n.{+ 2 s}) 3):((\n. {toString s}) 3):*
+=((\n.{+ 2 s}) 3):({toString 3}):*
+=((\n.{+ 2 s}) 3):"3":*
+={+ 2 3}:"3":*
+=5:"3":*
+
+dt2=(\a:Nat. dt a)
+=(\a:Nat. (\s.{+ 2 s}):(\s. {toString s}):(\s:Nat.*) a)
+=(\a:Nat. let R=((\s:Nat.*) _:Nat) in let r=a in ((\s.{+ 2 s}) r):((\s. {toString s}) r):R)
+=(\a:Nat. let R=* in let r=a in ((\s.{+ 2 s}) r):((\s. {toString s}) r):R)
+=(\a:Nat. let r=a in ((\s.{+ 2 s}) r):((\s. {toString s}) r):*)
+=(\a:Nat. ((\s.{+ 2 s}) a):((\s. {toString s}) a):*)
+=(\a:Nat. {+ 2 a}:{toString a}:*)
+=(\a.{+ 2 a}):(\a:Nat. {toString a}:*)
+=(\a.{+ 2 a}):(\a. {toString a}):(\a:Nat. *)
+
+Succ=\z:Nat.Nat
+Number=\s:Succ.\z:Nat.Nat
+
+add
+=\m:Number.\n:Number.\s:Succ.\z:Nat. (m s) ((n s) z)
+=\m:Number.\n:Number.\s:Succ.\z:Nat. (let R=(Number _:Succ) in let r=s in (m r):R) ((n s) z)
+=\m:Number.\n:Number.\s:Succ.\z:Nat. (let R=Succ in let r=s in (m r):R) ((n s) z)
+=\m:Number.\n:Number.\s:Succ.\z:Nat. (let r=s in (m r):Succ) ((n s) z)
+=\m:Number.\n:Number.\s:Succ.\z:Nat. ((\r.(m r)) s):Succ ((n s) z)
+=\m:Number.\n:Number.\s:Succ.\z:Nat. (m s):Succ ((n s) z)
+=\m:Number.\n:Number.\s:Succ.\z:Nat. (m s):Succ ((n s):Succ z)
+=\m:Number.\n:Number.\s:Succ.\z:Nat. (m s):Succ (let R=(Succ _:Nat) in let r=z in ((n s) r):R)
+=\m:Number.\n:Number.\s:Succ.\z:Nat. (m s):Succ (let R=Nat in let r=z in ((n s) r):R)
+=\m:Number.\n:Number.\s:Succ.\z:Nat. (m s):Succ (let r=z in ((n s) r):Nat)
+=\m:Number.\n:Number.\s:Succ.\z:Nat. (m s):Succ ((n s) z):Nat
+=\m:Number.\n:Number.\s:Succ.\z:Nat. let R=(Succ _:Nat) in let r=((n s) z):Nat in ((m s) r):R
+=\m:Number.\n:Number.\s:Succ.\z:Nat. let R=Nat in let r=((n s) z):Nat in ((m s) r):R
+=\m:Number.\n:Number.\s:Succ.\z:Nat. let r=((n s) z):Nat in ((m s) r):Nat
+=\m:Number.\n:Number.\s:Succ.\z:Nat. ((\r.((m s) r)) ((n s) z)):Nat
+=\m:Number.\n:Number.\s:Succ.\z:Nat. ((m s) ((n s) z)):Nat
+=\m:Number.\n:Number.\s:Succ.(\z.((m s) ((n s) z))):\z:Nat.Nat
+=\m:Number.\n:Number.\s.\z.((m s) ((n s) z)):\s:Succ.\z:Nat.Nat
+=\m:Number.\n.\s.\z.((m s) ((n s) z)):\n:Number.\s:Succ.\z:Nat.Nat
+=\m.\n.\s.\z.((m s) ((n s) z)):\m:Number.\n:Number.\s:Succ.\z:Nat.Nat
+
+
+TODO: what happens here \a:Nat. let r=(n s) in ((\s.{+ 2 s}) r):((\s. {toString s}) r):*
+
+let r=a1:a2:b1:b2 in (c1 r):(c2 r):d1:d2
+= a2 -> r=a1 -> c2 r -> c1 r
+= (a2; (\r. (c2 r);(c1 r)) a1):d1:d2
+
+f=a1:a2:a3:a4 c1:c2:c3:c4
+=(a1 c1):(a2 'c1):(a3 'c1):(a4 'c1:c2:c3:c4)
+
+dt=\s:Nat:*. {+ 2 s}:{toString s}:*
+=(\s.{+ 2 s}):(\s:Nat. {+ 2 s}:{toString s}:*)
+
+(\s.{+ 2 s}):(\s:Nat. {+ 2 s}:{toString s}:*) {+ 4 5}:Nat
+=((\s.{+ 2 s}) L1[{+ 4 5}]):((\s:Nat. {toString s}:*) L1:Nat)
+=((\s.{+ 2 s}) L1[{+ 4 5}]):(let s=L1:Nat==Nat in {toString s}:*)
+=((\s.{+ 2 s}) L1[{+ 4 5}]):(let s=L1:Nat in {toString s}:*)
+=((\s.{+ 2 s}) L1[{+ 4 5}]):({toString L1}:*)
+=((\s.{+ 2 s}) L1[9]):({toString L1}:*)
+=((\s.{+ 2 s}) 9):({toString 9}:*)
+=((\s.{+ 2 s}) 9):"9":*
+={+ 2 9}:"9":*
+=11:"9":*
+
+process=\a:Request:*.{getName a}:{getResponseType a}:*
+e[process]=\a.{getName a}
+t1[process]=\a:Request:*.{getResponseType a}:*
+t2[process]=\_:Request:*.*
+
+handle=\r:Request:*. process r
+=\r:Request:*. (\a:Request:*.{getName a}:{getResponseType a}:*) r
+=\r:Request:*. let a=r:(Request:*==Request:*) in {getName a}:{getResponseType a}:*
+=\r:Request:*. let a=r:Request:* in {getName a}:{getResponseType a}:*
+=\r:Request:*. {getName r}:{getResponseType r}:*
+=(\r.{getName r}):(\r:Request:*.{getResponseType r}:*)
+=(\r.{getName r}):(\r.{getResponseType r}):(\_:Request.*)
+
+handle 'name:alpha type:beta':Request:*
+=((\r.{getName r}):(\r.{getResponseType r}):(\_:Request.*)) 'name:alpha type:beta':Request:*
+='alpha':'beta':*
+
+(\x.a):(\x.b):(\_:Nat.*) 5:Nat:*
+=((\x.a) 5):((\x.b):(\_:Nat.*) 5:Nat:*)
+=((\x.a) 5):((\x.b) 5):((\_:Nat.*) 5:Nat:*)
+=((\x.a) 5):((\x.b) 5):(let _=5:(Nat:*==Nat:*) in *)
+=((\x.a) 5):((\x.b) 5):(let _=5:Nat:* in *)
+=((\x.a) 5):((\x.b) 5):*
+=((\x.a) 5):b:*
+=a:b:*
+
+
+id=\A:*.\x:A.x
+=(\_.\x.x):(\A:*.\x:A.A)
+=(\_.\x.x):(\A.\x.A):(\A:*.\x:A.*)
+
+q=\x:Nat. (\a:Nat.\b:Nat. a:b) x x
+=(\x.(\a.\b.a) x x):(\x:Nat. (\_:Nat.\b:Nat. b) x x)
+=(\x.(\a.\b.a) x x):(\x:Nat. x)
+=(\x.x):(\x.x):(\_:Nat. Nat)
+
+q 3:Nat
+=(\x.x):(\x.x):(\_:Nat. Nat) 3:Nat
+=((\x.x) 3):((\x.x):(\_:Nat. Nat) 3:Nat)
+=((\x.x) 3):((\x.x) 3):((\_:Nat. Nat) 3:Nat)
+=((\x.x) 3):((\x.x) 3):(let L=Nat==Nat in Nat)
+=((\x.x) 3):((\x.x) 3):Nat
+=3:3:Nat
+
+q=\\x:Nat:*.x:x
+=(\x.x):(\x:Nat:*.x)
+=(\x.x):(\x.x):(_:Nat:*.Nat:*)
+
+q 3:Nat:*
+=(\\x:Nat:*.x:x) 3:Nat:*
+=let U=Nat:*==Nat:* in let x=3:U in x:x
+=let U=Nat:* in let x=3:U in x:x
+=let x=3:Nat:* in x:x
+=3:3:Nat:*
+
+=(\x.x):(\x.x):(_:Nat:*.Nat:*) 3:Nat:*
+=((\x.x) 3):((\x.x) 3):((_:Nat:*.Nat:*) 3:Nat:*)
+=((\x.x) 3):((\x.x) 3):(let U=Nat:*==Nat:* in Nat:*)
+=((\x.x) 3):((\x.x) 3):(let U=Nat:* in Nat:*)
+=((\x.x) 3):((\x.x) 3):Nat:*
+=3:3:Nat:*
+
+s=q {+ 1 2}:Nat:*
+=(\x.x):(\x.x):(_:Nat:*.Nat:*) {+ 1 2}:Nat:*
+=A:B:C D:E
+# (C E) -> y=D -> (B y) -> (A y)
+=let U=Nat:*==Nat:* in let y={+ 1 2}:U in ((\x.x) y):((\x.x) y):Nat:*
+
+e[s]
+=(\y.(\x.x) y) {+ 1 2}
+t[s]
+=
+
+(\x:Nat:*.x:x) t:Nat:*
+=(\x.x):(\x.x):(_:Nat:*.Nat:*) t:Nat:*
+=((\x.x) t):((\x.x) t):((_:Nat:*.Nat:*) t:Nat:*)
+=((\x.x) t):((\x.x) t):(let U=Nat:* <? Nat:* in Nat:*)
+=((\x.x) t):((\x.x) t):(let U=Nat:* in Nat:*)
+=((\x.x) t):((\x.x) t):Nat:*
+
+
+t={+ 1 2}
+(\x:3:Nat:*.x) ((\x.x) t):((\x.x) t):Nat:*
+=let U=3:Nat:*<?((\x.x) t):Nat:* in let x=((\x.x) t):U in x
+or
+=(\x.x):(_:3:Nat:*.3:Nat:*) ((\x.x) t):((\x.x) t):Nat:*
+=((\x.x) ((\x.x) t)):((_:3:Nat:*.3:Nat:*) ((\x.x) t):((\x.x) t):Nat:*)
+=((\x.x) ((\x.x) t)):(let U=3:Nat:*<?((\x.x) t):Nat:* in 3:Nat:*)
+
+0x.t --> _.t
+1x.t --> \x.t
+
+0x:A.b:B:C -->  (_.t):(_:A.B:C)
+1x:A.b:B:C --> (\x.t):(_:A.B:C)
+2x:A.b:B:C -->  (_.t):(\x:A.B:C) --> (_.t):(\x.B):(_:A.C)
+3x:A.b:B:C --> (\x.t):(\x:A.B:C) --> (\x.t):(\x.B):(_:A.C)
+4x:A.b:B:C:D --> (_.t):(_.B):(\x:A.C:D) --> (_.t):(_.B):(\x.C):(_:A.D)
+5x:A.b:B:C:D --> (\x.t):(_.B):(\x:A.C:D) --> (\x.t):(_.B):(\x.C):(_:A.D)
+
+2x:A.b:B:C:D t:E
+=let 2x=t:A==E in b:B:C:D
+=((0x.b) t):(let 1x=t:A=E in B:C:D)
+=((0x.b) t):((1x.B) t):(let 0x=t:A=E in C:D)
+=((0x.b) t):((1x.B) t):()
+
+2A:*. (1x:A.x) t:E
+=2A:*. let 1x=t:E==A in x
+=2A:*. ((1x.x) t):(let 1x=E==A in x)
+
+first=1d:Vec2:*.{get 0 d}:Int:*
+=(1d.{get 0 d}):(0d:Vec2.Int:*)
+parse=3x:Raw.{toVec2 x}:{toVec2Type x}:*
+=(1x.{toVec2 x}):(1x.{toVec2Type x}):(0x:Raw.*)
+parseAndFirst=3b:Raw.first (parse b)
+=3b:Raw.first ((1x.{toVec2 x}):(1x.{toVec2Type x}):(0x:Raw.*) b)
+=3b:Raw.first ((1x.{toVec2 x}) b):((1x.{toVec2Type x}) b):((0x:Raw.*) b)
+=3b:Raw.first ((1x.{toVec2 x}) b):((1x.{toVec2Type x}) b):*
+=3b:Raw.(1d.{get 0 d}):(0d:Vec2.Int:*) ((1x.{toVec2 x}) b):((1x.{toVec2Type x}) b):*
+=3b:Raw.((1d.{get 0 d}) ((1x.{toVec2 x}) b)):((0d:Vec2.Int:*) ((1x.{toVec2 x}) b):((1x.{toVec2Type x}) b):*)
+=3b:Raw.((1d.{get 0 d}) ((1x.{toVec2 x}) b)):(let 1D=(((1x.{toVec2Type x}) b):*)==Vec2:* in Int:*)
+=3b:Raw.((1d.{get 0 d}) ((1x.{toVec2 x}) b)):(let 1D=(((1x.{toVec2Type x}) b)==Vec2):*==* in Int:*)
+=3b:Raw.((1d.{get 0 d}) ((1x.{toVec2 x}) b)):(let 1D=(((1x.{toVec2Type x}) b)==Vec2):* in Int:*)
+=3b:Raw.((1d.{get 0 d}) ((1x.{toVec2 x}) b)):((1D.Int) ((1x.{toVec2Type x}) b)==Vec2):(let 0D=* in *)
+=3b:Raw.((1d.{get 0 d}) ((1x.{toVec2 x}) b)):((1D.Int) ((1x.{toVec2Type x}) b)==Vec2):*
+=(1b.((1d.{get 0 d}) ((1x.{toVec2 x}) b))):(1b.((1D.Int) ((1x.{toVec2Type x}) b)==Vec2)):(0b:Raw.*)
+
+parseAndFirst '[1,2]':Raw
+=(1b.((1d.{get 0 d}) ((1x.{toVec2 x}) b))):(1b.((1D.Int) ((1x.{toVec2Type x}) b)==Vec2)):(0b:Raw.*) '[1,2]':Raw
+
