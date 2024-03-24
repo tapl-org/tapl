@@ -2193,3 +2193,17 @@ parseAndFirst=3b:Raw.first (parse b)
 parseAndFirst '[1,2]':Raw
 =(1b.((1d.{get 0 d}) ((1x.{toVec2 x}) b))):(1b.((1D.Int) ((1x.{toVec2Type x}) b)==Vec2)):(0b:Raw.*) '[1,2]':Raw
 
+\x.x:\x.2x:(_:Nat.*) {+ 1 2}:Nat
+=(\x.x:2x)
+
+(\x. x:x):(_:Nat:*.*) 3:Nat:*
+=((\x.x:x) 3):((_:Nat:*.*) 3:Nat:*)
+=((\x.x:x) 3):*
+=3:3:*
+
+(\a:3:*.a)
+=(\a.a):(_:3:*.3:*)
+
+(\a.a):(_:3:*.3:*) ((\x.x:x) 3):*
+=t:((_:3:*.3:*) ((\x.x:x) 3):*)
+
