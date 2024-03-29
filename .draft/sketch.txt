@@ -2207,3 +2207,120 @@ parseAndFirst '[1,2]':Raw
 (\a.a):(_:3:*.3:*) ((\x.x:x) 3):*
 =t:((_:3:*.3:*) ((\x.x:x) 3):*)
 
+id=\A:*.\x:A.x
+=(_.\x.x):(\A:*.\x:A.A)
+=(_.\x.x):(\A._.A):(\A:*.\x:A.*)
+=(_.\x.x):(\A._.A):(\A:*.A->*)
+
+id (\B:*.\x:B.B)
+=let A=(\B:*.\x:B.B) in \x:A.x
+=\x:(\B:*.\x:B.B). x
+
+(\x:(\B:*.\x:B.B). x) (_.\y.y):(\A:*.\x:A.A)
+=let x=(_.\y.y):(\A:*.\x:A.A)==(\B:*.\x:B.B) in x
+typeof
+=let X=(\A:*.\x:A.A)==(\B:*.\x:B.B) in X
+
+TEST
+\A:*.(\x:A.x) 3:3
+=\A:*. let x=3:3==A in x
+=(\A.(\x.x) 3):(\A:*. 3==A)
+=(\A.(\x.x) 3):(\A. 3==A):(\_.*)
+=
+=(\A.(\x.x) 3):(\A:*.(\_:A.A) 3:3)
+=(\A.(\x.x) 3):(\A.(\_.A) 3):(\A:*.(\_:A.*) 3:3)
+
+q=\A:*.(\x:A.4:Nat) 3:Nat
+
+q Nat:*
+=(\A:*.(\x:A.4:Nat) 3:Nat) Nat:*
+=let A=Nat:*==* in (\x:A.4:Nat) 3:Nat
+=let A=Nat:* in (\x:A.4:Nat) 3:Nat
+=(\x:Nat:*.4:Nat) 3:Nat
+=let x=3:(Nat==Nat:*) in 4:Nat
+=let x=3:Nat in 4:Nat
+=4:Nat
+
+t[q Nat:*]
+=t[q] Nat:*
+=(\A:*.(t[\x:A.4:Nat]) 3:Nat) Nat:*
+=(\A:*.(\x:A.t[4:Nat]) 3:Nat) Nat:*
+=(\A:*.(\x:A.Nat:*) 3:Nat) Nat:*
+
+q
+=\A:*. let x=3:Nat==A in 4:Nat
+=(\A. (\x.4) 3):(\A:*. (\y:*.Nat) A==Nat)
+=(\A. (\x.4) 3):(\A. (\y.Nat) A==Nat):(_:*. (_:*.*) *)
+=(\A. (\x.4) 3):(\A. (\y.Nat) A==Nat):(_:*. *)
+=(\A. (\x.4) 3):(\A. (\y.Nat) A==Nat):(_:*. *)
+
+\A:*.\x:A.x
+=(\A.\x.x):(\A:*.\x:A.A)
+=(\A.\x.x):(\A.\x.A):()
+
+(\A:*.\x:A.4:Nat) Nat:* 3:Nat
+=(let A=Nat:*==* in \x:A.4:Nat) 3:Nat
+=(let A=Nat:* in \x:A.4:Nat) 3:Nat
+=(\x:Nat:*.4:Nat) 3:Nat
+=let x=3:(Nat==Nat:*) in 4:Nat
+=let x=3:Nat in 4:Nat
+=4:Nat
+
+(\A:*.\x:A.4:Nat) Nat:* 3:Nat
+=((\A.\x.4) Nat 3):((\A:*.\_:A.Nat) Nat:* 3:Nat)
+=((\A.\x.4) Nat 3):((let A=Nat:*==* in \_:A.Nat) 3:Nat)
+=((\A.\x.4) Nat 3):((let A=Nat:* in \_:A.Nat) 3:Nat)
+=((\A.\x.4) Nat 3):((\_:Nat.Nat) 3:Nat)
+=((\A.\x.4) Nat 3):(let _=Nat==Nat in Nat)
+
+
+\x:Nat.x:x:*
+=(\x.x:x):(:Nat.*)
+
+(\x:Nat.x:x:*) 3:Nat
+=let x=3:Nat==Nat in x:x:*
+=let x=3:Nat in x:x:*
+=3:3:*
+
+(\x.x:x):(:Nat.*) 3:Nat
+=((\x.x:x) 3):((:Nat.*) Nat)
+=((\x.x:x) 3):(Nat==Nat;*)
+=((\x.x:x) 3):(Nat;*)
+=((\x.x:x) 3):*
+=(3:3):*
+=3:3:*
+
+(\a:3:*.a) ((\x.x:x) 3):*
+=let a=(((\x.x:x) 3):*)==(_:3:*) in a
+=let a=(((\x.x:x) 3)==_:3):*
+
+\x:Nat.x:x:*
+=(\x.x):(\x.x):(:Nat.*)
+
+(\x.x):(\x.x):(:Nat.*) 3:3:Nat
+=((\x.x) 3):((\x.x) 3):(Nat==Nat;*)
+
+(\a:3:*.a)
+=(\a.a):(:3:*.3:*)
+=(\a.a):(:3.3):(:*.*)
+
+(\a.a):(:3.3):(:*.*) ((\x.x:x) 3):*
+
+\A:*.\x:A.x
+=(\A.\x.x):(:*.)
+
+(_.\x.x):(\A.:A.A):(:*._.*) *:Nat:*
+=((_.\x.x) *):((\A.:A.A) Nat):((:*._.*) *)
+=((_.\x.x) *):((\A.:A.A) Nat):((\._.*) *=*)
+=((_.\x.x) *):((\A.:A.A) Nat):((\._.*) *)
+=((_.\x.x) *):((\A.:A.A) Nat):(_.*)
+=((_.\x.x) *):(:Nat.Nat):(_.*)
+=(\x.x):(:Nat.Nat):(_.*)
+=(\x.x):(:Nat.Nat)
+
+(\x.x):(:Nat.Nat) 3:Nat
+=((\x.x) 3):((:Nat.Nat) Nat)
+=((\x.x) 3):((\.Nat) Nat==Nat)
+=((\x.x) 3):((\.Nat) Nat)
+=((\x.x) 3):Nat
+=3:Nat
