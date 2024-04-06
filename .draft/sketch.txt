@@ -2324,3 +2324,20 @@ q
 =((\x.x) 3):((\.Nat) Nat)
 =((\x.x) 3):Nat
 =3:Nat
+
+\x:Float. if x then 3:Nat else "dfd":String
+=(\x.if x then 3 else "dfdf):(Float. Float==Bool;Nat==String)
+=(\x.if x then 3 else "dfdf):(Float. error;Nat==String)
+=(\x.if x then 3 else "dfdf):(Float. error)
+=(\x.if x then 3 else "dfdf):error
+=error
+
+https://www.cs.cmu.edu/~janh/courses/ra19/assets/pdf/lect04.pdf
+
+Linear type
+\f:u->u->t.\x:u.\y:u. ((f x) y)
+=(\f.\x.\y. (f x) y):(u->u->t.u.u. (u->u->t u) u)
+
+x=10; while x > 0: print(x); x = x - 1
+
+
