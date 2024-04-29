@@ -2138,7 +2138,7 @@ t[s]
 =
 
 (\x:Nat:*.x:x) t:Nat:*
-=(\x.x):(\x.x):(_:Nat:*.Nat:*) t:Nat:*
+=(\x.x):(\x.x):(_:Nat:*.Nat:*) t:Nat:*∏
 =((\x.x) t):((\x.x) t):((_:Nat:*.Nat:*) t:Nat:*)
 =((\x.x) t):((\x.x) t):(let U=Nat:* <? Nat:* in Nat:*)
 =((\x.x) t):((\x.x) t):(let U=Nat:* in Nat:*)
@@ -2340,4 +2340,93 @@ Linear type
 
 x=10; while x > 0: print(x); x = x - 1
 
+
+id=(*:\A).\x:A.x
+=(*:\A).(\x.x):(A.let x=A in x)
+=(*.(\x.x)):(\A.(A.let x=A in x))
+
+id *:Nat 3:Nat
+=(*.(\x.x)):(\A.(A.let x=A in x)) *:Nat 3:Nat
+=((*.(\x.x)) * 3):(\A.(A.let x=A in x) Nat Nat)
+=((*.(\x.x)) * 3):((Nat.let x=Nat in x) Nat)
+=((*.(\x.x)) * 3):((\.let x=Nat in x) Nat==Nat)
+=((*.(\x.x)) * 3):((\.let x=Nat in x) Nat)
+=((*.(\x.x)) * 3):(let x=Nat in x)
+=((*.(\x.x)) * 3):Nat
+=((\.(\x.x)) *==* 3):Nat
+=((\x.x) 3):Nat
+=3:Nat
+
+x|\:Nat.x
+=(\x.x):(Nat.(\x.x) Nat)
+=(\x.x):(Nat.Nat)
+
+id=A|*:\.x|\:A.x
+=A|*:\.(\x.x):(A.(\x.x) A)
+=A|*:\.(\x.x):(A.A)
+=(*.(\A.(\x.x)) *):(\A.(A.A))
+=(*.(\x.x)):(\A.(A.A))
+
+idNat=id *:Nat
+=(*.(\x.x)):(\A.(A.A)) *:Nat
+=((*.(\x.x)) *):((\A.(A.A)) Nat)
+=((*.(\x.x)) *):(Nat.Nat)
+=((\.(\x.x)) *=*):(Nat.Nat)
+=(\x.x):(Nat.Nat)
+
+idNat 3:Nat
+=(\x.x):(Nat.Nat) 3:Nat
+=((\x.x) 3):((Nat.Nat) Nat)
+=((\x.x) 3):((\.Nat) Nat=Nat)
+=((\x.x) 3):((\.Nat) Nat)
+=((\x.x) 3):Nat
+=3:Nat
+
+
+q=x|\:(\:Nat).x:x
+=(x|\.x):(x|(\:Nat).x)
+=(\x.x):((x|\.x):(x|Nat.x))
+=(\x.x):((\x.x):(Nat.(\x.x) Nat))
+=(\x.x):((\x.x):(Nat.Nat))
+
+(\x.x):((\x.x):(Nat.Nat)) 3:(3,Nat)
+=((\x.x) 3):(((\x.x):(Nat.Nat)) (3,Nat))
+=((\x.x) 3):(((\x.x) 3):((Nat.Nat) Nat))
+=((\x.x) 3):(((\x.x) 3):((\.Nat) Nat=Nat))
+=((\x.x) 3):(((\x.x) 3):((\.Nat) Nat))
+=((\x.x) 3):(3:Nat)
+=3:(3:Nat)
+
+OpenFile|ClosedFile
+open:String->[OpenFile]
+read:[OpenFile]->String
+close:[OpenFile]=>\x.x[0]:=ClosedFile;x
+
+
+f:=open('a.txt')
+close(f)
+read(f)
+
+f:=open:String->[OpenFile] 'a.txt':String
+(close:[OpenFile]=>\x.x[0]:=ClosedFile;x) f
+read:[OpenFile]->String f
+
+(f:=open 'a.txt'):(f:=String->[OpenFile] String)
+(close f):(([OpenFile]=>\x.x[0]:=ClosedFile;x) f)
+(read f):([OpenFile]->String f)
+
+f:=open 'a.txt'
+close f
+read f
+:
+f:=String->[OpenFile] String
+([OpenFile]=>\x.x[0]:=ClosedFile;x) f
+[OpenFile]->String f
+
+{f:[OpenFile]}([OpenFile]=>\x.x[0]:=ClosedFile;x) f;[OpenFile]->String f
+{f:[OpenFile]}[OpenFile]=f;((\x.x[0]:=ClosedFile;x) f);[OpenFile]->String f
+{f:[OpenFile]}((\x.x[0]:=ClosedFile;x) f);[OpenFile]->String f
+{f:[ClosedFile]}[OpenFile]->String f
+{f:[ClosedFile]}[OpenFile]=[ClosedFile];String
+{f:[ClosedFile]}not equal error;String
 
