@@ -1,3 +1,7 @@
+<? Part of the TAPL project, under the Apache License v2.0 with LLVM
+   Exceptions. See /LICENSE for license information.
+   SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception ?>
+
 ## Set up the build environment
 
 1. Install bazel - [ref](https://stackoverflow.com/a/67538831/22663977)
@@ -23,5 +27,9 @@ sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-17 100
 ```
 4. Download absl
 ```
-bazel build @com_google_absl//...
+bazel build @abseil-cpp//...
+```
+5. Refresh Hedron
+```
+bazel run @hedron_compile_commands//:refresh_all
 ```

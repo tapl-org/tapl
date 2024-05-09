@@ -2,9 +2,14 @@
 // Exceptions. See /LICENSE for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <iostream>
+#include "src/chunker.h"
 
-int main() {
-  std::cout << "C++ version: " << __cplusplus << std::endl;
-  return 0;
+#include "gtest/gtest.h"
+
+namespace tapl {
+
+TEST(ChunkerTest, OneLine) {
+    ASSERT_TRUE(true);
 }
+
+}  // namespace tapl

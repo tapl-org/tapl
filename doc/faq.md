@@ -1,3 +1,7 @@
+<? Part of the TAPL project, under the Apache License v2.0 with LLVM
+   Exceptions. See /LICENSE for license information.
+   SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception ?>
+
 ### Why type is an expression?
 because typeof operator returns expression
 ### Why we need complete type check before substitution?
