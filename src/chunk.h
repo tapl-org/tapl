@@ -7,35 +7,46 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <sstream>
 #include <vector>
 
 namespace tapl {
 
-typedef std::string::size_type Position;
+/* A Chunk is a sequence of lines where the first line has less start whitespace
+then others, and only last line ends with colon (:) or next line of the last
+lines of chunk has same start whitespace as chunk's first line. If a chunk ends
+with colon, then that chunk must have a child chunk which consist of all next
+lines which have more start whitespace than parent.
+Skip empty lines or a line with whitespace (only space)
+*/
 
-class Location {
- public:
-  Position start() const;
-  Position end() const;
-
- private:
-  Position start_;
-  Position end_;
+struct Chunk {
+  std::size_t indent_level;
+  std::size_t start_line;
+  std::size_t line_count;
+  std::vector<Chunk> children;
 };
 
-class Chunk {
+class ChunkParser {
  public:
-  Chunk(Location location, std::string_view text,
-        std::vector<std::shared_ptr<Chunk>> children);
-  Location location() const;
-  std::string_view text() const;
-  const std::vector<std::shared_ptr<Chunk>>& children() const;
+  ChunkParser(const std::string& text) : text_{text} {}
+  void Init();
+  std::string GetDump();
 
  private:
-  Location location_;
-  std::string_view text_;
-  std::vector<std::shared_ptr<Chunk>> children_;
+  std::string text_;
+  std::vector<std::string_view> lines_;
+  std::vector<Chunk> chunks_;
+
+  void SplitLines();
+  Chunk ParseChunk(std::size_t start, std::size_t end, std::size_t indent_level);
+  std::vector<std::size_t> GetChunkLineNumbers(std::size_t start, std::size_t end, std::size_t indent_level);
+  std::size_t FindFirstPossibleIndent(std::size_t start, std::size_t end, std::size_t indent_level);
+  std::vector<Chunk> ParseChunks(std::size_t start, std::size_t end, std::size_t indent_level);
+
+  void PrintDump(std::stringstream& ss, const Chunk& chunk, int index);
+  void PrintDump(std::stringstream& ss, const std::vector<Chunk>& chunks);
+
 };
-using ChunkPtr = std::shared_ptr<Chunk>;
 
 }  // namespace tapl
