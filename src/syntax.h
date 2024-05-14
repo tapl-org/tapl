@@ -10,36 +10,34 @@
 #include <string_view>
 #include <vector>
 
-namespace tapl::syntax {
+namespace tapl {
 
-typedef std::string::size_type Position;
+struct Position {
+  std::size_t line{0};
+  std::size_t column{0};
+};
 
 struct Location {
-  const Position start{0};
-  const Position end{0};
+  Position start;
+  Position end;
 };
 
 typedef int AstKind;
 namespace ast_kind {
-constexpr AstKind kSyntaxError = 1;
-constexpr AstKind kSymbolicName = 2;
-constexpr AstKind kBytes = 3;
-constexpr AstKind kTypeOfFunction = 4;
-constexpr AstKind kTermVariable = 5;
-constexpr AstKind kNativeCall = 6;
-constexpr AstKind kAbstraction = 7;
-constexpr AstKind kApplication = 8;
-constexpr AstKind kRuntimeError = 9;
-constexpr AstKind kExpressionVariable = 10;
-constexpr AstKind kTypedTerm = 11;
-constexpr AstKind kLock = 12;
-constexpr AstKind kUnlock = 13;
-constexpr AstKind kLetBinding = 14;
+constexpr AstKind kData = 1;
+constexpr AstKind kCode = 2;
+constexpr AstKind kParameter = 3;
+constexpr AstKind kAbstraction = 4;
+constexpr AstKind kLock = 5;
+constexpr AstKind kApplication = 6;
+constexpr AstKind kEquivalent = 7;
+constexpr AstKind kExpressionAsTerm = 8;
+constexpr AstKind kTypedTerm = 9;
 }  // namespace ast_kind
 
 struct AstBase {
-  const AstKind kind{0};
-  const Location location;
+  AstKind kind{0};
+  Location location;
 
   explicit AstBase(int kind, Location location)
       : kind(kind), location(location) {}
@@ -47,79 +45,54 @@ struct AstBase {
 };
 using Ast = std::shared_ptr<AstBase>;
 
-struct AstSyntaxError : AstBase {
-  const int tag;
-  const std::string message;
-  explicit AstSyntaxError(Location location, int tag, std::string_view message)
-      : AstBase(ast_kind::kSyntaxError, location), tag(tag), message(message) {}
+struct AstParameter : AstBase {
+  Ast signature;
+  explicit AstParameter(Location location, Ast signature)
+      : AstBase(ast_kind::kParameter, location), signature(signature) {}
 };
-Ast CreateAstSyntaxError(Location location, int tag, std::string_view message);
-
-struct AstSymbolicName : AstBase {
-  const std::string name;
-  AstSymbolicName(const Location location, std::string_view name)
-      : AstBase(ast_kind::kSymbolicName, location), name(name) {}
-};
-Ast CreateAstSymbolicName(Location location, std::string_view name);
-
-struct AstBytes : AstBase {
-  const std::string bytes;
-  AstBytes(const Location location, std::string& bytes)
-      : AstBase(ast_kind::kBytes, location), bytes(bytes) {}
-};
-Ast CreateAstBytes(Location location, std::vector<std::byte> bytes);
-
-struct AstTypeOfFunction : AstBase {
-  const Ast argument_type;
-  const Ast result_type;
-  AstTypeOfFunction(const Location location, Ast argument_type, Ast result_type)
-      : AstBase(ast_kind::kTypeOfFunction, location),
-        argument_type(argument_type),
-        result_type(result_type) {}
-};
-Ast CreateAstTypeOfFunction(Location location, Ast argument_type,
-                            Ast result_type);
-
-struct AstTermVariable : AstBase {
-  const int bruijn_index;
-  AstTermVariable(const Location location, int bruijn_index)
-      : AstBase(ast_kind::kTermVariable, location),
-        bruijn_index(bruijn_index) {}
-};
-Ast CreateAstTermVariable(Location location, int bruijn_index);
-
-struct AstNativeCall : AstBase {
-  const std::vector<Ast> arguments;
-  AstNativeCall(const Location location, std::vector<Ast> arguments)
-      : AstBase(ast_kind::kNativeCall, location), arguments(arguments) {}
-};
-Ast CreateAstNativeCall(Location location, std::vector<Ast> arguments);
+Ast CreateAstParameter(Location location, Ast code);
 
 struct AstAbstraction : AstBase {
-  const Ast variable_origin;
-  const Ast body;
-  AstAbstraction(const Location location, Ast variable_origin, Ast body)
-      : AstBase(ast_kind::kAbstraction, location),
-        variable_origin(variable_origin),
-        body(body) {}
+  Ast parameter;
+  Ast body;
+  AstAbstraction(Location location, Ast parameter, Ast body)
+      : AstBase(ast_kind::kAbstraction, location), parameter(parameter), body(body) {}
 };
-Ast CreateAstAbstraction(Location location, Ast variable_origin, Ast body);
+Ast CreateAstAbstraction(Location location, Ast parameter, Ast body);
+
+struct AstLock : AstBase {
+  Ast guard;
+  Ast body;
+  AstLock(Location location, Ast guard, Ast body)
+      : AstBase(ast_kind::kLock, location), guard(guard), body(body) {}
+};
+Ast CreateAstLock(Location location, Ast guard, Ast body);
 
 struct AstApplication : AstBase {
   const Ast function;
   const Ast argument;
-  AstApplication(const Location location, Ast function, Ast argument)
+  AstApplication(Location location, Ast function, Ast argument)
       : AstBase(ast_kind::kApplication, location),
         function(function),
         argument(argument) {}
 };
 Ast CreateAstApplication(Location location, Ast function, Ast argument);
 
-struct AstRuntimeError : AstBase {
-  AstRuntimeError(const Location location)
-      : AstBase(ast_kind::kRuntimeError, location) {}
+struct AstEquivalent : AstBase {
+  const Ast left;
+  const Ast right;
+  AstEquivalent(Location location, Ast left, Ast right)
+      : AstBase(ast_kind::kApplication, location),
+        left(left), right(right) {}
 };
-Ast CreateAstRuntimeError(Location location);
+Ast CreateAstEquivalent(Location location, Ast left, Ast right);
+
+struct AstExpressionAsTerm : AstBase {
+  Ast expression;
+  AstExpressionAsTerm(Location location, Ast expression)
+      : AstBase(ast_kind::kExpressionAsTerm, location), expression(expression) {}
+};
+Ast CreateAstRuntimeError(Location location, Ast expression);
 
 struct AstTypedTerm : AstBase {
   const Ast term;
@@ -129,46 +102,4 @@ struct AstTypedTerm : AstBase {
 };
 Ast CreateAstTypedTerm(Location location, Ast term, Ast type);
 
-struct AstLock : AstBase {
-  const Ast variable_origin;
-  const Ast argument_type;
-  const Ast body;
-  AstLock(const Location location, Ast variable_origin, Ast argument_type,
-          Ast body)
-      : AstBase(ast_kind::kLock, location),
-        variable_origin(variable_origin),
-        argument_type(argument_type),
-        body(body) {}
-};
-Ast CreateAstLock(Location location, std::string_view variable_name_hint,
-                  Ast argument_type, Ast body);
-
-struct AstUnlock : AstBase {
-  const Ast function;
-  const Ast argument;
-  AstUnlock(const Location location, Ast function, Ast argument)
-      : AstBase(ast_kind::kUnlock, location),
-        function(function),
-        argument(argument) {}
-};
-Ast CreateUnlock(Location location, Ast function, Ast argument);
-
-struct AstLetBinding : AstBase {
-  const Ast variable_origin;
-  const Ast bound_expression;
-  const Ast body;
-  AstLetBinding(const Location location, Ast variable_origin,
-                Ast bound_expression, Ast body)
-      : AstBase(ast_kind::kLetBinding, location),
-        variable_origin(variable_origin),
-        bound_expression(bound_expression),
-        body(body) {}
-};
-Ast CreateLetBinding(Location location, Ast variable_origin,
-                     Ast bound_expression, Ast body);
-
-std::shared_ptr<AstSyntaxError> CastToSyntaxError(Ast ast);
-bool WellFormed(Ast ast);
-bool WellFormed_LogIfNot(Ast ast);
-
-}  // namespace tapl::syntax
+}  // namespace tapl
