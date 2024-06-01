@@ -9,9 +9,9 @@
 $t ::=$ || *term*
 &nbsp;| $d$ | *data*
 &nbsp;| $c$ | *code*
-&nbsp;| $\lambda.t$ | *function*
+&nbsp;| $\lambda.t$ | *abstraction*
 &nbsp;| $t{.}t$ | *lock*
-&nbsp;| $t{\ }t$ | *function-call \| unlock*
+&nbsp;| $t{\ }t$ | *application \| unlock*
 &nbsp;| $t{=}t$ | *equivalent*
 &nbsp;| $\Sigma(e)$ | *expression as term*
 $g ::=$ || *gate*
@@ -21,8 +21,8 @@ $g ::=$ || *gate*
 $e ::=$ || *expression*
 &nbsp;| $t$ | *term*
 &nbsp;| $e{:}e$ | *typed*
-&nbsp;| $g{.}e$ | *function \| lock*
-&nbsp;| $e{\ }e$ | *function-call \| unlock*
+&nbsp;| $g{.}e$ | *abstraction \| lock*
+&nbsp;| $e{\ }e$ | *application \| unlock*
 &nbsp;| $e{=}e$ | *equivalent*
 
 &nbsp;|**Handy terms**| $t = h{\mid}r$
@@ -38,7 +38,7 @@ $\dfrac{a}{a'}$| $a$ evaluates to $a'$ in one step.
 $()$| groupping: $t{=}(t)$ and $e{=}(e)$
 $*$| just a character data
 $\Delta(c)$| code can be wrapped and used as data
-$t.(\lambda.t)$| semantically correct lock term.<br> if body is not a function, then there will be an error in further evaluation.
+$t.(\lambda.t)$| semantically correct lock term.<br> if body is not an abstraction, then there will be an error in further evaluation.
 
 $\psi[t]$| **Term Evaluation** |$\psi[t] \to t$
 :-:|:-:|--:
@@ -48,8 +48,8 @@ $t{.}t$|$\dfrac{\psi[r{.}t]}{\psi[r]{.}t}$
 &nbsp;|$\dfrac{\psi[h{.}r]}{h{.}\psi[r]}$
 $t{\ }t$|$\dfrac{\psi[r{\ }t]}{\psi[r]{\ }t}$
 &nbsp;|$\dfrac{\psi[h{\ }r]}{h{\ }\psi[r]}$
-&nbsp;|$\dfrac{\psi[d{\ }h]}{\text{error: not a function}}$
-&nbsp;|$\dfrac{\psi[(\lambda.t){\ }h_{arg}]}{h_\text{ t's result}}$ | *function call*
+&nbsp;|$\dfrac{\psi[d{\ }h]}{\text{error: not an abstraction}}$
+&nbsp;|$\dfrac{\psi[(\lambda.t){\ }h_{arg}]}{h_\text{ t's result}}$ | *application*
 &nbsp;|$\dfrac{\psi[(h_1{.}h_2){\ }h_3]}{h_2{\ }\psi[h_1{=}h_3]}$ | *unlock*
 $t{=}t$|$\dfrac{\psi[r{=}t]}{\psi[r]{=}t}$
 &nbsp;|$\dfrac{\psi[h{=}r]}{h{=}\psi[r]}$
