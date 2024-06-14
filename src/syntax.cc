@@ -5,14 +5,29 @@
 #include "src/syntax.h"
 
 #include <memory>
+#include <stdexcept>
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
 
-namespace tapl::syntax {
+#include "absl/strings/substitute.h"
 
-Ast CreateAstParameter(Location location, Ast signature) {
-  return std::make_shared<AstParameter>(location, signature);
+namespace tapl {
+
+void AstBase::AppendToBody(Ast ast) {
+  throw std::runtime_error(absl::Substitute("Ast kind=$0 does not support AppendToBody.", kind));
+}
+
+Lines AstBase::GeneratePythonCode() {
+  throw std::runtime_error(absl::Substitute("Python code generation is not supported. kind=$0", kind));
+}
+
+void AstAbstraction::AppendToBody(Ast ast) {
+  body->AppendToBody(ast);
+}
+
+void AstLock::AppendToBody(Ast ast) {
+  body->AppendToBody(ast);
 }
 
 Ast CreateAstAbstraction(Location location, Ast parameter, Ast body) {
@@ -36,8 +51,24 @@ Ast CreateAstExpressionAsTerm(Location location, Ast expression) {
   return std::make_shared<AstExpressionAsTerm>(location, expression);
 }
 
+Ast CreateAstParameter(Location location, Ast signature) {
+  return std::make_shared<AstParameter>(location, signature);
+}
+
 Ast CreateAstTypedTerm(Location location, Ast term, Ast type) {
   return std::make_shared<AstTypedTerm>(location, term, type);
 }
 
-}  // namespace tapl::syntax
+Ast CreateAstCollection(Location location) {
+  return std::make_shared<AstCollection>(location);
+}
+
+void AstCollection::AppendToBody(Ast ast) {
+  ast_list.push_back(ast);
+}
+
+Ast CreateAstPyhonCode(Location location, Lines lines) {
+  return std::make_shared<AstPythonCode>(location, lines);
+}
+
+}  // namespace tapl

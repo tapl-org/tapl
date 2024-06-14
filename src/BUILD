@@ -23,10 +23,10 @@ cc_library(
     srcs = ["chunk.cc"],
     hdrs = ["chunk.h"],
     deps = [
+        ":syntax",
         "@abseil-cpp//absl/log",
         "@abseil-cpp//absl/log:check",
     ],
-
 )
 
 cc_test(
@@ -35,5 +35,5 @@ cc_test(
     deps = [
         ":chunk",
         "@googletest//:gtest_main",
-    ]
+    ],
 )

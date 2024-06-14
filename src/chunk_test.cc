@@ -9,8 +9,8 @@
 namespace tapl {
 
 void Assert(std::string text, std::string dump) {
-  ChunkParser parser(text);
-  parser.Init();
+  ChunkProcessor parser(text);
+  parser.Split();
   ASSERT_STREQ(parser.GetDump().c_str(), dump.c_str());
 }
 
