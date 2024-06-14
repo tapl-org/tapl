@@ -23,7 +23,8 @@ which buildifier
 3. Install clang - [ref](https://apt.llvm.org/)
 ```
 sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
-sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-17 100
+sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-18 100
+export CC=/usr/bin/cc
 ```
 4. Download absl
 ```
