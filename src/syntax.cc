@@ -9,33 +9,33 @@
 
 #include "absl/log/check.h"
 #include "absl/log/log.h"
-
 #include "absl/strings/substitute.h"
 
 namespace tapl {
 
 void AstBase::AppendToBody(Ast ast) {
-  throw std::runtime_error(absl::Substitute("Ast kind=$0 does not support AppendToBody.", kind));
+  throw std::runtime_error(
+      absl::Substitute("Ast kind=$0 does not support AppendToBody.", kind));
 }
 
-Lines AstBase::GeneratePythonCode() {
-  throw std::runtime_error(absl::Substitute("Python code generation is not supported. kind=$0", kind));
+Ast CreateAstData(Location location, Lines lines) {
+  return std::make_shared<AstData>(location, lines);
 }
 
-void AstAbstraction::AppendToBody(Ast ast) {
-  body->AppendToBody(ast);
+Ast CreateAstCode(Location location, Lines lines) {
+  return std::make_shared<AstCode>(location, lines);
 }
 
-void AstLock::AppendToBody(Ast ast) {
-  body->AppendToBody(ast);
-}
+void AstAbstraction::AppendToBody(Ast ast) { body.push_back(ast); }
 
-Ast CreateAstAbstraction(Location location, Ast parameter, Ast body) {
+Ast CreateAstAbstraction(Location location, Ast parameter,
+                         std::vector<Ast> body) {
   return std::make_shared<AstAbstraction>(location, parameter, body);
 }
 
-Ast CreateAstLock(Location location, Ast guard,
-                            Ast body) {
+void AstLock::AppendToBody(Ast ast) { body.push_back(ast); }
+
+Ast CreateAstLock(Location location, Ast guard, std::vector<Ast> body) {
   return std::make_shared<AstLock>(location, guard, body);
 }
 
@@ -57,18 +57,6 @@ Ast CreateAstParameter(Location location, Ast signature) {
 
 Ast CreateAstTypedTerm(Location location, Ast term, Ast type) {
   return std::make_shared<AstTypedTerm>(location, term, type);
-}
-
-Ast CreateAstCollection(Location location) {
-  return std::make_shared<AstCollection>(location);
-}
-
-void AstCollection::AppendToBody(Ast ast) {
-  ast_list.push_back(ast);
-}
-
-Ast CreateAstPyhonCode(Location location, Lines lines) {
-  return std::make_shared<AstPythonCode>(location, lines);
 }
 
 }  // namespace tapl

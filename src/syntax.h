@@ -34,11 +34,11 @@ constexpr AstKind kEquivalent = 6;
 constexpr AstKind kExpressionAsTerm = 7;
 constexpr AstKind kParameter = 8;
 constexpr AstKind kTypedTerm = 9;
-constexpr AstKind kCollection = 10;
 }  // namespace ast_kind
 
 using Lines = std::shared_ptr<std::vector<std::string>>;
 struct AstBase;
+// TODO: use Element|Node instead of Ast
 using Ast = std::shared_ptr<AstBase>;
 
 struct AstBase {
@@ -49,28 +49,41 @@ struct AstBase {
       : kind(kind), location(location) {}
   virtual ~AstBase() = default;
   virtual void AppendToBody(Ast ast);
-  virtual Lines GeneratePythonCode();
 };
+
+struct AstData : AstBase {
+  Lines lines;
+  AstData(Location location, Lines lines)
+      : AstBase(ast_kind::kData, location), lines(lines) {}
+};
+Ast CreateAstData(Location location, Lines lines);
+
+struct AstCode : AstBase {
+  Lines lines;
+  AstCode(Location location, Lines lines)
+      : AstBase(ast_kind::kCode, location), lines(lines) {}
+};
+Ast CreateAstCode(Location location, Lines lines);
 
 struct AstAbstraction : AstBase {
   Ast parameter;
-  Ast body;
-  AstAbstraction(Location location, Ast parameter, Ast body)
+  std::vector<Ast> body;
+  AstAbstraction(Location location, Ast parameter, std::vector<Ast> body)
       : AstBase(ast_kind::kAbstraction, location),
         parameter(parameter),
         body(body) {}
   void AppendToBody(Ast ast) override;
 };
-Ast CreateAstAbstraction(Location location, Ast parameter, Ast body);
+Ast CreateAstAbstraction(Location location, Ast parameter, std::vector<Ast> body);
 
 struct AstLock : AstBase {
   Ast guard;
-  Ast body;
-  AstLock(Location location, Ast guard, Ast body)
+  std::vector<Ast> body;
+  AstLock(Location location, Ast guard, std::vector<Ast> body)
       : AstBase(ast_kind::kLock, location), guard(guard), body(body) {}
   void AppendToBody(Ast ast) override;
 };
-Ast CreateAstLock(Location location, Ast guard, Ast body);
+Ast CreateAstLock(Location location, Ast guard, std::vector<Ast> body);
 
 struct AstApplication : AstBase {
   Ast function;
@@ -113,20 +126,6 @@ struct AstTypedTerm : AstBase {
       : AstBase(ast_kind::kTypedTerm, location), term(term), type(type) {}
 };
 Ast CreateAstTypedTerm(Location location, Ast term, Ast type);
-
-struct AstCollection : AstBase {
-  std::vector<Ast> ast_list{};
-  AstCollection(Location location): AstBase(ast_kind::kCollection, location) {}
-  void AppendToBody(Ast ast) override;
-};
-Ast CreateAstBody(Location location);
-
-struct AstPythonCode : AstBase {
-  Lines lines;
-  explicit AstPythonCode(Location location, Lines lines)
-      : AstBase(ast_kind::kCode, location), lines(lines) {}
-};
-Ast CreateAstPythonCode(Location location, Lines lines);
 
 
 }  // namespace tapl
