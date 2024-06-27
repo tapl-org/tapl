@@ -23,109 +23,99 @@ struct Location {
   Position end;
 };
 
-typedef int AstKind;
-namespace ast_kind {
-constexpr AstKind kData = 1;
-constexpr AstKind kCode = 2;
-constexpr AstKind kAbstraction = 3;
-constexpr AstKind kLock = 4;
-constexpr AstKind kApplication = 5;
-constexpr AstKind kEquivalent = 6;
-constexpr AstKind kExpressionAsTerm = 7;
-constexpr AstKind kParameter = 8;
-constexpr AstKind kTypedTerm = 9;
-}  // namespace ast_kind
+typedef int TermKind;
+namespace term_kind {
+constexpr TermKind kUnknown = 0;
+constexpr TermKind kCode = 1;
+constexpr TermKind kAbstraction = 2;
+constexpr TermKind kLock = 3;
+constexpr TermKind kApplication = 4;
+constexpr TermKind kEquivalent = 5;
+constexpr TermKind kExpressionAsTerm = 6;
+constexpr TermKind kParameter = 7;
+constexpr TermKind kMultiLevel = 8;
+}  // namespace term_kind
 
 using Lines = std::shared_ptr<std::vector<std::string>>;
-struct AstBase;
-// TODO: use Element|Node instead of Ast
-using Ast = std::shared_ptr<AstBase>;
 
-struct AstBase {
-  const AstKind kind{0};
+struct TermBase;
+using Term = std::shared_ptr<TermBase>;
+struct TermBase {
+  const TermKind kind{term_kind::kUnknown};
   Location location;
-
-  explicit AstBase(int kind, Location location)
+  explicit TermBase(TermKind kind, Location location)
       : kind(kind), location(location) {}
-  virtual ~AstBase() = default;
-  virtual void AppendToBody(Ast ast);
+  virtual ~TermBase() = default;
+  virtual void AppendToBody(Term term);
 };
 
-struct AstData : AstBase {
+struct TermCode : TermBase {
   Lines lines;
-  AstData(Location location, Lines lines)
-      : AstBase(ast_kind::kData, location), lines(lines) {}
+  TermCode(Location location, Lines lines)
+      : TermBase(term_kind::kCode, location), lines(lines) {}
 };
-Ast CreateAstData(Location location, Lines lines);
+Term CreateTermCode(Location location, Lines lines);
 
-struct AstCode : AstBase {
-  Lines lines;
-  AstCode(Location location, Lines lines)
-      : AstBase(ast_kind::kCode, location), lines(lines) {}
-};
-Ast CreateAstCode(Location location, Lines lines);
-
-struct AstAbstraction : AstBase {
-  Ast parameter;
-  std::vector<Ast> body;
-  AstAbstraction(Location location, Ast parameter, std::vector<Ast> body)
-      : AstBase(ast_kind::kAbstraction, location),
+struct TermAbstraction : TermBase {
+  Term parameter;
+  std::vector<Term> body;
+  TermAbstraction(Location location, Term parameter, std::vector<Term> body)
+      : TermBase(term_kind::kAbstraction, location),
         parameter(parameter),
         body(body) {}
-  void AppendToBody(Ast ast) override;
+  void AppendToBody(Term term) override;
 };
-Ast CreateAstAbstraction(Location location, Ast parameter, std::vector<Ast> body);
+Term CreateTermAbstraction(Location location, Term parameter, std::vector<Term> body);
 
-struct AstLock : AstBase {
-  Ast guard;
-  std::vector<Ast> body;
-  AstLock(Location location, Ast guard, std::vector<Ast> body)
-      : AstBase(ast_kind::kLock, location), guard(guard), body(body) {}
-  void AppendToBody(Ast ast) override;
+struct TermLock : TermBase {
+  Term keyhole;
+  std::vector<Term> body;
+  TermLock(Location location, Term keyhole, std::vector<Term> body)
+      : TermBase(term_kind::kLock, location), keyhole(keyhole), body(body) {}
+  void AppendToBody(Term term) override;
 };
-Ast CreateAstLock(Location location, Ast guard, std::vector<Ast> body);
+Term CreateTermLock(Location location, Term guard, std::vector<Term> body);
 
-struct AstApplication : AstBase {
-  Ast function;
-  Ast argument;
-  AstApplication(Location location, Ast function, Ast argument)
-      : AstBase(ast_kind::kApplication, location),
+struct TermApplication : TermBase {
+  Term function;
+  Term argument;
+  TermApplication(Location location, Term function, Term argument)
+      : TermBase(term_kind::kApplication, location),
         function(function),
         argument(argument) {}
 };
-Ast CreateAstApplication(Location location, Ast function, Ast argument);
+Term CreateTermApplication(Location location, Term function, Term argument);
 
-struct AstEquivalent : AstBase {
-  Ast left;
-  Ast right;
-  AstEquivalent(Location location, Ast left, Ast right)
-      : AstBase(ast_kind::kApplication, location), left(left), right(right) {}
+struct TermEquivalent : TermBase {
+  Term left;
+  Term right;
+  TermEquivalent(Location location, Term left, Term right)
+      : TermBase(term_kind::kApplication, location), left(left), right(right) {}
 };
-Ast CreateAstEquivalent(Location location, Ast left, Ast right);
+Term CreateTermEquivalent(Location location, Term left, Term right);
 
-struct AstExpressionAsTerm : AstBase {
-  Ast expression;
-  AstExpressionAsTerm(Location location, Ast expression)
-      : AstBase(ast_kind::kExpressionAsTerm, location),
+struct TermExpressionAsTerm : TermBase {
+  Term expression;
+  TermExpressionAsTerm(Location location, Term expression)
+      : TermBase(term_kind::kExpressionAsTerm, location),
         expression(expression) {}
 };
-Ast CreateAstRuntimeError(Location location, Ast expression);
+Term CreateExpressionAsTerm(Location location, Term expression);
 
-struct AstParameter : AstBase {
-  Ast signature;
-  explicit AstParameter(Location location, Ast signature)
-      : AstBase(ast_kind::kParameter, location), signature(signature) {}
+struct TermParameter : TermBase {
+  Term signature;
+  explicit TermParameter(Location location, Term signature)
+      : TermBase(term_kind::kParameter, location), signature(signature) {}
 };
-Ast CreateAstParameter(Location location, Ast signature);
+Term CreateTermParameter(Location location, Term signature);
 
-
-struct AstTypedTerm : AstBase {
-  Ast term;
-  Ast type;
-  AstTypedTerm(Location location, Ast term, Ast type)
-      : AstBase(ast_kind::kTypedTerm, location), term(term), type(type) {}
+struct TermMultiLevel : TermBase {
+  Term high;
+  Term low;
+  TermMultiLevel(Location location, Term high, Term low)
+      : TermBase(term_kind::kMultiLevel, location), high(high), low(low) {}
 };
-Ast CreateAstTypedTerm(Location location, Ast term, Ast type);
+Term CreateTermMultiLevel(Location location, Term term, Term type);
 
 
 }  // namespace tapl

@@ -20,7 +20,7 @@ $g ::=$ || *gate*
 &nbsp;| $g{:}g$ | *multi level gate*
 $e ::=$ || *expression*
 &nbsp;| $t$ | *term*
-&nbsp;| $e{:}e$ | *typed*
+&nbsp;| $e{:}e$ | *typed \| multi level*
 &nbsp;| $g{.}e$ | *abstraction \| lock*
 &nbsp;| $e{\ }e$ | *application \| unlock*
 &nbsp;| $e{=}e$ | *equivalent*

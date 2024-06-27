@@ -13,50 +13,46 @@
 
 namespace tapl {
 
-void AstBase::AppendToBody(Ast ast) {
+void TermBase::AppendToBody(Term term) {
   throw std::runtime_error(
-      absl::Substitute("Ast kind=$0 does not support AppendToBody.", kind));
+      absl::Substitute("Term kind=$0 does not support AppendToBody.", kind));
 }
 
-Ast CreateAstData(Location location, Lines lines) {
-  return std::make_shared<AstData>(location, lines);
+Term CreateTermCode(Location location, Lines lines) {
+  return std::make_shared<TermCode>(location, lines);
 }
 
-Ast CreateAstCode(Location location, Lines lines) {
-  return std::make_shared<AstCode>(location, lines);
+void TermAbstraction::AppendToBody(Term term) { body.push_back(term); }
+
+Term CreateTermAbstraction(Location location, Term parameter,
+                         std::vector<Term> body) {
+  return std::make_shared<TermAbstraction>(location, parameter, body);
 }
 
-void AstAbstraction::AppendToBody(Ast ast) { body.push_back(ast); }
+void TermLock::AppendToBody(Term term) { body.push_back(term); }
 
-Ast CreateAstAbstraction(Location location, Ast parameter,
-                         std::vector<Ast> body) {
-  return std::make_shared<AstAbstraction>(location, parameter, body);
+Term CreateTermLock(Location location, Term keyhole, std::vector<Term> body) {
+  return std::make_shared<TermLock>(location, keyhole, body);
 }
 
-void AstLock::AppendToBody(Ast ast) { body.push_back(ast); }
-
-Ast CreateAstLock(Location location, Ast guard, std::vector<Ast> body) {
-  return std::make_shared<AstLock>(location, guard, body);
+Term CreateTermApplication(Location location, Term function, Term argument) {
+  return std::make_shared<TermApplication>(location, function, argument);
 }
 
-Ast CreateAstApplication(Location location, Ast function, Ast argument) {
-  return std::make_shared<AstApplication>(location, function, argument);
+Term CreateTermEquivalent(Location location, Term left, Term right) {
+  return std::make_shared<TermApplication>(location, left, right);
 }
 
-Ast CreateAstEquivalent(Location location, Ast left, Ast right) {
-  return std::make_shared<AstApplication>(location, left, right);
+Term CreateTermExpressionAsTerm(Location location, Term expression) {
+  return std::make_shared<TermExpressionAsTerm>(location, expression);
 }
 
-Ast CreateAstExpressionAsTerm(Location location, Ast expression) {
-  return std::make_shared<AstExpressionAsTerm>(location, expression);
+Term CreateTermParameter(Location location, Term signature) {
+  return std::make_shared<TermParameter>(location, signature);
 }
 
-Ast CreateAstParameter(Location location, Ast signature) {
-  return std::make_shared<AstParameter>(location, signature);
-}
-
-Ast CreateAstTypedTerm(Location location, Ast term, Ast type) {
-  return std::make_shared<AstTypedTerm>(location, term, type);
+Term CreateTermMultiLevel(Location location, Term high, Term low) {
+  return std::make_shared<TermMultiLevel>(location, high, low);
 }
 
 }  // namespace tapl
