@@ -24,7 +24,7 @@ which buildifier
 ```
 sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
 sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-18 100
-export CC=/usr/bin/cc
+echo "export CC=/usr/bin/cc" >> ~/.bash_aliases
 ```
 4. Download absl
 ```
@@ -33,4 +33,8 @@ bazel build @abseil-cpp//...
 5. Refresh Hedron
 ```
 bazel run @hedron_compile_commands//:refresh_all
+```
+6. Clean bazel cache
+```
+bazel clean --expunge
 ```
