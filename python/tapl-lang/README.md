@@ -24,4 +24,4 @@ pip install tapl-lang
 
 ## License
 
-`tapl-lang` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
+`tapl-lang` is distributed under the terms of the [Apache-2.0 WITH LLVM-exception](https://spdx.org/licenses/Apache-2.0.html) license.
