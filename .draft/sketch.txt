@@ -2430,3 +2430,58 @@ f:=String->[OpenFile] String
 {f:[ClosedFile]}[OpenFile]=[ClosedFile];String
 {f:[ClosedFile]}not equal error;String
 
+-------------------------------------------------------------------------------
+
+all built-ins are inside braces. eg: {a+b}
+
+# Symple type
+
+plus=(\x!-.\y!-.{x+y}):Int->Int->Int
+
+inc=\a!-:Int.plus a 1:Int
+=\a!-:Int.(plus_L a 1):(plus_H a Int)
+=(\a!-.plus_L a 1):(\a!Int.plus_H a Int)
+=(\a!-.plus_L a 1):(\a!Int.plus_H a Int)
+=(\a!-.plus_L a 1):Int->(plus_H Int Int)
+=(\a!-.plus_L a 1):Int->(Int->Int->Int Int Int)
+=(\a!-.plus_L a 1):Int->(-->Int->Int Int=Int Int)
+=(\a!-.plus_L a 1):Int->(-->Int->Int Int Int)
+=(\a!-.plus_L a 1):Int->(Int->Int Int)
+=(\a!-.plus_L a 1):Int->(-->Int Int=Int)
+=(\a!-.plus_L a 1):Int->(-->Int Int)
+=(\a!-.plus_L a 1):Int->Int
+
+# Polymorphic type
+
+id=\A!-:-.\a!-:A.a
+=\A!-:-.(\a!-.a):(\a!A.a)
+=(\A!-.\a!-.a):(\A!-.\a!A.a)
+
+idInt=id -:Int
+=(\A!-.\a!-.a):(\A!-.\a!A.a) -:Int
+=((\A!-.\a!-.a) -):((\A!-.\a!A.a) Int)
+=((\A!-.\a!-.a) -):(\a!Int.a)
+=((\A!-.\a!-.a) -):Int->Int
+=(\a!-.a):Int->Int
+
+idInt 3:Int
+=(\a!-.a):Int->Int 3:Int
+=((\a!-.a) 3):(Int->Int Int)
+=((\a!-.a) 3):(-->Int Int=Int)
+=((\a!-.a) 3):(-->Int Int)
+=((\a!-.a) 3):Int
+=3:Int
+
+# Dependent type
+
+List=\n!-.{'List'+n}
+nil='[]':'List0'
+cons=\n!-:-.\list!-:(List n).\data!-:String.{append list data}:(List (inc n))
+=(\n!-.\list!-.\data!-.{append list data}):(\n!-.\list!(List n).\data!String.(List (inc n)))
+
+
+
+cons0=cons -:0
+=(\n!-.\list!-.\data!-.{append list data}):(\n!-.\list!(List n).\data!String.(List (inc n))) 0:Int
+=((\n!-.\list!-.\data!-.{append list data}) -):((\n!-.\list!(List n).\data!String.(List (inc n))) Int)
+=

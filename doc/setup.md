@@ -2,6 +2,10 @@
    Exceptions. See /LICENSE for license information.
    SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception ?>
 
+## Tools
+
+1. [adr](https://github.com/npryce/adr-tools/blob/master/INSTALL.md)
+
 ## Set up the build environment
 
 1. Install bazel - [ref](https://stackoverflow.com/a/67538831/22663977)
