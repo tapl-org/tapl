@@ -2474,14 +2474,73 @@ idInt 3:Int
 
 # Dependent type
 
-List=\n!-.{'List'+n}
+List=\n!-:Int.{'List'+n}:String
+=(\n!-.{'List'+n}):(\n!Int.String)
+=(\n!-.{'List'+n}):Int->String
+
 nil='[]':'List0'
-cons=\n!-:-.\list!-:(List n).\data!-:String.{append list data}:(List (inc n))
-=(\n!-.\list!-.\data!-.{append list data}):(\n!-.\list!(List n).\data!String.(List (inc n)))
+cons=\n!-:(-:Int).\a!-:(List n).\b!-:(Float:*).{append a b}:(List (inc n))
+=(\n!-.\a!-.\b!-.{append a b}):(\n!-:Int.\a!(List n).\b!(Float:-).(List (inc n)))
+=(\n!-.\a!-.\b!-.{append a b}):((\n!-.\a!(List_L n).\b!Float.(List_L (inc_L n))):(\n!Int.\a!(List_H n).\b!*.(List_H (inc_H n))))
+=(\n!-.\a!-.\b!-.{append a b}):((\n!-.\a!(List_L n).\b!Float.(List_L (inc_L n))):(Int->\a!(List_H Int).\b!*.(List_H (inc_H Int))))
+=(\n!-.\a!-.\b!-.{append a b}):((\n!-.\a!(List_L n).\b!Float.(List_L (inc_L n))):(Int->\a!(Int->String Int).\b!*.(List_H (inc_H Int))))
+=(\n!-.\a!-.\b!-.{append a b}):((\n!-.\a!(List_L n).\b!Float.(List_L (inc_L n))):(Int->\a!(-->String Int=Int).\b!*.(List_H (inc_H Int))))
+=(\n!-.\a!-.\b!-.{append a b}):((\n!-.\a!(List_L n).\b!Float.(List_L (inc_L n))):(Int->\a!(-->String Int).\b!*.(List_H (inc_H Int))))
+=(\n!-.\a!-.\b!-.{append a b}):((\n!-.\a!(List_L n).\b!Float.(List_L (inc_L n))):(Int->\a!String.\b!*.(List_H (inc_H Int))))
+=(\n!-.\a!-.\b!-.{append a b}):((\n!-.\a!(List_L n).\b!Float.(List_L (inc_L n))):(Int->String->\b!*.(Int->String (Int->Int Int))))
+=(\n!-.\a!-.\b!-.{append a b}):((\n!-.\a!(List_L n).\b!Float.(List_L (inc_L n))):(Int->String->\b!*.(Int->String (Int->Int Int))))
+=(\n!-.\a!-.\b!-.{append a b}):((\n!-.\a!(List_L n).\b!Float.(List_L (inc_L n))):(Int->String->*->(Int->String (Int->Int Int))))
+=(\n!-.\a!-.\b!-.{append a b}):((\n!-.\a!(List_L n).\b!Float.(List_L (inc_L n))):(Int->String->*->(Int->String Int)))
+=(\n!-.\a!-.\b!-.{append a b}):((\n!-.\a!(List_L n).\b!Float.(List_L (inc_L n))):(Int->String->*->String))
 
 
+cons0=cons -:(0:Int)
+=(\n!-.\a!-.\b!-.{append a b}):((\n!-.\a!(List_L n).\b!Float.(List_L (inc_L n))):(Int->String->*->String)) -:(0:Int)
+=((\n!-.\a!-.\b!-.{append a b}) -):(((\n!-.\a!(List_L n).\b!Float.(List_L (inc_L n))) 0):((Int->String->*->String) Int))
+=((\n!-.\a!-.\b!-.{append a b}) -):(((\n!-.\a!(List_L n).\b!Float.(List_L (inc_L n))) 0):(String->*->String))
+=((\n!-.\a!-.\b!-.{append a b}) -):((\a!(List_L 0).\b!Float.(List_L (inc_L 0))):(String->*->String))
+=((\n!-.\a!-.\b!-.{append a b}) -):((\a!'List0'.\b!Float.(List_L (inc_L 0))):(String->*->String))
+=((\n!-.\a!-.\b!-.{append a b}) -):(('List0'->\b!Float.(List_L (inc_L 0))):(String->*->String))
+=((\n!-.\a!-.\b!-.{append a b}) -):(('List0'->Float->(List_L (inc_L 0))):(String->*->String))
+=((\n!-.\a!-.\b!-.{append a b}) -):(('List0'->Float->(List_L 1)):(String->*->String))
+=((\n!-.\a!-.\b!-.{append a b}) -):(('List0'->Float->'List1'):(String->*->String))
 
-cons0=cons -:0
-=(\n!-.\list!-.\data!-.{append list data}):(\n!-.\list!(List n).\data!String.(List (inc n))) 0:Int
-=((\n!-.\list!-.\data!-.{append list data}) -):((\n!-.\list!(List n).\data!String.(List (inc n))) Int)
-=
+# Substructural type
+
+newHandler=\z!-:Void."new Status(Open)":Handler
+=(\z!-."new Status(Open)"):(\z!Void.Handler)
+=(\z!-."new Status(Open)"):Void->((\z!-.Handler) Void)
+=(\z!-."new Status(Open)"):Void->Handler
+
+closeHandler=\h!-:Handler."h.setClosed()":Void
+=(\h!-."h.setClosed()"):(\h!Handler.Void)
+=(\h!-."h.setClosed()"):Handler->((\h!-.Void) Handler)
+=(\h!-."h.setClosed()"):Handler->Void
+
+checkHandlerOpen=\h!-:Handler."h.checkOpened()":Void
+=(\h!-."h.checkOpened()"):(\h!Handler.Void)
+=(\h!-."h.checkOpened()"):Handler->((\h!-.Void) Handler)
+=(\h!-."h.checkOpened()"):Handler->Void
+
+open=\f!-:String."open f":{newHandler()}
+=(\f!-."open f"):(\f!String.{newHandler()})
+=(\f!-."open f"):String->((\f!-.{newHandler()}) String)
+=(\f!-."open f"):String->{newHandler()}
+
+close=\h!-:{-:Handler}."close h":{closeHandler} h
+=(\h!-."close h"):(\h!{-:Handler}.{closeHandler} h)
+=(\h!-."close h"):{\h!-:Handler.closeHandler h}
+
+read=\h!-:{-:Handler}."read f":{checkHandlerOpen} h;String
+=(\h!-."read f"):(\h!{-:Handler}.{checkHandlerOpen} h;String)
+=(\h!-."read f"):{\h!-:Handler.checkHandlerOpen h;String:-}
+
+readFileContent=\f!-:String:h=open f;close h;read h
+=(\f!-.open_L f;close_L h;read_L h):(\f!String.h=open_H f;close_H h;read_H h)
+
+
+(\f!String.h=open_H f;close_H h;read_H h)
+=String->((\f!-.h=open_H f;close_H h;read_H h) String)
+=String->(h=open_H String;close_H h;read_H h)
+=String->(h=String->{newHandler()} String;close_H h;read_H h)
+=String->(h={newHandler()};close_H h;read_H h)
