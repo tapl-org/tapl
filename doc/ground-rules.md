@@ -7,14 +7,15 @@
 &nbsp;|**Syntax**|&nbsp;
 ---|---|---:
 $t ::=$ || *term*
+&nbsp;| $-$ | *none*
 &nbsp;| $d$ | *data*
 &nbsp;| $c$ | *code*
-&nbsp;| $\lambda!t_{lock}.t_{body}$ | *function*
+&nbsp;| $\lambda!t_{input}.t_{body}$ | *function*
 &nbsp;| $t_{lock}{\to}t_{result}$ | *function type*
-&nbsp;| $t{\ }t$ | *application*
+&nbsp;| $t_{fun}{\ }t_{arg}$ | *application*
 &nbsp;| $t_{lock}{=}t_{key}$ | *unlocking*
 &nbsp;| $t{:}t$ | *multi level term*
-&nbsp;| $\epsilon.t$ | *flatten levels*
+&nbsp;| $\epsilon.t$ | *flatten levels???*
 
 &nbsp;|&nbsp;|&nbsp;
 ---|---|--:

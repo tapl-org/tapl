@@ -2544,3 +2544,97 @@ readFileContent=\f!-:String:h=open f;close h;read h
 =String->(h=open_H String;close_H h;read_H h)
 =String->(h=String->{newHandler()} String;close_H h;read_H h)
 =String->(h={newHandler()};close_H h;read_H h)
+
+
+-------------------------------------------------------------------------------
+
+all built-ins are inside double quotes. eg: "a+b"
+
+# Simple type
+
+plus=(\x!-.\!-."x+y"):Int->Int->Int
+
+inc=plus 1:Int
+=(\x!-.\y!-."x+y"):Int->Int->Int 1:Int
+=((\x!-.\y!-."x+y") 1):(Int->Int->Int Int)
+=((\x!-.\y!-."x+y") 1):Int->Int
+=(\t!-."1+y"):Int->Int
+
+inc 2:Int
+=(\t!-."1+y"):Int->Int 2:Int
+=((\t!-."1+y") 2):(Int->Int Int)
+="1+2":Int
+="3":Int
+
+# Polymorphic type
+
+id=\A!-:-.\a!-:A.a
+=(\A!-.\a!-.a):(\A!-.\a!A.a)
+
+idInt=(\A!-.\a!-.a):(\A!-.\a!A.a) -:Int
+=((\A!-.\a!-.a) -):((\A!-.\a!A.a) Int)
+=((\A!-.\a!-.a) -):(\a!Int.a)
+=((\A!-.\a!-.a) -):Int->Int
+=(\a!-.a):Int->Int
+
+idInt 3:Int
+=(\a!-.a):Int->Int 3:Int
+=((\a!-.a) 3):(Int->Int Int)
+=((\a!-.a) 3):Int
+=3:Int
+
+# Dependent type
+
+List=\n!-:Int."'List'+n":String
+=(\n!-."'List'+n"):(\n!Int.String)
+=(\n!-."'List'+n"):Int->String
+
+nil="[]":"List0"
+
+cons0=\a!-:List0.\b!-:Float."append a b":List1
+=(\a!-.\b!-."append a b"):(\a!List0.\b!Float.List1)
+=(\a!-.\b!-."append a b"):List0->Float->List1
+cons1=\a!-:List1.\b!-:Float."append a b":List2
+=(\a!-.\b!-."append a b"):List1->Float->List2
+
+cons=\n!-:(-:Int).(\a!-.\b!-."append a b"):(List n)->Float:*->(List (inc n))
+=(\n!-.\a!-.\b!-."append a b"):(\n!-:Int.(List n)->Float:*->(List (inc n)))
+
+# Substructural type
+
+void="none":Void
+newStatus=(\z!-."new Status(Open)"):Void->Status
+closeStatus=(h!-."h.setClosed()"):Status->Void
+checkStatusOpen=(\h!-."h.checkOpened()"):Status->Open
+
+openFile=(\f!-."open f"):String->Handler
+closeFile=(\f!-."close f"):Handler->Void
+readFile=(\f!-."read f"):Handler->String
+
+open=openFile:newStatus
+close=closeFile:closeStatus
+read=readFile:checkStatusOpen
+
+readFileContent=\f!-:String. @(h=open f:void;close h;read h)
+=\f!-:String. @((h=openFile f;closeFile h;readFile h):(h=open void;close h;read h))
+
+# let binding syntax sugar
+
+let a=v in b
+(\a!-:-.b) v
+
+inc=(\t!-."1+y"):Int->Int
+
+let a=3:Int in (inc a)
+(let a=3 in inc_L a):(let a=Int in inc_H a)
+
+inc_H Int
+=Int->Int Int
+=Int
+
+(\a!-:-.inc a) 3:Int
+(\a!-.(\t!-."1+y") a):(\a!-.Int->Int a) 3:Int
+
+(\a!-.Int->Int a) Int
+=Int->Int Int
+=Int
