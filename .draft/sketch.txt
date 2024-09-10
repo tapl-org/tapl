@@ -2638,3 +2638,11 @@ inc_H Int
 (\a!-.Int->Int a) Int
 =Int->Int Int
 =Int
+
+-------------------------------------------------------------------------------
+
+\k!(-:-):(-:-). (-:-)            # does not work
+
+readFileContent=\f!-:String. (h=open f:void;close h;read h) as low.low:@(low.high:(high.low:high.high))
+
+

@@ -14,21 +14,31 @@ $t ::=$ || *term*
 &nbsp;| $t_{lock}{\to}t_{result}$ | *function type*
 &nbsp;| $t_{fun}{\ }t_{arg}$ | *application*
 &nbsp;| $t_{lock}{=}t_{key}$ | *unlocking*
-&nbsp;| $t{:}t$ | *multi level term*
-&nbsp;| $\epsilon.t$ | *flatten levels???*
+&nbsp;| $t{:}t$ | *multi layer term*
+&nbsp;| $t\text{ as }k$ | *rearrage layers*
+&nbsp;| $\text{raise }t$ | *raise exception*
+&nbsp;| $\text{try }t_{body}\text{ with }t_{catch}$ | *raise exception*
+$path ::=$ || *path*
+&nbsp;| $\text{low}$ | *low layer*
+&nbsp;| $\text{high}$ | *high layer*
+&nbsp;| $path.path$ | *nested path*
+$k ::=$ || *rearrange*
+&nbsp;| $path$ | *path*
+&nbsp;| $k{:}k$ | *multi layer paths*
+&nbsp;| $\epsilon.k$ | *flatten layers*
 
 &nbsp;|&nbsp;|&nbsp;
 ---|---|--:
-&nbsp;|**Handy single and multi level terms**| $t = g{\mid}h$
-$g ::=$| $-\ \mid\ d\ \mid\ c\ \mid\ \lambda!g.g\ \mid\ g{\ }g\ \mid\ g{=}g\ \mid\ \epsilon.t$ | *single level*
-$h ::=$| $\lambda!h.g\ \mid\ \lambda!t.h\ \mid\ h{\ }g\ \ \mid\ t{\ }h\ \mid\ h{=}g\ \mid\ t{=}h\ \mid\ t{:}t$ | *multi level*
-&nbsp;|**Handy single level terms**| $g = v{\mid}r$
+&nbsp;|**Handy single and multi layer terms**| $t = g{\mid}h$
+$g ::=$| $-\ \mid\ d\ \mid\ c\ \mid\ \lambda!g.g\ \mid\ g{\ }g\ \mid\ g{=}g\ \mid\ \epsilon.t$ | *single layer*
+$h ::=$| $\lambda!h.g\ \mid\ \lambda!t.h\ \mid\ h{\ }g\ \ \mid\ t{\ }h\ \mid\ h{=}g\ \mid\ t{=}h\ \mid\ t{:}t$ | *multi layer*
+&nbsp;|**Handy single layer terms**| $g = v{\mid}r$
 $v ::=$| $-\ \mid\ d\ \mid\ \lambda!v.g$ | *value*
 $r ::=$| $c\ \mid\ \lambda!r{.}g\ \mid\ g{\ }g\ \mid\ g{=}g\ \mid\ \epsilon.t$ | *reducible*
-&nbsp;|**Handy multi level terms**| $h=s{\mid}u$
+&nbsp;|**Handy multi layer terms**| $h=s{\mid}u$
 $s ::=$| $g{:}g\ \mid\ g{:}s\ \mid\ s{:}g\ \mid\ s{:}s$ | *separated*
 $u ::=$| $t{:}u\ \mid\ u{:}g\ \mid\ u{:}s\ \mid\ \lambda!h.g\ \mid\ \lambda!t.h\ \mid\ h{\ }g\ \ \mid\ t{\ }h\ \mid\ h{=}g\ \mid\ t{=}h$ | *separable*
-$s' ::=$| $g\ \mid\ s$ | *single or seperated multi level*
+$s' ::=$| $g\ \mid\ s$ | *single or seperated multi layer*
 $p ::=$| $v\ \mid\ p{:}p$ | *normal*
 &nbsp;|**Notes**
 $-$| dash as data means non-existant lock when used as lock term. 
@@ -36,7 +46,7 @@ $\dfrac{a}{a'}$| $a$ evaluates to $a'$ in one step.
 $()$| groupping: $t{=}(t)$
 &nbsp;
 
-$\psi[g]$| **Single Level Term Evaluation** |$\psi[g] \to g$
+$\psi[g]$| **Single layer Term Evaluation** |$\psi[g] \to g$
 :-:|:-:|--:
 &nbsp;|$\dfrac{\psi[v]}{v}$
 &nbsp;|$\dfrac{\psi[c]}{v}$| *run the code*
@@ -67,15 +77,15 @@ $\sigma[t]$| **Term separation** |$\sigma[t] \to t$
 &nbsp;|$\dfrac{\sigma[t{:}u]}{t{:}\sigma[u]}$
 &nbsp;|$\dfrac{\sigma[u{:}s']}{\sigma[u]{:}s'}$
 &nbsp;|$\dfrac{\sigma[\lambda!(g_1{:}g_2).(s_1{:}s_2)]}{(g_1{.}s_1){:}(g_2{.}s_2)}$
-&nbsp;|$\dfrac{\sigma[\lambda!h.g\ \mid\ \lambda!g.h]}{\text{error: different levels}}$
+&nbsp;|$\dfrac{\sigma[\lambda!h.g\ \mid\ \lambda!g.h]}{\text{error: different layers}}$
 &nbsp;|$\dfrac{\sigma[\lambda!(g_1{:}g_2).(s_1{:}s_2)]}{(g_1{.}s_1){:}(g_2{.}s_2)}$
 $e{\ }e$|$\dfrac{\sigma[u{\ }e]}{\sigma[u]{\ }e}$
 &nbsp;|$\dfrac{\sigma[s{\ }u]}{s{\ }\sigma[u]}$
-&nbsp;|$\dfrac{\sigma[t{\ }s_1{:}s_2\ \mid\ s_1{:}s_2{\ }t]}{\text{error: not in the same level}}$
+&nbsp;|$\dfrac{\sigma[t{\ }s_1{:}s_2\ \mid\ s_1{:}s_2{\ }t]}{\text{error: not in the same layer}}$
 &nbsp;|$\dfrac{\sigma[(s_1{:}s_2){\ }(s_3{:}s_4)]}{(s_1{\ }s_3){:}(s_2{\ }s_4)}$
 $e{=}e$|$\dfrac{\sigma[u{=}e]}{\sigma[u]{=}e}$
 &nbsp;|$\dfrac{\sigma[s{=}u]}{s{=}\sigma[u]}$
-&nbsp;|$\dfrac{\sigma[t{=}s_1{:}s_2\ \mid\ s_1{:}s_2{=}t]}{\text{error: not in the same level}}$
+&nbsp;|$\dfrac{\sigma[t{=}s_1{:}s_2\ \mid\ s_1{:}s_2{=}t]}{\text{error: not in the same layer}}$
 &nbsp;|$\dfrac{\sigma[(s_1{:}s_2){=}(s_3{:}s_4)]}{(s_1{=}s_3){:}(s_2{=}s_4)}$
 
 
