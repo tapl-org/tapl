@@ -2550,19 +2550,20 @@ readFileContent=\f!-:String:h=open f;close h;read h
 
 all built-ins are inside double quotes. eg: "a+b"
 
+
 # Simple type
 
-plus=(\x!-.\!-."x+y"):Int->Int->Int
+plus=(\x!-=>\y!-=>"x+y"):Int=>Int=>Int
 
 inc=plus 1:Int
 =(\x!-.\y!-."x+y"):Int->Int->Int 1:Int
 =((\x!-.\y!-."x+y") 1):(Int->Int->Int Int)
 =((\x!-.\y!-."x+y") 1):Int->Int
-=(\t!-."1+y"):Int->Int
+=(\y!-."1+y"):Int->Int
 
 inc 2:Int
-=(\t!-."1+y"):Int->Int 2:Int
-=((\t!-."1+y") 2):(Int->Int Int)
+=(\y!-."1+y"):Int->Int 2:Int
+=((\y!-."1+y") 2):(Int->Int Int)
 ="1+2":Int
 ="3":Int
 
@@ -2585,17 +2586,25 @@ idInt 3:Int
 
 # Dependent type
 
-List=\n!-:Int."'List'+n":String
+ListArg=-:Int
+List=\n!ListArg."'List'+n":String
 =(\n!-."'List'+n"):(\n!Int.String)
-=(\n!-."'List'+n"):Int->String
+=(\x!-."'List'+x"):Int->String
 
 nil="[]":"List0"
 
-cons0=\a!-:List0.\b!-:Float."append a b":List1
-=(\a!-.\b!-."append a b"):(\a!List0.\b!Float.List1)
-=(\a!-.\b!-."append a b"):List0->Float->List1
-cons1=\a!-:List1.\b!-:Float."append a b":List2
-=(\a!-.\b!-."append a b"):List1->Float->List2
+cons0=\a!-:"List0".\b!-:Float."append a b":"List1"
+=(\a!-.\b!-."append a b"):(\a!"List0".\b!Float."List1")
+=(\a!-.\b!-."append a b"):"List0"->Float->"List1"
+cons1=\a!-:"List1".\b!-:Float."append a b":"List2"
+=(\a!-.\b!-."append a b"):"List1"->Float->"List2"
+
+cons=\n!-:ListArg.\a!-:(List n).\b!-:(Float:*)."append a b":(List (inc n))
+cons.low=\n!-.\a!.\b!."append a b"
+cons.high=\n!ListArg.\a!(List n).\b!(Float:*).List (inc n)
+cons.high.low=\n!-.\a!(List.low n).\b!Float.List.low (inc.low n)
+=\n!-.\a!((\x!-."'List'+x") n).\b!Float.
+cons.high.high=(\n!Int.\a!(List.high n).\b!*.List.high (inc.high n))
 
 cons=\n!-:(-:Int).(\a!-.\b!-."append a b"):(List n)->Float:*->(List (inc n))
 =(\n!-.\a!-.\b!-."append a b"):(\n!-:Int.(List n)->Float:*->(List (inc n)))
