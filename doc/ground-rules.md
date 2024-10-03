@@ -29,12 +29,12 @@ $k ::=$ || *rearrange*
 &nbsp;|&nbsp;|&nbsp;
 ---|---|--:
 &nbsp;|**Notes**
-$\dfrac{a}{a'}$| $a$ evaluates to $a'$ in one step.
+$\dfrac{a}{a'}$| $a$ evaluates to $a'$ in one step, or forward the evaluation.
 $()$| groupping: $t{\equiv}(t)$
 $\langle\rangle$| set
 $\text{true}$| just an instance of data $d$
-&nbsp;| $\lambda!t{.}t{\equiv}\lambda{x}!t{.}t$ - $x$ is always present, but might be omitted for simplicity.
-&nbsp;| $\lambda\_!t_1{.}t_2{\equiv}\lambda{x}!t_1{.}t_2$ where $x$ is a free variable in $t_2$. $x\notin FV(t_2)$
+&nbsp;| $\lambda!t{.}t{\equiv}\lambda{x}!t{.}t\qquad$ $x$ is always present, but might be omitted for simplicity.
+&nbsp;| $\lambda\bot!t_1{.}t_2{\equiv}\lambda{x}!t_1{.}t_2\qquad$ where $x$ is a free variable in $t_2$. $x\notin FV(t_2)$
 &nbsp;| vscode shows the formulas in a pretty format
 &nbsp;
 &nbsp;|**Handy single and multi layer terms**| $t = g{\mid}h$
@@ -60,7 +60,7 @@ $d$|$\dfrac{\psi[d]}{d}$ | *data*
 $c$|$\dfrac{\psi[c]}{n}$| *run the code*
 $\lambda!g{.}g$|$\lambda!{-}.g\ \mid\ \lambda!\langle v\backslash{-}\rangle.g\ \mid\ \lambda!(\text{raise }v).g\ \mid\ \lambda!r{.}g$ | *function*
 &nbsp;|$\dfrac{\psi[\lambda!{-}.g]}{\lambda!{-}.g}$
-&nbsp;|$e::=\langle v\backslash{-}\rangle\quad\vdash\quad\dfrac{\psi[\lambda!e{.}g]}{e{\to}\psi[(\lambda!{-}.g)\ e]}$
+&nbsp;|$e::=\langle v\backslash{-}\rangle\quad\vdash\quad\dfrac{\psi[\lambda!e{.}g]}{e{\to}((\lambda!{-}.g)\ e)}$
 &nbsp;|$\dfrac{\psi[\lambda!(\text{raise }v){.}g]}{\text{raise }v}$
 &nbsp;|$\dfrac{\psi[\lambda!r{.}g]}{\lambda!\psi[r]{.}g}$
 $g{\to}g$|$v{\to}v\ \mid\ v{\to}\text{raise }v\ \mid\ v{\to}r\ \mid\ \text{raise }v{\to}g\ \mid\ r{\to}g$ | *function type*
@@ -73,17 +73,17 @@ $g\ g$|$v{\ }v\ \mid\ v{\ }(\text{raise }v)\ \mid\ v{\ }r\ \mid\ (\text{raise }v
 $v\ v$|$\langle -,d\rangle\ v\ \mid\ (\lambda!{-}.g){\ }v\ \mid\ (v{\to}v){\ }v$
 &nbsp;|$\dfrac{\psi[\langle -,d\rangle{\ }v]}{\text{raise "Expected a callable"}}$ | *Appendix A*
 &nbsp;|$\dfrac{\psi[(\lambda{x}!{-}.g){\ }v]}{[x{\mapsto}{v}]\ g}$ | *apply*
-&nbsp;|$\dfrac{\psi[(v_1{\to}v_2){\ }v_3]}{(\lambda\_!{-}.v_2){\ }\psi[v_1{=}v_3]}$
+&nbsp;|$\dfrac{\psi[(v_1{\to}v_2){\ }v_3]}{(\lambda\bot!{-}.v_2){\ }(v_1{=}v_3)}$
 &nbsp;|$\dfrac{\psi[v_1{\ }(\text{raise }v_2)]}{\text{raise }v_2}$
 &nbsp;|$\dfrac{\psi[v{\ }r]}{v{\ }\psi[r]}$
 &nbsp;|$\dfrac{\psi[(\text{raise }v){\ }g]}{\text{raise }v}$
 &nbsp;|$\dfrac{\psi[r{\ }g]}{\psi[r]{\ }g}$
 $g{=}g$|$v{=}v\ \mid\ v{=}(\text{raise }v)\ \mid\ v{=}r\ \mid\ (\text{raise }v){=}g\ \mid\ r{=}g$ | *unlocking*
-$v{=}v$|$\langle e_1{=}e_2: e_1,e_2\in v\text{ and }e_1{\ne}e_2\rangle\ \mid\ {-}{=}{-}\ \mid\ d{=}d\ \mid\ (\lambda!{-}.g){=}(\lambda!{-}.g)\ \mid\ (v{\to}v){=}(v{\to}v)$
-&nbsp;|$\dfrac{\psi[\langle e_1{=}e_2: e_1,e_2\in v\text{ and }e_1{\ne}e_2\rangle]}{\text{raise "Not in the same form"}}$
+$v{=}v$|$\langle e_1{=}e_2: e_1,e_2\in v\text{ and }e_1{\not\equiv}e_2\rangle\ \mid\ {-}{=}{-}\ \mid\ d{=}d\ \mid\ (\lambda!{-}.g){=}(\lambda!{-}.g)\ \mid\ (v{\to}v){=}(v{\to}v)$
+&nbsp;|$\dfrac{\psi[\langle e_1{=}e_2: e_1,e_2\in v\text{ and }e_1{\not\equiv}e_2\rangle]}{\text{raise "Not in the same form"}}$
 &nbsp;|$\dfrac{\psi[-{=}-]}{\text{true}}$
-&nbsp;|$\dfrac{\psi[d_{lock}{=}d_{key}]}{\text{true}\ \mid\ \text{error: not equal}}$
-&nbsp;|$\dfrac{\psi[(\lambda!{-}.g_1){=}(\lambda!{-}.g_2)]}{\lambda!{-}.g_1{=}g_2}$
+&nbsp;|$\dfrac{\psi[d_{lock}{=}d_{key}]}{\text{true}\ \mid\ \text{raise "not equal"}}$
+&nbsp;|$\dfrac{\psi[(\lambda!{-}.g_1){=}(\lambda!{-}.g_2)]}{\lambda!{-}.g_1{=}g_2}$ | *dependent type*
 &nbsp;|$\dfrac{\psi[(v_1{\to}v_2){=}(v_3{\to}v_4)]}{(v_1{=}v_3){\to}(v_2{=}v_4)}$
 &nbsp;|$\dfrac{\psi[v_1{=}(\text{raise }v_2)]}{\text{raise }v_2}$
 &nbsp;|$\dfrac{\psi[v{=}r]}{v{=}\psi[r]}$
@@ -150,7 +150,7 @@ $t{:}t$|$t{:}u\ \mid\ u{:}s'\ \mid\ \langle g{:}s\ ,\ s{:}g\rangle\ \mid\ g{:}g\
 $\epsilon.t$|$\epsilon.u\ \mid\ \epsilon.g\ \mid\ \epsilon.s$ | *flatten layers*
 &nbsp;|$\dfrac{\sigma[\epsilon.u]}{\epsilon.\sigma[u]}$
 &nbsp;|$\dfrac{\sigma[\epsilon.g]}{g}$
-&nbsp;|$\dfrac{\sigma[\epsilon.(s'_1{:}s'_2)]}{(\lambda\_!{-}.\epsilon.s'_1)\ \epsilon.s'_2}$
+&nbsp;|$\dfrac{\sigma[\epsilon.(s'_1{:}s'_2)]}{(\lambda\bot!{-}.\epsilon.s'_1)\ \epsilon.s'_2}$
 &nbsp;
 $\phi[t]$| **Term Evaluation** |$\phi[t] \to t$
 &nbsp;|$\dfrac{\phi[t]}{\psi[\epsilon.\sigma[t]]}$
