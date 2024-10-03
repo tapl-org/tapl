@@ -2553,7 +2553,7 @@ all built-ins are inside double quotes. eg: "a+b"
 
 # Simple type
 
-plus=(\x!-=>\y!-=>"x+y"):Int=>Int=>Int
+plus=(\x!-.\y!-."x+y"):Int->Int->Int
 
 inc=plus 1:Int
 =(\x!-.\y!-."x+y"):Int->Int->Int 1:Int
@@ -2586,8 +2586,7 @@ idInt 3:Int
 
 # Dependent type
 
-ListArg=-:Int
-List=\n!ListArg."'List'+n":String
+List=\n!-:Int."'List'+n":String
 =(\n!-."'List'+n"):(\n!Int.String)
 =(\x!-."'List'+x"):Int->String
 
@@ -2608,6 +2607,27 @@ cons.high.high=(\n!Int.\a!(List.high n).\b!*.List.high (inc.high n))
 
 cons=\n!-:(-:Int).(\a!-.\b!-."append a b"):(List n)->Float:*->(List (inc n))
 =(\n!-.\a!-.\b!-."append a b"):(\n!-:Int.(List n)->Float:*->(List (inc n)))
+=(\n!-.\a!-.\b!-."append a b"):((\n!-.(List.low n) -> Float -> (List.low (inc.low n))):(\n!Int.(List.high n) -> * -> (List.high (inc.high n))))
+=(\n!-.\a!-.\b!-."append a b"):((\n!-.(List.low n) -> Float -> (List.low (inc.low n))):(Int->(List.high Int) -> * -> (List.high (inc.high Int))))
+=(\n!-.\a!-.\b!-."append a b"):((\n!-.(List.low n) -> Float -> (List.low (inc.low n))):(Int->(List.high Int) -> * -> (List.high Int)))
+=(\n!-.\a!-.\b!-."append a b"):((\n!-.(List.low n)->Float->(List.low (inc.low n))):(Int->String->*->String))
+
+cons3=cons -:(3:Int)
+=(cons.low -):(cons.high 3:Int)
+=(cons.low -):((cons.high.low 3):(cons.high.high Int))
+=(cons.low -):((cons.high.low 3):((Int->String->*->String) Int))
+=(cons.low -):((cons.high.low 3):(String->*->String))
+=(cons.low -):(((\n!-.(List.low n)->Float->(List.low (inc.low n))) 3):(String->*->String))
+=(cons.low -):((List.low 3)->Float->(List.low (inc.low 3)):(String->*->String))
+=(cons.low -):((List.low 3)->Float->(List.low 4):(String->*->String))
+=(cons.low -):("List3"->Float->(List.low 4):(String->*->String))
+=(cons.low -):("List3"->Float->"List4":String->*->String)
+=((\n!-.\a!-.\b!-."append a b") -):("List3"->Float->"List4":String->*->String)
+=(\a!-.\b!-."append a b"):("List3"->Float->"List4":String->*->String)
+
+cons3a = cons3 as low:high.low
+=(\a!-.\b!-."append a b"):("List3"->Float->"List4")
+
 
 # Substructural type
 
