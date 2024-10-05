@@ -16,15 +16,16 @@ $t ::=$ || *term*
 &nbsp;| $t_{lock}{=}t_{key}$ | *unlocking*
 &nbsp;| $\text{raise }t$ | *raise exception*
 &nbsp;| $\text{try }t_{body}\text{ with }t_{catch}$ | *handle exception*
-&nbsp;| $t\text{ as }k$ | *rearrage layers*
 &nbsp;| $t{:}t$ | *multi layer term*
 &nbsp;| $\epsilon.t$ | *flatten layers*
+&nbsp;| $t\text{ as }k$ | *rearrage layers*
 $path ::=$ || *path*
 &nbsp;| $\text{is}$ | *keep it as is*
 &nbsp;| $\langle \text{low,high}\rangle/path$ | *nested path*
 $k ::=$ || *rearrange*
 &nbsp;| $path$ | *path*
-&nbsp;| $k{:}k$ | *multi layer paths*
+&nbsp;| $k{:}k$ | *multi layer*
+&nbsp;| $\epsilon.k$ | *flatten layers*
 
 &nbsp;|&nbsp;|&nbsp;
 ---|---|--:
@@ -99,26 +100,26 @@ $\text{try }g\text{ with }g$|$\text{try }v\text{ with }g\ \mid\ \text{try }(\tex
 &nbsp;|$\dfrac{\psi[\text{try }r\text{ with }g]}{\text{try }\psi[r]\text{ with }g}$
 &nbsp;
 $\sigma[t]$| **Term separation** |$\sigma[t] \to t$
-$\langle -,d,c\rangle$|$\dfrac{\sigma[\langle -,d,c\rangle]}{\langle -,d,c\rangle}$ | *absense, data, and code respectively*
-$\lambda!t.t$|$\lambda!u{.}t\ \mid\ \lambda!s'{.}u\ \mid\ \langle\lambda!g{.}s\ ,\ \lambda!s{.}g\rangle\ \mid\ \lambda!g_1{.}g_1\ \mid\ \lambda!s{.}s$ | *function*
+$\langle -,d,c\rangle$|$\dfrac{\sigma[-]}{-},\dfrac{\sigma[d]}{d},\dfrac{\sigma[c]}{c}$ | *absense, data, and code*
+$\lambda!t.t$|$\lambda!u{.}t\ \mid\ \lambda!s'{.}u\ \mid\ \langle\lambda!g{.}s\ ,\ \lambda!s{.}g\rangle\ \mid\ \lambda!g{.}g\ \mid\ \lambda!s{.}s$ | *function*
 &nbsp;|$\dfrac{\sigma[\lambda!u{.}t]}{\lambda!\sigma[u].t}$
 &nbsp;|$\dfrac{\sigma[\lambda!s'{.}u]}{\lambda!s'.\sigma[u]}$
 &nbsp;|$\dfrac{\sigma[\langle\lambda!g{.}s\ ,\ \lambda!s{.}g\rangle]}{\text{compile error: different layers}}$
 &nbsp;|$\dfrac{\sigma[\lambda!g_1{.}g_2]}{\lambda!g_1{.}g_2}$
 &nbsp;|$\dfrac{\sigma[\lambda!(s'_1{:}s'_2){.}(s'_3{:}s'_4)]}{(\lambda!s'_1.s'_3){:}(\lambda!s'_2.s'_4)}$ | $\lambda!s{.}s$
-$t{\to}t$|$u{\to}t\ \mid\ s'{\to}u\ \mid\ \langle g{\to}s\ ,\ s{\to}g\rangle\ \mid\ g_1{\to}g_2\ \mid\ s{\to}s$ | *function type*
+$t{\to}t$|$u{\to}t\ \mid\ s'{\to}u\ \mid\ \langle g{\to}s\ ,\ s{\to}g\rangle\ \mid\ g{\to}g\ \mid\ s{\to}s$ | *function type*
 &nbsp;|$\dfrac{\sigma[u{\to}t]}{\sigma[u]{\to}t}$
 &nbsp;|$\dfrac{\sigma[s'{\to}u]}{s'{\to}\sigma[u]}$
 &nbsp;|$\dfrac{\sigma[\langle g{\to}s\ ,\ s{\to}g\rangle]}{\text{compile error: different layers}}$
 &nbsp;|$\dfrac{\sigma[g_1{\to}g_2]}{g_1{\to}g_2}$
 &nbsp;|$\dfrac{\sigma[(s'_1{:}s'_2){\ }(s'_3{:}s'_4)]}{(s'_1{\ }s'_3){:}(s'_2{\ }s'_4)}$ | $s{\ }s$
-$t{\ }t$|$u{\ }t\ \mid\ s'{\ }u\ \mid\ \langle g{\ }s\ ,\ s{\ }g\rangle\ \mid\ g_1{\ }g_2\ \mid\ s{\ }s$ | *application*
+$t{\ }t$|$u{\ }t\ \mid\ s'{\ }u\ \mid\ \langle g{\ }s\ ,\ s{\ }g\rangle\ \mid\ g{\ }g\ \mid\ s{\ }s$ | *application*
 &nbsp;|$\dfrac{\sigma[u{\ }t]}{\sigma[u]{\ }t}$
 &nbsp;|$\dfrac{\sigma[s'{\ }u]}{s'{\ }\sigma[u]}$
 &nbsp;|$\dfrac{\sigma[\langle g{\ }s\ ,\ s{\ }g\rangle]}{\text{compile error: different layers}}$
 &nbsp;|$\dfrac{\sigma[g_1{\ }g_2]}{g_1{\ }g_2}$
 &nbsp;|$\dfrac{\sigma[(s'_1{:}s'_2){\ }(s'_3{:}s'_4)]}{(s'_1{\ }s'_3){:}(s'_2{\ }s'_4)}$ | $s{\ }s$
-$t{=}t$|$u{=}t\ \mid\ s'{=}u\ \mid\ \langle g{=}s\ ,\ s{=}g\rangle\ \mid\ g_1{=}g_2\ \mid\ s{=}s$ | *unlocking*
+$t{=}t$|$u{=}t\ \mid\ s'{=}u\ \mid\ \langle g{=}s\ ,\ s{=}g\rangle\ \mid\ g{=}g\ \mid\ s{=}s$ | *unlocking*
 &nbsp;|$\dfrac{\sigma[u{=}t]}{\sigma[u]{=}t}$
 &nbsp;|$\dfrac{\sigma[s'{=}u]}{s'{=}\sigma[u]}$
 &nbsp;|$\dfrac{\sigma[\langle g{=}s\ ,\ s{=}g\rangle]}{\text{compile error: different layers}}$
@@ -127,20 +128,13 @@ $t{=}t$|$u{=}t\ \mid\ s'{=}u\ \mid\ \langle g{=}s\ ,\ s{=}g\rangle\ \mid\ g_1{=}
 $\text{raise }t$|$\text{raise u}\ \mid\ \text{raise }g\ \mid\ \text{raise }s$ | *raise exception*
 &nbsp;|$\dfrac{\sigma[\text{raise }u]}{\text{raise }\sigma[u]}$
 &nbsp;|$\dfrac{\sigma[\text{raise }g]}{\text{raise }g}$
-&nbsp;|$\dfrac{\sigma[\text{raise }s'_1{:}s'_2]}{(\text{raise }s'_1):(\text{raise }s'_2)}$| $\text{raise }s$
+&nbsp;|$\dfrac{\sigma[\text{raise }(s'_1{:}s'_2)]}{(\text{raise }s'_1):(\text{raise }s'_2)}$| $\text{raise }s$
 $\text{try }t\text{ with }t$|$\text{try }u\text{ with }t\ \mid\ \text{try }s'\text{ with }u\ \mid\ \langle\text{try }g\text{ with }s , \text{try }s\text{ with }g\rangle\ \mid\ \text{try }g\text{ with }g\ \mid\ \text{try }s\text{ with }s$ | *handle exception*
 &nbsp;|$\dfrac{\sigma[\text{try }u\text{ with }t]}{\text{try }\sigma[u]\text{ with }t}$
 &nbsp;|$\dfrac{\sigma[\text{try }s'\text{ with }u]}{\text{try }s'\text{ with }\sigma[u]}$
 &nbsp;|$\dfrac{\sigma[\langle\text{try }g\text{ with }s , \text{try }s\text{ with }g\rangle]}{\text{compile error: different layers}}$
 &nbsp;|$\dfrac{\sigma[\text{try }g_1\text{ with }g_2]}{\text{try }g_1\text{ with }g_2}$
 &nbsp;|$\dfrac{\sigma[\text{try }s'_1{:}s'_2\text{ with }s'_3{:}s'_4]}{(\text{try }s'_1\text{ with }s'_3){:}(\text{try }s'_2\text{ with }s'_4)}$ | $\text{try }s_1\text{ with }s_2$
-$t\text{ as }k$|$u\text{ as }k\ \mid\ s'\text{ as }k{:}k\ \mid\ s'\text{ as is}\ \mid\ s'\text{ as }\langle\text{low,high}\rangle/path$ | *rearrange layers*
-&nbsp;|$\dfrac{\sigma[u\text{ as }k]}{\sigma[u]\text{ as }k}$
-&nbsp;|$\dfrac{\sigma[s'\text{ as }k_1{:}k_2]}{(s'\text{ as }k_1){:}(s'\text{ as }k_2)}$
-&nbsp;|$\dfrac{\sigma[s'\text{ as is}]}{s'}$
-&nbsp;|$\dfrac{\sigma[g\text{ as }\langle\text{low,high}\rangle/path]}{\text{compile error: expected multi layer}}$
-&nbsp;|$\dfrac{\sigma[s'_1{:}s'_2\text{ as }\text{low}/path]}{s'_1}$
-&nbsp;|$\dfrac{\sigma[s'_1{:}s'_2\text{ as }\text{high}/path]}{s'_2}$
 $t{:}t$|$t{:}u\ \mid\ u{:}s'\ \mid\ \langle g{:}s\ ,\ s{:}g\rangle\ \mid\ g{:}g\ \mid\ s{:}s$ | *multi layer terms*
 &nbsp;|$\dfrac{\sigma[t{:}u]}{t{:}\sigma[u]}$
 &nbsp;|$\dfrac{\sigma[u{:}s']}{\sigma[u]{:}s'}$
@@ -151,9 +145,17 @@ $\epsilon.t$|$\epsilon.u\ \mid\ \epsilon.g\ \mid\ \epsilon.s$ | *flatten layers*
 &nbsp;|$\dfrac{\sigma[\epsilon.u]}{\epsilon.\sigma[u]}$
 &nbsp;|$\dfrac{\sigma[\epsilon.g]}{g}$
 &nbsp;|$\dfrac{\sigma[\epsilon.(s'_1{:}s'_2)]}{(\lambda\bot!{-}.\epsilon.s'_1)\ \epsilon.s'_2}$
+$t\text{ as }k$|$u\text{ as }k\ \mid\ s'\text{ as }k{:}k\ \mid\ s'\text{ as }\epsilon.k\ \mid\ s'\text{ as is}\ \mid\ s'\text{ as }\langle\text{low,high}\rangle/path$ | *rearrange layers*
+&nbsp;|$\dfrac{\sigma[u\text{ as }k]}{\sigma[u]\text{ as }k}$
+&nbsp;|$\dfrac{\sigma[s'\text{ as }k_1{:}k_2]}{(s'\text{ as }k_1){:}(s'\text{ as }k_2)}$
+&nbsp;|$\dfrac{\sigma[s'\text{ as }\epsilon.k]}{\epsilon.(s'\text{ as }k)}$
+&nbsp;|$\dfrac{\sigma[s'\text{ as is}]}{s'}$
+&nbsp;|$\dfrac{\sigma[g\text{ as }\langle\text{low,high}\rangle/path]}{\text{compile error: expected multi layer}}$
+&nbsp;|$\dfrac{\sigma[s'_1{:}s'_2\text{ as }\text{low}/path]}{s'_1\text{ as }path}$
+&nbsp;|$\dfrac{\sigma[s'_1{:}s'_2\text{ as }\text{high}/path]}{s'_2\text{ as }path}$
 &nbsp;
 $\phi[t]$| **Term Evaluation** |$\phi[t] \to t$
-&nbsp;|$\dfrac{\phi[t]}{\psi[\epsilon.\sigma[t]]}$
+&nbsp;|$\dfrac{\phi[t]}{\psi[\sigma[\epsilon.t]]}$
 
 
 ## Appendix

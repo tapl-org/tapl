@@ -2625,16 +2625,16 @@ cons3=cons -:(3:Int)
 =((\n!-.\a!-.\b!-."append a b") -):("List3"->Float->"List4":String->*->String)
 =(\a!-.\b!-."append a b"):("List3"->Float->"List4":String->*->String)
 
-cons3a = cons3 as low:high.low
-=(\a!-.\b!-."append a b"):("List3"->Float->"List4")
+cons3a = cons3 as low:@high
+=(\a!-.\b!-."append a b"):((\_!-."List3"->Float->"List4") String->*->String)
 
 
 # Substructural type
 
 void="none":Void
 newStatus=(\z!-."new Status(Open)"):Void->Status
-closeStatus=(h!-."h.setClosed()"):Status->Void
-checkStatusOpen=(\h!-."h.checkOpened()"):Status->Open
+closeStatus=(\h!-."h.setClosed()"):Status->Void
+checkStatusOpen=(\h!-."h.checkOpened()"):Status->Void
 
 openFile=(\f!-."open f"):String->Handler
 closeFile=(\f!-."close f"):Handler->Void
@@ -2644,7 +2644,9 @@ open=openFile:newStatus
 close=closeFile:closeStatus
 read=readFile:checkStatusOpen
 
-readFileContent=\f!-:String. @(h=open f:void;close h;read h)
+readFileContent=\f!-:String. (h=open f:void;close h;read h) as low/low/is:@(low/high/is:high/is)
+=body.low.low:@(body as low/high/is:high/is)
+=body.low.low:@(body.low.high:body.high)
 =\f!-:String. @((h=openFile f;closeFile h;readFile h):(h=open void;close h;read h))
 
 # let binding syntax sugar
