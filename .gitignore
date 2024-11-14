@@ -27,3 +27,7 @@ compile_commands.json
 
 # Python builds
 dist/
+
+# Bytecode compiled files
+*.pyc
+__pycache__/
