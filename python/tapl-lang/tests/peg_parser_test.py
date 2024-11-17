@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Optional
-from tapl_lang import peg_parser, term
+from tapl_lang import peg_parser, syntax
 from tapl_lang.peg_parser import Cursor, Output
 
 # number  <- [0-9]+
@@ -13,8 +13,8 @@ from tapl_lang.peg_parser import Cursor, Output
 # expr    <- sum
 
 
-class Number(term.Term):
-    def __init__(self, location: term.Location, value: int) -> None:
+class Number(syntax.Term):
+    def __init__(self, location: syntax.Location, value: int) -> None:
         super().__init__(location)
         self.value = value
     
@@ -22,8 +22,8 @@ class Number(term.Term):
         return f'N{self.value}'
 
 
-class BinOp(term.Term):
-    def __init__(self, location: term.Location, left: term.Term, op: str, right: term.Term) -> None:
+class BinOp(syntax.Term):
+    def __init__(self, location: syntax.Location, left: syntax.Term, op: str, right: syntax.Term) -> None:
         super().__init__(location)
         self.left = left
         self.op = op
@@ -33,7 +33,7 @@ class BinOp(term.Term):
         return f'B({self.left}{self.op}{self.right})'
 
 
-def parse_number(c: Cursor) -> Optional[term.Term]:
+def parse_number(c: Cursor) -> Optional[syntax.Term]:
     c.skip_whitespaces()
     text = c.engine.text
     p = c.pos
@@ -47,7 +47,7 @@ def parse_number(c: Cursor) -> Optional[term.Term]:
     return None
 
 
-def parse_value(c: Cursor) -> Optional[term.Term]:
+def parse_value(c: Cursor) -> Optional[syntax.Term]:
     output = Output()
     if c.consume_text('(') and c.consume_rule('expr', output) and c.expect_text(')'):
         return output.value
@@ -62,7 +62,7 @@ def parse_value(c: Cursor) -> Optional[term.Term]:
     return c.create_syntax_error('Expected number')
 
 
-def parse_product(c: Cursor) -> Optional[term.Term]:
+def parse_product(c: Cursor) -> Optional[syntax.Term]:
     left, right = Output(), Output()
     if c.consume_rule('product', left) and c.consume_text('*') and c.expect_rule('product', right):
         return BinOp(c.get_location(), left.assert_value(), '*', right.assert_value())
@@ -76,7 +76,7 @@ def parse_product(c: Cursor) -> Optional[term.Term]:
     return None
 
 
-def parse_sum(c: Cursor) -> Optional[term.Term]:
+def parse_sum(c: Cursor) -> Optional[syntax.Term]:
     left, right = Output(), Output()
     if c.consume_rule('sum', left) and c.consume_text('+') and c.expect_rule('sum', right):
         return BinOp(c.get_location(), left.assert_value(), '+', right.assert_value())
@@ -90,7 +90,7 @@ def parse_sum(c: Cursor) -> Optional[term.Term]:
     return None
 
 
-def parse_expr(c: Cursor) -> Optional[term.Term]:
+def parse_expr(c: Cursor) -> Optional[syntax.Term]:
     output = Output()
     if c.consume_rule('sum', output):
         return output.value
@@ -99,7 +99,7 @@ def parse_expr(c: Cursor) -> Optional[term.Term]:
     return None
 
 
-def parse_start(c: Cursor) -> Optional[term.Term]:
+def parse_start(c: Cursor) -> Optional[syntax.Term]:
     output = Output()
     if c.expect_rule('expr', output) and c.skip_whitespaces():
         return output.value
@@ -117,10 +117,10 @@ RULES: peg_parser.RuleMaps = {
     'start': parse_start,
 }
 
-def parse(text: str) -> term.Term:
+def parse(text: str) -> syntax.Term:
     parsed_term = peg_parser.parse(text, RULES, 'start')
     assert parsed_term is not None
-    if isinstance(parsed_term, term.SyntaxError):
+    if isinstance(parsed_term, syntax.SyntaxError):
         raise RuntimeError(parsed_term.error_text)
     else:
         return parsed_term
@@ -159,11 +159,11 @@ def test_whitespace():
 
 def test_expected_error():
     parsed_term = peg_parser.parse("a", RULES, 'start')
-    assert isinstance(parsed_term, term.SyntaxError)
+    assert isinstance(parsed_term, syntax.SyntaxError)
     assert parsed_term.error_text == 'Expected number'
 
 def test_expected_rparen_error():
     parsed_term = peg_parser.parse("(1", RULES, 'start')
-    assert isinstance(parsed_term, term.SyntaxError)
+    assert isinstance(parsed_term, syntax.SyntaxError)
     assert parsed_term.error_text == 'Expected ")"'
 

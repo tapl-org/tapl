@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import enum
-from typing import Any, Callable, Optional
-from tapl_lang import term
+from typing import Callable, Optional
+from tapl_lang import syntax
 
 # Implemented PEG parser - https://en.wikipedia.org/wiki/Parsing_expression_grammar
 # Error Detection taken from: https://www.sciencedirect.com/science/article/pii/S0167642316301046#se0040 In PEGs,
@@ -16,9 +16,9 @@ from tapl_lang import term
 
 class Output:
     def __init(self) -> None:
-        self.value: Optional[term.Term] = None
+        self.value: Optional[syntax.Term] = None
     
-    def assert_value(self) -> term.Term:
+    def assert_value(self) -> syntax.Term:
         assert self.value is not None
         return self.value
 
@@ -28,17 +28,17 @@ class Cursor:
         self.origina_pos = pos
         self.pos = pos
         self.engine = engine
-        self.error: Optional[term.SyntaxError] = None
+        self.error: Optional[syntax.SyntaxError] = None
     
     def reset(self) -> None:
         self.pos = self.origina_pos
         self.error = None
 
-    def get_location(self) -> term.Location:
-        return term.Location(lineno=0, col_offset=self.origina_pos)
+    def get_location(self) -> syntax.Location:
+        return syntax.Location(lineno=0, col_offset=self.origina_pos)
     
-    def create_syntax_error(self, error_text: str) -> term.SyntaxError:
-        return term.SyntaxError(self.get_location(), error_text)
+    def create_syntax_error(self, error_text: str) -> syntax.SyntaxError:
+        return syntax.SyntaxError(self.get_location(), error_text)
     
     def skip_whitespaces(self) -> bool:
         while self.pos < len(self.engine.text) and self.engine.text[self.pos].isspace():
@@ -63,7 +63,7 @@ class Cursor:
 
     def consume_rule(self, rule: str, output: Output) -> bool:
         cell = self.engine.apply_rule(rule, self.pos)
-        if term.is_valid(cell.term):
+        if syntax.is_valid(cell.term):
             output.value = cell.term
             self.pos = cell.next_pos
             return True
@@ -88,14 +88,14 @@ class Cell:
     def __init__(self) -> None:
         self.state: CellState = CellState.BLANK
         self.growable: bool = False
-        self.term: Optional[term.Term] = None
+        self.term: Optional[syntax.Term] = None
         self.next_pos: Optional[int] = None
     
     def __repr__(self) -> str:
         return f'{self.state.name}:{self.growable},next_pos={self.next_pos}, {self.term.__class__.__name__}'
 
 
-type RuleFunc = Callable[[Cursor], Optional[term.Term]]
+type RuleFunc = Callable[[Cursor], Optional[syntax.Term]]
 type RuleMaps = dict[str, RuleFunc]
 
 
@@ -119,7 +119,7 @@ class Engine:
             cursor = Cursor(pos, engine=self)
             grown_term = rule_fn(cursor)
             next_pos = cursor.pos
-            assert term.is_valid(grown_term), f'Once rule was successfull, then it has to be successful again. {grown_term}'
+            assert syntax.is_valid(grown_term), f'Once rule was successfull, then it has to be successful again. {grown_term}'
             # Stop growing when the next_pos returns back to seed's next_pos
             # This means that it returns back to seed again.
             if next_pos == seed_next_pos: break
@@ -142,7 +142,7 @@ class Engine:
                 cell.term = rule_fn(cursor)
                 cell.next_pos = cursor.pos
                 cell.state = CellState.DONE
-                if cell.growable and term.is_valid(cell.term):
+                if cell.growable and syntax.is_valid(cell.term):
                     self.grow_seed(rule_fn, pos, cell)
             case CellState.START:
                 # we reached left-recursive rule. Let it fail now, and grow it later.
@@ -157,12 +157,12 @@ class Engine:
         return cell
 
 
-def parse(text: str, rule_maps: RuleMaps, initial_rule: str) -> term.Term:
+def parse(text: str, rule_maps: RuleMaps, initial_rule: str) -> syntax.Term:
     engine = Engine(text, rule_maps)
     cell = engine.apply_rule(initial_rule, 0)
-    if term.is_valid(cell.term) and cell.next_pos != len(text):
-        return term.SyntaxError(
-            term.Location(lineno=0, col_offset=0),
+    if syntax.is_valid(cell.term) and cell.next_pos != len(text):
+        return syntax.SyntaxError(
+            syntax.Location(lineno=0, col_offset=0),
             error_text=f"Not all text consumed {cell.next_pos}/{len(text)}",
         )
     return cell.term
