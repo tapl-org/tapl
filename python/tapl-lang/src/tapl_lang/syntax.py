@@ -7,6 +7,27 @@ from abc import ABC
 import ast
 
 
+def count_indentation(line: str) -> int:
+    count = 0
+    for char in line:
+        if char == ' ':
+            count += 1
+        else:
+            break
+    return count
+
+
+class Line:
+
+    def __init__(self, lineno: int, text: str) -> None:
+        self.lineno = lineno
+        self.text = text
+        self.empty: bool = all(char.isspace() for char in text)
+        self.indent: Optional[int] = None
+        if not self.empty:
+            self.indent = count_indentation(text)
+
+
 class Location:
     def __init__(self, lineno: int, col_offset: int) -> None:
         self.lineno = lineno
@@ -25,6 +46,9 @@ class Term(ABC):
 
     def get_ast(self) -> Optional[ast.AST]:
         return None
+    
+    def append_to_body(self, child: 'Term') -> None:
+        raise RuntimeError('Term does not support append_to_body')
 
 
 class SyntaxError(Term):

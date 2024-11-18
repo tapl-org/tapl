@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from typing import Optional
-from tapl_lang import peg_parser, syntax
-from tapl_lang.peg_parser import Cursor, Output
+from tapl_lang import peg, syntax
+from tapl_lang.peg import Cursor, Output
 
 # number  <- [0-9]+
 # value   <- '(' expr ')'|^E / number|^E
@@ -108,7 +108,7 @@ def parse_start(c: Cursor) -> Optional[syntax.Term]:
     return None
 
 
-RULES: peg_parser.RuleMaps = {
+RULES: peg.RuleMaps = {
     'number': parse_number,
     'value': parse_value,
     'product': parse_product,
@@ -118,7 +118,7 @@ RULES: peg_parser.RuleMaps = {
 }
 
 def parse(text: str) -> syntax.Term:
-    parsed_term = peg_parser.parse(text, RULES, 'start')
+    parsed_term = peg.parse(text, RULES, 'start')
     assert parsed_term is not None
     if isinstance(parsed_term, syntax.SyntaxError):
         raise RuntimeError(parsed_term.error_text)
@@ -158,12 +158,12 @@ def test_whitespace():
     assert str(parsed_term) == 'B(B(N2+N3)*N4)'
 
 def test_expected_error():
-    parsed_term = peg_parser.parse("a", RULES, 'start')
+    parsed_term = peg.parse("a", RULES, 'start')
     assert isinstance(parsed_term, syntax.SyntaxError)
     assert parsed_term.error_text == 'Expected number'
 
 def test_expected_rparen_error():
-    parsed_term = peg_parser.parse("(1", RULES, 'start')
+    parsed_term = peg.parse("(1", RULES, 'start')
     assert isinstance(parsed_term, syntax.SyntaxError)
     assert parsed_term.error_text == 'Expected ")"'
 

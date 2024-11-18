@@ -2,30 +2,9 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import io
 from typing import Optional
-from tapl_lang import syntax
-
-
-def count_indentation(line: str) -> int:
-    count = 0
-    for char in line:
-        if char == ' ':
-            count += 1
-        else:
-            break
-    return count
-
-
-class Line:
-
-    def __init__(self, lineno: int, text: str) -> None:
-        self.lineno = lineno
-        self.text = text
-        self.empty: bool = all(char.isspace() for char in text)
-        self.indent: Optional[int] = None
-        if not self.empty:
-            self.indent = count_indentation(text)
+from tapl_lang.syntax import Line, Term
+from tapl_lang.parser import Parser, ParseResult
 
 
 class Chunk:
@@ -101,17 +80,21 @@ def chunk_text(text: str) -> list[Chunk]:
     return Chunker().decode_chunks(lines)
 
 
-class ParseResult:
+class ChunkParser:
 
-    def __init__(self, term: syntax.Term, child_parser: 'Parser',
-                 sibling_parser: 'Parser') -> None:
-        self.term = term
-        self.child_parser = child_parser
-        self.sibling_parser = sibling_parser
+    def parse_chunks(self, parser: Parser, parent_term: Term, chunks: list[Chunk]) -> None:
+        for chunk in chunks:
+            result = self.parse_chunk(parser, chunk)
+            parent_term.append_to_body(result)
+            parser = result.sibling_parser or parser
+    
+    def parse_chunk(self, parser: Parser, chunk: Chunk) -> None:
+        result = parser.parse(chunk.lines)
+        if chunk.children:
+            self.parse_chunks(result.child_parser or parser, result.term, chunk.children)
+        return result
 
 
-class Parser:
-
-    def parse(self, lines: list[str],
-              lineno_offset: int) -> Optional[ParseResult]:
-        return None
+def parse_text(text: str, parser: Parser, parent_term: Term) -> Term:
+    chunks = chunk_text(text)
+    result = ChunkParser().parse_chunks(parser, parent_term, chunks)
