@@ -23,9 +23,20 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Documentation = "https://github.com/ortibazar/tapl-lang#readme"
-Issues = "https://github.com/ortibazar/tapl-lang/issues"
-Source = "https://github.com/ortibazar/tapl-lang"
+Documentation = "https://github.com/tapl-org/tapl#readme"
+Issues = "https://github.com/tapl-org/tapl/issues"
+Source = "https://github.com/tapl-org/tapl"
+
+[tool.ruff.lint]
+ignore = [
+  "TRY003", # Avoid specifying long messages outside the exception class.
+  "EM101",  # Exception must not use a string literal, assign to variable first.
+  "EM102",  # Exception must not use an f-string literal, assign to variable first.
+  "SIM108", # Use a ternary operator instead of an if statement. 
+]  # Temporarily ignore these lints
+
+[tool.ruff.format]
+quote-style = "single"
 
 [tool.hatch.version]
 path = "src/tapl_lang/__about__.py"

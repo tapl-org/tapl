@@ -2,12 +2,14 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from tapl_lang import syntax
 import ast
+import logging
 
+logging.basicConfig(level=logging.INFO)
 
 parsed_code = ast.parse('2+3', mode='eval')
-print(ast.dump(parsed_code))
+logging.info(ast.dump(parsed_code))
 compiled_code = compile(parsed_code, filename='', mode='eval')
+# ruff: noqa: S307
 result = eval(compiled_code)
-print(result)
+logging.info(result)

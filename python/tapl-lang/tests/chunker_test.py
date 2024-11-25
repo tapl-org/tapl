@@ -3,26 +3,26 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import io
-from tapl_lang import chunker
+
+from tapl_lang import chunker, line_record
 
 
 class Dumper:
-
     def __init__(self) -> None:
         self.ss = io.StringIO()
 
-    def print_line(self, line: chunker.Line) -> None:
-        indent = line.indent if not line.empty else 'E'
-        prefix = f'{line.lineno}:{indent}'
+    def print_line(self, line_record: line_record.LineRecord) -> None:
+        indent = line_record.indent if not line_record.empty else 'E'
+        prefix = f'{line_record.line_number}:{indent}'
         prefix = prefix.ljust(5)
-        self.ss.write(f'{prefix}|{line.text}\n')
+        escaped_text = line_record.text.encode('unicode_escape').decode('utf-8')
+        self.ss.write(f'{prefix}|{escaped_text}\n')
 
     def print_chunk(self, chunk: chunker.Chunk) -> None:
         indent = chunk.lines[0].indent
         self.ss.write(f'{indent}:'.rjust(6))
         self.ss.write(' ' * (indent or 0))
-        self.ss.write(
-            f'chunk lines={len(chunk.lines)} children={len(chunk.children)}\n')
+        self.ss.write(f'chunk lines={len(chunk.lines)} children={len(chunk.children)}\n')
         for line in chunk.lines:
             self.print_line(line)
         self.print_chunks(chunk.children)
@@ -41,7 +41,6 @@ def get_dump(chunks: list[chunker.Chunk]) -> str:
 def check(text: str, expected: str) -> None:
     chunks = chunker.chunk_text(text.strip())
     dump = get_dump(chunks)
-    print(dump)
     assert dump.strip() == expected.strip()
 
 
@@ -53,7 +52,7 @@ World
 """,
         """
     0:chunk lines=1 children=0
-1:0  |Hello
+1:0  |Hello\\n
     0:chunk lines=1 children=0
 2:0  |World
 """,
@@ -68,7 +67,7 @@ Hello
 """,
         """
     0:chunk lines=2 children=0
-1:0  |Hello
+1:0  |Hello\\n
 2:1  | World
 """,
     )
@@ -85,11 +84,11 @@ One
 """,
         """
     0:chunk lines=2 children=0
-1:0  |Hello
-2:1  | World
+1:0  |Hello\\n
+2:1  | World\\n
     0:chunk lines=3 children=0
-3:0  |One
-4:4  |    two
+3:0  |One\\n
+4:4  |    two\\n
 5:2  |  three
 """,
     )
@@ -103,7 +102,7 @@ Hello:
 """,
         """
     0:chunk lines=1 children=1
-1:0  |Hello:
+1:0  |Hello:\\n
     1: chunk lines=1 children=0
 2:1  | World
 """,
@@ -123,17 +122,17 @@ def compute_next(n):
 """,
         """
     0:chunk lines=1 children=2
-1:0  |def compute_next(n):
+1:0  |def compute_next(n):\\n
     2:  chunk lines=1 children=2
-2:2  |  if n % 2 == 0:
+2:2  |  if n % 2 == 0:\\n
     4:    chunk lines=1 children=0
-3:4  |    print('even')
+3:4  |    print('even')\\n
     4:    chunk lines=1 children=0
-4:4  |    return n / 2
+4:4  |    return n / 2\\n
     2:  chunk lines=1 children=2
-5:2  |  else:
+5:2  |  else:\\n
     4:    chunk lines=1 children=0
-6:4  |    print('odd')
+6:4  |    print('odd')\\n
     4:    chunk lines=1 children=0
 7:4  |    return 3 * n + 1
 """,

@@ -2,4 +2,7 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-__version__ = '0.0.1'
+
+class TaplError(Exception):
+    def __init__(self, message: str):
+        super().__init__(message)
