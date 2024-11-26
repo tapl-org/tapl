@@ -3,19 +3,18 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from tapl_lang.parser import LineRecord, split_text_to_lines
+from tapl_lang.tapl_error import TaplError
 
 
 class Chunk:
     def __init__(self, line_records: list[LineRecord], children: list['Chunk']) -> None:
-        if len(line_records) > 0:
-            raise RuntimeError('Empty line records')
         self.lines = line_records
         self.children = children
 
 
-def min_indentation(lines: list[LineRecord]) -> int | None:
+def min_indentation(line_records: list[LineRecord]) -> int | None:
     min_indent = None
-    for line in lines:
+    for line in line_records:
         if line.empty:
             continue
         if min_indent is None:
@@ -25,43 +24,44 @@ def min_indentation(lines: list[LineRecord]) -> int | None:
     return min_indent
 
 
-def get_same_indent_line_numbers(lines: list[LineRecord], indent: int) -> list[int]:
-    result = [i for i in range(len(lines)) if lines[i].indent == indent]
-    if len(result) > 0 and all(lines[i].empty for i in range(result[0])):
-        raise RuntimeError('Empty lines while getting same indent line numbers')
+def get_same_indent_indexes(line_records: list[LineRecord], indent: int) -> list[int]:
+    result = [i for i in range(len(line_records)) if line_records[i].indent == indent]
+    if len(result) > 0 and result[0] != 0:
+        raise TaplError('First line should have the same indent as the given indent.')
     return result
 
 
-def find_first_ends_with_colon(lines: list[LineRecord]) -> int | None:
-    for i in range(len(lines)):
-        line = lines[i]
-        if line.ends_with_colon:
+def find_first_ends_with_colon(line_records: list[LineRecord]) -> int | None:
+    for i in range(len(line_records)):
+        if line_records[i].ends_with_colon:
             return i
     return None
 
 
 class Chunker:
-    def decode_chunk(self, lines: list[LineRecord]) -> Chunk:
-        index = find_first_ends_with_colon(lines)
+    def decode_chunk(self, line_records: list[LineRecord]) -> Chunk:
+        index = find_first_ends_with_colon(line_records)
         if index is not None:
             children_start_index = index + 1
-            children = self.decode_chunks(lines[children_start_index:])
-            return Chunk(lines[:children_start_index], children)
-        return Chunk(lines, [])
+            children = self.decode_chunks(line_records[children_start_index:])
+            return Chunk(line_records[:children_start_index], children)
+        return Chunk(line_records, [])
 
-    def decode_chunks(self, lines: list[LineRecord]) -> list[Chunk]:
-        min_indent = min_indentation(lines)
+    def decode_chunks(self, line_records: list[LineRecord]) -> list[Chunk]:
+        min_indent = min_indentation(line_records)
+        # If all line records are empty
         if min_indent is None:
             return []
-        indexes = get_same_indent_line_numbers(lines, min_indent)
+        indexes = get_same_indent_indexes(line_records, min_indent)
         chunks: list[Chunk] = []
         for i in range(len(indexes)):
             start_index = indexes[i]
             if i + 1 < len(indexes):
                 end_index = indexes[i + 1]
             else:
-                end_index = len(lines)
-            chunks.append(self.decode_chunk(lines[start_index:end_index]))
+                end_index = len(line_records)
+            chunk = self.decode_chunk(line_records[start_index:end_index])
+            chunks.append(chunk)
         return chunks
 
 

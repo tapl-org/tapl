@@ -30,10 +30,12 @@ def expect_whitespaces(c: Cursor) -> bool | Term:
     start_pos = c.current_position()
     if consume_whitespaces(c):
         return True
-    return ErrorTerm(TermInfo(start=start_pos, end=c.current_position()), 'Expected whitespaces, but found ...')
+    return ErrorTerm(TermInfo(start=start_pos, end=c.current_position()), 'Expected whitespaces')
 
 
-def consume_text(c: Cursor, text: str) -> bool:
+def consume_text(c: Cursor, text: str, *, keep_whitespaces: bool = False) -> bool:
+    if not keep_whitespaces:
+        consume_whitespaces(c)
     for char in text:
         if c.is_end():
             return False
@@ -47,16 +49,18 @@ def expect_text(c: Cursor, text: str) -> bool | Term:
     start_pos = c.current_position()
     if consume_text(c, text):
         return True
-    return ErrorTerm(TermInfo(start=start_pos, end=c.current_position()), f'Expected {text}, but found ...')
+    return ErrorTerm(TermInfo(start=start_pos, end=c.current_position()), f'Expected "{text}"')
 
 
-def consume_rule(c: Cursor, rule: str) -> Term | None:
+def consume_rule(c: Cursor, rule: str, *, keep_whitespaces: bool = False) -> Term | None:
+    if not keep_whitespaces:
+        consume_whitespaces(c)
     return c.apply_rule(rule)
 
 
 def expect_rule(c: Cursor, rule: str) -> Term | None:
     start_pos = c.current_position()
     term = consume_rule(c, rule)
-    if term or term is None:
+    if term is not None:
         return term
-    return ErrorTerm(TermInfo(start=start_pos, end=c.current_position()), f'Expected rule [{rule}], but found ...')
+    return ErrorTerm(TermInfo(start=start_pos, end=c.current_position()), f'Expected rule "{rule}"')

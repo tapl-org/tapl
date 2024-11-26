@@ -70,7 +70,7 @@ def parse_sum__binop(c: Cursor) -> syntax.Term | None:
     left, right = None, None
     if (left := pt.consume_rule(c, 'sum')) and pt.consume_text(c, '+') and (right := pt.expect_rule(c, 'sum')):
         info = TermInfo(start=start_pos, end=c.current_position())
-        return BinOp(info, left, '*', right)
+        return BinOp(info, left, '+', right)
     return pt.first_falsy(left, right)
 
 
@@ -87,13 +87,14 @@ def parse_expr(c: Cursor) -> syntax.Term | None:
 
 
 def parse_start(c: Cursor) -> syntax.Term | None:
-    if (expr := pt.expect_rule(c, 'expr')) and pt.consume_whitespaces(c):
+    if expr := pt.expect_rule(c, 'expr'):
+        pt.consume_whitespaces(c)
         return expr
     return pt.first_falsy(expr)
 
 
 # number  <- [0-9]+
-# value   <- '(' expr (')'|^E) / number|^E
+# value   <- '(' expr (')'|^E) / number / |^E
 # product <- product '*' value / value
 # sum     <- sum '+' product / product
 # expr    <- sum
@@ -109,7 +110,7 @@ RULES: parser.GrammarRuleMap = {
 
 
 def parse(text: str) -> syntax.Term | None:
-    return parser.parse_text(text, RULES, 'start')
+    return parser.parse_text(text, RULES, 'start', log_cell_memo=True)
 
 
 def dump(term: Term | None) -> str:
@@ -119,7 +120,7 @@ def dump(term: Term | None) -> str:
         left = dump(term.left)
         right = dump(term.right)
         return f'B({left}{term.op}{right})'
-    return ''
+    return str(term)
 
 
 def test_one_digit():
@@ -127,42 +128,53 @@ def test_one_digit():
     assert dump(parsed_term) == 'N1'
 
 
-# def test_multi_digit():
-#     parsed_term = parse('154')
-#     assert dump(parsed_term) == 'N154'
+def test_multi_digit():
+    parsed_term = parse('154')
+    assert dump(parsed_term) == 'N154'
 
 
-# def test_multiplication():
-#     parsed_term = parse('2*3')
-#     assert dump(parsed_term) == 'B(N2*N3)'
+def test_multiplication():
+    parsed_term = parse('2*3')
+    assert dump(parsed_term) == 'B(N2*N3)'
 
 
-# def test_summation():
-#     parsed_term = parse("2+3")
-#     assert str(parsed_term) == 'B(N2+N3)'
+def test_summation():
+    parsed_term = parse('2+3')
+    assert dump(parsed_term) == 'B(N2+N3)'
 
-# def test_expr1():
-#     parsed_term = parse("2*3+4")
-#     assert str(parsed_term) == 'B(B(N2*N3)+N4)'
 
-# def test_expr2():
-#     parsed_term = parse("2+3*4")
-#     assert str(parsed_term) == 'B(N2+B(N3*N4))'
+def test_expr1():
+    parsed_term = parse('2*3+4')
+    assert dump(parsed_term) == 'B(B(N2*N3)+N4)'
 
-# def test_expr3():
-#     parsed_term = parse("(2+3)*4")
-#     assert str(parsed_term) == 'B(B(N2+N3)*N4)'
 
-# def test_whitespace():
-#     parsed_term = parse(" ( 2  + 3 ) *   4      ")
-#     assert str(parsed_term) == 'B(B(N2+N3)*N4)'
+def test_expr2():
+    parsed_term = parse('2+3*4')
+    assert dump(parsed_term) == 'B(N2+B(N3*N4))'
 
-# def test_expected_error():
-#     parsed_term = parser.parse_text("a", RULES, 'start')
-#     assert isinstance(parsed_term, syntax.SyntaxError)
-#     assert parsed_term.error_text == 'Expected number'
 
-# def test_expected_rparen_error():
-#     parsed_term = parser.parse_text("(1", RULES, 'start')
-#     assert isinstance(parsed_term, syntax.SyntaxError)
-#     assert parsed_term.error_text == 'Expected ")"'
+def test_expr3():
+    parsed_term = parse('(2+3)*4')
+    assert dump(parsed_term) == 'B(B(N2+N3)*N4)'
+
+
+def test_whitespace():
+    parsed_term = parse(' ( 2  + 3 ) *   4      ')
+    assert dump(parsed_term) == 'B(B(N2+N3)*N4)'
+
+
+def test_expected_error():
+    parsed_term = parser.parse_text('a', RULES, 'start')
+    assert isinstance(parsed_term, syntax.ErrorTerm)
+    assert parsed_term.message == 'Expected number'
+
+
+def test_expected_rparen_error():
+    parsed_term = parser.parse_text('(1', RULES, 'start')
+    assert isinstance(parsed_term, syntax.ErrorTerm)
+    assert parsed_term.message == 'Expected ")"'
+
+
+def test_multiline():
+    parsed_term = parse(' ( 2 \n + 3 ) * \n  4      ')
+    assert dump(parsed_term) == 'B(B(N2+N3)*N4)'

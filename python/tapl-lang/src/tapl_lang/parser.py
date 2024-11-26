@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import enum
+import logging
 from collections.abc import Callable
 
 from tapl_lang.line_record import LineRecord, split_text_to_lines
@@ -85,6 +86,12 @@ class Cell:
         self.next_col: int = next_col
         self.term: Term | None = None
 
+    def __repr__(self) -> str:
+        state = '' if self.state == CellState.DONE else f'state={self.state.value} '
+        growable_text = 'G ' if self.growable else ''
+        term_name = self.term.__class__.__name__ if self.term else 'None'
+        return f'{state}{growable_text}{self.next_row}:{self.next_col}-{term_name}'
+
 
 class PegEngine:
     def __init__(self, line_records: list[LineRecord], grammar_rule_map: GrammarRuleMap):
@@ -157,12 +164,16 @@ def find_first_position(line_records: list[LineRecord]) -> tuple[int, int]:
     return len(line_records), 0
 
 
-def parse_lines(line_records: list[LineRecord], grammar_rule_map: GrammarRuleMap, initial_rule: str) -> Term | None:
+def parse_lines(
+    line_records: list[LineRecord], grammar_rule_map: GrammarRuleMap, initial_rule: str, *, log_cell_memo: bool = False
+) -> Term | None:
     engine = PegEngine(line_records, grammar_rule_map)
     row, col = find_first_position(line_records)
     if row == len(line_records) and col == 0:
         return ErrorTerm(TermInfo(start=Position(line=1, column=1)), message='Empty text.')
     term, next_row, next_col = engine.apply_rule(initial_rule, row, col)
+    if log_cell_memo:
+        logging.warning(engine.cell_memo)
     if term and next_row != len(line_records) and next_col != 0:
         start_pos = Position(line_records[next_row].line_number, next_col + 1)
         return ErrorTerm(
@@ -172,5 +183,5 @@ def parse_lines(line_records: list[LineRecord], grammar_rule_map: GrammarRuleMap
     return term
 
 
-def parse_text(text: str, rule_maps: GrammarRuleMap, initial_rule: str) -> Term | None:
-    return parse_lines(split_text_to_lines(text), rule_maps, initial_rule)
+def parse_text(text: str, rule_maps: GrammarRuleMap, initial_rule: str, *, log_cell_memo: bool = False) -> Term | None:
+    return parse_lines(split_text_to_lines(text), rule_maps, initial_rule, log_cell_memo=log_cell_memo)
