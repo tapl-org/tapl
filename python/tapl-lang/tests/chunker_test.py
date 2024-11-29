@@ -19,11 +19,11 @@ class Dumper:
         self.ss.write(f'{prefix}|{escaped_text}\n')
 
     def print_chunk(self, chunk: chunker.Chunk) -> None:
-        indent = chunk.lines[0].indent
+        indent = chunk.line_records[0].indent
         self.ss.write(f'{indent}:'.rjust(6))
         self.ss.write(' ' * (indent or 0))
-        self.ss.write(f'chunk lines={len(chunk.lines)} children={len(chunk.children)}\n')
-        for line in chunk.lines:
+        self.ss.write(f'chunk line_records_length={len(chunk.line_records)} children_length={len(chunk.children)}\n')
+        for line in chunk.line_records:
             self.print_line(line)
         self.print_chunks(chunk.children)
 
@@ -51,9 +51,9 @@ Hello
 World
 """,
         """
-    0:chunk lines=1 children=0
+    0:chunk line_records_length=1 children_length=0
 1:0  |Hello\\n
-    0:chunk lines=1 children=0
+    0:chunk line_records_length=1 children_length=0
 2:0  |World
 """,
     )
@@ -66,7 +66,7 @@ Hello
  World
 """,
         """
-    0:chunk lines=2 children=0
+    0:chunk line_records_length=2 children_length=0
 1:0  |Hello\\n
 2:1  | World
 """,
@@ -83,10 +83,10 @@ One
   three
 """,
         """
-    0:chunk lines=2 children=0
+    0:chunk line_records_length=2 children_length=0
 1:0  |Hello\\n
 2:1  | World\\n
-    0:chunk lines=3 children=0
+    0:chunk line_records_length=3 children_length=0
 3:0  |One\\n
 4:4  |    two\\n
 5:2  |  three
@@ -101,9 +101,9 @@ Hello:
  World
 """,
         """
-    0:chunk lines=1 children=1
+    0:chunk line_records_length=1 children_length=1
 1:0  |Hello:\\n
-    1: chunk lines=1 children=0
+    1: chunk line_records_length=1 children_length=0
 2:1  | World
 """,
     )
@@ -121,19 +121,19 @@ def compute_next(n):
     return 3 * n + 1
 """,
         """
-    0:chunk lines=1 children=2
+    0:chunk line_records_length=1 children_length=2
 1:0  |def compute_next(n):\\n
-    2:  chunk lines=1 children=2
+    2:  chunk line_records_length=1 children_length=2
 2:2  |  if n % 2 == 0:\\n
-    4:    chunk lines=1 children=0
+    4:    chunk line_records_length=1 children_length=0
 3:4  |    print('even')\\n
-    4:    chunk lines=1 children=0
+    4:    chunk line_records_length=1 children_length=0
 4:4  |    return n / 2\\n
-    2:  chunk lines=1 children=2
+    2:  chunk line_records_length=1 children_length=2
 5:2  |  else:\\n
-    4:    chunk lines=1 children=0
+    4:    chunk line_records_length=1 children_length=0
 6:4  |    print('odd')\\n
-    4:    chunk lines=1 children=0
+    4:    chunk line_records_length=1 children_length=0
 7:4  |    return 3 * n + 1
 """,
     )

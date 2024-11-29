@@ -5,12 +5,15 @@
 import enum
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from tapl_lang.line_record import LineRecord, split_text_to_lines
 from tapl_lang.syntax import ErrorTerm, Position, Term, TermInfo
 from tapl_lang.tapl_error import TaplError
 
 # Implemented PEG parser - https://en.wikipedia.org/wiki/Parsing_expression_grammar,
+# https://pdos.csail.mit.edu/~baford/packrat/thesis/
+# Left recursion: https://web.cs.ucla.edu/~todd/research/pepm08.pdf
 # Error Detection taken from - https://arxiv.org/abs/1806.11150
 
 
@@ -70,6 +73,12 @@ class Cursor:
 ParseFunction = Callable[[Cursor], Term | None]
 OrderedParseFunctions = list[ParseFunction]
 GrammarRuleMap = dict[str, OrderedParseFunctions]
+
+
+@dataclass
+class Grammar:
+    rule_map: GrammarRuleMap
+    start_rule: str
 
 
 class CellState(enum.IntEnum):
@@ -164,14 +173,12 @@ def find_first_position(line_records: list[LineRecord]) -> tuple[int, int]:
     return len(line_records), 0
 
 
-def parse_lines(
-    line_records: list[LineRecord], grammar_rule_map: GrammarRuleMap, initial_rule: str, *, log_cell_memo: bool = False
-) -> Term | None:
-    engine = PegEngine(line_records, grammar_rule_map)
+def parse_line_records(line_records: list[LineRecord], grammar: Grammar, *, log_cell_memo: bool = False) -> Term | None:
+    engine = PegEngine(line_records, grammar.rule_map)
     row, col = find_first_position(line_records)
     if row == len(line_records) and col == 0:
         return ErrorTerm(TermInfo(start=Position(line=1, column=1)), message='Empty text.')
-    term, next_row, next_col = engine.apply_rule(initial_rule, row, col)
+    term, next_row, next_col = engine.apply_rule(grammar.start_rule, row, col)
     if log_cell_memo:
         logging.warning(engine.cell_memo)
     if term and next_row != len(line_records) and next_col != 0:
@@ -183,5 +190,5 @@ def parse_lines(
     return term
 
 
-def parse_text(text: str, rule_maps: GrammarRuleMap, initial_rule: str, *, log_cell_memo: bool = False) -> Term | None:
-    return parse_lines(split_text_to_lines(text), rule_maps, initial_rule, log_cell_memo=log_cell_memo)
+def parse_text(text: str, grammar: Grammar, *, log_cell_memo: bool = False) -> Term | None:
+    return parse_line_records(split_text_to_lines(text), grammar, log_cell_memo=log_cell_memo)

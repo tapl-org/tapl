@@ -2,7 +2,9 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from tapl_lang.tapl_error import TaplError
 
 
 @dataclass(frozen=True)
@@ -24,6 +26,9 @@ class Term:
     def __bool__(self):
         return True
 
+    def add_child(self, child: 'Term') -> None:
+        raise TaplError(f'The term class does not support adding a child class={child.__class__.__name__}')
+
     def separable(self) -> bool:
         return False
 
@@ -36,3 +41,11 @@ class ErrorTerm(Term):
 
     def __bool__(self) -> bool:
         return self.recovered
+
+
+@dataclass
+class Sequence:
+    terms: list[Term] = field(default_factory=list)
+
+    def add_child(self, element: Term) -> None:
+        self.terms.append(element)

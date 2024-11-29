@@ -110,7 +110,7 @@ RULES: parser.GrammarRuleMap = {
 
 
 def parse(text: str) -> syntax.Term | None:
-    return parser.parse_text(text, RULES, 'start', log_cell_memo=True)
+    return parser.parse_text(text, parser.Grammar(RULES, 'start'), log_cell_memo=True)
 
 
 def dump(term: Term | None) -> str:
@@ -164,13 +164,13 @@ def test_whitespace():
 
 
 def test_expected_error():
-    parsed_term = parser.parse_text('a', RULES, 'start')
+    parsed_term = parse('a')
     assert isinstance(parsed_term, syntax.ErrorTerm)
     assert parsed_term.message == 'Expected number'
 
 
 def test_expected_rparen_error():
-    parsed_term = parser.parse_text('(1', RULES, 'start')
+    parsed_term = parse('(1')
     assert isinstance(parsed_term, syntax.ErrorTerm)
     assert parsed_term.message == 'Expected ")"'
 

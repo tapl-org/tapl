@@ -8,7 +8,7 @@ from tapl_lang.tapl_error import TaplError
 
 class Chunk:
     def __init__(self, line_records: list[LineRecord], children: list['Chunk']) -> None:
-        self.lines = line_records
+        self.line_records = line_records
         self.children = children
 
 
