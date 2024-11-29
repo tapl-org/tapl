@@ -16,7 +16,7 @@ $t ::=$ || *term*
 &nbsp;| $t_{lock}{=}t_{key}$ | *unlocking*
 &nbsp;| $\text{raise }t$ | *raise exception*
 &nbsp;| $\text{try }t_{body}\text{ with }t_{catch}$ | *handle exception*
-&nbsp;| $t{:}t$ | *multi layer term*
+&nbsp;| $t{:}t$ | *multi-layer/tiered*
 &nbsp;| $\epsilon.t$ | *flatten layers*
 &nbsp;| $t\text{ as }k$ | *rearrage layers*
 $path ::=$ || *path*
@@ -197,5 +197,32 @@ Traceback (most recent call last):
 TypeError: 'str' object is not callable
 ```
 
+### B: Universal function syntax
+
+The function syntax serves a dual purpose. It can represent both term and type whether the lock is absense or not respectively. In Tapl lang, there is no term and type level. That's why it has only terms, and those terms can play role of types too.
+
+When designing a new term in Tapl lang, it's helpful to think of them as expressions that can be evaluated. 
+
+#### Conditional term
+
+Example 1: $\text{if}\ t_1\ \text{then}\ t_2\ \text{else}\ t_3$. Its evaluation depends on the value of $t_1$.
+
+* if $t1$ evaulates to $\text{true}$ then result is $t2$
+* if $t1$ evaulates to $\text{false}$ then result is $t3$
+* if $t1$ evaulates to $\text{bool}$ then result is $\text{join-type} (t2,t3)$. Reference: TAPL book 16.3
+
+Example 2: $\ t_{mode}\ \text{if}\ t_1\ \text{then}\ t_2\ \text{else}\ t_3$. Its evaluation depends on the value of $t_{mode}$.
+
+* if $t_{mode}$ equals to $\text{evaluate}$ then result is $\text{if}\ t1\ \text{then}\ t2\ \text{else}\ t3$
+* if $t_{mode}$ equals to $\text{typecheck}$ then result is $t_1==\text{bool};\text{join-type} (t_2,t_3)$.
+
+The second examples seems cheating, but makes it easy to separate the type-cheking and evaluation layers.
+
+## TODOs
+
 ### ???1 
 During lock part of function to function unlocking, need to figure out what will be the result for substructural type.
+
+
+### Unlocking should support subsumption
+
