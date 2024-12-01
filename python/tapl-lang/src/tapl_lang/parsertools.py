@@ -2,7 +2,7 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from tapl_lang.parser import Cursor
+from tapl_lang.parser import Cursor, ParseFunction
 from tapl_lang.syntax import ErrorTerm, Location, Term
 
 
@@ -64,3 +64,12 @@ def expect_rule(c: Cursor, rule: str) -> Term | None:
     if term is not None:
         return term
     return ErrorTerm(Location(start=start_pos, end=c.current_position()), f'Expected rule "{rule}"')
+
+
+def route(rule: str) -> ParseFunction:
+    def parse(c: Cursor) -> Term | None:
+        if term := consume_rule(c, rule):
+            return term
+        return first_falsy(term)
+
+    return parse

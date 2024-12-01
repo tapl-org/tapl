@@ -18,6 +18,15 @@ class Constant(Term):
 
 
 @dataclass
+class UnaryOp(Term):
+    op: ast.unaryop
+    operand: Term
+
+    def separable(self) -> bool:
+        return self.operand.separable()
+
+
+@dataclass
 class BoolOp(Term):
     op: ast.boolop
     values: list[Term]

@@ -40,12 +40,6 @@ def parse_value__expr(c: Cursor) -> Term | None:
     return pt.first_falsy(expr, rparen)
 
 
-def parse_value__number(c: Cursor) -> Term | None:
-    if number := pt.consume_rule(c, 'number'):
-        return number
-    return pt.first_falsy(number)
-
-
 def parse_value__error(c: Cursor) -> syntax.Term | None:
     return syntax.ErrorTerm(Location(start=c.current_position()), 'Expected number')
 
@@ -58,30 +52,12 @@ def parse_product__binop(c: Cursor) -> syntax.Term | None:
     return pt.first_falsy(left, right)
 
 
-def parse_product__value(c: Cursor) -> syntax.Term | None:
-    if value := pt.consume_rule(c, 'value'):
-        return value
-    return pt.first_falsy(value)
-
-
 def parse_sum__binop(c: Cursor) -> syntax.Term | None:
     tracker = LocationTracker(c)
     left, right = None, None
     if (left := pt.consume_rule(c, 'sum')) and pt.consume_text(c, '+') and (right := pt.expect_rule(c, 'sum')):
         return BinOp(tracker.location, left, '+', right)
     return pt.first_falsy(left, right)
-
-
-def parse_sum__product(c: Cursor) -> syntax.Term | None:
-    if product := pt.consume_rule(c, 'product'):
-        return product
-    return pt.first_falsy(product)
-
-
-def parse_expr(c: Cursor) -> syntax.Term | None:
-    if sum_term := pt.consume_rule(c, 'sum'):
-        return sum_term
-    return pt.first_falsy(sum_term)
 
 
 def parse_start(c: Cursor) -> syntax.Term | None:
@@ -99,10 +75,10 @@ def parse_start(c: Cursor) -> syntax.Term | None:
 
 RULES: parser.GrammarRuleMap = {
     'number': [parse_number],
-    'value': [parse_value__expr, parse_value__number, parse_value__error],
-    'product': [parse_product__binop, parse_product__value],
-    'sum': [parse_sum__binop, parse_sum__product],
-    'expr': [parse_expr],
+    'value': [parse_value__expr, pt.route('number'), parse_value__error],
+    'product': [parse_product__binop, pt.route('value')],
+    'sum': [parse_sum__binop, pt.route('product')],
+    'expr': [pt.route('sum')],
     'start': [parse_start],
 }
 
