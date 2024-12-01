@@ -22,6 +22,7 @@ class Cursor:
         self.row = row
         self.col = col
         self.engine = engine
+        self.start_position: Position | None = None
 
     def clone(self) -> 'Cursor':
         return Cursor(self.row, self.col, self.engine)
@@ -50,12 +51,6 @@ class Cursor:
         self.assert_position()
         return False
 
-    def current_position(self) -> Position:
-        if self.is_end():
-            return Position(self.engine.line_records[self.row - 1].line_number + 1, 0)
-        self.assert_position()
-        return Position(self.engine.line_records[self.row].line_number, self.col + 1)
-
     def move_to_next(self) -> bool:
         if self.is_end():
             return False
@@ -65,19 +60,24 @@ class Cursor:
             self.col = 0
         return True
 
-    def apply_rule(self, rule) -> Term | None:
+    def consume_rule(self, rule) -> Term | None:
         term, self.row, self.col = self.engine.apply_rule(rule, self.row, self.col)
         return term
 
+    def current_position(self) -> Position:
+        if self.is_end():
+            return Position(self.engine.line_records[self.row - 1].line_number + 1, 0)
+        self.assert_position()
+        return Position(self.engine.line_records[self.row].line_number, self.col + 1)
 
-class LocationTracker:
-    def __init__(self, cursor: Cursor) -> None:
-        self.cursor = cursor
-        self.start = cursor.current_position()
+    def mark_start_position(self) -> None:
+        self.start_position = self.current_position()
 
     @property
     def location(self):
-        return Location(start=self.start, end=self.cursor.current_position())
+        if self.start_position is None:
+            raise TaplError('The start position is not marked.')
+        return Location(start=self.start_position, end=self.current_position())
 
 
 ParseFunction = Callable[[Cursor], Term | None]
@@ -89,6 +89,18 @@ GrammarRuleMap = dict[str, OrderedParseFunctions]
 class Grammar:
     rule_map: GrammarRuleMap
     start_rule: str
+
+
+def first_falsy(*args):
+    """Returns the first falsy value from a list of arguments."""
+    return next((arg for arg in args if not arg), None)
+
+
+def route(rule: str) -> ParseFunction:
+    def parse(c: Cursor) -> Term | None:
+        return c.consume_rule(rule)
+
+    return parse
 
 
 class CellState(enum.IntEnum):

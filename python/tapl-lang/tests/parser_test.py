@@ -5,9 +5,13 @@
 from dataclasses import dataclass
 
 from tapl_lang import parser, syntax
-from tapl_lang import parsertools as pt
-from tapl_lang.parser import Cursor, LocationTracker
+from tapl_lang.parser import Cursor, first_falsy, route
 from tapl_lang.syntax import Location, Position, Term
+
+
+@dataclass
+class Punct(Term):
+    value: str
 
 
 @dataclass
@@ -22,22 +26,75 @@ class BinOp(Term):
     right: Term
 
 
-def parse_number(c: Cursor) -> Term | None:
-    tracker = LocationTracker(c)
-    number_str: str = ''
-    while not c.is_end() and c.current_char().isdigit():
-        number_str += c.current_char()
+PUNCT_SET = set('()+*')
+
+
+def skip_whitespaces(c: Cursor) -> None:
+    while not c.is_end() and c.current_char().isspace():
         c.move_to_next()
-    if number_str:
-        return Number(tracker.location, int(number_str))
+
+
+def parse_token(c: Cursor) -> Term | None:
+    skip_whitespaces(c)
+    if c.is_end():
+        return None
+    c.mark_start_position()
+    char = c.current_char()
+    # Number
+    if char.isdigit():
+        c.move_to_next()
+        number_str = char
+        while not c.is_end() and (char := c.current_char()).isdigit():
+            number_str += char
+            c.move_to_next()
+        return Number(c.location, int(number_str))
+    # Punctuation
+    if char in PUNCT_SET:
+        c.move_to_next()
+        return Punct(c.location, value=char)
+    # Error
     return None
+
+
+def consume_punct(c: Cursor, punct: str, *, expected: bool = False) -> Term | None:
+    if expected:
+        c.mark_start_position()
+    term = c.consume_rule('token')
+    if isinstance(term, Punct) and term.value == punct or not term and term is not None:
+        return term
+    if expected:
+        location = term.location if term is not None else c.location
+        return syntax.ErrorTerm(location, f'Expected "{punct}", but found {term}')
+    return None
+
+
+def consume_number(c: Cursor, *, expected: bool = False) -> Term | None:
+    term = c.consume_rule('token')
+    if isinstance(term, Number) or not term and term is not None:
+        return term
+    if expected:
+        location = term.location if term is not None else c.location
+        return syntax.ErrorTerm(location, f'Expected number, but found {term}')
+    return None
+
+
+def expect_rule(c: Cursor, rule: str) -> Term | None:
+    c.mark_start_position()
+    term = c.consume_rule(rule)
+    if term is not None:
+        return term
+    return syntax.ErrorTerm(c.location, f'Expected rule "{rule}"')
 
 
 def parse_value__expr(c: Cursor) -> Term | None:
     expr, rparen = None, None
-    if pt.consume_text(c, '(') and (expr := pt.consume_rule(c, 'expr')) and (rparen := pt.expect_text(c, ')')):
+    if consume_punct(c, '(') and (expr := c.consume_rule('expr')) and (rparen := consume_punct(c, ')', expected=True)):
         return expr
-    return pt.first_falsy(expr, rparen)
+    return first_falsy(expr, rparen)
+
+
+def parse_value__number(c: Cursor) -> Term | None:
+    return consume_number(c)
 
 
 def parse_value__error(c: Cursor) -> syntax.Term | None:
@@ -45,26 +102,26 @@ def parse_value__error(c: Cursor) -> syntax.Term | None:
 
 
 def parse_product__binop(c: Cursor) -> syntax.Term | None:
-    tracker = LocationTracker(c)
     left, right = None, None
-    if (left := pt.consume_rule(c, 'product')) and pt.consume_text(c, '*') and (right := pt.expect_rule(c, 'product')):
-        return BinOp(tracker.location, left, '*', right)
-    return pt.first_falsy(left, right)
+    if (left := c.consume_rule('product')) and consume_punct(c, '*') and (right := expect_rule(c, 'product')):
+        location = Location(start=left.location.start, end=right.location.end)
+        return BinOp(location, left, '*', right)
+    return first_falsy(left, right)
 
 
 def parse_sum__binop(c: Cursor) -> syntax.Term | None:
-    tracker = LocationTracker(c)
     left, right = None, None
-    if (left := pt.consume_rule(c, 'sum')) and pt.consume_text(c, '+') and (right := pt.expect_rule(c, 'sum')):
-        return BinOp(tracker.location, left, '+', right)
-    return pt.first_falsy(left, right)
+    if (left := c.consume_rule('sum')) and consume_punct(c, '+') and (right := expect_rule(c, 'sum')):
+        location = Location(start=left.location.start, end=right.location.end)
+        return BinOp(location, left, '+', right)
+    return first_falsy(left, right)
 
 
 def parse_start(c: Cursor) -> syntax.Term | None:
-    if expr := pt.expect_rule(c, 'expr'):
-        pt.consume_whitespaces(c)
+    if expr := expect_rule(c, 'expr'):
+        skip_whitespaces(c)
         return expr
-    return pt.first_falsy(expr)
+    return first_falsy(expr)
 
 
 # number  <- [0-9]+
@@ -74,11 +131,11 @@ def parse_start(c: Cursor) -> syntax.Term | None:
 # expr    <- sum
 
 RULES: parser.GrammarRuleMap = {
-    'number': [parse_number],
-    'value': [parse_value__expr, pt.route('number'), parse_value__error],
-    'product': [parse_product__binop, pt.route('value')],
-    'sum': [parse_sum__binop, pt.route('product')],
-    'expr': [pt.route('sum')],
+    'token': [parse_token],
+    'value': [parse_value__expr, parse_value__number, parse_value__error],
+    'product': [parse_product__binop, route('value')],
+    'sum': [parse_sum__binop, route('product')],
+    'expr': [route('sum')],
     'start': [parse_start],
 }
 
@@ -149,7 +206,7 @@ def test_expected_error():
 def test_expected_rparen_error():
     parsed_term = parse('(1')
     assert isinstance(parsed_term, syntax.ErrorTerm)
-    assert parsed_term.message == 'Expected ")"'
+    assert parsed_term.message == 'Expected ")", but found None'
 
 
 def test_multiline():
