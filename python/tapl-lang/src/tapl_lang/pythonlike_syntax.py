@@ -4,23 +4,23 @@
 
 import ast
 from dataclasses import dataclass
+from typing import Any
 
 from tapl_lang.syntax import Term
 
 
 @dataclass
 class Constant(Term):
-    value: int
+    value: Any
 
     def separable(self) -> bool:
         return False
 
 
 @dataclass
-class BinOp(Term):
-    left: Term
-    op: ast.operator
-    right: Term
+class BoolOp(Term):
+    op: ast.boolop
+    values: list[Term]
 
     def separable(self) -> bool:
         return False

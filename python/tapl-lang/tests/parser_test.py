@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 from tapl_lang import parser, syntax
 from tapl_lang import parsertools as pt
-from tapl_lang.parser import Cursor
-from tapl_lang.syntax import Term, TermInfo
+from tapl_lang.parser import Cursor, LocationTracker
+from tapl_lang.syntax import Location, Position, Term
 
 
 @dataclass
@@ -23,13 +23,13 @@ class BinOp(Term):
 
 
 def parse_number(c: Cursor) -> Term | None:
-    start_pos = c.current_position()
+    tracker = LocationTracker(c)
     number_str: str = ''
     while not c.is_end() and c.current_char().isdigit():
         number_str += c.current_char()
         c.move_to_next()
     if number_str:
-        return Number(TermInfo(start=start_pos, end=c.current_position()), int(number_str))
+        return Number(tracker.location, int(number_str))
     return None
 
 
@@ -47,15 +47,14 @@ def parse_value__number(c: Cursor) -> Term | None:
 
 
 def parse_value__error(c: Cursor) -> syntax.Term | None:
-    return syntax.ErrorTerm(TermInfo(start=c.current_position()), 'Expected number')
+    return syntax.ErrorTerm(Location(start=c.current_position()), 'Expected number')
 
 
 def parse_product__binop(c: Cursor) -> syntax.Term | None:
-    start_pos = c.current_position()
+    tracker = LocationTracker(c)
     left, right = None, None
     if (left := pt.consume_rule(c, 'product')) and pt.consume_text(c, '*') and (right := pt.expect_rule(c, 'product')):
-        info = TermInfo(start=start_pos, end=c.current_position())
-        return BinOp(info, left, '*', right)
+        return BinOp(tracker.location, left, '*', right)
     return pt.first_falsy(left, right)
 
 
@@ -66,11 +65,10 @@ def parse_product__value(c: Cursor) -> syntax.Term | None:
 
 
 def parse_sum__binop(c: Cursor) -> syntax.Term | None:
-    start_pos = c.current_position()
+    tracker = LocationTracker(c)
     left, right = None, None
     if (left := pt.consume_rule(c, 'sum')) and pt.consume_text(c, '+') and (right := pt.expect_rule(c, 'sum')):
-        info = TermInfo(start=start_pos, end=c.current_position())
-        return BinOp(info, left, '+', right)
+        return BinOp(tracker.location, left, '+', right)
     return pt.first_falsy(left, right)
 
 
@@ -110,7 +108,7 @@ RULES: parser.GrammarRuleMap = {
 
 
 def parse(text: str) -> syntax.Term | None:
-    return parser.parse_text(text, parser.Grammar(RULES, 'start'), log_cell_memo=True)
+    return parser.parse_text(text, parser.Grammar(RULES, 'start'), log_cell_memo=False)
 
 
 def dump(term: Term | None) -> str:
@@ -153,8 +151,11 @@ def test_expr2():
     assert dump(parsed_term) == 'B(N2+B(N3*N4))'
 
 
-def test_expr3():
+def test_expr3_and_location():
     parsed_term = parse('(2+3)*4')
+    assert parsed_term.left.location == Location(
+        start=Position(line=1, column=2), end=Position(line=1, column=5), filename=None
+    )
     assert dump(parsed_term) == 'B(B(N2+N3)*N4)'
 
 
@@ -178,3 +179,15 @@ def test_expected_rparen_error():
 def test_multiline():
     parsed_term = parse(' ( 2 \n + 3 ) * \n  4      ')
     assert dump(parsed_term) == 'B(B(N2+N3)*N4)'
+
+
+def test_empty_text():
+    parsed_term = parse('')
+    assert isinstance(parsed_term, syntax.ErrorTerm)
+    assert parsed_term.message == 'Empty text.'
+
+
+def test_not_all_text_consumed():
+    parsed_term = parse('1(')
+    assert isinstance(parsed_term, syntax.ErrorTerm)
+    assert parsed_term.message == 'Not all text consumed 1:2/2:1.'

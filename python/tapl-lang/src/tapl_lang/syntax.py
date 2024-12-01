@@ -14,14 +14,15 @@ class Position:
 
 
 @dataclass(kw_only=True)
-class TermInfo:
+class Location:
     start: Position | None = None
     end: Position | None = None
+    filename: str | None = None
 
 
 @dataclass
 class Term:
-    info: TermInfo
+    location: Location
 
     def __bool__(self):
         return True
@@ -49,3 +50,12 @@ class Sequence:
 
     def add_child(self, element: Term) -> None:
         self.terms.append(element)
+
+
+@dataclass
+class Tiered:
+    low: Term
+    high: Term
+
+    def separable(self) -> bool:
+        return True

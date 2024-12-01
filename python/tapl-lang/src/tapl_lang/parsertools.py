@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from tapl_lang.parser import Cursor
-from tapl_lang.syntax import ErrorTerm, Term, TermInfo
+from tapl_lang.syntax import ErrorTerm, Location, Term
 
 
 def first_falsy(*args):
@@ -30,7 +30,7 @@ def expect_whitespaces(c: Cursor) -> bool | Term:
     start_pos = c.current_position()
     if consume_whitespaces(c):
         return True
-    return ErrorTerm(TermInfo(start=start_pos, end=c.current_position()), 'Expected whitespaces')
+    return ErrorTerm(Location(start=start_pos, end=c.current_position()), 'Expected whitespaces')
 
 
 def consume_text(c: Cursor, text: str, *, keep_whitespaces: bool = False) -> bool:
@@ -49,7 +49,7 @@ def expect_text(c: Cursor, text: str) -> bool | Term:
     start_pos = c.current_position()
     if consume_text(c, text):
         return True
-    return ErrorTerm(TermInfo(start=start_pos, end=c.current_position()), f'Expected "{text}"')
+    return ErrorTerm(Location(start=start_pos, end=c.current_position()), f'Expected "{text}"')
 
 
 def consume_rule(c: Cursor, rule: str, *, keep_whitespaces: bool = False) -> Term | None:
@@ -63,4 +63,4 @@ def expect_rule(c: Cursor, rule: str) -> Term | None:
     term = consume_rule(c, rule)
     if term is not None:
         return term
-    return ErrorTerm(TermInfo(start=start_pos, end=c.current_position()), f'Expected rule "{rule}"')
+    return ErrorTerm(Location(start=start_pos, end=c.current_position()), f'Expected rule "{rule}"')

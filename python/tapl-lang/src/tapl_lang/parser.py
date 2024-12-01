@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from tapl_lang.line_record import LineRecord, split_text_to_lines
-from tapl_lang.syntax import ErrorTerm, Position, Term, TermInfo
+from tapl_lang.syntax import ErrorTerm, Location, Position, Term
 from tapl_lang.tapl_error import TaplError
 
 # Implemented PEG parser - https://en.wikipedia.org/wiki/Parsing_expression_grammar,
@@ -68,6 +68,16 @@ class Cursor:
     def apply_rule(self, rule) -> Term | None:
         term, self.row, self.col = self.engine.apply_rule(rule, self.row, self.col)
         return term
+
+
+class LocationTracker:
+    def __init__(self, cursor: Cursor) -> None:
+        self.cursor = cursor
+        self.start = cursor.current_position()
+
+    @property
+    def location(self):
+        return Location(start=self.start, end=self.cursor.current_position())
 
 
 ParseFunction = Callable[[Cursor], Term | None]
@@ -177,14 +187,14 @@ def parse_line_records(line_records: list[LineRecord], grammar: Grammar, *, log_
     engine = PegEngine(line_records, grammar.rule_map)
     row, col = find_first_position(line_records)
     if row == len(line_records) and col == 0:
-        return ErrorTerm(TermInfo(start=Position(line=1, column=1)), message='Empty text.')
+        return ErrorTerm(Location(start=Position(line=1, column=1)), message='Empty text.')
     term, next_row, next_col = engine.apply_rule(grammar.start_rule, row, col)
     if log_cell_memo:
         logging.warning(engine.cell_memo)
     if term and next_row != len(line_records) and next_col != 0:
         start_pos = Position(line_records[next_row].line_number, next_col + 1)
         return ErrorTerm(
-            TermInfo(start=start_pos),
+            Location(start=start_pos),
             message=f'Not all text consumed {start_pos.line}:{start_pos.column}/{len(line_records)+1}:1.',
         )
     return term
