@@ -60,10 +60,6 @@ class Cursor:
             self.col = 0
         return True
 
-    def consume_rule(self, rule) -> Term | None:
-        term, self.row, self.col = self.engine.apply_rule(rule, self.row, self.col)
-        return term
-
     def current_position(self) -> Position:
         if self.is_end():
             return Position(self.engine.line_records[self.row - 1].line_number + 1, 0)
@@ -78,6 +74,17 @@ class Cursor:
         if self.start_position is None:
             raise TaplError('The start position is not marked.')
         return Location(start=self.start_position, end=self.current_position())
+
+    def consume_rule(self, rule) -> Term | None:
+        term, self.row, self.col = self.engine.apply_rule(rule, self.row, self.col)
+        return term
+
+    def expect_rule(self, rule: str) -> Term | None:
+        self.mark_start_position()
+        term = self.consume_rule(rule)
+        if term is not None:
+            return term
+        return ErrorTerm(self.location, f'Expected rule "{rule}"')
 
 
 ParseFunction = Callable[[Cursor], Term | None]
@@ -103,6 +110,11 @@ def route(rule: str) -> ParseFunction:
     return parse
 
 
+def skip_whitespaces(c: Cursor) -> None:
+    while not c.is_end() and c.current_char().isspace():
+        c.move_to_next()
+
+
 class CellState(enum.IntEnum):
     BLANK = 1
     START = 2
@@ -120,7 +132,7 @@ class Cell:
     def __repr__(self) -> str:
         state = '' if self.state == CellState.DONE else f'state={self.state.value} '
         growable_text = 'G ' if self.growable else ''
-        term_name = self.term.__class__.__name__ if self.term else 'None'
+        term_name = str(self.term)[:280]
         return f'{state}{growable_text}{self.next_row}:{self.next_col}-{term_name}'
 
 

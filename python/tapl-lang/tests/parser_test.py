@@ -5,7 +5,7 @@
 from dataclasses import dataclass
 
 from tapl_lang import parser, syntax
-from tapl_lang.parser import Cursor, first_falsy, route
+from tapl_lang.parser import Cursor, first_falsy, route, skip_whitespaces
 from tapl_lang.syntax import Location, Position, Term
 
 
@@ -27,11 +27,6 @@ class BinOp(Term):
 
 
 PUNCT_SET = set('()+*')
-
-
-def skip_whitespaces(c: Cursor) -> None:
-    while not c.is_end() and c.current_char().isspace():
-        c.move_to_next()
 
 
 def parse_token(c: Cursor) -> Term | None:
