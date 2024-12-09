@@ -7,8 +7,8 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-parsed_code = ast.parse('2+3', mode='eval')
-logging.info(ast.dump(parsed_code))
+parsed_code = ast.parse('True and True     and    False  or True', mode='eval')
+logging.info(ast.dump(parsed_code, include_attributes=True, indent=3))
 compiled_code = compile(parsed_code, filename='', mode='eval')
 # ruff: noqa: S307
 result = eval(compiled_code)

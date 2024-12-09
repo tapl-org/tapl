@@ -33,6 +33,9 @@ class Term:
     def separable(self) -> bool:
         return False
 
+    def has_error(self) -> bool:
+        return False
+
 
 @dataclass
 class ErrorTerm(Term):
@@ -43,6 +46,9 @@ class ErrorTerm(Term):
     def __bool__(self) -> bool:
         return self.recovered
 
+    def has_error(self):
+        return True
+
 
 @dataclass
 class Sequence:
@@ -50,6 +56,9 @@ class Sequence:
 
     def add_child(self, element: Term) -> None:
         self.terms.append(element)
+
+    def has_error(self) -> bool:
+        return any(term.has_error() for term in self.terms)
 
 
 @dataclass
@@ -59,3 +68,6 @@ class Tiered:
 
     def separable(self) -> bool:
         return True
+
+    def has_error(self) -> bool:
+        return self.low.has_error() or self.high.has_error()

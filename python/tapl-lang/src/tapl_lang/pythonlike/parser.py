@@ -104,13 +104,15 @@ def rule_inversion__not(c: Cursor) -> Term | None:
     return None
 
 
-def rule_conjuction__and(c: Cursor) -> Term | None:
+def rule_conjunction__and(c: Cursor) -> Term | None:
     left, right = None, None
     values = None
     if (left := c.consume_rule('inversion')) and consume_name(c, 'and') and (right := c.expect_rule('inversion')):
         values = [left, right]
-        while consume_name(c, 'and') and (right := c.consume_rule('inversion')):
+        k = c.clone()
+        while consume_name(k, 'and') and (right := k.consume_rule('inversion')):
             values.append(right)
+            c.copy_from(k)
         return ps.BoolOp(Location(start=left.location.start, end=right.location.end), ast.And(), values)
     return first_falsy(left, right)
 
@@ -120,8 +122,10 @@ def rule_disjunction__or(c: Cursor) -> Term | None:
     values = None
     if (left := c.consume_rule('conjunction')) and consume_name(c, 'or') and (right := c.expect_rule('conjunction')):
         values = [left, right]
-        while consume_name(c, 'or') and (right := c.consume_rule('conjunction')):
+        k = c.clone()
+        while consume_name(k, 'or') and (right := k.consume_rule('conjunction')):
             values.append(right)
+            c.copy_from(k)
         return ps.BoolOp(Location(start=left.location.start, end=right.location.end), ast.Or(), values)
     return first_falsy(left, right)
 
@@ -130,6 +134,6 @@ RULES: parser.GrammarRuleMap = {
     'token': [rule_token],
     'atom': [rule_atom__true, rule_atom__false],
     'inversion': [rule_inversion__not, route('atom')],
-    'conjuction': [rule_conjuction__and, route('inversion')],
-    'disjunction': [rule_disjunction__or, route('conjuction')],
+    'conjunction': [rule_conjunction__and, route('inversion')],
+    'disjunction': [rule_disjunction__or, route('conjunction')],
 }

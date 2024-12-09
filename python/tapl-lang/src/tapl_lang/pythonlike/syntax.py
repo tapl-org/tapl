@@ -25,6 +25,9 @@ class UnaryOp(Term):
     def separable(self) -> bool:
         return self.operand.separable()
 
+    def has_error(self):
+        return self.operand.has_error()
+
 
 @dataclass
 class BoolOp(Term):
@@ -33,3 +36,6 @@ class BoolOp(Term):
 
     def separable(self) -> bool:
         return False
+
+    def has_error(self) -> bool:
+        return any(value.has_error() for value in self.values)

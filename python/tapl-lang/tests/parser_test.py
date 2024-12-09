@@ -182,7 +182,7 @@ def test_expr2():
 def test_expr3_and_location():
     parsed_term = parse('(2+3)*4')
     assert parsed_term.left.location == Location(
-        start=Position(line=1, column=2), end=Position(line=1, column=5), filename=None
+        start=Position(line=1, column=1), end=Position(line=1, column=4), filename=None
     )
     assert dump(parsed_term) == 'B(B(N2+N3)*N4)'
 
@@ -218,4 +218,4 @@ def test_empty_text():
 def test_not_all_text_consumed():
     parsed_term = parse('1(')
     assert isinstance(parsed_term, syntax.ErrorTerm)
-    assert parsed_term.message == 'Not all text consumed 1:2/2:1.'
+    assert parsed_term.message == 'Not all text consumed 1:2/1:2.'

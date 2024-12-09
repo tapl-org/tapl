@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import enum
+import io
+import itertools
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -62,9 +64,10 @@ class Cursor:
 
     def current_position(self) -> Position:
         if self.is_end():
-            return Position(self.engine.line_records[self.row - 1].line_number + 1, 0)
+            line_record = self.engine.line_records[self.row - 1]
+            return Position(line_record.line_number, len(line_record.text))
         self.assert_position()
-        return Position(self.engine.line_records[self.row].line_number, self.col + 1)
+        return Position(self.engine.line_records[self.row].line_number, self.col)
 
     def mark_start_position(self) -> None:
         self.start_position = self.current_position()
@@ -121,29 +124,34 @@ class CellState(enum.IntEnum):
     DONE = 3
 
 
-class Cell:
-    def __init__(self, next_row: int, next_col: int) -> None:
-        self.state: CellState = CellState.BLANK
-        self.growable: bool = False
-        self.next_row: int = next_row
-        self.next_col: int = next_col
-        self.term: Term | None = None
+@dataclass(frozen=True)
+class CellKey:
+    row: int
+    col: int
+    rule: str
 
-    def __repr__(self) -> str:
-        state = '' if self.state == CellState.DONE else f'state={self.state.value} '
-        growable_text = 'G ' if self.growable else ''
-        term_name = str(self.term)[:280]
-        return f'{state}{growable_text}{self.next_row}:{self.next_col}-{term_name}'
+
+@dataclass
+class Cell:
+    next_row: int
+    next_col: int
+    creation_order: int
+    growable: bool = False
+    state: CellState = CellState.BLANK
+    term: Term | None = None
+    rule_function_index: int | None = None
+
+
+CellMemo = dict[CellKey, Cell]
+APPLY_RULE_ORDER_LIMIT = 10000
 
 
 class PegEngine:
     def __init__(self, line_records: list[LineRecord], grammar_rule_map: GrammarRuleMap):
         self.line_records = line_records
         self.grammar_rule_map = grammar_rule_map
-        # (rule, row, col) -> Cell
-        self.cell_memo: dict[tuple[str, int, int], Cell] = {}
-        # hack: a rule apply limit to avoid infinite loop
-        self.apply_rule_limit = 10000
+        self.cell_memo: CellMemo = {}
+        self.apply_rule_order = 0
 
     def get_ordered_parse_functions(self, rule: str) -> OrderedParseFunctions:
         functions = self.grammar_rule_map.get(rule)
@@ -153,39 +161,44 @@ class PegEngine:
 
     def call_ordered_parse_functions(
         self, functions: OrderedParseFunctions, row: int, col: int
-    ) -> tuple[Term | None, int, int]:
-        for function in functions:
+    ) -> tuple[Term | None, int, int, int | None]:
+        for i in range(len(functions)):
             cursor = Cursor(row, col, engine=self)
-            term = function(cursor)
+            term = functions[i](cursor)
             if term is not None:
-                return term, cursor.row, cursor.col
-        return None, row, col
+                return term, cursor.row, cursor.col, i
+        return None, row, col, None
 
     def grow_seed(self, functions: OrderedParseFunctions, row: int, col: int, cell: Cell) -> None:
         seed_next_row, seed_next_col = cell.next_row, cell.next_col
         while True:
-            term, next_row, next_col = self.call_ordered_parse_functions(functions, row, col)
+            term, next_row, next_col, func_index = self.call_ordered_parse_functions(functions, row, col)
             if not term:
                 raise TaplError(f'Once rule was successfull, then it has to be successful again. {term}.')
             # Stop growing when the new next position mathches seed's next position, as this indicates a cycle.
             if next_row == seed_next_row and next_col == seed_next_col:
                 break
             cell.term, cell.next_row, cell.next_col = term, next_row, next_col
+            cell.rule_function_index = func_index
 
     def apply_rule(self, rule: str, row: int, col: int) -> tuple[Term | None, int, int]:
-        self.apply_rule_limit -= 1
-        if self.apply_rule_limit < 0:
-            raise TaplError('apply_rule_limit exceeded.')
-        memo_key = (rule, row, col)
-        cell = self.cell_memo.get(memo_key)
+        self.apply_rule_order += 1
+        if self.apply_rule_order > APPLY_RULE_ORDER_LIMIT:
+            raise TaplError(
+                f'The parser has exceeded {APPLY_RULE_ORDER_LIMIT} rule applications. A hack to prevent or catch infinite recursion.'
+            )
+        cell_key = CellKey(row, col, rule)
+        cell = self.cell_memo.get(cell_key)
         if not cell:
-            cell = Cell(row, col)
-            self.cell_memo[memo_key] = cell
+            cell = Cell(next_row=row, next_col=col, creation_order=self.apply_rule_order)
+            self.cell_memo[cell_key] = cell
         match cell.state:
             case CellState.BLANK:
                 cell.state = CellState.START
                 parse_functions = self.get_ordered_parse_functions(rule)
-                cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(parse_functions, row, col)
+                cell.term, cell.next_row, cell.next_col, cell.rule_function_index = self.call_ordered_parse_functions(
+                    parse_functions, row, col
+                )
                 cell.state = CellState.DONE
                 if cell.growable and cell.term:
                     self.grow_seed(parse_functions, row, col, cell)
@@ -198,6 +211,24 @@ class PegEngine:
             case _:
                 raise TaplError(f'PEG Parser Engine: Unknown cell state [{cell.state}].')
         return cell.term, cell.next_row, cell.next_col
+
+
+def dump_cell_memo(cell_memo: CellMemo) -> str:
+    output = io.StringIO()
+    output.write('\n')
+    sorted_cells = sorted(cell_memo.items(), key=lambda item: (item[0].row, item[0].col, item[1].creation_order))
+    for (row, col), group in itertools.groupby(sorted_cells, key=lambda item: (item[0].row, item[0].col)):
+        output.write(f'{row}:{col}\n')
+        for item in group:
+            cell = item[1]
+            state = '' if cell.state == CellState.DONE else f'state={cell.state.value} '
+            growable_text = 'G ' if cell.growable else ''
+            term_class_name = cell.term  # .__class__.__name__
+            output.write(
+                f'   {item[0].rule}[{cell.rule_function_index}] - end={state}{growable_text}{cell.next_row}:{cell.next_col} term={term_class_name}\n'
+            )
+    output.write('\n')
+    return output.getvalue()
 
 
 def find_first_position(line_records: list[LineRecord]) -> tuple[int, int]:
@@ -214,12 +245,12 @@ def parse_line_records(line_records: list[LineRecord], grammar: Grammar, *, log_
         return ErrorTerm(Location(start=Position(line=1, column=1)), message='Empty text.')
     term, next_row, next_col = engine.apply_rule(grammar.start_rule, row, col)
     if log_cell_memo:
-        logging.warning(engine.cell_memo)
+        logging.warning(dump_cell_memo(engine.cell_memo))
     if term and next_row != len(line_records) and next_col != 0:
         start_pos = Position(line_records[next_row].line_number, next_col + 1)
         return ErrorTerm(
             Location(start=start_pos),
-            message=f'Not all text consumed {start_pos.line}:{start_pos.column}/{len(line_records)+1}:1.',
+            message=f'Not all text consumed {start_pos.line}:{start_pos.column}/{len(line_records)}:{len(line_records[-1].text)}.',
         )
     return term
 
