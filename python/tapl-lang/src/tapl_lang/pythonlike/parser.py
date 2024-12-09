@@ -6,8 +6,8 @@ import ast
 from dataclasses import dataclass
 
 from tapl_lang import parser
-from tapl_lang import pythonlike_syntax as ps
 from tapl_lang.parser import Cursor, first_falsy, route, skip_whitespaces
+from tapl_lang.pythonlike import syntax as ps
 from tapl_lang.syntax import ErrorTerm, Location, Term
 
 
