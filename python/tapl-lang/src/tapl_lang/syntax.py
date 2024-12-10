@@ -7,23 +7,8 @@ from dataclasses import dataclass, field
 from tapl_lang.tapl_error import TaplError
 
 
-@dataclass(frozen=True)
-class Position:
-    line: int
-    column: int
-
-
-@dataclass(kw_only=True)
-class Location:
-    start: Position | None = None
-    end: Position | None = None
-    filename: str | None = None
-
-
 @dataclass
 class Term:
-    location: Location
-
     def __bool__(self):
         return True
 
@@ -37,8 +22,25 @@ class Term:
         return False
 
 
+@dataclass(frozen=True)
+class Position:
+    line: int
+    column: int
+
+
+@dataclass(frozen=True, kw_only=True)
+class Location:
+    start: Position | None = None
+    end: Position | None = None
+
+
 @dataclass
-class ErrorTerm(Term):
+class TermWithLocation(Term):
+    location: Location
+
+
+@dataclass
+class ErrorTerm(TermWithLocation):
     message: str
     recovered: bool = False
     guess: Term | None = None

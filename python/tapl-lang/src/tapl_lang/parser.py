@@ -24,7 +24,6 @@ class Cursor:
         self.row = row
         self.col = col
         self.engine = engine
-        self.start_position: Position | None = None
 
     def clone(self) -> 'Cursor':
         return Cursor(self.row, self.col, self.engine)
@@ -69,25 +68,22 @@ class Cursor:
         self.assert_position()
         return Position(self.engine.line_records[self.row].line_number, self.col)
 
-    def mark_start_position(self) -> None:
-        self.start_position = self.current_position()
-
-    @property
-    def location(self):
-        if self.start_position is None:
-            raise TaplError('The start position is not marked.')
-        return Location(start=self.start_position, end=self.current_position())
-
     def consume_rule(self, rule) -> Term | None:
         term, self.row, self.col = self.engine.apply_rule(rule, self.row, self.col)
         return term
 
-    def expect_rule(self, rule: str) -> Term | None:
-        self.mark_start_position()
-        term = self.consume_rule(rule)
-        if term is not None:
-            return term
-        return ErrorTerm(self.location, f'Expected rule "{rule}"')
+    def start_location_tracker(self) -> 'LocationTracker':
+        return LocationTracker(self)
+
+
+class LocationTracker:
+    def __init__(self, cursor: Cursor) -> None:
+        self.cursor = cursor
+        self.start_position = cursor.current_position()
+
+    @property
+    def location(self):
+        return Location(start=self.start_position, end=self.cursor.current_position())
 
 
 ParseFunction = Callable[[Cursor], Term | None]

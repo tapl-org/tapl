@@ -4,25 +4,26 @@
 
 import ast
 from dataclasses import dataclass
+from typing import cast
 
 from tapl_lang import parser
 from tapl_lang.parser import Cursor, first_falsy, route, skip_whitespaces
 from tapl_lang.pythonlike import syntax as ps
-from tapl_lang.syntax import ErrorTerm, Location, Term
+from tapl_lang.syntax import ErrorTerm, Term, TermWithLocation
 
 
 @dataclass
-class TokenName(Term):
+class TokenName(TermWithLocation):
     value: str
 
 
 @dataclass
-class TokenNumber(Term):
+class TokenNumber(TermWithLocation):
     value: int
 
 
 @dataclass
-class TokenPunct(Term):
+class TokenPunct(TermWithLocation):
     value: str
 
 
@@ -30,13 +31,18 @@ PUNCT_SET = set('()')
 
 
 def rule_token(c: Cursor) -> Term | None:
+    skip_whitespaces(c)
+    if c.is_end():
+        return None
+    tracker = c.start_location_tracker()
+
     def scan_name(char: str) -> Term:
         result = char
         c.move_to_next()
         while not c.is_end() and (char := c.current_char()).isalnum():
             result += char
             c.move_to_next()
-        return TokenName(c.location, value=result)
+        return TokenName(tracker.location, value=result)
 
     def scan_number(char: str) -> Term:
         c.move_to_next()
@@ -44,12 +50,8 @@ def rule_token(c: Cursor) -> Term | None:
         while not c.is_end() and (char := c.current_char()).isdigit():
             number_str += char
             c.move_to_next()
-        return TokenNumber(c.location, value=int(number_str))
+        return TokenNumber(tracker.location, value=int(number_str))
 
-    skip_whitespaces(c)
-    if c.is_end():
-        return None
-    c.mark_start_position()
     char = c.current_char()
     if char.isalpha():
         return scan_name(char)
@@ -57,76 +59,87 @@ def rule_token(c: Cursor) -> Term | None:
         return scan_number(char)
     if char in PUNCT_SET:
         c.move_to_next()
-        return TokenPunct(c.location, value=char)
+        return TokenPunct(tracker.location, value=char)
     # Error
     return None
 
 
+def is_error_term(term: Term | None) -> bool:
+    return term is not None and not term
+
+
 def consume_name(c: Cursor, name: str, *, expected: bool = False) -> Term | None:
-    if expected:
-        c.mark_start_position()
+    tracker = c.start_location_tracker()
     term = c.consume_rule('token')
-    if isinstance(term, TokenName) and term.value == name or not term and term is not None:
+    if isinstance(term, TokenName) and term.value == name or is_error_term(term):
         return term
     if expected:
-        location = term.location if term is not None else c.location
-        return ErrorTerm(location, f'Expected "{name}", but found {term}')
+        return ErrorTerm(tracker.location, f'Expected "{name}", but found {term}')
     return None
 
 
 def consume_punct(c: Cursor, punct: str, *, expected: bool = False) -> Term | None:
-    if expected:
-        c.mark_start_position()
+    tracker = c.start_location_tracker()
     term = c.consume_rule('token')
-    if isinstance(term, TokenPunct) and term.value == punct or not term and term is not None:
+    if isinstance(term, TokenPunct) and term.value == punct or is_error_term(term):
         return term
     if expected:
-        location = term.location if term is not None else c.location
-        return ErrorTerm(location, f'Expected "{punct}", but found {term}')
+        return ErrorTerm(tracker.location, f'Expected "{punct}", but found {term}')
     return None
+
+
+def expect_rule(c: Cursor, rule: str) -> Term | None:
+    tracker = c.start_location_tracker()
+    term = c.consume_rule(rule)
+    if term is not None:
+        return term
+    return ErrorTerm(tracker.location, f'Expected rule "{rule}"')
 
 
 def rule_atom__true(c: Cursor) -> Term | None:
     if token := consume_name(c, 'True'):
-        return ps.Constant(token.location, value=True)
+        return ps.Constant(cast(TokenName, token).location, value=True)
     return None
 
 
 def rule_atom__false(c: Cursor) -> Term | None:
     if token := consume_name(c, 'False'):
-        return ps.Constant(token.location, value=False)
+        return ps.Constant(cast(TokenName, token).location, value=False)
     return None
 
 
 def rule_inversion__not(c: Cursor) -> Term | None:
-    if consume_name(c, 'not') and (operand := c.expect_rule('atom')):
-        return ps.UnaryOp(c.location, ast.Not(), operand)
+    tracker = c.start_location_tracker()
+    if consume_name(c, 'not') and (operand := expect_rule(c, 'atom')):
+        return ps.UnaryOp(tracker.location, ast.Not(), operand)
     return None
 
 
 def rule_conjunction__and(c: Cursor) -> Term | None:
+    tracker = c.start_location_tracker()
     left, right = None, None
     values = None
-    if (left := c.consume_rule('inversion')) and consume_name(c, 'and') and (right := c.expect_rule('inversion')):
+    if (left := c.consume_rule('inversion')) and consume_name(c, 'and') and (right := expect_rule(c, 'inversion')):
         values = [left, right]
         k = c.clone()
         while consume_name(k, 'and') and (right := k.consume_rule('inversion')):
             values.append(right)
             c.copy_from(k)
-        return ps.BoolOp(Location(start=left.location.start, end=right.location.end), ast.And(), values)
+        return ps.BoolOp(tracker.location, ast.And(), values)
     return first_falsy(left, right)
 
 
 def rule_disjunction__or(c: Cursor) -> Term | None:
+    tracker = c.start_location_tracker()
     left, right = None, None
     values = None
-    if (left := c.consume_rule('conjunction')) and consume_name(c, 'or') and (right := c.expect_rule('conjunction')):
+    if (left := c.consume_rule('conjunction')) and consume_name(c, 'or') and (right := expect_rule(c, 'conjunction')):
         values = [left, right]
         k = c.clone()
         while consume_name(k, 'or') and (right := k.consume_rule('conjunction')):
             values.append(right)
             c.copy_from(k)
-        return ps.BoolOp(Location(start=left.location.start, end=right.location.end), ast.Or(), values)
+        return ps.BoolOp(tracker.location, ast.Or(), values)
     return first_falsy(left, right)
 
 

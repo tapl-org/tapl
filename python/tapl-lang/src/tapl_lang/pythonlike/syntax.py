@@ -6,11 +6,11 @@ import ast
 from dataclasses import dataclass
 from typing import Any
 
-from tapl_lang.syntax import Term
+from tapl_lang.syntax import Term, TermWithLocation
 
 
 @dataclass
-class Constant(Term):
+class Constant(TermWithLocation):
     value: Any
 
     def separable(self) -> bool:
@@ -18,7 +18,7 @@ class Constant(Term):
 
 
 @dataclass
-class UnaryOp(Term):
+class UnaryOp(TermWithLocation):
     op: ast.unaryop
     operand: Term
 
@@ -30,7 +30,7 @@ class UnaryOp(Term):
 
 
 @dataclass
-class BoolOp(Term):
+class BoolOp(TermWithLocation):
     op: ast.boolop
     values: list[Term]
 

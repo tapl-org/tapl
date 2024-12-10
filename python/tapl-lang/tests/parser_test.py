@@ -6,21 +6,21 @@ from dataclasses import dataclass
 
 from tapl_lang import parser, syntax
 from tapl_lang.parser import Cursor, first_falsy, route, skip_whitespaces
-from tapl_lang.syntax import Location, Position, Term
+from tapl_lang.syntax import Location, Position, Term, TermWithLocation
 
 
 @dataclass
-class Punct(Term):
+class Punct(TermWithLocation):
     value: str
 
 
 @dataclass
-class Number(Term):
+class Number(TermWithLocation):
     value: int
 
 
 @dataclass
-class BinOp(Term):
+class BinOp(TermWithLocation):
     left: Term
     op: str
     right: Term
@@ -29,11 +29,15 @@ class BinOp(Term):
 PUNCT_SET = set('()+*')
 
 
+def is_error_term(term: Term | None) -> bool:
+    return term is not None and not term
+
+
 def parse_token(c: Cursor) -> Term | None:
     skip_whitespaces(c)
     if c.is_end():
         return None
-    c.mark_start_position()
+    tracker = c.start_location_tracker()
     char = c.current_char()
     # Number
     if char.isdigit():
@@ -42,43 +46,41 @@ def parse_token(c: Cursor) -> Term | None:
         while not c.is_end() and (char := c.current_char()).isdigit():
             number_str += char
             c.move_to_next()
-        return Number(c.location, int(number_str))
+        return Number(tracker.location, int(number_str))
     # Punctuation
     if char in PUNCT_SET:
         c.move_to_next()
-        return Punct(c.location, value=char)
+        return Punct(tracker.location, value=char)
     # Error
     return None
 
 
 def consume_punct(c: Cursor, punct: str, *, expected: bool = False) -> Term | None:
-    if expected:
-        c.mark_start_position()
+    tracker = c.start_location_tracker()
     term = c.consume_rule('token')
-    if isinstance(term, Punct) and term.value == punct or not term and term is not None:
+    if isinstance(term, Punct) and term.value == punct or is_error_term(term):
         return term
     if expected:
-        location = term.location if term is not None else c.location
-        return syntax.ErrorTerm(location, f'Expected "{punct}", but found {term}')
+        return syntax.ErrorTerm(tracker.location, f'Expected "{punct}", but found {term}')
     return None
 
 
 def consume_number(c: Cursor, *, expected: bool = False) -> Term | None:
+    tracker = c.start_location_tracker()
     term = c.consume_rule('token')
-    if isinstance(term, Number) or not term and term is not None:
+    if isinstance(term, Number) or is_error_term(term):
         return term
     if expected:
-        location = term.location if term is not None else c.location
-        return syntax.ErrorTerm(location, f'Expected number, but found {term}')
+        return syntax.ErrorTerm(tracker.location, f'Expected number, but found {term}')
     return None
 
 
 def expect_rule(c: Cursor, rule: str) -> Term | None:
-    c.mark_start_position()
+    tracker = c.start_location_tracker()
     term = c.consume_rule(rule)
     if term is not None:
         return term
-    return syntax.ErrorTerm(c.location, f'Expected rule "{rule}"')
+    return syntax.ErrorTerm(tracker.location, f'Expected rule "{rule}"')
 
 
 def parse_value__expr(c: Cursor) -> Term | None:
@@ -97,18 +99,18 @@ def parse_value__error(c: Cursor) -> syntax.Term | None:
 
 
 def parse_product__binop(c: Cursor) -> syntax.Term | None:
+    tracker = c.start_location_tracker()
     left, right = None, None
     if (left := c.consume_rule('product')) and consume_punct(c, '*') and (right := expect_rule(c, 'product')):
-        location = Location(start=left.location.start, end=right.location.end)
-        return BinOp(location, left, '*', right)
+        return BinOp(tracker.location, left, '*', right)
     return first_falsy(left, right)
 
 
 def parse_sum__binop(c: Cursor) -> syntax.Term | None:
+    tracker = c.start_location_tracker()
     left, right = None, None
     if (left := c.consume_rule('sum')) and consume_punct(c, '+') and (right := expect_rule(c, 'sum')):
-        location = Location(start=left.location.start, end=right.location.end)
-        return BinOp(location, left, '+', right)
+        return BinOp(tracker.location, left, '+', right)
     return first_falsy(left, right)
 
 
@@ -181,9 +183,7 @@ def test_expr2():
 
 def test_expr3_and_location():
     parsed_term = parse('(2+3)*4')
-    assert parsed_term.left.location == Location(
-        start=Position(line=1, column=1), end=Position(line=1, column=4), filename=None
-    )
+    assert parsed_term.left.location == Location(start=Position(line=1, column=1), end=Position(line=1, column=4))
     assert dump(parsed_term) == 'B(B(N2+N3)*N4)'
 
 
