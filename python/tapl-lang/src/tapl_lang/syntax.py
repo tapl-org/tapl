@@ -2,12 +2,12 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import enum
 from dataclasses import dataclass, field
 
 from tapl_lang.tapl_error import TaplError
 
 
-@dataclass
 class Term:
     def __bool__(self):
         return True
@@ -20,6 +20,12 @@ class Term:
 
     def has_error(self) -> bool:
         return False
+
+
+class RunModes(Term, enum.Enum):
+    EVALUATE = Term()
+    # ruff: noqa: PIE796
+    TYPE_CHECK = Term()
 
 
 @dataclass(frozen=True)

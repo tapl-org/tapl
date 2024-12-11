@@ -6,7 +6,7 @@ import ast
 from dataclasses import dataclass
 from typing import Any
 
-from tapl_lang.syntax import Term, TermWithLocation
+from tapl_lang.syntax import RunModes, Term, TermWithLocation
 
 
 @dataclass
@@ -21,6 +21,7 @@ class Constant(TermWithLocation):
 class UnaryOp(TermWithLocation):
     op: ast.unaryop
     operand: Term
+    mode: Term = RunModes.EVALUATE
 
     def separable(self) -> bool:
         return self.operand.separable()
@@ -33,6 +34,7 @@ class UnaryOp(TermWithLocation):
 class BoolOp(TermWithLocation):
     op: ast.boolop
     values: list[Term]
+    mode: Term = RunModes.EVALUATE
 
     def separable(self) -> bool:
         return False
