@@ -8,7 +8,7 @@ from tapl_lang.syntax import Term
 
 
 @dataclass
-class Type(Term):
+class Type:
     name: str
 
 

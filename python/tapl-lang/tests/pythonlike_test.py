@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
+import ast
 from tapl_lang.parser import Grammar, parse_text
 from tapl_lang.pythonlike import codegen, parser, syntax
 from tapl_lang.syntax import Term
@@ -13,7 +14,7 @@ def parse(text: str) -> Term | None:
 
 
 def run(term: Term):
-    expr_ast = codegen.gen_eval(term)
+    expr_ast = ast.Expression(body=term.codegen())
     compiled_code = compile(expr_ast, filename='', mode='eval')
     return eval(compiled_code)
 
