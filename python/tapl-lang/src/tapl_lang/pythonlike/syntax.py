@@ -6,7 +6,6 @@ import ast
 from dataclasses import dataclass
 from typing import Any
 
-from tapl_lang import typelib
 from tapl_lang.syntax import MODE_EVALUATE, MODE_TYPECHECK, Layers, LayerSeparator, Location, Term, TermWithLocation
 from tapl_lang.tapl_error import TaplError
 
@@ -50,10 +49,10 @@ class Name(TermWithLocation):
 
     def has_error(self):
         return False
-    
+
     def separate(self):
         return self
-    
+
     def codegen_expr(self):
         return with_location(ast.Name(id=self.id, ctx=self.ctx), self.location)
 
@@ -77,7 +76,7 @@ class Attribute(TermWithLocation):
             for i in range(separator.layer_count)
         ]
         return Layers(layers)
-    
+
     def codegen_expr(self) -> ast.expr:
         return with_location(ast.Attribute(self.value.codegen_expr(), attr=self.attr, ctx=self.ctx), self.location)
 

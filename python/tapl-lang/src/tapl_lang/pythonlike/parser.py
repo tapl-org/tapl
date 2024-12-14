@@ -6,7 +6,7 @@ import ast
 from dataclasses import dataclass
 from typing import cast
 
-from tapl_lang import parser, syntax, typelib
+from tapl_lang import parser, syntax
 from tapl_lang.parser import Cursor, first_falsy, route, skip_whitespaces
 from tapl_lang.pythonlike import syntax as ps
 from tapl_lang.syntax import ErrorTerm, Layers, Term, TermWithLocation
