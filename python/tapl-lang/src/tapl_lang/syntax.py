@@ -5,27 +5,30 @@
 import ast
 from dataclasses import dataclass
 
-from tapl_lang.tapl_error import TaplError, MismatchedLayerLengthError
-from tapl_lang.types import Type
+from tapl_lang.tapl_error import MismatchedLayerLengthError, TaplError
 
 
 class Term:
-
-    # TODO not easy to understand, rename this method
+    # TODO: not easy to understand, rename this method
     def __bool__(self):
         return True
 
     def has_error(self) -> bool:
         return False
-    
+
     def add_child(self, child: 'Term') -> None:
-        raise TaplError(f'The term class does not support adding a child class={self.__class__.__name__}')
+        raise TaplError(
+            f'The {self.__class__.__name__} class does not support adding a child class={child.__class__.__name__}'
+        )
 
     def separate(self) -> 'Term':
         raise TaplError(f'separate is not implemented yet, class={self.__class__.__name__}')
-    
-    def codegen(self) -> ast.AST:
-        raise TabError(f'codegen is not implemented. {self.__class__.__name__}')
+
+    def codegen_expr(self) -> ast.expr:
+        raise TabError(f'codegen_expr is not implemented. {self.__class__.__name__}')
+
+    def codegen_stmt(self) -> ast.stmt:
+        raise TabError(f'codegen_expr is not implemented. {self.__class__.__name__}')
 
 
 @dataclass
@@ -43,29 +46,29 @@ class Layers(Term):
         for i in range(len(self.layers)):
             self.layers[i] = self.layers[i].separate()
         return self
-    
+
     def codegen(self) -> ast.AST:
         raise TaplError('Layers should be separated before generating AST code.')
-    
+
 
 class LayerSeparator:
-    
     def __init__(self) -> None:
-        self.layer_count: int | None = None
-    
+        self.layer_count: int = 0
+
     def separate(self, term: Term) -> Term:
         separated = term.separate()
         expected_count = len(separated.layers) if isinstance(separated, Layers) else 1
-        if self.layer_count is None:
+        if self.layer_count == 0:
             self.layer_count = expected_count
         elif self.layer_count != expected_count:
-            raise MismatchedLayerLengthError()
+            raise MismatchedLayerLengthError
         return separated
-    
+
     def extract_layer(self, index: int, term: Term) -> Term:
         if isinstance(term, Layers):
             return term.layers[index]
         raise TaplError(f'LayerSeparator.extract_layer expects Layers class, but recieved {term.__class__.__name__}')
+
 
 @dataclass
 class Mode(Term):
@@ -73,6 +76,7 @@ class Mode(Term):
 
     def separate(self) -> Term:
         return self
+
 
 MODE_EVALUATE = Mode('evaluate')
 MODE_TYPECHECK = Mode('type check')
@@ -107,4 +111,3 @@ class ErrorTerm(TermWithLocation):
 
     def has_error(self):
         return True
-

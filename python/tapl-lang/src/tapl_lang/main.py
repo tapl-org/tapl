@@ -7,7 +7,7 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-parsed_code = ast.parse('1 == 2', mode='eval')
+parsed_code = ast.parse('typelib.Bool', mode='eval')
 logging.info(ast.dump(parsed_code, include_attributes=True, indent=3))
 compiled_code = compile(parsed_code, filename='', mode='eval')
 # ruff: noqa: S307

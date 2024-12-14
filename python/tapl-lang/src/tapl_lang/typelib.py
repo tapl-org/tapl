@@ -4,8 +4,6 @@
 
 from dataclasses import dataclass
 
-from tapl_lang.syntax import Term
-
 
 @dataclass
 class Type:
