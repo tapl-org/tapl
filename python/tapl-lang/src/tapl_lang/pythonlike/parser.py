@@ -6,10 +6,14 @@ import ast
 from dataclasses import dataclass
 from typing import cast
 
-from tapl_lang import parser
+from tapl_lang import parser, syntax
 from tapl_lang.parser import Cursor, first_falsy, route, skip_whitespaces
-from tapl_lang.pythonlike import syntax as ps
-from tapl_lang.syntax import ErrorTerm, Term, TermWithLocation
+from tapl_lang.pythonlike import expr as ps
+from tapl_lang.syntax import ErrorTerm, Layers, Term, TermWithLocation
+
+
+def create_term_predef_type(location: syntax.Location, name: str) -> Term:
+    return ps.Attribute(location, value=ps.Name(location, id='t', ctx=ast.Load()), attr=name, ctx=ast.Load())
 
 
 @dataclass
@@ -98,20 +102,22 @@ def expect_rule(c: Cursor, rule: str) -> Term | None:
 
 def rule_atom__true(c: Cursor) -> Term | None:
     if token := consume_name(c, 'True'):
-        return ps.Constant(cast(TokenName, token).location, value=True)
+        location = cast(TokenName, token).location
+        return Layers([ps.Constant(location, value=True), create_term_predef_type(location, 'Bool')])
     return None
 
 
 def rule_atom__false(c: Cursor) -> Term | None:
     if token := consume_name(c, 'False'):
-        return ps.Constant(cast(TokenName, token).location, value=False)
+        location = cast(TokenName, token).location
+        return Layers([ps.Constant(location, value=False), create_term_predef_type(location, 'Bool')])
     return None
 
 
 def rule_inversion__not(c: Cursor) -> Term | None:
     tracker = c.start_location_tracker()
     if consume_name(c, 'not') and (operand := expect_rule(c, 'atom')):
-        return ps.UnaryOp(tracker.location, ast.Not(), operand)
+        return ps.UnaryOp(tracker.location, ast.Not(), operand, mode=syntax.MODE_SAFE)
     return None
 
 
@@ -125,7 +131,7 @@ def rule_conjunction__and(c: Cursor) -> Term | None:
         while consume_name(k, 'and') and (right := k.consume_rule('inversion')):
             values.append(right)
             c.copy_from(k)
-        return ps.BoolOp(tracker.location, ast.And(), values)
+        return ps.BoolOp(tracker.location, ast.And(), values, mode=syntax.MODE_SAFE)
     return first_falsy(left, right)
 
 
@@ -139,7 +145,7 @@ def rule_disjunction__or(c: Cursor) -> Term | None:
         while consume_name(k, 'or') and (right := k.consume_rule('conjunction')):
             values.append(right)
             c.copy_from(k)
-        return ps.BoolOp(tracker.location, ast.Or(), values)
+        return ps.BoolOp(tracker.location, ast.Or(), values, mode=syntax.MODE_SAFE)
     return first_falsy(left, right)
 
 

@@ -6,3 +6,8 @@
 class TaplError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
+
+
+class MismatchedLayerLengthError(TaplError):
+    def __init__(self, message: str = 'Mismatched layer lengths'):
+        super().__init__(message)

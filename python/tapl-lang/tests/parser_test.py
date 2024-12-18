@@ -222,4 +222,4 @@ def test_not_all_text_consumed():
 
 
 def test_run_modes_are_not_equal():
-    assert syntax.RunModes.EVALUATE != syntax.RunModes.TYPE_CHECK
+    assert syntax.MODE_EVALUATE != syntax.MODE_TYPECHECK
