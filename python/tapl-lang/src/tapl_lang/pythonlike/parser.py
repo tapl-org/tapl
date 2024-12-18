@@ -8,12 +8,12 @@ from typing import cast
 
 from tapl_lang import parser, syntax
 from tapl_lang.parser import Cursor, first_falsy, route, skip_whitespaces
-from tapl_lang.pythonlike import syntax as ps
+from tapl_lang.pythonlike import expr as ps
 from tapl_lang.syntax import ErrorTerm, Layers, Term, TermWithLocation
 
 
-def create_predef_type(location: syntax.Location, name: str) -> Term:
-    return ps.Attribute(location, value=ps.Name(location, id='typelib', ctx=ast.Load()), attr=name, ctx=ast.Load())
+def create_term_predef_type(location: syntax.Location, name: str) -> Term:
+    return ps.Attribute(location, value=ps.Name(location, id='t', ctx=ast.Load()), attr=name, ctx=ast.Load())
 
 
 @dataclass
@@ -103,14 +103,14 @@ def expect_rule(c: Cursor, rule: str) -> Term | None:
 def rule_atom__true(c: Cursor) -> Term | None:
     if token := consume_name(c, 'True'):
         location = cast(TokenName, token).location
-        return Layers([ps.Constant(location, value=True), create_predef_type(location, 'Bool')])
+        return Layers([ps.Constant(location, value=True), create_term_predef_type(location, 'Bool')])
     return None
 
 
 def rule_atom__false(c: Cursor) -> Term | None:
     if token := consume_name(c, 'False'):
         location = cast(TokenName, token).location
-        return Layers([ps.Constant(location, value=False), create_predef_type(location, 'Bool')])
+        return Layers([ps.Constant(location, value=False), create_term_predef_type(location, 'Bool')])
     return None
 
 

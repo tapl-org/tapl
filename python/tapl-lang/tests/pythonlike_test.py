@@ -6,12 +6,13 @@
 import ast
 from typing import cast
 
+from tapl_lang import typelib as t
 from tapl_lang.parser import Grammar, parse_text
 from tapl_lang.pythonlike import parser
-from tapl_lang.syntax import Layers, Term
+from tapl_lang.syntax import Layers
 
 
-def do_expr(text: str) -> list[ast.expr]:
+def parse_expr(text: str) -> list[ast.expr]:
     parsed = parse_text(text, Grammar(parser.RULES, 'disjunction'), log_cell_memo=False)
     if parsed is None:
         raise RuntimeError('Parser returns None.')
@@ -20,37 +21,46 @@ def do_expr(text: str) -> list[ast.expr]:
     return [layer.codegen_expr() for layer in layers]
 
 
-def run2(term: Term):
-    expr_ast = ast.Expression(body=term.codegen_expr())
-    compiled_code = compile(expr_ast, filename='', mode='eval')
+def run_expr(expr: ast.expr):
+    compiled_code = compile(ast.Expression(body=expr), filename='', mode='eval')
     return eval(compiled_code)
 
 
 def test_constant_true():
-    [expr1, expr2] = do_expr('True')
+    [expr1, expr2] = parse_expr('True')
     assert ast.unparse(expr1) == 'True'
-    assert ast.unparse(expr2) == 'typelib.Bool'
+    assert ast.unparse(expr2) == 't.Bool'
+    assert run_expr(expr2) == t.Bool
+    assert run_expr(expr1) is True
 
 
 def test_inversion():
-    [expr1, expr2] = do_expr('not True')
+    [expr1, expr2] = parse_expr('not True')
     assert ast.unparse(expr1) == 'not True'
-    assert ast.unparse(expr2) == 'typelib.Bool'
+    assert ast.unparse(expr2) == 't.tc_unary_op(ast.Not(), t.Bool)'
+    assert run_expr(expr2) == t.Bool
+    assert run_expr(expr1) is False
 
 
-# def test_conjuction1():
-#     term = parse('True and True')
-#     assert isinstance(term, syntax.BoolOp)
-#     assert run(term) is True
+def test_conjuction1():
+    [expr1, expr2] = parse_expr('True and True')
+    assert ast.unparse(expr1) == 'True and True'
+    assert ast.unparse(expr2) == 't.tc_bool_op(t.Bool, t.Bool)'
+    assert run_expr(expr2) == t.Bool
+    assert run_expr(expr1) is True
 
 
-# def test_conjuction2():
-#     term = parse('True and True     and    False')
-#     assert isinstance(term, syntax.BoolOp)
-#     assert run(term) is False
+def test_conjuction2():
+    [expr1, expr2] = parse_expr('True and True     and    False')
+    assert ast.unparse(expr1) == 'True and True and False'
+    assert ast.unparse(expr2) == 't.tc_bool_op(t.Bool, t.Bool, t.Bool)'
+    assert run_expr(expr2) == t.Bool
+    assert run_expr(expr1) is False
 
 
-# def test_disjunction():
-#     term = parse('True and True     and    False  or True')
-#     assert isinstance(term, syntax.BoolOp)
-#     assert run(term) is True
+def test_disjunction():
+    [expr1, expr2] = parse_expr('True and True     and    False  or True')
+    assert ast.unparse(expr1) == 'True and True and False or True'
+    assert ast.unparse(expr2) == 't.tc_bool_op(t.tc_bool_op(t.Bool, t.Bool, t.Bool), t.Bool)'
+    assert run_expr(expr2) == t.Bool
+    assert run_expr(expr1) is True

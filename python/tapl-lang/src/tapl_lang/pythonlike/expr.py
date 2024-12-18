@@ -20,12 +20,19 @@ def with_location(tree: ast.expr, loc: Location) -> ast.expr:
     return tree
 
 
-def create_ast_typelib_attribute(attr: str) -> ast.expr:
-    return ast.Attribute(ast.Name(id='typelib', ctx=ast.Load()), attr=attr, ctx=ast.Load())
+def ast_op(op, loc: Location) -> ast.expr:
+    ast_module = with_location(ast.Name(id='ast', ctx=ast.Load()), loc)
+    ast_op = with_location(ast.Attribute(value=ast_module, attr=op.__class__.__name__, ctx=ast.Load()), loc)
+    return with_location(ast.Call(func=ast_op, args=[]), loc)
 
 
-def create_ast_typelib_call(function_name: str, args: list[ast.expr]) -> ast.expr:
-    return ast.Call(func=create_ast_typelib_attribute(function_name), args=args)
+def ast_typelib_attribute(attr: str, loc: Location) -> ast.expr:
+    ast_name = with_location(ast.Name(id='t', ctx=ast.Load()), loc)
+    return with_location(ast.Attribute(value=ast_name, attr=attr, ctx=ast.Load()), loc)
+
+
+def ast_typelib_call(function_name: str, args: list[ast.expr], loc: Location) -> ast.expr:
+    return with_location(ast.Call(func=ast_typelib_attribute(function_name, loc), args=args), loc)
 
 
 @dataclass
@@ -77,6 +84,7 @@ class Attribute(TermWithLocation):
         ]
         return Layers(layers)
 
+    # TODO: Attribute must have a type layer to check attribute exists or not
     def codegen_expr(self) -> ast.expr:
         return with_location(ast.Attribute(self.value.codegen_expr(), attr=self.attr, ctx=self.ctx), self.location)
 
@@ -111,8 +119,10 @@ class UnaryOp(TermWithLocation):
         if self.mode is MODE_EVALUATE:
             return with_location(ast.UnaryOp(self.op, self.operand.codegen_expr()), self.location)
         if self.mode is MODE_TYPECHECK:
-            return with_location(create_ast_typelib_attribute('Bool'), self.location)
-        raise TaplError(f'Layer mode not found. {self.mode}')
+            return ast_typelib_call(
+                'tc_unary_op', [ast_op(self.op, self.location), self.operand.codegen_expr()], self.location
+            )
+        raise TaplError(f'Layer mode not found. {self.mode} in class {self.__class__.__name__}')
 
 
 @dataclass
@@ -138,14 +148,13 @@ class BoolOp(TermWithLocation):
                 values=[separator.extract_layer(i, v) for v in self.values],
                 mode=separator.extract_layer(i, self.mode),
             )
+            for i in range(separator.layer_count)
         ]
         return Layers(layers)
 
-    def codegen(self) -> ast.AST:
+    def codegen_expr(self) -> ast.expr:
         if self.mode is MODE_EVALUATE:
             return with_location(ast.BoolOp(self.op, [v.codegen_expr() for v in self.values]), self.location)
         if self.mode is MODE_TYPECHECK:
-            return with_location(
-                create_ast_typelib_call('create_union', [v.codegen_expr() for v in self.values]), self.location
-            )
+            return ast_typelib_call('tc_bool_op', [v.codegen_expr() for v in self.values], self.location)
         raise TaplError(f'Run mode not found. {self.mode}')
