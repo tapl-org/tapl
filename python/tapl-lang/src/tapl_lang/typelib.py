@@ -34,7 +34,7 @@ Complex = Base('Complex')
 Str = Base('Str')
 
 
-@dataclass
+@dataclass(frozen=True)
 class List(Type):
     element: Type
 
@@ -42,7 +42,7 @@ class List(Type):
         return List(self.element.normalize())
 
 
-@dataclass
+@dataclass(frozen=True)
 class Dict(Type):
     key: Type
     value: type
@@ -51,7 +51,7 @@ class Dict(Type):
         return Dict(self.key.normalize(), self.value.normalize())
 
 
-@dataclass
+@dataclass(frozen=True)
 class Union(Type):
     operands: list[Type]
 
@@ -75,7 +75,7 @@ class Union(Type):
         return Union(list(result))
 
 
-@dataclass
+@dataclass(frozen=True)
 class Intersection:
     operands: list[Type]
 
