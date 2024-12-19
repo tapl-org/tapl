@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import ast
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from tapl_lang.tapl_error import MismatchedLayerLengthError, TaplError
@@ -31,7 +32,7 @@ class Term:
         raise TabError(f'codegen_expr is not implemented. {self.__class__.__name__}')
 
 
-@dataclass
+@dataclass(frozen=True)
 class Layers(Term):
     layers: list[Term]
 
@@ -69,8 +70,18 @@ class LayerSeparator:
             return term.layers[index]
         raise TaplError(f'LayerSeparator.extract_layer expects Layers class, but recieved {term.__class__.__name__}')
 
+    def build(self, factory: Callable[[Callable[[Term], Term]], Term]) -> Term:
+        if self.layer_count == 1:
+            return factory(lambda x: x)
 
-@dataclass
+        def create_extract_layer_fn(index: int) -> Callable[[Term], Term]:
+            return lambda term: self.extract_layer(index, term)
+
+        layers: list[Term] = [factory(create_extract_layer_fn(i)) for i in range(self.layer_count)]
+        return Layers(layers)
+
+
+@dataclass(frozen=True)
 class Mode(Term):
     name: str
 
@@ -95,12 +106,12 @@ class Location:
     end: Position | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class TermWithLocation(Term):
     location: Location
 
 
-@dataclass
+@dataclass(frozen=True)
 class ErrorTerm(TermWithLocation):
     message: str
     recovered: bool = False

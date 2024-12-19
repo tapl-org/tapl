@@ -16,17 +16,17 @@ def create_term_predef_type(location: syntax.Location, name: str) -> Term:
     return ps.Attribute(location, value=ps.Name(location, id='t', ctx=ast.Load()), attr=name, ctx=ast.Load())
 
 
-@dataclass
+@dataclass(frozen=True)
 class TokenName(TermWithLocation):
     value: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class TokenNumber(TermWithLocation):
     value: int
 
 
-@dataclass
+@dataclass(frozen=True)
 class TokenPunct(TermWithLocation):
     value: str
 
@@ -152,6 +152,7 @@ def rule_disjunction__or(c: Cursor) -> Term | None:
 RULES: parser.GrammarRuleMap = {
     'token': [rule_token],
     'atom': [rule_atom__true, rule_atom__false],
+    'comparison': [route('atom')],
     'inversion': [rule_inversion__not, route('atom')],
     'conjunction': [rule_conjunction__and, route('inversion')],
     'disjunction': [rule_disjunction__or, route('conjunction')],
