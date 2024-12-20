@@ -105,7 +105,7 @@ class UnaryOp(TermWithLocation):
             return ast_typelib_call(
                 'tc_unary_op', [ast_op(self.op, self.location), self.operand.codegen_expr()], self.location
             )
-        raise TaplError(f'Layer mode not found. {self.mode} in class {self.__class__.__name__}')
+        raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
 
 
 @dataclass(frozen=True)
@@ -128,7 +128,7 @@ class BoolOp(TermWithLocation):
             return with_location(ast.BoolOp(self.op, [v.codegen_expr() for v in self.values]), self.location)
         if self.mode is MODE_TYPECHECK:
             return ast_typelib_call('tc_bool_op', [v.codegen_expr() for v in self.values], self.location)
-        raise TaplError(f'Run mode not found. {self.mode}')
+        raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
 
 
 @dataclass(frozen=True)
@@ -136,6 +136,7 @@ class Compare(TermWithLocation):
     left: Term
     ops: list[ast.cmpop]
     comparators: list[Term]
+    mode: Term
 
     def has_error(self):
         return self.left.has_error() or any(v.has_error() for v in self.comparators)
@@ -144,4 +145,13 @@ class Compare(TermWithLocation):
         ls = LayerSeparator()
         left = ls.separate(self.left)
         comparators = [ls.separate(v) for v in self.comparators]
-        return ls.build(lambda layer: Compare(self.location, layer(left), self.ops, [layer(v) for v in comparators]))
+        mode = ls.separate(self.mode)
+        return ls.build(lambda layer: Compare(self.location, layer(left), self.ops, [layer(v) for v in comparators], layer(mode)))
+    
+    def codegen_expr(self) -> ast.expr:
+        if self.mode is MODE_EVALUATE:
+            return with_location(ast.Compare(self.left.codegen_expr(), self.ops, [v.codegen_expr() for v in self.comparators]), self.location)
+        if self.mode is MODE_TYPECHECK:
+            args = [self.left.codegen_expr(), self.ops, [v.codegen_expr() for v in self.comparators]]
+            return ast_typelib_call('tc_compare', args, self.location)
+        raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
