@@ -7,7 +7,13 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-parsed_code = ast.parse('ast.Not()', mode='eval')
+parsed_code = ast.parse(
+    """
+def id(a: int) -> str|int:
+    return str(a)
+""",
+    mode='exec',
+)
 logging.info(ast.dump(parsed_code, include_attributes=True, indent=3))
 compiled_code = compile(parsed_code, filename='', mode='eval')
 # ruff: noqa: S307

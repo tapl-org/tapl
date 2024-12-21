@@ -157,6 +157,9 @@ $t\text{ as }k$|$u\text{ as }k\ \mid\ s'\text{ as }k{:}k\ \mid\ s'\text{ as }\ep
 $\phi[t]$| **Term Evaluation** |$\phi[t] \to t$
 &nbsp;|$\dfrac{\phi[t]}{\psi[\sigma[\epsilon.t]]}$
 
+## Type System
+
+Tapl does not have a Type System, Tapl is just multi layer code. Some part of the each layer maybe type check, evaluate, or other kind of operation.
 
 ## Appendix
 ### A: In Python, argument is needed before checking whether the caller is callable or not

@@ -146,11 +146,16 @@ class Compare(TermWithLocation):
         left = ls.separate(self.left)
         comparators = [ls.separate(v) for v in self.comparators]
         mode = ls.separate(self.mode)
-        return ls.build(lambda layer: Compare(self.location, layer(left), self.ops, [layer(v) for v in comparators], layer(mode)))
-    
+        return ls.build(
+            lambda layer: Compare(self.location, layer(left), self.ops, [layer(v) for v in comparators], layer(mode))
+        )
+
     def codegen_expr(self) -> ast.expr:
         if self.mode is MODE_EVALUATE:
-            return with_location(ast.Compare(self.left.codegen_expr(), self.ops, [v.codegen_expr() for v in self.comparators]), self.location)
+            return with_location(
+                ast.Compare(self.left.codegen_expr(), self.ops, [v.codegen_expr() for v in self.comparators]),
+                self.location,
+            )
         if self.mode is MODE_TYPECHECK:
             args = [self.left.codegen_expr(), self.ops, [v.codegen_expr() for v in self.comparators]]
             return ast_typelib_call('tc_compare', args, self.location)

@@ -1,0 +1,100 @@
+Are base, labeled, function, union, and intersection types enough to describe all possible types?
+
+
+Labeled type unifies single labeled record and labeled variant.
+
+Record type can be defined as a intersection of several labeled types.
+Sum type can be defined as a union of several labeled types.
+
+Base type looks like a nominal type. Because it has only name, nothing else. 
+If we see the Java class perspective then its type is intersection of record type and base type which has a name
+Since Base type contains a string, we can generalize it such that it can contain any value unless it has a equal property
+
+Performance optimization: 
+use Record instead of Labeled. Labeled can be seen as single labeled Record type.
+Variant is a union of single Record types. Is there any application for the union of non-single Record types?
+
+
+Do we need a base type? 
+
+can base type be defined using record type?
+No, needs reserved keyword as a label, and extra dummy type instance. In addition to this, we should ignore the label when type checking.
+
+Note:
+In TypeScript, 
+* a union type with no member (an empty union type) is considered equavalent to the "never" type.
+* an empty intersection type is considered equavalent to the "any" type.
+
+In a finite universe:
+So Any type is a union of all types or intersection of no types, right?
+then Nothing type is a intersection of all types or union of no types.
+
+Type vs Set: https://cs.stackexchange.com/a/91345/163752
+(Type value are CONSTRUCTED while set members are COLLECTED.)
+This differences are more keen to math concept. In programming, if I consider them as same concept, where do I make a mistake?
+Some conversations about this - https://www.reddit.com/r/ProgrammingLanguages/comments/oqpynj/types_versus_sets_in_math_and_programming/
+
+class Egg:
+  color: str
+  weight: float
+
+class Milk:
+  kind: str
+  weight: float
+
+Food = Egg | Milk
+
+----
+
+Egg = <color:str> & <weight:int>
+Milk = <kind:str> & <weight:float>
+
+Food = (<color:str> | <kind:str>) & <weight:(int | float)>
+Food type is not represents the Egg|Milk union type. Because it can represent <color:str>&<weight:float>
+
+
+Integer operations:
+add = (x->x.a+x.b):((Int,Int)->Int)
+  (Int,Int) = ({a=Int}&{b=Int>})->Int
+            = {a=Int,b=Int}->Int
+=         
+
+add {a=3:Int,b=4:Int}
+=
+
+
+
+addInt = (x->x.a+x.b):{a=Int,b=Int}->Float   (assume all add operation returns Float)
+addFloat = (x->x.a+x.b):{a=Float,b=Float}->Float
+
+add = addInt | addFloat
+= (x->x.a+x.b):{a=Int,b=Int}->Float | (x->x.a+x.b):{a=Float,b=Float}->Float
+
+{a=Int,b=Int}->Float | {a=Float,b=Float}->Float
+= ( {a=Int,b=Int} | {a=Float,b=Float}) -> Float
+
+Is there a way to merge the following type:
+{a=Int,b=Int} | {a=Float,b=Float}
+is not equal to
+{a=Int|Float, b=Int|Float}
+
+Another example:
+{a=Int,b=Int} | {a=Float,b=Int}
+=({a=Int} | {a=Float}) & {b=Int}
+={a=Int|Float, b=Int}
+
+
+-----------------------
+Another idea: There are only Value, Function, Union, and Intersection types
+Attribute selection is actually substitution the variable with a function
+
+When we create a new value type, then we should populate the context with list of functions to support this new type.
+how about pair type: Pair type is a composite datastucture, for example left selection takes a pair, and extracts the left part.
+
+Just curious, do I need a Union and Intersection types, these can be a Value type as well.
+then what about Function type, it is a term. So it can be a Function or Function type. see ground-rules Syntax section.
+
+
+btw, actually I should not check whether object has a method or not. Instead, I just call the method of object on the Type layer.
+
+In TAPL, There is NO Type System inherently, there is a code running on different layers. Type System can be built on top of TAPL inherent features.
