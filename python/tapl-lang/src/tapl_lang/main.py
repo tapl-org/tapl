@@ -9,8 +9,7 @@ logging.basicConfig(level=logging.INFO)
 
 parsed_code = ast.parse(
     """
-def id(a: int) -> str|int:
-    return str(a)
+a.unary_not()
 """,
     mode='exec',
 )

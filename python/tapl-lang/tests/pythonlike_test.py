@@ -37,7 +37,7 @@ def test_constant_true():
 def test_inversion():
     [expr1, expr2] = parse_expr('not True')
     assert ast.unparse(expr1) == 'not True'
-    assert ast.unparse(expr2) == 't.tc_unary_op(ast.Not(), t.Bool)'
+    assert ast.unparse(expr2) == 't.Bool'
     assert run_expr(expr2) == t.Bool
     assert run_expr(expr1) is False
 
@@ -45,7 +45,7 @@ def test_inversion():
 def test_conjuction1():
     [expr1, expr2] = parse_expr('True and True')
     assert ast.unparse(expr1) == 'True and True'
-    assert ast.unparse(expr2) == 't.tc_bool_op(t.Bool, t.Bool)'
+    assert ast.unparse(expr2) == 't.create_union(t.Bool, t.Bool)'
     assert run_expr(expr2) == t.Bool
     assert run_expr(expr1) is True
 
@@ -53,7 +53,7 @@ def test_conjuction1():
 def test_conjuction2():
     [expr1, expr2] = parse_expr('True and True     and    False')
     assert ast.unparse(expr1) == 'True and True and False'
-    assert ast.unparse(expr2) == 't.tc_bool_op(t.Bool, t.Bool, t.Bool)'
+    assert ast.unparse(expr2) == 't.create_union(t.Bool, t.Bool, t.Bool)'
     assert run_expr(expr2) == t.Bool
     assert run_expr(expr1) is False
 
@@ -61,6 +61,6 @@ def test_conjuction2():
 def test_disjunction():
     [expr1, expr2] = parse_expr('True and True     and    False  or True')
     assert ast.unparse(expr1) == 'True and True and False or True'
-    assert ast.unparse(expr2) == 't.tc_bool_op(t.tc_bool_op(t.Bool, t.Bool, t.Bool), t.Bool)'
+    assert ast.unparse(expr2) == 't.create_union(t.create_union(t.Bool, t.Bool, t.Bool), t.Bool)'
     assert run_expr(expr2) == t.Bool
     assert run_expr(expr1) is True

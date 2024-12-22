@@ -35,6 +35,11 @@ def ast_typelib_call(function_name: str, args: list[ast.expr], loc: Location) ->
     return with_location(ast.Call(func=ast_typelib_attribute(function_name, loc), args=args), loc)
 
 
+def ast_method_call(value: ast.expr, method_name: str, args: list[ast.expr], loc: Location) -> ast.expr:
+    func = with_location(ast.Attribute(value=value, attr=method_name, ctx=ast.Load()), loc)
+    return with_location(ast.Call(func=func, args=args), loc)
+
+
 @dataclass(frozen=True)
 class Constant(TermWithLocation):
     value: Any
@@ -99,13 +104,13 @@ class UnaryOp(TermWithLocation):
         return ls.build(lambda layer: UnaryOp(self.location, self.op, layer(operand), layer(mode)))
 
     def codegen_expr(self) -> ast.expr:
-        if self.mode is MODE_EVALUATE:
-            return with_location(ast.UnaryOp(self.op, self.operand.codegen_expr()), self.location)
-        if self.mode is MODE_TYPECHECK:
-            return ast_typelib_call(
-                'tc_unary_op', [ast_op(self.op, self.location), self.operand.codegen_expr()], self.location
-            )
-        raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
+        print(self.op)
+        print(self.mode)
+        operand = self.operand.codegen_expr()
+        if self.mode is MODE_TYPECHECK and isinstance(self.op, ast.Not):
+            # unary not operator always returns Bool type
+            return ast_typelib_attribute('Bool', self.location)
+        return with_location(ast.UnaryOp(self.op, operand), self.location)
 
 
 @dataclass(frozen=True)
@@ -127,7 +132,7 @@ class BoolOp(TermWithLocation):
         if self.mode is MODE_EVALUATE:
             return with_location(ast.BoolOp(self.op, [v.codegen_expr() for v in self.values]), self.location)
         if self.mode is MODE_TYPECHECK:
-            return ast_typelib_call('tc_bool_op', [v.codegen_expr() for v in self.values], self.location)
+            return ast_typelib_call('create_union', [v.codegen_expr() for v in self.values], self.location)
         raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
 
 
