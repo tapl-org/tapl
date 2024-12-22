@@ -104,8 +104,6 @@ class UnaryOp(TermWithLocation):
         return ls.build(lambda layer: UnaryOp(self.location, self.op, layer(operand), layer(mode)))
 
     def codegen_expr(self) -> ast.expr:
-        print(self.op)
-        print(self.mode)
         operand = self.operand.codegen_expr()
         if self.mode is MODE_TYPECHECK and isinstance(self.op, ast.Not):
             # unary not operator always returns Bool type
@@ -162,6 +160,7 @@ class Compare(TermWithLocation):
                 self.location,
             )
         if self.mode is MODE_TYPECHECK:
-            args = [self.left.codegen_expr(), self.ops, [v.codegen_expr() for v in self.comparators]]
+            # TODO: fix
+            args = [v.codegen_expr() for v in self.comparators]
             return ast_typelib_call('tc_compare', args, self.location)
         raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')

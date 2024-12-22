@@ -114,6 +114,14 @@ def rule_atom__false(c: Cursor) -> Term | None:
     return None
 
 
+def parse_atom__number(c: Cursor) -> Term | None:
+    token = c.consume_rule('token')
+    if isinstance(token, TokenNumber):
+        location = cast(TokenNumber, token).location
+        return Layers([ps.Constant(location, value=token.value), create_term_predef_type(location, 'Int')])
+    return None
+
+
 def rule_inversion__not(c: Cursor) -> Term | None:
     tracker = c.start_location_tracker()
     if consume_name(c, 'not') and (operand := expect_rule(c, 'atom')):
@@ -151,7 +159,7 @@ def rule_disjunction__or(c: Cursor) -> Term | None:
 
 RULES: parser.GrammarRuleMap = {
     'token': [rule_token],
-    'atom': [rule_atom__true, rule_atom__false],
+    'atom': [rule_atom__true, rule_atom__false, parse_atom__number],
     'comparison': [route('atom')],
     'inversion': [rule_inversion__not, route('atom')],
     'conjunction': [rule_conjunction__and, route('inversion')],

@@ -34,7 +34,15 @@ def test_constant_true():
     assert run_expr(expr1) is True
 
 
-def test_inversion():
+def test_constant_number7():
+    [expr1, expr2] = parse_expr('7')
+    assert ast.unparse(expr1) == '7'
+    assert ast.unparse(expr2) == 't.Int'
+    assert run_expr(expr2) == t.Int
+    assert run_expr(expr1) == 7
+
+
+def test_inversion_bool():
     [expr1, expr2] = parse_expr('not True')
     assert ast.unparse(expr1) == 'not True'
     assert ast.unparse(expr2) == 't.Bool'
@@ -42,7 +50,15 @@ def test_inversion():
     assert run_expr(expr1) is False
 
 
-def test_conjuction1():
+def test_inversion_number():
+    [expr1, expr2] = parse_expr('not 0')
+    assert ast.unparse(expr1) == 'not 0'
+    assert ast.unparse(expr2) == 't.Bool'
+    assert run_expr(expr2) == t.Bool
+    assert run_expr(expr1) is True
+
+
+def test_conjuction_bool1():
     [expr1, expr2] = parse_expr('True and True')
     assert ast.unparse(expr1) == 'True and True'
     assert ast.unparse(expr2) == 't.create_union(t.Bool, t.Bool)'
@@ -50,12 +66,36 @@ def test_conjuction1():
     assert run_expr(expr1) is True
 
 
-def test_conjuction2():
+def test_conjuction_bool2():
     [expr1, expr2] = parse_expr('True and True     and    False')
     assert ast.unparse(expr1) == 'True and True and False'
     assert ast.unparse(expr2) == 't.create_union(t.Bool, t.Bool, t.Bool)'
     assert run_expr(expr2) == t.Bool
     assert run_expr(expr1) is False
+
+
+def test_conjuction_number1():
+    [expr1, expr2] = parse_expr('3 and 4')
+    assert ast.unparse(expr1) == '3 and 4'
+    assert ast.unparse(expr2) == 't.create_union(t.Int, t.Int)'
+    assert run_expr(expr2) == t.Int
+    assert run_expr(expr1) == 4
+
+
+def test_conjuction_number2():
+    [expr1, expr2] = parse_expr('0 and 4')
+    assert ast.unparse(expr1) == '0 and 4'
+    assert ast.unparse(expr2) == 't.create_union(t.Int, t.Int)'
+    assert run_expr(expr2) == t.Int
+    assert run_expr(expr1) == 0
+
+
+def test_conjuction_mix():
+    [expr1, expr2] = parse_expr('True and 4')
+    assert ast.unparse(expr1) == 'True and 4'
+    assert ast.unparse(expr2) == 't.create_union(t.Bool, t.Int)'
+    assert run_expr(expr2) == t.create_union(t.Int, t.Bool)
+    assert run_expr(expr1) == 4
 
 
 def test_disjunction():
