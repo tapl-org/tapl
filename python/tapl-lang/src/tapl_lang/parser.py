@@ -214,14 +214,14 @@ def dump_cell_memo(cell_memo: CellMemo) -> str:
     output.write('\n')
     sorted_cells = sorted(cell_memo.items(), key=lambda item: (item[0].row, item[0].col, item[1].creation_order))
     for (row, col), group in itertools.groupby(sorted_cells, key=lambda item: (item[0].row, item[0].col)):
-        output.write(f'{row}:{col}\n')
+        output.write(f'({row}:{col})\n')
         for item in group:
             cell = item[1]
             state = '' if cell.state == CellState.DONE else f'state={cell.state.value} '
-            growable_text = 'G ' if cell.growable else ''
-            term_class_name = cell.term  # .__class__.__name__
+            growable_text = 'G' if cell.growable else ''
+            term_repr = repr(cell.term)[:200]
             output.write(
-                f'   {item[0].rule}[{cell.rule_function_index}] - end={state}{growable_text}{cell.next_row}:{cell.next_col} term={term_class_name}\n'
+                f'   {item[0].rule}[{cell.rule_function_index}]({cell.next_row},{cell.next_col}){growable_text}{state} - {term_repr}\n'
             )
     output.write('\n')
     return output.getvalue()

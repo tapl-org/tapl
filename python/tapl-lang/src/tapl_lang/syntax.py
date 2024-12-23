@@ -14,8 +14,8 @@ class Term:
     def __bool__(self):
         return True
 
-    def has_error(self) -> bool:
-        return False
+    def get_errors(self) -> list['ErrorTerm']:
+        raise NotImplementedError
 
     def add_child(self, child: 'Term') -> None:
         raise TaplError(
@@ -23,13 +23,13 @@ class Term:
         )
 
     def separate(self) -> 'Term':
-        raise TaplError(f'separate is not implemented yet, class={self.__class__.__name__}')
+        raise NotImplementedError
 
     def codegen_expr(self) -> ast.expr:
-        raise TabError(f'codegen_expr is not implemented. {self.__class__.__name__}')
+        raise NotImplementedError
 
     def codegen_stmt(self) -> ast.stmt:
-        raise TabError(f'codegen_expr is not implemented. {self.__class__.__name__}')
+        raise NotImplementedError
 
 
 @dataclass(frozen=True)
@@ -40,8 +40,11 @@ class Layers(Term):
         if len(self.layers) <= 1:
             raise TaplError('Number of terms in Layers must be bigger than 1.')
 
-    def has_error(self) -> bool:
-        return any(layer.has_error() for layer in self.layers)
+    def get_errors(self) -> list['ErrorTerm']:
+        result = []
+        for layer in self.layers:
+            result.extend(layer.get_errors())
+        return result
 
     def separate(self) -> Term:
         for i in range(len(self.layers)):
@@ -85,6 +88,9 @@ class LayerSeparator:
 class Mode(Term):
     name: str
 
+    def get_errors(self) -> list['ErrorTerm']:
+        return []
+
     def separate(self) -> Term:
         return self
 
@@ -99,11 +105,19 @@ class Position:
     line: int
     column: int
 
+    def __repr__(self) -> str:
+        return f'{self.line}:{self.column}'
+
 
 @dataclass(frozen=True, kw_only=True)
 class Location:
     start: Position | None = None
     end: Position | None = None
+
+    def __repr__(self) -> str:
+        start = repr(self.start) if self.start else '-'
+        end = repr(self.end) if self.end else '-'
+        return f'{start}|{end}'
 
 
 @dataclass(frozen=True)
@@ -120,5 +134,8 @@ class ErrorTerm(TermWithLocation):
     def __bool__(self) -> bool:
         return self.recovered
 
-    def has_error(self):
-        return True
+    def get_errors(self) -> list['ErrorTerm']:
+        return [self]
+
+    def separate(self) -> Term:
+        raise TaplError('ErrorTerm does not support separate.')

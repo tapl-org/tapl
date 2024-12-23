@@ -6,22 +6,43 @@ from dataclasses import dataclass
 from typing import Any
 
 
+def binop_type_error(op: str, left: Any, right: Any) -> TypeError:
+    return TypeError(f'unsupported operand type(s) for {op}: {left} and {right}')
+
+
 @dataclass(frozen=True)
-class _Bool:
+class NoneType:
+    def __repr__(self) -> str:
+        return 'NoneType'
+
+
+@dataclass(frozen=True)
+class Bool:
     def __repr__(self) -> str:
         return 'Bool'
 
 
-Bool = _Bool()
-
-
 @dataclass(frozen=True)
-class _Int:
+class Int:
     def __repr__(self) -> str:
         return 'Int'
 
+    def __add__(self, other):
+        if other in (Int_, Bool_):
+            return self
+        raise binop_type_error('+', self, other)
 
-Int = _Int()
+
+@dataclass(frozen=True)
+class Str:
+    def __repr__(self) -> str:
+        return 'Str'
+
+
+NoneType_ = NoneType()
+Bool_ = Bool()
+Int_ = Int()
+Str_ = Str()
 
 
 @dataclass(frozen=True)

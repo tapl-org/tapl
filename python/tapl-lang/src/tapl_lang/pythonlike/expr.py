@@ -6,7 +6,7 @@ import ast
 from dataclasses import dataclass
 from typing import Any
 
-from tapl_lang.syntax import MODE_EVALUATE, MODE_TYPECHECK, LayerSeparator, Location, Term, TermWithLocation
+from tapl_lang.syntax import MODE_EVALUATE, MODE_TYPECHECK, ErrorTerm, LayerSeparator, Location, Term, TermWithLocation
 from tapl_lang.tapl_error import TaplError
 
 
@@ -44,8 +44,8 @@ def ast_method_call(value: ast.expr, method_name: str, args: list[ast.expr], loc
 class Constant(TermWithLocation):
     value: Any
 
-    def has_error(self) -> bool:
-        return False
+    def get_errors(self) -> list[ErrorTerm]:
+        return []
 
     def separate(self) -> Term:
         return self
@@ -59,13 +59,13 @@ class Name(TermWithLocation):
     id: str
     ctx: ast.expr_context
 
-    def has_error(self):
-        return False
+    def get_errors(self) -> list[ErrorTerm]:
+        return []
 
-    def separate(self):
+    def separate(self) -> Term:
         return self
 
-    def codegen_expr(self):
+    def codegen_expr(self) -> ast.expr:
         return with_location(ast.Name(id=self.id, ctx=self.ctx), self.location)
 
 
@@ -75,8 +75,8 @@ class Attribute(TermWithLocation):
     attr: str
     ctx: ast.expr_context
 
-    def has_error(self):
-        return self.value.has_error()
+    def get_errors(self) -> list[ErrorTerm]:
+        return self.value.get_errors()
 
     def separate(self) -> Term:
         ls = LayerSeparator()
@@ -94,8 +94,8 @@ class UnaryOp(TermWithLocation):
     operand: Term
     mode: Term
 
-    def has_error(self):
-        return self.operand.has_error() or self.mode.has_error()
+    def get_errors(self) -> list[ErrorTerm]:
+        return self.operand.get_errors() + self.mode.get_errors()
 
     def separate(self) -> Term:
         ls = LayerSeparator()
@@ -107,7 +107,7 @@ class UnaryOp(TermWithLocation):
         operand = self.operand.codegen_expr()
         if self.mode is MODE_TYPECHECK and isinstance(self.op, ast.Not):
             # unary not operator always returns Bool type
-            return ast_typelib_attribute('Bool', self.location)
+            return ast_typelib_attribute('Bool_', self.location)
         return with_location(ast.UnaryOp(self.op, operand), self.location)
 
 
@@ -117,8 +117,11 @@ class BoolOp(TermWithLocation):
     values: list[Term]
     mode: Term
 
-    def has_error(self) -> bool:
-        return any(v.has_error() for v in self.values) or self.mode.has_error()
+    def get_errors(self) -> list[ErrorTerm]:
+        result = self.mode.get_errors()
+        for v in self.values:
+            result.extend(v.get_errors())
+        return result
 
     def separate(self) -> Term:
         ls = LayerSeparator()
@@ -135,14 +138,37 @@ class BoolOp(TermWithLocation):
 
 
 @dataclass(frozen=True)
+class BinOp(TermWithLocation):
+    left: Term
+    op: ast.operator
+    right: Term
+
+    def get_errors(self) -> list[ErrorTerm]:
+        return self.left.get_errors() + self.right.get_errors()
+
+    def separate(self):
+        ls = LayerSeparator()
+        left = ls.separate(self.left)
+        right = ls.separate(self.right)
+        return ls.build(lambda layer: BinOp(self.location, layer(left), self.op, layer(right)))
+
+    def codegen_expr(self):
+        return with_location(ast.BinOp(self.left.codegen_expr(), self.op, self.right.codegen_expr()), self.location)
+
+
+@dataclass(frozen=True)
 class Compare(TermWithLocation):
     left: Term
     ops: list[ast.cmpop]
     comparators: list[Term]
     mode: Term
 
-    def has_error(self):
-        return self.left.has_error() or any(v.has_error() for v in self.comparators)
+    def get_errors(self) -> list[ErrorTerm]:
+        result = self.left.get_errors()
+        for v in self.comparators:
+            result.extend(v.get_errors())
+        result.extend(self.mode.get_errors())
+        return result
 
     def separate(self) -> Term:
         ls = LayerSeparator()
