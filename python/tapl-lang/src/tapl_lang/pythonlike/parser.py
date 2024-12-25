@@ -264,6 +264,7 @@ def rule_sum__binary(c: Cursor) -> Term | None:
 # Comparison operators
 # --------------------
 
+
 def scan_operator(c: Cursor):
     if (first := c.consume_rule('token')) and isinstance(first, TokenPunct):
         if first.value in ('==', '!=', '<=', '<', '>=', '>', 'in'):

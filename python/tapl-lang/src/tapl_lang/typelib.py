@@ -26,6 +26,7 @@ class Bool:
             return self
         raise binop_type_error('<', self, other)
 
+
 @dataclass(frozen=True)
 class Int:
     def __repr__(self) -> str:
@@ -35,7 +36,7 @@ class Int:
         if other in (Int_, Bool_):
             return self
         raise binop_type_error('+', self, other)
-    
+
     def __lt__(self, other):
         if other in (Int_, Bool_):
             return self

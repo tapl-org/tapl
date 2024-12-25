@@ -140,12 +140,13 @@ def test_term_error():
     assert ast.unparse(expr2) == 't.Int_ + t.Str_'
     assert expect_error(expr2) == "TypeError('unsupported operand type(s) for +: Int and Str')"
 
+
 def test_compare1():
     [expr1, expr2] = parse_expr('2 < 3')
     assert ast.unparse(expr1) == '2 < 3'
     assert ast.unparse(expr2) == 't.Int_ < t.Int_'
     assert run_expr(expr2) == t.Int_
-    assert run_expr(expr1) == True
+    assert run_expr(expr1) is True
 
 
 def test_compare2():
@@ -153,4 +154,4 @@ def test_compare2():
     assert ast.unparse(expr1) == 'True < 0'
     assert ast.unparse(expr2) == 't.Bool_ < t.Int_'
     assert run_expr(expr2) == t.Bool_
-    assert run_expr(expr1) == False
+    assert run_expr(expr1) is False
