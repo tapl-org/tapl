@@ -2,7 +2,6 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import ast
 from dataclasses import dataclass
 from typing import cast
 
@@ -13,7 +12,7 @@ from tapl_lang.syntax import ErrorTerm, Layers, Term, TermWithLocation
 
 
 def create_term_predef_type(location: syntax.Location, name: str) -> Term:
-    return ps.Attribute(location, value=ps.Name(location, id='t', ctx=ast.Load()), attr=name, ctx=ast.Load())
+    return ps.Attribute(location, value=ps.Name(location, id='t', ctx='load'), attr=name, ctx='load')
 
 
 @dataclass(frozen=True)
@@ -225,21 +224,16 @@ def rule_atom__number(c: Cursor) -> Term | None:
 # Arithmetic operators
 # --------------------
 
-# TODO: Move ast part away from parser
-_FACTOR_OP_MAP = {'+': ast.UAdd(), '-': ast.USub(), '~': ast.Invert()}
-_TERM_OP_MAP = {'*': ast.Mult(), '/': ast.Div(), '//': ast.FloorDiv(), '%': ast.Mod()}
-_SUM_OP_MAP = {'+': ast.Add(), '-': ast.Sub()}
-
 
 def rule_factor__unary(c: Cursor) -> Term | None:
     tracker = c.start_location_tracker()
     if (
         (op := c.consume_rule('token'))
         and isinstance(op, TokenPunct)
-        and op.value in _FACTOR_OP_MAP
+        and op.value in ['+', '-', '~']
         and (factor := expect_rule(c, 'factor'))
     ):
-        return ps.UnaryOp(tracker.location, _FACTOR_OP_MAP[op.value], factor, mode=syntax.MODE_SAFE)
+        return ps.UnaryOp(tracker.location, op.value, factor, mode=syntax.MODE_SAFE)
     return None
 
 
@@ -249,10 +243,10 @@ def rule_term__binary(c: Cursor) -> Term | None:
         (left := c.consume_rule('term'))
         and (op := c.consume_rule('token'))
         and isinstance(op, TokenPunct)
-        and op.value in _TERM_OP_MAP
+        and op.value in ['*', '/', '//', '%']
         and (right := expect_rule(c, 'factor'))
     ):
-        return ps.BinOp(tracker.location, left, _TERM_OP_MAP[op.value], right)
+        return ps.BinOp(tracker.location, left, op.value, right)
     return None
 
 
@@ -262,10 +256,10 @@ def rule_sum__binary(c: Cursor) -> Term | None:
         (left := c.consume_rule('sum'))
         and (op := c.consume_rule('token'))
         and isinstance(op, TokenPunct)
-        and op.value in _SUM_OP_MAP
+        and op.value in ['+', '-']
         and (right := expect_rule(c, 'term'))
     ):
-        return ps.BinOp(tracker.location, left, _SUM_OP_MAP[op.value], right)
+        return ps.BinOp(tracker.location, left, op.value, right)
     return None
 
 
@@ -276,7 +270,7 @@ def rule_sum__binary(c: Cursor) -> Term | None:
 def rule_inversion__not(c: Cursor) -> Term | None:
     tracker = c.start_location_tracker()
     if consume_name(c, 'not') and (operand := expect_rule(c, 'atom')):
-        return ps.UnaryOp(tracker.location, ast.Not(), operand, mode=syntax.MODE_SAFE)
+        return ps.UnaryOp(tracker.location, 'not', operand, mode=syntax.MODE_SAFE)
     return None
 
 
@@ -290,7 +284,7 @@ def rule_conjunction__and(c: Cursor) -> Term | None:
         while consume_name(k, 'and') and (right := k.consume_rule('inversion')):
             values.append(right)
             c.copy_from(k)
-        return ps.BoolOp(tracker.location, ast.And(), values, mode=syntax.MODE_SAFE)
+        return ps.BoolOp(tracker.location, 'and', values, mode=syntax.MODE_SAFE)
     return first_falsy(left, right)
 
 
@@ -304,7 +298,7 @@ def rule_disjunction__or(c: Cursor) -> Term | None:
         while consume_name(k, 'or') and (right := k.consume_rule('conjunction')):
             values.append(right)
             c.copy_from(k)
-        return ps.BoolOp(tracker.location, ast.Or(), values, mode=syntax.MODE_SAFE)
+        return ps.BoolOp(tracker.location, 'or', values, mode=syntax.MODE_SAFE)
     return first_falsy(left, right)
 
 
