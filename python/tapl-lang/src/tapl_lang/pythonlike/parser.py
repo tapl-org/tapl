@@ -190,18 +190,12 @@ def expect_rule(c: Cursor, rule: str) -> Term | None:
 # ----------------
 
 
-# TODO: merge rule_atom__true and rule_atom__false to rule_atom__bool
-def rule_atom__true(c: Cursor) -> Term | None:
-    if token := consume_name(c, 'True'):
+def rule_atom__bool(c: Cursor) -> Term | None:
+    token = c.consume_rule('token')
+    if isinstance(token, TokenName) and token.value in ('True', 'False'):
         location = cast(TokenName, token).location
-        return Layers([ps.Constant(location, value=True), create_term_predef_type(location, 'Bool_')])
-    return None
-
-
-def rule_atom__false(c: Cursor) -> Term | None:
-    if token := consume_name(c, 'False'):
-        location = cast(TokenName, token).location
-        return Layers([ps.Constant(location, value=False), create_term_predef_type(location, 'Bool_')])
+        value = token.value == 'True'
+        return Layers([ps.Constant(location, value=value), create_term_predef_type(location, 'Bool_')])
     return None
 
 
@@ -325,6 +319,6 @@ RULES: parser.GrammarRuleMap = {
     'sum': [rule_sum__binary, route('term')],
     'term': [rule_term__binary, rule_invalid_factor, route('factor')],
     'factor': [rule_factor__unary, route('atom')],
-    'atom': [rule_atom__true, rule_atom__false, rule_atom__string, rule_atom__number],
+    'atom': [rule_atom__bool, rule_atom__string, rule_atom__number],
     'token': [rule_token],
 }
