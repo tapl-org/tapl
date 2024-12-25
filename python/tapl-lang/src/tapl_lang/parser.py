@@ -180,6 +180,7 @@ class PegEngine:
     def apply_rule(self, rule: str, row: int, col: int) -> tuple[Term | None, int, int]:
         self.apply_rule_order += 1
         if self.apply_rule_order > APPLY_RULE_ORDER_LIMIT:
+            logging.warning(dump_cell_memo(self.cell_memo))
             raise TaplError(
                 f'The parser has exceeded {APPLY_RULE_ORDER_LIMIT} rule applications. A hack to prevent or catch infinite recursion.'
             )

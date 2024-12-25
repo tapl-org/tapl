@@ -135,7 +135,22 @@ def test_term2():
 
 
 def test_term_error():
-    [expr1, expr2] = parse_expr("2 + 'abc'", log_cell_memo=True)
+    [expr1, expr2] = parse_expr("2 + 'abc'")
     assert ast.unparse(expr1) == "2 + 'abc'"
     assert ast.unparse(expr2) == 't.Int_ + t.Str_'
     assert expect_error(expr2) == "TypeError('unsupported operand type(s) for +: Int and Str')"
+
+def test_compare1():
+    [expr1, expr2] = parse_expr('2 < 3')
+    assert ast.unparse(expr1) == '2 < 3'
+    assert ast.unparse(expr2) == 't.Int_ < t.Int_'
+    assert run_expr(expr2) == t.Int_
+    assert run_expr(expr1) == True
+
+
+def test_compare2():
+    [expr1, expr2] = parse_expr('True < 0')
+    assert ast.unparse(expr1) == 'True < 0'
+    assert ast.unparse(expr2) == 't.Bool_ < t.Int_'
+    assert run_expr(expr2) == t.Bool_
+    assert run_expr(expr1) == False

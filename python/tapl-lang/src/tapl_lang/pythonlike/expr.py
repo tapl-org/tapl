@@ -19,7 +19,18 @@ BIN_OP_MAP: dict[str, ast.operator] = {
     '%': ast.Mod(),
 }
 BOOL_OP_MAP: dict[str, ast.boolop] = {'and': ast.And(), 'or': ast.Or()}
-COMPARE_OP_MAP: dict[str, ast.cmpop] = {'==': ast.Eq()}
+COMPARE_OP_MAP: dict[str, ast.cmpop] = {
+    '==': ast.Eq(),
+    '!=': ast.NotEq(),
+    '<': ast.Lt(),
+    '<=': ast.LtE(),
+    '>': ast.Gt(),
+    '>=': ast.GtE(),
+    'is': ast.Is(),
+    'is not': ast.IsNot(),
+    'in': ast.In(),
+    'not in': ast.NotIn(),
+}
 EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': ast.Store(), 'del': ast.Del()}
 
 
@@ -180,36 +191,25 @@ class Compare(TermWithLocation):
     left: Term
     ops: list[str]
     comparators: list[Term]
-    mode: Term
 
     def get_errors(self) -> list[ErrorTerm]:
         result = self.left.get_errors()
         for v in self.comparators:
             result.extend(v.get_errors())
-        result.extend(self.mode.get_errors())
         return result
 
     def separate(self) -> Term:
         ls = LayerSeparator()
         left = ls.separate(self.left)
         comparators = [ls.separate(v) for v in self.comparators]
-        mode = ls.separate(self.mode)
-        return ls.build(
-            lambda layer: Compare(self.location, layer(left), self.ops, [layer(v) for v in comparators], layer(mode))
-        )
+        return ls.build(lambda layer: Compare(self.location, layer(left), self.ops, [layer(v) for v in comparators]))
 
     def codegen_expr(self) -> ast.expr:
-        if self.mode is MODE_EVALUATE:
-            return with_location(
-                ast.Compare(
-                    self.left.codegen_expr(),
-                    [COMPARE_OP_MAP[op] for op in self.ops],
-                    [v.codegen_expr() for v in self.comparators],
-                ),
-                self.location,
-            )
-        if self.mode is MODE_TYPECHECK:
-            # TODO: fix
-            args = [v.codegen_expr() for v in self.comparators]
-            return ast_typelib_call('tc_compare', args, self.location)
-        raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
+        return with_location(
+            ast.Compare(
+                self.left.codegen_expr(),
+                [COMPARE_OP_MAP[op] for op in self.ops],
+                [v.codegen_expr() for v in self.comparators],
+            ),
+            self.location,
+        )
