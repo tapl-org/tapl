@@ -216,24 +216,6 @@ class Compare(TermWithLocation):
 
 
 @dataclass(frozen=True)
-class CallKeyword(TermWithLocation):
-    arg: str | None
-    value: Term
-
-    def get_errors(self):
-        return self.value.get_errors()
-
-    def separate(self):
-        ls = LayerSeparator()
-        value = ls.separate(self.value)
-        return ls.build(lambda layer: CallKeyword(self.location, self.arg, layer(value)))
-
-    def codegen_expr(self):
-        return super().codegen_expr()
-
-
-@dataclass(frozen=True)
 class Call(TermWithLocation):
     func: Term
     args: list[Term]
-    keywords: list[CallKeyword]

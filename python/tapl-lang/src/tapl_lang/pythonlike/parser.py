@@ -194,6 +194,28 @@ def expect_rule(c: Cursor, rule: str) -> Term | None:
 # ----------------
 
 
+def scan_arguments(c: Cursor) -> list[Term]:
+    if first_arg := c.consume_rule('expression'):
+        args = [first_arg]
+        k = c.clone()
+        while consume_punct(k, ',') and (arg := expect_rule(k, 'expression')):
+            c.copy_from(k)
+            args.append(arg)
+    return []
+
+
+def rule_primary__call(c: Cursor) -> Term | None:
+    tracker = c.start_location_tracker()
+    if (
+        (func := c.consume_rule('primary'))
+        and consume_punct(c, '(')
+        and (args := scan_arguments(c))
+        and consume_punct(c, ')', expected=True)
+    ):
+        return ps.Call(tracker.location, func, args)
+    return None
+
+
 def rule_atom__name(c: Cursor) -> Term | None:
     token = c.consume_rule('token')
     if isinstance(token, TokenName):
@@ -357,6 +379,7 @@ def rule_invalid_factor(c: Cursor) -> Term | None:
 
 
 RULES: parser.GrammarRuleMap = {
+    'expression': [route('disjunction')],
     'disjunction': [rule_disjunction__or, route('conjunction')],
     'conjunction': [rule_conjunction__and, route('inversion')],
     'inversion': [rule_inversion__not, route('comparison')],
@@ -364,7 +387,7 @@ RULES: parser.GrammarRuleMap = {
     'sum': [rule_sum__binary, route('term')],
     'term': [rule_term__binary, rule_invalid_factor, route('factor')],
     'factor': [rule_factor__unary, route('primary')],
-    'primary': [route('atom')],
+    'primary': [rule_primary__call, route('atom')],
     'atom': [rule_atom__name, rule_atom__string, rule_atom__number],
     'token': [rule_token],
 }
