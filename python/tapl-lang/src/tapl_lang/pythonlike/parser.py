@@ -104,7 +104,7 @@ def rule_token(c: Cursor) -> Term | None:
 
     def scan_name(char: str) -> Term:
         result = char
-        while not c.is_end() and (char := c.current_char()).isalnum():
+        while not c.is_end() and (char := c.current_char()) and (char.isalnum() or char == '_'):
             result += char
             c.move_to_next()
         return TokenName(tracker.location, value=result)
@@ -146,7 +146,7 @@ def rule_token(c: Cursor) -> Term | None:
 
     char = c.current_char()
     c.move_to_next()
-    if char.isalpha():
+    if char.isalpha() or char == '_':
         return scan_name(char)
     if char == "'":
         return scan_string()
@@ -194,12 +194,16 @@ def expect_rule(c: Cursor, rule: str) -> Term | None:
 # ----------------
 
 
-def rule_atom__bool(c: Cursor) -> Term | None:
+def rule_atom__name(c: Cursor) -> Term | None:
     token = c.consume_rule('token')
-    if isinstance(token, TokenName) and token.value in ('True', 'False'):
-        location = cast(TokenName, token).location
-        value = token.value == 'True'
-        return Layers([ps.Constant(location, value=value), create_term_predef_type(location, 'Bool_')])
+    if isinstance(token, TokenName):
+        location = token.location
+        if token.value in ('True', 'False'):
+            value = token.value == 'True'
+            return Layers([ps.Constant(location, value=value), create_term_predef_type(location, 'Bool_')])
+        if token.value == 'None':
+            return Layers([ps.Constant(location, value=None), create_term_predef_type(location, 'NoneType_')])
+        return ps.Name(location, token.value, 'load')
     return None
 
 
@@ -359,7 +363,8 @@ RULES: parser.GrammarRuleMap = {
     'comparison': [rule_comparison, route('sum')],
     'sum': [rule_sum__binary, route('term')],
     'term': [rule_term__binary, rule_invalid_factor, route('factor')],
-    'factor': [rule_factor__unary, route('atom')],
-    'atom': [rule_atom__bool, rule_atom__string, rule_atom__number],
+    'factor': [rule_factor__unary, route('primary')],
+    'primary': [route('atom')],
+    'atom': [rule_atom__name, rule_atom__string, rule_atom__number],
     'token': [rule_token],
 }
