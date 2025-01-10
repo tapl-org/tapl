@@ -4,7 +4,7 @@
 
 import ast
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, override
 
 from tapl_lang.syntax import MODE_EVALUATE, MODE_TYPECHECK, ErrorTerm, LayerSeparator, Location, Term, TermWithLocation
 from tapl_lang.tapl_error import TaplError
@@ -68,12 +68,15 @@ def ast_method_call(value: ast.expr, method_name: str, args: list[ast.expr], loc
 class Constant(TermWithLocation):
     value: Any
 
+    @override
     def get_errors(self) -> list[ErrorTerm]:
         return []
 
+    @override
     def separate(self) -> Term:
         return self
 
+    @override
     def codegen_expr(self) -> ast.expr:
         return with_location(ast.Constant(self.value), self.location)
 
@@ -83,12 +86,19 @@ class Name(TermWithLocation):
     id: str
     ctx: str
 
+    @override
     def get_errors(self) -> list[ErrorTerm]:
         return []
 
+    @override
+    def layer_agnostic(self):
+        return True
+
+    @override
     def separate(self) -> Term:
         return self
 
+    @override
     def codegen_expr(self) -> ast.expr:
         return with_location(ast.Name(id=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx]), self.location)
 
@@ -99,15 +109,18 @@ class Attribute(TermWithLocation):
     attr: str
     ctx: str
 
+    @override
     def get_errors(self) -> list[ErrorTerm]:
         return self.value.get_errors()
 
+    @override
     def separate(self) -> Term:
         ls = LayerSeparator()
         value = ls.separate(self.value)
         return ls.build(lambda layer: Attribute(self.location, layer(value), self.attr, self.ctx))
 
     # TODO: Attribute must have a type layer to check attribute exists or not
+    @override
     def codegen_expr(self) -> ast.expr:
         return with_location(
             ast.Attribute(self.value.codegen_expr(), attr=self.attr, ctx=EXPR_CONTEXT_MAP[self.ctx]), self.location
@@ -120,15 +133,18 @@ class UnaryOp(TermWithLocation):
     operand: Term
     mode: Term
 
+    @override
     def get_errors(self) -> list[ErrorTerm]:
         return self.operand.get_errors() + self.mode.get_errors()
 
+    @override
     def separate(self) -> Term:
         ls = LayerSeparator()
         operand = ls.separate(self.operand)
         mode = ls.separate(self.mode)
         return ls.build(lambda layer: UnaryOp(self.location, self.op, layer(operand), layer(mode)))
 
+    @override
     def codegen_expr(self) -> ast.expr:
         operand = self.operand.codegen_expr()
         if self.mode is MODE_TYPECHECK and self.op == 'not':
@@ -143,18 +159,21 @@ class BoolOp(TermWithLocation):
     values: list[Term]
     mode: Term
 
+    @override
     def get_errors(self) -> list[ErrorTerm]:
         result = self.mode.get_errors()
         for v in self.values:
             result.extend(v.get_errors())
         return result
 
+    @override
     def separate(self) -> Term:
         ls = LayerSeparator()
         values = [ls.separate(v) for v in self.values]
         mode = ls.separate(self.mode)
         return ls.build(lambda layer: BoolOp(self.location, self.op, [layer(v) for v in values], layer(mode)))
 
+    @override
     def codegen_expr(self) -> ast.expr:
         if self.mode is MODE_EVALUATE:
             return with_location(
@@ -171,15 +190,18 @@ class BinOp(TermWithLocation):
     op: str
     right: Term
 
+    @override
     def get_errors(self) -> list[ErrorTerm]:
         return self.left.get_errors() + self.right.get_errors()
 
+    @override
     def separate(self):
         ls = LayerSeparator()
         left = ls.separate(self.left)
         right = ls.separate(self.right)
         return ls.build(lambda layer: BinOp(self.location, layer(left), self.op, layer(right)))
 
+    @override
     def codegen_expr(self):
         return with_location(
             ast.BinOp(self.left.codegen_expr(), BIN_OP_MAP[self.op], self.right.codegen_expr()), self.location
@@ -192,18 +214,21 @@ class Compare(TermWithLocation):
     ops: list[str]
     comparators: list[Term]
 
+    @override
     def get_errors(self) -> list[ErrorTerm]:
         result = self.left.get_errors()
         for v in self.comparators:
             result.extend(v.get_errors())
         return result
 
+    @override
     def separate(self) -> Term:
         ls = LayerSeparator()
         left = ls.separate(self.left)
         comparators = [ls.separate(v) for v in self.comparators]
         return ls.build(lambda layer: Compare(self.location, layer(left), self.ops, [layer(v) for v in comparators]))
 
+    @override
     def codegen_expr(self) -> ast.expr:
         return with_location(
             ast.Compare(
