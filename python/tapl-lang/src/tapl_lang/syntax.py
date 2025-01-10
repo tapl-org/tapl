@@ -11,7 +11,9 @@ from tapl_lang.tapl_error import MismatchedLayerLengthError, TaplError
 
 
 class Term:
-    # TODO: not easy to understand, rename this method
+    # This creates a syntactic sugar when using within an if clause of the parser rules to determine if the term was successfully parsed.
+    # Example: if term := ErrorTerm('some error'): 'parse succeeded' else: 'parse failed'
+    # Despite the term having a value, the flow proceeds to the else part of the if statement.
     def __bool__(self):
         return True
 
