@@ -20,6 +20,35 @@ def with_location(tree: ast.stmt, loc: Location) -> ast.stmt:
 
 
 @dataclass(frozen=True)
+class Assign(TermWithLocation):
+    targets: list[Term]
+    value: Term
+
+    @override
+    def get_errors(self) -> list[ErrorTerm]:
+        result = self.value.get_errors()
+        for t in self.targets:
+            result.extend(t.get_errors())
+        return result
+
+    @override
+    def layer_agnostic(self) -> bool:
+        return all(t.layer_agnostic() for t in self.targets) and self.value.layer_agnostic()
+
+    @override
+    def separate(self) -> Term:
+        ls = LayerSeparator()
+        targets = [ls.separate(t) for t in self.targets]
+        value = ls.separate(self.value)
+        return ls.build(lambda layer: Assign(self.location, [layer(t) for t in targets], layer(value)))
+
+    @override
+    def codegen_stmt(self) -> ast.stmt:
+        stmt = ast.Assign(targets=[t.codegen_expr() for t in self.targets], value=self.value.codegen_expr())
+        return with_location(stmt, self.location)
+
+
+@dataclass(frozen=True)
 class Return(TermWithLocation):
     value: Term | None
 

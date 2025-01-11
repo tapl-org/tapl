@@ -13,7 +13,7 @@ from tapl_lang.syntax import Layers
 
 
 def parse_expr(text: str, *, log_cell_memo=False) -> list[ast.expr]:
-    parsed = parse_text(text, Grammar(parser.RULES, 'disjunction'), log_cell_memo=log_cell_memo)
+    parsed = parse_text(text, Grammar(parser.RULES, 'expression'), log_cell_memo=log_cell_memo)
     if parsed is None:
         raise RuntimeError('Parser returns None.')
     if errors := parsed.get_errors():

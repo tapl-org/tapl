@@ -195,14 +195,14 @@ class BinOp(TermWithLocation):
         return self.left.get_errors() + self.right.get_errors()
 
     @override
-    def separate(self):
+    def separate(self) -> Term:
         ls = LayerSeparator()
         left = ls.separate(self.left)
         right = ls.separate(self.right)
         return ls.build(lambda layer: BinOp(self.location, layer(left), self.op, layer(right)))
 
     @override
-    def codegen_expr(self):
+    def codegen_expr(self) -> ast.expr:
         return with_location(
             ast.BinOp(self.left.codegen_expr(), BIN_OP_MAP[self.op], self.right.codegen_expr()), self.location
         )

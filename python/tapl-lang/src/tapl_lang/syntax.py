@@ -29,16 +29,16 @@ class Term:
         return False
 
     def separate(self) -> 'Term':
-        raise NotImplementedError
+        raise TaplError(f'separate is not implemented in {self.__class__.__name__}')
 
     def codegen_ast(self) -> ast.AST:
-        raise NotImplementedError
+        raise TaplError(f'codegen_ast is not implemented in {self.__class__.__name__}')
 
     def codegen_expr(self) -> ast.expr:
-        raise NotImplementedError
+        raise TaplError(f'codegen_expr is not implemented in {self.__class__.__name__}')
 
     def codegen_stmt(self) -> ast.stmt:
-        raise NotImplementedError
+        raise TaplError(f'codegen_stmt is not implemented in {self.__class__.__name__}')
 
 
 @dataclass(frozen=True)

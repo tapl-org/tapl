@@ -2,12 +2,14 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import cast
 
 from tapl_lang import parser, syntax
 from tapl_lang.parser import Cursor, first_falsy, route, skip_whitespaces
 from tapl_lang.pythonlike import expr as ps
+from tapl_lang.pythonlike import stmt
 from tapl_lang.syntax import ErrorTerm, Layers, Term, TermWithLocation
 
 # https://docs.python.org/3/reference/grammar.html
@@ -93,6 +95,44 @@ PUNCT_SET = {
     '//=',
     '<<=',
     '>>=',
+}
+
+KEYWORDS = {
+    'and',
+    'as',
+    'assert',
+    'async',
+    'await',
+    'break',
+    'class',
+    'continue',
+    'def',
+    'del',
+    'elif',
+    'else',
+    'except',
+    'False',
+    'finally',
+    'for',
+    'from',
+    'global',
+    'if',
+    'import',
+    'in',
+    'is',
+    'lambda',
+    'None',
+    'nonlocal',
+    'not',
+    'or',
+    'pass',
+    'raise',
+    'return',
+    'True',
+    'try',
+    'while',
+    'with',
+    'yield',
 }
 
 
@@ -216,7 +256,17 @@ def rule_primary__call(c: Cursor) -> Term | None:
     return None
 
 
-def rule_atom__name(c: Cursor) -> Term | None:
+def build_rule_atom__name(ctx: str) -> Callable[[Cursor], Term | None]:
+    def rule(c: Cursor) -> Term | None:
+        token = c.consume_rule('token')
+        if isinstance(token, TokenName) and token.value not in KEYWORDS:
+            return ps.Name(token.location, token.value, ctx)
+        return None
+
+    return rule
+
+
+def rule_atom__bool(c: Cursor) -> Term | None:
     token = c.consume_rule('token')
     if isinstance(token, TokenName):
         location = token.location
@@ -225,7 +275,6 @@ def rule_atom__name(c: Cursor) -> Term | None:
             return Layers([ps.Constant(location, value=value), create_term_predef_type(location, 'Bool_')])
         if token.value == 'None':
             return Layers([ps.Constant(location, value=None), create_term_predef_type(location, 'NoneType_')])
-        return ps.Name(location, token.value, 'load')
     return None
 
 
@@ -258,6 +307,19 @@ def rule_factor__unary(c: Cursor) -> Term | None:
         and (factor := expect_rule(c, 'factor'))
     ):
         return ps.UnaryOp(tracker.location, op.value, factor, mode=syntax.MODE_SAFE)
+    return None
+
+
+def rule_invalid_factor(c: Cursor) -> Term | None:
+    tracker = c.start_location_tracker()
+    token = c.consume_rule('token')
+    if (
+        isinstance(token, TokenPunct)
+        and token.value in ('+', '-', '~')
+        and consume_punct(c, 'not')
+        and c.consume_rule('factor')
+    ):
+        return ErrorTerm(tracker.location, "'not' after an operator must be parenthesized")
     return None
 
 
@@ -362,20 +424,15 @@ def rule_disjunction__or(c: Cursor) -> Term | None:
     return first_falsy(left, right)
 
 
-# ========================= START OF INVALID RULES =======================
+# SIMPLE STATEMENTS
+# =================
 
 
-def rule_invalid_factor(c: Cursor) -> Term | None:
+def rule_assignment(c: Cursor) -> Term | None:
     tracker = c.start_location_tracker()
-    token = c.consume_rule('token')
-    if (
-        isinstance(token, TokenPunct)
-        and token.value in ('+', '-', '~')
-        and consume_punct(c, 'not')
-        and c.consume_rule('factor')
-    ):
-        return ErrorTerm(tracker.location, "'not' after an operator must be parenthesized")
-    return None
+    if (name := c.consume_rule('name_store')) and consume_punct(c, '=') and (value := expect_rule(c, 'expression')):
+        return stmt.Assign(tracker.location, targets=[name], value=value)
+    return first_falsy(name, value)
 
 
 RULES: parser.GrammarRuleMap = {
@@ -388,6 +445,9 @@ RULES: parser.GrammarRuleMap = {
     'term': [rule_term__binary, rule_invalid_factor, route('factor')],
     'factor': [rule_factor__unary, route('primary')],
     'primary': [rule_primary__call, route('atom')],
-    'atom': [rule_atom__name, rule_atom__string, rule_atom__number],
+    'atom': [build_rule_atom__name('load'), rule_atom__bool, rule_atom__string, rule_atom__number],
     'token': [rule_token],
+    'statement': [route('assignment')],
+    'assignment': [rule_assignment],
+    'name_store': [build_rule_atom__name('store')],
 }
