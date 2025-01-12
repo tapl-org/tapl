@@ -144,10 +144,23 @@ class Location:
         end = repr(self.end) if self.end else '-'
         return f'{start}|{end}'
 
+    def locate(self, *nodes: ast.expr | ast.stmt) -> None:
+        if self.start:
+            for node in nodes:
+                node.lineno = self.start.line
+                node.col_offset = self.start.column
+        if self.end:
+            for node in nodes:
+                node.end_lineno = self.end.line
+                node.end_col_offset = self.end.column
+
 
 @dataclass(frozen=True)
 class TermWithLocation(Term):
     location: Location
+
+    def locate(self, *nodes: ast.expr | ast.stmt) -> None:
+        self.location.locate(*nodes)
 
 
 @dataclass(frozen=True)

@@ -6,7 +6,8 @@ import ast
 from dataclasses import dataclass
 from typing import Any, override
 
-from tapl_lang.syntax import MODE_EVALUATE, MODE_TYPECHECK, ErrorTerm, LayerSeparator, Location, Term, TermWithLocation
+from tapl_lang.ast_util import ast_typelib_attribute, ast_typelib_call
+from tapl_lang.syntax import MODE_EVALUATE, MODE_TYPECHECK, ErrorTerm, LayerSeparator, Term, TermWithLocation
 from tapl_lang.tapl_error import TaplError
 
 UNARY_OP_MAP: dict[str, ast.unaryop] = {'+': ast.UAdd(), '-': ast.USub(), '~': ast.Invert(), 'not': ast.Not()}
@@ -32,36 +33,6 @@ COMPARE_OP_MAP: dict[str, ast.cmpop] = {
     'not in': ast.NotIn(),
 }
 EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': ast.Store(), 'del': ast.Del()}
-
-
-def with_location(tree: ast.expr, loc: Location) -> ast.expr:
-    if loc.start:
-        tree.lineno = loc.start.line
-        tree.col_offset = loc.start.column
-    if loc.end:
-        tree.end_lineno = loc.end.line
-        tree.end_col_offset = loc.end.column
-    return tree
-
-
-def ast_op(op, loc: Location) -> ast.expr:
-    ast_module = with_location(ast.Name(id='ast', ctx=ast.Load()), loc)
-    ast_op = with_location(ast.Attribute(value=ast_module, attr=op.__class__.__name__, ctx=ast.Load()), loc)
-    return with_location(ast.Call(func=ast_op, args=[]), loc)
-
-
-def ast_typelib_attribute(attr: str, loc: Location) -> ast.expr:
-    ast_name = with_location(ast.Name(id='t', ctx=ast.Load()), loc)
-    return with_location(ast.Attribute(value=ast_name, attr=attr, ctx=ast.Load()), loc)
-
-
-def ast_typelib_call(function_name: str, args: list[ast.expr], loc: Location) -> ast.expr:
-    return with_location(ast.Call(func=ast_typelib_attribute(function_name, loc), args=args), loc)
-
-
-def ast_method_call(value: ast.expr, method_name: str, args: list[ast.expr], loc: Location) -> ast.expr:
-    func = with_location(ast.Attribute(value=value, attr=method_name, ctx=ast.Load()), loc)
-    return with_location(ast.Call(func=func, args=args), loc)
 
 
 @dataclass(frozen=True)
@@ -92,7 +63,9 @@ class Constant(TermWithLocation):
 
     @override
     def codegen_expr(self) -> ast.expr:
-        return with_location(ast.Constant(self.value), self.location)
+        const = ast.Constant(self.value)
+        self.locate(const)
+        return const
 
 
 @dataclass(frozen=True)
@@ -114,7 +87,9 @@ class Name(TermWithLocation):
 
     @override
     def codegen_expr(self) -> ast.expr:
-        return with_location(ast.Name(id=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx]), self.location)
+        name = ast.Name(id=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
+        self.locate(name)
+        return name
 
 
 @dataclass(frozen=True)
@@ -136,9 +111,9 @@ class Attribute(TermWithLocation):
     # TODO: Attribute must have a type layer to check attribute exists or not
     @override
     def codegen_expr(self) -> ast.expr:
-        return with_location(
-            ast.Attribute(self.value.codegen_expr(), attr=self.attr, ctx=EXPR_CONTEXT_MAP[self.ctx]), self.location
-        )
+        attr = ast.Attribute(self.value.codegen_expr(), attr=self.attr, ctx=EXPR_CONTEXT_MAP[self.ctx])
+        self.locate(attr)
+        return attr
 
 
 @dataclass(frozen=True)
@@ -164,7 +139,9 @@ class UnaryOp(TermWithLocation):
         if self.mode is MODE_TYPECHECK and self.op == 'not':
             # unary not operator always returns Bool type
             return ast_typelib_attribute('Bool_', self.location)
-        return with_location(ast.UnaryOp(UNARY_OP_MAP[self.op], operand), self.location)
+        unary = ast.UnaryOp(UNARY_OP_MAP[self.op], operand)
+        self.locate(unary)
+        return unary
 
 
 @dataclass(frozen=True)
@@ -190,9 +167,9 @@ class BoolOp(TermWithLocation):
     @override
     def codegen_expr(self) -> ast.expr:
         if self.mode is MODE_EVALUATE:
-            return with_location(
-                ast.BoolOp(BOOL_OP_MAP[self.op], [v.codegen_expr() for v in self.values]), self.location
-            )
+            op = ast.BoolOp(BOOL_OP_MAP[self.op], [v.codegen_expr() for v in self.values])
+            self.locate(op)
+            return op
         if self.mode is MODE_TYPECHECK:
             return ast_typelib_call('create_union', [v.codegen_expr() for v in self.values], self.location)
         raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
@@ -217,9 +194,9 @@ class BinOp(TermWithLocation):
 
     @override
     def codegen_expr(self) -> ast.expr:
-        return with_location(
-            ast.BinOp(self.left.codegen_expr(), BIN_OP_MAP[self.op], self.right.codegen_expr()), self.location
-        )
+        op = ast.BinOp(self.left.codegen_expr(), BIN_OP_MAP[self.op], self.right.codegen_expr())
+        self.locate(op)
+        return op
 
 
 @dataclass(frozen=True)
@@ -244,14 +221,13 @@ class Compare(TermWithLocation):
 
     @override
     def codegen_expr(self) -> ast.expr:
-        return with_location(
-            ast.Compare(
-                self.left.codegen_expr(),
-                [COMPARE_OP_MAP[op] for op in self.ops],
-                [v.codegen_expr() for v in self.comparators],
-            ),
-            self.location,
+        compare = ast.Compare(
+            self.left.codegen_expr(),
+            [COMPARE_OP_MAP[op] for op in self.ops],
+            [v.codegen_expr() for v in self.comparators],
         )
+        self.locate(compare)
+        return compare
 
 
 @dataclass(frozen=True)

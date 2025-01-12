@@ -7,17 +7,7 @@ from dataclasses import dataclass, field
 from typing import override
 
 from tapl_lang.pythonlike import expr
-from tapl_lang.syntax import ErrorTerm, LayerSeparator, Location, Term, TermWithLocation
-
-
-def with_location(tree: ast.stmt, loc: Location) -> ast.stmt:
-    if loc.start:
-        tree.lineno = loc.start.line
-        tree.col_offset = loc.start.column
-    if loc.end:
-        tree.end_lineno = loc.end.line
-        tree.end_col_offset = loc.end.column
-    return tree
+from tapl_lang.syntax import ErrorTerm, LayerSeparator, Term, TermWithLocation
 
 
 @dataclass(frozen=True)
@@ -46,7 +36,8 @@ class Assign(TermWithLocation):
     @override
     def codegen_stmt(self) -> ast.stmt:
         stmt = ast.Assign(targets=[t.codegen_expr() for t in self.targets], value=self.value.codegen_expr())
-        return with_location(stmt, self.location)
+        self.locate(stmt)
+        return stmt
 
 
 @dataclass(frozen=True)
@@ -71,9 +62,9 @@ class Return(TermWithLocation):
 
     @override
     def codegen_stmt(self) -> ast.stmt:
-        if self.value:
-            return with_location(ast.Return(self.value.codegen_expr()), self.location)
-        return with_location(ast.Return(), self.location)
+        stmt = ast.Return(self.value.codegen_expr()) if self.value else ast.Return()
+        self.locate(stmt)
+        return stmt
 
 
 @dataclass(frozen=True)
@@ -128,9 +119,11 @@ class FunctionDef(TermWithLocation):
         args = [ast.arg(arg=arg.name) for arg in self.args]
         body = [s.codegen_stmt() for s in self.body]
         fn: ast.stmt = ast.FunctionDef(name=self.name, args=ast.arguments(args=args), body=body)
-        fn = with_location(fn, self.location)
+        self.locate(fn)
         absence_count = sum(1 for arg in self.args if isinstance(arg, expr.Absence))
         if absence_count == len(self.args):
             return fn
-        temp_scope = ast.Try(body=[fn], finalbody=[with_location(ast.Pass(), self.location)])
-        return with_location(temp_scope, self.location)
+        pass_stmt = ast.Pass()
+        temp_scope = ast.Try(body=[fn], finalbody=[pass_stmt])
+        self.locate(pass_stmt, temp_scope)
+        return temp_scope
