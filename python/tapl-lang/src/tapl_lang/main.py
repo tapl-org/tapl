@@ -5,7 +5,24 @@
 import ast
 import logging
 
+from tapl_lang import typelib
+
+# ruff: noqa: T201
+
 logging.basicConfig(level=logging.INFO)
+
+try:
+
+    def _inc(a):
+        return a + typelib.Int_
+
+    inc = typelib.FunctionType(fn=_inc, a=typelib.Int_)
+finally:
+    pass
+
+print(inc)
+print(inc(a=typelib.Int_))
+
 
 parsed_code = ast.parse(
     """

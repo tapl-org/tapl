@@ -65,6 +65,20 @@ def ast_method_call(value: ast.expr, method_name: str, args: list[ast.expr], loc
 
 
 @dataclass(frozen=True)
+class Absence(Term):
+    @override
+    def get_errors(self) -> list[ErrorTerm]:
+        return []
+
+    @override
+    def layer_agnostic(self):
+        return True
+
+    def separate(self):
+        return self
+
+
+@dataclass(frozen=True)
 class Constant(TermWithLocation):
     value: Any
 

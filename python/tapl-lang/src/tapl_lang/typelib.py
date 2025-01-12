@@ -80,3 +80,17 @@ def create_union(*args: Any) -> Any:
     if len(result) == 1:
         return next(iter(result))
     return Union(result)
+
+
+class FunctionType:
+    def __init__(self, fn, **kwargs):
+        self.lock = kwargs
+        self.result = fn(**kwargs)
+
+    def __call__(self, **kwargs):
+        if self.lock != kwargs:
+            raise TypeError(f'Not equal: lock={self.lock} key={kwargs}')
+        return self.result
+
+    def __repr__(self):
+        return f'{self.lock}->{self.result}'

@@ -6,6 +6,7 @@ import ast
 from dataclasses import dataclass, field
 from typing import override
 
+from tapl_lang.pythonlike import expr
 from tapl_lang.syntax import ErrorTerm, LayerSeparator, Location, Term, TermWithLocation
 
 
@@ -76,9 +77,29 @@ class Return(TermWithLocation):
 
 
 @dataclass(frozen=True)
+class Argument(TermWithLocation):
+    name: str
+    lock: Term
+
+    @override
+    def get_errors(self) -> list[ErrorTerm]:
+        return self.lock.get_errors()
+
+    @override
+    def layer_agnostic(self) -> bool:
+        return self.lock.layer_agnostic()
+
+    @override
+    def separate(self) -> Term:
+        ls = LayerSeparator()
+        lock = ls.separate(self.lock)
+        return ls.build(lambda layer: Argument(self.location, self.name, layer(lock)))
+
+
+@dataclass(frozen=True)
 class FunctionDef(TermWithLocation):
     name: str
-    args: list[str]
+    args: list[Argument]
     body: list[Term] = field(default_factory=list)
 
     @override
@@ -104,6 +125,12 @@ class FunctionDef(TermWithLocation):
 
     @override
     def codegen_stmt(self) -> ast.stmt:
-        args = [ast.arg(arg=arg) for arg in self.args]
+        args = [ast.arg(arg=arg.name) for arg in self.args]
         body = [s.codegen_stmt() for s in self.body]
-        return with_location(ast.FunctionDef(name=self.name, args=ast.arguments(args=args), body=body), self.location)
+        fn: ast.stmt = ast.FunctionDef(name=self.name, args=ast.arguments(args=args), body=body)
+        fn = with_location(fn, self.location)
+        absence_count = sum(1 for arg in self.args if isinstance(arg, expr.Absence))
+        if absence_count == len(self.args):
+            return fn
+        temp_scope = ast.Try(body=[fn], finalbody=[with_location(ast.Pass(), self.location)])
+        return with_location(temp_scope, self.location)

@@ -15,6 +15,7 @@ from tapl_lang.syntax import ErrorTerm, Layers, Term, TermWithLocation
 # https://docs.python.org/3/reference/grammar.html
 
 
+# TODO: Create a term for each literal type
 def create_term_predef_type(location: syntax.Location, name: str) -> Term:
     return ps.Attribute(location, value=ps.Name(location, id='t', ctx='load'), attr=name, ctx='load')
 
