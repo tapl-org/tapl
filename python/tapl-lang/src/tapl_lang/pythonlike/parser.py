@@ -313,7 +313,7 @@ def rule_factor__unary(c: Cursor) -> Term | None:
         and op.value in ['+', '-', '~']
         and (factor := expect_rule(c, 'factor'))
     ):
-        return expr.UnaryOp(tracker.location, op.value, factor, mode=syntax.MODE_SAFE)
+        return expr.UnaryOp(tracker.location, op.value, factor)
     return None
 
 
@@ -399,7 +399,7 @@ def rule_comparison(c: Cursor) -> Term | None:
 def rule_inversion__not(c: Cursor) -> Term | None:
     tracker = c.start_location_tracker()
     if consume_keyword(c, 'not') and (operand := expect_rule(c, 'comparison')):
-        return expr.UnaryOp(tracker.location, 'not', operand, mode=syntax.MODE_SAFE)
+        return expr.BoolNot(tracker.location, operand, mode=syntax.MODE_SAFE)
     return None
 
 

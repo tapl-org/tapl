@@ -9,7 +9,8 @@ from typing import Any, override
 from tapl_lang.syntax import MODE_EVALUATE, MODE_TYPECHECK, ErrorTerm, LayerSeparator, Term, TermWithLocation
 from tapl_lang.tapl_error import TaplError
 
-UNARY_OP_MAP: dict[str, ast.unaryop] = {'+': ast.UAdd(), '-': ast.USub(), '~': ast.Invert(), 'not': ast.Not()}
+# Unary 'not' has dedicated 'BoolNot' term
+UNARY_OP_MAP: dict[str, ast.unaryop] = {'+': ast.UAdd(), '-': ast.USub(), '~': ast.Invert()}
 BIN_OP_MAP: dict[str, ast.operator] = {
     '+': ast.Add(),
     '-': ast.Sub(),
@@ -119,6 +120,28 @@ class Attribute(TermWithLocation):
 class UnaryOp(TermWithLocation):
     op: str
     operand: Term
+
+    @override
+    def get_errors(self) -> list[ErrorTerm]:
+        return self.operand.get_errors()
+
+    @override
+    def separate(self) -> Term:
+        ls = LayerSeparator()
+        operand = ls.separate(self.operand)
+        return ls.build(lambda layer: UnaryOp(self.location, self.op, layer(operand)))
+
+    @override
+    def codegen_expr(self) -> ast.expr:
+        operand = self.operand.codegen_expr()
+        unary = ast.UnaryOp(UNARY_OP_MAP[self.op], operand)
+        self.locate(unary)
+        return unary
+
+
+@dataclass(frozen=True)
+class BoolNot(TermWithLocation):
+    operand: Term
     mode: Term
 
     @override
@@ -130,19 +153,21 @@ class UnaryOp(TermWithLocation):
         ls = LayerSeparator()
         operand = ls.separate(self.operand)
         mode = ls.separate(self.mode)
-        return ls.build(lambda layer: UnaryOp(self.location, self.op, layer(operand), layer(mode)))
+        return ls.build(lambda layer: BoolNot(self.location, layer(operand), layer(mode)))
 
     @override
     def codegen_expr(self) -> ast.expr:
-        operand = self.operand.codegen_expr()
-        if self.mode is MODE_TYPECHECK and self.op == 'not':
+        if self.mode is MODE_EVALUATE:
+            operand = self.operand.codegen_expr()
+            unary = ast.UnaryOp(ast.Not(), operand)
+            self.locate(unary)
+            return unary
+        if self.mode is MODE_TYPECHECK:
             # unary not operator always returns Bool type
             bool_type = ast.Name(id='Bool', ctx=ast.Load())
             self.locate(bool_type)
             return bool_type
-        unary = ast.UnaryOp(UNARY_OP_MAP[self.op], operand)
-        self.locate(unary)
-        return unary
+        raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
 
 
 @dataclass(frozen=True)
