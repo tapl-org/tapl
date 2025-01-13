@@ -6,10 +6,11 @@
 import ast
 from typing import cast
 
-from tapl_lang import typelib
 from tapl_lang.parser import Grammar, parse_text
-from tapl_lang.pythonlike import parser
+from tapl_lang.pythonlike import parser, predef0, predef1
 from tapl_lang.syntax import Layers
+
+predef = [predef0, predef1]
 
 
 def parse_stmt(text: str, *, log_cell_memo=False) -> list[ast.stmt]:
@@ -25,14 +26,14 @@ def parse_stmt(text: str, *, log_cell_memo=False) -> list[ast.stmt]:
     return [layer.codegen_stmt() for layer in layers]
 
 
-def run_stmt(stmts: list[ast.stmt], /, globals_=None, locals_=None):
+def run_stmt(layer_index: int, stmts: list[ast.stmt], /, globals_=None, locals_=None):
     compiled_code = compile(ast.Module(body=stmts), filename='', mode='exec')
-    return eval(compiled_code, globals=globals_ or {'t': typelib}, locals=locals_ or {})
+    return eval(compiled_code, globals=globals_ or predef[layer_index].__dict__, locals=locals_ or {})
 
 
 def test_assign1():
     [stmt1, stmt2] = parse_stmt('a=1')
     assert ast.unparse(stmt1) == 'a = 1'
-    assert ast.unparse(stmt2) == 'a = t.Int_'
-    assert run_stmt([stmt2]) is None
-    assert run_stmt([stmt1]) is None
+    assert ast.unparse(stmt2) == 'a = Int'
+    assert run_stmt(1, [stmt2]) is None
+    assert run_stmt(0, [stmt1]) is None

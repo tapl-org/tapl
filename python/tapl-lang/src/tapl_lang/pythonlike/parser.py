@@ -279,9 +279,9 @@ def rule_atom__bool(c: Cursor) -> Term | None:
         location = token.location
         if token.value in ('True', 'False'):
             value = token.value == 'True'
-            return Layers([expr.Constant(location, value=value), create_term_predef_type(location, 'Bool_')])
+            return Layers([expr.Constant(location, value=value), expr.Name(location, id='Bool', ctx='load')])
         if token.value == 'None':
-            return Layers([expr.Constant(location, value=None), create_term_predef_type(location, 'NoneType_')])
+            return Layers([expr.Constant(location, value=None), expr.Name(location, id='NoneType', ctx='load')])
     return None
 
 
@@ -289,7 +289,7 @@ def rule_atom__string(c: Cursor) -> Term | None:
     token = c.consume_rule('token')
     if isinstance(token, TokenString):
         location = cast(TokenString, token).location
-        return Layers([expr.Constant(location, value=token.value), create_term_predef_type(location, 'Str_')])
+        return Layers([expr.Constant(location, value=token.value), expr.Name(location, id='Str', ctx='load')])
     return None
 
 
@@ -297,7 +297,7 @@ def rule_atom__number(c: Cursor) -> Term | None:
     token = c.consume_rule('token')
     if isinstance(token, TokenNumber):
         location = cast(TokenNumber, token).location
-        return Layers([expr.Constant(location, value=token.value), create_term_predef_type(location, 'Int_')])
+        return Layers([expr.Constant(location, value=token.value), expr.Name(location, id='Int', ctx='load')])
     return None
 
 

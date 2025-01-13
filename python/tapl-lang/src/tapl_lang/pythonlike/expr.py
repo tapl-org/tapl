@@ -6,7 +6,6 @@ import ast
 from dataclasses import dataclass
 from typing import Any, override
 
-from tapl_lang.ast_util import ast_typelib_attribute, ast_typelib_call
 from tapl_lang.syntax import MODE_EVALUATE, MODE_TYPECHECK, ErrorTerm, LayerSeparator, Term, TermWithLocation
 from tapl_lang.tapl_error import TaplError
 
@@ -138,7 +137,9 @@ class UnaryOp(TermWithLocation):
         operand = self.operand.codegen_expr()
         if self.mode is MODE_TYPECHECK and self.op == 'not':
             # unary not operator always returns Bool type
-            return ast_typelib_attribute('Bool_', self.location)
+            bool_type = ast.Name(id='Bool', ctx=ast.Load())
+            self.locate(bool_type)
+            return bool_type
         unary = ast.UnaryOp(UNARY_OP_MAP[self.op], operand)
         self.locate(unary)
         return unary
@@ -171,7 +172,10 @@ class BoolOp(TermWithLocation):
             self.locate(op)
             return op
         if self.mode is MODE_TYPECHECK:
-            return ast_typelib_call('create_union', [v.codegen_expr() for v in self.values], self.location)
+            create_union = ast.Name(id='create_union', ctx=ast.Load())
+            call = ast.Call(func=create_union, args=[v.codegen_expr() for v in self.values])
+            self.locate(create_union, call)
+            return call
         raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
 
 
