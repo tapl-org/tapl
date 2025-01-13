@@ -16,7 +16,7 @@ try:
     def _inc(a):
         return a + typelib.Int_
 
-    inc = typelib.FunctionType(fn=_inc, a=typelib.Int_)
+    inc = typelib.FunctionType(_inc, a=typelib.Int_)
 finally:
     pass
 

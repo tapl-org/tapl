@@ -6,6 +6,7 @@ import ast
 from dataclasses import dataclass, field
 from typing import override
 
+from tapl_lang.ast_util import ast_typelib_call
 from tapl_lang.pythonlike import expr
 from tapl_lang.syntax import ErrorTerm, LayerSeparator, Term, TermWithLocation
 
@@ -124,6 +125,8 @@ class FunctionDef(TermWithLocation):
         if absence_count == len(self.args):
             return fn
         pass_stmt = ast.Pass()
+        fn_name = ast.Name(id=self.name, ctx=ast.Load())
+        fn_type = ast_typelib_call(function_name='FunctionType', args=[fn_name], loc=self.location)
         temp_scope = ast.Try(body=[fn], finalbody=[pass_stmt])
-        self.locate(pass_stmt, temp_scope)
+        self.locate(pass_stmt, fn_name, fn_type, temp_scope)
         return temp_scope

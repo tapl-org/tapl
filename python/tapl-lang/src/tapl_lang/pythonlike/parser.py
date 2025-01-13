@@ -8,8 +8,7 @@ from typing import cast
 
 from tapl_lang import parser, syntax
 from tapl_lang.parser import Cursor, first_falsy, route, skip_whitespaces
-from tapl_lang.pythonlike import expr as ps
-from tapl_lang.pythonlike import stmt
+from tapl_lang.pythonlike import expr, stmt
 from tapl_lang.syntax import ErrorTerm, Layers, Term, TermWithLocation
 
 # https://docs.python.org/3/reference/grammar.html
@@ -17,7 +16,12 @@ from tapl_lang.syntax import ErrorTerm, Layers, Term, TermWithLocation
 
 # TODO: Create a term for each literal type
 def create_term_predef_type(location: syntax.Location, name: str) -> Term:
-    return ps.Attribute(location, value=ps.Name(location, id='t', ctx='load'), attr=name, ctx='load')
+    return expr.Attribute(location, value=expr.Name(location, id='t', ctx='load'), attr=name, ctx='load')
+
+
+@dataclass(frozen=True)
+class TokenKeyword(TermWithLocation):
+    value: str
 
 
 @dataclass(frozen=True)
@@ -148,6 +152,8 @@ def rule_token(c: Cursor) -> Term | None:
         while not c.is_end() and (char := c.current_char()) and (char.isalnum() or char == '_'):
             result += char
             c.move_to_next()
+        if result in KEYWORDS:
+            return TokenKeyword(tracker.location, value=result)
         return TokenName(tracker.location, value=result)
 
     def unterminated_string() -> Term:
@@ -203,10 +209,10 @@ def is_error_term(term: Term | None) -> bool:
     return term is not None and not term
 
 
-def consume_name(c: Cursor, name: str, *, expected: bool = False) -> Term | None:
+def consume_keyword(c: Cursor, name: str, *, expected: bool = False) -> Term | None:
     tracker = c.start_location_tracker()
     term = c.consume_rule('token')
-    if isinstance(term, TokenName) and term.value == name or is_error_term(term):
+    if isinstance(term, TokenKeyword) and term.value == name or is_error_term(term):
         return term
     if expected:
         return ErrorTerm(tracker.location, f'Expected "{name}", but found {term}')
@@ -253,15 +259,15 @@ def rule_primary__call(c: Cursor) -> Term | None:
         and (args := scan_arguments(c))
         and consume_punct(c, ')', expected=True)
     ):
-        return ps.Call(tracker.location, func, args)
+        return expr.Call(tracker.location, func, args)
     return None
 
 
-def build_rule_atom__name(ctx: str) -> Callable[[Cursor], Term | None]:
+def build_rule_name(ctx: str) -> Callable[[Cursor], Term | None]:
     def rule(c: Cursor) -> Term | None:
         token = c.consume_rule('token')
-        if isinstance(token, TokenName) and token.value not in KEYWORDS:
-            return ps.Name(token.location, token.value, ctx)
+        if isinstance(token, TokenName):
+            return expr.Name(token.location, token.value, ctx)
         return None
 
     return rule
@@ -269,13 +275,13 @@ def build_rule_atom__name(ctx: str) -> Callable[[Cursor], Term | None]:
 
 def rule_atom__bool(c: Cursor) -> Term | None:
     token = c.consume_rule('token')
-    if isinstance(token, TokenName):
+    if isinstance(token, TokenKeyword):
         location = token.location
         if token.value in ('True', 'False'):
             value = token.value == 'True'
-            return Layers([ps.Constant(location, value=value), create_term_predef_type(location, 'Bool_')])
+            return Layers([expr.Constant(location, value=value), create_term_predef_type(location, 'Bool_')])
         if token.value == 'None':
-            return Layers([ps.Constant(location, value=None), create_term_predef_type(location, 'NoneType_')])
+            return Layers([expr.Constant(location, value=None), create_term_predef_type(location, 'NoneType_')])
     return None
 
 
@@ -283,7 +289,7 @@ def rule_atom__string(c: Cursor) -> Term | None:
     token = c.consume_rule('token')
     if isinstance(token, TokenString):
         location = cast(TokenString, token).location
-        return Layers([ps.Constant(location, value=token.value), create_term_predef_type(location, 'Str_')])
+        return Layers([expr.Constant(location, value=token.value), create_term_predef_type(location, 'Str_')])
     return None
 
 
@@ -291,7 +297,7 @@ def rule_atom__number(c: Cursor) -> Term | None:
     token = c.consume_rule('token')
     if isinstance(token, TokenNumber):
         location = cast(TokenNumber, token).location
-        return Layers([ps.Constant(location, value=token.value), create_term_predef_type(location, 'Int_')])
+        return Layers([expr.Constant(location, value=token.value), create_term_predef_type(location, 'Int_')])
     return None
 
 
@@ -307,7 +313,7 @@ def rule_factor__unary(c: Cursor) -> Term | None:
         and op.value in ['+', '-', '~']
         and (factor := expect_rule(c, 'factor'))
     ):
-        return ps.UnaryOp(tracker.location, op.value, factor, mode=syntax.MODE_SAFE)
+        return expr.UnaryOp(tracker.location, op.value, factor, mode=syntax.MODE_SAFE)
     return None
 
 
@@ -333,7 +339,7 @@ def rule_term__binary(c: Cursor) -> Term | None:
         and op.value in ['*', '/', '//', '%']
         and (right := expect_rule(c, 'factor'))
     ):
-        return ps.BinOp(tracker.location, left, op.value, right)
+        return expr.BinOp(tracker.location, left, op.value, right)
     return None
 
 
@@ -346,7 +352,7 @@ def rule_sum__binary(c: Cursor) -> Term | None:
         and op.value in ['+', '-']
         and (right := expect_rule(c, 'term'))
     ):
-        return ps.BinOp(tracker.location, left, op.value, right)
+        return expr.BinOp(tracker.location, left, op.value, right)
     return None
 
 
@@ -382,7 +388,7 @@ def rule_comparison(c: Cursor) -> Term | None:
             ops.append(op)
             comparators.append(comparator)
         if ops:
-            return ps.Compare(tracker.location, left=left, ops=ops, comparators=comparators)
+            return expr.Compare(tracker.location, left=left, ops=ops, comparators=comparators)
     return None
 
 
@@ -392,8 +398,8 @@ def rule_comparison(c: Cursor) -> Term | None:
 
 def rule_inversion__not(c: Cursor) -> Term | None:
     tracker = c.start_location_tracker()
-    if consume_name(c, 'not') and (operand := expect_rule(c, 'comparison')):
-        return ps.UnaryOp(tracker.location, 'not', operand, mode=syntax.MODE_SAFE)
+    if consume_keyword(c, 'not') and (operand := expect_rule(c, 'comparison')):
+        return expr.UnaryOp(tracker.location, 'not', operand, mode=syntax.MODE_SAFE)
     return None
 
 
@@ -403,11 +409,11 @@ def rule_conjunction__and(c: Cursor) -> Term | None:
     if left := c.consume_rule('inversion'):
         values = [left]
         k = c.clone()
-        while consume_name(k, 'and') and (right := k.consume_rule('inversion')):
+        while consume_keyword(k, 'and') and (right := k.consume_rule('inversion')):
             c.copy_from(k)
             values.append(right)
         if len(values) > 1:
-            return ps.BoolOp(tracker.location, 'and', values, mode=syntax.MODE_SAFE)
+            return expr.BoolOp(tracker.location, 'and', values, mode=syntax.MODE_SAFE)
     return first_falsy(left, right)
 
 
@@ -417,11 +423,11 @@ def rule_disjunction__or(c: Cursor) -> Term | None:
     if left := c.consume_rule('conjunction'):
         values = [left]
         k = c.clone()
-        while consume_name(k, 'or') and (right := k.consume_rule('conjunction')):
+        while consume_keyword(k, 'or') and (right := k.consume_rule('conjunction')):
             c.copy_from(k)
             values.append(right)
         if len(values) > 1:
-            return ps.BoolOp(tracker.location, 'or', values, mode=syntax.MODE_SAFE)
+            return expr.BoolOp(tracker.location, 'or', values, mode=syntax.MODE_SAFE)
     return first_falsy(left, right)
 
 
@@ -436,6 +442,11 @@ def rule_assignment(c: Cursor) -> Term | None:
     return first_falsy(name, value)
 
 
+def rule_function_def(c: Cursor) -> Term | None:
+    del c
+    return None
+
+
 RULES: parser.GrammarRuleMap = {
     'expression': [route('disjunction')],
     'disjunction': [rule_disjunction__or, route('conjunction')],
@@ -446,9 +457,10 @@ RULES: parser.GrammarRuleMap = {
     'term': [rule_term__binary, rule_invalid_factor, route('factor')],
     'factor': [rule_factor__unary, route('primary')],
     'primary': [rule_primary__call, route('atom')],
-    'atom': [build_rule_atom__name('load'), rule_atom__bool, rule_atom__string, rule_atom__number],
+    'atom': [build_rule_name('load'), rule_atom__bool, rule_atom__string, rule_atom__number],
     'token': [rule_token],
-    'statement': [route('assignment')],
+    'statement': [route('assignment'), route('function_def')],
     'assignment': [rule_assignment],
-    'name_store': [build_rule_atom__name('store')],
+    'funcion_def': [rule_function_def],
+    'name_store': [build_rule_name('store')],
 }

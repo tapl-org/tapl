@@ -83,7 +83,7 @@ def create_union(*args: Any) -> Any:
 
 
 class FunctionType:
-    def __init__(self, fn, **kwargs):
+    def __init__(self, fn, /, **kwargs):
         self.lock = kwargs
         self.result = fn(**kwargs)
 
