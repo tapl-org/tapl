@@ -14,6 +14,7 @@ from tapl_lang.syntax import (
     LayerSeparator,
     Term,
     TermWithLocation,
+    flatten_statements,
 )
 from tapl_lang.tapl_error import TaplError
 
@@ -42,7 +43,7 @@ class Assign(TermWithLocation):
         return ls.build(lambda layer: Assign(self.location, [layer(t) for t in targets], layer(value)))
 
     @override
-    def codegen_stmt(self) -> ast.stmt:
+    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
         stmt = ast.Assign(targets=[t.codegen_expr() for t in self.targets], value=self.value.codegen_expr())
         self.locate(stmt)
         return stmt
@@ -73,7 +74,7 @@ class Return(TermWithLocation):
         return self
 
     @override
-    def codegen_stmt(self) -> ast.stmt:
+    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
         stmt = ast.Return(self.value.codegen_expr()) if self.value else ast.Return()
         self.locate(stmt)
         return stmt
@@ -133,24 +134,22 @@ class FunctionDef(TermWithLocation):
 
     def codegen_function(self) -> ast.FunctionDef:
         params = [ast.arg(arg=param_name) for param_name in self.parameter_names]
-        body = [s.codegen_stmt() for s in self.body]
+        body = flatten_statements(b.codegen_stmt() for b in self.body)
         func = ast.FunctionDef(name=self.name, args=ast.arguments(args=params), body=body)
         self.locate(func)
         return func
 
-    def codegen_function_type(self) -> ast.stmt:
+    def codegen_function_type(self) -> list[ast.stmt]:
         fn_name = ast.Name(id=self.name, ctx=ast.Load())
         fn_type = ast.Name(id='FunctionType', ctx=ast.Load())
         fn_type_call = ast.Call(func=fn_type, args=[fn_name])
         target = ast.Name(id=self.name, ctx=ast.Store())
         assign = ast.Assign(targets=[target], value=fn_type_call)
-        pass_stmt = ast.Pass()
-        temp_scope = ast.Try(body=[self.codegen_function(), assign], finalbody=[pass_stmt])
-        self.locate(fn_name, fn_type, fn_type_call, target, assign, pass_stmt, temp_scope)
-        return temp_scope
+        self.locate(fn_name, fn_type, fn_type_call, target, assign)
+        return [self.codegen_function(), assign]
 
     @override
-    def codegen_stmt(self) -> ast.stmt:
+    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
         if not self.body:
             raise TaplError('Function body is empty.')
         if self.mode is MODE_EVALUATE:
@@ -187,4 +186,5 @@ class Module(Term):
 
     @override
     def codegen_ast(self) -> ast.AST:
-        return ast.Module(body=[s.codegen_stmt() for s in self.statements])
+        body = flatten_statements(s.codegen_stmt() for s in self.statements)
+        return ast.Module(body=body)

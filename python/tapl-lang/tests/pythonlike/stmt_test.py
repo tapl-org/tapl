@@ -10,7 +10,7 @@ from tapl_lang.chunker import chunk_text
 from tapl_lang.parser import Grammar, parse_text
 from tapl_lang.pythonlike import parser, predef0, predef1, stmt
 from tapl_lang.pythonlike.context import PythonlikeContext
-from tapl_lang.syntax import Layers, LayerSeparator
+from tapl_lang.syntax import Layers, LayerSeparator, flatten_statements
 
 predef = [predef0, predef1]
 
@@ -26,7 +26,7 @@ def parse_stmt(text: str, *, log_cell_memo=False) -> list[ast.stmt]:
     separated = ls.separate(parsed)
     separated = ls.build(lambda layer: layer(separated))
     layers = cast(Layers, separated).layers
-    return [layer.codegen_stmt() for layer in layers]
+    return flatten_statements(layer.codegen_stmt() for layer in layers)
 
 
 def run_stmt(layer_index: int, stmts: list[ast.stmt], /, globals_=None, locals_=None):
@@ -81,12 +81,8 @@ def hello():
     assert (
         ast.unparse(stmt2)
         == """
-try:
-
-    def hello():
-        return Int
-    hello = FunctionType(hello)
-finally:
-    pass
+def hello():
+    return Int
+hello = FunctionType(hello)
 """.strip()
     )
