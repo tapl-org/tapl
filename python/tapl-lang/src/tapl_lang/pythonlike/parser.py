@@ -204,13 +204,23 @@ def is_error_term(term: Term | None) -> bool:
     return term is not None and not term
 
 
-def consume_keyword(c: Cursor, name: str, *, expected: bool = False) -> Term | None:
+def consume_keyword(c: Cursor, keyword: str, *, expected: bool = False) -> Term | None:
     tracker = c.start_location_tracker()
     term = c.consume_rule('token')
-    if isinstance(term, TokenKeyword) and term.value == name or is_error_term(term):
+    if isinstance(term, TokenKeyword) and term.value == keyword or is_error_term(term):
         return term
     if expected:
-        return ErrorTerm(tracker.location, f'Expected "{name}", but found {term}')
+        return ErrorTerm(tracker.location, f'Expected "{keyword}", but found {term}')
+    return None
+
+
+def consume_name(c: Cursor, *, expected: bool = False) -> Term | None:
+    tracker = c.start_location_tracker()
+    term = c.consume_rule('token')
+    if isinstance(term, TokenName) or is_error_term(term):
+        return term
+    if expected:
+        return ErrorTerm(tracker.location, f'Expected a name, but found {term}')
     return None
 
 
@@ -432,14 +442,56 @@ def rule_disjunction__or(c: Cursor) -> Term | None:
 
 def rule_assignment(c: Cursor) -> Term | None:
     tracker = c.start_location_tracker()
+    name = value = None
     if (name := c.consume_rule('name_store')) and consume_punct(c, '=') and (value := expect_rule(c, 'expression')):
         return stmt.Assign(tracker.location, targets=[name], value=value)
     return first_falsy(name, value)
 
 
-def rule_function_def(c: Cursor) -> Term | None:
-    del c
+def rule_return(c: Cursor) -> Term | None:
+    tracker = c.start_location_tracker()
+    if consume_keyword(c, 'return'):
+        if value := c.consume_rule('expression'):
+            return stmt.Return(tracker.location, value=value)
+        if value is not None:
+            return value
+        return stmt.Return(tracker.location, value=None)
     return None
+
+
+@dataclass(frozen=True)
+class Parameters(Term):
+    names: list[str]
+    locks: list[Term]
+
+
+def rule_function_def(c: Cursor) -> Term | None:
+    tracker = c.start_location_tracker()
+    func_name = open_paren = params = close_paren = colon = None
+    if (
+        consume_keyword(c, 'def')
+        and (func_name := consume_name(c, expected=True))
+        and (open_paren := consume_punct(c, '(', expected=True))
+        and (params := expect_rule(c, 'parameters'))
+        and (close_paren := consume_punct(c, ')', expected=True))
+        and (colon := consume_punct(c, ':', expected=True))
+    ):
+        name = cast(TokenName, func_name).value
+        parameters = cast(Parameters, params)
+        return stmt.FunctionDef(tracker.location, name=name, parameter_names=parameters.names, locks=parameters.locks)
+    return first_falsy(func_name, open_paren, params, close_paren, colon)
+
+
+def rule_parameters(c: Cursor) -> Term | None:
+    del c
+    return Parameters(names=[], locks=[])
+
+
+def parse_start(c: Cursor) -> syntax.Term | None:
+    if statement := expect_rule(c, 'statement'):
+        skip_whitespaces(c)
+        return statement
+    return first_falsy(statement)
 
 
 RULES: parser.GrammarRuleMap = {
@@ -454,8 +506,13 @@ RULES: parser.GrammarRuleMap = {
     'primary': [rule_primary__call, route('atom')],
     'atom': [build_rule_name('load'), rule_atom__bool, rule_atom__string, rule_atom__number],
     'token': [rule_token],
-    'statement': [route('assignment'), route('function_def')],
+    'statement': [route('assignment'), route('return'), route('function_def')],
     'assignment': [rule_assignment],
-    'funcion_def': [rule_function_def],
+    'return': [rule_return],
+    'function_def': [rule_function_def],
+    'parameters': [rule_parameters],
     'name_store': [build_rule_name('store')],
+    'start': [parse_start],
 }
+
+GRAMMAR: parser.Grammar = parser.Grammar(rule_map=RULES, start_rule='start')

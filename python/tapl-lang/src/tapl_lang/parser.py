@@ -243,11 +243,11 @@ def parse_line_records(line_records: list[LineRecord], grammar: Grammar, *, log_
     term, next_row, next_col = engine.apply_rule(grammar.start_rule, row, col)
     if log_cell_memo:
         logging.warning(dump_cell_memo(engine.cell_memo))
-    if term and next_row != len(line_records) and next_col != 0:
+    if term and not (next_row == len(line_records) and next_col == 0):
         start_pos = Position(line_records[next_row].line_number, next_col + 1)
         return ErrorTerm(
             Location(start=start_pos),
-            message=f'Not all text consumed {start_pos.line}:{start_pos.column}/{len(line_records)}:{len(line_records[-1].text)}.',
+            message=f'Not all text consumed: indices {next_row}:{next_col}/{len(line_records)}:0.',
         )
     return term
 

@@ -218,7 +218,7 @@ def test_empty_text():
 def test_not_all_text_consumed():
     parsed_term = parse('1(')
     assert isinstance(parsed_term, syntax.ErrorTerm)
-    assert parsed_term.message == 'Not all text consumed 1:2/1:2.'
+    assert parsed_term.message == 'Not all text consumed: indices 0:1/1:0.'
 
 
 def test_run_modes_are_not_equal():

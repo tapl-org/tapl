@@ -36,20 +36,6 @@ EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': as
 
 
 @dataclass(frozen=True)
-class Absence(Term):
-    @override
-    def get_errors(self) -> list[ErrorTerm]:
-        return []
-
-    @override
-    def layer_agnostic(self):
-        return True
-
-    def separate(self):
-        return self
-
-
-@dataclass(frozen=True)
 class Constant(TermWithLocation):
     value: Any
 
@@ -101,6 +87,10 @@ class Attribute(TermWithLocation):
     @override
     def get_errors(self) -> list[ErrorTerm]:
         return self.value.get_errors()
+
+    @override
+    def layer_agnostic(self):
+        return self.value.layer_agnostic()
 
     @override
     def separate(self) -> Term:

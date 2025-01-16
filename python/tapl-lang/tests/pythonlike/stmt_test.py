@@ -6,9 +6,11 @@
 import ast
 from typing import cast
 
+from tapl_lang.chunker import chunk_text
 from tapl_lang.parser import Grammar, parse_text
-from tapl_lang.pythonlike import parser, predef0, predef1
-from tapl_lang.syntax import Layers
+from tapl_lang.pythonlike import parser, predef0, predef1, stmt
+from tapl_lang.pythonlike.context import PythonlikeContext
+from tapl_lang.syntax import Layers, LayerSeparator
 
 predef = [predef0, predef1]
 
@@ -20,8 +22,9 @@ def parse_stmt(text: str, *, log_cell_memo=False) -> list[ast.stmt]:
     if errors := parsed.get_errors():
         messages = [e.message for e in errors]
         raise SyntaxError('\n\n'.join(messages))
-    # print(parsed)
-    separated = parsed.separate()
+    ls = LayerSeparator(2)
+    separated = ls.separate(parsed)
+    separated = ls.build(lambda layer: layer(separated))
     layers = cast(Layers, separated).layers
     return [layer.codegen_stmt() for layer in layers]
 
@@ -31,9 +34,59 @@ def run_stmt(layer_index: int, stmts: list[ast.stmt], /, globals_=None, locals_=
     return eval(compiled_code, globals=globals_ or predef[layer_index].__dict__, locals=locals_ or {})
 
 
+def parse_module(text: str) -> list[ast.AST]:
+    chunks = chunk_text(text.strip())
+    context = PythonlikeContext()
+    module = stmt.Module()
+    context.parse_chunks(chunks, [module])
+    ls = LayerSeparator(2)
+    separated = ls.separate(module)
+    separated = ls.build(lambda layer: layer(separated))
+    layers = cast(Layers, separated).layers
+    return [layer.codegen_ast() for layer in layers]
+
+
 def test_assign1():
     [stmt1, stmt2] = parse_stmt('a=1')
     assert ast.unparse(stmt1) == 'a = 1'
     assert ast.unparse(stmt2) == 'a = Int'
     assert run_stmt(1, [stmt2]) is None
     assert run_stmt(0, [stmt1]) is None
+
+
+def test_return1():
+    [stmt1, stmt2] = parse_stmt('return')
+    assert ast.unparse(stmt1) == 'return'
+    assert ast.unparse(stmt2) == 'return'
+
+
+def test_return2():
+    [stmt1, stmt2] = parse_stmt('return True')
+    assert ast.unparse(stmt1) == 'return True'
+    assert ast.unparse(stmt2) == 'return Bool'
+
+
+def test_function1():
+    [stmt1, stmt2] = parse_module("""
+def hello():
+    return 0
+""")
+    assert (
+        ast.unparse(stmt1)
+        == """
+def hello():
+    return 0
+""".strip()
+    )
+    assert (
+        ast.unparse(stmt2)
+        == """
+try:
+
+    def hello():
+        return Int
+    hello = FunctionType(hello)
+finally:
+    pass
+""".strip()
+    )

@@ -20,8 +20,8 @@ class Context(ABC):
     def parse_chunk(self, chunk: Chunk, parent_stack: list[Term]) -> None:
         grammar = self.get_grammar(parent_stack)
         term = parser.parse_line_records(chunk.line_records, grammar)
-        if term is None:
-            raise TaplError('Could not parse the chunk')
+        if not term:
+            raise TaplError(f'Could not parse the chunk: {term}')
         if chunk.children:
             parent_stack.append(term)
             self.parse_chunks(chunk.children, parent_stack)

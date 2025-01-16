@@ -73,8 +73,8 @@ class Layers(Term):
 
 
 class LayerSeparator:
-    def __init__(self) -> None:
-        self.layer_count: int = 0
+    def __init__(self, layer_count: int = 0) -> None:
+        self.layer_count: int = layer_count
 
     def separate(self, term: Term) -> Term:
         if term.layer_agnostic():
