@@ -6,7 +6,7 @@ import ast
 from dataclasses import dataclass
 from typing import Any, override
 
-from tapl_lang.syntax import MODE_EVALUATE, MODE_TYPECHECK, ErrorTerm, LayerSeparator, Term, TermWithLocation
+from tapl_lang.syntax import MODE_EVALUATE, MODE_TYPECHECK, ErrorTerm, Layers, LayerSeparator, Term, TermWithLocation
 from tapl_lang.tapl_error import TaplError
 
 # Unary 'not' has dedicated 'BoolNot' term
@@ -44,10 +44,6 @@ class Constant(TermWithLocation):
         return []
 
     @override
-    def separate(self) -> Term:
-        return self
-
-    @override
     def codegen_expr(self) -> ast.expr:
         const = ast.Constant(self.value)
         self.locate(const)
@@ -62,14 +58,6 @@ class Name(TermWithLocation):
     @override
     def get_errors(self) -> list[ErrorTerm]:
         return []
-
-    @override
-    def layer_agnostic(self):
-        return True
-
-    @override
-    def separate(self) -> Term:
-        return self
 
     @override
     def codegen_expr(self) -> ast.expr:
@@ -89,14 +77,8 @@ class Attribute(TermWithLocation):
         return self.value.get_errors()
 
     @override
-    def layer_agnostic(self):
-        return self.value.layer_agnostic()
-
-    @override
-    def separate(self) -> Term:
-        ls = LayerSeparator()
-        value = ls.separate(self.value)
-        return ls.build(lambda layer: Attribute(self.location, layer(value), self.attr, self.ctx))
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.build(lambda layer: Attribute(self.location, layer(self.value), self.attr, self.ctx))
 
     # TODO: Attribute must have a type layer to check attribute exists or not
     @override
@@ -116,10 +98,8 @@ class UnaryOp(TermWithLocation):
         return self.operand.get_errors()
 
     @override
-    def separate(self) -> Term:
-        ls = LayerSeparator()
-        operand = ls.separate(self.operand)
-        return ls.build(lambda layer: UnaryOp(self.location, self.op, layer(operand)))
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.build(lambda layer: UnaryOp(self.location, self.op, layer(self.operand)))
 
     @override
     def codegen_expr(self) -> ast.expr:
@@ -139,11 +119,8 @@ class BoolNot(TermWithLocation):
         return self.operand.get_errors() + self.mode.get_errors()
 
     @override
-    def separate(self) -> Term:
-        ls = LayerSeparator()
-        operand = ls.separate(self.operand)
-        mode = ls.separate(self.mode)
-        return ls.build(lambda layer: BoolNot(self.location, layer(operand), layer(mode)))
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.build(lambda layer: BoolNot(self.location, layer(self.operand), layer(self.mode)))
 
     @override
     def codegen_expr(self) -> ast.expr:
@@ -174,11 +151,8 @@ class BoolOp(TermWithLocation):
         return result
 
     @override
-    def separate(self) -> Term:
-        ls = LayerSeparator()
-        values = [ls.separate(v) for v in self.values]
-        mode = ls.separate(self.mode)
-        return ls.build(lambda layer: BoolOp(self.location, self.op, [layer(v) for v in values], layer(mode)))
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.build(lambda layer: BoolOp(self.location, self.op, [layer(v) for v in self.values], layer(self.mode)))
 
     @override
     def codegen_expr(self) -> ast.expr:
@@ -205,11 +179,8 @@ class BinOp(TermWithLocation):
         return self.left.get_errors() + self.right.get_errors()
 
     @override
-    def separate(self) -> Term:
-        ls = LayerSeparator()
-        left = ls.separate(self.left)
-        right = ls.separate(self.right)
-        return ls.build(lambda layer: BinOp(self.location, layer(left), self.op, layer(right)))
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.build(lambda layer: BinOp(self.location, layer(self.left), self.op, layer(self.right)))
 
     @override
     def codegen_expr(self) -> ast.expr:
@@ -232,11 +203,10 @@ class Compare(TermWithLocation):
         return result
 
     @override
-    def separate(self) -> Term:
-        ls = LayerSeparator()
-        left = ls.separate(self.left)
-        comparators = [ls.separate(v) for v in self.comparators]
-        return ls.build(lambda layer: Compare(self.location, layer(left), self.ops, [layer(v) for v in comparators]))
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.build(
+            lambda layer: Compare(self.location, layer(self.left), self.ops, [layer(v) for v in self.comparators])
+        )
 
     @override
     def codegen_expr(self) -> ast.expr:

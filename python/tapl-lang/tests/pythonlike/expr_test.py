@@ -4,11 +4,10 @@
 
 
 import ast
-from typing import cast
 
 from tapl_lang.parser import Grammar, parse_text
 from tapl_lang.pythonlike import parser, predef0, predef1
-from tapl_lang.syntax import Layers
+from tapl_lang.syntax import LayerSeparator
 
 predef = [predef0, predef1]
 
@@ -20,9 +19,8 @@ def parse_expr(text: str, *, log_cell_memo=False) -> list[ast.expr]:
     if errors := parsed.get_errors():
         messages = [e.message for e in errors]
         raise SyntaxError('\n\n'.join(messages))
-    separated = parsed.separate()
-    layers = cast(Layers, separated).layers
-    return [layer.codegen_expr() for layer in layers]
+    separated = LayerSeparator(2).separate(parsed)
+    return [layer.codegen_expr() for layer in separated.layers]
 
 
 def run_expr(layer_index: int, expr: ast.expr, /, globals_=None, locals_=None):

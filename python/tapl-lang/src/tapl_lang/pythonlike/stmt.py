@@ -11,6 +11,7 @@ from tapl_lang.syntax import (
     MODE_SAFE,
     MODE_TYPECHECK,
     ErrorTerm,
+    Layers,
     LayerSeparator,
     Term,
     TermWithLocation,
@@ -32,15 +33,8 @@ class Assign(TermWithLocation):
         return result
 
     @override
-    def layer_agnostic(self) -> bool:
-        return all(t.layer_agnostic() for t in self.targets) and self.value.layer_agnostic()
-
-    @override
-    def separate(self) -> Term:
-        ls = LayerSeparator()
-        targets = [ls.separate(t) for t in self.targets]
-        value = ls.separate(self.value)
-        return ls.build(lambda layer: Assign(self.location, [layer(t) for t in targets], layer(value)))
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.build(lambda layer: Assign(self.location, [layer(t) for t in self.targets], layer(self.value)))
 
     @override
     def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
@@ -60,18 +54,11 @@ class Return(TermWithLocation):
         return []
 
     @override
-    def layer_agnostic(self):
+    def separate(self, ls: LayerSeparator) -> Layers:
         if self.value:
-            return self.value.layer_agnostic()
-        return True
-
-    @override
-    def separate(self) -> Term:
-        if self.value:
-            ls = LayerSeparator()
-            value = ls.separate(self.value)
+            value = self.value  # hack: python type check could not narrow the self.value from Term|None to Term
             return ls.build(lambda layer: Return(self.location, layer(value)))
-        return self
+        return ls.replicate(self)
 
     @override
     def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
@@ -85,13 +72,6 @@ class Absence(Term):
     @override
     def get_errors(self) -> list[ErrorTerm]:
         return []
-
-    @override
-    def layer_agnostic(self):
-        return True
-
-    def separate(self):
-        return self
 
 
 @dataclass(frozen=True)
@@ -116,19 +96,15 @@ class FunctionDef(TermWithLocation):
         self.body.append(child)
 
     @override
-    def separate(self):
-        ls = LayerSeparator()
-        locks = [ls.separate(p) for p in self.locks]
-        body = [ls.separate(s) for s in self.body]
-        mode = ls.separate(self.mode)
+    def separate(self, ls: LayerSeparator) -> Layers:
         return ls.build(
             lambda layer: FunctionDef(
                 self.location,
                 self.name,
                 self.parameter_names,
-                [layer(p) for p in locks],
-                [layer(s) for s in body],
-                layer(mode),
+                [layer(p) for p in self.locks],
+                [layer(s) for s in self.body],
+                layer(self.mode),
             )
         )
 
@@ -179,10 +155,8 @@ class Module(Term):
         return self.statements.append(child)
 
     @override
-    def separate(self) -> Term:
-        ls = LayerSeparator()
-        statements = [ls.separate(s) for s in self.statements]
-        return ls.build(lambda layer: Module([layer(s) for s in statements]))
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.build(lambda layer: Module([layer(s) for s in self.statements]))
 
     @override
     def codegen_ast(self) -> ast.AST:

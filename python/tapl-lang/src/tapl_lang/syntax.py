@@ -5,9 +5,9 @@
 import ast
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import override
+from typing import cast, override
 
-from tapl_lang.tapl_error import MismatchedLayerLengthError, TaplError
+from tapl_lang.tapl_error import TaplError
 
 
 class Term:
@@ -25,11 +25,8 @@ class Term:
             f'The {self.__class__.__name__} class does not support adding a child class={child.__class__.__name__}'
         )
 
-    def layer_agnostic(self) -> bool:
-        return False
-
-    def separate(self) -> 'Term':
-        raise TaplError(f'separate is not implemented in {self.__class__.__name__}')
+    def separate(self, ls: 'LayerSeparator') -> 'Layers':
+        return ls.replicate(self)
 
     def codegen_ast(self) -> ast.AST:
         raise TaplError(f'codegen_ast is not implemented in {self.__class__.__name__}')
@@ -57,9 +54,10 @@ class Layers(Term):
         return result
 
     @override
-    def separate(self) -> Term:
-        for i in range(len(self.layers)):
-            self.layers[i] = self.layers[i].separate()
+    def separate(self, ls: 'LayerSeparator') -> 'Layers':
+        actual_count = len(self.layers)
+        if actual_count != ls.layer_count:
+            raise TaplError(f'Mismatched layer lengths, actual_count={actual_count}, expected_count={ls.layer_count}')
         return self
 
     def codegen_ast(self) -> ast.AST:
@@ -72,39 +70,49 @@ class Layers(Term):
         raise TaplError('Layers should be separated before generating AST code.')
 
 
+@dataclass(frozen=True)
+class Realm(Term):
+    layer_count: int
+    term: Term
+
+    @override
+    def get_errors(self):
+        return self.term.get_errors()
+
+
 class LayerSeparator:
-    def __init__(self, layer_count: int = 0) -> None:
-        self.layer_count: int = layer_count
+    def __init__(self, layer_count: int) -> None:
+        if layer_count <= 1:
+            raise TaplError('layer_count must be equal or greater than 2.')
+        self.layer_count = layer_count
 
-    def separate(self, term: Term) -> Term:
-        if term.layer_agnostic():
-            return term
-        separated = term.separate()
-        expected_count = len(separated.layers) if isinstance(separated, Layers) else 1
-        if self.layer_count == 0:
-            self.layer_count = expected_count
-        elif self.layer_count != expected_count:
-            raise MismatchedLayerLengthError(
-                message=f'Mismatched layer lengths, layer_count={self.layer_count}, expected_count={expected_count}'
-            )
-        return separated
+    def replicate(self, term: Term) -> Layers:
+        return Layers(layers=[term for _ in range(self.layer_count)])
 
-    def extract_layer(self, index: int, term: Term) -> Term:
-        if isinstance(term, Layers):
-            return term.layers[index]
-        if term.layer_agnostic():
-            return term
-        raise TaplError(f'LayerSeparator.extract_layer expects Layers class, but recieved {term.__class__.__name__}')
+    def build(self, factory: Callable[[Callable[[Term], Term]], Term]) -> Layers:
+        memo = []
+        memo_index = [0]
 
-    def build(self, factory: Callable[[Callable[[Term], Term]], Term]) -> Term:
-        if self.layer_count <= 1:
-            return factory(lambda x: x)
+        def extract_layer(index: int, term: Term) -> Term:
+            if index == 0:
+                memo.append((term, term.separate(self)))
+            t, s = memo[memo_index[0]]
+            memo_index[0] += 1
+            if t is not term:
+                raise TaplError('layer function call order is changed.')
+            return cast(Layers, s).layers[index]
 
         def create_extract_layer_fn(index: int) -> Callable[[Term], Term]:
-            return lambda term: self.extract_layer(index, term)
+            return lambda term: extract_layer(index, term)
 
-        layers: list[Term] = [factory(create_extract_layer_fn(i)) for i in range(self.layer_count)]
+        layers: list[Term] = []
+        for i in range(self.layer_count):
+            memo_index[0] = 0
+            layers.append(factory(create_extract_layer_fn(i)))
         return Layers(layers)
+
+    def separate(self, term: Term) -> Layers:
+        return self.build(lambda layer: layer(term))
 
 
 @dataclass(frozen=True)
@@ -114,10 +122,6 @@ class Mode(Term):
     @override
     def get_errors(self) -> list['ErrorTerm']:
         return []
-
-    @override
-    def separate(self) -> Term:
-        return self
 
 
 MODE_EVALUATE = Mode('evaluate')
@@ -177,7 +181,7 @@ class ErrorTerm(TermWithLocation):
         return [self]
 
     @override
-    def separate(self) -> Term:
+    def separate(self, ls: LayerSeparator) -> Layers:
         raise TaplError('ErrorTerm does not support separate.')
 
 
