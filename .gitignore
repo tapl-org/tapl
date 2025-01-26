@@ -31,3 +31,7 @@ dist/
 # Bytecode compiled files
 *.pyc
 __pycache__/
+
+# Generated golden test files
+*.received
+.approved_files.log
