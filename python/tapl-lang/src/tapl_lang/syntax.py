@@ -26,6 +26,7 @@ class Term:
         )
 
     def separate(self, ls: 'LayerSeparator') -> 'Layers':
+        # TODO: change this to raise NotImplementedError
         return ls.replicate(self)
 
     def codegen_ast(self) -> ast.AST:

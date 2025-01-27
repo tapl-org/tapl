@@ -140,6 +140,54 @@ class FunctionDef(TermWithLocation):
 
 
 @dataclass(frozen=True)
+class Alias:
+    name: str
+    asname: str | None = None
+
+
+@dataclass(frozen=True)
+class Import(TermWithLocation):
+    names: list[Alias]
+
+    @override
+    def get_errors(self) -> list[ErrorTerm]:
+        return []
+
+    @override
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.replicate(self)
+
+    @override
+    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
+        stmt = ast.Import(names=[ast.alias(n.name, n.asname) for n in self.names])
+        self.locate(stmt)
+        return stmt
+
+
+@dataclass(frozen=True)
+class ImportFrom(TermWithLocation):
+    module: str | None
+    names: list[Alias]
+    level: int
+
+    @override
+    def get_errors(self) -> list[ErrorTerm]:
+        return []
+
+    @override
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.replicate(self)
+
+    @override
+    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
+        stmt = ast.ImportFrom(
+            module=self.module, names=[ast.alias(n.name, n.asname) for n in self.names], level=self.level
+        )
+        self.locate(stmt)
+        return stmt
+
+
+@dataclass(frozen=True)
 class Module(Term):
     statements: list[Term] = field(default_factory=list)
 

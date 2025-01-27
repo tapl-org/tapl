@@ -38,6 +38,7 @@ def find_first_ends_with_colon(line_records: list[LineRecord]) -> int | None:
     return None
 
 
+# TODO: ignore tail whitespace lines
 class Chunker:
     def decode_chunk(self, line_records: list[LineRecord]) -> Chunk:
         index = find_first_ends_with_colon(line_records)

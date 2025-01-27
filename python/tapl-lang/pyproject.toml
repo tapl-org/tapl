@@ -29,6 +29,9 @@ Documentation = "https://github.com/tapl-org/tapl#readme"
 Issues = "https://github.com/tapl-org/tapl/issues"
 Source = "https://github.com/tapl-org/tapl"
 
+[tool.ruff]
+extend-exclude = ["**/goldens/*.py"]
+
 [tool.ruff.lint]
 ignore = [
   "TRY003", # Avoid specifying long messages outside the exception class.

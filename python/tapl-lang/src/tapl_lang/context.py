@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from tapl_lang import parser
 from tapl_lang.chunker import Chunk
 from tapl_lang.parser import Grammar
-from tapl_lang.syntax import Term
+from tapl_lang.syntax import Layers, Term
 from tapl_lang.tapl_error import TaplError
 
 
@@ -30,4 +30,8 @@ class Context(ABC):
 
     @abstractmethod
     def get_grammar(self, parent_stack: list[Term]) -> Grammar:
+        pass
+
+    @abstractmethod
+    def get_predef_layers(self) -> Layers:
         pass
