@@ -32,6 +32,14 @@ class LineRecord:
             self.indent = count_indentation(text)
 
 
+def is_comment_line(text: str) -> bool:
+    for char in text:
+        if char.isspace():
+            continue
+        return char == '#'
+    return False
+
+
 def split_text_to_lines(text: str) -> list[LineRecord]:
     text_lines = text.splitlines(keepends=True)
-    return [LineRecord(i + 1, text_lines[i]) for i in range(len(text_lines))]
+    return [LineRecord(i + 1, text_lines[i]) for i in range(len(text_lines)) if not is_comment_line(text_lines[i])]
