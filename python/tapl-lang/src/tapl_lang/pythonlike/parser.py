@@ -461,8 +461,16 @@ def rule_return(c: Cursor) -> Term | None:
 
 
 def rule_parameter(c: Cursor) -> Term | None:
-    del c
-    return None
+    tracker = c.start_location_tracker()
+    name = colon = param_type = None
+    if (
+        (name := consume_name(c))
+        and (colon := consume_punct(c, ':', expected=True))
+        and (param_type := expect_rule(c, 'expression'))
+    ):
+        param_name = cast(TokenName, name).value
+        return stmt.Parameter(tracker.location, name=param_name, type=Layers([stmt.Absence(), param_type]))
+    return first_falsy(name, colon, param_type)
 
 
 def scan_parameters(c: Cursor) -> list[Term]:

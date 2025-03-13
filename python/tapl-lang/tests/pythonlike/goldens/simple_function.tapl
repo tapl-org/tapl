@@ -4,5 +4,5 @@ def zero():
 
 # hello comment
 
-#def increment(a: int):
-#    return a + 1
+def increment(a: Int):
+    return a + 1

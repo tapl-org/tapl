@@ -128,9 +128,13 @@ class FunctionDef(TermWithLocation):
         return func
 
     def codegen_function_type(self) -> list[ast.stmt]:
-        fn_name = ast.Name(id=self.name, ctx=ast.Load())
         fn_type = ast.Name(id='FunctionType', ctx=ast.Load())
-        fn_type_call = ast.Call(func=fn_type, args=[fn_name])
+        fn_name = ast.Name(id=self.name, ctx=ast.Load())
+        keywords = []
+        for p in self.parameters:
+            param = cast(Parameter, p)
+            keywords.append(ast.keyword(arg=param.name, value=param.type.codegen_expr()))
+        fn_type_call = ast.Call(func=fn_type, args=[fn_name], keywords=keywords)
         target = ast.Name(id=self.name, ctx=ast.Store())
         assign = ast.Assign(targets=[target], value=fn_type_call)
         self.locate(fn_name, fn_type, fn_type_call, target, assign)
