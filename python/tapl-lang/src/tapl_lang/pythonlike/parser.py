@@ -461,8 +461,12 @@ def rule_return(c: Cursor) -> Term | None:
 
 @dataclass(frozen=True)
 class Parameters(Term):
-    names: list[str]
-    locks: list[Term]
+    parameters: list[Term]
+
+
+def rule_parameters(c: Cursor) -> Term | None:
+    del c
+    return Parameters(parameters=[])
 
 
 def rule_function_def(c: Cursor) -> Term | None:
@@ -477,14 +481,8 @@ def rule_function_def(c: Cursor) -> Term | None:
         and (colon := consume_punct(c, ':', expected=True))
     ):
         name = cast(TokenName, func_name).value
-        parameters = cast(Parameters, params)
-        return stmt.FunctionDef(tracker.location, name=name, parameter_names=parameters.names, locks=parameters.locks)
+        return stmt.FunctionDef(tracker.location, name=name, parameters=cast(Parameters, params).parameters)
     return first_falsy(func_name, open_paren, params, close_paren, colon)
-
-
-def rule_parameters(c: Cursor) -> Term | None:
-    del c
-    return Parameters(names=[], locks=[])
 
 
 def parse_start(c: Cursor) -> syntax.Term | None:

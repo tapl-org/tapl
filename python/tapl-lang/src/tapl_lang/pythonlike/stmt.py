@@ -4,7 +4,7 @@
 
 import ast
 from dataclasses import dataclass, field
-from typing import override
+from typing import cast, override
 
 from tapl_lang.syntax import (
     MODE_EVALUATE,
@@ -75,17 +75,30 @@ class Absence(Term):
 
 
 @dataclass(frozen=True)
+class Parameter(TermWithLocation):
+    name: str
+    type: Term
+
+    @override
+    def get_errors(self):
+        return self.type.get_errors()
+
+    @override
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.build(lambda layer: Parameter(self.location, self.name, layer(self.type)))
+
+
+@dataclass(frozen=True)
 class FunctionDef(TermWithLocation):
     name: str
-    parameter_names: list[str]
-    locks: list[Term]
+    parameters: list[Term]
     body: list[Term] = field(default_factory=list)
     mode: Term = MODE_SAFE
 
     @override
     def get_errors(self) -> list[ErrorTerm]:
         result = self.mode.get_errors()
-        for p in self.locks:
+        for p in self.parameters:
             result.extend(p.get_errors())
         for s in self.body:
             result.extend(s.get_errors())
@@ -101,15 +114,14 @@ class FunctionDef(TermWithLocation):
             lambda layer: FunctionDef(
                 self.location,
                 self.name,
-                self.parameter_names,
-                [layer(p) for p in self.locks],
+                [layer(p) for p in self.parameters],
                 [layer(s) for s in self.body],
                 layer(self.mode),
             )
         )
 
     def codegen_function(self) -> ast.FunctionDef:
-        params = [ast.arg(arg=param_name) for param_name in self.parameter_names]
+        params = [ast.arg(arg=cast(Parameter, p).name) for p in self.parameters]
         body = flatten_statements(b.codegen_stmt() for b in self.body)
         func = ast.FunctionDef(name=self.name, args=ast.arguments(args=params), body=body)
         self.locate(func)
@@ -129,12 +141,12 @@ class FunctionDef(TermWithLocation):
         if not self.body:
             raise TaplError('Function body is empty.')
         if self.mode is MODE_EVALUATE:
-            if not all(isinstance(lock, Absence) for lock in self.locks):
-                raise TaplError('All parameter locks must be Absence when generating function in evaluate mode.')
+            if not all(isinstance(cast(Parameter, p).type, Absence) for p in self.parameters):
+                raise TaplError('All parameter type must be Absence when generating function in evaluate mode.')
             return self.codegen_function()
         if self.mode is MODE_TYPECHECK:
-            if not all(not isinstance(lock, Absence) for lock in self.locks):
-                raise TaplError('All parameter locks must not be Absence when generating function in type-check mode.')
+            if not all(not isinstance(cast(Parameter, p).type, Absence) for p in self.parameters):
+                raise TaplError('All parameter type must not be Absence when generating function in type-check mode.')
             return self.codegen_function_type()
         raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
 

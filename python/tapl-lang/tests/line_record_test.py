@@ -23,8 +23,9 @@ def test_line_ends_with_colon():
     assert line.ends_with_colon
     assert line.indent == 1
 
+
 def test_ignore_comments_when_splitting():
-    text =         """
+    text = """
 Hello
 # comment
 World
