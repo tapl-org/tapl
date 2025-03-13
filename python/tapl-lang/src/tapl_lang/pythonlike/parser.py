@@ -247,13 +247,14 @@ def expect_rule(c: Cursor, rule: str) -> Term | None:
 
 
 def scan_arguments(c: Cursor) -> list[Term]:
+    args = []
     if first_arg := c.consume_rule('expression'):
-        args = [first_arg]
+        args.append(first_arg)
         k = c.clone()
         while consume_punct(k, ',') and (arg := expect_rule(k, 'expression')):
             c.copy_from(k)
             args.append(arg)
-    return []
+    return args
 
 
 def rule_primary__call(c: Cursor) -> Term | None:
@@ -459,30 +460,36 @@ def rule_return(c: Cursor) -> Term | None:
     return None
 
 
-@dataclass(frozen=True)
-class Parameters(Term):
-    parameters: list[Term]
-
-
-def rule_parameters(c: Cursor) -> Term | None:
+def rule_parameter(c: Cursor) -> Term | None:
     del c
-    return Parameters(parameters=[])
+    return None
+
+
+def scan_parameters(c: Cursor) -> list[Term]:
+    params = []
+    if first_param := c.consume_rule('parameter'):
+        params.append(first_param)
+        k = c.clone()
+        while consume_punct(k, ',') and (param := expect_rule(k, 'parameter')):
+            c.copy_from(k)
+            params.append(param)
+    return params
 
 
 def rule_function_def(c: Cursor) -> Term | None:
     tracker = c.start_location_tracker()
-    func_name = open_paren = params = close_paren = colon = None
+    func_name = open_paren = close_paren = colon = None
     if (
         consume_keyword(c, 'def')
         and (func_name := consume_name(c, expected=True))
         and (open_paren := consume_punct(c, '(', expected=True))
-        and (params := expect_rule(c, 'parameters'))
+        and ((params := scan_parameters(c)) is not None)
         and (close_paren := consume_punct(c, ')', expected=True))
         and (colon := consume_punct(c, ':', expected=True))
     ):
         name = cast(TokenName, func_name).value
-        return stmt.FunctionDef(tracker.location, name=name, parameters=cast(Parameters, params).parameters)
-    return first_falsy(func_name, open_paren, params, close_paren, colon)
+        return stmt.FunctionDef(tracker.location, name=name, parameters=params)
+    return first_falsy(func_name, open_paren, close_paren, colon)
 
 
 def parse_start(c: Cursor) -> syntax.Term | None:
@@ -508,7 +515,7 @@ RULES: parser.GrammarRuleMap = {
     'assignment': [rule_assignment],
     'return': [rule_return],
     'function_def': [rule_function_def],
-    'parameters': [rule_parameters],
+    'parameter': [rule_parameter],
     'name_store': [build_rule_name('store')],
     'start': [parse_start],
 }

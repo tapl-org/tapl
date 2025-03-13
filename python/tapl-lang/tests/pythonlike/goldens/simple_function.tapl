@@ -2,4 +2,7 @@ context pythonlike
 def zero():
     return 0
 
-# hello world
+# hello comment
+
+#def increment(a: int):
+#    return a + 1
