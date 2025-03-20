@@ -77,15 +77,15 @@ class Absence(Term):
 @dataclass(frozen=True)
 class Parameter(TermWithLocation):
     name: str
-    type: Term
+    type_: Term
 
     @override
     def get_errors(self):
-        return self.type.get_errors()
+        return self.type_.get_errors()
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.build(lambda layer: Parameter(self.location, self.name, layer(self.type)))
+        return ls.build(lambda layer: Parameter(self.location, self.name, layer(self.type_)))
 
 
 @dataclass(frozen=True)
@@ -120,38 +120,33 @@ class FunctionDef(TermWithLocation):
             )
         )
 
-    def codegen_function(self) -> ast.FunctionDef:
+    def codegen_function(self, decorator_list: list[ast.expr]) -> ast.FunctionDef:
         params = [ast.arg(arg=cast(Parameter, p).name) for p in self.parameters]
         body = flatten_statements(b.codegen_stmt() for b in self.body)
-        func = ast.FunctionDef(name=self.name, args=ast.arguments(args=params), body=body)
+        func = ast.FunctionDef(
+            name=self.name, args=ast.arguments(args=params), body=body, decorator_list=decorator_list
+        )
         self.locate(func)
         return func
 
-    def codegen_function_type(self) -> list[ast.stmt]:
-        fn_type = ast.Name(id='FunctionType', ctx=ast.Load())
-        fn_name = ast.Name(id=self.name, ctx=ast.Load())
-        keywords = []
-        for p in self.parameters:
-            param = cast(Parameter, p)
-            keywords.append(ast.keyword(arg=param.name, value=param.type.codegen_expr()))
-        fn_type_call = ast.Call(func=fn_type, args=[fn_name], keywords=keywords)
-        target = ast.Name(id=self.name, ctx=ast.Store())
-        assign = ast.Assign(targets=[target], value=fn_type_call)
-        self.locate(fn_name, fn_type, fn_type_call, target, assign)
-        return [self.codegen_function(), assign]
+    def gen_decorator(self) -> ast.expr:
+        func = ast.Name('function_type', ctx=ast.Load())
+        decorator = ast.Call(func=func, args=[cast(Parameter, p).type_.codegen_expr() for p in self.parameters])
+        self.locate(func, decorator)
+        return decorator
 
     @override
     def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
         if not self.body:
             raise TaplError('Function body is empty.')
         if self.mode is MODE_EVALUATE:
-            if not all(isinstance(cast(Parameter, p).type, Absence) for p in self.parameters):
+            if not all(isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
                 raise TaplError('All parameter type must be Absence when generating function in evaluate mode.')
-            return self.codegen_function()
+            return self.codegen_function(decorator_list=[])
         if self.mode is MODE_TYPECHECK:
-            if not all(not isinstance(cast(Parameter, p).type, Absence) for p in self.parameters):
+            if not all(not isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
                 raise TaplError('All parameter type must not be Absence when generating function in type-check mode.')
-            return self.codegen_function_type()
+            return self.codegen_function(decorator_list=[self.gen_decorator()])
         raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
 
 

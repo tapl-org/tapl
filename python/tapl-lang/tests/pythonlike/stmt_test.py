@@ -81,8 +81,8 @@ def hello():
     assert (
         ast.unparse(stmt2)
         == """
+@function_type()
 def hello():
     return Int
-hello = FunctionType(hello)
 """.strip()
     )

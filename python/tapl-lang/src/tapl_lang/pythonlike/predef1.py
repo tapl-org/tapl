@@ -11,5 +11,6 @@ Str = typelib.Str_
 Union = typelib.Union
 create_union = typelib.create_union
 FunctionType = typelib.FunctionType
+function_type = typelib.function_type
 
 del typelib

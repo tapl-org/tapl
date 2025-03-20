@@ -83,14 +83,22 @@ def create_union(*args: Any) -> Any:
 
 
 class FunctionType:
-    def __init__(self, fn, /, **kwargs):
-        self.lock = kwargs
-        self.result = fn(**kwargs)
-
-    def __call__(self, **kwargs):
-        if self.lock != kwargs:
-            raise TypeError(f'Not equal: lock={self.lock} key={kwargs}')
-        return self.result
+    def __init__(self, lock, result):
+        self.lock = lock
+        self.result = result
 
     def __repr__(self):
         return f'{self.lock}->{self.result}'
+
+    def __call__(self, *args):
+        args = list(args)
+        if self.lock != args:
+            raise TypeError(f'Not equal: lock={self.lock} key={args}')
+        return self.result
+
+
+def function_type(*param_types):
+    def decorator(func):
+        return FunctionType(list(param_types), func(*param_types))
+
+    return decorator

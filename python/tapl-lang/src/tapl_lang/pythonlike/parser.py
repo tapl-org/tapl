@@ -469,7 +469,7 @@ def rule_parameter(c: Cursor) -> Term | None:
         and (param_type := expect_rule(c, 'expression'))
     ):
         param_name = cast(TokenName, name).value
-        return stmt.Parameter(tracker.location, name=param_name, type=Layers([stmt.Absence(), param_type]))
+        return stmt.Parameter(tracker.location, name=param_name, type_=Layers([stmt.Absence(), param_type]))
     return first_falsy(name, colon, param_type)
 
 

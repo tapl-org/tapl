@@ -11,17 +11,14 @@ from tapl_lang import typelib
 
 logging.basicConfig(level=logging.INFO)
 
-try:
 
-    def _inc(a):
-        return a + typelib.Int_
+@typelib.function_type(typelib.Int_)
+def inc(a):
+    return a + typelib.Int_
 
-    inc = typelib.FunctionType(_inc, a=typelib.Int_)
-finally:
-    pass
 
 print(inc)
-print(inc(a=typelib.Int_))
+print(inc(typelib.Int_))
 
 
 parsed_code = ast.parse(
