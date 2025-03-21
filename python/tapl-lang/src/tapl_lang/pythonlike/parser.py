@@ -449,6 +449,12 @@ def rule_assignment(c: Cursor) -> Term | None:
     return first_falsy(name, value)
 
 
+def rule_expression_statement(c: Cursor) -> Term | None:
+    if value := c.consume_rule('expression'):
+        return stmt.Expr(value.location, value)
+    return None
+
+
 def rule_return(c: Cursor) -> Term | None:
     tracker = c.start_location_tracker()
     if consume_keyword(c, 'return'):
@@ -519,7 +525,7 @@ RULES: parser.GrammarRuleMap = {
     'primary': [rule_primary__call, route('atom')],
     'atom': [build_rule_name('load'), rule_atom__bool, rule_atom__string, rule_atom__number],
     'token': [rule_token],
-    'statement': [route('assignment'), route('return'), route('function_def')],
+    'statement': [route('assignment'), rule_expression_statement, route('return'), route('function_def')],
     'assignment': [rule_assignment],
     'return': [rule_return],
     'function_def': [rule_function_def],

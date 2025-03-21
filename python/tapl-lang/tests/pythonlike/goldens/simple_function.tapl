@@ -1,4 +1,6 @@
 context pythonlike
+int_print(123)
+
 def zero():
     return 0
 

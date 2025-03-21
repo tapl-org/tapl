@@ -223,3 +223,20 @@ class Compare(TermWithLocation):
 class Call(TermWithLocation):
     func: Term
     args: list[Term]
+
+    @override
+    def get_errors(self) -> list[ErrorTerm]:
+        result = self.func.get_errors()
+        for v in self.args:
+            result.extend(v.get_errors())
+        return result
+    
+    @override
+    def separate(self, ls):
+        return ls.build(lambda layer: Call(self.location, layer(self.func), [layer(v) for v in self.args]))
+
+    @override
+    def codegen_expr(self) -> ast.expr:
+        call = ast.Call(self.func.codegen_expr(), [v.codegen_expr() for v in self.args])
+        self.locate(call)
+        return call

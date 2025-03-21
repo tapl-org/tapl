@@ -1,4 +1,5 @@
 from tapl_lang.pythonlike.predef1 import *
+int_print(Int)
 
 @function_type()
 def zero():

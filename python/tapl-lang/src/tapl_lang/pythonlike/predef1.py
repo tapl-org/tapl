@@ -14,3 +14,9 @@ FunctionType = typelib.FunctionType
 function_type = typelib.function_type
 
 del typelib
+
+
+@function_type(Int)
+def int_print(s):
+    del s
+    return NoneType

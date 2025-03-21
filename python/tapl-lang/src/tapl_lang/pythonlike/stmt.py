@@ -68,6 +68,25 @@ class Return(TermWithLocation):
 
 
 @dataclass(frozen=True)
+class Expr(TermWithLocation):
+    value: Term
+
+    @override
+    def get_errors(self) -> list[ErrorTerm]:
+        return self.value.get_errors()
+
+    @override
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.build(lambda layer: Expr(self.location, layer(self.value)))
+
+    @override
+    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
+        stmt = ast.Expr(self.value.codegen_expr())
+        self.locate(stmt)
+        return stmt
+
+
+@dataclass(frozen=True)
 class Absence(Term):
     @override
     def get_errors(self) -> list[ErrorTerm]:
