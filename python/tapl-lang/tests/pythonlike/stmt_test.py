@@ -15,8 +15,8 @@ from tapl_lang.syntax import Layers, LayerSeparator, flatten_statements
 predef = [predef0, predef1]
 
 
-def parse_stmt(text: str, *, log_cell_memo=False) -> list[ast.stmt]:
-    parsed = parse_text(text, Grammar(parser.RULES, 'statement'), log_cell_memo=log_cell_memo)
+def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
+    parsed = parse_text(text, Grammar(parser.RULES, 'statement'), debug=debug)
     if parsed is None:
         raise RuntimeError('Parser returns None.')
     if errors := parsed.get_errors():

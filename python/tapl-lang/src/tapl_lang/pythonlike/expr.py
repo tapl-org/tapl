@@ -230,7 +230,7 @@ class Call(TermWithLocation):
         for v in self.args:
             result.extend(v.get_errors())
         return result
-    
+
     @override
     def separate(self, ls):
         return ls.build(lambda layer: Call(self.location, layer(self.func), [layer(v) for v in self.args]))

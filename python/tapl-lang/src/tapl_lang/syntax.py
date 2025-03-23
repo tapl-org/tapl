@@ -11,12 +11,6 @@ from tapl_lang.tapl_error import TaplError
 
 
 class Term:
-    # This creates a syntactic sugar when using within an if clause of the parser rules to determine if the term was successfully parsed.
-    # Example: if term := ErrorTerm('some error'): 'parse succeeded' else: 'parse failed'
-    # Despite the term having a value, the flow proceeds to the else part of the if statement.
-    def __bool__(self):
-        return True
-
     def get_errors(self) -> list['ErrorTerm']:
         raise NotImplementedError
 
@@ -141,10 +135,12 @@ class Position:
 
 @dataclass(frozen=True, kw_only=True)
 class Location:
+    # TODO: start must be not None
     start: Position | None = None
     end: Position | None = None
 
     def __repr__(self) -> str:
+        # TODO: dash character is not intuitive to know that start or end is missing
         start = repr(self.start) if self.start else '-'
         end = repr(self.end) if self.end else '-'
         return f'{start}|{end}'
@@ -173,9 +169,6 @@ class ErrorTerm(TermWithLocation):
     message: str
     recovered: bool = False
     guess: Term | None = None
-
-    def __bool__(self) -> bool:
-        return self.recovered
 
     @override
     def get_errors(self) -> list['ErrorTerm']:

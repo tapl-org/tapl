@@ -12,8 +12,8 @@ from tapl_lang.syntax import LayerSeparator
 predef = [predef0, predef1]
 
 
-def parse_expr(text: str, *, log_cell_memo=False) -> list[ast.expr]:
-    parsed = parse_text(text, Grammar(parser.RULES, 'expression'), log_cell_memo=log_cell_memo)
+def parse_expr(text: str, *, debug=False) -> list[ast.expr]:
+    parsed = parse_text(text, Grammar(parser.RULES, 'expression'), debug=debug)
     if parsed is None:
         raise RuntimeError('Parser returns None.')
     if errors := parsed.get_errors():
