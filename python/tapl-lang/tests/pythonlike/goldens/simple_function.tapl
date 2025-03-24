@@ -9,4 +9,4 @@ def zero():
 def increment(a: Int):
     return a + 1
 
-# int_print(increment(zero()))
+int_print(increment(zero()))

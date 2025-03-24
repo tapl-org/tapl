@@ -1,0 +1,14 @@
+====== level=1 exit-status:0 stdout:
+
+------ stderr:
+
+------ end.
+
+====== level=0 exit-status:0 stdout:
+123
+1
+
+------ stderr:
+
+------ end.
+
