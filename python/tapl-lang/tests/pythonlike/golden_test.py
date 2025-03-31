@@ -6,6 +6,7 @@ import ast
 import io
 import os
 import pathlib
+import subprocess
 
 from approvaltests.approvals import verify
 from approvaltests.core.namer import Namer
@@ -13,30 +14,27 @@ from approvaltests.core.namer import Namer
 from tapl_lang.compiler import compile_tapl
 
 
-import subprocess
-
 def run_command(command):
-  """
-  Runs a command and captures its stdout and stderr.
+    """
+    Runs a command and captures its stdout and stderr.
 
-  Args:
-    command: A string or list of strings representing the command to run.
+    Args:
+      command: A string or list of strings representing the command to run.
 
-  Returns:
-    A tuple containing the return code, stdout, and stderr.
-  """
-  try:
-    process = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,  # Decode stdout and stderr as text
-        check=False, # do not raise exception on non-zero return code.
-    )
-    return process.returncode, process.stdout, process.stderr
-  except FileNotFoundError:
-    return -1, "", f"Command not found: {command}"
-  except Exception as e:
-    return -1, "", f"An error occurred: {e}"
+    Returns:
+      A tuple containing the return code, stdout, and stderr.
+    """
+    try:
+        process = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,  # Decode stdout and stderr as text
+            check=False,  # do not raise exception on non-zero return code.
+        )
+    except FileNotFoundError:
+        return -1, '', f'Command not found: {command}'
+    else:
+        return process.returncode, process.stdout, process.stderr
 
 
 class ApprovalNamer(Namer):
@@ -63,11 +61,11 @@ def test_simple():
         filename = f'{base_path}{i}.py'
         verify(ast.unparse(layers[i]), namer=ApprovalNamer(filename))
         if success:
-          returnCode, stdout, stderr = run_command(['python', filename])
-          output.write(f'====== level={i} exit-status:{returnCode} stdout:\n')
-          output.write(stdout)
-          output.write(f'\n------ stderr:\n')
-          output.write(stderr)
-          output.write(f'\n------ end.\n\n')
-          success = returnCode == 0
+            return_code, stdout, stderr = run_command(['python', filename])
+            output.write(f'====== level={i} exit-status:{return_code} stdout:\n')
+            output.write(stdout)
+            output.write('\n------ stderr:\n')
+            output.write(stderr)
+            output.write('\n------ end.\n\n')
+            success = return_code == 0
     verify(output.getvalue(), namer=ApprovalNamer(f'{base_path}.output'))
