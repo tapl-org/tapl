@@ -11,5 +11,5 @@ def increment(a: Int):
 
 int_print(increment(zero()))
 
-# if True:
-#     int_print(1)
+if True:
+    int_print(456)

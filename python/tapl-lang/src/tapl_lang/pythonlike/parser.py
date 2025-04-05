@@ -525,7 +525,7 @@ def rule_if_stmt(c: Cursor) -> Term:
         and t.validate(test := expect_rule(c, 'expression'))
         and t.validate(expect_punct(c, ':'))
     ):
-        return stmt.If(t.location, test, body=[], orelse=[])
+        return stmt.If(t.location, test, body=[], orelse=[], mode=syntax.MODE_SAFE)
     return t.fail()
 
 

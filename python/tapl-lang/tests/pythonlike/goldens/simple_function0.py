@@ -7,3 +7,5 @@ def zero():
 def increment(a):
     return a + 1
 int_print(increment(zero()))
+if True:
+    int_print(456)

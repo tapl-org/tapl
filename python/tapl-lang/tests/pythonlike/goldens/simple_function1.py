@@ -9,3 +9,5 @@ def zero():
 def increment(a):
     return a + Int
 int_print(increment(zero()))
+Bool
+int_print(Int)

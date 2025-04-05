@@ -221,6 +221,7 @@ class If(TermWithLocation):
     test: Term
     body: list[Term]
     orelse: list[Term]
+    mode: Term
 
     @override
     def get_errors(self) -> list[ErrorTerm]:
@@ -244,18 +245,31 @@ class If(TermWithLocation):
                 test=layer(self.test),
                 body=[layer(s) for s in self.body],
                 orelse=[layer(s) for s in self.orelse],
+                mode=layer(self.mode),
             )
         )
 
     @override
     def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
-        if_stmt = ast.If(
-            test=self.test.codegen_expr(),
-            body=flatten_statements(s.codegen_stmt() for s in self.body),
-            orelse=flatten_statements(s.codegen_stmt() for s in self.orelse),
-        )
-        self.locate(if_stmt)
-        return if_stmt
+        if self.mode is MODE_EVALUATE:
+            if_stmt = ast.If(
+                test=self.test.codegen_expr(),
+                body=flatten_statements(s.codegen_stmt() for s in self.body),
+                orelse=flatten_statements(s.codegen_stmt() for s in self.orelse),
+            )
+            self.locate(if_stmt)
+            return if_stmt
+        if self.mode is MODE_TYPECHECK:
+            test_stmt = ast.Expr(self.test.codegen_expr())
+            self.locate(test_stmt)
+            return flatten_statements(
+                (
+                    test_stmt,
+                    flatten_statements(s.codegen_stmt() for s in self.body),
+                    flatten_statements(s.codegen_stmt() for s in self.orelse),
+                )
+            )
+        raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
 
 
 @dataclass
