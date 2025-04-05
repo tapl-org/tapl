@@ -8,7 +8,6 @@ from typing import cast, override
 
 from tapl_lang.syntax import (
     MODE_EVALUATE,
-    MODE_SAFE,
     MODE_TYPECHECK,
     ErrorTerm,
     Layers,
@@ -20,7 +19,7 @@ from tapl_lang.syntax import (
 from tapl_lang.tapl_error import TaplError
 
 
-@dataclass(frozen=True)
+@dataclass
 class Assign(TermWithLocation):
     targets: list[Term]
     value: Term
@@ -43,7 +42,7 @@ class Assign(TermWithLocation):
         return stmt
 
 
-@dataclass(frozen=True)
+@dataclass
 class Return(TermWithLocation):
     value: Term | None
 
@@ -67,7 +66,7 @@ class Return(TermWithLocation):
         return stmt
 
 
-@dataclass(frozen=True)
+@dataclass
 class Expr(TermWithLocation):
     value: Term
 
@@ -86,14 +85,14 @@ class Expr(TermWithLocation):
         return stmt
 
 
-@dataclass(frozen=True)
+@dataclass
 class Absence(Term):
     @override
     def get_errors(self) -> list[ErrorTerm]:
         return []
 
 
-@dataclass(frozen=True)
+@dataclass
 class Parameter(TermWithLocation):
     name: str
     type_: Term
@@ -107,12 +106,12 @@ class Parameter(TermWithLocation):
         return ls.build(lambda layer: Parameter(self.location, self.name, layer(self.type_)))
 
 
-@dataclass(frozen=True)
+@dataclass
 class FunctionDef(TermWithLocation):
     name: str
     parameters: list[Term]
-    body: list[Term] = field(default_factory=list)
-    mode: Term = MODE_SAFE
+    body: list[Term]
+    mode: Term
 
     @override
     def get_errors(self) -> list[ErrorTerm]:
@@ -169,13 +168,13 @@ class FunctionDef(TermWithLocation):
         raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
 
 
-@dataclass(frozen=True)
+@dataclass
 class Alias:
     name: str
     asname: str | None = None
 
 
-@dataclass(frozen=True)
+@dataclass
 class Import(TermWithLocation):
     names: list[Alias]
 
@@ -194,7 +193,7 @@ class Import(TermWithLocation):
         return stmt
 
 
-@dataclass(frozen=True)
+@dataclass
 class ImportFrom(TermWithLocation):
     module: str | None
     names: list[Alias]
@@ -217,7 +216,49 @@ class ImportFrom(TermWithLocation):
         return stmt
 
 
-@dataclass(frozen=True)
+@dataclass
+class If(TermWithLocation):
+    test: Term
+    body: list[Term]
+    orelse: list[Term]
+
+    @override
+    def get_errors(self) -> list[ErrorTerm]:
+        result = []
+        result.extend(self.test.get_errors())
+        for s in self.body:
+            result.extend(s.get_errors())
+        for s in self.orelse:
+            result.extend(s.get_errors())
+        return result
+
+    @override
+    def add_child(self, child: Term) -> None:
+        self.body.append(child)
+
+    @override
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.build(
+            lambda layer: If(
+                self.location,
+                test=layer(self.test),
+                body=[layer(s) for s in self.body],
+                orelse=[layer(s) for s in self.orelse],
+            )
+        )
+
+    @override
+    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
+        if_stmt = ast.If(
+            test=self.test.codegen_expr(),
+            body=flatten_statements(s.codegen_stmt() for s in self.body),
+            orelse=flatten_statements(s.codegen_stmt() for s in self.orelse),
+        )
+        self.locate(if_stmt)
+        return if_stmt
+
+
+@dataclass
 class Module(Term):
     statements: list[Term] = field(default_factory=list)
 

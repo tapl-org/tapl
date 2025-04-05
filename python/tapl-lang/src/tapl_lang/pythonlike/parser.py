@@ -14,32 +14,32 @@ from tapl_lang.syntax import ErrorTerm, Layers, Term, TermWithLocation
 # https://docs.python.org/3/reference/grammar.html
 
 
-@dataclass(frozen=True)
+@dataclass
 class TokenKeyword(TermWithLocation):
     value: str
 
 
-@dataclass(frozen=True)
+@dataclass
 class TokenName(TermWithLocation):
     value: str
 
 
-@dataclass(frozen=True)
+@dataclass
 class TokenString(TermWithLocation):
     value: str
 
 
-@dataclass(frozen=True)
+@dataclass
 class TokenNumber(TermWithLocation):
     value: int
 
 
-@dataclass(frozen=True)
+@dataclass
 class TokenPunct(TermWithLocation):
     value: str
 
 
-@dataclass(frozen=True)
+@dataclass
 class TokenEndOfText(TermWithLocation):
     pass
 
@@ -512,7 +512,20 @@ def rule_function_def(c: Cursor) -> Term:
         and t.validate(expect_punct(c, ':'))
     ):
         name = cast(TokenName, func_name).value
-        return stmt.FunctionDef(t.location, name=name, parameters=cast(TermSequence, params).terms)
+        return stmt.FunctionDef(
+            t.location, name=name, parameters=cast(TermSequence, params).terms, body=[], mode=syntax.MODE_SAFE
+        )
+    return t.fail()
+
+
+def rule_if_stmt(c: Cursor) -> Term:
+    t = c.start_tracker()
+    if (
+        t.validate(consume_keyword(c, 'if'))
+        and t.validate(test := expect_rule(c, 'expression'))
+        and t.validate(expect_punct(c, ':'))
+    ):
+        return stmt.If(t.location, test, body=[], orelse=[])
     return t.fail()
 
 
@@ -536,12 +549,19 @@ RULES: parser.GrammarRuleMap = {
     'primary': [rule_primary__call, route('atom')],
     'atom': [build_rule_name('load'), rule_atom__bool, rule_atom__string, rule_atom__number],
     'token': [rule_token],
-    'statement': [route('assignment'), rule_expression_statement, route('return'), route('function_def')],
+    'statement': [
+        route('assignment'),
+        rule_expression_statement,
+        route('return'),
+        route('function_def'),
+        route('if_stmt'),
+    ],
     'assignment': [rule_assignment],
     'return': [rule_return],
     'function_def': [rule_function_def],
     'parameter': [rule_parameter],
     'name_store': [build_rule_name('store')],
+    'if_stmt': [rule_if_stmt],
     'start': [parse_start],
 }
 

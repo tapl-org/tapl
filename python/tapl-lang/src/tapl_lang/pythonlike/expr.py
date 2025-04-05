@@ -35,7 +35,7 @@ COMPARE_OP_MAP: dict[str, ast.cmpop] = {
 EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': ast.Store(), 'del': ast.Del()}
 
 
-@dataclass(frozen=True)
+@dataclass
 class Constant(TermWithLocation):
     value: Any
 
@@ -50,7 +50,7 @@ class Constant(TermWithLocation):
         return const
 
 
-@dataclass(frozen=True)
+@dataclass
 class Name(TermWithLocation):
     id: str
     ctx: str
@@ -66,7 +66,7 @@ class Name(TermWithLocation):
         return name
 
 
-@dataclass(frozen=True)
+@dataclass
 class Attribute(TermWithLocation):
     value: Term
     attr: str
@@ -88,7 +88,7 @@ class Attribute(TermWithLocation):
         return attr
 
 
-@dataclass(frozen=True)
+@dataclass
 class UnaryOp(TermWithLocation):
     op: str
     operand: Term
@@ -109,7 +109,7 @@ class UnaryOp(TermWithLocation):
         return unary
 
 
-@dataclass(frozen=True)
+@dataclass
 class BoolNot(TermWithLocation):
     operand: Term
     mode: Term
@@ -137,7 +137,7 @@ class BoolNot(TermWithLocation):
         raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
 
 
-@dataclass(frozen=True)
+@dataclass
 class BoolOp(TermWithLocation):
     op: str
     values: list[Term]
@@ -168,7 +168,7 @@ class BoolOp(TermWithLocation):
         raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
 
 
-@dataclass(frozen=True)
+@dataclass
 class BinOp(TermWithLocation):
     left: Term
     op: str
@@ -189,7 +189,7 @@ class BinOp(TermWithLocation):
         return op
 
 
-@dataclass(frozen=True)
+@dataclass
 class Compare(TermWithLocation):
     left: Term
     ops: list[str]
@@ -219,7 +219,7 @@ class Compare(TermWithLocation):
         return compare
 
 
-@dataclass(frozen=True)
+@dataclass
 class Call(TermWithLocation):
     func: Term
     args: list[Term]

@@ -33,7 +33,7 @@ class Term:
         raise TaplError(f'codegen_stmt is not implemented in {self.__class__.__name__}')
 
 
-@dataclass(frozen=True)
+@dataclass
 class Layers(Term):
     layers: list[Term]
 
@@ -65,7 +65,7 @@ class Layers(Term):
         raise TaplError('Layers should be separated before generating AST code.')
 
 
-@dataclass(frozen=True)
+@dataclass
 class Realm(Term):
     layer_count: int
     term: Term
@@ -110,7 +110,7 @@ class LayerSeparator:
         return self.build(lambda layer: layer(term))
 
 
-@dataclass(frozen=True)
+@dataclass
 class Mode(Term):
     name: str
 
@@ -124,7 +124,7 @@ MODE_TYPECHECK = Mode('type check')
 MODE_SAFE = Layers([MODE_EVALUATE, MODE_TYPECHECK])
 
 
-@dataclass(frozen=True)
+@dataclass
 class Position:
     line: int
     column: int
@@ -133,7 +133,7 @@ class Position:
         return f'{self.line}:{self.column}'
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(kw_only=True)
 class Location:
     # TODO: start must be not None
     start: Position | None = None
@@ -156,7 +156,7 @@ class Location:
                 node.end_col_offset = self.end.column
 
 
-@dataclass(frozen=True)
+@dataclass
 class TermWithLocation(Term):
     location: Location
 
@@ -164,7 +164,7 @@ class TermWithLocation(Term):
         self.location.locate(*nodes)
 
 
-@dataclass(frozen=True)
+@dataclass
 class ErrorTerm(TermWithLocation):
     message: str
     recovered: bool = False

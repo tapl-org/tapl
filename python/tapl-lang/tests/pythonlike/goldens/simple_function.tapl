@@ -10,3 +10,6 @@ def increment(a: Int):
     return a + 1
 
 int_print(increment(zero()))
+
+# if True:
+#     int_print(1)

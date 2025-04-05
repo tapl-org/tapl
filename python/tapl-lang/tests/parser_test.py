@@ -9,17 +9,17 @@ from tapl_lang.parser import Cursor, route
 from tapl_lang.syntax import Location, Position, Term, TermWithLocation
 
 
-@dataclass(frozen=True)
+@dataclass
 class Punct(TermWithLocation):
     value: str
 
 
-@dataclass(frozen=True)
+@dataclass
 class Number(TermWithLocation):
     value: int
 
 
-@dataclass(frozen=True)
+@dataclass
 class BinOp(TermWithLocation):
     left: Term
     op: str
