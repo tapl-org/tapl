@@ -19,7 +19,7 @@ def min_indentation(line_records: list[LineRecord]) -> int | None:
             continue
         if min_indent is None:
             min_indent = line.indent
-        else:
+        elif line.indent is not None:
             min_indent = min(min_indent, line.indent)
     return min_indent
 
