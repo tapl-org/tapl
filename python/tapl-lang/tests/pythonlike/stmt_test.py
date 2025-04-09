@@ -8,11 +8,11 @@ from typing import cast
 
 from tapl_lang.chunker import chunk_text
 from tapl_lang.parser import Grammar, parse_text
-from tapl_lang.pythonlike import parser, predef0, predef1, stmt
+from tapl_lang.pythonlike import parser, predef, predef1, stmt
 from tapl_lang.pythonlike.context import PythonlikeContext
 from tapl_lang.syntax import Layers, LayerSeparator, flatten_statements
 
-predef = [predef0, predef1]
+predef_layers = [predef, predef1]
 
 
 def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
@@ -31,7 +31,7 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
 
 def run_stmt(layer_index: int, stmts: list[ast.stmt], /, globals_=None, locals_=None):
     compiled_code = compile(ast.Module(body=stmts), filename='', mode='exec')
-    return eval(compiled_code, globals=globals_ or predef[layer_index].__dict__, locals=locals_ or {})
+    return eval(compiled_code, globals=globals_ or predef_layers[layer_index].__dict__, locals=locals_ or {})
 
 
 def parse_module(text: str) -> list[ast.AST]:

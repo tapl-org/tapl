@@ -6,10 +6,10 @@
 import ast
 
 from tapl_lang.parser import Grammar, parse_text
-from tapl_lang.pythonlike import parser, predef0, predef1
+from tapl_lang.pythonlike import parser, predef, predef1
 from tapl_lang.syntax import LayerSeparator
 
-predef = [predef0, predef1]
+predef_layers = [predef, predef1]
 
 
 def parse_expr(text: str, *, debug=False) -> list[ast.expr]:
@@ -25,7 +25,7 @@ def parse_expr(text: str, *, debug=False) -> list[ast.expr]:
 
 def run_expr(layer_index: int, expr: ast.expr, /, globals_=None, locals_=None):
     compiled_code = compile(ast.Expression(body=expr), filename='', mode='eval')
-    return eval(compiled_code, globals=globals_ or predef[layer_index].__dict__, locals=locals_ or {})
+    return eval(compiled_code, globals=globals_ or predef_layers[layer_index].__dict__, locals=locals_ or {})
 
 
 def expect_error(layer_index: int, expr: ast.expr) -> str:

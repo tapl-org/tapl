@@ -20,7 +20,7 @@ class PythonlikeContext(Context):
     @override
     def get_predef_layers(self) -> Layers:
         location = Location(start=Position(line=1, column=0))
-        module0 = 'tapl_lang.pythonlike.predef0'
+        module0 = 'tapl_lang.pythonlike.predef'
         module1 = 'tapl_lang.pythonlike.predef1'
         names = [stmt.Alias(name='*')]
         level = 0

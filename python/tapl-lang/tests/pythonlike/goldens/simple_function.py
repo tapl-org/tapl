@@ -1,4 +1,4 @@
-from tapl_lang.pythonlike.predef0 import *
+from tapl_lang.pythonlike.predef import *
 int_print(123)
 
 def zero():
