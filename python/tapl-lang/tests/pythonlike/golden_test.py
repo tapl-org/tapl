@@ -58,7 +58,8 @@ def test_simple():
     output = io.StringIO()
     success = True
     for i in reversed(range(len(layers))):
-        filename = f'{base_path}{i}.py'
+        suffix = i if i else ''
+        filename = f'{base_path}{suffix}.py'
         verify(ast.unparse(layers[i]), namer=ApprovalNamer(filename))
         if success:
             return_code, stdout, stderr = run_command(['python', filename])
