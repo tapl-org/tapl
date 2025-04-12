@@ -137,8 +137,7 @@ class Position:
 
 @dataclass(kw_only=True)
 class Location:
-    # TODO: start must be not None
-    start: Position | None = None
+    start: Position
     end: Position | None = None
 
     def __repr__(self) -> str:
@@ -148,10 +147,9 @@ class Location:
         return f'{start}|{end}'
 
     def locate(self, *nodes: ast.expr | ast.stmt) -> None:
-        if self.start:
-            for node in nodes:
-                node.lineno = self.start.line
-                node.col_offset = self.start.column
+        for node in nodes:
+            node.lineno = self.start.line
+            node.col_offset = self.start.column
         if self.end:
             for node in nodes:
                 node.end_lineno = self.end.line
