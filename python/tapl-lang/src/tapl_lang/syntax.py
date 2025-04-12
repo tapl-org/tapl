@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import ast
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import cast, override
 
@@ -29,7 +29,7 @@ class Term:
     def codegen_expr(self) -> ast.expr:
         raise TaplError(f'codegen_expr is not implemented in {self.__class__.__name__}')
 
-    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
+    def codegen_stmt(self) -> list[ast.stmt]:
         raise TaplError(f'codegen_stmt is not implemented in {self.__class__.__name__}')
 
 
@@ -61,7 +61,7 @@ class Layers(Term):
     def codegen_expr(self) -> ast.expr:
         raise TaplError('Layers should be separated before generating AST code.')
 
-    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
+    def codegen_stmt(self) -> list[ast.stmt]:
         raise TaplError('Layers should be separated before generating AST code.')
 
 
@@ -177,13 +177,3 @@ class ErrorTerm(TermWithLocation):
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
         raise TaplError('ErrorTerm does not support separate.')
-
-
-def flatten_statements(statements: Iterable[ast.stmt | list[ast.stmt]]) -> list[ast.stmt]:
-    result = []
-    for s in statements:
-        if isinstance(s, list):
-            result.extend(s)
-        else:
-            result.append(s)
-    return result

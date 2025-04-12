@@ -14,7 +14,6 @@ from tapl_lang.syntax import (
     LayerSeparator,
     Term,
     TermWithLocation,
-    flatten_statements,
 )
 from tapl_lang.tapl_error import TaplError
 
@@ -36,10 +35,10 @@ class Assign(TermWithLocation):
         return ls.build(lambda layer: Assign(self.location, [layer(t) for t in self.targets], layer(self.value)))
 
     @override
-    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
+    def codegen_stmt(self) -> list[ast.stmt]:
         stmt = ast.Assign(targets=[t.codegen_expr() for t in self.targets], value=self.value.codegen_expr())
         self.locate(stmt)
-        return stmt
+        return [stmt]
 
 
 @dataclass
@@ -60,10 +59,10 @@ class Return(TermWithLocation):
         return ls.replicate(self)
 
     @override
-    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
+    def codegen_stmt(self) -> list[ast.stmt]:
         stmt = ast.Return(self.value.codegen_expr()) if self.value else ast.Return()
         self.locate(stmt)
-        return stmt
+        return [stmt]
 
 
 @dataclass
@@ -79,10 +78,10 @@ class Expr(TermWithLocation):
         return ls.build(lambda layer: Expr(self.location, layer(self.value)))
 
     @override
-    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
+    def codegen_stmt(self) -> list[ast.stmt]:
         stmt = ast.Expr(self.value.codegen_expr())
         self.locate(stmt)
-        return stmt
+        return [stmt]
 
 
 @dataclass
@@ -140,7 +139,7 @@ class FunctionDef(TermWithLocation):
 
     def codegen_function(self, decorator_list: list[ast.expr]) -> ast.FunctionDef:
         params = [ast.arg(arg=cast(Parameter, p).name) for p in self.parameters]
-        body = flatten_statements(b.codegen_stmt() for b in self.body)
+        body = [s for b in self.body for s in b.codegen_stmt()]
         func = ast.FunctionDef(
             name=self.name, args=ast.arguments(args=params), body=body, decorator_list=decorator_list
         )
@@ -154,17 +153,17 @@ class FunctionDef(TermWithLocation):
         return decorator
 
     @override
-    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
+    def codegen_stmt(self) -> list[ast.stmt]:
         if not self.body:
             raise TaplError('Function body is empty.')
         if self.mode is MODE_EVALUATE:
             if not all(isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
                 raise TaplError('All parameter type must be Absence when generating function in evaluate mode.')
-            return self.codegen_function(decorator_list=[])
+            return [self.codegen_function(decorator_list=[])]
         if self.mode is MODE_TYPECHECK:
             if not all(not isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
                 raise TaplError('All parameter type must not be Absence when generating function in type-check mode.')
-            return self.codegen_function(decorator_list=[self.gen_decorator()])
+            return [self.codegen_function(decorator_list=[self.gen_decorator()])]
         raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
 
 
@@ -187,10 +186,10 @@ class Import(TermWithLocation):
         return ls.replicate(self)
 
     @override
-    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
+    def codegen_stmt(self) -> list[ast.stmt]:
         stmt = ast.Import(names=[ast.alias(n.name, n.asname) for n in self.names])
         self.locate(stmt)
-        return stmt
+        return [stmt]
 
 
 @dataclass
@@ -208,12 +207,12 @@ class ImportFrom(TermWithLocation):
         return ls.replicate(self)
 
     @override
-    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
+    def codegen_stmt(self) -> list[ast.stmt]:
         stmt = ast.ImportFrom(
             module=self.module, names=[ast.alias(n.name, n.asname) for n in self.names], level=self.level
         )
         self.locate(stmt)
-        return stmt
+        return [stmt]
 
 
 @dataclass
@@ -250,25 +249,24 @@ class If(TermWithLocation):
         )
 
     @override
-    def codegen_stmt(self) -> ast.stmt | list[ast.stmt]:
+    def codegen_stmt(self) -> list[ast.stmt]:
         if self.mode is MODE_EVALUATE:
             if_stmt = ast.If(
                 test=self.test.codegen_expr(),
-                body=flatten_statements(s.codegen_stmt() for s in self.body),
-                orelse=flatten_statements(s.codegen_stmt() for s in self.orelse),
+                body=[s for b in self.body for s in b.codegen_stmt()],
+                orelse=[s for b in self.orelse for s in b.codegen_stmt()],
             )
             self.locate(if_stmt)
-            return if_stmt
+            return [if_stmt]
         if self.mode is MODE_TYPECHECK:
             test_stmt = ast.Expr(self.test.codegen_expr())
             self.locate(test_stmt)
-            return flatten_statements(
-                (
-                    test_stmt,
-                    flatten_statements(s.codegen_stmt() for s in self.body),
-                    flatten_statements(s.codegen_stmt() for s in self.orelse),
-                )
-            )
+            result: list[ast.stmt] = [test_stmt]
+            for s in self.body:
+                result.extend(s.codegen_stmt())
+            for s in self.orelse:
+                result.extend(s.codegen_stmt())
+            return result
         raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
 
 
@@ -293,5 +291,5 @@ class Module(Term):
 
     @override
     def codegen_ast(self) -> ast.AST:
-        body = flatten_statements(s.codegen_stmt() for s in self.statements)
+        body = [s for b in self.statements for s in b.codegen_stmt()]
         return ast.Module(body=body)

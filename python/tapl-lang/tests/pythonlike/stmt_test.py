@@ -10,7 +10,7 @@ from tapl_lang.chunker import chunk_text
 from tapl_lang.parser import Grammar, parse_text
 from tapl_lang.pythonlike import parser, predef, predef1, stmt
 from tapl_lang.pythonlike.context import PythonlikeContext
-from tapl_lang.syntax import Layers, LayerSeparator, flatten_statements
+from tapl_lang.syntax import Layers, LayerSeparator
 
 predef_layers = [predef, predef1]
 
@@ -26,7 +26,7 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
     separated = ls.separate(parsed)
     separated = ls.build(lambda layer: layer(separated))
     layers = cast(Layers, separated).layers
-    return flatten_statements(layer.codegen_stmt() for layer in layers)
+    return [s for layer in layers for s in layer.codegen_stmt()]
 
 
 def run_stmt(layer_index: int, stmts: list[ast.stmt], /, globals_=None, locals_=None):
