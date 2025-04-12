@@ -20,8 +20,7 @@ class Term:
         )
 
     def separate(self, ls: 'LayerSeparator') -> 'Layers':
-        # TODO: change this to raise NotImplementedError
-        return ls.replicate(self)
+        raise NotImplementedError
 
     def codegen_ast(self) -> ast.AST:
         raise TaplError(f'codegen_ast is not implemented in {self.__class__.__name__}')
@@ -117,6 +116,9 @@ class Mode(Term):
     @override
     def get_errors(self) -> list['ErrorTerm']:
         return []
+
+    def separate(self, ls: 'LayerSeparator') -> Layers:
+        return ls.replicate(self)
 
 
 MODE_EVALUATE = Mode('evaluate')

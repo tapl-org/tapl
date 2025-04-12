@@ -43,6 +43,9 @@ class Constant(TermWithLocation):
     def get_errors(self) -> list[ErrorTerm]:
         return []
 
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.replicate(self)
+
     @override
     def codegen_expr(self) -> ast.expr:
         const = ast.Constant(self.value)
@@ -58,6 +61,9 @@ class Name(TermWithLocation):
     @override
     def get_errors(self) -> list[ErrorTerm]:
         return []
+
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.replicate(self)
 
     @override
     def codegen_expr(self) -> ast.expr:

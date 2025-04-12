@@ -90,6 +90,9 @@ class Absence(Term):
     def get_errors(self) -> list[ErrorTerm]:
         return []
 
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.replicate(self)
+
 
 @dataclass
 class Parameter(TermWithLocation):
