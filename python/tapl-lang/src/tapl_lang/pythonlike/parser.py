@@ -9,39 +9,44 @@ from typing import cast
 from tapl_lang import parser, syntax
 from tapl_lang.parser import Cursor, route
 from tapl_lang.pythonlike import expr, stmt
-from tapl_lang.syntax import ErrorTerm, Layers, Term, TermWithLocation
+from tapl_lang.syntax import ErrorTerm, Layers, Term
 
 # https://docs.python.org/3/reference/grammar.html
 
 
 @dataclass
-class TokenKeyword(TermWithLocation):
+class TokenKeyword(Term):
+    location: syntax.Location
     value: str
 
 
 @dataclass
-class TokenName(TermWithLocation):
+class TokenName(Term):
+    location: syntax.Location
     value: str
 
 
 @dataclass
-class TokenString(TermWithLocation):
+class TokenString(Term):
+    location: syntax.Location
     value: str
 
 
 @dataclass
-class TokenNumber(TermWithLocation):
+class TokenNumber(Term):
+    location: syntax.Location
     value: int
 
 
 @dataclass
-class TokenPunct(TermWithLocation):
+class TokenPunct(Term):
+    location: syntax.Location
     value: str
 
 
 @dataclass
-class TokenEndOfText(TermWithLocation):
-    pass
+class TokenEndOfText(Term):
+    location: syntax.Location
 
 
 @dataclass
@@ -416,7 +421,7 @@ def rule_comparison(c: Cursor) -> Term:
 def rule_inversion__not(c: Cursor) -> Term:
     t = c.start_tracker()
     if t.validate(consume_keyword(c, 'not')) and t.validate(operand := expect_rule(c, 'comparison')):
-        return expr.BoolNot(t.location, operand, mode=syntax.MODE_SAFE)
+        return expr.BoolNot(mode=syntax.MODE_SAFE, location=t.location, operand=operand)
     return t.fail()
 
 
@@ -429,7 +434,7 @@ def rule_conjunction__and(c: Cursor) -> Term:
             c.copy_from(k)
             values.append(right)
         if len(values) > 1:
-            return expr.BoolOp(t.location, 'and', values, mode=syntax.MODE_SAFE)
+            return expr.BoolOp(mode=syntax.MODE_SAFE, location=t.location, op='and', values=values)
     return t.fail()
 
 
@@ -442,7 +447,7 @@ def rule_disjunction__or(c: Cursor) -> Term:
             c.copy_from(k)
             values.append(right)
         if len(values) > 1:
-            return expr.BoolOp(t.location, 'or', values, mode=syntax.MODE_SAFE)
+            return expr.BoolOp(mode=syntax.MODE_SAFE, location=t.location, op='or', values=values)
     return t.fail()
 
 
@@ -464,7 +469,11 @@ def rule_assignment(c: Cursor) -> Term:
 def rule_expression_statement(c: Cursor) -> Term:
     t = c.start_tracker()
     if t.validate(value := c.consume_rule('expression')):
-        return stmt.Expr(cast(TermWithLocation, value).location, value)
+        if hasattr(value, 'location'):
+            location = value.location
+        else:
+            location = t.location
+        return stmt.Expr(location=location, value=value)
     return t.fail()
 
 
@@ -513,7 +522,7 @@ def rule_function_def(c: Cursor) -> Term:
     ):
         name = cast(TokenName, func_name).value
         return stmt.FunctionDef(
-            t.location, name=name, parameters=cast(TermSequence, params).terms, body=[], mode=syntax.MODE_SAFE
+            mode=syntax.MODE_SAFE, location=t.location, name=name, parameters=cast(TermSequence, params).terms, body=[]
         )
     return t.fail()
 
@@ -525,7 +534,7 @@ def rule_if_stmt(c: Cursor) -> Term:
         and t.validate(test := expect_rule(c, 'expression'))
         and t.validate(expect_punct(c, ':'))
     ):
-        return stmt.If(t.location, test, body=[], orelse=[], mode=syntax.MODE_SAFE)
+        return stmt.If(mode=syntax.MODE_SAFE, location=t.location, test=test, body=[], orelse=[])
     return t.fail()
 
 

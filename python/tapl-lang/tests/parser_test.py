@@ -6,21 +6,24 @@ from dataclasses import dataclass
 
 from tapl_lang import parser, syntax
 from tapl_lang.parser import Cursor, route
-from tapl_lang.syntax import Location, Position, Term, TermWithLocation
+from tapl_lang.syntax import Location, Position, Term
 
 
 @dataclass
-class Punct(TermWithLocation):
+class Punct(Term):
+    location: Location
     value: str
 
 
 @dataclass
-class Number(TermWithLocation):
+class Number(Term):
+    location: Location
     value: int
 
 
 @dataclass
-class BinOp(TermWithLocation):
+class BinOp(Term):
+    location: Location
     left: Term
     op: str
     right: Term

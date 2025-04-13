@@ -11,8 +11,9 @@ from tapl_lang.tapl_error import TaplError
 
 
 class Term:
+    # TODO: refactor to gather_errors
     def get_errors(self) -> list['ErrorTerm']:
-        raise NotImplementedError
+        raise TaplError(f'get_errors is not implemented in {self.__class__.__name__}')
 
     def add_child(self, child: 'Term') -> None:
         raise TaplError(
@@ -20,7 +21,8 @@ class Term:
         )
 
     def separate(self, ls: 'LayerSeparator') -> 'Layers':
-        raise NotImplementedError
+        del ls
+        raise TaplError(f'The {self.__class__.__name__} class does not support separate.')
 
     def codegen_ast(self) -> ast.AST:
         raise TaplError(f'codegen_ast is not implemented in {self.__class__.__name__}')
@@ -31,12 +33,16 @@ class Term:
     def codegen_stmt(self) -> list[ast.stmt]:
         raise TaplError(f'codegen_stmt is not implemented in {self.__class__.__name__}')
 
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}()'
 
-@dataclass
+
 class Layers(Term):
-    layers: list[Term]
+    def __init__(self, layers: list[Term]) -> None:
+        self.layers = layers
+        self._validate_layer_count()
 
-    def __post_init__(self) -> None:
+    def _validate_layer_count(self) -> None:
         if len(self.layers) <= 1:
             raise TaplError('Number of terms in Layers must be bigger than 1.')
 
@@ -49,6 +55,7 @@ class Layers(Term):
 
     @override
     def separate(self, ls: 'LayerSeparator') -> 'Layers':
+        self._validate_layer_count()
         actual_count = len(self.layers)
         if actual_count != ls.layer_count:
             raise TaplError(f'Mismatched layer lengths, actual_count={actual_count}, expected_count={ls.layer_count}')
@@ -110,23 +117,6 @@ class LayerSeparator:
 
 
 @dataclass
-class Mode(Term):
-    name: str
-
-    @override
-    def get_errors(self) -> list['ErrorTerm']:
-        return []
-
-    def separate(self, ls: 'LayerSeparator') -> Layers:
-        return ls.replicate(self)
-
-
-MODE_EVALUATE = Mode('evaluate')
-MODE_TYPECHECK = Mode('type check')
-MODE_SAFE = Layers([MODE_EVALUATE, MODE_TYPECHECK])
-
-
-@dataclass
 class Position:
     line: int
     column: int
@@ -135,7 +125,7 @@ class Position:
         return f'{self.line}:{self.column}'
 
 
-@dataclass(kw_only=True)
+@dataclass
 class Location:
     start: Position
     end: Position | None = None
@@ -157,15 +147,8 @@ class Location:
 
 
 @dataclass
-class TermWithLocation(Term):
+class ErrorTerm(Term):
     location: Location
-
-    def locate(self, *nodes: ast.expr | ast.stmt) -> None:
-        self.location.locate(*nodes)
-
-
-@dataclass
-class ErrorTerm(TermWithLocation):
     message: str
     recovered: bool = False
     guess: Term | None = None
@@ -174,6 +157,61 @@ class ErrorTerm(TermWithLocation):
     def get_errors(self) -> list['ErrorTerm']:
         return [self]
 
+
+class Mode(Term):
+    def __init__(self, name: str) -> None:
+        self.name = name
+
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
-        raise TaplError('ErrorTerm does not support separate.')
+    def get_errors(self) -> list['ErrorTerm']:
+        return []
+
+    def separate(self, ls: 'LayerSeparator') -> Layers:
+        return ls.replicate(self)
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.name})'
+
+
+# TODO: move into Mode class as static field
+MODE_EVALUATE = Mode('evaluate')
+MODE_TYPECHECK = Mode('typecheck')
+MODE_SAFE = Layers([MODE_EVALUATE, MODE_TYPECHECK])
+
+
+@dataclass
+class ModeBasedExpression(Term):
+    mode: Term
+
+    def codegen_evaluate(self) -> ast.expr:
+        raise TaplError(f'codegen_evaluate is not implemented in {self.__class__.__name__}')
+
+    def codegen_typecheck(self) -> ast.expr:
+        raise TaplError(f'codegen_typecheck is not implemented in {self.__class__.__name__}')
+
+    @override
+    def codegen_expr(self) -> ast.expr:
+        if self.mode is MODE_EVALUATE:
+            return self.codegen_evaluate()
+        if self.mode is MODE_TYPECHECK:
+            return self.codegen_typecheck()
+        raise TaplError(f'Undefined run mode: {self.mode} term={self.__class__.__name__}')
+
+
+@dataclass
+class ModeBasedStatement(Term):
+    mode: Term
+
+    def codegen_evaluate(self) -> list[ast.stmt]:
+        raise TaplError(f'codegen_stmt_evaluate is not implemented in {self.__class__.__name__}')
+
+    def codegen_typecheck(self) -> list[ast.stmt]:
+        raise TaplError(f'codegen_stmt_typecheck is not implemented in {self.__class__.__name__}')
+
+    @override
+    def codegen_stmt(self) -> list[ast.stmt]:
+        if self.mode is MODE_EVALUATE:
+            return self.codegen_evaluate()
+        if self.mode is MODE_TYPECHECK:
+            return self.codegen_typecheck()
+        raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')

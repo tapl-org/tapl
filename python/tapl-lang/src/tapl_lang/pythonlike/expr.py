@@ -6,7 +6,16 @@ import ast
 from dataclasses import dataclass
 from typing import Any, override
 
-from tapl_lang.syntax import MODE_EVALUATE, MODE_TYPECHECK, ErrorTerm, Layers, LayerSeparator, Term, TermWithLocation
+from tapl_lang.syntax import (
+    MODE_EVALUATE,
+    MODE_TYPECHECK,
+    ErrorTerm,
+    Layers,
+    LayerSeparator,
+    Location,
+    ModeBasedExpression,
+    Term,
+)
 from tapl_lang.tapl_error import TaplError
 
 # Unary 'not' has dedicated 'BoolNot' term
@@ -32,29 +41,33 @@ COMPARE_OP_MAP: dict[str, ast.cmpop] = {
     'in': ast.In(),
     'not in': ast.NotIn(),
 }
-EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': ast.Store(), 'del': ast.Del()}
+EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': ast.Store(), 'delete': ast.Del()}
 
 
+# TODO: create a separate term for each kind of literal, and make it mode based expression
 @dataclass
-class Constant(TermWithLocation):
+class Constant(Term):
+    location: Location
     value: Any
 
     @override
     def get_errors(self) -> list[ErrorTerm]:
         return []
 
+    @override
     def separate(self, ls: LayerSeparator) -> Layers:
         return ls.replicate(self)
 
     @override
     def codegen_expr(self) -> ast.expr:
         const = ast.Constant(self.value)
-        self.locate(const)
+        self.location.locate(const)
         return const
 
 
 @dataclass
-class Name(TermWithLocation):
+class Name(Term):
+    location: Location
     id: str
     ctx: str
 
@@ -62,18 +75,20 @@ class Name(TermWithLocation):
     def get_errors(self) -> list[ErrorTerm]:
         return []
 
+    @override
     def separate(self, ls: LayerSeparator) -> Layers:
         return ls.replicate(self)
 
     @override
     def codegen_expr(self) -> ast.expr:
         name = ast.Name(id=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
-        self.locate(name)
+        self.location.locate(name)
         return name
 
 
 @dataclass
-class Attribute(TermWithLocation):
+class Attribute(Term):
+    location: Location
     value: Term
     attr: str
     ctx: str
@@ -90,12 +105,13 @@ class Attribute(TermWithLocation):
     @override
     def codegen_expr(self) -> ast.expr:
         attr = ast.Attribute(self.value.codegen_expr(), attr=self.attr, ctx=EXPR_CONTEXT_MAP[self.ctx])
-        self.locate(attr)
+        self.location.locate(attr)
         return attr
 
 
 @dataclass
-class UnaryOp(TermWithLocation):
+class UnaryOp(Term):
+    location: Location
     op: str
     operand: Term
 
@@ -111,12 +127,13 @@ class UnaryOp(TermWithLocation):
     def codegen_expr(self) -> ast.expr:
         operand = self.operand.codegen_expr()
         unary = ast.UnaryOp(UNARY_OP_MAP[self.op], operand)
-        self.locate(unary)
+        self.location.locate(unary)
         return unary
 
 
 @dataclass
-class BoolNot(TermWithLocation):
+class BoolNot(Term):
+    location: Location
     operand: Term
     mode: Term
 
@@ -133,21 +150,21 @@ class BoolNot(TermWithLocation):
         if self.mode is MODE_EVALUATE:
             operand = self.operand.codegen_expr()
             unary = ast.UnaryOp(ast.Not(), operand)
-            self.locate(unary)
+            self.location.locate(unary)
             return unary
         if self.mode is MODE_TYPECHECK:
             # unary not operator always returns Bool type
             bool_type = ast.Name(id='Bool', ctx=ast.Load())
-            self.locate(bool_type)
+            self.location.locate(bool_type)
             return bool_type
         raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
 
 
 @dataclass
-class BoolOp(TermWithLocation):
+class BoolOp(ModeBasedExpression):
+    location: Location
     op: str
     values: list[Term]
-    mode: Term
 
     @override
     def get_errors(self) -> list[ErrorTerm]:
@@ -158,24 +175,25 @@ class BoolOp(TermWithLocation):
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.build(lambda layer: BoolOp(self.location, self.op, [layer(v) for v in self.values], layer(self.mode)))
+        return ls.build(lambda layer: BoolOp(layer(self.mode), self.location, self.op, [layer(v) for v in self.values]))
 
     @override
-    def codegen_expr(self) -> ast.expr:
-        if self.mode is MODE_EVALUATE:
-            op = ast.BoolOp(BOOL_OP_MAP[self.op], [v.codegen_expr() for v in self.values])
-            self.locate(op)
-            return op
-        if self.mode is MODE_TYPECHECK:
-            create_union = ast.Name(id='create_union', ctx=ast.Load())
-            call = ast.Call(func=create_union, args=[v.codegen_expr() for v in self.values])
-            self.locate(create_union, call)
-            return call
-        raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
+    def codegen_evaluate(self) -> ast.expr:
+        op = ast.BoolOp(BOOL_OP_MAP[self.op], [v.codegen_expr() for v in self.values])
+        self.location.locate(op)
+        return op
+
+    @override
+    def codegen_typecheck(self) -> ast.expr:
+        create_union = ast.Name(id='create_union', ctx=ast.Load())
+        call = ast.Call(func=create_union, args=[v.codegen_expr() for v in self.values])
+        self.location.locate(create_union, call)
+        return call
 
 
 @dataclass
-class BinOp(TermWithLocation):
+class BinOp(Term):
+    location: Location
     left: Term
     op: str
     right: Term
@@ -191,12 +209,13 @@ class BinOp(TermWithLocation):
     @override
     def codegen_expr(self) -> ast.expr:
         op = ast.BinOp(self.left.codegen_expr(), BIN_OP_MAP[self.op], self.right.codegen_expr())
-        self.locate(op)
+        self.location.locate(op)
         return op
 
 
 @dataclass
-class Compare(TermWithLocation):
+class Compare(Term):
+    location: Location
     left: Term
     ops: list[str]
     comparators: list[Term]
@@ -221,12 +240,13 @@ class Compare(TermWithLocation):
             [COMPARE_OP_MAP[op] for op in self.ops],
             [v.codegen_expr() for v in self.comparators],
         )
-        self.locate(compare)
+        self.location.locate(compare)
         return compare
 
 
 @dataclass
-class Call(TermWithLocation):
+class Call(Term):
+    location: Location
     func: Term
     args: list[Term]
 
@@ -244,5 +264,5 @@ class Call(TermWithLocation):
     @override
     def codegen_expr(self) -> ast.expr:
         call = ast.Call(self.func.codegen_expr(), [v.codegen_expr() for v in self.args])
-        self.locate(call)
+        self.location.locate(call)
         return call

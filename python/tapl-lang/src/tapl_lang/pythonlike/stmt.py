@@ -7,19 +7,19 @@ from dataclasses import dataclass, field
 from typing import cast, override
 
 from tapl_lang.syntax import (
-    MODE_EVALUATE,
-    MODE_TYPECHECK,
     ErrorTerm,
     Layers,
     LayerSeparator,
+    Location,
+    ModeBasedStatement,
     Term,
-    TermWithLocation,
 )
 from tapl_lang.tapl_error import TaplError
 
 
 @dataclass
-class Assign(TermWithLocation):
+class Assign(Term):
+    location: Location
     targets: list[Term]
     value: Term
 
@@ -37,12 +37,13 @@ class Assign(TermWithLocation):
     @override
     def codegen_stmt(self) -> list[ast.stmt]:
         stmt = ast.Assign(targets=[t.codegen_expr() for t in self.targets], value=self.value.codegen_expr())
-        self.locate(stmt)
+        self.location.locate(stmt)
         return [stmt]
 
 
 @dataclass
-class Return(TermWithLocation):
+class Return(Term):
+    location: Location
     value: Term | None
 
     @override
@@ -61,12 +62,13 @@ class Return(TermWithLocation):
     @override
     def codegen_stmt(self) -> list[ast.stmt]:
         stmt = ast.Return(self.value.codegen_expr()) if self.value else ast.Return()
-        self.locate(stmt)
+        self.location.locate(stmt)
         return [stmt]
 
 
 @dataclass
-class Expr(TermWithLocation):
+class Expr(Term):
+    location: Location
     value: Term
 
     @override
@@ -80,7 +82,7 @@ class Expr(TermWithLocation):
     @override
     def codegen_stmt(self) -> list[ast.stmt]:
         stmt = ast.Expr(self.value.codegen_expr())
-        self.locate(stmt)
+        self.location.locate(stmt)
         return [stmt]
 
 
@@ -95,7 +97,8 @@ class Absence(Term):
 
 
 @dataclass
-class Parameter(TermWithLocation):
+class Parameter(Term):
+    location: Location
     name: str
     type_: Term
 
@@ -109,7 +112,8 @@ class Parameter(TermWithLocation):
 
 
 @dataclass
-class FunctionDef(TermWithLocation):
+class FunctionDef(ModeBasedStatement):
+    location: Location
     name: str
     parameters: list[Term]
     body: list[Term]
@@ -132,11 +136,11 @@ class FunctionDef(TermWithLocation):
     def separate(self, ls: LayerSeparator) -> Layers:
         return ls.build(
             lambda layer: FunctionDef(
+                layer(self.mode),
                 self.location,
                 self.name,
                 [layer(p) for p in self.parameters],
                 [layer(s) for s in self.body],
-                layer(self.mode),
             )
         )
 
@@ -146,28 +150,26 @@ class FunctionDef(TermWithLocation):
         func = ast.FunctionDef(
             name=self.name, args=ast.arguments(args=params), body=body, decorator_list=decorator_list
         )
-        self.locate(func)
+        self.location.locate(func)
         return func
 
     def gen_decorator(self) -> ast.expr:
         func = ast.Name('function_type', ctx=ast.Load())
         decorator = ast.Call(func=func, args=[cast(Parameter, p).type_.codegen_expr() for p in self.parameters])
-        self.locate(func, decorator)
+        self.location.locate(func, decorator)
         return decorator
 
     @override
-    def codegen_stmt(self) -> list[ast.stmt]:
-        if not self.body:
-            raise TaplError('Function body is empty.')
-        if self.mode is MODE_EVALUATE:
-            if not all(isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
-                raise TaplError('All parameter type must be Absence when generating function in evaluate mode.')
-            return [self.codegen_function(decorator_list=[])]
-        if self.mode is MODE_TYPECHECK:
-            if not all(not isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
-                raise TaplError('All parameter type must not be Absence when generating function in type-check mode.')
-            return [self.codegen_function(decorator_list=[self.gen_decorator()])]
-        raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
+    def codegen_evaluate(self) -> list[ast.stmt]:
+        if not all(isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
+            raise TaplError('All parameter type must be Absence when generating function in evaluate mode.')
+        return [self.codegen_function(decorator_list=[])]
+
+    @override
+    def codegen_typecheck(self) -> list[ast.stmt]:
+        if not all(not isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
+            raise TaplError('All parameter type must not be Absence when generating function in type-check mode.')
+        return [self.codegen_function(decorator_list=[self.gen_decorator()])]
 
 
 @dataclass
@@ -177,7 +179,8 @@ class Alias:
 
 
 @dataclass
-class Import(TermWithLocation):
+class Import(Term):
+    location: Location
     names: list[Alias]
 
     @override
@@ -191,12 +194,13 @@ class Import(TermWithLocation):
     @override
     def codegen_stmt(self) -> list[ast.stmt]:
         stmt = ast.Import(names=[ast.alias(n.name, n.asname) for n in self.names])
-        self.locate(stmt)
+        self.location.locate(stmt)
         return [stmt]
 
 
 @dataclass
-class ImportFrom(TermWithLocation):
+class ImportFrom(Term):
+    location: Location
     module: str | None
     names: list[Alias]
     level: int
@@ -214,12 +218,13 @@ class ImportFrom(TermWithLocation):
         stmt = ast.ImportFrom(
             module=self.module, names=[ast.alias(n.name, n.asname) for n in self.names], level=self.level
         )
-        self.locate(stmt)
+        self.location.locate(stmt)
         return [stmt]
 
 
 @dataclass
-class If(TermWithLocation):
+class If(ModeBasedStatement):
+    location: Location
     test: Term
     body: list[Term]
     orelse: list[Term]
@@ -243,34 +248,34 @@ class If(TermWithLocation):
     def separate(self, ls: LayerSeparator) -> Layers:
         return ls.build(
             lambda layer: If(
-                self.location,
+                mode=layer(self.mode),
+                location=self.location,
                 test=layer(self.test),
                 body=[layer(s) for s in self.body],
                 orelse=[layer(s) for s in self.orelse],
-                mode=layer(self.mode),
             )
         )
 
     @override
-    def codegen_stmt(self) -> list[ast.stmt]:
-        if self.mode is MODE_EVALUATE:
-            if_stmt = ast.If(
-                test=self.test.codegen_expr(),
-                body=[s for b in self.body for s in b.codegen_stmt()],
-                orelse=[s for b in self.orelse for s in b.codegen_stmt()],
-            )
-            self.locate(if_stmt)
-            return [if_stmt]
-        if self.mode is MODE_TYPECHECK:
-            test_stmt = ast.Expr(self.test.codegen_expr())
-            self.locate(test_stmt)
-            result: list[ast.stmt] = [test_stmt]
-            for s in self.body:
-                result.extend(s.codegen_stmt())
-            for s in self.orelse:
-                result.extend(s.codegen_stmt())
-            return result
-        raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
+    def codegen_evaluate(self) -> list[ast.stmt]:
+        if_stmt = ast.If(
+            test=self.test.codegen_expr(),
+            body=[s for b in self.body for s in b.codegen_stmt()],
+            orelse=[s for b in self.orelse for s in b.codegen_stmt()],
+        )
+        self.location.locate(if_stmt)
+        return [if_stmt]
+
+    @override
+    def codegen_typecheck(self) -> list[ast.stmt]:
+        test_stmt = ast.Expr(self.test.codegen_expr())
+        self.location.locate(test_stmt)
+        result: list[ast.stmt] = [test_stmt]
+        for s in self.body:
+            result.extend(s.codegen_stmt())
+        for s in self.orelse:
+            result.extend(s.codegen_stmt())
+        return result
 
 
 @dataclass
