@@ -7,8 +7,6 @@ from dataclasses import dataclass
 from typing import Any, override
 
 from tapl_lang.syntax import (
-    MODE_EVALUATE,
-    MODE_TYPECHECK,
     ErrorTerm,
     Layers,
     LayerSeparator,
@@ -16,7 +14,6 @@ from tapl_lang.syntax import (
     ModeBasedExpression,
     Term,
 )
-from tapl_lang.tapl_error import TaplError
 
 # Unary 'not' has dedicated 'BoolNot' term
 UNARY_OP_MAP: dict[str, ast.unaryop] = {'+': ast.UAdd(), '-': ast.USub(), '~': ast.Invert()}
@@ -51,8 +48,8 @@ class Constant(Term):
     value: Any
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        return []
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        pass
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
@@ -72,8 +69,8 @@ class Name(Term):
     ctx: str
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        return []
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        pass
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
@@ -94,8 +91,8 @@ class Attribute(Term):
     ctx: str
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        return self.value.get_errors()
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        self.value.gather_errors(error_bucket)
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
@@ -116,8 +113,8 @@ class UnaryOp(Term):
     operand: Term
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        return self.operand.get_errors()
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        self.operand.gather_errors(error_bucket)
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
@@ -132,32 +129,33 @@ class UnaryOp(Term):
 
 
 @dataclass
-class BoolNot(Term):
+class BoolNot(ModeBasedExpression):
     location: Location
     operand: Term
-    mode: Term
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        return self.operand.get_errors() + self.mode.get_errors()
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        self.operand.gather_errors(error_bucket)
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.build(lambda layer: BoolNot(self.location, layer(self.operand), layer(self.mode)))
+        return ls.build(
+            lambda layer: BoolNot(mode=layer(self.mode), location=self.location, operand=layer(self.operand))
+        )
 
     @override
-    def codegen_expr(self) -> ast.expr:
-        if self.mode is MODE_EVALUATE:
-            operand = self.operand.codegen_expr()
-            unary = ast.UnaryOp(ast.Not(), operand)
-            self.location.locate(unary)
-            return unary
-        if self.mode is MODE_TYPECHECK:
-            # unary not operator always returns Bool type
-            bool_type = ast.Name(id='Bool', ctx=ast.Load())
-            self.location.locate(bool_type)
-            return bool_type
-        raise TaplError(f'Run mode not found. {self.mode} term={self.__class__.__name__}')
+    def codegen_evaluate(self):
+        operand = self.operand.codegen_expr()
+        unary = ast.UnaryOp(ast.Not(), operand)
+        self.location.locate(unary)
+        return unary
+
+    @override
+    def codegen_typecheck(self):
+        # unary not operator always returns Bool type
+        bool_type = ast.Name(id='Bool', ctx=ast.Load())
+        self.location.locate(bool_type)
+        return bool_type
 
 
 @dataclass
@@ -167,15 +165,17 @@ class BoolOp(ModeBasedExpression):
     values: list[Term]
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        result = self.mode.get_errors()
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
         for v in self.values:
-            result.extend(v.get_errors())
-        return result
+            v.gather_errors(error_bucket)
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.build(lambda layer: BoolOp(layer(self.mode), self.location, self.op, [layer(v) for v in self.values]))
+        return ls.build(
+            lambda layer: BoolOp(
+                mode=layer(self.mode), location=self.location, op=self.op, values=[layer(v) for v in self.values]
+            )
+        )
 
     @override
     def codegen_evaluate(self) -> ast.expr:
@@ -199,12 +199,15 @@ class BinOp(Term):
     right: Term
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        return self.left.get_errors() + self.right.get_errors()
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        self.left.gather_errors(error_bucket)
+        self.right.gather_errors(error_bucket)
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.build(lambda layer: BinOp(self.location, layer(self.left), self.op, layer(self.right)))
+        return ls.build(
+            lambda layer: BinOp(location=self.location, left=layer(self.left), op=self.op, right=layer(self.right))
+        )
 
     @override
     def codegen_expr(self) -> ast.expr:
@@ -221,16 +224,20 @@ class Compare(Term):
     comparators: list[Term]
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        result = self.left.get_errors()
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        self.left.gather_errors(error_bucket)
         for v in self.comparators:
-            result.extend(v.get_errors())
-        return result
+            v.gather_errors(error_bucket)
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
         return ls.build(
-            lambda layer: Compare(self.location, layer(self.left), self.ops, [layer(v) for v in self.comparators])
+            lambda layer: Compare(
+                location=self.location,
+                left=layer(self.left),
+                ops=self.ops,
+                comparators=[layer(v) for v in self.comparators],
+            )
         )
 
     @override
@@ -251,15 +258,16 @@ class Call(Term):
     args: list[Term]
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        result = self.func.get_errors()
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        self.func.gather_errors(error_bucket)
         for v in self.args:
-            result.extend(v.get_errors())
-        return result
+            v.gather_errors(error_bucket)
 
     @override
     def separate(self, ls):
-        return ls.build(lambda layer: Call(self.location, layer(self.func), [layer(v) for v in self.args]))
+        return ls.build(
+            lambda layer: Call(location=self.location, func=layer(self.func), args=[layer(v) for v in self.args])
+        )
 
     @override
     def codegen_expr(self) -> ast.expr:

@@ -10,7 +10,7 @@ from tapl_lang.chunker import chunk_text
 from tapl_lang.parser import Grammar, parse_text
 from tapl_lang.pythonlike import parser, predef, predef1, stmt
 from tapl_lang.pythonlike.context import PythonlikeContext
-from tapl_lang.syntax import Layers, LayerSeparator
+from tapl_lang.syntax import ErrorTerm, Layers, LayerSeparator
 
 predef_layers = [predef, predef1]
 
@@ -19,8 +19,10 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
     parsed = parse_text(text, Grammar(parser.RULES, 'statement'), debug=debug)
     if parsed is None:
         raise RuntimeError('Parser returns None.')
-    if errors := parsed.get_errors():
-        messages = [e.message for e in errors]
+    error_bucket: list[ErrorTerm] = []
+    parsed.gather_errors(error_bucket)
+    if error_bucket:
+        messages = [e.message for e in error_bucket]
         raise SyntaxError('\n\n'.join(messages))
     ls = LayerSeparator(2)
     separated = ls.separate(parsed)

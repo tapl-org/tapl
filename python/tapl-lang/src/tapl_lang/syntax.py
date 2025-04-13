@@ -11,9 +11,9 @@ from tapl_lang.tapl_error import TaplError
 
 
 class Term:
-    # TODO: refactor to gather_errors
-    def get_errors(self) -> list['ErrorTerm']:
-        raise TaplError(f'get_errors is not implemented in {self.__class__.__name__}')
+    def gather_errors(self, error_bucket: list['ErrorTerm']) -> None:
+        del error_bucket
+        raise TaplError(f'gather_errors is not implemented in {self.__class__.__name__}')
 
     def add_child(self, child: 'Term') -> None:
         raise TaplError(
@@ -44,14 +44,12 @@ class Layers(Term):
 
     def _validate_layer_count(self) -> None:
         if len(self.layers) <= 1:
-            raise TaplError('Number of terms in Layers must be bigger than 1.')
+            raise TaplError('Number of layers must be equal or greater than 2.')
 
     @override
-    def get_errors(self) -> list['ErrorTerm']:
-        result = []
+    def gather_errors(self, error_bucket: list['ErrorTerm']) -> None:
         for layer in self.layers:
-            result.extend(layer.get_errors())
-        return result
+            layer.gather_errors(error_bucket)
 
     @override
     def separate(self, ls: 'LayerSeparator') -> 'Layers':
@@ -77,16 +75,17 @@ class Realm(Term):
     term: Term
 
     @override
-    def get_errors(self):
-        return self.term.get_errors()
+    def gather_errors(self, error_bucket: list['ErrorTerm']) -> None:
+        self.term.gather_errors(error_bucket)
 
 
 class LayerSeparator:
     def __init__(self, layer_count: int) -> None:
         if layer_count <= 1:
-            raise TaplError('layer_count must be equal or greater than 2.')
+            raise TaplError('layer_count must be equal or greater than 2 to separate.')
         self.layer_count = layer_count
 
+    # TODO: deprecate this method, because mutable term shared among layers.
     def replicate(self, term: Term) -> Layers:
         return Layers(layers=[term for _ in range(self.layer_count)])
 
@@ -154,8 +153,8 @@ class ErrorTerm(Term):
     guess: Term | None = None
 
     @override
-    def get_errors(self) -> list['ErrorTerm']:
-        return [self]
+    def gather_errors(self, error_bucket: list['ErrorTerm']) -> None:
+        error_bucket.append(self)
 
 
 class Mode(Term):
@@ -163,8 +162,8 @@ class Mode(Term):
         self.name = name
 
     @override
-    def get_errors(self) -> list['ErrorTerm']:
-        return []
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        pass
 
     def separate(self, ls: 'LayerSeparator') -> Layers:
         return ls.replicate(self)

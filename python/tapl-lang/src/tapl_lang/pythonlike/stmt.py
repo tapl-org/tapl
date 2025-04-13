@@ -24,15 +24,18 @@ class Assign(Term):
     value: Term
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        result = self.value.get_errors()
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
         for t in self.targets:
-            result.extend(t.get_errors())
-        return result
+            t.gather_errors(error_bucket)
+        self.value.gather_errors(error_bucket)
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.build(lambda layer: Assign(self.location, [layer(t) for t in self.targets], layer(self.value)))
+        return ls.build(
+            lambda layer: Assign(
+                location=self.location, targets=[layer(t) for t in self.targets], value=layer(self.value)
+            )
+        )
 
     @override
     def codegen_stmt(self) -> list[ast.stmt]:
@@ -47,16 +50,15 @@ class Return(Term):
     value: Term | None
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
         if self.value:
-            return self.value.get_errors()
-        return []
+            self.value.gather_errors(error_bucket)
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
         if self.value:
             value = self.value  # hack: python type check could not narrow the self.value from Term|None to Term
-            return ls.build(lambda layer: Return(self.location, layer(value)))
+            return ls.build(lambda layer: Return(location=self.location, value=layer(value)))
         return ls.replicate(self)
 
     @override
@@ -72,8 +74,8 @@ class Expr(Term):
     value: Term
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        return self.value.get_errors()
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        self.value.gather_errors(error_bucket)
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
@@ -89,8 +91,8 @@ class Expr(Term):
 @dataclass
 class Absence(Term):
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        return []
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        pass
 
     def separate(self, ls: LayerSeparator) -> Layers:
         return ls.replicate(self)
@@ -103,8 +105,8 @@ class Parameter(Term):
     type_: Term
 
     @override
-    def get_errors(self):
-        return self.type_.get_errors()
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        self.type_.gather_errors(error_bucket)
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
@@ -117,16 +119,13 @@ class FunctionDef(ModeBasedStatement):
     name: str
     parameters: list[Term]
     body: list[Term]
-    mode: Term
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        result = self.mode.get_errors()
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
         for p in self.parameters:
-            result.extend(p.get_errors())
+            p.gather_errors(error_bucket)
         for s in self.body:
-            result.extend(s.get_errors())
-        return result
+            s.gather_errors(error_bucket)
 
     @override
     def add_child(self, child: Term) -> None:
@@ -136,11 +135,11 @@ class FunctionDef(ModeBasedStatement):
     def separate(self, ls: LayerSeparator) -> Layers:
         return ls.build(
             lambda layer: FunctionDef(
-                layer(self.mode),
-                self.location,
-                self.name,
-                [layer(p) for p in self.parameters],
-                [layer(s) for s in self.body],
+                mode=layer(self.mode),
+                location=self.location,
+                name=self.name,
+                parameters=[layer(p) for p in self.parameters],
+                body=[layer(s) for s in self.body],
             )
         )
 
@@ -184,8 +183,8 @@ class Import(Term):
     names: list[Alias]
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        return []
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        pass
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
@@ -206,8 +205,8 @@ class ImportFrom(Term):
     level: int
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        return []
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        pass
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
@@ -228,17 +227,14 @@ class If(ModeBasedStatement):
     test: Term
     body: list[Term]
     orelse: list[Term]
-    mode: Term
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        result = []
-        result.extend(self.test.get_errors())
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        self.test.gather_errors(error_bucket)
         for s in self.body:
-            result.extend(s.get_errors())
+            s.gather_errors(error_bucket)
         for s in self.orelse:
-            result.extend(s.get_errors())
-        return result
+            s.gather_errors(error_bucket)
 
     @override
     def add_child(self, child: Term) -> None:
@@ -283,11 +279,9 @@ class Module(Term):
     statements: list[Term] = field(default_factory=list)
 
     @override
-    def get_errors(self) -> list[ErrorTerm]:
-        result = []
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
         for s in self.statements:
-            result.extend(s.get_errors())
-        return result
+            s.gather_errors(error_bucket)
 
     @override
     def add_child(self, child: Term) -> None:
