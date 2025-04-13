@@ -126,10 +126,9 @@ class Location:
     end: Position | None = None
 
     def __repr__(self) -> str:
-        # TODO: dash character is not intuitive to know that start or end is missing
         start = repr(self.start) if self.start else '-'
         end = repr(self.end) if self.end else '-'
-        return f'{start}|{end}'
+        return f'({start},{end})'
 
     def locate(self, *nodes: ast.expr | ast.stmt) -> None:
         for node in nodes:
