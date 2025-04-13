@@ -47,6 +47,7 @@ class Assign(Term):
 @dataclass
 class Return(Term):
     location: Location
+    # TODO: make the value non-optional
     value: Term | None
 
     @override
@@ -59,7 +60,7 @@ class Return(Term):
         if self.value:
             value = self.value  # hack: python type check could not narrow the self.value from Term|None to Term
             return ls.build(lambda layer: Return(location=self.location, value=layer(value)))
-        return ls.replicate(self)
+        return ls.build(lambda _: Return(location=self.location, value=None))
 
     @override
     def codegen_stmt(self) -> list[ast.stmt]:
@@ -79,7 +80,7 @@ class Expr(Term):
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.build(lambda layer: Expr(self.location, layer(self.value)))
+        return ls.build(lambda layer: Expr(location=self.location, value=layer(self.value)))
 
     @override
     def codegen_stmt(self) -> list[ast.stmt]:
@@ -95,7 +96,7 @@ class Absence(Term):
         pass
 
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.replicate(self)
+        return ls.build(lambda _: Absence())
 
 
 @dataclass
@@ -110,7 +111,7 @@ class Parameter(Term):
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.build(lambda layer: Parameter(self.location, self.name, layer(self.type_)))
+        return ls.build(lambda layer: Parameter(location=self.location, name=self.name, type_=layer(self.type_)))
 
 
 @dataclass
@@ -188,7 +189,9 @@ class Import(Term):
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.replicate(self)
+        return ls.build(
+            lambda _: Import(location=self.location, names=[Alias(name=n.name, asname=n.asname) for n in self.names])
+        )
 
     @override
     def codegen_stmt(self) -> list[ast.stmt]:
@@ -210,7 +213,14 @@ class ImportFrom(Term):
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.replicate(self)
+        return ls.build(
+            lambda _: ImportFrom(
+                location=self.location,
+                module=self.module,
+                names=[Alias(name=n.name, asname=n.asname) for n in self.names],
+                level=self.level,
+            )
+        )
 
     @override
     def codegen_stmt(self) -> list[ast.stmt]:

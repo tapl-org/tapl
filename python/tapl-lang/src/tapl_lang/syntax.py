@@ -85,10 +85,6 @@ class LayerSeparator:
             raise TaplError('layer_count must be equal or greater than 2 to separate.')
         self.layer_count = layer_count
 
-    # TODO: deprecate this method, because mutable term shared among layers.
-    def replicate(self, term: Term) -> Layers:
-        return Layers(layers=[term for _ in range(self.layer_count)])
-
     def build(self, factory: Callable[[Callable[[Term], Term]], Term]) -> Layers:
         memo = []
         memo_index = [0]
@@ -166,7 +162,7 @@ class Mode(Term):
         pass
 
     def separate(self, ls: 'LayerSeparator') -> Layers:
-        return ls.replicate(self)
+        return ls.build(lambda _: Mode(name=self.name))
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.name})'

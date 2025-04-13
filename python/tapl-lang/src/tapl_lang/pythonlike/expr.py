@@ -53,7 +53,7 @@ class Constant(Term):
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.replicate(self)
+        return ls.build(lambda _: Constant(location=self.location, value=self.value))
 
     @override
     def codegen_expr(self) -> ast.expr:
@@ -74,7 +74,7 @@ class Name(Term):
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.replicate(self)
+        return ls.build(lambda _: Name(location=self.location, id=self.id, ctx=self.ctx))
 
     @override
     def codegen_expr(self) -> ast.expr:
@@ -96,7 +96,9 @@ class Attribute(Term):
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.build(lambda layer: Attribute(self.location, layer(self.value), self.attr, self.ctx))
+        return ls.build(
+            lambda layer: Attribute(location=self.location, value=layer(self.value), attr=self.attr, ctx=self.ctx)
+        )
 
     # TODO: Attribute must have a type layer to check attribute exists or not
     @override
@@ -118,7 +120,7 @@ class UnaryOp(Term):
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.build(lambda layer: UnaryOp(self.location, self.op, layer(self.operand)))
+        return ls.build(lambda layer: UnaryOp(location=self.location, op=self.op, operand=layer(self.operand)))
 
     @override
     def codegen_expr(self) -> ast.expr:
