@@ -309,27 +309,23 @@ def rule_atom__bool(c: Cursor) -> Term:
         location = token.location
         if token.value in ('True', 'False'):
             value = token.value == 'True'
-            return Layers([expr.Constant(location, value=value), expr.Name(location, id='Bool', ctx='load')])
+            return expr.BooleanLiteral(location, value=value)
         if token.value == 'None':
-            return Layers([expr.Constant(location, value=None), expr.Name(location, id='NoneType', ctx='load')])
+            return expr.NoneLiteral(location)
     return t.fail()
 
 
 def rule_atom__string(c: Cursor) -> Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule('token')) and isinstance(token, TokenString):
-        return Layers(
-            [expr.Constant(token.location, value=token.value), expr.Name(token.location, id='Str', ctx='load')]
-        )
+        return expr.StringLiteral(token.location, value=token.value)
     return t.fail()
 
 
 def rule_atom__number(c: Cursor) -> Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule('token')) and isinstance(token, TokenNumber):
-        return Layers(
-            [expr.Constant(token.location, value=token.value), expr.Name(token.location, id='Int', ctx='load')]
-        )
+        return expr.IntegerLiteral(token.location, value=token.value)
     return t.fail()
 
 

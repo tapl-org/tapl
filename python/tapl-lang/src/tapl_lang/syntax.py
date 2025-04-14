@@ -167,7 +167,6 @@ class Mode(Term):
         return f'{self.__class__.__name__}({self.name})'
 
 
-# TODO: move into Mode class as static field
 MODE_EVALUATE = Mode('evaluate')
 MODE_TYPECHECK = Mode('typecheck')
 MODE_SAFE = Layers([MODE_EVALUATE, MODE_TYPECHECK])

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, override
 
 from tapl_lang.syntax import (
+    MODE_SAFE,
     ErrorTerm,
     Layers,
     LayerSeparator,
@@ -41,7 +42,6 @@ COMPARE_OP_MAP: dict[str, ast.cmpop] = {
 EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': ast.Store(), 'delete': ast.Del()}
 
 
-# TODO: create a separate term for each kind of literal, and make it mode based expression
 @dataclass
 class Constant(Term):
     location: Location
@@ -106,6 +106,54 @@ class Attribute(Term):
         attr = ast.Attribute(self.value.codegen_expr(), attr=self.attr, ctx=EXPR_CONTEXT_MAP[self.ctx])
         self.location.locate(attr)
         return attr
+
+
+@dataclass
+class Literal(Term):
+    location: Location
+
+    @override
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        pass
+
+    def typeit(self, ls: LayerSeparator, value: Any, type_id: str) -> Layers:
+        if ls.layer_count != len(MODE_SAFE.layers):
+            raise ValueError('NoneLiteral must be separated in 2 layers')
+        return Layers([Constant(self.location, value=value), Name(self.location, id=type_id, ctx='load')])
+
+
+@dataclass
+class NoneLiteral(Literal):
+    @override
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return self.typeit(ls, value=None, type_id='NoneType')
+
+
+@dataclass
+class BooleanLiteral(Literal):
+    value: bool
+
+    @override
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return self.typeit(ls, value=self.value, type_id='Bool')
+
+
+@dataclass
+class IntegerLiteral(Literal):
+    value: int
+
+    @override
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return self.typeit(ls, value=self.value, type_id='Int')
+
+
+@dataclass
+class StringLiteral(Literal):
+    value: str
+
+    @override
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return self.typeit(ls, value=self.value, type_id='Str')
 
 
 @dataclass
