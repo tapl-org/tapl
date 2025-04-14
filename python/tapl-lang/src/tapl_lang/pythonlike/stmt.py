@@ -47,8 +47,7 @@ class Assign(Term):
 @dataclass
 class Return(Term):
     location: Location
-    # TODO: make the value non-optional
-    value: Term | None
+    value: Term
 
     @override
     def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
@@ -57,10 +56,7 @@ class Return(Term):
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        if self.value:
-            value = self.value  # hack: python type check could not narrow the self.value from Term|None to Term
-            return ls.build(lambda layer: Return(location=self.location, value=layer(value)))
-        return ls.build(lambda _: Return(location=self.location, value=None))
+        return ls.build(lambda layer: Return(location=self.location, value=layer(self.value)))
 
     @override
     def codegen_stmt(self) -> list[ast.stmt]:

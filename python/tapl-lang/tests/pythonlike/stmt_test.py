@@ -58,8 +58,8 @@ def test_assign1():
 
 def test_return1():
     [stmt1, stmt2] = parse_stmt('return')
-    assert ast.unparse(stmt1) == 'return'
-    assert ast.unparse(stmt2) == 'return'
+    assert ast.unparse(stmt1) == 'return None'
+    assert ast.unparse(stmt2) == 'return NoneType'
 
 
 def test_return2():

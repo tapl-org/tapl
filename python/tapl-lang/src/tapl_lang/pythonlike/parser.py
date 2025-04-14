@@ -478,7 +478,7 @@ def rule_return(c: Cursor) -> Term:
     if t.validate(consume_keyword(c, 'return')):
         if t.validate(value := c.consume_rule('expression')):
             return stmt.Return(t.location, value=value)
-        return t.captured_error or stmt.Return(t.location, value=None)
+        return t.captured_error or stmt.Return(t.location, value=expr.NoneLiteral(t.location))
     return t.fail()
 
 
