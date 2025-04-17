@@ -3,29 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import ast
-from collections.abc import Callable, Generator
-from contextlib import contextmanager
-from contextvars import ContextVar
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import cast, override
 
 from tapl_lang.tapl_error import TaplError
-
-_SCOPE_LEVEL: ContextVar[int] = ContextVar('scope_name', default=0)
-
-
-@contextmanager
-def new_scope_name() -> Generator[None, None, None]:
-    old_level = _SCOPE_LEVEL.get()
-    _SCOPE_LEVEL.set(old_level + 1)
-    try:
-        yield
-    finally:
-        _SCOPE_LEVEL.set(old_level)
-
-
-def get_scope_name() -> str:
-    return f'scope{_SCOPE_LEVEL.get()}'
 
 
 class Term:

@@ -6,6 +6,7 @@ import ast
 from dataclasses import dataclass
 from typing import Any, override
 
+from tapl_lang import codegen_setting
 from tapl_lang.syntax import (
     MODE_SAFE,
     MODE_TYPECHECK,
@@ -15,7 +16,6 @@ from tapl_lang.syntax import (
     Location,
     Term,
     TypedExpression,
-    get_scope_name,
 )
 
 # Unary 'not' has dedicated 'BoolNot' term
@@ -87,7 +87,7 @@ class Name(TypedExpression):
 
     @override
     def codegen_typecheck(self) -> ast.expr:
-        scope = ast.Name(id=get_scope_name(), ctx=ast.Load())
+        scope = ast.Name(id=codegen_setting.get_scope_name(), ctx=ast.Load())
         attr = ast.Attribute(value=scope, attr=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
         self.location.locate(scope, scope, attr)
         return attr
