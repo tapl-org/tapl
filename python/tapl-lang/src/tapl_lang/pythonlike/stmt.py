@@ -11,10 +11,28 @@ from tapl_lang.syntax import (
     Layers,
     LayerSeparator,
     Location,
-    ModeBasedStatement,
     Term,
+    TypedStatement,
 )
 from tapl_lang.tapl_error import TaplError
+
+
+@dataclass
+class Sequence(Term):
+    statements: list[Term]
+
+    @override
+    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+        for s in self.statements:
+            s.gather_errors(error_bucket)
+
+    @override
+    def separate(self, ls: LayerSeparator) -> Layers:
+        return ls.build(lambda layer: Sequence(statements=[layer(s) for s in self.statements]))
+
+    @override
+    def codegen_stmt(self) -> list[ast.stmt]:
+        return [s for b in self.statements for s in b.codegen_stmt()]
 
 
 @dataclass
@@ -111,7 +129,7 @@ class Parameter(Term):
 
 
 @dataclass
-class FunctionDef(ModeBasedStatement):
+class FunctionDef(TypedStatement):
     location: Location
     name: str
     parameters: list[Term]
@@ -150,7 +168,8 @@ class FunctionDef(ModeBasedStatement):
         return func
 
     def gen_decorator(self) -> ast.expr:
-        func = ast.Name('function_type', ctx=ast.Load())
+        predef = ast.Name('predef', ctx=ast.Load())
+        func = ast.Attribute(value=predef, attr='function_type', ctx=ast.Load())
         decorator = ast.Call(func=func, args=[cast(Parameter, p).type_.codegen_expr() for p in self.parameters])
         self.location.locate(func, decorator)
         return decorator
@@ -228,7 +247,7 @@ class ImportFrom(Term):
 
 
 @dataclass
-class If(ModeBasedStatement):
+class If(TypedStatement):
     location: Location
     test: Term
     body: list[Term]
@@ -299,5 +318,7 @@ class Module(Term):
 
     @override
     def codegen_ast(self) -> ast.AST:
-        body = [s for b in self.statements for s in b.codegen_stmt()]
+        body: list[ast.stmt] = []
+        for b in self.statements:
+            body.extend(b.codegen_stmt())
         return ast.Module(body=body)

@@ -297,7 +297,7 @@ def build_rule_name(ctx: str) -> Callable[[Cursor], Term]:
     def rule(c: Cursor) -> Term:
         t = c.start_tracker()
         if t.validate(token := c.consume_rule('token')) and isinstance(token, TokenName):
-            return expr.Name(token.location, token.value, ctx)
+            return expr.Name(mode=syntax.MODE_SAFE, location=token.location, id=token.value, ctx=ctx)
         return t.fail()
 
     return rule

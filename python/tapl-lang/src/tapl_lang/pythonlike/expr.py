@@ -8,12 +8,14 @@ from typing import Any, override
 
 from tapl_lang.syntax import (
     MODE_SAFE,
+    MODE_TYPECHECK,
     ErrorTerm,
     Layers,
     LayerSeparator,
     Location,
-    ModeBasedExpression,
     Term,
+    TypedExpression,
+    get_scope_name,
 )
 
 # Unary 'not' has dedicated 'BoolNot' term
@@ -39,6 +41,7 @@ COMPARE_OP_MAP: dict[str, ast.cmpop] = {
     'in': ast.In(),
     'not in': ast.NotIn(),
 }
+# TODO: add class with static fields for the context keys
 EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': ast.Store(), 'delete': ast.Del()}
 
 
@@ -63,7 +66,7 @@ class Constant(Term):
 
 
 @dataclass
-class Name(Term):
+class Name(TypedExpression):
     location: Location
     id: str
     ctx: str
@@ -74,13 +77,20 @@ class Name(Term):
 
     @override
     def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.build(lambda _: Name(location=self.location, id=self.id, ctx=self.ctx))
+        return ls.build(lambda layer: Name(mode=layer(self.mode), location=self.location, id=self.id, ctx=self.ctx))
 
     @override
-    def codegen_expr(self) -> ast.expr:
+    def codegen_evaluate(self) -> ast.expr:
         name = ast.Name(id=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
         self.location.locate(name)
         return name
+
+    @override
+    def codegen_typecheck(self) -> ast.expr:
+        scope = ast.Name(id=get_scope_name(), ctx=ast.Load())
+        attr = ast.Attribute(value=scope, attr=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
+        self.location.locate(scope, scope, attr)
+        return attr
 
 
 @dataclass
@@ -119,7 +129,12 @@ class Literal(Term):
     def typeit(self, ls: LayerSeparator, value: Any, type_id: str) -> Layers:
         if ls.layer_count != len(MODE_SAFE.layers):
             raise ValueError('NoneLiteral must be separated in 2 layers')
-        return Layers([Constant(self.location, value=value), Name(self.location, id=type_id, ctx='load')])
+        return Layers(
+            [
+                Constant(location=self.location, value=value),
+                Name(mode=MODE_TYPECHECK, location=self.location, id=type_id, ctx='load'),
+            ]
+        )
 
 
 @dataclass
@@ -179,7 +194,7 @@ class UnaryOp(Term):
 
 
 @dataclass
-class BoolNot(ModeBasedExpression):
+class BoolNot(TypedExpression):
     location: Location
     operand: Term
 
@@ -203,13 +218,12 @@ class BoolNot(ModeBasedExpression):
     @override
     def codegen_typecheck(self):
         # unary not operator always returns Bool type
-        bool_type = ast.Name(id='Bool', ctx=ast.Load())
-        self.location.locate(bool_type)
-        return bool_type
+        bool_type = Name(mode=MODE_TYPECHECK, location=self.location, id='Bool', ctx='load')
+        return bool_type.codegen_expr()
 
 
 @dataclass
-class BoolOp(ModeBasedExpression):
+class BoolOp(TypedExpression):
     location: Location
     op: str
     values: list[Term]

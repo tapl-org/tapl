@@ -3,11 +3,29 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import ast
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import cast, override
 
 from tapl_lang.tapl_error import TaplError
+
+_SCOPE_LEVEL: ContextVar[int] = ContextVar('scope_name', default=0)
+
+
+@contextmanager
+def new_scope_name() -> Generator[None, None, None]:
+    old_level = _SCOPE_LEVEL.get()
+    _SCOPE_LEVEL.set(old_level + 1)
+    try:
+        yield
+    finally:
+        _SCOPE_LEVEL.set(old_level)
+
+
+def get_scope_name() -> str:
+    return f'scope{_SCOPE_LEVEL.get()}'
 
 
 class Term:
@@ -42,6 +60,9 @@ class Layers(Term):
         self.layers = layers
         self._validate_layer_count()
 
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}({self.layers})'
+
     def _validate_layer_count(self) -> None:
         if len(self.layers) <= 1:
             raise TaplError('Number of layers must be equal or greater than 2.')
@@ -67,16 +88,6 @@ class Layers(Term):
 
     def codegen_stmt(self) -> list[ast.stmt]:
         raise TaplError('Layers should be separated before generating AST code.')
-
-
-@dataclass
-class Realm(Term):
-    layer_count: int
-    term: Term
-
-    @override
-    def gather_errors(self, error_bucket: list['ErrorTerm']) -> None:
-        self.term.gather_errors(error_bucket)
 
 
 class LayerSeparator:
@@ -109,6 +120,36 @@ class LayerSeparator:
 
     def separate(self, term: Term) -> Layers:
         return self.build(lambda layer: layer(term))
+
+
+@dataclass
+class RearrangeLayers(Term):
+    term: Term
+    layer_indices: list[int]
+
+    @override
+    def gather_errors(self, error_bucket: list['ErrorTerm']) -> None:
+        self.term.gather_errors(error_bucket)
+
+    @override
+    def separate(self, ls: LayerSeparator) -> Layers:
+        layers = ls.build(lambda layer: layer(self.term))
+        result = []
+        for i in self.layer_indices:
+            if i >= len(layers.layers):
+                raise TaplError(f'Layer index {i} out of range for layers {layers.layers}')
+            result.append(layers.layers[i])
+        return Layers(result)
+
+
+@dataclass
+class Realm(Term):
+    layer_count: int
+    term: Term
+
+    @override
+    def gather_errors(self, error_bucket: list['ErrorTerm']) -> None:
+        self.term.gather_errors(error_bucket)
 
 
 @dataclass
@@ -173,7 +214,7 @@ MODE_SAFE = Layers([MODE_EVALUATE, MODE_TYPECHECK])
 
 
 @dataclass
-class ModeBasedExpression(Term):
+class TypedExpression(Term):
     mode: Term
 
     def codegen_evaluate(self) -> ast.expr:
@@ -192,7 +233,7 @@ class ModeBasedExpression(Term):
 
 
 @dataclass
-class ModeBasedStatement(Term):
+class TypedStatement(Term):
     mode: Term
 
     def codegen_evaluate(self) -> list[ast.stmt]:

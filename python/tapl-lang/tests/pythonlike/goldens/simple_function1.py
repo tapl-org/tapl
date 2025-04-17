@@ -1,13 +1,9 @@
-from tapl_lang.pythonlike.predef1 import *
-int_print(Int)
+from tapl_lang.pythonlike import predef1 as predef
+scope0 = predef.Scope(predef.predef_scope)
+scope0.int_print(scope0.Int)
 
-@function_type()
+@predef.function_type()
 def zero():
-    return Int
-
-@function_type(Int)
-def increment(a):
-    return a + Int
-int_print(increment(zero()))
-Bool
-int_print(Int)
+    return scope0.Int
+scope0.Bool
+scope0.int_print(scope0.Int)

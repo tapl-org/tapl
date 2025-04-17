@@ -6,7 +6,6 @@
 
 ====== level=0 exit-status:0 stdout:
 123
-1
 456
 
 ------ stderr:
