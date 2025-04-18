@@ -5,22 +5,27 @@
 
 import ast
 
+from tapl_lang import syntax
 from tapl_lang.parser import Grammar, parse_text
 from tapl_lang.pythonlike import parser, predef, predef1
-from tapl_lang.syntax import ErrorTerm, LayerSeparator
 
 
-def parse_expr(text: str, *, debug=False) -> list[ast.expr]:
-    parsed = parse_text(text, Grammar(parser.RULES, 'expression'), debug=debug)
+def check_parsed_term(parsed: syntax.Term) -> None:
     if parsed is None:
         raise RuntimeError('Parser returns None.')
-    error_bucket: list[ErrorTerm] = []
+    error_bucket: list[syntax.ErrorTerm] = []
     parsed.gather_errors(error_bucket)
     if error_bucket:
         messages = [e.message for e in error_bucket]
         raise SyntaxError('\n\n'.join(messages))
-    separated = LayerSeparator(2).separate(parsed)
-    return [layer.codegen_expr() for layer in separated.layers]
+
+
+def parse_expr(text: str, *, debug=False) -> list[ast.expr]:
+    parsed = parse_text(text, Grammar(parser.RULES, 'expression'), debug=debug)
+    check_parsed_term(parsed)
+    safe_term = syntax.make_safe_term(parsed)
+    separated = syntax.LayerSeparator(2).separate(safe_term)
+    return [layer.codegen_expr(syntax.AstSetting()) for layer in separated.layers]
 
 
 def evaluate(expr: ast.expr, locals_=None):

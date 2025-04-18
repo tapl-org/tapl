@@ -6,19 +6,9 @@ import ast
 from dataclasses import dataclass
 from typing import Any, override
 
-from tapl_lang import codegen_setting
-from tapl_lang.syntax import (
-    MODE_SAFE,
-    MODE_TYPECHECK,
-    ErrorTerm,
-    Layers,
-    LayerSeparator,
-    Location,
-    Term,
-    TypedExpression,
-)
+from tapl_lang import syntax, tapl_error
 
-# Unary 'not' has dedicated 'BoolNot' term
+# Unary 'not' has a dedicated 'BoolNot' term for logical negation
 UNARY_OP_MAP: dict[str, ast.unaryop] = {'+': ast.UAdd(), '-': ast.USub(), '~': ast.Invert()}
 BIN_OP_MAP: dict[str, ast.operator] = {
     '+': ast.Add(),
@@ -46,93 +36,96 @@ EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': as
 
 
 @dataclass
-class Constant(Term):
-    location: Location
+class Constant(syntax.Term):
+    location: syntax.Location
     value: Any
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
         pass
 
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
         return ls.build(lambda _: Constant(location=self.location, value=self.value))
 
     @override
-    def codegen_expr(self) -> ast.expr:
+    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
         const = ast.Constant(self.value)
         self.location.locate(const)
         return const
 
 
 @dataclass
-class Name(TypedExpression):
-    location: Location
+class Name(syntax.Term):
+    location: syntax.Location
     id: str
     ctx: str
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
         pass
 
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.build(lambda layer: Name(mode=layer(self.mode), location=self.location, id=self.id, ctx=self.ctx))
+    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+        return ls.build(lambda _: Name(location=self.location, id=self.id, ctx=self.ctx))
 
     @override
-    def codegen_evaluate(self) -> ast.expr:
-        name = ast.Name(id=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
-        self.location.locate(name)
-        return name
-
-    @override
-    def codegen_typecheck(self) -> ast.expr:
-        scope = ast.Name(id=codegen_setting.get_scope_name(), ctx=ast.Load())
-        attr = ast.Attribute(value=scope, attr=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
-        self.location.locate(scope, scope, attr)
-        return attr
+    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+        if setting.scope_native:
+            name = ast.Name(id=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
+            self.location.locate(name)
+            return name
+        if setting.scope_manual:
+            scope = ast.Name(id=setting.get_current_scope_name(), ctx=ast.Load())
+            attr = ast.Attribute(value=scope, attr=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
+            self.location.locate(scope, scope, attr)
+            return attr
+        raise tapl_error.UnhandledError
 
 
 @dataclass
-class Attribute(Term):
-    location: Location
-    value: Term
+class Attribute(syntax.Term):
+    location: syntax.Location
+    value: syntax.Term
     attr: str
     ctx: str
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
         self.value.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
         return ls.build(
             lambda layer: Attribute(location=self.location, value=layer(self.value), attr=self.attr, ctx=self.ctx)
         )
 
-    # TODO: Attribute must have a type layer to check attribute exists or not
+    # TODO: Attribute must have a type layer to check attribute exists or not. find a test case first
     @override
-    def codegen_expr(self) -> ast.expr:
-        attr = ast.Attribute(self.value.codegen_expr(), attr=self.attr, ctx=EXPR_CONTEXT_MAP[self.ctx])
+    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+        attr = ast.Attribute(self.value.codegen_expr(setting), attr=self.attr, ctx=EXPR_CONTEXT_MAP[self.ctx])
         self.location.locate(attr)
         return attr
 
 
+SAFE_LAYER_COUNT = 2
+
+
 @dataclass
-class Literal(Term):
-    location: Location
+class Literal(syntax.Term):
+    location: syntax.Location
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
         pass
 
-    def typeit(self, ls: LayerSeparator, value: Any, type_id: str) -> Layers:
-        if ls.layer_count != len(MODE_SAFE.layers):
+    def typeit(self, ls: syntax.LayerSeparator, value: Any, type_id: str) -> syntax.Layers:
+        if ls.layer_count != SAFE_LAYER_COUNT:
             raise ValueError('NoneLiteral must be separated in 2 layers')
-        return Layers(
+        return syntax.Layers(
             [
                 Constant(location=self.location, value=value),
-                Name(mode=MODE_TYPECHECK, location=self.location, id=type_id, ctx='load'),
+                Name(location=self.location, id=type_id, ctx='load'),
             ]
         )
 
@@ -140,7 +133,7 @@ class Literal(Term):
 @dataclass
 class NoneLiteral(Literal):
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
         return self.typeit(ls, value=None, type_id='NoneType')
 
 
@@ -149,7 +142,7 @@ class BooleanLiteral(Literal):
     value: bool
 
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
         return self.typeit(ls, value=self.value, type_id='Bool')
 
 
@@ -158,7 +151,7 @@ class IntegerLiteral(Literal):
     value: int
 
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
         return self.typeit(ls, value=self.value, type_id='Int')
 
 
@@ -167,134 +160,130 @@ class StringLiteral(Literal):
     value: str
 
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
         return self.typeit(ls, value=self.value, type_id='Str')
 
 
 @dataclass
-class UnaryOp(Term):
-    location: Location
+class UnaryOp(syntax.Term):
+    location: syntax.Location
     op: str
-    operand: Term
+    operand: syntax.Term
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
         self.operand.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
         return ls.build(lambda layer: UnaryOp(location=self.location, op=self.op, operand=layer(self.operand)))
 
     @override
-    def codegen_expr(self) -> ast.expr:
-        operand = self.operand.codegen_expr()
+    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+        operand = self.operand.codegen_expr(setting)
         unary = ast.UnaryOp(UNARY_OP_MAP[self.op], operand)
         self.location.locate(unary)
         return unary
 
 
 @dataclass
-class BoolNot(TypedExpression):
-    location: Location
-    operand: Term
+class BoolNot(syntax.Term):
+    location: syntax.Location
+    operand: syntax.Term
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
         self.operand.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
-        return ls.build(
-            lambda layer: BoolNot(mode=layer(self.mode), location=self.location, operand=layer(self.operand))
-        )
+    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+        return ls.build(lambda layer: BoolNot(location=self.location, operand=layer(self.operand)))
 
     @override
-    def codegen_evaluate(self):
-        operand = self.operand.codegen_expr()
-        unary = ast.UnaryOp(ast.Not(), operand)
-        self.location.locate(unary)
-        return unary
-
-    @override
-    def codegen_typecheck(self):
-        # unary not operator always returns Bool type
-        bool_type = Name(mode=MODE_TYPECHECK, location=self.location, id='Bool', ctx='load')
-        return bool_type.codegen_expr()
+    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+        if setting.code_evaluate:
+            operand = self.operand.codegen_expr(setting)
+            unary = ast.UnaryOp(ast.Not(), operand)
+            self.location.locate(unary)
+            return unary
+        if setting.code_typecheck:
+            # unary not operator always returns Bool type
+            bool_type = Name(location=self.location, id='Bool', ctx='load')
+            return bool_type.codegen_expr(setting)
+        raise tapl_error.UnhandledError
 
 
 @dataclass
-class BoolOp(TypedExpression):
-    location: Location
+class BoolOp(syntax.Term):
+    location: syntax.Location
     op: str
-    values: list[Term]
+    values: list[syntax.Term]
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
         for v in self.values:
             v.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
         return ls.build(
-            lambda layer: BoolOp(
-                mode=layer(self.mode), location=self.location, op=self.op, values=[layer(v) for v in self.values]
-            )
+            lambda layer: BoolOp(location=self.location, op=self.op, values=[layer(v) for v in self.values])
         )
 
     @override
-    def codegen_evaluate(self) -> ast.expr:
-        op = ast.BoolOp(BOOL_OP_MAP[self.op], [v.codegen_expr() for v in self.values])
-        self.location.locate(op)
-        return op
-
-    @override
-    def codegen_typecheck(self) -> ast.expr:
-        create_union = ast.Name(id='create_union', ctx=ast.Load())
-        call = ast.Call(func=create_union, args=[v.codegen_expr() for v in self.values])
-        self.location.locate(create_union, call)
-        return call
+    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+        if setting.code_evaluate:
+            op = ast.BoolOp(BOOL_OP_MAP[self.op], [v.codegen_expr(setting) for v in self.values])
+            self.location.locate(op)
+            return op
+        if setting.code_typecheck:
+            create_union = ast.Name(id='create_union', ctx=ast.Load())
+            call = ast.Call(func=create_union, args=[v.codegen_expr(setting) for v in self.values])
+            self.location.locate(create_union, call)
+            return call
+        raise tapl_error.UnhandledError
 
 
 @dataclass
-class BinOp(Term):
-    location: Location
-    left: Term
+class BinOp(syntax.Term):
+    location: syntax.Location
+    left: syntax.Term
     op: str
-    right: Term
+    right: syntax.Term
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
         self.left.gather_errors(error_bucket)
         self.right.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
         return ls.build(
             lambda layer: BinOp(location=self.location, left=layer(self.left), op=self.op, right=layer(self.right))
         )
 
     @override
-    def codegen_expr(self) -> ast.expr:
-        op = ast.BinOp(self.left.codegen_expr(), BIN_OP_MAP[self.op], self.right.codegen_expr())
+    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+        op = ast.BinOp(self.left.codegen_expr(setting), BIN_OP_MAP[self.op], self.right.codegen_expr(setting))
         self.location.locate(op)
         return op
 
 
 @dataclass
-class Compare(Term):
-    location: Location
-    left: Term
+class Compare(syntax.Term):
+    location: syntax.Location
+    left: syntax.Term
     ops: list[str]
-    comparators: list[Term]
+    comparators: list[syntax.Term]
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
         self.left.gather_errors(error_bucket)
         for v in self.comparators:
             v.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
         return ls.build(
             lambda layer: Compare(
                 location=self.location,
@@ -305,24 +294,24 @@ class Compare(Term):
         )
 
     @override
-    def codegen_expr(self) -> ast.expr:
+    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
         compare = ast.Compare(
-            self.left.codegen_expr(),
+            self.left.codegen_expr(setting),
             [COMPARE_OP_MAP[op] for op in self.ops],
-            [v.codegen_expr() for v in self.comparators],
+            [v.codegen_expr(setting) for v in self.comparators],
         )
         self.location.locate(compare)
         return compare
 
 
 @dataclass
-class Call(Term):
-    location: Location
-    func: Term
-    args: list[Term]
+class Call(syntax.Term):
+    location: syntax.Location
+    func: syntax.Term
+    args: list[syntax.Term]
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
+    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
         self.func.gather_errors(error_bucket)
         for v in self.args:
             v.gather_errors(error_bucket)
@@ -334,7 +323,7 @@ class Call(Term):
         )
 
     @override
-    def codegen_expr(self) -> ast.expr:
-        call = ast.Call(self.func.codegen_expr(), [v.codegen_expr() for v in self.args])
+    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+        call = ast.Call(self.func.codegen_expr(setting), [v.codegen_expr(setting) for v in self.args])
         self.location.locate(call)
         return call

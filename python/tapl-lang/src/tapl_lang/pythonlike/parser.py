@@ -297,7 +297,7 @@ def build_rule_name(ctx: str) -> Callable[[Cursor], Term]:
     def rule(c: Cursor) -> Term:
         t = c.start_tracker()
         if t.validate(token := c.consume_rule('token')) and isinstance(token, TokenName):
-            return expr.Name(mode=syntax.MODE_SAFE, location=token.location, id=token.value, ctx=ctx)
+            return expr.Name(location=token.location, id=token.value, ctx=ctx)
         return t.fail()
 
     return rule
@@ -417,7 +417,7 @@ def rule_comparison(c: Cursor) -> Term:
 def rule_inversion__not(c: Cursor) -> Term:
     t = c.start_tracker()
     if t.validate(consume_keyword(c, 'not')) and t.validate(operand := expect_rule(c, 'comparison')):
-        return expr.BoolNot(mode=syntax.MODE_SAFE, location=t.location, operand=operand)
+        return expr.BoolNot(location=t.location, operand=operand)
     return t.fail()
 
 
@@ -430,7 +430,7 @@ def rule_conjunction__and(c: Cursor) -> Term:
             c.copy_from(k)
             values.append(right)
         if len(values) > 1:
-            return expr.BoolOp(mode=syntax.MODE_SAFE, location=t.location, op='and', values=values)
+            return expr.BoolOp(location=t.location, op='and', values=values)
     return t.fail()
 
 
@@ -443,7 +443,7 @@ def rule_disjunction__or(c: Cursor) -> Term:
             c.copy_from(k)
             values.append(right)
         if len(values) > 1:
-            return expr.BoolOp(mode=syntax.MODE_SAFE, location=t.location, op='or', values=values)
+            return expr.BoolOp(location=t.location, op='or', values=values)
     return t.fail()
 
 
@@ -517,9 +517,7 @@ def rule_function_def(c: Cursor) -> Term:
         and t.validate(expect_punct(c, ':'))
     ):
         name = cast(TokenName, func_name).value
-        return stmt.FunctionDef(
-            mode=syntax.MODE_SAFE, location=t.location, name=name, parameters=cast(TermSequence, params).terms, body=[]
-        )
+        return stmt.FunctionDef(location=t.location, name=name, parameters=cast(TermSequence, params).terms, body=[])
     return t.fail()
 
 
@@ -530,7 +528,7 @@ def rule_if_stmt(c: Cursor) -> Term:
         and t.validate(test := expect_rule(c, 'expression'))
         and t.validate(expect_punct(c, ':'))
     ):
-        return stmt.If(mode=syntax.MODE_SAFE, location=t.location, test=test, body=[], orelse=[])
+        return stmt.If(location=t.location, test=test, body=[], orelse=[])
     return t.fail()
 
 

@@ -248,10 +248,6 @@ def test_not_all_text_consumed():
     assert parsed_term.message == 'Not all text consumed: indices 0:1/1:0.'
 
 
-def test_run_modes_are_not_equal():
-    assert syntax.MODE_EVALUATE != syntax.MODE_TYPECHECK
-
-
 def test_rule_function_returns_none():
     parsed_term = parser.parse_text('1', parser.Grammar(RULES, 'none'), debug=False)
     assert isinstance(parsed_term, syntax.ErrorTerm)

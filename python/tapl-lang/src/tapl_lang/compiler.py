@@ -6,10 +6,10 @@ import ast
 import re
 from typing import cast
 
+from tapl_lang import syntax
 from tapl_lang.chunker import Chunk, chunk_text
 from tapl_lang.pythonlike import stmt
 from tapl_lang.pythonlike.context import PythonlikeContext
-from tapl_lang.syntax import Layers, LayerSeparator
 from tapl_lang.tapl_error import TaplError
 
 
@@ -35,8 +35,8 @@ def compile_tapl(text: str) -> list[ast.AST]:
     predef_layers = context.get_predef_layers()
     module = stmt.Module(statements=[predef_layers])
     context.parse_chunks(chunks[1:], [module])
-    ls = LayerSeparator(len(predef_layers.layers))
-    separated = ls.separate(module)
-    separated = ls.build(lambda layer: layer(separated))
-    layers = cast(Layers, separated).layers
-    return [layer.codegen_ast() for layer in layers]
+    safe_module = syntax.make_safe_term(module)
+    ls = syntax.LayerSeparator(len(predef_layers.layers))
+    separated = ls.separate(safe_module)
+    layers = cast(syntax.Layers, separated).layers
+    return [layer.codegen_ast(syntax.AstSetting()) for layer in layers]
