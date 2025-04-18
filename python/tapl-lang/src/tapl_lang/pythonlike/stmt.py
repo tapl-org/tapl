@@ -19,7 +19,7 @@ class Sequence(syntax.Term):
             s.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: Sequence(statements=[layer(s) for s in self.statements]))
 
     @override
@@ -40,7 +40,7 @@ class Assign(syntax.Term):
         self.value.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Assign(
                 location=self.location, targets=[layer(t) for t in self.targets], value=layer(self.value)
@@ -67,7 +67,7 @@ class Return(syntax.Term):
             self.value.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: Return(location=self.location, value=layer(self.value)))
 
     @override
@@ -87,7 +87,7 @@ class Expr(syntax.Term):
         self.value.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: Expr(location=self.location, value=layer(self.value)))
 
     @override
@@ -103,7 +103,7 @@ class Absence(syntax.Term):
     def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
         pass
 
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda _: Absence())
 
 
@@ -118,7 +118,7 @@ class Parameter(syntax.Term):
         self.type_.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: Parameter(location=self.location, name=self.name, type_=layer(self.type_)))
 
 
@@ -141,7 +141,7 @@ class FunctionDef(syntax.Term):
         self.body.append(child)
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: FunctionDef(
                 location=self.location,
@@ -204,7 +204,7 @@ class Import(syntax.Term):
         pass
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda _: Import(location=self.location, names=[Alias(name=n.name, asname=n.asname) for n in self.names])
         )
@@ -228,7 +228,7 @@ class ImportFrom(syntax.Term):
         pass
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda _: ImportFrom(
                 location=self.location,
@@ -267,7 +267,7 @@ class If(syntax.Term):
         self.body.append(child)
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: If(
                 location=self.location,
@@ -319,7 +319,7 @@ class Module(syntax.Term):
         return self.statements.append(child)
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: Module([layer(s) for s in self.statements]))
 
     @override

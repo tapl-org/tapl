@@ -45,7 +45,7 @@ class Constant(syntax.Term):
         pass
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda _: Constant(location=self.location, value=self.value))
 
     @override
@@ -66,7 +66,7 @@ class Name(syntax.Term):
         pass
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda _: Name(location=self.location, id=self.id, ctx=self.ctx))
 
     @override
@@ -95,7 +95,7 @@ class Attribute(syntax.Term):
         self.value.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Attribute(location=self.location, value=layer(self.value), attr=self.attr, ctx=self.ctx)
         )
@@ -119,21 +119,19 @@ class Literal(syntax.Term):
     def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
         pass
 
-    def typeit(self, ls: syntax.LayerSeparator, value: Any, type_id: str) -> syntax.Layers:
+    def typeit(self, ls: syntax.LayerSeparator, value: Any, type_id: str) -> list[syntax.Term]:
         if ls.layer_count != SAFE_LAYER_COUNT:
             raise ValueError('NoneLiteral must be separated in 2 layers')
-        return syntax.Layers(
-            [
-                Constant(location=self.location, value=value),
-                Name(location=self.location, id=type_id, ctx='load'),
-            ]
-        )
+        return [
+            Constant(location=self.location, value=value),
+            Name(location=self.location, id=type_id, ctx='load'),
+        ]
 
 
 @dataclass
 class NoneLiteral(Literal):
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return self.typeit(ls, value=None, type_id='NoneType')
 
 
@@ -142,7 +140,7 @@ class BooleanLiteral(Literal):
     value: bool
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return self.typeit(ls, value=self.value, type_id='Bool')
 
 
@@ -151,7 +149,7 @@ class IntegerLiteral(Literal):
     value: int
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return self.typeit(ls, value=self.value, type_id='Int')
 
 
@@ -160,7 +158,7 @@ class StringLiteral(Literal):
     value: str
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return self.typeit(ls, value=self.value, type_id='Str')
 
 
@@ -175,7 +173,7 @@ class UnaryOp(syntax.Term):
         self.operand.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: UnaryOp(location=self.location, op=self.op, operand=layer(self.operand)))
 
     @override
@@ -196,7 +194,7 @@ class BoolNot(syntax.Term):
         self.operand.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: BoolNot(location=self.location, operand=layer(self.operand)))
 
     @override
@@ -225,7 +223,7 @@ class BoolOp(syntax.Term):
             v.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: BoolOp(location=self.location, op=self.op, values=[layer(v) for v in self.values])
         )
@@ -257,7 +255,7 @@ class BinOp(syntax.Term):
         self.right.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: BinOp(location=self.location, left=layer(self.left), op=self.op, right=layer(self.right))
         )
@@ -283,7 +281,7 @@ class Compare(syntax.Term):
             v.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: syntax.LayerSeparator) -> syntax.Layers:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Compare(
                 location=self.location,
@@ -317,7 +315,7 @@ class Call(syntax.Term):
             v.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls):
+    def separate(self, ls) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Call(location=self.location, func=layer(self.func), args=[layer(v) for v in self.args])
         )

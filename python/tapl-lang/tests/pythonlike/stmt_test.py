@@ -4,7 +4,6 @@
 
 
 import ast
-from typing import cast
 
 from tapl_lang import syntax
 from tapl_lang.chunker import chunk_text
@@ -27,8 +26,7 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
     parsed = parse_text(text, Grammar(parser.RULES, 'statement'), debug=debug)
     check_parsed_term(parsed)
     safe_term = syntax.make_safe_term(parsed)
-    separated = syntax.LayerSeparator(2).separate(safe_term)
-    layers = cast(syntax.Layers, separated).layers
+    layers = syntax.LayerSeparator(2).separate(safe_term)
     return [s for layer in layers for s in layer.codegen_stmt(syntax.AstSetting())]
 
 
@@ -45,8 +43,7 @@ def parse_module(text: str) -> list[ast.AST]:
     context.parse_chunks(chunks, [module])
     ls = syntax.LayerSeparator(2)
     safe_module = syntax.make_safe_term(module)
-    separated = ls.separate(safe_module)
-    layers = cast(syntax.Layers, separated).layers
+    layers = ls.separate(safe_module)
     return [layer.codegen_ast(syntax.AstSetting()) for layer in layers]
 
 

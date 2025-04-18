@@ -72,8 +72,7 @@ class Term:
             f'The {self.__class__.__name__} class does not support adding a child class={child.__class__.__name__}'
         )
 
-    # TODO: return list[Term] instead of Layers
-    def separate(self, ls: LayerSeparator) -> Layers:
+    def separate(self, ls: LayerSeparator) -> list[Term]:
         del ls
         raise TaplError(f'The {self.__class__.__name__} class does not support separate.')
 
@@ -102,7 +101,7 @@ class AstSettingChanger(Term):
         pass
 
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
+    def separate(self, ls: LayerSeparator) -> list[Term]:
         return ls.build(lambda _: AstSettingChanger(changer=self.changer))
 
 
@@ -117,7 +116,7 @@ class AstSettingTerm(Term):
         self.term.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
+    def separate(self, ls: LayerSeparator) -> list[Term]:
         return ls.build(
             lambda layer: AstSettingTerm(ast_setting_changer=layer(self.ast_setting_changer), term=layer(self.term))
         )
@@ -176,12 +175,12 @@ class Layers(Term):
             layer.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
+    def separate(self, ls: LayerSeparator) -> list[Term]:
         self._validate_layer_count()
         actual_count = len(self.layers)
         if actual_count != ls.layer_count:
             raise TaplError(f'Mismatched layer lengths, actual_count={actual_count}, expected_count={ls.layer_count}')
-        return self
+        return self.layers
 
     @override
     def codegen_ast(self, setting: AstSetting) -> ast.AST:
@@ -202,18 +201,19 @@ class LayerSeparator:
             raise TaplError('layer_count must be equal or greater than 2 to separate.')
         self.layer_count = layer_count
 
-    def build(self, factory: Callable[[Callable[[Term], Term]], Term]) -> Layers:
-        memo = []  # Memorize the order of extract_layer calls to ensure consistent layer processing.
+    def build(self, factory: Callable[[Callable[[Term], Term]], Term]) -> list[Term]:
+        # Memorize the order of extract_layer calls to ensure consistent layer processing.
+        memo: list[tuple[Term, list[Term]]] = []
         memo_index = [0]
 
         def extract_layer(index: int, term: Term) -> Term:
             if index == 0:
                 memo.append((term, term.separate(self)))
-            t, s = memo[memo_index[0]]
+            original_term, layers = memo[memo_index[0]]
             memo_index[0] += 1
-            if t is not term:
+            if original_term is not term:
                 raise TaplError('layer function call order is changed.')
-            return cast(Layers, s).layers[index]
+            return layers[index]
 
         def create_extract_layer_fn(index: int) -> Callable[[Term], Term]:
             return lambda term: extract_layer(index, term)
@@ -222,9 +222,9 @@ class LayerSeparator:
         for i in range(self.layer_count):
             memo_index[0] = 0
             layers.append(factory(create_extract_layer_fn(i)))
-        return Layers(layers)
+        return layers
 
-    def separate(self, term: Term) -> Layers:
+    def separate(self, term: Term) -> list[Term]:
         return self.build(lambda layer: layer(term))
 
 
@@ -238,14 +238,14 @@ class RearrangeLayers(Term):
         self.term.gather_errors(error_bucket)
 
     @override
-    def separate(self, ls: LayerSeparator) -> Layers:
+    def separate(self, ls: LayerSeparator) -> list[Term]:
         layers = ls.build(lambda layer: layer(self.term))
         result = []
         for i in self.layer_indices:
-            if i >= len(layers.layers):
-                raise TaplError(f'Layer index {i} out of range for layers {layers.layers}')
-            result.append(layers.layers[i])
-        return Layers(result)
+            if i >= len(layers):
+                raise TaplError(f'Layer index {i} out of range for layers {layers}')
+            result.append(layers[i])
+        return result
 
 
 @dataclass

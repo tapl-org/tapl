@@ -25,7 +25,7 @@ def parse_expr(text: str, *, debug=False) -> list[ast.expr]:
     check_parsed_term(parsed)
     safe_term = syntax.make_safe_term(parsed)
     separated = syntax.LayerSeparator(2).separate(safe_term)
-    return [layer.codegen_expr(syntax.AstSetting()) for layer in separated.layers]
+    return [layer.codegen_expr(syntax.AstSetting()) for layer in separated]
 
 
 def evaluate(expr: ast.expr, locals_=None):

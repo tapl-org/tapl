@@ -4,7 +4,6 @@
 
 import ast
 import re
-from typing import cast
 
 from tapl_lang import syntax
 from tapl_lang.chunker import Chunk, chunk_text
@@ -37,6 +36,5 @@ def compile_tapl(text: str) -> list[ast.AST]:
     context.parse_chunks(chunks[1:], [module])
     safe_module = syntax.make_safe_term(module)
     ls = syntax.LayerSeparator(len(predef_layers.layers))
-    separated = ls.separate(safe_module)
-    layers = cast(syntax.Layers, separated).layers
+    layers = ls.separate(safe_module)
     return [layer.codegen_ast(syntax.AstSetting()) for layer in layers]
