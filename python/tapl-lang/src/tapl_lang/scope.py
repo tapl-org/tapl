@@ -8,9 +8,10 @@ from typing import Any
 
 
 class ScopeInternal:
-    def __init__(self, parent: ScopeInternal | None = None):
+    def __init__(self, parent: ScopeInternal | None = None, **kwargs: Any):
         self.parent = parent
         self.variables: dict[str, Any] = {}
+        self.variables.update(kwargs)
 
     def try_load(self, name: str) -> Any | None:
         if name in self.variables:
@@ -35,8 +36,8 @@ class ScopeInternal:
 
 
 class Scope:
-    def __init__(self, parent: Scope | None = None):
-        self.internal__: ScopeInternal = ScopeInternal(parent.internal__ if parent else None)
+    def __init__(self, parent: Scope | None = None, **kwargs: Any):
+        self.internal__: ScopeInternal = ScopeInternal(parent.internal__ if parent else None, **kwargs)
 
     def __getattribute__(self, name):
         if name == 'internal__':

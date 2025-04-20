@@ -7,7 +7,7 @@ import ast
 
 from tapl_lang import syntax
 from tapl_lang.parser import Grammar, parse_text
-from tapl_lang.pythonlike import parser, predef, predef1, expr
+from tapl_lang.pythonlike import expr, parser, predef, predef1
 
 
 def check_parsed_term(parsed: syntax.Term) -> None:

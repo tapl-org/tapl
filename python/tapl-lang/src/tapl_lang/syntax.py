@@ -57,7 +57,8 @@ class AstSetting:
             scope_level=scope_level or self.scope_level,
         )
 
-    def get_current_scope_name(self) -> str:
+    @property
+    def scope_name(self) -> str:
         return f'scope{self.scope_level}'
 
 
@@ -302,4 +303,3 @@ class ErrorTerm(Term):
     @override
     def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
         error_bucket.append(self)
-

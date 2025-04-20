@@ -82,8 +82,9 @@ def hello():
     assert (
         ast.unparse(stmt2)
         == """
-@predef.function_type()
 def hello():
-    return scope0.Int
+    scope1 = predef.Scope(scope0)
+    return scope1.Int
+scope0.hello = predef.FunctionType([], hello())
 """.strip()
     )

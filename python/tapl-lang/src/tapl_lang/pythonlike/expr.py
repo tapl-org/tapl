@@ -76,7 +76,7 @@ class Name(syntax.Term):
             self.location.locate(name)
             return name
         if setting.scope_manual:
-            scope = ast.Name(id=setting.get_current_scope_name(), ctx=ast.Load())
+            scope = ast.Name(id=setting.scope_name, ctx=ast.Load())
             attr = ast.Attribute(value=scope, attr=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
             self.location.locate(scope, scope, attr)
             return attr
