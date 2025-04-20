@@ -29,6 +29,11 @@ class BinOp(Term):
     right: Term
 
 
+class EndOfText(Term):
+    def __str__(self) -> str:
+        return 'EndOfText'
+
+
 PUNCT_SET = set('()+*')
 
 
@@ -41,7 +46,7 @@ def parse_token(c: Cursor) -> Term:
     skip_whitespaces(c)
     t = c.start_tracker()
     if c.is_end():
-        return t.fail()
+        return EndOfText()
     char = c.current_char()
     # Number
     if char.isdigit():
@@ -67,10 +72,12 @@ def consume_punct(c: Cursor, *puncts: str) -> Term:
 
 def expect_punct(c: Cursor, *puncts: str) -> Term:
     t = c.start_tracker()
-    if t.validate(term := consume_punct(c, *puncts)):
+    if t.validate(term := c.consume_rule('token')) and isinstance(term, Punct) and term.value in puncts:
         return term
     puncts_text = ', '.join(f'"{p}"' for p in puncts)
-    return t.captured_error or syntax.ErrorTerm(t.location, f'Expected {puncts_text}, but found {term}')
+    return t.captured_error or syntax.ErrorTerm(
+        message=f'Expected {puncts_text}, but found {term}', location=t.location
+    )
 
 
 def consume_number(c: Cursor) -> Term:
@@ -84,14 +91,14 @@ def expect_number(c: Cursor) -> Term:
     t = c.start_tracker()
     if t.validate(term := consume_number(c)):
         return term
-    return t.captured_error or syntax.ErrorTerm(t.location, f'Expected number, but found {term}')
+    return t.captured_error or syntax.ErrorTerm(message=f'Expected number, but found {term}', location=t.location)
 
 
 def expect_rule(c: Cursor, rule: str) -> Term:
     t = c.start_tracker()
     if t.validate(term := c.consume_rule(rule)):
         return term
-    return t.captured_error or syntax.ErrorTerm(t.location, f'Expected rule "{rule}"')
+    return t.captured_error or syntax.ErrorTerm(message=f'Expected rule "{rule}"', location=t.location)
 
 
 def parse_value__expr(c: Cursor) -> Term:
@@ -110,7 +117,7 @@ def parse_value__number(c: Cursor) -> Term:
 
 
 def parse_value__error(c: Cursor) -> syntax.Term:
-    return syntax.ErrorTerm(Location(start=c.current_position()), 'Expected number')
+    return syntax.ErrorTerm(message='Expected number', location=Location(start=c.current_position()))
 
 
 def parse_product__binop(c: Cursor) -> syntax.Term:
@@ -164,8 +171,8 @@ RULES: parser.GrammarRuleMap = {
 }
 
 
-def parse(text: str) -> syntax.Term:
-    return parser.parse_text(text, parser.Grammar(RULES, 'start'), debug=False)
+def parse(text: str, *, debug: bool = False) -> syntax.Term:
+    return parser.parse_text(text, parser.Grammar(RULES, 'start'), debug=debug)
 
 
 def dump(term: Term | None) -> str:
@@ -228,7 +235,7 @@ def test_expected_error():
 def test_expected_rparen_error():
     parsed_term = parse('(1')
     assert isinstance(parsed_term, syntax.ErrorTerm)
-    assert parsed_term.message == 'Expected ")", but found ParseFailed'
+    assert parsed_term.message == 'Expected ")", but found EndOfText'
 
 
 def test_multiline():
@@ -249,6 +256,12 @@ def test_not_all_text_consumed():
 
 
 def test_rule_function_returns_none():
-    parsed_term = parser.parse_text('1', parser.Grammar(RULES, 'none'), debug=False)
+    parsed_term = parser.parse_text('1', parser.Grammar(RULES, 'none'))
     assert isinstance(parsed_term, syntax.ErrorTerm)
-    assert parsed_term.message == 'PEG Parser: parse_none returns None'
+    assert parsed_term.message == 'PegEngine: rule=none:0 returned None.'
+
+
+def test_error_syntax():
+    parsed_term = parse('2 + (3')
+    assert isinstance(parsed_term, syntax.ErrorTerm)
+    assert parsed_term.message == 'Expected ")", but found EndOfText'

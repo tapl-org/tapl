@@ -168,8 +168,8 @@ def rule_token(c: Cursor) -> Term:
 
     def unterminated_string() -> Term:
         return ErrorTerm(
-            tracker.location,
-            f'unterminated string literal (detected at line {tracker.location.end.line}); perhaps you escaped the end quote?',
+            message=f'unterminated string literal (detected at line {tracker.location.end.line}); perhaps you escaped the end quote?',
+            location=tracker.location,
         )
 
     def scan_string() -> Term:
@@ -226,7 +226,7 @@ def expect_keyword(c: Cursor, keyword: str) -> Term:
     t = c.start_tracker()
     if t.validate(term := c.consume_rule('token')) and isinstance(term, TokenKeyword) and term.value == keyword:
         return term
-    return t.captured_error or ErrorTerm(t.location, f'Expected "{keyword}", but found {term}')
+    return t.captured_error or ErrorTerm(message=f'Expected "{keyword}", but found {term}', location=t.location)
 
 
 def consume_name(c: Cursor) -> Term:
@@ -240,7 +240,7 @@ def expect_name(c: Cursor) -> Term:
     t = c.start_tracker()
     if t.validate(term := c.consume_rule('token')) and isinstance(term, TokenName):
         return term
-    return t.captured_error or ErrorTerm(t.location, f'Expected a name, but found {term}')
+    return t.captured_error or ErrorTerm(message=f'Expected a name, but found {term}', location=t.location)
 
 
 def consume_punct(c: Cursor, *puncts: str) -> Term:
@@ -255,14 +255,16 @@ def expect_punct(c: Cursor, *puncts: str) -> Term:
     if t.validate(term := c.consume_rule('token')) and isinstance(term, TokenPunct) and term.value in puncts:
         return term
     puncts_text = ', '.join(f'"{p}"' for p in puncts)
-    return t.captured_error or syntax.ErrorTerm(t.location, f'Expected {puncts_text}, but found {term}')
+    return t.captured_error or syntax.ErrorTerm(
+        message=f'Expected {puncts_text}, but found {term}', location=t.location
+    )
 
 
 def expect_rule(c: Cursor, rule: str) -> Term:
     t = c.start_tracker()
     if t.validate(term := c.consume_rule(rule)):
         return term
-    return ErrorTerm(t.location, f'Expected rule "{rule}"')
+    return ErrorTerm(message=f'Expected rule "{rule}"', location=t.location)
 
 
 # Primary elements
@@ -347,7 +349,7 @@ def rule_invalid_factor(c: Cursor) -> Term:
         and t.validate(consume_keyword(c, 'not'))
         and t.validate(c.consume_rule('factor'))
     ):
-        return ErrorTerm(t.location, "'not' after an operator must be parenthesized")
+        return ErrorTerm(message="'not' after an operator must be parenthesized", location=t.location)
     return t.fail()
 
 

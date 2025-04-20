@@ -175,3 +175,9 @@ def test_var1():
     assert ast.unparse(expr2) == 'scope0.Int + scope0.x'
     assert typecheck(expr2, locals_={'x': predef1.Int}) == predef1.Int
     assert evaluate(expr1, locals_={'x': 7}) == 9
+
+
+# def test_error():
+#     [expr1, expr2] = parse_expr('2 + (3')
+#     assert ast.unparse(expr1) == '2 + (3'
+#     assert ast.unparse(expr2) == 'scope0.Int + scope0.x'

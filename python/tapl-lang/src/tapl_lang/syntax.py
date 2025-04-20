@@ -33,20 +33,20 @@ class AstSetting:
     scope_level: int = 0
 
     @property
-    def scope_native(self) -> bool:
-        return self.scope_mode == ScopeMode.NATIVE
-
-    @property
-    def scope_manual(self) -> bool:
-        return self.scope_mode == ScopeMode.MANUAL
-
-    @property
     def code_evaluate(self) -> bool:
         return self.code_mode == CodeMode.EVALUATE
 
     @property
     def code_typecheck(self) -> bool:
         return self.code_mode == CodeMode.TYPECHECK
+
+    @property
+    def scope_native(self) -> bool:
+        return self.scope_mode == ScopeMode.NATIVE
+
+    @property
+    def scope_manual(self) -> bool:
+        return self.scope_mode == ScopeMode.MANUAL
 
     def clone(
         self, code_mode: CodeMode | None = None, scope_mode: ScopeMode | None = None, scope_level: int | None = None
@@ -61,11 +61,20 @@ class AstSetting:
         return f'scope{self.scope_level}'
 
 
+class Visitor:
+    def visit(self, term: Term) -> None:
+        del term
+        raise TaplError(f'visit is not implemented in {self.__class__.__name__}')
+
+
 class Term:
+    def walk(self, visitor: Visitor) -> None:
+        del visitor
+        raise TaplError(f'gather_errors is not implemented in {self.__class__.__name__}')
+
     # TODO: convert to a walk to traverse the tree
     def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
         del error_bucket
-        raise TaplError(f'gather_errors is not implemented in {self.__class__.__name__}')
 
     def add_child(self, child: Term) -> None:
         raise TaplError(
@@ -289,11 +298,24 @@ class Location:
 
 @dataclass
 class ErrorTerm(Term):
-    location: Location
     message: str
+    location: Location | None = None
     recovered: bool = False
     guess: Term | None = None
 
     @override
     def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
         error_bucket.append(self)
+
+
+class CollectErrorVisitor(Visitor):
+    def __init__(self, error_bucket: list[ErrorTerm] | None = None) -> None:
+        self.error_bucket = error_bucket or []
+
+    def visit(self, term: Term):
+        if isinstance(term, ErrorTerm):
+            self.error_bucket.append(term)
+
+    def get_errors(self, term: Term) -> list[ErrorTerm]:
+        term.walk(self)
+        return self.error_bucket
