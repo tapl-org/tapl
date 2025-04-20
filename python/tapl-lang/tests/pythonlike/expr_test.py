@@ -7,7 +7,7 @@ import ast
 
 from tapl_lang import syntax
 from tapl_lang.parser import Grammar, parse_text
-from tapl_lang.pythonlike import parser, predef, predef1
+from tapl_lang.pythonlike import parser, predef, predef1, expr
 
 
 def check_parsed_term(parsed: syntax.Term) -> None:
@@ -177,7 +177,15 @@ def test_var1():
     assert evaluate(expr1, locals_={'x': 7}) == 9
 
 
-# def test_error():
-#     [expr1, expr2] = parse_expr('2 + (3')
-#     assert ast.unparse(expr1) == '2 + (3'
-#     assert ast.unparse(expr2) == 'scope0.Int + scope0.x'
+def test_gather_errors():
+    location = syntax.Location(start=syntax.Position(line=1, column=0))
+    a = expr.IntegerLiteral(location, 2)
+    b = expr.IntegerLiteral(location, 3)
+    c = syntax.ErrorTerm('Expected number')
+    d = expr.BinOp(location, b, '*', c)
+    e = expr.BinOp(location, a, '+', d)
+    error_bucket = []
+    e.gather_errors(error_bucket)
+    assert len(error_bucket) == 1
+    assert isinstance(error_bucket[0], syntax.ErrorTerm)
+    assert error_bucket[0].message == 'Expected number'

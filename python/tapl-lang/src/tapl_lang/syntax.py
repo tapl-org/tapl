@@ -68,13 +68,9 @@ class Visitor:
 
 
 class Term:
-    def walk(self, visitor: Visitor) -> None:
-        del visitor
-        raise TaplError(f'gather_errors is not implemented in {self.__class__.__name__}')
-
-    # TODO: convert to a walk to traverse the tree
     def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
         del error_bucket
+        raise TaplError(f'{self.__class__.__name__}.gather_errors is not implemented.')
 
     def add_child(self, child: Term) -> None:
         raise TaplError(
@@ -307,15 +303,3 @@ class ErrorTerm(Term):
     def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
         error_bucket.append(self)
 
-
-class CollectErrorVisitor(Visitor):
-    def __init__(self, error_bucket: list[ErrorTerm] | None = None) -> None:
-        self.error_bucket = error_bucket or []
-
-    def visit(self, term: Term):
-        if isinstance(term, ErrorTerm):
-            self.error_bucket.append(term)
-
-    def get_errors(self, term: Term) -> list[ErrorTerm]:
-        term.walk(self)
-        return self.error_bucket
