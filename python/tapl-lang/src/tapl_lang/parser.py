@@ -194,6 +194,11 @@ class PegEngine:
         while iteration_count > 0:
             iteration_count -= 1
             term, next_row, next_col = self.call_ordered_parse_functions(key)
+            if term is ParseFailed:
+                cell.term = ErrorTerm(
+                    message='PegEngine: Once ordered_parse_functions was successful, but it failed afterward. This indicates an inconsistency between ordered parse functions.'
+                )
+                return
             if isinstance(term, ErrorTerm):
                 cell.term = term
                 return
