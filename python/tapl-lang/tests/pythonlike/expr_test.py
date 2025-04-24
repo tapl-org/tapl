@@ -36,7 +36,7 @@ def evaluate(expr: ast.expr, locals_=None):
 def typecheck(expr: ast.expr, locals_=None):
     compiled_code = compile(ast.Expression(body=expr), filename='', mode='eval')
     scope0 = predef1.Scope(predef1.predef_scope)
-    scope0.internal__.variables.update(locals_ or {})
+    scope0.internal__tapl.variables.update(locals_ or {})
     globals_ = {'create_union': predef1.create_union, 'scope0': scope0}
     return eval(compiled_code, globals=globals_)
 

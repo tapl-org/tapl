@@ -22,7 +22,7 @@ def int_print(s):
 
 Scope = scope.Scope
 predef_scope = scope.Scope()
-predef_scope.internal__.variables.update(
+predef_scope.internal__tapl.variables.update(
     {
         'NoneType': typelib.NoneType_,
         'Bool': typelib.Bool_,

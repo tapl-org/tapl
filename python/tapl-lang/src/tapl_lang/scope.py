@@ -37,16 +37,16 @@ class ScopeInternal:
 
 class Scope:
     def __init__(self, parent: Scope | None = None, **kwargs: Any):
-        self.internal__: ScopeInternal = ScopeInternal(parent.internal__ if parent else None, **kwargs)
+        self.internal__tapl: ScopeInternal = ScopeInternal(parent.internal__tapl if parent else None, **kwargs)
 
     def __getattribute__(self, name):
-        if name == 'internal__':
+        if name == 'internal__tapl':
             return super().__getattribute__(name)
-        return self.internal__.load(name)
+        return self.internal__tapl.load(name)
 
     def __setattr__(self, name: str, value: Any):
-        if name == 'internal__':
+        if name == 'internal__tapl':
             # Allow setting the variables in initialization
             super().__setattr__(name, value)
         else:
-            self.internal__.store(name, value)
+            self.internal__tapl.store(name, value)
