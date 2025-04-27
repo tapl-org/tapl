@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import ast
+from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any, override
 
@@ -41,8 +42,8 @@ class Constant(syntax.Term):
     value: Any
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        pass
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from ()
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -62,8 +63,8 @@ class Name(syntax.Term):
     ctx: str
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        pass
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from ()
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -91,8 +92,8 @@ class Attribute(syntax.Term):
     ctx: str
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        self.value.gather_errors(error_bucket)
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.value
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -116,8 +117,8 @@ class Literal(syntax.Term):
     location: syntax.Location
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        pass
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from ()
 
     def typeit(self, ls: syntax.LayerSeparator, value: Any, type_id: str) -> list[syntax.Term]:
         if ls.layer_count != SAFE_LAYER_COUNT:
@@ -169,8 +170,8 @@ class UnaryOp(syntax.Term):
     operand: syntax.Term
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        self.operand.gather_errors(error_bucket)
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.operand
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -190,8 +191,8 @@ class BoolNot(syntax.Term):
     operand: syntax.Term
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        self.operand.gather_errors(error_bucket)
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.operand
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -218,9 +219,8 @@ class BoolOp(syntax.Term):
     values: list[syntax.Term]
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        for v in self.values:
-            v.gather_errors(error_bucket)
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.values
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -250,9 +250,9 @@ class BinOp(syntax.Term):
     right: syntax.Term
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        self.left.gather_errors(error_bucket)
-        self.right.gather_errors(error_bucket)
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.left
+        yield self.right
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -275,10 +275,9 @@ class Compare(syntax.Term):
     comparators: list[syntax.Term]
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        self.left.gather_errors(error_bucket)
-        for v in self.comparators:
-            v.gather_errors(error_bucket)
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.left
+        yield from self.comparators
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -309,10 +308,9 @@ class Call(syntax.Term):
     args: list[syntax.Term]
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        self.func.gather_errors(error_bucket)
-        for v in self.args:
-            v.gather_errors(error_bucket)
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.func
+        yield from self.args
 
     @override
     def separate(self, ls) -> list[syntax.Term]:

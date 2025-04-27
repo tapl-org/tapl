@@ -15,8 +15,7 @@ from tapl_lang.pythonlike.context import PythonlikeContext
 def check_parsed_term(parsed: syntax.Term) -> None:
     if parsed is None:
         raise RuntimeError('Parser returns None.')
-    error_bucket: list[syntax.ErrorTerm] = []
-    parsed.gather_errors(error_bucket)
+    error_bucket: list[syntax.ErrorTerm] = syntax.gather_errors(parsed)
     if error_bucket:
         messages = [e.message for e in error_bucket]
         raise SyntaxError('\n\n'.join(messages))

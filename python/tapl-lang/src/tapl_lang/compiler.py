@@ -34,8 +34,7 @@ def compile_tapl(text: str) -> list[ast.AST]:
     predef_layers = context.get_predef_layers()
     module = stmt.Module(statements=[predef_layers])
     context.parse_chunks(chunks[1:], [module])
-    error_bucket: list[syntax.ErrorTerm] = []
-    module.gather_errors(error_bucket)
+    error_bucket: list[syntax.ErrorTerm] = syntax.gather_errors(module)
     if error_bucket:
         messages = [repr(e) for e in error_bucket]
         raise TaplError('\n\n'.join(messages))

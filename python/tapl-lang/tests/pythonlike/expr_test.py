@@ -13,8 +13,7 @@ from tapl_lang.pythonlike import expr, parser, predef, predef1
 def check_parsed_term(parsed: syntax.Term) -> None:
     if parsed is None:
         raise RuntimeError('Parser returns None.')
-    error_bucket: list[syntax.ErrorTerm] = []
-    parsed.gather_errors(error_bucket)
+    error_bucket: list[syntax.ErrorTerm] = syntax.gather_errors(parsed)
     if error_bucket:
         messages = [e.message for e in error_bucket]
         raise SyntaxError('\n\n'.join(messages))
@@ -184,8 +183,7 @@ def test_gather_errors():
     c = syntax.ErrorTerm('Expected number')
     d = expr.BinOp(location, b, '*', c)
     e = expr.BinOp(location, a, '+', d)
-    error_bucket = []
-    e.gather_errors(error_bucket)
+    error_bucket = syntax.gather_errors(e)
     assert len(error_bucket) == 1
     assert isinstance(error_bucket[0], syntax.ErrorTerm)
     assert error_bucket[0].message == 'Expected number'

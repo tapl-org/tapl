@@ -13,7 +13,7 @@ from tapl_lang.tapl_error import TaplError
 
 if TYPE_CHECKING:
     import ast
-    from collections.abc import Callable
+    from collections.abc import Callable, Generator
 
 
 class CodeMode(Enum):
@@ -63,9 +63,8 @@ class AstSetting:
 
 
 class Term:
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
-        del error_bucket
-        raise TaplError(f'{self.__class__.__name__}.gather_errors is not implemented.')
+    def children(self) -> Generator[Term, None, None]:
+        raise TaplError(f'{self.__class__.__name__}.children is not implemented.')
 
     def add_child(self, child: Term) -> None:
         raise TaplError(
@@ -97,8 +96,8 @@ class AstSettingChanger(Term):
     changer: Callable[[AstSetting], AstSetting]
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
-        pass
+    def children(self) -> Generator[Term, None, None]:
+        yield from ()
 
     @override
     def separate(self, ls: LayerSeparator) -> list[Term]:
@@ -111,9 +110,9 @@ class AstSettingTerm(Term):
     term: Term
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
-        self.ast_setting_changer.gather_errors(error_bucket)
-        self.term.gather_errors(error_bucket)
+    def children(self) -> Generator[Term, None, None]:
+        yield self.ast_setting_changer
+        yield self.term
 
     @override
     def separate(self, ls: LayerSeparator) -> list[Term]:
@@ -170,9 +169,8 @@ class Layers(Term):
             raise TaplError('Number of layers must be equal or greater than 2.')
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
-        for layer in self.layers:
-            layer.gather_errors(error_bucket)
+    def children(self) -> Generator[Term, None, None]:
+        yield from self.layers
 
     @override
     def separate(self, ls: LayerSeparator) -> list[Term]:
@@ -234,8 +232,8 @@ class RearrangeLayers(Term):
     layer_indices: list[int]
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
-        self.term.gather_errors(error_bucket)
+    def children(self) -> Generator[Term, None, None]:
+        yield self.term
 
     @override
     def separate(self, ls: LayerSeparator) -> list[Term]:
@@ -254,8 +252,8 @@ class Realm(Term):
     term: Term
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
-        self.term.gather_errors(error_bucket)
+    def children(self) -> Generator[Term, None, None]:
+        yield self.term
 
 
 @dataclass
@@ -295,11 +293,24 @@ class ErrorTerm(Term):
     guess: Term | None = None
 
     @override
-    def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
-        error_bucket.append(self)
+    def children(self) -> Generator[Term, None, None]:
+        yield from ()
 
     @override
     def __repr__(self) -> str:
         if self.location:
             return f'{self.location} {self.message}'
         return self.message
+
+
+def gather_errors(term: Term) -> list[ErrorTerm]:
+    error_bucket: list[ErrorTerm] = []
+
+    def gather_errors_recursive(t: Term) -> None:
+        if isinstance(t, ErrorTerm):
+            error_bucket.append(t)
+        for child in t.children():
+            gather_errors_recursive(child)
+
+    gather_errors_recursive(term)
+    return error_bucket

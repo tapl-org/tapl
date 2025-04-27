@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import ast
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from typing import cast, override
 
@@ -14,9 +15,8 @@ class Sequence(syntax.Term):
     statements: list[syntax.Term]
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        for s in self.statements:
-            s.gather_errors(error_bucket)
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.statements
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -34,10 +34,9 @@ class Assign(syntax.Term):
     value: syntax.Term
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        for t in self.targets:
-            t.gather_errors(error_bucket)
-        self.value.gather_errors(error_bucket)
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.targets
+        yield self.value
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -62,9 +61,8 @@ class Return(syntax.Term):
     value: syntax.Term
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        if self.value:
-            self.value.gather_errors(error_bucket)
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.value
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -83,8 +81,8 @@ class Expr(syntax.Term):
     value: syntax.Term
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        self.value.gather_errors(error_bucket)
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.value
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -100,8 +98,8 @@ class Expr(syntax.Term):
 @dataclass
 class Absence(syntax.Term):
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        pass
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from ()
 
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda _: Absence())
@@ -114,8 +112,8 @@ class Parameter(syntax.Term):
     type_: syntax.Term
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        self.type_.gather_errors(error_bucket)
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.type_
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -130,11 +128,9 @@ class FunctionDef(syntax.Term):
     body: list[syntax.Term]
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        for p in self.parameters:
-            p.gather_errors(error_bucket)
-        for s in self.body:
-            s.gather_errors(error_bucket)
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.parameters
+        yield from self.body
 
     @override
     def add_child(self, child: syntax.Term) -> None:
@@ -264,8 +260,8 @@ class Import(syntax.Term):
     names: list[Alias]
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        pass
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from ()
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -288,8 +284,8 @@ class ImportFrom(syntax.Term):
     level: int
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        pass
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from ()
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -319,12 +315,10 @@ class If(syntax.Term):
     orelse: list[syntax.Term]
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        self.test.gather_errors(error_bucket)
-        for s in self.body:
-            s.gather_errors(error_bucket)
-        for s in self.orelse:
-            s.gather_errors(error_bucket)
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.test
+        yield from self.body
+        yield from self.orelse
 
     @override
     def add_child(self, child: syntax.Term) -> None:
@@ -374,9 +368,8 @@ class Module(syntax.Term):
     statements: list[syntax.Term] = field(default_factory=list)
 
     @override
-    def gather_errors(self, error_bucket: list[syntax.ErrorTerm]) -> None:
-        for s in self.statements:
-            s.gather_errors(error_bucket)
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.statements
 
     @override
     def add_child(self, child: syntax.Term) -> None:
