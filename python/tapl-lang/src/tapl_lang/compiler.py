@@ -34,6 +34,11 @@ def compile_tapl(text: str) -> list[ast.AST]:
     predef_layers = context.get_predef_layers()
     module = stmt.Module(statements=[predef_layers])
     context.parse_chunks(chunks[1:], [module])
+    error_bucket: list[syntax.ErrorTerm] = []
+    module.gather_errors(error_bucket)
+    if error_bucket:
+        messages = [repr(e) for e in error_bucket]
+        raise TaplError('\n\n'.join(messages))
     safe_module = syntax.make_safe_term(module)
     ls = syntax.LayerSeparator(len(predef_layers.layers))
     layers = ls.separate(safe_module)

@@ -62,12 +62,6 @@ class AstSetting:
         return f'scope{self.scope_level}'
 
 
-class Visitor:
-    def visit(self, term: Term) -> None:
-        del term
-        raise TaplError(f'visit is not implemented in {self.__class__.__name__}')
-
-
 class Term:
     def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
         del error_bucket
@@ -303,3 +297,9 @@ class ErrorTerm(Term):
     @override
     def gather_errors(self, error_bucket: list[ErrorTerm]) -> None:
         error_bucket.append(self)
+
+    @override
+    def __repr__(self) -> str:
+        if self.location:
+            return f'{self.location} {self.message}'
+        return self.message

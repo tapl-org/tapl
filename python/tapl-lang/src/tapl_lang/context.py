@@ -8,8 +8,7 @@ from abc import ABC, abstractmethod
 from tapl_lang import parser
 from tapl_lang.chunker import Chunk
 from tapl_lang.parser import Grammar
-from tapl_lang.syntax import Layers, Term
-from tapl_lang.tapl_error import TaplError
+from tapl_lang.syntax import ErrorTerm, Layers, Term
 
 
 class Context(ABC):
@@ -20,9 +19,7 @@ class Context(ABC):
     def parse_chunk(self, chunk: Chunk, parent_stack: list[Term]) -> None:
         grammar = self.get_grammar(parent_stack)
         term = parser.parse_line_records(chunk.line_records, grammar)
-        if not term:
-            raise TaplError(f'Could not parse the chunk: {term}')
-        if chunk.children:
+        if not isinstance(term, ErrorTerm) and chunk.children:
             parent_stack.append(term)
             self.parse_chunks(chunk.children, parent_stack)
             parent_stack.pop()
