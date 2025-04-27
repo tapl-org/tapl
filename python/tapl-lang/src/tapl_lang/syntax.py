@@ -317,3 +317,23 @@ def gather_errors(term: Term) -> list[ErrorTerm]:
 
     gather_errors_recursive(term)
     return error_bucket
+
+
+@dataclass
+class TermList(Term):
+    terms: list[Term]
+    delayed: bool = False  # Indicates if the term list is delayed. Useful during parsing when the term list is not immediately initialized and can be set later based on the parse result of child chunks.
+
+    @override
+    def children(self) -> Generator[Term, None, None]:
+        yield from self.terms
+
+    @override
+    def separate(self, ls: LayerSeparator) -> list[Term]:
+        return ls.build(lambda layer: TermList(terms=[layer(s) for s in self.terms], delayed=self.delayed))
+
+    @override
+    def codegen_stmt(self, setting) -> list[ast.stmt]:
+        if self.delayed:
+            raise TaplError('TermList is delayed and cannot be used for code generation.')
+        return [s for b in self.terms for s in b.codegen_stmt(setting)]

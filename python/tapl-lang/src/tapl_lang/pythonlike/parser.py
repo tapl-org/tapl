@@ -49,11 +49,6 @@ class TokenEndOfText(Term):
     location: syntax.Location
 
 
-@dataclass
-class TermSequence(Term):
-    terms: list[Term]
-
-
 # https://github.com/python/cpython/blob/main/Parser/token.c
 PUNCT_SET = {
     '!',
@@ -280,7 +275,7 @@ def scan_arguments(c: Cursor) -> Term:
         while t.validate(consume_punct(k, ',')) and t.validate(arg := expect_rule(k, 'expression')):
             c.copy_from(k)
             args.append(arg)
-    return t.captured_error or TermSequence(terms=args)
+    return t.captured_error or syntax.TermList(terms=args)
 
 
 def rule_primary__call(c: Cursor) -> Term:
@@ -291,7 +286,7 @@ def rule_primary__call(c: Cursor) -> Term:
         and t.validate(args := scan_arguments(c))
         and t.validate(expect_punct(c, ')'))
     ):
-        return expr.Call(t.location, func, cast(TermSequence, args).terms)
+        return expr.Call(t.location, func, cast(syntax.TermList, args).terms)
     return t.fail()
 
 
@@ -505,7 +500,7 @@ def scan_parameters(c: Cursor) -> Term:
         while t.validate(consume_punct(k, ',')) and t.validate(param := expect_rule(k, 'parameter')):
             c.copy_from(k)
             params.append(param)
-    return t.captured_error or TermSequence(terms=params)
+    return t.captured_error or syntax.TermList(terms=params)
 
 
 def rule_function_def(c: Cursor) -> Term:
@@ -519,7 +514,7 @@ def rule_function_def(c: Cursor) -> Term:
         and t.validate(expect_punct(c, ':'))
     ):
         name = cast(TokenName, func_name).value
-        return stmt.FunctionDef(location=t.location, name=name, parameters=cast(TermSequence, params).terms, body=[])
+        return stmt.FunctionDef(location=t.location, name=name, parameters=cast(syntax.TermList, params).terms, body=[])
     return t.fail()
 
 

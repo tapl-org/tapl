@@ -11,23 +11,6 @@ from tapl_lang import syntax, tapl_error
 
 
 @dataclass
-class Sequence(syntax.Term):
-    statements: list[syntax.Term]
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield from self.statements
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Sequence(statements=[layer(s) for s in self.statements]))
-
-    @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        return [s for b in self.statements for s in b.codegen_stmt(setting)]
-
-
-@dataclass
 class Assign(syntax.Term):
     location: syntax.Location
     targets: list[syntax.Term]
