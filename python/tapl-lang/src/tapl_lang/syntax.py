@@ -147,6 +147,9 @@ def create_safe_ast_settings() -> list[AstSetting]:
     ]
 
 
+SAFE_LAYER_COUNT = len(create_safe_ast_settings())
+
+
 def make_safe_term(term: Term) -> AstSettingTerm:
     def create_changer(setting: AstSetting) -> Callable[[AstSetting], AstSetting]:
         return lambda _: setting

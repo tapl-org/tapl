@@ -109,9 +109,6 @@ class Attribute(syntax.Term):
         return attr
 
 
-SAFE_LAYER_COUNT = 2
-
-
 @dataclass
 class Literal(syntax.Term):
     location: syntax.Location
@@ -121,7 +118,7 @@ class Literal(syntax.Term):
         yield from ()
 
     def typeit(self, ls: syntax.LayerSeparator, value: Any, type_id: str) -> list[syntax.Term]:
-        if ls.layer_count != SAFE_LAYER_COUNT:
+        if ls.layer_count != syntax.SAFE_LAYER_COUNT:
             raise ValueError('NoneLiteral must be separated in 2 layers')
         return [
             Constant(location=self.location, value=value),
