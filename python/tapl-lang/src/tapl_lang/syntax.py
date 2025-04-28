@@ -307,6 +307,11 @@ def gather_errors(term: Term) -> list[ErrorTerm]:
     def gather_errors_recursive(t: Term) -> None:
         if isinstance(t, ErrorTerm):
             error_bucket.append(t)
+        if isinstance(t, Block) and t.delayed:
+            error = ErrorTerm(
+                message='Block term is still delayed and not initialized yet. Expecting its body to be set.',
+            )
+            error_bucket.append(error)
         for child in t.children():
             gather_errors_recursive(child)
 
@@ -315,25 +320,43 @@ def gather_errors(term: Term) -> list[ErrorTerm]:
 
 
 @dataclass
-class TermList(Term):
+class Block(Term):
     terms: list[Term]
     delayed: bool = False  # Indicates if the term list is delayed. Useful during parsing when the term list is not immediately initialized and can be set later based on the parse result of child chunks.
 
     @override
     def children(self) -> Generator[Term, None, None]:
-        if self.delayed:
-            yield ErrorTerm(
-                message='TermList is still delayed and not initialized yet. Expecting its body to be set.',
-            )
-        else:
-            yield from self.terms
+        yield from self.terms
 
     @override
     def separate(self, ls: LayerSeparator) -> list[Term]:
-        return ls.build(lambda layer: TermList(terms=[layer(s) for s in self.terms], delayed=self.delayed))
+        return ls.build(lambda layer: Block(terms=[layer(s) for s in self.terms], delayed=self.delayed))
 
     @override
     def codegen_stmt(self, setting) -> list[ast.stmt]:
         if self.delayed:
-            raise TaplError('TermList is delayed and cannot be used for code generation.')
+            raise TaplError('Block is delayed and cannot be used for code generation.')
         return [s for b in self.terms for s in b.codegen_stmt(setting)]
+
+
+class DependentTerm(Term):
+    def merge_into(self, block: Block) -> None:
+        del block
+        raise TaplError(f'{self.__class__.__name__}.merge_into is not implemented.')
+
+
+def find_delayed_block(term: Term) -> Block | None:
+    delayed_block: Block | None = None
+
+    def loop(t: Term) -> None:
+        nonlocal delayed_block
+        if isinstance(t, Block) and t.delayed:
+            if delayed_block is None:
+                delayed_block = t
+            else:
+                raise TaplError('Multiple delayed blocks found.')
+        for child in t.children():
+            loop(child)
+
+    loop(term)
+    return delayed_block

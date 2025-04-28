@@ -7,7 +7,7 @@ import ast
 
 from tapl_lang import syntax
 from tapl_lang.chunker import chunk_text
-from tapl_lang.parser import Grammar, parse_text
+from tapl_lang.parser import parse_text
 from tapl_lang.pythonlike import parser, predef1, stmt
 from tapl_lang.pythonlike.context import PythonlikeContext
 
@@ -22,7 +22,10 @@ def check_parsed_term(parsed: syntax.Term) -> None:
 
 
 def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
-    parsed = parse_text(text, Grammar(parser.RULES, 'statement'), debug=debug)
+    parsed = parse_text(text, parser.GRAMMAR, debug=debug)
+    delayed_block = syntax.find_delayed_block(parsed)
+    if delayed_block is not None:
+        delayed_block.delayed = False
     check_parsed_term(parsed)
     safe_term = syntax.make_safe_term(parsed)
     layers = syntax.LayerSeparator(2).separate(safe_term)
@@ -38,9 +41,10 @@ def run_stmt(stmts: list[ast.stmt]):
 def parse_module(text: str) -> list[ast.AST]:
     chunks = chunk_text(text.strip())
     context = PythonlikeContext()
-    body = syntax.TermList([], delayed=True)
+    body = syntax.Block([], delayed=True)
     module = stmt.Module(body=body)
     context.parse_chunks(chunks, [module])
+    check_parsed_term(module)
     ls = syntax.LayerSeparator(2)
     safe_module = syntax.make_safe_term(module)
     layers = ls.separate(safe_module)
@@ -67,6 +71,12 @@ def test_return2():
     assert ast.unparse(stmt2) == 'return scope0.Bool'
 
 
+def test_if():
+    [stmt1, stmt2] = parse_stmt('if a == 2:')
+    assert ast.unparse(stmt1) == 'if a == 2:'
+    assert ast.unparse(stmt2) == 'scope0.a == scope0.Int'
+
+
 def test_function1():
     [stmt1, stmt2] = parse_module("""
 def hello():
@@ -86,5 +96,31 @@ def hello():
     scope1 = predef.Scope(scope0)
     return scope1.Int
 scope0.hello = predef.FunctionType([], hello())
+""".strip()
+    )
+
+
+def test_if_else_stmt():
+    [stmt1, stmt2] = parse_module("""
+if a == 2:
+    print(7)
+else:
+    print(8)
+""")
+    assert (
+        ast.unparse(stmt1)
+        == """
+if a == 2:
+    print(7)
+else:
+    print(8)
+""".strip()
+    )
+    assert (
+        ast.unparse(stmt2)
+        == """
+scope0.a == scope0.Int
+scope0.print(scope0.Int)
+scope0.print(scope0.Int)
 """.strip()
     )

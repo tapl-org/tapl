@@ -14,3 +14,7 @@ scope0.increment = predef.FunctionType([scope0.Int], increment(scope0.Int))
 scope0.int_print(scope0.increment(scope0.zero()))
 scope0.Bool
 scope0.int_print(scope0.Int)
+scope0.a = scope0.Int
+scope0.a == scope0.Int
+scope0.int_print(scope0.Int)
+scope0.int_print(scope0.Int)

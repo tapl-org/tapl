@@ -9,3 +9,8 @@ def increment(a):
 int_print(increment(zero()))
 if True:
     int_print(456)
+a = 5
+if a == 2:
+    int_print(7)
+else:
+    int_print(8)

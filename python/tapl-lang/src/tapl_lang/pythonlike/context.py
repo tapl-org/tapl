@@ -45,7 +45,7 @@ class PythonlikeContext(Context):
                 ],
             ),
         )
-        return syntax.TermList(
+        return syntax.Block(
             [
                 stmt.ImportFrom(
                     location, 'tapl_lang.pythonlike', [stmt.Alias(name='predef1', asname='predef')], IMPORT_LEVEL

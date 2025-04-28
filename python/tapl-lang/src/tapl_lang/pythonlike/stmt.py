@@ -291,13 +291,14 @@ class If(syntax.Term):
     location: syntax.Location
     test: syntax.Term
     body: syntax.Term
-    orelse: syntax.Term
+    orelse: syntax.Term | None
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.test
         yield self.body
-        yield self.orelse
+        if self.orelse is not None:
+            yield self.orelse
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -306,7 +307,7 @@ class If(syntax.Term):
                 location=self.location,
                 test=layer(self.test),
                 body=layer(self.body),
-                orelse=layer(self.orelse),
+                orelse=layer(self.orelse) if self.orelse else None,
             )
         )
 
@@ -314,7 +315,7 @@ class If(syntax.Term):
         if_stmt = ast.If(
             test=self.test.codegen_expr(setting),
             body=self.body.codegen_stmt(setting),
-            orelse=self.orelse.codegen_stmt(setting),
+            orelse=self.orelse.codegen_stmt(setting) if self.orelse else [],
         )
         self.location.locate(if_stmt)
         return [if_stmt]
@@ -324,7 +325,8 @@ class If(syntax.Term):
         self.location.locate(test_stmt)
         result: list[ast.stmt] = [test_stmt]
         result.extend(self.body.codegen_stmt(setting))
-        result.extend(self.orelse.codegen_stmt(setting))
+        if self.orelse:
+            result.extend(self.orelse.codegen_stmt(setting))
         return result
 
     @override
@@ -334,6 +336,30 @@ class If(syntax.Term):
         if setting.code_typecheck:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
+
+
+@dataclass
+class Else(syntax.DependentTerm):
+    location: syntax.Location
+    body: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.body
+
+    @override
+    def merge_into(self, block: syntax.Block) -> None:
+        term = block.terms[-1]
+        if isinstance(term, syntax.ErrorTerm):
+            return
+        if not isinstance(term, If):
+            error = syntax.ErrorTerm('Else can only be merged into If.' + repr(term), location=self.location)
+            block.terms.append(error)
+        elif term.orelse is not None:
+            error = syntax.ErrorTerm('An If statement can only have one Else clause.', location=self.location)
+            block.terms.append(error)
+        else:
+            term.orelse = self.body
 
 
 @dataclass

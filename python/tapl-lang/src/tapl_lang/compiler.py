@@ -32,7 +32,7 @@ def compile_tapl(text: str) -> list[ast.AST]:
         raise TaplError('Only pythonlike context is supported now.')
     context = PythonlikeContext()
     predef_layers = context.get_predef_layers()
-    body = syntax.TermList([predef_layers], delayed=True)
+    body = syntax.Block([predef_layers], delayed=True)
     module = stmt.Module(body=body)
     context.parse_chunks(chunks[1:], [module])
     error_bucket: list[syntax.ErrorTerm] = syntax.gather_errors(module)

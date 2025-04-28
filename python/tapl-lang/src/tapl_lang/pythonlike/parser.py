@@ -9,44 +9,61 @@ from typing import cast
 from tapl_lang import parser, syntax
 from tapl_lang.parser import Cursor, route
 from tapl_lang.pythonlike import expr, stmt
-from tapl_lang.syntax import ErrorTerm, Layers, Term
 
 # https://docs.python.org/3/reference/grammar.html
 
 
 @dataclass
-class TokenKeyword(Term):
+class TokenKeyword(syntax.Term):
     location: syntax.Location
     value: str
 
+    def repr__tapl(self) -> str:
+        return f'TokenKeyword({self.location}, {self.value})'
+
 
 @dataclass
-class TokenName(Term):
+class TokenName(syntax.Term):
     location: syntax.Location
     value: str
 
+    def repr__tapl(self) -> str:
+        return f'TokenName({self.location}, {self.value})'
+
 
 @dataclass
-class TokenString(Term):
+class TokenString(syntax.Term):
     location: syntax.Location
     value: str
 
+    def repr__tapl(self) -> str:
+        return f'TokenString({self.location}, {self.value})'
+
 
 @dataclass
-class TokenNumber(Term):
+class TokenNumber(syntax.Term):
     location: syntax.Location
     value: int
 
+    def repr__tapl(self) -> str:
+        return f'TokenNumber({self.location}, {self.value})'
+
 
 @dataclass
-class TokenPunct(Term):
+class TokenPunct(syntax.Term):
     location: syntax.Location
     value: str
 
+    def repr__tapl(self) -> str:
+        return f'TokenPunct({self.location}, {self.value})'
+
 
 @dataclass
-class TokenEndOfText(Term):
+class TokenEndOfText(syntax.Term):
     location: syntax.Location
+
+    def repr__tapl(self) -> str:
+        return f'TokenEndOfText({self.location})'
 
 
 # https://github.com/python/cpython/blob/main/Parser/token.c
@@ -146,13 +163,13 @@ def skip_whitespaces(c: Cursor) -> None:
         c.move_to_next()
 
 
-def rule_token(c: Cursor) -> Term:
+def rule_token(c: Cursor) -> syntax.Term:
     skip_whitespaces(c)
     tracker = c.start_tracker()
     if c.is_end():
         return TokenEndOfText(tracker.location)
 
-    def scan_name(char: str) -> Term:
+    def scan_name(char: str) -> syntax.Term:
         result = char
         while not c.is_end() and (char := c.current_char()) and (char.isalnum() or char == '_'):
             result += char
@@ -161,13 +178,13 @@ def rule_token(c: Cursor) -> Term:
             return TokenKeyword(tracker.location, value=result)
         return TokenName(tracker.location, value=result)
 
-    def unterminated_string() -> Term:
-        return ErrorTerm(
+    def unterminated_string() -> syntax.Term:
+        return syntax.ErrorTerm(
             message=f'unterminated string literal (detected at line {tracker.location.end.line}); perhaps you escaped the end quote?',
             location=tracker.location,
         )
 
-    def scan_string() -> Term:
+    def scan_string() -> syntax.Term:
         result = ''
         if c.is_end():
             return unterminated_string()
@@ -179,22 +196,32 @@ def rule_token(c: Cursor) -> Term:
         c.move_to_next()  # consume quote
         return TokenString(tracker.location, result)
 
-    def scan_number(char: str) -> Term:
+    def scan_number(char: str) -> syntax.Term:
         number_str = char
         while not c.is_end() and (char := c.current_char()).isdigit():
             number_str += char
             c.move_to_next()
         return TokenNumber(tracker.location, value=int(number_str))
 
-    def scan_punct(char: str) -> Term:
-        punct = char
-        # two-character punctuation
-        if not c.is_end() and (char := c.current_char()) and (temp := punct + char) in PUNCT_SET:
-            punct = temp
-        # three-character punctuation
-        if not c.is_end() and (char := c.current_char()) and (temp := punct + char) in PUNCT_SET:
-            punct = temp
-        return TokenPunct(tracker.location, value=punct)
+    def scan_punct(char: str) -> syntax.Term:
+        k = c.clone()
+        char2: str | None = None
+        char3: str | None = None
+        if not k.is_end():
+            char2 = k.current_char()
+            k.move_to_next()
+        if not k.is_end():
+            char3 = k.current_char()
+            k.move_to_next()
+        if char2 is not None:
+            if char3 is not None and (temp := char + char2 + char3) in PUNCT_SET:
+                c.copy_from(k)
+                return TokenPunct(tracker.location, value=temp)
+            if (temp := char + char2) in PUNCT_SET:
+                c.move_to_next()
+                return TokenPunct(tracker.location, value=temp)
+        # single-character punctuation
+        return TokenPunct(tracker.location, value=char)
 
     char = c.current_char()
     c.move_to_next()
@@ -210,42 +237,42 @@ def rule_token(c: Cursor) -> Term:
     return tracker.fail()
 
 
-def consume_keyword(c: Cursor, keyword: str) -> Term:
+def consume_keyword(c: Cursor, keyword: str) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(term := c.consume_rule('token')) and isinstance(term, TokenKeyword) and term.value == keyword:
         return term
     return t.fail()
 
 
-def expect_keyword(c: Cursor, keyword: str) -> Term:
+def expect_keyword(c: Cursor, keyword: str) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(term := c.consume_rule('token')) and isinstance(term, TokenKeyword) and term.value == keyword:
         return term
-    return t.captured_error or ErrorTerm(message=f'Expected "{keyword}", but found {term}', location=t.location)
+    return t.captured_error or syntax.ErrorTerm(message=f'Expected "{keyword}", but found {term}', location=t.location)
 
 
-def consume_name(c: Cursor) -> Term:
+def consume_name(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(term := c.consume_rule('token')) and isinstance(term, TokenName):
         return term
     return t.fail()
 
 
-def expect_name(c: Cursor) -> Term:
+def expect_name(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(term := c.consume_rule('token')) and isinstance(term, TokenName):
         return term
-    return t.captured_error or ErrorTerm(message=f'Expected a name, but found {term}', location=t.location)
+    return t.captured_error or syntax.ErrorTerm(message=f'Expected a name, but found {term}', location=t.location)
 
 
-def consume_punct(c: Cursor, *puncts: str) -> Term:
+def consume_punct(c: Cursor, *puncts: str) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(term := c.consume_rule('token')) and isinstance(term, TokenPunct) and term.value in puncts:
         return term
     return t.fail()
 
 
-def expect_punct(c: Cursor, *puncts: str) -> Term:
+def expect_punct(c: Cursor, *puncts: str) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(term := c.consume_rule('token')) and isinstance(term, TokenPunct) and term.value in puncts:
         return term
@@ -255,18 +282,18 @@ def expect_punct(c: Cursor, *puncts: str) -> Term:
     )
 
 
-def expect_rule(c: Cursor, rule: str) -> Term:
+def expect_rule(c: Cursor, rule: str) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(term := c.consume_rule(rule)):
         return term
-    return ErrorTerm(message=f'Expected rule "{rule}"', location=t.location)
+    return t.captured_error or syntax.ErrorTerm(message=f'Expected rule "{rule}"', location=t.location)
 
 
 # Primary elements
 # ----------------
 
 
-def scan_arguments(c: Cursor) -> Term:
+def scan_arguments(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     args = []
     if t.validate(first_arg := c.consume_rule('expression')):
@@ -275,10 +302,10 @@ def scan_arguments(c: Cursor) -> Term:
         while t.validate(consume_punct(k, ',')) and t.validate(arg := expect_rule(k, 'expression')):
             c.copy_from(k)
             args.append(arg)
-    return t.captured_error or syntax.TermList(terms=args)
+    return t.captured_error or syntax.Block(terms=args)
 
 
-def rule_primary__call(c: Cursor) -> Term:
+def rule_primary__call(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(func := c.consume_rule('primary'))
@@ -286,12 +313,12 @@ def rule_primary__call(c: Cursor) -> Term:
         and t.validate(args := scan_arguments(c))
         and t.validate(expect_punct(c, ')'))
     ):
-        return expr.Call(t.location, func, cast(syntax.TermList, args).terms)
+        return expr.Call(t.location, func, cast(syntax.Block, args).terms)
     return t.fail()
 
 
-def build_rule_name(ctx: str) -> Callable[[Cursor], Term]:
-    def rule(c: Cursor) -> Term:
+def build_rule_name(ctx: str) -> Callable[[Cursor], syntax.Term]:
+    def rule(c: Cursor) -> syntax.Term:
         t = c.start_tracker()
         if t.validate(token := c.consume_rule('token')) and isinstance(token, TokenName):
             return expr.Name(location=token.location, id=token.value, ctx=ctx)
@@ -300,7 +327,7 @@ def build_rule_name(ctx: str) -> Callable[[Cursor], Term]:
     return rule
 
 
-def rule_atom__bool(c: Cursor) -> Term:
+def rule_atom__bool(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule('token')) and isinstance(token, TokenKeyword):
         location = token.location
@@ -312,14 +339,14 @@ def rule_atom__bool(c: Cursor) -> Term:
     return t.fail()
 
 
-def rule_atom__string(c: Cursor) -> Term:
+def rule_atom__string(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule('token')) and isinstance(token, TokenString):
         return expr.StringLiteral(token.location, value=token.value)
     return t.fail()
 
 
-def rule_atom__number(c: Cursor) -> Term:
+def rule_atom__number(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule('token')) and isinstance(token, TokenNumber):
         return expr.IntegerLiteral(token.location, value=token.value)
@@ -330,25 +357,25 @@ def rule_atom__number(c: Cursor) -> Term:
 # --------------------
 
 
-def rule_factor__unary(c: Cursor) -> Term:
+def rule_factor__unary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(op := consume_punct(c, '+', '-', '~')) and t.validate(factor := expect_rule(c, 'factor')):
         return expr.UnaryOp(t.location, cast(TokenPunct, op).value, factor)
     return t.fail()
 
 
-def rule_invalid_factor(c: Cursor) -> Term:
+def rule_invalid_factor(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(consume_punct(c, '+', '-', '~'))
         and t.validate(consume_keyword(c, 'not'))
         and t.validate(c.consume_rule('factor'))
     ):
-        return ErrorTerm(message="'not' after an operator must be parenthesized", location=t.location)
+        return syntax.ErrorTerm(message="'not' after an operator must be parenthesized", location=t.location)
     return t.fail()
 
 
-def rule_term__binary(c: Cursor) -> Term:
+def rule_term__binary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(left := c.consume_rule('term'))
@@ -359,7 +386,7 @@ def rule_term__binary(c: Cursor) -> Term:
     return t.fail()
 
 
-def rule_sum__binary(c: Cursor) -> Term:
+def rule_sum__binary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(left := c.consume_rule('sum'))
@@ -392,7 +419,7 @@ def scan_operator(c: Cursor) -> str | None:
     return None
 
 
-def rule_comparison(c: Cursor) -> Term:
+def rule_comparison(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(left := c.consume_rule('sum')):
         ops = []
@@ -411,14 +438,14 @@ def rule_comparison(c: Cursor) -> Term:
 # -----------
 
 
-def rule_inversion__not(c: Cursor) -> Term:
+def rule_inversion__not(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(consume_keyword(c, 'not')) and t.validate(operand := expect_rule(c, 'comparison')):
         return expr.BoolNot(location=t.location, operand=operand)
     return t.fail()
 
 
-def rule_conjunction__and(c: Cursor) -> Term:
+def rule_conjunction__and(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(left := c.consume_rule('inversion')):
         values = [left]
@@ -431,7 +458,7 @@ def rule_conjunction__and(c: Cursor) -> Term:
     return t.fail()
 
 
-def rule_disjunction__or(c: Cursor) -> Term:
+def rule_disjunction__or(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(left := c.consume_rule('conjunction')):
         values = [left]
@@ -448,7 +475,7 @@ def rule_disjunction__or(c: Cursor) -> Term:
 # =================
 
 
-def rule_assignment(c: Cursor) -> Term:
+def rule_assignment(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(name := c.consume_rule('name_store'))
@@ -459,7 +486,7 @@ def rule_assignment(c: Cursor) -> Term:
     return t.fail()
 
 
-def rule_expression_statement(c: Cursor) -> Term:
+def rule_expression_statement(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(value := c.consume_rule('expression')):
         if hasattr(value, 'location'):
@@ -470,7 +497,7 @@ def rule_expression_statement(c: Cursor) -> Term:
     return t.fail()
 
 
-def rule_return(c: Cursor) -> Term:
+def rule_return(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(consume_keyword(c, 'return')):
         if t.validate(value := c.consume_rule('expression')):
@@ -479,7 +506,7 @@ def rule_return(c: Cursor) -> Term:
     return t.fail()
 
 
-def rule_parameter(c: Cursor) -> Term:
+def rule_parameter(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(name := consume_name(c))
@@ -487,11 +514,11 @@ def rule_parameter(c: Cursor) -> Term:
         and t.validate(param_type := expect_rule(c, 'expression'))
     ):
         param_name = cast(TokenName, name).value
-        return stmt.Parameter(t.location, name=param_name, type_=Layers([stmt.Absence(), param_type]))
+        return stmt.Parameter(t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), param_type]))
     return t.fail()
 
 
-def scan_parameters(c: Cursor) -> Term:
+def scan_parameters(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     params = []
     if t.validate(first_param := c.consume_rule('parameter')):
@@ -500,10 +527,10 @@ def scan_parameters(c: Cursor) -> Term:
         while t.validate(consume_punct(k, ',')) and t.validate(param := expect_rule(k, 'parameter')):
             c.copy_from(k)
             params.append(param)
-    return t.captured_error or syntax.TermList(terms=params)
+    return t.captured_error or syntax.Block(terms=params)
 
 
-def rule_function_def(c: Cursor) -> Term:
+def rule_function_def(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(consume_keyword(c, 'def'))
@@ -517,22 +544,27 @@ def rule_function_def(c: Cursor) -> Term:
         return stmt.FunctionDef(
             location=t.location,
             name=name,
-            parameters=cast(syntax.TermList, params).terms,
-            body=syntax.TermList([], delayed=True),
+            parameters=cast(syntax.Block, params).terms,
+            body=syntax.Block([], delayed=True),
         )
     return t.fail()
 
 
-def rule_if_stmt(c: Cursor) -> Term:
+def rule_if_stmt(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(consume_keyword(c, 'if'))
         and t.validate(test := expect_rule(c, 'expression'))
         and t.validate(expect_punct(c, ':'))
     ):
-        return stmt.If(
-            location=t.location, test=test, body=syntax.TermList([], delayed=True), orelse=syntax.TermList([])
-        )
+        return stmt.If(location=t.location, test=test, body=syntax.Block([], delayed=True), orelse=None)
+    return t.fail()
+
+
+def rule_else_stmt(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(consume_keyword(c, 'else')) and t.validate(expect_punct(c, ':')):
+        return stmt.Else(location=t.location, body=syntax.Block([], delayed=True))
     return t.fail()
 
 
@@ -562,6 +594,7 @@ RULES: parser.GrammarRuleMap = {
         route('return'),
         route('function_def'),
         route('if_stmt'),
+        route('else_stmt'),
     ],
     'assignment': [rule_assignment],
     'return': [rule_return],
@@ -569,6 +602,7 @@ RULES: parser.GrammarRuleMap = {
     'parameter': [rule_parameter],
     'name_store': [build_rule_name('store')],
     'if_stmt': [rule_if_stmt],
+    'else_stmt': [rule_else_stmt],
     'start': [parse_start],
 }
 
