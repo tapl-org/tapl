@@ -66,11 +66,6 @@ class Term:
     def children(self) -> Generator[Term, None, None]:
         raise TaplError(f'{self.__class__.__name__}.children is not implemented.')
 
-    def add_child(self, child: Term) -> None:
-        raise TaplError(
-            f'The {self.__class__.__name__} class does not support adding a child class={child.__class__.__name__}'
-        )
-
     def separate(self, ls: LayerSeparator) -> list[Term]:
         del ls
         raise TaplError(f'The {self.__class__.__name__} class does not support separate.')
@@ -326,11 +321,12 @@ class TermList(Term):
 
     @override
     def children(self) -> Generator[Term, None, None]:
-        yield from self.terms
-
-    @override
-    def add_child(self, child: Term) -> None:
-        self.terms.append(child)
+        if self.delayed:
+            yield ErrorTerm(
+                message='TermList is still delayed and not initialized yet. Expecting its body to be set.',
+            )
+        else:
+            yield from self.terms
 
     @override
     def separate(self, ls: LayerSeparator) -> list[Term]:

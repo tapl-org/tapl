@@ -515,7 +515,10 @@ def rule_function_def(c: Cursor) -> Term:
     ):
         name = cast(TokenName, func_name).value
         return stmt.FunctionDef(
-            location=t.location, name=name, parameters=cast(syntax.TermList, params).terms, body=syntax.TermList([])
+            location=t.location,
+            name=name,
+            parameters=cast(syntax.TermList, params).terms,
+            body=syntax.TermList([], delayed=True),
         )
     return t.fail()
 
@@ -527,7 +530,9 @@ def rule_if_stmt(c: Cursor) -> Term:
         and t.validate(test := expect_rule(c, 'expression'))
         and t.validate(expect_punct(c, ':'))
     ):
-        return stmt.If(location=t.location, test=test, body=syntax.TermList([]), orelse=syntax.TermList([]))
+        return stmt.If(
+            location=t.location, test=test, body=syntax.TermList([], delayed=True), orelse=syntax.TermList([])
+        )
     return t.fail()
 
 

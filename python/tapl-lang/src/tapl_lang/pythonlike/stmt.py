@@ -4,7 +4,7 @@
 
 import ast
 from collections.abc import Generator
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import cast, override
 
 from tapl_lang import syntax, tapl_error
@@ -114,10 +114,6 @@ class FunctionDef(syntax.Term):
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.parameters
         yield self.body
-
-    @override
-    def add_child(self, child: syntax.Term) -> None:
-        self.body.add_child(child)
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -304,10 +300,6 @@ class If(syntax.Term):
         yield self.orelse
 
     @override
-    def add_child(self, child: syntax.Term) -> None:
-        self.body.add_child(child)
-
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: If(
@@ -346,23 +338,16 @@ class If(syntax.Term):
 
 @dataclass
 class Module(syntax.Term):
-    statements: list[syntax.Term] = field(default_factory=list)
+    body: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
-        yield from self.statements
-
-    @override
-    def add_child(self, child: syntax.Term) -> None:
-        return self.statements.append(child)
+        yield self.body
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Module([layer(s) for s in self.statements]))
+        return ls.build(lambda layer: Module(layer(self.body)))
 
     @override
     def codegen_ast(self, setting: syntax.AstSetting) -> ast.AST:
-        body: list[ast.stmt] = []
-        for b in self.statements:
-            body.extend(b.codegen_stmt(setting))
-        return ast.Module(body=body)
+        return ast.Module(body=self.body.codegen_stmt(setting))

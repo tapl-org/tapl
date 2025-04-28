@@ -38,7 +38,8 @@ def run_stmt(stmts: list[ast.stmt]):
 def parse_module(text: str) -> list[ast.AST]:
     chunks = chunk_text(text.strip())
     context = PythonlikeContext()
-    module = stmt.Module()
+    body = syntax.TermList([], delayed=True)
+    module = stmt.Module(body=body)
     context.parse_chunks(chunks, [module])
     ls = syntax.LayerSeparator(2)
     safe_module = syntax.make_safe_term(module)
