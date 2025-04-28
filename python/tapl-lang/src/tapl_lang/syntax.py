@@ -329,6 +329,10 @@ class TermList(Term):
         yield from self.terms
 
     @override
+    def add_child(self, child: Term) -> None:
+        self.terms.append(child)
+
+    @override
     def separate(self, ls: LayerSeparator) -> list[Term]:
         return ls.build(lambda layer: TermList(terms=[layer(s) for s in self.terms], delayed=self.delayed))
 

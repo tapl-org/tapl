@@ -108,16 +108,16 @@ class FunctionDef(syntax.Term):
     location: syntax.Location
     name: str
     parameters: list[syntax.Term]
-    body: list[syntax.Term]
+    body: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.parameters
-        yield from self.body
+        yield self.body
 
     @override
     def add_child(self, child: syntax.Term) -> None:
-        self.body.append(child)
+        self.body.add_child(child)
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -126,7 +126,7 @@ class FunctionDef(syntax.Term):
                 location=self.location,
                 name=self.name,
                 parameters=[layer(p) for p in self.parameters],
-                body=[layer(s) for s in self.body],
+                body=layer(self.body),
             )
         )
 
@@ -159,7 +159,7 @@ class FunctionDef(syntax.Term):
             body.append(assign)
         else:
             body_setting = setting
-        body.extend(s for b in self.body for s in b.codegen_stmt(body_setting))
+        body.extend(self.body.codegen_stmt(body_setting))
         func = ast.FunctionDef(
             name=self.name, args=ast.arguments(args=params), body=body, decorator_list=decorator_list
         )
@@ -294,18 +294,18 @@ class ImportFrom(syntax.Term):
 class If(syntax.Term):
     location: syntax.Location
     test: syntax.Term
-    body: list[syntax.Term]
-    orelse: list[syntax.Term]
+    body: syntax.Term
+    orelse: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.test
-        yield from self.body
-        yield from self.orelse
+        yield self.body
+        yield self.orelse
 
     @override
     def add_child(self, child: syntax.Term) -> None:
-        self.body.append(child)
+        self.body.add_child(child)
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -313,16 +313,16 @@ class If(syntax.Term):
             lambda layer: If(
                 location=self.location,
                 test=layer(self.test),
-                body=[layer(s) for s in self.body],
-                orelse=[layer(s) for s in self.orelse],
+                body=layer(self.body),
+                orelse=layer(self.orelse),
             )
         )
 
     def codegen_evaluate(self, setting: syntax.AstSetting) -> list[ast.stmt]:
         if_stmt = ast.If(
             test=self.test.codegen_expr(setting),
-            body=[s for b in self.body for s in b.codegen_stmt(setting)],
-            orelse=[s for b in self.orelse for s in b.codegen_stmt(setting)],
+            body=self.body.codegen_stmt(setting),
+            orelse=self.orelse.codegen_stmt(setting),
         )
         self.location.locate(if_stmt)
         return [if_stmt]
@@ -331,10 +331,8 @@ class If(syntax.Term):
         test_stmt = ast.Expr(self.test.codegen_expr(setting))
         self.location.locate(test_stmt)
         result: list[ast.stmt] = [test_stmt]
-        for s in self.body:
-            result.extend(s.codegen_stmt(setting))
-        for s in self.orelse:
-            result.extend(s.codegen_stmt(setting))
+        result.extend(self.body.codegen_stmt(setting))
+        result.extend(self.orelse.codegen_stmt(setting))
         return result
 
     @override
