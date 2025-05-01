@@ -62,13 +62,13 @@ def test_assign1():
 def test_return1():
     [stmt1, stmt2] = parse_stmt('return')
     assert ast.unparse(stmt1) == 'return None'
-    assert ast.unparse(stmt2) == 'return s0.NoneType'
+    assert ast.unparse(stmt2) == 'predef.add_return_type(s0, s0.NoneType)'
 
 
 def test_return2():
     [stmt1, stmt2] = parse_stmt('return True')
     assert ast.unparse(stmt1) == 'return True'
-    assert ast.unparse(stmt2) == 'return s0.Bool'
+    assert ast.unparse(stmt2) == 'predef.add_return_type(s0, s0.Bool)'
 
 
 def test_if():
@@ -102,7 +102,8 @@ def hello():
         == """
 def hello():
     s1 = predef.Scope(s0)
-    return s1.Int
+    predef.add_return_type(s1, s1.Int)
+    return predef.get_return_type(s1)
 s0.hello = predef.FunctionType([], hello())
 """.strip()
     )

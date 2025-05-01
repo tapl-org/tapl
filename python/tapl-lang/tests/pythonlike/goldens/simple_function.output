@@ -1,4 +1,4 @@
-====== level=1 exit-status:0 stdout:
+====== layer=1 exit-status:0 stdout:
 Int
 Int|Str
 
@@ -6,7 +6,7 @@ Int|Str
 
 ------ end.
 
-====== level=0 exit-status:0 stdout:
+====== layer=0 exit-status:0 stdout:
 123
 1
 456

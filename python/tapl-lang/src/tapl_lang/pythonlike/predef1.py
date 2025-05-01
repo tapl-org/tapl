@@ -16,6 +16,8 @@ function_type = typelib.function_type
 
 Scope = scope.Scope
 ScopeForker = scope.ScopeForker
+add_return_type = scope.add_return_type
+get_return_type = scope.get_return_type
 predef_scope = scope.Scope()
 predef_scope.internal__tapl.variables.update(
     {

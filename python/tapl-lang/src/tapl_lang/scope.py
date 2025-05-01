@@ -14,6 +14,7 @@ class ScopeInternal:
         self.parent = parent
         self.variables: dict[str, Any] = {}
         self.variables.update(kwargs)
+        self.returns: list[Any] = []
 
     def try_load(self, name: str) -> Any | None:
         if name in self.variables:
@@ -78,3 +79,13 @@ class ScopeForker:
         forked = Scope(self.parent_scope)
         self.forked_scopes.append(forked)
         return forked
+
+
+def add_return_type(scope: Scope, return_type: Any) -> None:
+    scope.internal__tapl.returns.append(return_type)
+
+
+def get_return_type(scope: Scope) -> Any:
+    if scope.internal__tapl.returns:
+        return typelib.create_union(*scope.internal__tapl.returns)
+    return typelib.NoneType_

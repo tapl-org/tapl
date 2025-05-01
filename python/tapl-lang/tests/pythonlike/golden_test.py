@@ -63,7 +63,7 @@ def test_simple():
         verify(ast.unparse(layers[i]), namer=ApprovalNamer(filename))
         if success:
             return_code, stdout, stderr = run_command(['python', filename])
-            output.write(f'====== level={i} exit-status:{return_code} stdout:\n')
+            output.write(f'====== layer={i} exit-status:{return_code} stdout:\n')
             output.write(stdout)
             output.write('\n------ stderr:\n')
             output.write(stderr)

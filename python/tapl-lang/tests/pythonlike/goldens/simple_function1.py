@@ -4,17 +4,20 @@ s0 = predef.Scope(predef.predef_scope)
 def int_print(a):
     s1 = predef.Scope(s0, a=a)
     s1.print__tapl(s1.a)
+    return predef.get_return_type(s1)
 s0.int_print = predef.FunctionType([s0.Int], int_print(s0.Int))
 s0.int_print(s0.Int)
 
 def zero():
     s1 = predef.Scope(s0)
-    return s1.Int
+    predef.add_return_type(s1, s1.Int)
+    return predef.get_return_type(s1)
 s0.zero = predef.FunctionType([], zero())
 
 def increment(a):
     s1 = predef.Scope(s0, a=a)
-    return s1.a + s1.Int
+    predef.add_return_type(s1, s1.a + s1.Int)
+    return predef.get_return_type(s1)
 s0.increment = predef.FunctionType([s0.Int], increment(s0.Int))
 s0.int_print(s0.increment(s0.zero()))
 with predef.ScopeForker(s0) as f0:

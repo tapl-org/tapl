@@ -51,11 +51,36 @@ class Return(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: Return(location=self.location, value=layer(self.value)))
 
-    @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+    def codegen_evaluate(self, setting: syntax.AstSetting) -> list[ast.stmt]:
         stmt = ast.Return(self.value.codegen_expr(setting)) if self.value else ast.Return()
         self.location.locate(stmt)
         return [stmt]
+
+    def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        def locate(ast_expr: ast.expr) -> ast.expr:
+            self.location.locate(ast_expr)
+            return ast_expr
+
+        stmt = ast.Expr(
+            value=locate(
+                ast.Call(
+                    func=locate(
+                        ast.Attribute(value=locate(ast.Name(id='predef', ctx=ast.Load())), attr='add_return_type')
+                    ),
+                    args=[locate(ast.Name(id=setting.scope_name, ctx=ast.Load())), self.value.codegen_expr(setting)],
+                )
+            )
+        )
+        self.location.locate(stmt)
+        return [stmt]
+
+    @override
+    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        if setting.code_evaluate and setting.scope_native:
+            return self.codegen_evaluate(setting)
+        if setting.code_typecheck and setting.scope_manual:
+            return self.codegen_typecheck(setting)
+        raise tapl_error.UnhandledError
 
 
 @dataclass
@@ -126,103 +151,99 @@ class FunctionDef(syntax.Term):
             )
         )
 
-    def codegen_function(self, setting: syntax.AstSetting, decorator_list: list[ast.expr]) -> ast.FunctionDef:
-        def locate(ast_expr: ast.expr) -> ast.expr:
-            self.location.locate(ast_expr)
-            return ast_expr
-
-        params = [ast.arg(arg=cast(Parameter, p).name) for p in self.parameters]
-        body: list[ast.stmt] = []
-        if setting.scope_manual:
-            body_setting = setting.clone(scope_level=setting.scope_level + 1)
-            assign = ast.Assign(
-                targets=[locate(ast.Name(id=body_setting.scope_name, ctx=ast.Store()))],
-                value=ast.Call(
-                    func=locate(
-                        ast.Attribute(value=locate(ast.Name(id='predef', ctx=ast.Load())), attr='Scope', ctx=ast.Load())
-                    ),
-                    args=[locate(ast.Name(id=setting.scope_name, ctx=ast.Load()))],
-                    keywords=[
-                        ast.keyword(
-                            arg=cast(Parameter, p).name,
-                            value=locate(ast.Name(id=cast(Parameter, p).name, ctx=ast.Load())),
-                        )
-                        for p in self.parameters
-                    ],
-                ),
-            )
-            self.location.locate(assign)
-            body.append(assign)
-        else:
-            body_setting = setting
-        body.extend(self.body.codegen_stmt(body_setting))
-        func = ast.FunctionDef(
-            name=self.name, args=ast.arguments(args=params), body=body, decorator_list=decorator_list
-        )
-        self.location.locate(func)
-        return func
-
-    def gen_decorator(self, setting: syntax.AstSetting) -> ast.expr:
-        predef = ast.Name('predef', ctx=ast.Load())
-        func = ast.Attribute(value=predef, attr='function_type', ctx=ast.Load())
-        decorator = ast.Call(func=func, args=[cast(Parameter, p).type_.codegen_expr(setting) for p in self.parameters])
-        self.location.locate(func, decorator)
-        return decorator
-
     def codegen_evaluate(self, setting: syntax.AstSetting) -> list[ast.stmt]:
         if not all(isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
             raise tapl_error.TaplError('All parameter type must be Absence when generating function in evaluate mode.')
-        return [self.codegen_function(setting, decorator_list=[])]
+
+        params = [ast.arg(arg=cast(Parameter, p).name) for p in self.parameters]
+        body: list[ast.stmt] = []
+        body.extend(self.body.codegen_stmt(setting))
+        func = ast.FunctionDef(name=self.name, args=ast.arguments(args=params), body=body, decorator_list=[])
+        self.location.locate(func)
+        return [func]
 
     def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
         if not all(not isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
             raise tapl_error.TaplError(
                 'All parameter type must not be Absence when generating function in type-check mode.'
             )
-        if setting.scope_native:
-            return [self.codegen_function(setting, decorator_list=[self.gen_decorator(setting)])]
-        if setting.scope_manual:
 
-            def locate(ast_expr: ast.expr) -> ast.expr:
-                self.location.locate(ast_expr)
-                return ast_expr
+        def locate(ast_expr: ast.expr) -> ast.expr:
+            self.location.locate(ast_expr)
+            return ast_expr
 
-            func = self.codegen_function(setting, decorator_list=[])
-            assign = ast.Assign(
-                targets=[
-                    ast.Attribute(
-                        value=locate(ast.Name(id=setting.scope_name, ctx=ast.Load())), attr=self.name, ctx=ast.Store()
-                    )
-                ],
-                value=locate(
-                    ast.Call(
-                        func=ast.Attribute(
-                            value=locate(ast.Name(id='predef', ctx=ast.Load())), attr='FunctionType', ctx=ast.Load()
-                        ),
-                        args=[
-                            ast.List(
-                                elts=[cast(Parameter, p).type_.codegen_expr(setting) for p in self.parameters],
-                                ctx=ast.Load(),
-                            ),
-                            locate(
-                                ast.Call(
-                                    func=locate(ast.Name(id=self.name, ctx=ast.Load())),
-                                    args=[cast(Parameter, p).type_.codegen_expr(setting) for p in self.parameters],
-                                )
-                            ),
-                        ],
-                    )
+        params = [ast.arg(arg=cast(Parameter, p).name) for p in self.parameters]
+        body: list[ast.stmt] = []
+        body_setting = setting.clone(scope_level=setting.scope_level + 1)
+        assign = ast.Assign(
+            targets=[locate(ast.Name(id=body_setting.scope_name, ctx=ast.Store()))],
+            value=ast.Call(
+                func=locate(
+                    ast.Attribute(value=locate(ast.Name(id='predef', ctx=ast.Load())), attr='Scope', ctx=ast.Load())
                 ),
+                args=[locate(ast.Name(id=setting.scope_name, ctx=ast.Load()))],
+                keywords=[
+                    ast.keyword(
+                        arg=cast(Parameter, p).name,
+                        value=locate(ast.Name(id=cast(Parameter, p).name, ctx=ast.Load())),
+                    )
+                    for p in self.parameters
+                ],
+            ),
+        )
+        self.location.locate(assign)
+        body.append(assign)
+
+        body.extend(self.body.codegen_stmt(body_setting))
+        body.append(
+            ast.Return(
+                locate(
+                    ast.Call(
+                        func=locate(
+                            ast.Attribute(value=locate(ast.Name(id='predef', ctx=ast.Load())), attr='get_return_type')
+                        ),
+                        args=[locate(ast.Name(id=body_setting.scope_name, ctx=ast.Load()))],
+                    )
+                )
             )
-            self.location.locate(assign)
-            return [func, assign]
-        raise tapl_error.UnhandledError
+        )
+        func = ast.FunctionDef(name=self.name, args=ast.arguments(args=params), body=body, decorator_list=[])
+        self.location.locate(func)
+
+        assign = ast.Assign(
+            targets=[
+                ast.Attribute(
+                    value=locate(ast.Name(id=setting.scope_name, ctx=ast.Load())), attr=self.name, ctx=ast.Store()
+                )
+            ],
+            value=locate(
+                ast.Call(
+                    func=ast.Attribute(
+                        value=locate(ast.Name(id='predef', ctx=ast.Load())), attr='FunctionType', ctx=ast.Load()
+                    ),
+                    args=[
+                        ast.List(
+                            elts=[cast(Parameter, p).type_.codegen_expr(setting) for p in self.parameters],
+                            ctx=ast.Load(),
+                        ),
+                        locate(
+                            ast.Call(
+                                func=locate(ast.Name(id=self.name, ctx=ast.Load())),
+                                args=[cast(Parameter, p).type_.codegen_expr(setting) for p in self.parameters],
+                            )
+                        ),
+                    ],
+                )
+            ),
+        )
+        self.location.locate(assign)
+        return [func, assign]
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if setting.code_evaluate:
+        if setting.code_evaluate and setting.scope_native:
             return self.codegen_evaluate(setting)
-        if setting.code_typecheck:
+        if setting.code_typecheck and setting.scope_manual:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
 
