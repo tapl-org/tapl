@@ -5,9 +5,9 @@
 
 import ast
 
-from tapl_lang import syntax
-from tapl_lang.chunker import chunk_text
-from tapl_lang.parser import parse_text
+from tapl_lang.core import syntax
+from tapl_lang.core.chunker import chunk_text
+from tapl_lang.core.parser import parse_text
 from tapl_lang.pythonlike import parser, predef1, stmt
 from tapl_lang.pythonlike.context import PythonlikeContext
 

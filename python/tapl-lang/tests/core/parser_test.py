@@ -4,9 +4,9 @@
 
 from dataclasses import dataclass
 
-from tapl_lang import parser, syntax
-from tapl_lang.parser import Cursor, route
-from tapl_lang.syntax import Location, Position, Term
+from tapl_lang.core import parser, syntax
+from tapl_lang.core.parser import Cursor, route
+from tapl_lang.core.syntax import Location, Position, Term
 
 
 @dataclass

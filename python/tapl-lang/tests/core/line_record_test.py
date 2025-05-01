@@ -2,7 +2,7 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from tapl_lang.line_record import LineRecord, split_text_to_lines
+from tapl_lang.core.line_record import LineRecord, split_text_to_lines
 
 
 def test_empty_line1():

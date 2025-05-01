@@ -12,9 +12,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import override
 
-from tapl_lang.line_record import LineRecord, split_text_to_lines
-from tapl_lang.syntax import ErrorTerm, Location, Position, Term
-from tapl_lang.tapl_error import TaplError
+from tapl_lang.core.line_record import LineRecord, split_text_to_lines
+from tapl_lang.core.syntax import ErrorTerm, Location, Position, Term
+from tapl_lang.core.tapl_error import TaplError
 
 # Implemented PEG parser - https://en.wikipedia.org/wiki/Parsing_expression_grammar,
 # https://pdos.csail.mit.edu/~baford/packrat/thesis/

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, cast, override
 
-from tapl_lang.tapl_error import TaplError
+from tapl_lang.core.tapl_error import TaplError
 
 if TYPE_CHECKING:
     import ast

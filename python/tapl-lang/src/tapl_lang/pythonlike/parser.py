@@ -6,8 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import cast
 
-from tapl_lang import parser, syntax
-from tapl_lang.parser import Cursor, route
+from tapl_lang.core import parser, syntax
+from tapl_lang.core.parser import Cursor, route
 from tapl_lang.pythonlike import expr, stmt
 
 # https://docs.python.org/3/reference/grammar.html

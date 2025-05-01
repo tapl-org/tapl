@@ -5,11 +5,11 @@
 import ast
 import re
 
-from tapl_lang import syntax
-from tapl_lang.chunker import Chunk, chunk_text
+from tapl_lang.core import syntax
+from tapl_lang.core.chunker import Chunk, chunk_text
+from tapl_lang.core.tapl_error import TaplError
 from tapl_lang.pythonlike import stmt
 from tapl_lang.pythonlike.context import PythonlikeContext
-from tapl_lang.tapl_error import TaplError
 
 
 def get_context_name(chunk: Chunk) -> str:

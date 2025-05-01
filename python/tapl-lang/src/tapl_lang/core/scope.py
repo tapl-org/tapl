@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Self
 
-from tapl_lang import typelib
+from tapl_lang.core import typelib
 
 
 class ScopeInternal:

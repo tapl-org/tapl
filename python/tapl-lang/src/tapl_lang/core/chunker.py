@@ -2,8 +2,8 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from tapl_lang.parser import LineRecord, split_text_to_lines
-from tapl_lang.tapl_error import TaplError
+from tapl_lang.core.parser import LineRecord, split_text_to_lines
+from tapl_lang.core.tapl_error import TaplError
 
 
 class Chunk:

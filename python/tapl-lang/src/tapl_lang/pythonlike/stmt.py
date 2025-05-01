@@ -7,7 +7,7 @@ from collections.abc import Generator
 from dataclasses import dataclass
 from typing import cast, override
 
-from tapl_lang import syntax, tapl_error
+from tapl_lang.core import syntax, tapl_error
 
 
 @dataclass

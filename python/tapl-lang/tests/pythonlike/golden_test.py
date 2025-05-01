@@ -11,7 +11,7 @@ import subprocess
 from approvaltests.approvals import verify
 from approvaltests.core.namer import Namer
 
-from tapl_lang.compiler import compile_tapl
+from tapl_lang.core.compiler import compile_tapl
 
 
 def run_command(command):

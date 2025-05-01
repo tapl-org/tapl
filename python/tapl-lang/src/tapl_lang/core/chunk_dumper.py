@@ -4,7 +4,7 @@
 
 import io
 
-from tapl_lang import chunker, line_record
+from tapl_lang.core import chunker, line_record
 
 
 class Dumper:

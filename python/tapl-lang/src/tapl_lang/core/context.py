@@ -5,9 +5,9 @@
 
 from abc import ABC, abstractmethod
 
-from tapl_lang import parser, syntax
-from tapl_lang.chunker import Chunk
-from tapl_lang.tapl_error import TaplError
+from tapl_lang.core import parser, syntax
+from tapl_lang.core.chunker import Chunk
+from tapl_lang.core.tapl_error import TaplError
 
 
 class Context(ABC):

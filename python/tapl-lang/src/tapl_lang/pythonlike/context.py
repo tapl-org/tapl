@@ -4,8 +4,8 @@
 
 from typing import override
 
-from tapl_lang import parser, syntax
-from tapl_lang.context import Context
+from tapl_lang.core import parser, syntax
+from tapl_lang.core.context import Context
 from tapl_lang.pythonlike import expr, stmt
 from tapl_lang.pythonlike import parser as pythonlike_parser
 
