@@ -14,13 +14,8 @@ FunctionType = typelib.FunctionType
 function_type = typelib.function_type
 
 
-@function_type(Int)
-def int_print(s):
-    del s
-    return NoneType
-
-
 Scope = scope.Scope
+ScopeForker = scope.ScopeForker
 predef_scope = scope.Scope()
 predef_scope.internal__tapl.variables.update(
     {
@@ -32,6 +27,6 @@ predef_scope.internal__tapl.variables.update(
         'create_union': typelib.create_union,
         'FunctionType': typelib.FunctionType,
         'function_type': typelib.function_type,
-        'int_print': int_print,
+        'print__tapl': print,
     }
 )

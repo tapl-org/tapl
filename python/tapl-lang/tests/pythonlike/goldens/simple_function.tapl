@@ -1,4 +1,8 @@
 context pythonlike
+# TODO: Fix error - Context clause chunk should be one line
+def int_print(a: Int):
+    print__tapl(a)
+
 int_print(123)
 
 def zero():
@@ -16,6 +20,7 @@ if True:
 
 a = 5
 if a == 2:
-    int_print(7)
+    b = 7
 else:
-    int_print(8)
+    b = 'banana'
+print__tapl(b)

@@ -34,7 +34,7 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
 
 def run_stmt(stmts: list[ast.stmt]):
     compiled_code = compile(ast.Module(body=stmts), filename='', mode='exec')
-    globals_ = {'create_union': predef1.create_union, 'scope0': predef1.Scope(predef1.predef_scope)}
+    globals_ = {'create_union': predef1.create_union, 's0': predef1.Scope(predef1.predef_scope)}
     return eval(compiled_code, globals=globals_)
 
 
@@ -54,7 +54,7 @@ def parse_module(text: str) -> list[ast.AST]:
 def test_assign1():
     [stmt1, stmt2] = parse_stmt('a=1')
     assert ast.unparse(stmt1) == 'a = 1'
-    assert ast.unparse(stmt2) == 'scope0.a = scope0.Int'
+    assert ast.unparse(stmt2) == 's0.a = s0.Int'
     assert run_stmt([stmt2]) is None
     assert run_stmt([stmt1]) is None
 
@@ -62,19 +62,27 @@ def test_assign1():
 def test_return1():
     [stmt1, stmt2] = parse_stmt('return')
     assert ast.unparse(stmt1) == 'return None'
-    assert ast.unparse(stmt2) == 'return scope0.NoneType'
+    assert ast.unparse(stmt2) == 'return s0.NoneType'
 
 
 def test_return2():
     [stmt1, stmt2] = parse_stmt('return True')
     assert ast.unparse(stmt1) == 'return True'
-    assert ast.unparse(stmt2) == 'return scope0.Bool'
+    assert ast.unparse(stmt2) == 'return s0.Bool'
 
 
 def test_if():
     [stmt1, stmt2] = parse_stmt('if a == 2:')
     assert ast.unparse(stmt1) == 'if a == 2:'
-    assert ast.unparse(stmt2) == 'scope0.a == scope0.Int'
+    assert (
+        ast.unparse(stmt2)
+        == """
+with predef.ScopeForker(s0) as f0:
+    s1 = f0.new_scope()
+    s1.a == s1.Int
+    s1 = f0.new_scope()
+""".strip()
+    )
 
 
 def test_function1():
@@ -93,9 +101,9 @@ def hello():
         ast.unparse(stmt2)
         == """
 def hello():
-    scope1 = predef.Scope(scope0)
-    return scope1.Int
-scope0.hello = predef.FunctionType([], hello())
+    s1 = predef.Scope(s0)
+    return s1.Int
+s0.hello = predef.FunctionType([], hello())
 """.strip()
     )
 
@@ -103,24 +111,30 @@ scope0.hello = predef.FunctionType([], hello())
 def test_if_else_stmt():
     [stmt1, stmt2] = parse_module("""
 if a == 2:
-    print(7)
+    b = 7
 else:
-    print(8)
+    b = 'banana'
+print(b)
 """)
     assert (
         ast.unparse(stmt1)
         == """
 if a == 2:
-    print(7)
+    b = 7
 else:
-    print(8)
+    b = 'banana'
+print(b)
 """.strip()
     )
     assert (
         ast.unparse(stmt2)
         == """
-scope0.a == scope0.Int
-scope0.print(scope0.Int)
-scope0.print(scope0.Int)
+with predef.ScopeForker(s0) as f0:
+    s1 = f0.new_scope()
+    s1.a == s1.Int
+    s1.b = s1.Int
+    s1 = f0.new_scope()
+    s1.b = s1.Str
+s0.print(s0.b)
 """.strip()
     )

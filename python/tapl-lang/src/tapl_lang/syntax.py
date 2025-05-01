@@ -59,7 +59,11 @@ class AstSetting:
 
     @property
     def scope_name(self) -> str:
-        return f'scope{self.scope_level}'
+        return f's{self.scope_level}'
+
+    @property
+    def forker_name(self) -> str:
+        return f'f{self.scope_level}'
 
 
 class Term:

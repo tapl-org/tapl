@@ -26,7 +26,7 @@ class PythonlikeContext(Context):
         location = syntax.Location(start=syntax.Position(line=1, column=0))
         scope0 = stmt.Assign(
             location,
-            [expr.Name(location=location, id='scope0', ctx='store')],
+            [expr.Name(location=location, id='s0', ctx='store')],
             expr.Call(
                 location,
                 expr.Attribute(

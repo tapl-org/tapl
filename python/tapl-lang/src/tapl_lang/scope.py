@@ -4,7 +4,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Self
+
+from tapl_lang import typelib
 
 
 class ScopeInternal:
@@ -50,3 +52,29 @@ class Scope:
             super().__setattr__(name, value)
         else:
             self.internal__tapl.store(name, value)
+
+
+class ScopeForker:
+    def __init__(self, scope: Scope):
+        self.parent_scope = scope
+        self.forked_scopes: list[Scope] = []
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        if not self.forked_scopes:
+            return
+        for var in self.forked_scopes[0].internal__tapl.variables:
+            values = []
+            for scope in self.forked_scopes:
+                value = scope.internal__tapl.variables.get(var)
+                if value is not None:
+                    values.append(value)
+            if len(values) == len(self.forked_scopes):
+                self.parent_scope.internal__tapl.store(var, typelib.create_union(*values))
+
+    def new_scope(self) -> Scope:
+        forked = Scope(self.parent_scope)
+        self.forked_scopes.append(forked)
+        return forked

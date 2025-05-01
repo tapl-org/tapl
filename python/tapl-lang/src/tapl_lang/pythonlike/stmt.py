@@ -321,13 +321,57 @@ class If(syntax.Term):
         return [if_stmt]
 
     def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        test_stmt = ast.Expr(self.test.codegen_expr(setting))
+        if setting.scope_native:
+            raise tapl_error.TaplError('"If" statement type-checking does not support native scope.')
+
+        def locate(ast_expr: ast.expr) -> ast.expr:
+            self.location.locate(ast_expr)
+            return ast_expr
+
+        body_setting = setting.clone(scope_level=setting.scope_level + 1)
+        body: list[ast.stmt] = []
+
+        def add_new_scope_stmt() -> None:
+            assign = ast.Assign(
+                targets=[locate(ast.Name(id=body_setting.scope_name, ctx=ast.Store()))],
+                value=ast.Call(
+                    func=locate(
+                        ast.Attribute(
+                            value=locate(ast.Name(id=setting.forker_name, ctx=ast.Load())),
+                            attr='new_scope',
+                            ctx=ast.Load(),
+                        )
+                    ),
+                ),
+            )
+            self.location.locate(assign)
+            body.append(assign)
+
+        add_new_scope_stmt()
+        test_stmt = ast.Expr(self.test.codegen_expr(body_setting))
         self.location.locate(test_stmt)
-        result: list[ast.stmt] = [test_stmt]
-        result.extend(self.body.codegen_stmt(setting))
+        body.append(test_stmt)
+        body.extend(self.body.codegen_stmt(body_setting))
+        add_new_scope_stmt()
         if self.orelse:
-            result.extend(self.orelse.codegen_stmt(setting))
-        return result
+            body.extend(self.orelse.codegen_stmt(body_setting))
+        with_stmt = ast.With(
+            items=[
+                ast.withitem(
+                    context_expr=locate(
+                        ast.Call(
+                            func=locate(ast.Attribute(locate(ast.Name('predef', ctx=ast.Load())), attr='ScopeForker')),
+                            args=[locate(ast.Name(id=setting.scope_name))],
+                        )
+                    ),
+                    optional_vars=locate(ast.Name(id=setting.forker_name, ctx=ast.Store())),
+                )
+            ],
+            body=body,
+            type_comment=None,
+        )
+        self.location.locate(with_stmt)
+        return [with_stmt]
 
     @override
     def codegen_stmt(self, setting):
