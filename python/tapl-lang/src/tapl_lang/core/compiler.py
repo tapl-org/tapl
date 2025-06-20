@@ -15,8 +15,9 @@ from tapl_lang.pythonlike.language import PythonlikeLanguage
 def extract_language(chunk: Chunk) -> str:
     if chunk.children:
         raise TaplError('language clause chunk should not have children.')
-    if len(chunk.line_records) != 1:
-        raise TaplError('language clause chunk should be one line.')
+    for i in range(1, len(chunk.line_records)):
+        if not chunk.line_records[i].empty:
+            raise TaplError('language clause chunk should be the first line.')
     pattern = r'^language ([a-zA-Z_][a-zA-Z0-9_]*)$'
     line = chunk.line_records[0].text
     match = re.findall(pattern, line)
