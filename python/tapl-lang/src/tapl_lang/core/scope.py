@@ -45,6 +45,7 @@ class Scope:
     def __getattribute__(self, name):
         if name == 'internal__tapl':
             return super().__getattribute__(name)
+        # print(f'Loading variable {name} from scope.')
         return self.internal__tapl.load(name)
 
     def __setattr__(self, name: str, value: Any):
@@ -53,6 +54,9 @@ class Scope:
             super().__setattr__(name, value)
         else:
             self.internal__tapl.store(name, value)
+
+    def __call__(self, *args, **kwargs):
+        return self.internal__tapl.load('__call__')(self, *args, **kwargs)
 
 
 class ScopeForker:

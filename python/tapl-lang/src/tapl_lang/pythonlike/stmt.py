@@ -428,6 +428,101 @@ class Else(syntax.DependentTerm):
 
 
 @dataclass
+class Pass(syntax.Term):
+    location: syntax.Location
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from ()
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda _: Pass(location=self.location))
+
+    @override
+    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        stmt = ast.Pass()
+        self.location.locate(stmt)
+        return [stmt]
+
+
+@dataclass
+class ClassDef(syntax.Term):
+    location: syntax.Location
+    name: str
+    bases: list[syntax.Term]
+    body: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.bases
+        yield self.body
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: ClassDef(
+                location=self.location,
+                name=self.name,
+                bases=[layer(b) for b in self.bases],
+                body=layer(self.body),
+            )
+        )
+
+    def codegen_evaluate(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        stmt = ast.ClassDef(
+            name=self.name,
+            bases=[b.codegen_expr(setting) for b in self.bases],
+            body=self.body.codegen_stmt(setting),
+            decorator_list=[],
+        )
+        self.location.locate(stmt)
+        return [stmt]
+
+    # Because a class's type and its factory are mixed under the same name,
+    # the __call__ method for an instance isn't supported and instead returns the instance itself.
+    def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        def locate(ast_expr: ast.expr) -> ast.expr:
+            self.location.locate(ast_expr)
+            return ast_expr
+
+        class_stmt = self.codegen_evaluate(setting)
+        assign = ast.Assign(
+            targets=[
+                ast.Attribute(
+                    value=locate(ast.Name(id=setting.scope_name, ctx=ast.Store())), attr=self.name, ctx=ast.Store()
+                )
+            ],
+            value=ast.Call(
+                func=locate(
+                    ast.Attribute(value=locate(ast.Name(id='predef', ctx=ast.Load())), attr='Scope', ctx=ast.Load())
+                ),
+                keywords=[
+                    ast.keyword('parent', ast.Constant(value=None)),
+                    ast.keyword(
+                        '__call__',
+                        locate(
+                            ast.Attribute(
+                                value=locate(ast.Name(id='predef', ctx=ast.Load())), attr='init_class', ctx=ast.Load()
+                            )
+                        ),
+                    ),
+                ],
+            ),
+        )
+        self.location.locate(assign)
+        return [*class_stmt, assign]
+
+    @override
+    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        if setting.code_evaluate and setting.scope_native:
+            return self.codegen_evaluate(setting)
+        if setting.code_typecheck and setting.scope_manual:
+            return self.codegen_typecheck(setting)
+        raise tapl_error.UnhandledError
+
+
+@dataclass
 class Module(syntax.Term):
     body: syntax.Term
 

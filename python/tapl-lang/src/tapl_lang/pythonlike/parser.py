@@ -568,6 +568,25 @@ def rule_else_stmt(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
+def rule_pass(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(consume_keyword(c, 'pass')):
+        return stmt.Pass(location=t.location)
+    return t.fail()
+
+
+def rule_class_def(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(consume_keyword(c, 'class'))
+        and t.validate(class_name := expect_name(c))
+        and t.validate(expect_punct(c, ':'))
+    ):
+        name = cast(TokenName, class_name).value
+        return stmt.ClassDef(location=t.location, name=name, bases=[], body=syntax.Block([], delayed=True))
+    return t.fail()
+
+
 def parse_start(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(statement := expect_rule(c, 'statement')):
@@ -595,6 +614,8 @@ RULES: parser.GrammarRuleMap = {
         route('function_def'),
         route('if_stmt'),
         route('else_stmt'),
+        rule_pass,
+        rule_class_def,
     ],
     'assignment': [rule_assignment],
     'return': [rule_return],

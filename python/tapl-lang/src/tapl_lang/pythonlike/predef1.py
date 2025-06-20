@@ -32,3 +32,8 @@ predef_scope.internal__tapl.variables.update(
         'print__tapl': print,
     }
 )
+
+
+# TODO: remove once the class initialization is implemented
+def init_class(self):
+    return self

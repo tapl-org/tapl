@@ -50,9 +50,9 @@ class ApprovalNamer(Namer):
         return self.filename
 
 
-def test_simple():
+def run_golden_test(test_name: str) -> None:
     base_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'goldens')
-    base_path = os.path.join(base_directory, 'simple_function')
+    base_path = os.path.join(base_directory, test_name)
     source = pathlib.Path(os.path.join(base_directory, f'{base_path}.tapl')).read_text()
     layers = compile_tapl(source)
     output = io.StringIO()
@@ -70,3 +70,11 @@ def test_simple():
             output.write('\n------ end.\n\n')
             success = return_code == 0
     verify(output.getvalue(), namer=ApprovalNamer(f'{base_path}.output'))
+
+
+def test_simple_function():
+    run_golden_test('simple_function')
+
+
+def test_simple_class():
+    run_golden_test('simple_class')

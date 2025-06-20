@@ -98,3 +98,110 @@ then what about Function type, it is a term. So it can be a Function or Function
 btw, actually I should not check whether object has a method or not. Instead, I just call the method of object on the Type layer.
 
 In TAPL, There is NO Type System inherently, there is a code running on different layers. Type System can be built on top of TAPL inherent features.
+
+
+---------------------------------------------------------------------------------------------------------------
+
+June 17, 2025
+
+Changed mind :), TAPL has a Type System, but it can work on the same level with Term seamlessly.
+
+{}:List[Int]  vs   {}:List[Bool]
+Type -> Intention: List[Int] != List[Bool]
+Set -> Extension: {} == {}   # empty sets are equal.
+
+Thinking: Imagine there are list of byte spans. I need to give them a (meta) description, or I should label them.
+These labels are my context. I have a sequence of labels, this is called code. A code can be stored as data.
+To identify or distinguish different type of code, I give them a label. Now my data divided into 2 groups, code and other,
+or in another word: constructed or atom. So, if we have a coding table (external) or we know how it is constructed (internal).
+When using coding table term and type has a same label. For example 1:1, true:true. When using construction, term is
+the result of running the code, and type is the label of that code. Whenever we need to refer that term, then we may need a label for it.
+Since the code is a sequence build using some collection of label set, we need this label set. In closed form, these labels are actually
+are parameters of the function. Can I assume that function is the building block not the code. No native fucntions are building blocks.
+So Decoding table and Native functions are considered atom.
+
+We have a long sequence of bytes, and we have a table which describes this byte sequence. The table has columns of label and span.
+In addition to this we have a list of decoding table.
+
+We have a list of bytes. We can devides them into spans, and each byte spans can act as code or data. In sequential application, 
+this sequence needs label set (Context, Scope, Record)
+
+To run the code, I need a proper context that can have more label than required, but I need all required labels.
+
+So far what I have is a label and its corresponding byte spans, and I believe code knows how to use that labels.
+  Context -> Code
+  (Context, Code) -> Code
+  It looks like a OOP, so OOP is context dependent system?
+
+Definitions:
+OOP - when you have a fixed set of operation and evolving set of thing.
+FP  - when you have a evolving set of operations, and fixed set of thing.
+So thing is a data, and operation is a code. Not actually???
+Thing is a data structure, and operation is a function. Not really???
+There is something more fundamental.
+Class is a set of key-value pairs, and keys are fixed.
+Pattern matching is a set of (pattern/key)-operation pairs, and patterns/keys are fixed.
+
+Return back original idea: constructing a code
+Byte spans --> label them --> {label:bytes}
+
+Let's make little more abstract. Context is a object of given class. So OOP is fixed labels, and FP is a dispatcher.
+In another word, OOP dispatches by label, FP dispatches by pattern matching.
+So the program is a pair of context and code - (label, value)*, label*
+Minimum context is empty set. Any context can be a placeholder for this EmptySet/TopType.
+What is Bottom type then?
+Bottom type can be placeholder for all possible context. It means it has all labels.
+
+There are values, some of them can be a just a data like True, 42, 'Hello World', and some others can be a function.
+We call it native (because we could not write a code for it), and the rest is composite vs constructed.
+How to build composite: If it is a record, then it becomes OOP. If it is a variant, then it becomes FP, right?
+Is pattern matching different from variant fundamentally.
+
+In the beginning, there were only values(bytes). Computer knows how to apply one value to another.
+Let's say we have 3 values: a, b, call
+Applications can be: ab, a(bc), abc, (ba)c
+When the value is not a funciton, then there is error or panic.
+To introduce reusibility, we introduce abstraction. We label all values then we write the code/script using labels.
+
+FP:
+pair = \f.\s.\b. b f s
+first = \p. p true
+second = \p. p false
+
+OOP:
+class Pair:
+  def __init__(f, s):
+    self.f = f
+    self.s = s
+  def first(p):
+    return p.f
+  def second(p):
+    return p.s
+
+Pattern matching: Match a value against a set of patterns, and then execute specific code based on the matched pattern.
+Virtual method: Get a function pointer from values virtual pointer table and execute it.
+
+Basically, both works as a dispatcher to choose a code to run.
+Generalization: There is a dispatch function which receives a value, and returns backa a pointer/label to the function/code-span.
+Object/value contains some information, and we run a code against the value, such that the code understand the value and knows how to compute to find the next code.
+
+OPP with FP: Instead of virtual table, and if only pattern match by labels, then we can define a new concept - Sparse Table.
+
+Int
+  inverse_int
+Bool
+  inverse_bool
+Int&Bool
+  inverse_int
+  inverse_bool
+Int|Bool
+  oneof:
+    inverse_int
+    inverse_bool
+
+
+---------------------------------------------------------------------------------------------------------------
+June 19, 2025
+
+Truth is machine does not have a function concept. Machine has sequence of instructions, each instruction has an address/pointer. 
+Then machine can jump based on this address/pointer. We can name these addresses with a label to make it human readible and understandable.
