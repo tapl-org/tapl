@@ -1,4 +1,4 @@
-context pythonlike
+language pythonlike
 class SimplestClass:
   pass
 

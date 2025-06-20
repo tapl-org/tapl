@@ -9,7 +9,7 @@ from tapl_lang.core import syntax
 from tapl_lang.core.chunker import chunk_text
 from tapl_lang.core.parser import parse_text
 from tapl_lang.pythonlike import parser, predef1, stmt
-from tapl_lang.pythonlike.context import PythonlikeContext
+from tapl_lang.pythonlike.language import PythonlikeLanguage
 
 
 def check_parsed_term(parsed: syntax.Term) -> None:
@@ -40,10 +40,10 @@ def run_stmt(stmts: list[ast.stmt]):
 
 def parse_module(text: str) -> list[ast.AST]:
     chunks = chunk_text(text.strip())
-    context = PythonlikeContext()
+    language = PythonlikeLanguage()
     body = syntax.Block([], delayed=True)
     module = stmt.Module(body=body)
-    context.parse_chunks(chunks, [module])
+    language.parse_chunks(chunks, [module])
     check_parsed_term(module)
     ls = syntax.LayerSeparator(2)
     safe_module = syntax.make_safe_term(module)

@@ -10,7 +10,7 @@ from tapl_lang.core.chunker import Chunk
 from tapl_lang.core.tapl_error import TaplError
 
 
-class Context(ABC):
+class Language(ABC):
     def parse_chunks(self, chunks: list[Chunk], parent_stack: list[syntax.Term]) -> None:
         body: syntax.Block | None = syntax.find_delayed_block(parent_stack[-1])
         if body is None:

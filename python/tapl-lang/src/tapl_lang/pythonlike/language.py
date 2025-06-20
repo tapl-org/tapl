@@ -5,14 +5,14 @@
 from typing import override
 
 from tapl_lang.core import parser, syntax
-from tapl_lang.core.context import Context
+from tapl_lang.core.language import Language
 from tapl_lang.pythonlike import expr, stmt
 from tapl_lang.pythonlike import parser as pythonlike_parser
 
 IMPORT_LEVEL = 0
 
 
-class PythonlikeContext(Context):
+class PythonlikeLanguage(Language):
     @override
     def get_grammar(self, parent_stack: list[syntax.Term]) -> parser.Grammar:
         del parent_stack

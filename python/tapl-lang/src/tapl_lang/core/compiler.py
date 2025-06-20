@@ -9,32 +9,33 @@ from tapl_lang.core import syntax
 from tapl_lang.core.chunker import Chunk, chunk_text
 from tapl_lang.core.tapl_error import TaplError
 from tapl_lang.pythonlike import stmt
-from tapl_lang.pythonlike.context import PythonlikeContext
+from tapl_lang.pythonlike.language import PythonlikeLanguage
 
 
-def get_context_name(chunk: Chunk) -> str:
+def extract_language(chunk: Chunk) -> str:
     if chunk.children:
-        raise TaplError('Context clause chunk should not have children.')
+        raise TaplError('language clause chunk should not have children.')
     if len(chunk.line_records) != 1:
-        raise TaplError('Context clause chunk should be one line.')
-    pattern = r'^context ([a-zA-Z_][a-zA-Z0-9_]*)$'
+        raise TaplError('language clause chunk should be one line.')
+    pattern = r'^language ([a-zA-Z_][a-zA-Z0-9_]*)$'
     line = chunk.line_records[0].text
     match = re.findall(pattern, line)
     if not match:
-        raise TaplError(f'Could not parse context clause[{line}]')
+        raise TaplError(f'Could not parse language clause[{line}]')
     return match[0]
 
 
 def compile_tapl(text: str) -> list[ast.AST]:
     chunks = chunk_text(text)
-    context_name = get_context_name(chunks[0])
-    if context_name != 'pythonlike':
-        raise TaplError('Only pythonlike context is supported now.')
-    context = PythonlikeContext()
-    predef_layers = context.get_predef_layers()
+    language_name = extract_language(chunks[0])
+    # TODO: language must be linked dynamically
+    if language_name != 'pythonlike':
+        raise TaplError('Only pythonlike language is supported now.')
+    language = PythonlikeLanguage()
+    predef_layers = language.get_predef_layers()
     body = syntax.Block([predef_layers], delayed=True)
     module = stmt.Module(body=body)
-    context.parse_chunks(chunks[1:], [module])
+    language.parse_chunks(chunks[1:], [module])
     error_bucket: list[syntax.ErrorTerm] = syntax.gather_errors(module)
     if error_bucket:
         messages = [repr(e) for e in error_bucket]

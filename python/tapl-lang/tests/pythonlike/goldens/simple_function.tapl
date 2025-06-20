@@ -1,5 +1,5 @@
-context pythonlike
-# TODO: Fix error - Context clause chunk should be one line
+language pythonlike
+# TODO: Fix error - language clause chunk should be one line
 def int_print(a: Int):
     print__tapl(a)
 
