@@ -541,6 +541,11 @@ def rule_function_def(c: Cursor) -> syntax.Term:
         and t.validate(expect_punct(c, ':'))
     ):
         name = cast(TokenName, func_name).value
+        if name == '__call__':
+            return syntax.ErrorTerm(
+                message='Function name "__call__" is prohibited due to its syntactic conflict with constructor calls at the type layer.',
+                location=t.location,
+            )
         return stmt.FunctionDef(
             location=t.location,
             name=name,
