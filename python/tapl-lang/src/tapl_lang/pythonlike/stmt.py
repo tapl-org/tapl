@@ -476,6 +476,7 @@ class ClassDef(syntax.Term):
             body=self.body.codegen_stmt(setting),
             decorator_list=[],
         )
+        # TODO: Ensure the 'new' soft keyword is not used in the class field or method names.
         self.location.locate(stmt)
         return [stmt]
 

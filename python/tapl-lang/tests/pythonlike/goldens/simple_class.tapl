@@ -3,11 +3,16 @@ language pythonlike
 class SimplestClass:
   pass
 
-# in type level, SimplestClass must be an object which has __call__ method same signature as __init__
-
 def accept(param: SimplestClass):
   pass
 
-# How can I distinguish Class and class instance __call__ method?
-
 accept(SimplestClass())
+
+# class Device:
+#   def get_firmware_version(self):
+#     return 'v42'
+# 
+# def process_device(device: Device):
+#   print__tapl(device.get_firmware_version())
+# 
+# process_device(new Device())

@@ -518,6 +518,13 @@ def rule_parameter(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
+# def rule_self_parameter(c: Cursor) -> syntax.Term:
+#     t = c.start_tracker()
+#     if t.validate(consume_keyword(c, 'self')):
+#         return stmt.Parameter(t.location, name='self', type_=syntax.Layers([stmt.Absence(), param_type]))
+#     return t.fail()
+
+
 def scan_parameters(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     params = []

@@ -29,7 +29,7 @@ def extract_language(chunk: Chunk) -> str:
 def compile_tapl(text: str) -> list[ast.AST]:
     chunks = chunk_text(text)
     language_name = extract_language(chunks[0])
-    # TODO: language must be linked dynamically
+    # TODO: "language" must be linked dynamically
     if language_name != 'pythonlike':
         raise TaplError('Only pythonlike language is supported now.')
     language = PythonlikeLanguage()
@@ -40,7 +40,7 @@ def compile_tapl(text: str) -> list[ast.AST]:
     error_bucket: list[syntax.ErrorTerm] = syntax.gather_errors(module)
     if error_bucket:
         messages = [repr(e) for e in error_bucket]
-        raise TaplError('\n\n'.join(messages))
+        raise TaplError(f'{len(error_bucket)} errors found:\n\n' + '\n\n'.join(messages))
     safe_module = syntax.make_safe_term(module)
     ls = syntax.LayerSeparator(len(predef_layers.layers))
     layers = ls.separate(safe_module)

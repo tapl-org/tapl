@@ -10,7 +10,7 @@ from tapl_lang.core import typelib
 
 
 class ScopeInternal:
-    def __init__(self, parent: ScopeInternal | None = None, **kwargs: Any):
+    def __init__(self, parent: ScopeInternal | None, kwargs: dict[str, Any]):
         self.parent = parent
         self.variables: dict[str, Any] = {}
         self.variables.update(kwargs)
@@ -38,25 +38,28 @@ class ScopeInternal:
             raise TypeError(f'Variable {name} already exists with a different type.')
 
 
+# ruff: noqa: N805
 class Scope:
-    def __init__(self, parent: Scope | None = None, **kwargs: Any):
-        self.internal__tapl: ScopeInternal = ScopeInternal(parent.internal__tapl if parent else None, **kwargs)
+    def __init__(self__tapl, parent__tapl: Scope | None = None, **kwargs: Any):
+        self__tapl.internal__tapl: ScopeInternal = ScopeInternal(
+            parent__tapl.internal__tapl if parent__tapl else None, kwargs
+        )
 
-    def __getattribute__(self, name):
+    def __getattribute__(self__tapl, name):
         if name == 'internal__tapl':
             return super().__getattribute__(name)
         # print(f'Loading variable {name} from scope.')
-        return self.internal__tapl.load(name)
+        return self__tapl.internal__tapl.load(name)
 
-    def __setattr__(self, name: str, value: Any):
+    def __setattr__(self__tapl, name: str, value: Any):
         if name == 'internal__tapl':
             # Allow setting the variables in initialization
             super().__setattr__(name, value)
         else:
-            self.internal__tapl.store(name, value)
+            self__tapl.internal__tapl.store(name, value)
 
-    def __call__(self, *args, **kwargs):
-        return self.internal__tapl.load('__call__')(self, *args, **kwargs)
+    def __call__(self__tapl, *args, **kwargs):
+        return self__tapl.internal__tapl.load('__call__')(self__tapl, *args, **kwargs)
 
 
 class ScopeForker:
