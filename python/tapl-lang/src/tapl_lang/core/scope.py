@@ -45,9 +45,8 @@ class ScopeInternal:
 # ruff: noqa: N805
 class Scope:
     def __init__(self__tapl, parent__tapl: Scope | None = None, label__tapl: str | None = None, **kwargs: Any):
-        self__tapl.internal__tapl: ScopeInternal = ScopeInternal(
-            parent=parent__tapl.internal__tapl if parent__tapl else None, label=label__tapl
-        )
+        parent = parent__tapl.internal__tapl if parent__tapl else None
+        self__tapl.internal__tapl: ScopeInternal = ScopeInternal(parent=parent, label=label__tapl)
         self__tapl.internal__tapl.set_variables(**kwargs)
 
     def __getattribute__(self__tapl, name):
