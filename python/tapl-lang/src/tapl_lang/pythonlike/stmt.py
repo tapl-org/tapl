@@ -10,6 +10,20 @@ from typing import cast, override
 from tapl_lang.core import syntax, tapl_error
 
 
+def ast_attribute(names: list[str], ctx: ast.expr_context | None = None) -> ast.expr:
+    """Create an AST attribute from a list of names."""
+    if not names:
+        raise ValueError('Names list cannot be empty.')
+
+    def get_ctx(i: int) -> ast.expr_context:
+        return (ctx or ast.Load()) if i == len(names) - 1 else ast.Load()
+
+    attr: ast.expr = ast.Name(id=names[0], ctx=get_ctx(0))
+    for i, name in enumerate(names[1:], start=1):
+        attr = ast.Attribute(value=attr, attr=name, ctx=get_ctx(i))
+    return attr
+
+
 @dataclass
 class Assign(syntax.Term):
     location: syntax.Location
@@ -480,25 +494,15 @@ class ClassDef(syntax.Term):
         return [stmt]
 
     def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        def locate(ast_expr: ast.expr) -> ast.expr:
-            self.location.locate(ast_expr)
-            return ast_expr
-
         class_name = self.name
         instance_name = f'{class_name}_'
         class_stmt = self.codegen_evaluate(setting)
 
         def declare_scope(scope_name: str) -> ast.stmt:
             assign = ast.Assign(
-                targets=[
-                    ast.Attribute(
-                        value=locate(ast.Name(id=setting.scope_name, ctx=ast.Store())), attr=scope_name, ctx=ast.Store()
-                    )
-                ],
+                targets=[ast_attribute([setting.scope_name, scope_name], ctx=ast.Store())],
                 value=ast.Call(
-                    func=locate(
-                        ast.Attribute(value=locate(ast.Name(id='predef', ctx=ast.Load())), attr='Scope', ctx=ast.Load())
-                    ),
+                    func=ast_attribute(['predef', 'Scope']),
                     keywords=[
                         ast.keyword('label__tapl', ast.Constant(value=scope_name)),
                     ],
@@ -508,39 +512,12 @@ class ClassDef(syntax.Term):
             return assign
 
         constructor = ast.Assign(
-            targets=[
-                ast.Attribute(
-                    value=ast.Attribute(
-                        value=ast.Name(id=setting.scope_name, ctx=ast.Load()), attr=class_name, ctx=ast.Load()
-                    ),
-                    attr='__call__',
-                    ctx=ast.Store(),
-                )
-            ],
+            targets=[ast_attribute([setting.scope_name, class_name, '__call__'], ctx=ast.Store())],
             value=ast.Call(
-                func=locate(
-                    ast.Attribute(
-                        value=locate(ast.Name(id='predef', ctx=ast.Load())),
-                        attr='FunctionType',
-                        ctx=ast.Load(),
-                    )
-                ),
+                func=ast_attribute(['predef', 'FunctionType']),
                 args=[
-                    ast.List(
-                        elts=[
-                            ast.Attribute(
-                                value=ast.Name(id=setting.scope_name, ctx=ast.Load()),
-                                attr=class_name,
-                                ctx=ast.Load(),
-                            )
-                        ],
-                        ctx=ast.Load(),
-                    ),
-                    ast.Attribute(
-                        value=ast.Name(id=setting.scope_name, ctx=ast.Load()),
-                        attr=instance_name,
-                        ctx=ast.Load(),
-                    ),
+                    ast.List(elts=[ast_attribute([setting.scope_name, class_name])]),
+                    ast_attribute([setting.scope_name, instance_name]),
                 ],
             ),
         )

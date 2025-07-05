@@ -23,7 +23,7 @@ print(inc(typelib.Int_))
 
 parsed_code = ast.parse(
     """
-predef.FunctionType([], 0)
+s0.SimplestClass = predef.Scope(label__tapl='SimplestClass')
 """,
     mode='exec',
 )
