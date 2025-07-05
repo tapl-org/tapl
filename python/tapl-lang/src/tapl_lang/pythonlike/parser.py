@@ -41,12 +41,21 @@ class TokenString(syntax.Term):
 
 
 @dataclass
-class TokenNumber(syntax.Term):
+class TokenInteger(syntax.Term):
     location: syntax.Location
     value: int
 
     def repr__tapl(self) -> str:
-        return f'TokenNumber({self.location}, {self.value})'
+        return f'TokenInteger({self.location}, {self.value})'
+
+
+@dataclass
+class TokenFloat(syntax.Term):
+    location: syntax.Location
+    value: float
+
+    def repr__tapl(self) -> str:
+        return f'TokenFloat({self.location}, {self.value})'
 
 
 @dataclass
@@ -201,7 +210,19 @@ def rule_token(c: Cursor) -> syntax.Term:
         while not c.is_end() and (char := c.current_char()).isdigit():
             number_str += char
             c.move_to_next()
-        return TokenNumber(tracker.location, value=int(number_str))
+        if not c.is_end() and c.current_char() == '.':
+            number_str += '.'
+            c.move_to_next()
+            if c.is_end() or not c.current_char().isdigit():
+                return syntax.ErrorTerm(
+                    message='Invalid float literal',
+                    location=tracker.location,
+                )
+            while not c.is_end() and (char := c.current_char()).isdigit():
+                number_str += char
+                c.move_to_next()
+            return TokenFloat(tracker.location, value=float(number_str))
+        return TokenInteger(tracker.location, value=int(number_str))
 
     def scan_punct(char: str) -> syntax.Term:
         k = c.clone()
@@ -305,6 +326,17 @@ def scan_arguments(c: Cursor) -> syntax.Term:
     return t.captured_error or syntax.Block(terms=args)
 
 
+def rule_primary__attribute(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(value := c.consume_rule('primary'))
+        and t.validate(consume_punct(c, '.'))
+        and t.validate(attr := expect_name(c))
+    ):
+        return expr.Attribute(t.location, value=value, attr=cast(TokenName, attr).value, ctx='load')
+    return t.fail()
+
+
 def rule_primary__call(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
@@ -348,8 +380,11 @@ def rule_atom__string(c: Cursor) -> syntax.Term:
 
 def rule_atom__number(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(token := c.consume_rule('token')) and isinstance(token, TokenNumber):
-        return expr.IntegerLiteral(token.location, value=token.value)
+    if t.validate(token := c.consume_rule('token')):
+        if isinstance(token, TokenInteger):
+            return expr.IntegerLiteral(token.location, value=token.value)
+        if isinstance(token, TokenFloat):
+            return expr.FloatLiteral(token.location, value=token.value)
     return t.fail()
 
 
@@ -506,7 +541,7 @@ def rule_return(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def rule_parameter(c: Cursor) -> syntax.Term:
+def rule_parameter_with_type(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(name := consume_name(c))
@@ -518,11 +553,12 @@ def rule_parameter(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-# def rule_self_parameter(c: Cursor) -> syntax.Term:
-#     t = c.start_tracker()
-#     if t.validate(consume_keyword(c, 'self')):
-#         return stmt.Parameter(t.location, name='self', type_=syntax.Layers([stmt.Absence(), param_type]))
-#     return t.fail()
+def rule_parameter_no_type(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(name := consume_name(c)):
+        param_name = cast(TokenName, name).value
+        return stmt.Parameter(t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), stmt.Absence()]))
+    return t.fail()
 
 
 def scan_parameters(c: Cursor) -> syntax.Term:
@@ -611,7 +647,7 @@ RULES: parser.GrammarRuleMap = {
     'sum': [rule_sum__binary, route('term')],
     'term': [rule_term__binary, rule_invalid_factor, route('factor')],
     'factor': [rule_factor__unary, route('primary')],
-    'primary': [rule_primary__call, route('atom')],
+    'primary': [rule_primary__attribute, rule_primary__call, route('atom')],
     'atom': [build_rule_name('load'), rule_atom__bool, rule_atom__string, rule_atom__number],
     'token': [rule_token],
     'statement': [
@@ -627,7 +663,7 @@ RULES: parser.GrammarRuleMap = {
     'assignment': [rule_assignment],
     'return': [rule_return],
     'function_def': [rule_function_def],
-    'parameter': [rule_parameter],
+    'parameter': [rule_parameter_with_type, rule_parameter_no_type],
     'name_store': [build_rule_name('store')],
     'if_stmt': [rule_if_stmt],
     'else_stmt': [rule_else_stmt],

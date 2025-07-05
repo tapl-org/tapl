@@ -44,6 +44,22 @@ class Int:
 
 
 @dataclass(frozen=True)
+class Float:
+    def __repr__(self) -> str:
+        return 'Float'
+
+    def __add__(self, other):
+        if other in (Int_, Bool_):
+            return self
+        raise binop_type_error('+', self, other)
+
+    def __lt__(self, other):
+        if other in (Int_, Bool_):
+            return self
+        raise binop_type_error('<', self, other)
+
+
+@dataclass(frozen=True)
 class Str:
     def __repr__(self) -> str:
         return 'Str'
@@ -52,6 +68,7 @@ class Str:
 NoneType_ = NoneType()
 Bool_ = Bool()
 Int_ = Int()
+Float_ = Float()
 Str_ = Str()
 
 

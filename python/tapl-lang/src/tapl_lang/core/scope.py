@@ -37,7 +37,7 @@ class ScopeInternal:
         if stored_value != value:
             raise TypeError(f'Variable {name} already exists with a different type.')
 
-    def set_variables(self, **kwargs: Any) -> None:
+    def set_variables(self, kwargs: dict[str, Any]) -> None:
         for name, value in kwargs.items():
             self.store(name, value)
 
@@ -47,7 +47,7 @@ class Scope:
     def __init__(self__tapl, parent__tapl: Scope | None = None, label__tapl: str | None = None, **kwargs: Any):
         parent = parent__tapl.internal__tapl if parent__tapl else None
         self__tapl.internal__tapl: ScopeInternal = ScopeInternal(parent=parent, label=label__tapl)
-        self__tapl.internal__tapl.set_variables(**kwargs)
+        self__tapl.internal__tapl.set_variables(kwargs)
 
     def __getattribute__(self__tapl, name):
         if name == 'internal__tapl':
