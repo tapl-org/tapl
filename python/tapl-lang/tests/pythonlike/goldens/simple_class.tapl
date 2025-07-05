@@ -3,16 +3,7 @@ language pythonlike
 class SimplestClass:
   pass
 
-def accept(param: SimplestClass):
+def accept(param: SimplestClass_):
   pass
 
 accept(SimplestClass())
-
-# class Device:
-#   def get_firmware_version(self):
-#     return 'v42'
-# 
-# def process_device(device: Device):
-#   print__tapl(device.get_firmware_version())
-# 
-# process_device(new Device())

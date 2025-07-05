@@ -23,7 +23,7 @@ print(inc(typelib.Int_))
 
 parsed_code = ast.parse(
     """
-type('Foo', (), {})
+predef.FunctionType([], 0)
 """,
     mode='exec',
 )
@@ -43,13 +43,5 @@ class MyMeta(type):
 
 
 class MyClass(metaclass=MyMeta):
-    def __init__(self, value):
+    def __init__(self):
         print('Inside __init__')
-        # self.value = value
-
-
-obj = MyClass(10)
-obj.__init__(30)
-MyClass.__init__(None, 40)
-b = obj.__init__
-b(50)

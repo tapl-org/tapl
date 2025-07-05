@@ -246,4 +246,31 @@ But what about this call: MyClass.my_method(objAsSelf).
 class name should belong to the class, instance should get different name.
 On Term layer, instance does not need a static name, but on Type layer, instance needs a static name.
 To sum up, we need 3 names: Term(Class name), Type(Class name, Instance name)
+For now, a instance name is a class name followed by underscore.
+
+---------------------------------------------------------------------------------------------------------------
+July 4, 2025
+
+Person:
+  init: 
+    \(self, name: Str):
+      self.name = name
+  name:
+    \(self):
+      return self.name
+
+# methods are curried and closured by their first argument
+# first argument: 
+# self = Scope(parent=Person_)
+# Person.init(self, )
+person:
+  self: Scope(parent=Person_)
+  init:
+    \(name: Str):
+      self.name = name
+  name:
+    \():
+      return self
+     
+
 

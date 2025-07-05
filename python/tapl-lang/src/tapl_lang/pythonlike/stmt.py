@@ -476,43 +476,77 @@ class ClassDef(syntax.Term):
             body=self.body.codegen_stmt(setting),
             decorator_list=[],
         )
-        # TODO: Ensure the 'new' soft keyword is not used in the class field or method names.
         self.location.locate(stmt)
         return [stmt]
 
-    # Because a class's type and its factory are mixed under the same name,
-    # the __call__ method for an instance isn't supported and instead returns the instance itself.
     def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
         def locate(ast_expr: ast.expr) -> ast.expr:
             self.location.locate(ast_expr)
             return ast_expr
 
+        class_name = self.name
+        instance_name = f'{class_name}_'
         class_stmt = self.codegen_evaluate(setting)
-        assign = ast.Assign(
+
+        def declare_scope(scope_name: str) -> ast.stmt:
+            assign = ast.Assign(
+                targets=[
+                    ast.Attribute(
+                        value=locate(ast.Name(id=setting.scope_name, ctx=ast.Store())), attr=scope_name, ctx=ast.Store()
+                    )
+                ],
+                value=ast.Call(
+                    func=locate(
+                        ast.Attribute(value=locate(ast.Name(id='predef', ctx=ast.Load())), attr='Scope', ctx=ast.Load())
+                    ),
+                    keywords=[
+                        ast.keyword('label__tapl', ast.Constant(value=scope_name)),
+                    ],
+                ),
+            )
+            self.location.locate(assign)
+            return assign
+
+        constructor = ast.Assign(
             targets=[
                 ast.Attribute(
-                    value=locate(ast.Name(id=setting.scope_name, ctx=ast.Store())), attr=self.name, ctx=ast.Store()
+                    value=ast.Attribute(
+                        value=ast.Name(id=setting.scope_name, ctx=ast.Load()), attr=class_name, ctx=ast.Load()
+                    ),
+                    attr='__call__',
+                    ctx=ast.Store(),
                 )
             ],
             value=ast.Call(
                 func=locate(
-                    ast.Attribute(value=locate(ast.Name(id='predef', ctx=ast.Load())), attr='Scope', ctx=ast.Load())
+                    ast.Attribute(
+                        value=locate(ast.Name(id='predef', ctx=ast.Load())),
+                        attr='FunctionType',
+                        ctx=ast.Load(),
+                    )
                 ),
-                keywords=[
-                    ast.keyword('parent', ast.Constant(value=None)),
-                    ast.keyword(
-                        '__call__',
-                        locate(
+                args=[
+                    ast.List(
+                        elts=[
                             ast.Attribute(
-                                value=locate(ast.Name(id='predef', ctx=ast.Load())), attr='init_class', ctx=ast.Load()
+                                value=ast.Name(id=setting.scope_name, ctx=ast.Load()),
+                                attr=class_name,
+                                ctx=ast.Load(),
                             )
-                        ),
+                        ],
+                        ctx=ast.Load(),
+                    ),
+                    ast.Attribute(
+                        value=ast.Name(id=setting.scope_name, ctx=ast.Load()),
+                        attr=instance_name,
+                        ctx=ast.Load(),
                     ),
                 ],
             ),
         )
-        self.location.locate(assign)
-        return [*class_stmt, assign]
+        self.location.locate(constructor)
+
+        return [*class_stmt, declare_scope(class_name), declare_scope(instance_name), constructor]
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
