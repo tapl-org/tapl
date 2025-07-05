@@ -23,7 +23,7 @@ print(inc(typelib.Int_))
 
 parsed_code = ast.parse(
     """
-type('Foo', (), {})
+s0.SimplestClass = predef.Scope(label__tapl='SimplestClass')
 """,
     mode='exec',
 )
@@ -43,9 +43,5 @@ class MyMeta(type):
 
 
 class MyClass(metaclass=MyMeta):
-    def __init__(self, value):
+    def __init__(self):
         print('Inside __init__')
-        self.value = value
-
-
-obj = MyClass(10)

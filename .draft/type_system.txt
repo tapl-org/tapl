@@ -205,3 +205,72 @@ June 19, 2025
 
 Truth is machine does not have a function concept. Machine has sequence of instructions, each instruction has an address/pointer. 
 Then machine can jump based on this address/pointer. We can name these addresses with a label to make it human readible and understandable.
+
+---------------------------------------------------------------------------------------------------------------
+June 28, 2025
+
+class Square:
+  def __init__(self, side: Int):
+    self.side = side
+  def area(self):
+    return self.side ^ 2
+
+
+Square = {
+  '__init__': \(self:Square, side:Int).<<code>>
+  'area': \self:Square.<<code>
+}
+
+Square0 = {   # name is Square
+  '__init__': \(self,side).<<code>>
+  'area': \self.<<code>>
+}
+Square1 = {   # name must be Square
+  '__init__': (Square,Int) -> None
+  'area': Square -> Int
+}
+
+Square0_Instance = {  # since it has many instances, it does not need a name
+  'area': \.<<code>>
+}
+Square1_Instance = {   # As a singleton, it requires a name for variable/parameter typing.
+  'area': () -> Int
+}
+
+On the otherhand, python users mostly do not use class directly, they mostly uses the instance of the class.
+
+Square = [Square0_Instance, Square1_Instance]
+new Square = [Square0, Square1]
+
+But what about this call: MyClass.my_method(objAsSelf).
+class name should belong to the class, instance should get different name.
+On Term layer, instance does not need a static name, but on Type layer, instance needs a static name.
+To sum up, we need 3 names: Term(Class name), Type(Class name, Instance name)
+For now, a instance name is a class name followed by underscore.
+
+---------------------------------------------------------------------------------------------------------------
+July 4, 2025
+
+Person:
+  init: 
+    \(self, name: Str):
+      self.name = name
+  name:
+    \(self):
+      return self.name
+
+# methods are curried and closured by their first argument
+# first argument: 
+# self = Scope(parent=Person_)
+# Person.init(self, )
+person:
+  self: Scope(parent=Person_)
+  init:
+    \(name: Str):
+      self.name = name
+  name:
+    \():
+      return self
+     
+
+

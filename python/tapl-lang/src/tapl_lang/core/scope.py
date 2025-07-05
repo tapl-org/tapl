@@ -10,10 +10,10 @@ from tapl_lang.core import typelib
 
 
 class ScopeInternal:
-    def __init__(self, parent: ScopeInternal | None = None, **kwargs: Any):
+    def __init__(self, parent: ScopeInternal | None, label: str | None):
         self.parent = parent
+        self.label = label
         self.variables: dict[str, Any] = {}
-        self.variables.update(kwargs)
         self.returns: list[Any] = []
 
     def try_load(self, name: str) -> Any | None:
@@ -37,26 +37,37 @@ class ScopeInternal:
         if stored_value != value:
             raise TypeError(f'Variable {name} already exists with a different type.')
 
+    def set_variables(self, **kwargs: Any) -> None:
+        for name, value in kwargs.items():
+            self.store(name, value)
 
+
+# ruff: noqa: N805
 class Scope:
-    def __init__(self, parent: Scope | None = None, **kwargs: Any):
-        self.internal__tapl: ScopeInternal = ScopeInternal(parent.internal__tapl if parent else None, **kwargs)
+    def __init__(self__tapl, parent__tapl: Scope | None = None, label__tapl: str | None = None, **kwargs: Any):
+        parent = parent__tapl.internal__tapl if parent__tapl else None
+        self__tapl.internal__tapl: ScopeInternal = ScopeInternal(parent=parent, label=label__tapl)
+        self__tapl.internal__tapl.set_variables(**kwargs)
 
-    def __getattribute__(self, name):
+    def __getattribute__(self__tapl, name):
         if name == 'internal__tapl':
             return super().__getattribute__(name)
-        # print(f'Loading variable {name} from scope.')
-        return self.internal__tapl.load(name)
+        return self__tapl.internal__tapl.load(name)
 
-    def __setattr__(self, name: str, value: Any):
+    def __setattr__(self__tapl, name: str, value: Any):
         if name == 'internal__tapl':
             # Allow setting the variables in initialization
             super().__setattr__(name, value)
         else:
-            self.internal__tapl.store(name, value)
+            self__tapl.internal__tapl.store(name, value)
 
-    def __call__(self, *args, **kwargs):
-        return self.internal__tapl.load('__call__')(self, *args, **kwargs)
+    def __call__(self__tapl, *args, **kwargs):
+        return self__tapl.internal__tapl.load('__call__')(self__tapl, *args, **kwargs)
+
+    def __repr__(self__tapl):
+        if self__tapl.internal__tapl.label:
+            return self__tapl.internal__tapl.label
+        return f'Scope(parent={self__tapl.internal__tapl.parent})'
 
 
 class ScopeForker:

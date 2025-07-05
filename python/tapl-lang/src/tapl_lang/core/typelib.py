@@ -90,6 +90,7 @@ class FunctionType:
     def __repr__(self):
         return f'{self.lock}->{self.result}'
 
+    # TODO: rename args to keys, lock to the locks since they are arrays
     def __call__(self, *args):
         args = list(args)
         if self.lock != args:
