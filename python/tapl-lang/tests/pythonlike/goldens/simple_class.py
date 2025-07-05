@@ -8,10 +8,10 @@ def accept(param):
 accept(SimplestClass())
 
 class Circle:
+
     def area(self):
         return 3.14
 
 def print_area(circle):
     print__tapl(circle.area())
-
 print_area(Circle())
