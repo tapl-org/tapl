@@ -326,7 +326,8 @@ def gather_errors(term: Term) -> list[ErrorTerm]:
 @dataclass
 class Block(Term):
     terms: list[Term]
-    delayed: bool = False  # Indicates if the term list is delayed. Useful during parsing when the term list is not immediately initialized and can be set later based on the parse result of child chunks.
+    # Indicates a delayed term list, useful when its initialization depends on child chunk parsing.
+    delayed: bool = False
 
     @override
     def children(self) -> Generator[Term, None, None]:

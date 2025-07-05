@@ -152,6 +152,15 @@ class IntegerLiteral(Literal):
 
 
 @dataclass
+class FloatLiteral(Literal):
+    value: float
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return self.typeit(ls, value=self.value, type_id='Float')
+
+
+@dataclass
 class StringLiteral(Literal):
     value: str
 

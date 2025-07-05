@@ -7,3 +7,13 @@ def accept(param: SimplestClass_):
   pass
 
 accept(SimplestClass())
+
+
+class Circle:
+  def area(self):
+    return 3.14
+
+def print_area(circle: Circle_):
+  print__tapl(circle.area())
+
+print_area(Circle())

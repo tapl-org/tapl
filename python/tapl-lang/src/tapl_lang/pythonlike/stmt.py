@@ -10,6 +10,13 @@ from typing import cast, override
 from tapl_lang.core import syntax, tapl_error
 
 
+def ast_name(name: str, ctx: ast.expr_context | None = None) -> ast.expr:
+    """Create an AST name with the given context."""
+    if not name:
+        raise ValueError('Name cannot be empty.')
+    return ast.Name(id=name, ctx=ctx or ast.Load())
+
+
 def ast_attribute(names: list[str], ctx: ast.expr_context | None = None) -> ast.expr:
     """Create an AST attribute from a list of names."""
     if not names:
@@ -176,30 +183,19 @@ class FunctionDef(syntax.Term):
         self.location.locate(func)
         return [func]
 
-    def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if not all(not isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
-            raise tapl_error.TaplError(
-                'All parameter type must not be Absence when generating function in type-check mode.'
-            )
-
-        def locate(ast_expr: ast.expr) -> ast.expr:
-            self.location.locate(ast_expr)
-            return ast_expr
-
+    def codegen_typecheck_main(self, setting: syntax.AstSetting) -> ast.stmt:
         params = [ast.arg(arg=cast(Parameter, p).name) for p in self.parameters]
         body: list[ast.stmt] = []
         body_setting = setting.clone(scope_level=setting.scope_level + 1)
         assign = ast.Assign(
-            targets=[locate(ast.Name(id=body_setting.scope_name, ctx=ast.Store()))],
+            targets=[ast.Name(id=body_setting.scope_name, ctx=ast.Store())],
             value=ast.Call(
-                func=locate(
-                    ast.Attribute(value=locate(ast.Name(id='predef', ctx=ast.Load())), attr='Scope', ctx=ast.Load())
-                ),
-                args=[locate(ast.Name(id=setting.scope_name, ctx=ast.Load()))],
+                func=ast_attribute(['predef', 'Scope']),
+                args=[ast_name(setting.scope_name)],
                 keywords=[
                     ast.keyword(
                         arg=cast(Parameter, p).name,
-                        value=locate(ast.Name(id=cast(Parameter, p).name, ctx=ast.Load())),
+                        value=ast_name(cast(Parameter, p).name),
                     )
                     for p in self.parameters
                 ],
@@ -211,47 +207,43 @@ class FunctionDef(syntax.Term):
         body.extend(self.body.codegen_stmt(body_setting))
         body.append(
             ast.Return(
-                locate(
-                    ast.Call(
-                        func=locate(
-                            ast.Attribute(value=locate(ast.Name(id='predef', ctx=ast.Load())), attr='get_return_type')
-                        ),
-                        args=[locate(ast.Name(id=body_setting.scope_name, ctx=ast.Load()))],
-                    )
+                value=ast.Call(
+                    func=ast_attribute(['predef', 'get_return_type']),
+                    args=[ast_name(body_setting.scope_name)],
                 )
             )
         )
         func = ast.FunctionDef(name=self.name, args=ast.arguments(args=params), body=body, decorator_list=[])
         self.location.locate(func)
+        return func
+
+    def codegen_typecheck_type(self, setting: syntax.AstSetting) -> ast.stmt:
+        if not all(not isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
+            raise tapl_error.TaplError(
+                'All parameter type must not be Absence when generating function type in type-check mode.'
+            )
 
         assign = ast.Assign(
-            targets=[
-                ast.Attribute(
-                    value=locate(ast.Name(id=setting.scope_name, ctx=ast.Load())), attr=self.name, ctx=ast.Store()
-                )
-            ],
-            value=locate(
-                ast.Call(
-                    func=ast.Attribute(
-                        value=locate(ast.Name(id='predef', ctx=ast.Load())), attr='FunctionType', ctx=ast.Load()
+            targets=[ast_attribute([setting.scope_name, self.name], ctx=ast.Store())],
+            value=ast.Call(
+                func=ast_attribute(['predef', 'FunctionType']),
+                args=[
+                    ast.List(
+                        elts=[cast(Parameter, p).type_.codegen_expr(setting) for p in self.parameters],
+                        ctx=ast.Load(),
                     ),
-                    args=[
-                        ast.List(
-                            elts=[cast(Parameter, p).type_.codegen_expr(setting) for p in self.parameters],
-                            ctx=ast.Load(),
-                        ),
-                        locate(
-                            ast.Call(
-                                func=locate(ast.Name(id=self.name, ctx=ast.Load())),
-                                args=[cast(Parameter, p).type_.codegen_expr(setting) for p in self.parameters],
-                            )
-                        ),
-                    ],
-                )
+                    ast.Call(
+                        func=ast_name(self.name),
+                        args=[cast(Parameter, p).type_.codegen_expr(setting) for p in self.parameters],
+                    ),
+                ],
             ),
         )
         self.location.locate(assign)
-        return [func, assign]
+        return assign
+
+    def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        return [self.codegen_typecheck_main(setting), self.codegen_typecheck_type(setting)]
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
@@ -494,36 +486,94 @@ class ClassDef(syntax.Term):
         return [stmt]
 
     def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        if not isinstance(self.body, syntax.Block):
+            raise tapl_error.TaplError('Class body must be a Block for type-checking.')
         class_name = self.name
         instance_name = f'{class_name}_'
-        class_stmt = self.codegen_evaluate(setting)
+        body = []
+        methods: list[FunctionDef] = []
+        for item in self.body.children():
+            if isinstance(item, FunctionDef):
+                methods.append(item)
+                body.append(item.codegen_typecheck_main(setting))
+            else:
+                body.extend(item.codegen_stmt(setting))
+        class_stmt = ast.ClassDef(
+            name=class_name,
+            bases=[b.codegen_expr(setting) for b in self.bases],
+            body=body,
+            decorator_list=[],
+        )
+        self.location.locate(class_stmt)
 
-        def declare_scope(scope_name: str) -> ast.stmt:
+        def declare_class(namespace: str) -> ast.stmt:
             assign = ast.Assign(
-                targets=[ast_attribute([setting.scope_name, scope_name], ctx=ast.Store())],
+                targets=[ast_attribute([setting.scope_name, namespace], ctx=ast.Store())],
                 value=ast.Call(
                     func=ast_attribute(['predef', 'Scope']),
                     keywords=[
-                        ast.keyword('label__tapl', ast.Constant(value=scope_name)),
+                        ast.keyword('label__tapl', ast.Constant(value=namespace)),
                     ],
                 ),
             )
             self.location.locate(assign)
             return assign
 
-        constructor = ast.Assign(
-            targets=[ast_attribute([setting.scope_name, class_name, '__call__'], ctx=ast.Store())],
-            value=ast.Call(
-                func=ast_attribute(['predef', 'FunctionType']),
-                args=[
-                    ast.List(elts=[ast_attribute([setting.scope_name, class_name])]),
-                    ast_attribute([setting.scope_name, instance_name]),
-                ],
-            ),
-        )
-        self.location.locate(constructor)
+        def declare_method(namespace: str, method_name: str, args: list[ast.expr], result: ast.expr) -> ast.stmt:
+            assign = ast.Assign(
+                targets=[ast_attribute([setting.scope_name, namespace, method_name], ctx=ast.Store())],
+                value=ast.Call(
+                    func=ast_attribute(['predef', 'FunctionType']),
+                    args=[
+                        ast.List(elts=args, ctx=ast.Load()),
+                        result,
+                    ],
+                ),
+            )
+            self.location.locate(assign)
+            return assign
 
-        return [*class_stmt, declare_scope(class_name), declare_scope(instance_name), constructor]
+        constructor = declare_method(
+            namespace=class_name,
+            method_name='__call__',
+            args=[ast_attribute([setting.scope_name, class_name])],
+            result=ast_attribute([setting.scope_name, instance_name]),
+        )
+
+        method_types = []
+        for method in methods:
+            # The first parameter is the instance itself, so we can set it to the instance type.
+            if not (
+                len(method.parameters) >= 1
+                and isinstance(method.parameters[0], Parameter)
+                and isinstance(method.parameters[0].type_, Absence)
+            ):
+                raise tapl_error.TaplError(
+                    f'First parameter of method {method.name} in class {class_name} must be self with no type annotation.'
+                )
+            tail_args = [p.codegen_expr(setting) for p in method.parameters[1:]]
+            class_args = [ast_attribute([setting.scope_name, instance_name]), *tail_args]
+            method_types.append(
+                declare_method(
+                    namespace=class_name,
+                    method_name=method.name,
+                    args=class_args,
+                    result=ast.Call(
+                        func=ast_attribute([class_name, method.name]),
+                        args=class_args,
+                    ),
+                )
+            )
+            method_types.append(
+                declare_method(
+                    namespace=instance_name,
+                    method_name=method.name,
+                    args=tail_args,
+                    result=ast_attribute([setting.scope_name, class_name, method.name, 'result']),
+                )
+            )
+
+        return [class_stmt, declare_class(class_name), declare_class(instance_name), constructor, *method_types]
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:

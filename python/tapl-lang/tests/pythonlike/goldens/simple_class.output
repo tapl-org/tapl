@@ -1,10 +1,12 @@
 ====== layer=1 exit-status:0 stdout:
+Float
 
 ------ stderr:
 
 ------ end.
 
 ====== layer=0 exit-status:0 stdout:
+3.14
 
 ------ stderr:
 

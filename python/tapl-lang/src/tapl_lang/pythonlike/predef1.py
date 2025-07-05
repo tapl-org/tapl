@@ -24,6 +24,7 @@ predef_scope.internal__tapl.variables.update(
         'NoneType': typelib.NoneType_,
         'Bool': typelib.Bool_,
         'Int': typelib.Int_,
+        'Float': typelib.Float_,
         'Str': typelib.Str_,
         'Union': typelib.Union,
         'create_union': typelib.create_union,
