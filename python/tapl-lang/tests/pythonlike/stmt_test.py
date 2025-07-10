@@ -8,7 +8,7 @@ import ast
 from tapl_lang.core import syntax
 from tapl_lang.core.chunker import chunk_text
 from tapl_lang.core.parser import parse_text
-from tapl_lang.pythonlike import parser, predef1, stmt
+from tapl_lang.pythonlike import grammar, predef1, stmt
 from tapl_lang.pythonlike.language import PythonlikeLanguage
 
 
@@ -22,7 +22,7 @@ def check_parsed_term(parsed: syntax.Term) -> None:
 
 
 def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
-    parsed = parse_text(text, parser.get_grammar(), debug=debug)
+    parsed = parse_text(text, grammar.get_grammar(), debug=debug)
     delayed_block = syntax.find_delayed_block(parsed)
     if delayed_block is not None:
         delayed_block.delayed = False

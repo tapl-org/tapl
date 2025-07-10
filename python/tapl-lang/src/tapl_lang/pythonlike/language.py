@@ -7,7 +7,7 @@ from typing import override
 from tapl_lang.core import parser, syntax
 from tapl_lang.core.language import Language
 from tapl_lang.pythonlike import expr, stmt
-from tapl_lang.pythonlike import parser as pythonlike_parser
+from tapl_lang.pythonlike import grammar as pythonlike_grammar
 
 IMPORT_LEVEL = 0
 
@@ -16,7 +16,7 @@ class PythonlikeLanguage(Language):
     @override
     def get_grammar(self, parent_stack: list[syntax.Term]) -> parser.Grammar:
         del parent_stack
-        return pythonlike_parser.get_grammar()
+        return pythonlike_grammar.get_grammar()
 
     def create_header_for_evaluate_layer(self) -> syntax.Term:
         location = syntax.Location(start=syntax.Position(line=1, column=0))
