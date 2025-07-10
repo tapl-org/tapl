@@ -344,6 +344,7 @@ class Block(Term):
         return [s for b in self.terms for s in b.codegen_stmt(setting)]
 
 
+# TODO: Add a doc for this, or make the method an class names more descriptive.
 class DependentTerm(Term):
     def merge_into(self, block: Block) -> None:
         del block

@@ -10,6 +10,8 @@ accept(SimplestClass())
 
 
 class Circle:
+#  def __init__(self, radius: Int):
+#    self.radius = radius
   def area(self):
     return 3.14
 

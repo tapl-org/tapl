@@ -7,7 +7,7 @@ import ast
 
 from tapl_lang.core import syntax
 from tapl_lang.core.parser import Grammar, parse_text
-from tapl_lang.pythonlike import expr, parser, predef, predef1
+from tapl_lang.pythonlike import expr, parser, predef, predef1, rule_names
 
 
 def check_parsed_term(parsed: syntax.Term) -> None:
@@ -20,7 +20,7 @@ def check_parsed_term(parsed: syntax.Term) -> None:
 
 
 def parse_expr(text: str, *, debug=False) -> list[ast.expr]:
-    parsed = parse_text(text, Grammar(parser.RULES, 'expression'), debug=debug)
+    parsed = parse_text(text, Grammar(parser.get_grammar().rule_map, rule_names.EXPRESSION), debug=debug)
     check_parsed_term(parsed)
     safe_term = syntax.make_safe_term(parsed)
     separated = syntax.LayerSeparator(2).separate(safe_term)
