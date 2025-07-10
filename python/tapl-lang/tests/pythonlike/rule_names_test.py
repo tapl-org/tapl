@@ -7,7 +7,7 @@ from tapl_lang.pythonlike import rule_names
 
 
 def test_rule_name_consistency():
-    assert rule_names.RULE_NAMES, 'Grammar rule names are not define or empty.'
+    assert rule_names.RULE_NAMES, 'Grammar rule names are not defined or empty.'
     for full_rule_name in rule_names.RULE_NAMES:
         names = full_rule_name.split('.')
         assert len(names) == 2, f'Rule name {full_rule_name} does not have exactly two parts.'
