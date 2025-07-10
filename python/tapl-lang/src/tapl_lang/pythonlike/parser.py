@@ -38,32 +38,20 @@ def get_grammar() -> parser.Grammar:
     # GENERAL STATEMENTS
     # ==================
     add(rn.STATEMENTS, [])
-    add(
-        rn.STATEMENT,
-        [
-            rn.ASSIGNMENT,
-            rule_expression_statement,
-            rn.RETURN_STMT,
-            rn.FUNCTION_DEF,
-            rn.IF_STMT,
-            rn.ELSE_BLOCK,
-            rule_pass,
-            rule_class_def,
-        ],
-    )
+    add(rn.STATEMENT, [rn.COMPOUND_STMT, rn.SIMPLE_STMTS])
     add(rn.SINGLE_COMPOUND_STMT, [])
     add(rn.STATEMENT_NEWLINE, [])
-    add(rn.SIMPLE_STMTS, [])
-    add(rn.SIMPLE_STMT, [])
-    add(rn.COMPOUND_STMT, [])
+    add(rn.SIMPLE_STMTS, [rn.SIMPLE_STMT])
+    add(rn.SIMPLE_STMT, [rn.ASSIGNMENT, parse_statement__star_expressions, rn.RETURN_STMT, rn.PASS_STMT])
+    add(rn.COMPOUND_STMT, [rn.FUNCTION_DEF, rn.IF_STMT, rn.CLASS_DEF])
 
     # SIMPLE STATEMENTS
     # =================
-    add(rn.ASSIGNMENT, [rule_assignment])
+    add(rn.ASSIGNMENT, [parse_assignment])
     add(rn.ANNOTATED_RHS, [])
     add(rn.AUGASSIGN, [])
     add(rn.RETURN_STMT, [parse_return])
-    add(rn.PASS_STMT, [])
+    add(rn.PASS_STMT, [parse_pass])
     add(rn.BREAK_STMT, [])
     add(rn.CONTINUE_STMT, [])
     add(rn.GLOBAL_STMT, [])
@@ -94,12 +82,12 @@ def get_grammar() -> parser.Grammar:
 
     # Class definitions
     # -----------------
-    add(rn.CLASS_DEF, [])
+    add(rn.CLASS_DEF, [parse_class_def])
     add(rn.CLASS_DEF_RAW, [])
 
     # Function definitions
     # --------------------
-    add(rn.FUNCTION_DEF, [rule_function_def])
+    add(rn.FUNCTION_DEF, [parse_function_def])
     add(rn.FUNCTION_DEF_RAW, [])
 
     # Function parameters
@@ -122,9 +110,9 @@ def get_grammar() -> parser.Grammar:
 
     # If statement
     # ------------
-    add(rn.IF_STMT, [rule_if_stmt])
+    add(rn.IF_STMT, [parse_if_stmt, rn.ELSE_BLOCK])
     add(rn.ELIF_STMT, [])
-    add(rn.ELSE_BLOCK, [rule_else_stmt])
+    add(rn.ELSE_BLOCK, [parse_else_stmt])
 
     # While statement
     # ---------------
@@ -206,19 +194,19 @@ def get_grammar() -> parser.Grammar:
     add(rn.EXPRESSIONS, [])
     add(rn.EXPRESSION, [rn.DISJUNCTION])
     add(rn.YIELD_EXPR, [])
-    add(rn.STAR_EXPRESSIONS, [])
-    add(rn.STAR_EXPRESSION, [])
+    add(rn.STAR_EXPRESSIONS, [rn.STAR_EXPRESSION])
+    add(rn.STAR_EXPRESSION, [rn.EXPRESSION])
     add(rn.STAR_NAMED_EXPRESSIONS, [])
     add(rn.STAR_NAMED_EXPRESSION, [])
     add(rn.ASSIGNMENT_EXPRESSION, [])
     add(rn.NAMED_EXPRESSION, [])
-    add(rn.DISJUNCTION, [rule_disjunction__or, rn.CONJUNCTION])
-    add(rn.CONJUNCTION, [rule_conjunction__and, rn.INVERSION])
-    add(rn.INVERSION, [rule_inversion__not, rn.COMPARISON])
+    add(rn.DISJUNCTION, [parse_disjunction__or, rn.CONJUNCTION])
+    add(rn.CONJUNCTION, [parse_conjunction__and, rn.INVERSION])
+    add(rn.INVERSION, [parse_inversion__not, rn.COMPARISON])
 
     # Comparison operators
     # --------------------
-    add(rn.COMPARISON, [rule_comparison, rn.SUM])
+    add(rn.COMPARISON, [parse_comparison, rn.SUM])  # TODO: Implement using BITWISE_OR rule instead of SUM
     add(rn.COMPARE_OP_BITWISE_OR_PAIR, [])
     add(rn.EQ_BITWISE_OR, [])
     add(rn.NOTEQ_BITWISE_OR, [])
@@ -240,19 +228,19 @@ def get_grammar() -> parser.Grammar:
 
     # Arithmetic operators
     # --------------------
-    add(rn.SUM, [rule_sum__binary, rn.TERM])
-    add(rn.TERM, [rule_term__binary, rule_invalid_factor, rn.FACTOR])
-    add(rn.FACTOR, [rule_factor__unary, rn.PRIMARY])
+    add(rn.SUM, [parse_sum__binary, rn.TERM])
+    add(rn.TERM, [parse_term__binary, parse_invalid_factor, rn.FACTOR])
+    add(rn.FACTOR, [parse_factor__unary, rn.PRIMARY])
     add(rn.POWER, [])
 
     # Primary elements
     # ----------------
     # Primary elements are things like "obj.something.something", "obj[something]", "obj(something)", "obj" ...
     add(rn.AWAIT_PRIMARY, [])
-    add(rn.PRIMARY, [rule_primary__attribute, rule_primary__call, rn.ATOM])
+    add(rn.PRIMARY, [parse_primary__attribute, parse_primary__call, rn.ATOM])
     add(rn.SLICES, [])
     add(rn.SLICE, [])
-    add(rn.ATOM, [build_rule_name('load'), rule_atom__bool, rule_atom__string, rule_atom__number])
+    add(rn.ATOM, [build_rule_name('load'), parse_atom__bool, parse_atom__string, parse_atom__number])
     add(rn.GROUP, [])
 
     # Lambda functions
@@ -716,7 +704,7 @@ def scan_arguments(c: Cursor) -> syntax.Term:
     return t.captured_error or syntax.Block(terms=args)
 
 
-def rule_primary__attribute(c: Cursor) -> syntax.Term:
+def parse_primary__attribute(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(value := c.consume_rule(rn.PRIMARY))
@@ -727,7 +715,7 @@ def rule_primary__attribute(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def rule_primary__call(c: Cursor) -> syntax.Term:
+def parse_primary__call(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(func := c.consume_rule(rn.PRIMARY))
@@ -749,7 +737,7 @@ def build_rule_name(ctx: str) -> Callable[[Cursor], syntax.Term]:
     return rule
 
 
-def rule_atom__bool(c: Cursor) -> syntax.Term:
+def parse_atom__bool(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, TokenKeyword):
         location = token.location
@@ -761,14 +749,14 @@ def rule_atom__bool(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def rule_atom__string(c: Cursor) -> syntax.Term:
+def parse_atom__string(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, TokenString):
         return expr.StringLiteral(token.location, value=token.value)
     return t.fail()
 
 
-def rule_atom__number(c: Cursor) -> syntax.Term:
+def parse_atom__number(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)):
         if isinstance(token, TokenInteger):
@@ -778,14 +766,14 @@ def rule_atom__number(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def rule_factor__unary(c: Cursor) -> syntax.Term:
+def parse_factor__unary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(op := consume_punct(c, '+', '-', '~')) and t.validate(factor := expect_rule(c, rn.FACTOR)):
         return expr.UnaryOp(t.location, cast(TokenPunct, op).value, factor)
     return t.fail()
 
 
-def rule_invalid_factor(c: Cursor) -> syntax.Term:
+def parse_invalid_factor(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(consume_punct(c, '+', '-', '~'))
@@ -796,7 +784,7 @@ def rule_invalid_factor(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def rule_term__binary(c: Cursor) -> syntax.Term:
+def parse_term__binary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(left := c.consume_rule(rn.TERM))
@@ -807,7 +795,7 @@ def rule_term__binary(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def rule_sum__binary(c: Cursor) -> syntax.Term:
+def parse_sum__binary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(left := c.consume_rule(rn.SUM))
@@ -836,7 +824,7 @@ def scan_operator(c: Cursor) -> str | None:
     return None
 
 
-def rule_comparison(c: Cursor) -> syntax.Term:
+def parse_comparison(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(left := c.consume_rule(rn.SUM)):
         ops = []
@@ -851,14 +839,14 @@ def rule_comparison(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def rule_inversion__not(c: Cursor) -> syntax.Term:
+def parse_inversion__not(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(consume_keyword(c, 'not')) and t.validate(operand := expect_rule(c, rn.COMPARISON)):
         return expr.BoolNot(location=t.location, operand=operand)
     return t.fail()
 
 
-def rule_conjunction__and(c: Cursor) -> syntax.Term:
+def parse_conjunction__and(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(left := c.consume_rule(rn.INVERSION)):
         values = [left]
@@ -871,7 +859,7 @@ def rule_conjunction__and(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def rule_disjunction__or(c: Cursor) -> syntax.Term:
+def parse_disjunction__or(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(left := c.consume_rule(rn.CONJUNCTION)):
         values = [left]
@@ -884,7 +872,7 @@ def rule_disjunction__or(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def rule_assignment(c: Cursor) -> syntax.Term:
+def parse_assignment(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(name := c.consume_rule('name_store'))
@@ -895,9 +883,9 @@ def rule_assignment(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def rule_expression_statement(c: Cursor) -> syntax.Term:
+def parse_statement__star_expressions(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(value := c.consume_rule(rn.EXPRESSION)):
+    if t.validate(value := c.consume_rule(rn.STAR_EXPRESSIONS)):
         if hasattr(value, 'location'):
             location = value.location
         else:
@@ -947,7 +935,7 @@ def scan_parameters(c: Cursor) -> syntax.Term:
     return t.captured_error or syntax.Block(terms=params)
 
 
-def rule_function_def(c: Cursor) -> syntax.Term:
+def parse_function_def(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(consume_keyword(c, 'def'))
@@ -967,7 +955,7 @@ def rule_function_def(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def rule_if_stmt(c: Cursor) -> syntax.Term:
+def parse_if_stmt(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(consume_keyword(c, 'if'))
@@ -978,21 +966,21 @@ def rule_if_stmt(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def rule_else_stmt(c: Cursor) -> syntax.Term:
+def parse_else_stmt(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(consume_keyword(c, 'else')) and t.validate(expect_punct(c, ':')):
         return stmt.Else(location=t.location, body=syntax.Block([], delayed=True))
     return t.fail()
 
 
-def rule_pass(c: Cursor) -> syntax.Term:
+def parse_pass(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(consume_keyword(c, 'pass')):
         return stmt.Pass(location=t.location)
     return t.fail()
 
 
-def rule_class_def(c: Cursor) -> syntax.Term:
+def parse_class_def(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(consume_keyword(c, 'class'))
