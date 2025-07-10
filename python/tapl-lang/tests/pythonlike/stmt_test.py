@@ -68,7 +68,7 @@ def test_assign_name():
 
 
 def test_return1():
-    [stmt1, stmt2] = parse_stmt('return', debug=True)
+    [stmt1, stmt2] = parse_stmt('return')
     assert ast.unparse(stmt1) == 'return None'
     assert ast.unparse(stmt2) == 'predef.add_return_type(s0, s0.NoneType)'
 
