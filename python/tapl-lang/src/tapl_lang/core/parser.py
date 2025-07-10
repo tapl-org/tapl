@@ -370,7 +370,7 @@ class PegEngineDebug(PegEngine):
     @override
     def dump(self) -> str:
         output = io.StringIO()
-        output.write('\n------PEG Engine Dump------')
+        output.write('\n------PEG Engine Dump (Rows sorted by row,col,rule,call_order)--------')
         # Print line records
         max_len = max(len(line.text) for line in self.line_records)
         output.write('\n  ')
@@ -385,6 +385,7 @@ class PegEngineDebug(PegEngine):
         self.dump_table(output, self.dump_cell_memo())
         output.write('\n\n')
         self.dump_table(output, self.tableize_parse_traces())
+        output.write('\n------End of PEG Engine Dump------------------------------------------\n')
         return output.getvalue()
 
 
@@ -404,8 +405,9 @@ def parse_line_records(line_records: list[LineRecord], grammar: Grammar, *, debu
     if debug:
         logging.warning(engine.dump())
     if not isinstance(term, ErrorTerm) and not (next_row == len(line_records) and next_col == 0):
+        lineno = line_records[0].line_number if line_records else -1
         return ErrorTerm(
-            message=f'Not all text consumed: indices {next_row}:{next_col}/{len(line_records)}:0.',
+            message=f'chunk[line:{lineno}] Not all text consumed: indices {next_row}:{next_col}/{len(line_records)}:0.',
         )
     return term
 

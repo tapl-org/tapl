@@ -51,12 +51,20 @@ def parse_module(text: str) -> list[ast.AST]:
     return [layer.codegen_ast(syntax.AstSetting()) for layer in layers]
 
 
-def test_assign1():
+def test_assign_name():
     [stmt1, stmt2] = parse_stmt('a=1')
     assert ast.unparse(stmt1) == 'a = 1'
     assert ast.unparse(stmt2) == 's0.a = s0.Int'
     assert run_stmt([stmt2]) is None
     assert run_stmt([stmt1]) is None
+
+
+# def test_assign_attribute():
+#     [stmt1, stmt2] = parse_stmt('a.b=1', debug=True)
+#     assert ast.unparse(stmt1) == 'a = 1'
+#     assert ast.unparse(stmt2) == 's0.a = s0.Int'
+#     assert run_stmt([stmt2]) is None
+#     assert run_stmt([stmt1]) is None
 
 
 def test_return1():

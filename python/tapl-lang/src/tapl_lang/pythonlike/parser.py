@@ -638,6 +638,48 @@ def parse_start(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
+# ASSIGNMENT TARGETS
+# ------------------
+
+# def rule_target_with_star_atom__attribute(c: Cursor) -> syntax.Term:
+#     t = c.start_tracker()
+#     if (
+#         t.validate(target := c.consume_rule('t_primary'))
+#         and t.validate(consume_punct(c, '.'))
+#         and t.validate(name := expect_name(c))
+#     ):
+#         return expr.Attribute(t.location, value=target, attr=cast(TokenName, name).value, ctx='store')
+#     return t.fail()
+
+# def rule_star_atom__name(c: Cursor) -> syntax.Term:
+#     t = c.start_tracker()
+#     if t.validate(token := c.consume_rule('token')) and isinstance(token, TokenName):
+#         return expr.Name(location=token.location, id=token.value, ctx='store')
+#     return t.fail()
+
+# def rule_t_primary__attribute(c: Cursor) -> syntax.Term:
+#     t = c.start_tracker()
+#     if (
+#         t.validate(value := c.consume_rule('t_primary'))
+#         and t.validate(consume_punct(c, '.'))
+#         and t.validate(attr := expect_name(c))
+#     ):
+#         return expr.Attribute(t.location, value=value, attr=cast(TokenName, attr).value, ctx='store')
+#     return t.fail()
+
+# ASSIGNMENT_TARGETS: parser.GrammarRuleMap = {
+#     'star_targets': [],
+#     'star_targets_list_seq': [],
+#     'star_targets_tuple_seq': [],
+#     'star_target': [],
+#     'target_with_star_atom': [rule_target_with_star_atom__attribute, route('start_atom')],
+#     'star_atom': [rule_star_atom__name],
+#     'single_target': [],
+#     'single_subscript_attribute_target': [],
+#     't_primary': [rule_t_primary__attribute],
+# }
+
+# ALL RULES
 RULES: parser.GrammarRuleMap = {
     'expression': [route('disjunction')],
     'disjunction': [rule_disjunction__or, route('conjunction')],

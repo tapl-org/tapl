@@ -1,0 +1,18 @@
+# Part of the Tapl Language project, under the Apache License v2.0 with LLVM
+# Exceptions. See /LICENSE for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+
+from tapl_lang.pythonlike import grammar
+
+
+def test_rule_name_consistency():
+    assert grammar.RULES, 'Grammar rules are not defined.'
+    for full_rule_name in grammar.RULES:
+        names = full_rule_name.split('.')
+        assert len(names) == 2, f'Rule name {full_rule_name} does not have exactly two parts.'
+        assert names[0] == 'pythonlike', f'Rule name {full_rule_name} does not start with "pythonlike".'
+        constant_name = names[1].upper()
+        assert (
+            constant_name in grammar.__dict__
+        ), f'Rule name {constant_name} is not found as a constant in the grammar module.'
