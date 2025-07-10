@@ -24,16 +24,16 @@ def get_grammar() -> parser.Grammar:
         if ordered_parse_functions:
             rules[name] = [parser.route(fn) if isinstance(fn, str) else fn for fn in ordered_parse_functions]
 
-    add('parameter', [rule_parameter_with_type, rule_parameter_no_type])
-    add('name_store', [build_rule_name('store')])
+    add('parameter', [_rule_parameter_with_type, _rule_parameter_no_type])
+    add('name_store', [_build_rule_name('store')])
 
     # STARTING RULES
     # ==============
-    add(rn.START, [parse_start])
+    add(rn.START, [_parse_start])
 
     # HELPER RULES
     # ============
-    add(rn.TOKEN, [parse_token])
+    add(rn.TOKEN, [_parse_token])
 
     # GENERAL STATEMENTS
     # ==================
@@ -42,16 +42,16 @@ def get_grammar() -> parser.Grammar:
     add(rn.SINGLE_COMPOUND_STMT, [])
     add(rn.STATEMENT_NEWLINE, [])
     add(rn.SIMPLE_STMTS, [rn.SIMPLE_STMT])
-    add(rn.SIMPLE_STMT, [rn.ASSIGNMENT, parse_statement__star_expressions, rn.RETURN_STMT, rn.PASS_STMT])
+    add(rn.SIMPLE_STMT, [rn.ASSIGNMENT, _parse_statement__star_expressions, rn.RETURN_STMT, rn.PASS_STMT])
     add(rn.COMPOUND_STMT, [rn.FUNCTION_DEF, rn.IF_STMT, rn.CLASS_DEF])
 
     # SIMPLE STATEMENTS
     # =================
-    add(rn.ASSIGNMENT, [parse_assignment])
+    add(rn.ASSIGNMENT, [_parse_assignment])
     add(rn.ANNOTATED_RHS, [])
     add(rn.AUGASSIGN, [])
-    add(rn.RETURN_STMT, [parse_return])
-    add(rn.PASS_STMT, [parse_pass])
+    add(rn.RETURN_STMT, [_parse_return])
+    add(rn.PASS_STMT, [_parse_pass])
     add(rn.BREAK_STMT, [])
     add(rn.CONTINUE_STMT, [])
     add(rn.GLOBAL_STMT, [])
@@ -82,12 +82,12 @@ def get_grammar() -> parser.Grammar:
 
     # Class definitions
     # -----------------
-    add(rn.CLASS_DEF, [parse_class_def])
+    add(rn.CLASS_DEF, [_parse_class_def])
     add(rn.CLASS_DEF_RAW, [])
 
     # Function definitions
     # --------------------
-    add(rn.FUNCTION_DEF, [parse_function_def])
+    add(rn.FUNCTION_DEF, [_parse_function_def])
     add(rn.FUNCTION_DEF_RAW, [])
 
     # Function parameters
@@ -110,9 +110,9 @@ def get_grammar() -> parser.Grammar:
 
     # If statement
     # ------------
-    add(rn.IF_STMT, [parse_if_stmt, rn.ELSE_BLOCK])
+    add(rn.IF_STMT, [_parse_if_stmt, rn.ELSE_BLOCK])
     add(rn.ELIF_STMT, [])
-    add(rn.ELSE_BLOCK, [parse_else_stmt])
+    add(rn.ELSE_BLOCK, [_parse_else_stmt])
 
     # While statement
     # ---------------
@@ -200,13 +200,13 @@ def get_grammar() -> parser.Grammar:
     add(rn.STAR_NAMED_EXPRESSION, [])
     add(rn.ASSIGNMENT_EXPRESSION, [])
     add(rn.NAMED_EXPRESSION, [])
-    add(rn.DISJUNCTION, [parse_disjunction__or, rn.CONJUNCTION])
-    add(rn.CONJUNCTION, [parse_conjunction__and, rn.INVERSION])
-    add(rn.INVERSION, [parse_inversion__not, rn.COMPARISON])
+    add(rn.DISJUNCTION, [_parse_disjunction__or, rn.CONJUNCTION])
+    add(rn.CONJUNCTION, [_parse_conjunction__and, rn.INVERSION])
+    add(rn.INVERSION, [_parse_inversion__not, rn.COMPARISON])
 
     # Comparison operators
     # --------------------
-    add(rn.COMPARISON, [parse_comparison, rn.SUM])  # TODO: Implement using BITWISE_OR rule instead of SUM
+    add(rn.COMPARISON, [_parse_comparison, rn.SUM])  # TODO: Implement using BITWISE_OR rule instead of SUM
     add(rn.COMPARE_OP_BITWISE_OR_PAIR, [])
     add(rn.EQ_BITWISE_OR, [])
     add(rn.NOTEQ_BITWISE_OR, [])
@@ -228,19 +228,19 @@ def get_grammar() -> parser.Grammar:
 
     # Arithmetic operators
     # --------------------
-    add(rn.SUM, [parse_sum__binary, rn.TERM])
-    add(rn.TERM, [parse_term__binary, parse_invalid_factor, rn.FACTOR])
-    add(rn.FACTOR, [parse_factor__unary, rn.PRIMARY])
+    add(rn.SUM, [_parse_sum__binary, rn.TERM])
+    add(rn.TERM, [_parse_term__binary, _parse_invalid_factor, rn.FACTOR])
+    add(rn.FACTOR, [_parse_factor__unary, rn.PRIMARY])
     add(rn.POWER, [])
 
     # Primary elements
     # ----------------
     # Primary elements are things like "obj.something.something", "obj[something]", "obj(something)", "obj" ...
     add(rn.AWAIT_PRIMARY, [])
-    add(rn.PRIMARY, [parse_primary__attribute, parse_primary__call, rn.ATOM])
+    add(rn.PRIMARY, [_parse_primary__attribute, _parse_primary__call, rn.ATOM])
     add(rn.SLICES, [])
     add(rn.SLICE, [])
-    add(rn.ATOM, [build_rule_name('load'), parse_atom__bool, parse_atom__string, parse_atom__number])
+    add(rn.ATOM, [_build_rule_name('load'), _parse_atom__bool, _parse_atom__string, _parse_atom__number])
     add(rn.GROUP, [])
 
     # Lambda functions
@@ -396,7 +396,7 @@ def get_grammar() -> parser.Grammar:
 
 
 @dataclass
-class TokenKeyword(syntax.Term):
+class _TokenKeyword(syntax.Term):
     location: syntax.Location
     value: str
 
@@ -405,7 +405,7 @@ class TokenKeyword(syntax.Term):
 
 
 @dataclass
-class TokenName(syntax.Term):
+class _TokenName(syntax.Term):
     location: syntax.Location
     value: str
 
@@ -414,7 +414,7 @@ class TokenName(syntax.Term):
 
 
 @dataclass
-class TokenString(syntax.Term):
+class _TokenString(syntax.Term):
     location: syntax.Location
     value: str
 
@@ -423,7 +423,7 @@ class TokenString(syntax.Term):
 
 
 @dataclass
-class TokenInteger(syntax.Term):
+class _TokenInteger(syntax.Term):
     location: syntax.Location
     value: int
 
@@ -432,7 +432,7 @@ class TokenInteger(syntax.Term):
 
 
 @dataclass
-class TokenFloat(syntax.Term):
+class _TokenFloat(syntax.Term):
     location: syntax.Location
     value: float
 
@@ -441,7 +441,7 @@ class TokenFloat(syntax.Term):
 
 
 @dataclass
-class TokenPunct(syntax.Term):
+class _TokenPunct(syntax.Term):
     location: syntax.Location
     value: str
 
@@ -450,7 +450,7 @@ class TokenPunct(syntax.Term):
 
 
 @dataclass
-class TokenEndOfText(syntax.Term):
+class _TokenEndOfText(syntax.Term):
     location: syntax.Location
 
     def repr__tapl(self) -> str:
@@ -458,7 +458,7 @@ class TokenEndOfText(syntax.Term):
 
 
 # https://github.com/python/cpython/blob/main/Parser/token.c
-PUNCT_SET = {
+_PUNCT_SET = {
     '!',
     '%',
     '&',
@@ -510,7 +510,7 @@ PUNCT_SET = {
     '>>=',
 }
 
-KEYWORDS = {
+_KEYWORDS = {
     'and',
     'as',
     'assert',
@@ -549,25 +549,25 @@ KEYWORDS = {
 }
 
 
-def skip_whitespaces(c: Cursor) -> None:
+def _skip_whitespaces(c: Cursor) -> None:
     while not c.is_end() and c.current_char().isspace():
         c.move_to_next()
 
 
-def parse_token(c: Cursor) -> syntax.Term:
-    skip_whitespaces(c)
+def _parse_token(c: Cursor) -> syntax.Term:
+    _skip_whitespaces(c)
     tracker = c.start_tracker()
     if c.is_end():
-        return TokenEndOfText(tracker.location)
+        return _TokenEndOfText(tracker.location)
 
     def scan_name(char: str) -> syntax.Term:
         result = char
         while not c.is_end() and (char := c.current_char()) and (char.isalnum() or char == '_'):
             result += char
             c.move_to_next()
-        if result in KEYWORDS:
-            return TokenKeyword(tracker.location, value=result)
-        return TokenName(tracker.location, value=result)
+        if result in _KEYWORDS:
+            return _TokenKeyword(tracker.location, value=result)
+        return _TokenName(tracker.location, value=result)
 
     def unterminated_string() -> syntax.Term:
         return syntax.ErrorTerm(
@@ -585,7 +585,7 @@ def parse_token(c: Cursor) -> syntax.Term:
             if c.is_end():
                 return unterminated_string()
         c.move_to_next()  # consume quote
-        return TokenString(tracker.location, result)
+        return _TokenString(tracker.location, result)
 
     def scan_number(char: str) -> syntax.Term:
         number_str = char
@@ -603,8 +603,8 @@ def parse_token(c: Cursor) -> syntax.Term:
             while not c.is_end() and (char := c.current_char()).isdigit():
                 number_str += char
                 c.move_to_next()
-            return TokenFloat(tracker.location, value=float(number_str))
-        return TokenInteger(tracker.location, value=int(number_str))
+            return _TokenFloat(tracker.location, value=float(number_str))
+        return _TokenInteger(tracker.location, value=int(number_str))
 
     def scan_punct(char: str) -> syntax.Term:
         k = c.clone()
@@ -617,14 +617,14 @@ def parse_token(c: Cursor) -> syntax.Term:
             char3 = k.current_char()
             k.move_to_next()
         if char2 is not None:
-            if char3 is not None and (temp := char + char2 + char3) in PUNCT_SET:
+            if char3 is not None and (temp := char + char2 + char3) in _PUNCT_SET:
                 c.copy_from(k)
-                return TokenPunct(tracker.location, value=temp)
-            if (temp := char + char2) in PUNCT_SET:
+                return _TokenPunct(tracker.location, value=temp)
+            if (temp := char + char2) in _PUNCT_SET:
                 c.move_to_next()
-                return TokenPunct(tracker.location, value=temp)
+                return _TokenPunct(tracker.location, value=temp)
         # single-character punctuation
-        return TokenPunct(tracker.location, value=char)
+        return _TokenPunct(tracker.location, value=char)
 
     char = c.current_char()
     c.move_to_next()
@@ -634,50 +634,50 @@ def parse_token(c: Cursor) -> syntax.Term:
         return scan_string()
     if char.isdigit():
         return scan_number(char)
-    if char in PUNCT_SET:
+    if char in _PUNCT_SET:
         return scan_punct(char)
     # Error
     return tracker.fail()
 
 
-def consume_keyword(c: Cursor, keyword: str) -> syntax.Term:
+def _consume_keyword(c: Cursor, keyword: str) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, TokenKeyword) and term.value == keyword:
+    if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, _TokenKeyword) and term.value == keyword:
         return term
     return t.fail()
 
 
-def expect_keyword(c: Cursor, keyword: str) -> syntax.Term:
+def _expect_keyword(c: Cursor, keyword: str) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, TokenKeyword) and term.value == keyword:
+    if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, _TokenKeyword) and term.value == keyword:
         return term
     return t.captured_error or syntax.ErrorTerm(message=f'Expected "{keyword}", but found {term}', location=t.location)
 
 
-def consume_name(c: Cursor) -> syntax.Term:
+def _consume_name(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, TokenName):
+    if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, _TokenName):
         return term
     return t.fail()
 
 
-def expect_name(c: Cursor) -> syntax.Term:
+def _expect_name(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, TokenName):
+    if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, _TokenName):
         return term
     return t.captured_error or syntax.ErrorTerm(message=f'Expected a name, but found {term}', location=t.location)
 
 
-def consume_punct(c: Cursor, *puncts: str) -> syntax.Term:
+def _consume_punct(c: Cursor, *puncts: str) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, TokenPunct) and term.value in puncts:
+    if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, _TokenPunct) and term.value in puncts:
         return term
     return t.fail()
 
 
-def expect_punct(c: Cursor, *puncts: str) -> syntax.Term:
+def _expect_punct(c: Cursor, *puncts: str) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, TokenPunct) and term.value in puncts:
+    if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, _TokenPunct) and term.value in puncts:
         return term
     puncts_text = ', '.join(f'"{p}"' for p in puncts)
     return t.captured_error or syntax.ErrorTerm(
@@ -685,61 +685,61 @@ def expect_punct(c: Cursor, *puncts: str) -> syntax.Term:
     )
 
 
-def expect_rule(c: Cursor, rule: str) -> syntax.Term:
+def _expect_rule(c: Cursor, rule: str) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(term := c.consume_rule(rule)):
         return term
     return t.captured_error or syntax.ErrorTerm(message=f'Expected rule "{rule}"', location=t.location)
 
 
-def scan_arguments(c: Cursor) -> syntax.Term:
+def _scan_arguments(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     args = []
     if t.validate(first_arg := c.consume_rule(rn.EXPRESSION)):
         args.append(first_arg)
         k = c.clone()
-        while t.validate(consume_punct(k, ',')) and t.validate(arg := expect_rule(k, rn.EXPRESSION)):
+        while t.validate(_consume_punct(k, ',')) and t.validate(arg := _expect_rule(k, rn.EXPRESSION)):
             c.copy_from(k)
             args.append(arg)
     return t.captured_error or syntax.Block(terms=args)
 
 
-def parse_primary__attribute(c: Cursor) -> syntax.Term:
+def _parse_primary__attribute(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(value := c.consume_rule(rn.PRIMARY))
-        and t.validate(consume_punct(c, '.'))
-        and t.validate(attr := expect_name(c))
+        and t.validate(_consume_punct(c, '.'))
+        and t.validate(attr := _expect_name(c))
     ):
-        return expr.Attribute(t.location, value=value, attr=cast(TokenName, attr).value, ctx='load')
+        return expr.Attribute(t.location, value=value, attr=cast(_TokenName, attr).value, ctx='load')
     return t.fail()
 
 
-def parse_primary__call(c: Cursor) -> syntax.Term:
+def _parse_primary__call(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(func := c.consume_rule(rn.PRIMARY))
-        and t.validate(consume_punct(c, '('))
-        and t.validate(args := scan_arguments(c))
-        and t.validate(expect_punct(c, ')'))
+        and t.validate(_consume_punct(c, '('))
+        and t.validate(args := _scan_arguments(c))
+        and t.validate(_expect_punct(c, ')'))
     ):
         return expr.Call(t.location, func, cast(syntax.Block, args).terms)
     return t.fail()
 
 
-def build_rule_name(ctx: str) -> Callable[[Cursor], syntax.Term]:
-    def rule(c: Cursor) -> syntax.Term:
+def _build_rule_name(ctx: str) -> Callable[[Cursor], syntax.Term]:
+    def _rule(c: Cursor) -> syntax.Term:
         t = c.start_tracker()
-        if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, TokenName):
+        if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, _TokenName):
             return expr.Name(location=token.location, id=token.value, ctx=ctx)
         return t.fail()
 
-    return rule
+    return _rule
 
 
-def parse_atom__bool(c: Cursor) -> syntax.Term:
+def _parse_atom__bool(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, TokenKeyword):
+    if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, _TokenKeyword):
         location = token.location
         if token.value in ('True', 'False'):
             value = token.value == 'True'
@@ -749,88 +749,88 @@ def parse_atom__bool(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def parse_atom__string(c: Cursor) -> syntax.Term:
+def _parse_atom__string(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, TokenString):
+    if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, _TokenString):
         return expr.StringLiteral(token.location, value=token.value)
     return t.fail()
 
 
-def parse_atom__number(c: Cursor) -> syntax.Term:
+def _parse_atom__number(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)):
-        if isinstance(token, TokenInteger):
+        if isinstance(token, _TokenInteger):
             return expr.IntegerLiteral(token.location, value=token.value)
-        if isinstance(token, TokenFloat):
+        if isinstance(token, _TokenFloat):
             return expr.FloatLiteral(token.location, value=token.value)
     return t.fail()
 
 
-def parse_factor__unary(c: Cursor) -> syntax.Term:
+def _parse_factor__unary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(op := consume_punct(c, '+', '-', '~')) and t.validate(factor := expect_rule(c, rn.FACTOR)):
-        return expr.UnaryOp(t.location, cast(TokenPunct, op).value, factor)
+    if t.validate(op := _consume_punct(c, '+', '-', '~')) and t.validate(factor := _expect_rule(c, rn.FACTOR)):
+        return expr.UnaryOp(t.location, cast(_TokenPunct, op).value, factor)
     return t.fail()
 
 
-def parse_invalid_factor(c: Cursor) -> syntax.Term:
+def _parse_invalid_factor(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
-        t.validate(consume_punct(c, '+', '-', '~'))
-        and t.validate(consume_keyword(c, 'not'))
+        t.validate(_consume_punct(c, '+', '-', '~'))
+        and t.validate(_consume_keyword(c, 'not'))
         and t.validate(c.consume_rule(rn.FACTOR))
     ):
         return syntax.ErrorTerm(message="'not' after an operator must be parenthesized", location=t.location)
     return t.fail()
 
 
-def parse_term__binary(c: Cursor) -> syntax.Term:
+def _parse_term__binary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(left := c.consume_rule(rn.TERM))
-        and t.validate(op := consume_punct(c, '*', '/', '//', '%'))
-        and t.validate(right := expect_rule(c, rn.FACTOR))
+        and t.validate(op := _consume_punct(c, '*', '/', '//', '%'))
+        and t.validate(right := _expect_rule(c, rn.FACTOR))
     ):
-        return expr.BinOp(t.location, left, cast(TokenPunct, op).value, right)
+        return expr.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
     return t.fail()
 
 
-def parse_sum__binary(c: Cursor) -> syntax.Term:
+def _parse_sum__binary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(left := c.consume_rule(rn.SUM))
-        and t.validate(op := consume_punct(c, '+', '-'))
-        and t.validate(right := expect_rule(c, rn.TERM))
+        and t.validate(op := _consume_punct(c, '+', '-'))
+        and t.validate(right := _expect_rule(c, rn.TERM))
     ):
-        return expr.BinOp(t.location, left, cast(TokenPunct, op).value, right)
+        return expr.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
     return t.fail()
 
 
-def scan_operator(c: Cursor) -> str | None:
+def _scan_operator(c: Cursor) -> str | None:
     first = c.consume_rule(rn.TOKEN)
-    if isinstance(first, TokenPunct) and first.value in ('==', '!=', '<=', '<', '>=', '>', 'in'):
+    if isinstance(first, _TokenPunct) and first.value in ('==', '!=', '<=', '<', '>=', '>', 'in'):
         return first.value
-    if isinstance(first, TokenKeyword):
+    if isinstance(first, _TokenKeyword):
         if first.value == 'not':
             second = c.consume_rule(rn.TOKEN)
-            if isinstance(second, TokenKeyword) and second.value == 'in':
+            if isinstance(second, _TokenKeyword) and second.value == 'in':
                 return 'not in'
             return None
         if first.value == 'is':
             second = c.consume_rule(rn.TOKEN)
-            if isinstance(second, TokenKeyword) and second.value == 'not':
+            if isinstance(second, _TokenKeyword) and second.value == 'not':
                 return 'is not'
             return 'is'
     return None
 
 
-def parse_comparison(c: Cursor) -> syntax.Term:
+def _parse_comparison(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(left := c.consume_rule(rn.SUM)):
         ops = []
         comparators = []
         k = c.clone()
-        while (op := scan_operator(k)) and t.validate(comparator := expect_rule(k, rn.SUM)):
+        while (op := _scan_operator(k)) and t.validate(comparator := _expect_rule(k, rn.SUM)):
             c.copy_from(k)
             ops.append(op)
             comparators.append(comparator)
@@ -839,19 +839,19 @@ def parse_comparison(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def parse_inversion__not(c: Cursor) -> syntax.Term:
+def _parse_inversion__not(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(consume_keyword(c, 'not')) and t.validate(operand := expect_rule(c, rn.COMPARISON)):
+    if t.validate(_consume_keyword(c, 'not')) and t.validate(operand := _expect_rule(c, rn.COMPARISON)):
         return expr.BoolNot(location=t.location, operand=operand)
     return t.fail()
 
 
-def parse_conjunction__and(c: Cursor) -> syntax.Term:
+def _parse_conjunction__and(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(left := c.consume_rule(rn.INVERSION)):
         values = [left]
         k = c.clone()
-        while t.validate(consume_keyword(k, 'and')) and t.validate(right := expect_rule(k, rn.INVERSION)):
+        while t.validate(_consume_keyword(k, 'and')) and t.validate(right := _expect_rule(k, rn.INVERSION)):
             c.copy_from(k)
             values.append(right)
         if len(values) > 1:
@@ -859,12 +859,12 @@ def parse_conjunction__and(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def parse_disjunction__or(c: Cursor) -> syntax.Term:
+def _parse_disjunction__or(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(left := c.consume_rule(rn.CONJUNCTION)):
         values = [left]
         k = c.clone()
-        while t.validate(consume_keyword(k, 'or')) and t.validate(right := expect_rule(k, rn.CONJUNCTION)):
+        while t.validate(_consume_keyword(k, 'or')) and t.validate(right := _expect_rule(k, rn.CONJUNCTION)):
             c.copy_from(k)
             values.append(right)
         if len(values) > 1:
@@ -872,18 +872,18 @@ def parse_disjunction__or(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def parse_assignment(c: Cursor) -> syntax.Term:
+def _parse_assignment(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(name := c.consume_rule('name_store'))
-        and t.validate(consume_punct(c, '='))
-        and t.validate(value := expect_rule(c, rn.EXPRESSION))
+        and t.validate(_consume_punct(c, '='))
+        and t.validate(value := _expect_rule(c, rn.EXPRESSION))
     ):
         return stmt.Assign(t.location, targets=[name], value=value)
     return t.fail()
 
 
-def parse_statement__star_expressions(c: Cursor) -> syntax.Term:
+def _parse_statement__star_expressions(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(value := c.consume_rule(rn.STAR_EXPRESSIONS)):
         if hasattr(value, 'location'):
@@ -894,58 +894,58 @@ def parse_statement__star_expressions(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def parse_return(c: Cursor) -> syntax.Term:
+def _parse_return(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(consume_keyword(c, 'return')):
+    if t.validate(_consume_keyword(c, 'return')):
         if t.validate(value := c.consume_rule(rn.EXPRESSION)):
             return stmt.Return(t.location, value=value)
         return t.captured_error or stmt.Return(t.location, value=expr.NoneLiteral(t.location))
     return t.fail()
 
 
-def rule_parameter_with_type(c: Cursor) -> syntax.Term:
+def _rule_parameter_with_type(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
-        t.validate(name := consume_name(c))
-        and t.validate(consume_punct(c, ':'))
-        and t.validate(param_type := expect_rule(c, rn.EXPRESSION))
+        t.validate(name := _consume_name(c))
+        and t.validate(_consume_punct(c, ':'))
+        and t.validate(param_type := _expect_rule(c, rn.EXPRESSION))
     ):
-        param_name = cast(TokenName, name).value
+        param_name = cast(_TokenName, name).value
         return stmt.Parameter(t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), param_type]))
     return t.fail()
 
 
-def rule_parameter_no_type(c: Cursor) -> syntax.Term:
+def _rule_parameter_no_type(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(name := consume_name(c)):
-        param_name = cast(TokenName, name).value
+    if t.validate(name := _consume_name(c)):
+        param_name = cast(_TokenName, name).value
         return stmt.Parameter(t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), stmt.Absence()]))
     return t.fail()
 
 
-def scan_parameters(c: Cursor) -> syntax.Term:
+def _scan_parameters(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     params = []
     if t.validate(first_param := c.consume_rule('parameter')):
         params.append(first_param)
         k = c.clone()
-        while t.validate(consume_punct(k, ',')) and t.validate(param := expect_rule(k, 'parameter')):
+        while t.validate(_consume_punct(k, ',')) and t.validate(param := _expect_rule(k, 'parameter')):
             c.copy_from(k)
             params.append(param)
     return t.captured_error or syntax.Block(terms=params)
 
 
-def parse_function_def(c: Cursor) -> syntax.Term:
+def _parse_function_def(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
-        t.validate(consume_keyword(c, 'def'))
-        and t.validate(func_name := expect_name(c))
-        and t.validate(expect_punct(c, '('))
-        and t.validate(params := scan_parameters(c))
-        and t.validate(expect_punct(c, ')'))
-        and t.validate(expect_punct(c, ':'))
+        t.validate(_consume_keyword(c, 'def'))
+        and t.validate(func_name := _expect_name(c))
+        and t.validate(_expect_punct(c, '('))
+        and t.validate(params := _scan_parameters(c))
+        and t.validate(_expect_punct(c, ')'))
+        and t.validate(_expect_punct(c, ':'))
     ):
-        name = cast(TokenName, func_name).value
+        name = cast(_TokenName, func_name).value
         return stmt.FunctionDef(
             location=t.location,
             name=name,
@@ -955,47 +955,47 @@ def parse_function_def(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def parse_if_stmt(c: Cursor) -> syntax.Term:
+def _parse_if_stmt(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
-        t.validate(consume_keyword(c, 'if'))
-        and t.validate(test := expect_rule(c, rn.EXPRESSION))
-        and t.validate(expect_punct(c, ':'))
+        t.validate(_consume_keyword(c, 'if'))
+        and t.validate(test := _expect_rule(c, rn.EXPRESSION))
+        and t.validate(_expect_punct(c, ':'))
     ):
         return stmt.If(location=t.location, test=test, body=syntax.Block([], delayed=True), orelse=None)
     return t.fail()
 
 
-def parse_else_stmt(c: Cursor) -> syntax.Term:
+def _parse_else_stmt(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(consume_keyword(c, 'else')) and t.validate(expect_punct(c, ':')):
+    if t.validate(_consume_keyword(c, 'else')) and t.validate(_expect_punct(c, ':')):
         return stmt.Else(location=t.location, body=syntax.Block([], delayed=True))
     return t.fail()
 
 
-def parse_pass(c: Cursor) -> syntax.Term:
+def _parse_pass(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(consume_keyword(c, 'pass')):
+    if t.validate(_consume_keyword(c, 'pass')):
         return stmt.Pass(location=t.location)
     return t.fail()
 
 
-def parse_class_def(c: Cursor) -> syntax.Term:
+def _parse_class_def(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
-        t.validate(consume_keyword(c, 'class'))
-        and t.validate(class_name := expect_name(c))
-        and t.validate(expect_punct(c, ':'))
+        t.validate(_consume_keyword(c, 'class'))
+        and t.validate(class_name := _expect_name(c))
+        and t.validate(_expect_punct(c, ':'))
     ):
-        name = cast(TokenName, class_name).value
+        name = cast(_TokenName, class_name).value
         return stmt.ClassDef(location=t.location, name=name, bases=[], body=syntax.Block([], delayed=True))
     return t.fail()
 
 
-def parse_start(c: Cursor) -> syntax.Term:
+def _parse_start(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(statement := expect_rule(c, rn.STATEMENT)):
-        skip_whitespaces(c)
+    if t.validate(statement := _expect_rule(c, rn.STATEMENT)):
+        _skip_whitespaces(c)
         return statement
     return t.fail()
 
