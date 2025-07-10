@@ -7,8 +7,8 @@ from tapl_lang.pythonlike import grammar
 
 
 def test_rule_name_consistency():
-    assert grammar.RULES, 'Grammar rules are not defined.'
-    for full_rule_name in grammar.RULES:
+    assert grammar.RULE_NAMES, 'Grammar rule names are not define or empty.'
+    for full_rule_name in grammar.RULE_NAMES:
         names = full_rule_name.split('.')
         assert len(names) == 2, f'Rule name {full_rule_name} does not have exactly two parts.'
         assert names[0] == 'pythonlike', f'Rule name {full_rule_name} does not start with "pythonlike".'
