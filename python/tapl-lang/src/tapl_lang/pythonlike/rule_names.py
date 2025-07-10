@@ -18,6 +18,14 @@ def declare(rule_key: str) -> str:
     return rule_name
 
 
+# STARTING RULES
+# ==============
+START = declare('start')
+
+# HELPER RULES
+# ============
+TOKEN = declare('token')
+
 # GENERAL STATEMENTS
 # ==================
 STATEMENTS = declare('statements')

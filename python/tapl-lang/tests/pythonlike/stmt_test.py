@@ -22,7 +22,7 @@ def check_parsed_term(parsed: syntax.Term) -> None:
 
 
 def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
-    parsed = parse_text(text, parser.GRAMMAR, debug=debug)
+    parsed = parse_text(text, parser.get_grammar(), debug=debug)
     delayed_block = syntax.find_delayed_block(parsed)
     if delayed_block is not None:
         delayed_block.delayed = False
@@ -68,7 +68,7 @@ def test_assign_name():
 
 
 def test_return1():
-    [stmt1, stmt2] = parse_stmt('return')
+    [stmt1, stmt2] = parse_stmt('return', debug=True)
     assert ast.unparse(stmt1) == 'return None'
     assert ast.unparse(stmt2) == 'predef.add_return_type(s0, s0.NoneType)'
 

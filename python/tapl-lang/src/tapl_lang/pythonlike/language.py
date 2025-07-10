@@ -16,7 +16,7 @@ class PythonlikeLanguage(Language):
     @override
     def get_grammar(self, parent_stack: list[syntax.Term]) -> parser.Grammar:
         del parent_stack
-        return pythonlike_parser.GRAMMAR
+        return pythonlike_parser.get_grammar()
 
     def create_header_for_evaluate_layer(self) -> syntax.Term:
         location = syntax.Location(start=syntax.Position(line=1, column=0))
