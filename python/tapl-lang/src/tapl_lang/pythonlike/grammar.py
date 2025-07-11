@@ -2,7 +2,6 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import cast
 
@@ -239,7 +238,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.PRIMARY, [_parse_primary__attribute, _parse_primary__call, rn.ATOM])
     add(rn.SLICES, [])
     add(rn.SLICE, [])
-    add(rn.ATOM, [_build_rule_name('load'), _parse_atom__bool, _parse_atom__string, _parse_atom__number])
+    add(rn.ATOM, [_parse_atom__name_load, _parse_atom__bool, _parse_atom__string, _parse_atom__number])
     add(rn.GROUP, [])
 
     # Lambda functions
@@ -304,16 +303,16 @@ def get_grammar() -> parser.Grammar:
 
     # Generic targets
     # ---------------
-    add(rn.STAR_TARGETS, [parse_star_targets__single])
+    add(rn.STAR_TARGETS, [_parse_star_targets__single])
     add(rn.STAR_TARGETS_LIST_SEQ, [])
     add(rn.STAR_TARGETS_TUPLE_SEQ, [])
     add(rn.STAR_TARGET, [rn.TARGET_WITH_STAR_ATOM])
-    add(rn.TARGET_WITH_STAR_ATOM, [rn.STAR_ATOM])
-    add(rn.STAR_ATOM, [parse_star_atom__name_store])
+    add(rn.TARGET_WITH_STAR_ATOM, [_parse_target_with_star_atom__attribute, rn.STAR_ATOM])
+    add(rn.STAR_ATOM, [_parse_star_atom__name_store])
     add(rn.SINGLE_TARGET, [])
     add(rn.SINGLE_SUBSCRIPT_ATTRIBUTE_TARGET, [])
-    add(rn.T_PRIMARY, [])
-    add(rn.T_LOOKAHEAD, [])
+    add(rn.T_PRIMARY, [_parse_t_primary__attribute, _parse_t_primary__atom])
+    add(rn.T_LOOKAHEAD, [_parse_t_lookahead])
 
     # Targets for del statements
     # --------------------------
@@ -726,14 +725,11 @@ def _parse_primary__call(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def _build_rule_name(ctx: str) -> Callable[[Cursor], syntax.Term]:
-    def _rule(c: Cursor) -> syntax.Term:
-        t = c.start_tracker()
-        if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, _TokenName):
-            return expr.Name(location=token.location, id=token.value, ctx=ctx)
-        return t.fail()
-
-    return _rule
+def _parse_atom__name_load(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, _TokenName):
+        return expr.Name(location=token.location, id=token.value, ctx='load')
+    return t.fail()
 
 
 def _parse_atom__bool(c: Cursor) -> syntax.Term:
@@ -1000,45 +996,53 @@ def _parse_start(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def parse_star_targets__single(c: Cursor) -> syntax.Term:
+def _parse_star_targets__single(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(target := c.consume_rule(rn.STAR_TARGET)) and not t.validate(_consume_punct(c.clone(), ',')):
         return target
     return t.fail()
 
 
-def parse_star_atom__name_store(c: Cursor) -> syntax.Term:
+def _parse_star_atom__name_store(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, _TokenName):
         return expr.Name(location=token.location, id=token.value, ctx='store')
     return t.fail()
 
 
-# ASSIGNMENT TARGETS
-# ------------------
+def _parse_target_with_star_atom__attribute(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(target := c.consume_rule(rn.T_PRIMARY))
+        and t.validate(_consume_punct(c, '.'))
+        and t.validate(name := _expect_name(c))
+        and not t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
+    ):
+        return expr.Attribute(t.location, value=target, attr=cast(_TokenName, name).value, ctx='store')
+    return t.fail()
 
-# def rule_target_with_star_atom__attribute(c: Cursor) -> syntax.Term:
-#     t = c.start_tracker()
-#     if (
-#         t.validate(target := c.consume_rule('t_primary'))
-#         and t.validate(consume_punct(c, '.'))
-#         and t.validate(name := expect_name(c))
-#     ):
-#         return expr.Attribute(t.location, value=target, attr=cast(TokenName, name).value, ctx='store')
-#     return t.fail()
 
-# def rule_star_atom__name(c: Cursor) -> syntax.Term:
-#     t = c.start_tracker()
-#     if t.validate(token := c.consume_rule('token')) and isinstance(token, TokenName):
-#         return expr.Name(location=token.location, id=token.value, ctx='store')
-#     return t.fail()
+def _parse_t_primary__attribute(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(value := c.consume_rule(rn.T_PRIMARY))
+        and t.validate(_consume_punct(c, '.'))
+        and t.validate(name := _expect_name(c))
+        and t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
+    ):
+        return expr.Attribute(t.location, value=value, attr=cast(_TokenName, name).value, ctx='load')
+    return t.fail()
 
-# def rule_t_primary__attribute(c: Cursor) -> syntax.Term:
-#     t = c.start_tracker()
-#     if (
-#         t.validate(value := c.consume_rule('t_primary'))
-#         and t.validate(consume_punct(c, '.'))
-#         and t.validate(attr := expect_name(c))
-#     ):
-#         return expr.Attribute(t.location, value=value, attr=cast(TokenName, attr).value, ctx='store')
-#     return t.fail()
+
+def _parse_t_primary__atom(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(atom := c.consume_rule(rn.ATOM)) and t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD)):
+        return atom
+    return t.fail()
+
+
+def _parse_t_lookahead(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(term := _consume_punct(c, '(', '[', '.')):
+        return term
+    return t.fail()
