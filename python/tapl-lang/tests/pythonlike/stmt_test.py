@@ -115,6 +115,30 @@ s0.hello = predef.FunctionType([], hello())
     )
 
 
+def test_area_function_codegen():
+    [stmt1, stmt2] = parse_module("""
+def area(radius: Int):
+    return 3.14 * radius * radius
+""")
+    assert (
+        ast.unparse(stmt1)
+        == """
+def area(radius):
+    return 3.14 * radius * radius
+""".strip()
+    )
+    assert (
+        ast.unparse(stmt2)
+        == """
+def area(radius):
+    s1 = predef.Scope(s0, radius=radius)
+    predef.add_return_type(s1, s1.Float * s1.radius * s1.radius)
+    return predef.get_return_type(s1)
+s0.area = predef.FunctionType([s0.Int], area(s0.Int))
+""".strip()
+    )
+
+
 def test_if_else_stmt():
     [stmt1, stmt2] = parse_module("""
 if a == 2:
@@ -143,5 +167,38 @@ with predef.ScopeForker(s0) as f0:
     s1 = f0.new_scope()
     s1.b = s1.Str
 s0.print(s0.b)
+""".strip()
+    )
+
+
+def test_class1():
+    [stmt1, stmt2] = parse_module("""
+class Circle:
+    def __init__(self, radius: Float):
+        self.radius = radius
+""")
+    assert (
+        ast.unparse(stmt1)
+        == """
+class Circle:
+
+    def __init__(self, radius):
+        self.radius = radius
+""".strip()
+    )
+    assert (
+        ast.unparse(stmt2)
+        == """
+class Circle:
+
+    def __init__(self, radius):
+        s1 = predef.Scope(s0, self=self, radius=radius)
+        s1.self.radius = s1.radius
+        return predef.get_return_type(s1)
+s0.Circle = predef.Scope(label__tapl='Circle')
+s0.Circle_ = predef.Scope(label__tapl='Circle_')
+s0.Circle.__init__ = predef.FunctionType([s0.Circle_, s0.Float], Circle.__init__(s0.Circle_, s0.Float))
+s0.Circle_.__init__ = predef.FunctionType([s0.Float], s0.Circle.__init__.result)
+s0.Circle.__call__ = predef.FunctionType([s0.Circle, s0.Float], s0.Circle_)
 """.strip()
     )

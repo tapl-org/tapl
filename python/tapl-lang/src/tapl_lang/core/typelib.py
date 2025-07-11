@@ -10,6 +10,9 @@ def binop_type_error(op: str, left: Any, right: Any) -> TypeError:
     return TypeError(f'unsupported operand type(s) for {op}: {left} and {right}')
 
 
+# TODO: move typelib.py to the pythonlike module, since it is not used in the core
+
+
 @dataclass(frozen=True)
 class NoneType:
     def __repr__(self) -> str:
@@ -49,12 +52,17 @@ class Float:
         return 'Float'
 
     def __add__(self, other):
-        if other in (Int_, Bool_):
+        if other in (Float_, Int_, Bool_):
             return self
         raise binop_type_error('+', self, other)
 
+    def __mul__(self, other):
+        if other in (Float_, Int_, Bool_):
+            return self
+        raise binop_type_error('*', self, other)
+
     def __lt__(self, other):
-        if other in (Int_, Bool_):
+        if other in (Float_, Int_, Bool_):
             return self
         raise binop_type_error('<', self, other)
 

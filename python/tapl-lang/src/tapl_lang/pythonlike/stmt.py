@@ -148,6 +148,11 @@ class Parameter(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: Parameter(location=self.location, name=self.name, type_=layer(self.type_)))
 
+    def codegen_expr(self, setting):
+        if setting.code_typecheck and setting.scope_manual:
+            return self.type_.codegen_expr(setting)
+        raise tapl_error.UnhandledError
+
 
 @dataclass
 class FunctionDef(syntax.Term):
@@ -492,8 +497,11 @@ class ClassDef(syntax.Term):
         instance_name = f'{class_name}_'
         body = []
         methods: list[FunctionDef] = []
+        init_method = None
         for item in self.body.children():
             if isinstance(item, FunctionDef):
+                if item.name == '__init__':
+                    init_method = item
                 methods.append(item)
                 body.append(item.codegen_typecheck_main(setting))
             else:
@@ -533,13 +541,6 @@ class ClassDef(syntax.Term):
             self.location.locate(assign)
             return assign
 
-        constructor = declare_method(
-            namespace=class_name,
-            method_name='__call__',
-            args=[ast_attribute([setting.scope_name, class_name])],
-            result=ast_attribute([setting.scope_name, instance_name]),
-        )
-
         method_types = []
         for method in methods:
             # The first parameter is the instance itself, so we can set it to the instance type.
@@ -572,8 +573,17 @@ class ClassDef(syntax.Term):
                     result=ast_attribute([setting.scope_name, class_name, method.name, 'result']),
                 )
             )
+        constructor_args = []
+        if init_method:
+            constructor_args = [p.codegen_expr(setting) for p in init_method.parameters[1:]]
+        constructor = declare_method(
+            namespace=class_name,
+            method_name='__call__',
+            args=[ast_attribute([setting.scope_name, class_name]), *constructor_args],
+            result=ast_attribute([setting.scope_name, instance_name]),
+        )
 
-        return [class_stmt, declare_class(class_name), declare_class(instance_name), constructor, *method_types]
+        return [class_stmt, declare_class(class_name), declare_class(instance_name), *method_types, constructor]
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
