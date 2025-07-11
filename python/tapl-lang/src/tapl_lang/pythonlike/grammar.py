@@ -25,7 +25,6 @@ def get_grammar() -> parser.Grammar:
             rules[name] = [parser.route(fn) if isinstance(fn, str) else fn for fn in ordered_parse_functions]
 
     add('parameter', [_rule_parameter_with_type, _rule_parameter_no_type])
-    add('name_store', [_build_rule_name('store')])
 
     # STARTING RULES
     # ==============
@@ -48,7 +47,7 @@ def get_grammar() -> parser.Grammar:
     # SIMPLE STATEMENTS
     # =================
     add(rn.ASSIGNMENT, [_parse_assignment])
-    add(rn.ANNOTATED_RHS, [])
+    add(rn.ANNOTATED_RHS, [rn.STAR_EXPRESSIONS])
     add(rn.AUGASSIGN, [])
     add(rn.RETURN_STMT, [_parse_return])
     add(rn.PASS_STMT, [_parse_pass])
@@ -305,12 +304,12 @@ def get_grammar() -> parser.Grammar:
 
     # Generic targets
     # ---------------
-    add(rn.STAR_TARGETS, [])
+    add(rn.STAR_TARGETS, [parse_star_targets__single])
     add(rn.STAR_TARGETS_LIST_SEQ, [])
     add(rn.STAR_TARGETS_TUPLE_SEQ, [])
-    add(rn.STAR_TARGET, [])
-    add(rn.TARGET_WITH_STAR_ATOM, [])
-    add(rn.STAR_ATOM, [])
+    add(rn.STAR_TARGET, [rn.TARGET_WITH_STAR_ATOM])
+    add(rn.TARGET_WITH_STAR_ATOM, [rn.STAR_ATOM])
+    add(rn.STAR_ATOM, [parse_star_atom__name_store])
     add(rn.SINGLE_TARGET, [])
     add(rn.SINGLE_SUBSCRIPT_ATTRIBUTE_TARGET, [])
     add(rn.T_PRIMARY, [])
@@ -875,9 +874,10 @@ def _parse_disjunction__or(c: Cursor) -> syntax.Term:
 def _parse_assignment(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
-        t.validate(name := c.consume_rule('name_store'))
+        t.validate(name := c.consume_rule(rn.STAR_TARGETS))
         and t.validate(_consume_punct(c, '='))
-        and t.validate(value := _expect_rule(c, rn.EXPRESSION))
+        and t.validate(value := _expect_rule(c, rn.ANNOTATED_RHS))
+        and not t.validate(_consume_punct(c.clone(), '='))
     ):
         return stmt.Assign(t.location, targets=[name], value=value)
     return t.fail()
@@ -1000,6 +1000,20 @@ def _parse_start(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
+def parse_star_targets__single(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(target := c.consume_rule(rn.STAR_TARGET)) and not t.validate(_consume_punct(c.clone(), ',')):
+        return target
+    return t.fail()
+
+
+def parse_star_atom__name_store(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, _TokenName):
+        return expr.Name(location=token.location, id=token.value, ctx='store')
+    return t.fail()
+
+
 # ASSIGNMENT TARGETS
 # ------------------
 
@@ -1028,15 +1042,3 @@ def _parse_start(c: Cursor) -> syntax.Term:
 #     ):
 #         return expr.Attribute(t.location, value=value, attr=cast(TokenName, attr).value, ctx='store')
 #     return t.fail()
-
-# ASSIGNMENT_TARGETS: parser.GrammarRuleMap = {
-#     'star_targets': [],
-#     'star_targets_list_seq': [],
-#     'star_targets_tuple_seq': [],
-#     'star_target': [],
-#     'target_with_star_atom': [rule_target_with_star_atom__attribute, route('start_atom')],
-#     'star_atom': [rule_star_atom__name],
-#     'single_target': [],
-#     'single_subscript_attribute_target': [],
-#     't_primary': [rule_t_primary__attribute],
-# }
