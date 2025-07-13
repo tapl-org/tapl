@@ -4,7 +4,7 @@
 
 from tapl_lang.core import scope, typelib
 
-NoneType = typelib.NoneType_
+NoneType = scope.NoneType
 Bool = typelib.Bool_
 Int = typelib.Int_
 Str = typelib.Str_
@@ -21,7 +21,7 @@ get_return_type = scope.get_return_type
 predef_scope = scope.Scope(parent__tapl=None, label__tapl='predef_scope')
 predef_scope.internal__tapl.variables.update(
     {
-        'NoneType': typelib.NoneType_,
+        'NoneType': NoneType,
         'Bool': typelib.Bool_,
         'Int': typelib.Int_,
         'Float': typelib.Float_,

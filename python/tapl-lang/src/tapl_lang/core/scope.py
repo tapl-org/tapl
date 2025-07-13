@@ -103,4 +103,7 @@ def add_return_type(scope: Scope, return_type: Any) -> None:
 def get_return_type(scope: Scope) -> Any:
     if scope.internal__tapl.returns:
         return typelib.create_union(*scope.internal__tapl.returns)
-    return typelib.NoneType_
+    return NoneType
+
+
+NoneType = Scope(None, 'NoneType')

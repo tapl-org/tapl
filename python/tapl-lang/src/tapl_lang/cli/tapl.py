@@ -4,15 +4,15 @@
 
 import argparse
 import ast
-import pathlib
 import os
-
+import pathlib
 
 from tapl_lang.core.compiler import compile_tapl
 
 # If you want to install it in editable mode for development,
 # you can use the following command:
 # pip install -e .
+
 
 def compile_and_run(path: str) -> None:
     """
@@ -29,7 +29,8 @@ def compile_and_run(path: str) -> None:
         python_code = ast.unparse(layers[i])
         with open(filename, 'w') as f:
             f.write(python_code)
-        exec(python_code, globals())
+        exec(python_code, globals())  # noqa: S102 # Find safe way to execute
+
 
 def main():
     """

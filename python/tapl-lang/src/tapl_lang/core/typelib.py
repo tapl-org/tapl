@@ -14,12 +14,6 @@ def binop_type_error(op: str, left: Any, right: Any) -> TypeError:
 
 
 @dataclass(frozen=True)
-class NoneType:
-    def __repr__(self) -> str:
-        return 'NoneType'
-
-
-@dataclass(frozen=True)
 class Bool:
     def __repr__(self) -> str:
         return 'Bool'
@@ -73,7 +67,6 @@ class Str:
         return 'Str'
 
 
-NoneType_ = NoneType()
 Bool_ = Bool()
 Int_ = Int()
 Float_ = Float()
