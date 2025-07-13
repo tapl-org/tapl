@@ -39,8 +39,8 @@ square
 ```
 
 In this example, `print_class` function takes a `Shape` class object, while `print_instance` takes a instance of `Shape` class.
-To distinguish these two types with the same name, we can declare `print_...` functions like this in tapl:
+To distinguish these two types with the same name, we can declare `print_...` functions like these in tapl code:
 ```
 def print_first(shape: Shape)
-def print_instance(shape: Shape!)
+def print_instance(shape: Shape_)
 ```
