@@ -1,0 +1,3 @@
+language pythonlike
+
+print__tapl('Hello World!')
