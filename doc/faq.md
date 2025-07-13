@@ -17,9 +17,8 @@ Currently, Python's AST is used as the backend. However, in the near future, Tap
 The new backend will be purely untyped and will be used solely for defining the computation. The new backend can be converted to other backends,
 such as LLVM IR, JVM bytecode, Javascript, or it can run on its own interpreter. As a result, Tapl serves solely as a type introducer.
 
-### What is the meaning of the `!` symbol at the end of type names?
-`!` symbol is used to distinguish between class type and its instance type.
-For example (python code):
+### Why do class type names have a underscore `_` suffix?
+Because class type differes from its instance type. For example (in python code):
 ```
 class Shape:
    def __init__(self, name: str):
