@@ -195,7 +195,7 @@ class FunctionDef(syntax.Term):
         assign = ast.Assign(
             targets=[ast.Name(id=body_setting.scope_name, ctx=ast.Store())],
             value=ast.Call(
-                func=ast_attribute(['predef', 'Scope']),
+                func=ast_attribute(['predef', 'create_scope_proxy']),
                 args=[ast_name(setting.scope_name)],
                 keywords=[
                     ast.keyword(
@@ -392,7 +392,7 @@ class If(syntax.Term):
                 ast.withitem(
                     context_expr=locate(
                         ast.Call(
-                            func=locate(ast.Attribute(locate(ast.Name('predef', ctx=ast.Load())), attr='ScopeForker')),
+                            func=locate(ast.Attribute(locate(ast.Name('predef', ctx=ast.Load())), attr='scope_forker')),
                             args=[locate(ast.Name(id=setting.scope_name))],
                         )
                     ),
@@ -518,7 +518,7 @@ class ClassDef(syntax.Term):
             assign = ast.Assign(
                 targets=[ast_attribute([setting.scope_name, namespace], ctx=ast.Store())],
                 value=ast.Call(
-                    func=ast_attribute(['predef', 'Scope']),
+                    func=ast_attribute(['predef', 'create_scope_proxy']),
                     keywords=[
                         ast.keyword('label__tapl', ast.Constant(value=namespace)),
                     ],

@@ -29,18 +29,22 @@ class PythonlikeLanguage(Language):
             [expr.Name(location=location, id='s0', ctx='store')],
             expr.Call(
                 location,
-                expr.Attribute(
+                func=expr.Attribute(
                     location,
                     expr.Name(location=location, id='predef', ctx='load'),
-                    attr='Scope',
+                    attr='create_scope_proxy',
                     ctx='load',
                 ),
-                [
-                    expr.Attribute(
-                        location=location,
-                        value=expr.Name(location=location, id='predef', ctx='load'),
-                        attr='predef_scope',
-                        ctx='load',
+                args=[],
+                keywords=[
+                    (
+                        'scope__tapl',
+                        expr.Attribute(
+                            location=location,
+                            value=expr.Name(location=location, id='predef', ctx='load'),
+                            attr='predef_scope',
+                            ctx='load',
+                        ),
                     )
                 ],
             ),

@@ -312,20 +312,31 @@ class Call(syntax.Term):
     location: syntax.Location
     func: syntax.Term
     args: list[syntax.Term]
+    keywords: list[tuple[str, syntax.Term]]
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.func
         yield from self.args
+        yield from (v for _, v in self.keywords)
 
     @override
     def separate(self, ls) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: Call(location=self.location, func=layer(self.func), args=[layer(v) for v in self.args])
+            lambda layer: Call(
+                location=self.location,
+                func=layer(self.func),
+                args=[layer(v) for v in self.args],
+                keywords=[(k, layer(v)) for k, v in self.keywords],
+            )
         )
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        call = ast.Call(self.func.codegen_expr(setting), [v.codegen_expr(setting) for v in self.args])
+        call = ast.Call(
+            func=self.func.codegen_expr(setting),
+            args=[v.codegen_expr(setting) for v in self.args],
+            keywords=[ast.keyword(arg=k, value=v.codegen_expr(setting)) for k, v in self.keywords],
+        )
         self.location.locate(call)
         return call

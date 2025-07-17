@@ -5,7 +5,7 @@
 
 import ast
 
-from tapl_lang.core import syntax
+from tapl_lang.core import scope, syntax
 from tapl_lang.core.parser import Grammar, parse_text
 from tapl_lang.pythonlike import expr, grammar, predef, predef1, rule_names
 
@@ -34,9 +34,9 @@ def evaluate(expr: ast.expr, locals_=None):
 
 def typecheck(expr: ast.expr, locals_=None):
     compiled_code = compile(ast.Expression(body=expr), filename='', mode='eval')
-    scope0 = predef1.Scope(predef1.predef_scope)
-    scope0.internal__tapl.variables.update(locals_ or {})
-    globals_ = {'create_union': predef1.create_union, 's0': scope0}
+    scope0 = scope.Scope(parent=predef1.predef_scope)
+    scope0.store_many(locals_ or {})
+    globals_ = {'create_union': predef1.create_union, 's0': scope.ScopeProxy(scope0)}
     return eval(compiled_code, globals=globals_)
 
 

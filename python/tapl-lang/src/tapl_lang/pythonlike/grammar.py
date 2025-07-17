@@ -721,7 +721,7 @@ def _parse_primary__call(c: Cursor) -> syntax.Term:
         and t.validate(args := _scan_arguments(c))
         and t.validate(_expect_punct(c, ')'))
     ):
-        return expr.Call(t.location, func, cast(syntax.Block, args).terms)
+        return expr.Call(t.location, func, cast(syntax.Block, args).terms, keywords=[])
     return t.fail()
 
 

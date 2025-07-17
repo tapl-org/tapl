@@ -14,12 +14,12 @@ FunctionType = typelib.FunctionType
 function_type = typelib.function_type
 
 
-Scope = scope.Scope
-ScopeForker = scope.ScopeForker
+create_scope_proxy = scope.create_scope_proxy
+scope_forker = scope.scope_forker
 add_return_type = scope.add_return_type
 get_return_type = scope.get_return_type
-predef_scope = scope.Scope(parent__tapl=None, label__tapl='predef_scope')
-predef_scope.internal__tapl.variables.update(
+predef_scope = scope.Scope(label='predef_scope')
+predef_scope.store_many(
     {
         'NoneType': NoneType,
         'Bool': typelib.Bool_,

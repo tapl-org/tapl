@@ -5,7 +5,7 @@
 
 import ast
 
-from tapl_lang.core import syntax
+from tapl_lang.core import scope, syntax
 from tapl_lang.core.chunker import chunk_text
 from tapl_lang.core.parser import parse_text
 from tapl_lang.pythonlike import grammar, predef1, stmt
@@ -34,7 +34,8 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
 
 def run_stmt(stmts: list[ast.stmt]):
     compiled_code = compile(ast.Module(body=stmts), filename='', mode='exec')
-    globals_ = {'create_union': predef1.create_union, 's0': predef1.Scope(predef1.predef_scope)}
+    daa = scope.ScopeProxy(scope.Scope(parent=predef1.predef_scope))
+    globals_ = {'create_union': predef1.create_union, 's0': daa}
     return eval(compiled_code, globals=globals_)
 
 
@@ -83,7 +84,7 @@ def test_if():
     assert (
         ast.unparse(stmt2)
         == """
-with predef.ScopeForker(s0) as f0:
+with predef.scope_forker(s0) as f0:
     s1 = f0.new_scope()
     s1.a == s1.Int
     s1 = f0.new_scope()
@@ -107,7 +108,7 @@ def hello():
         ast.unparse(stmt2)
         == """
 def hello():
-    s1 = predef.Scope(s0)
+    s1 = predef.create_scope_proxy(s0)
     predef.add_return_type(s1, s1.Int)
     return predef.get_return_type(s1)
 s0.hello = predef.FunctionType([], hello())
@@ -131,7 +132,7 @@ def area(radius):
         ast.unparse(stmt2)
         == """
 def area(radius):
-    s1 = predef.Scope(s0, radius=radius)
+    s1 = predef.create_scope_proxy(s0, radius=radius)
     predef.add_return_type(s1, s1.Float * s1.radius * s1.radius)
     return predef.get_return_type(s1)
 s0.area = predef.FunctionType([s0.Int], area(s0.Int))
@@ -160,7 +161,7 @@ print(b)
     assert (
         ast.unparse(stmt2)
         == """
-with predef.ScopeForker(s0) as f0:
+with predef.scope_forker(s0) as f0:
     s1 = f0.new_scope()
     s1.a == s1.Int
     s1.b = s1.Int
@@ -192,11 +193,11 @@ class Circle:
 class Circle:
 
     def __init__(self, radius):
-        s1 = predef.Scope(s0, self=self, radius=radius)
+        s1 = predef.create_scope_proxy(s0, self=self, radius=radius)
         s1.self.radius = s1.radius
         return predef.get_return_type(s1)
-s0.Circle = predef.Scope(label__tapl='Circle')
-s0.Circle_ = predef.Scope(label__tapl='Circle_')
+s0.Circle = predef.create_scope_proxy(label__tapl='Circle')
+s0.Circle_ = predef.create_scope_proxy(label__tapl='Circle_')
 s0.Circle.__init__ = predef.FunctionType([s0.Circle_, s0.Float], Circle.__init__(s0.Circle_, s0.Float))
 s0.Circle_.__init__ = predef.FunctionType([s0.Float], s0.Circle.__init__.result)
 s0.Circle.__call__ = predef.FunctionType([s0.Circle, s0.Float], s0.Circle_)
