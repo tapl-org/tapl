@@ -4,24 +4,24 @@
 
 import pytest
 
-from tapl_lang.core import scope, tapl_error
+from tapl_lang.core import api, scope, tapl_error
 
 
 def test_define_variable():
-    daa = scope.ScopeProxy(scope.Scope())
-    daa.x = 42
-    assert daa.x == 42
+    proxy = api.ScopeProxy(scope.Scope())
+    proxy.x = 42
+    assert proxy.x == 42
 
 
 def test_undefined_variable():
-    daa = scope.ScopeProxy(scope.Scope())
+    proxy = api.ScopeProxy(scope.Scope())
     with pytest.raises(tapl_error.TaplError):
-        _ = daa.undefined_variable
+        _ = proxy.undefined_variable
 
 
 def test_variable_from_parent_scope():
     parent_scope = scope.Scope()
-    parent_scope_daa = scope.ScopeProxy(parent_scope)
-    parent_scope_daa.y = 'parent_value'
-    child_scope_daa = scope.ScopeProxy(scope.Scope(parent=parent_scope))
-    assert child_scope_daa.y == 'parent_value'
+    parent_proxy = api.ScopeProxy(parent_scope)
+    parent_proxy.y = 'parent_value'
+    child_proxy = api.ScopeProxy(scope.Scope(parent=parent_scope))
+    assert child_proxy.y == 'parent_value'

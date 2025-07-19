@@ -5,7 +5,7 @@
 
 import ast
 
-from tapl_lang.core import scope, syntax
+from tapl_lang.core import api, scope, syntax
 from tapl_lang.core.chunker import chunk_text
 from tapl_lang.core.parser import parse_text
 from tapl_lang.pythonlike import grammar, predef1, stmt
@@ -34,7 +34,7 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
 
 def run_stmt(stmts: list[ast.stmt]):
     compiled_code = compile(ast.Module(body=stmts), filename='', mode='exec')
-    daa = scope.ScopeProxy(scope.Scope(parent=predef1.predef_scope))
+    daa = api.ScopeProxy(scope.Scope(parent=predef1.predef_scope))
     globals_ = {'create_union': predef1.create_union, 's0': daa}
     return eval(compiled_code, globals=globals_)
 
@@ -69,13 +69,13 @@ def test_assign_attribute():
 def test_return1():
     [stmt1, stmt2] = parse_stmt('return')
     assert ast.unparse(stmt1) == 'return None'
-    assert ast.unparse(stmt2) == 'predef.add_return_type(s0, s0.NoneType)'
+    assert ast.unparse(stmt2) == 'api__tapl.add_return_type(s0, s0.NoneType)'
 
 
 def test_return2():
     [stmt1, stmt2] = parse_stmt('return True')
     assert ast.unparse(stmt1) == 'return True'
-    assert ast.unparse(stmt2) == 'predef.add_return_type(s0, s0.Bool)'
+    assert ast.unparse(stmt2) == 'api__tapl.add_return_type(s0, s0.Bool)'
 
 
 def test_if():
@@ -84,10 +84,10 @@ def test_if():
     assert (
         ast.unparse(stmt2)
         == """
-with predef.scope_forker(s0) as f0:
-    s1 = f0.new_scope()
+with api__tapl.scope_forker(s0) as f0:
+    s1 = api__tapl.fork_scope(f0)
     s1.a == s1.Int
-    s1 = f0.new_scope()
+    s1 = api__tapl.fork_scope(f0)
 """.strip()
     )
 
@@ -108,9 +108,9 @@ def hello():
         ast.unparse(stmt2)
         == """
 def hello():
-    s1 = predef.create_scope_proxy(s0)
-    predef.add_return_type(s1, s1.Int)
-    return predef.get_return_type(s1)
+    s1 = api__tapl.create_scope(s0)
+    api__tapl.add_return_type(s1, s1.Int)
+    return api__tapl.get_return_type(s1)
 s0.hello = predef.FunctionType([], hello())
 """.strip()
     )
@@ -132,9 +132,9 @@ def area(radius):
         ast.unparse(stmt2)
         == """
 def area(radius):
-    s1 = predef.create_scope_proxy(s0, radius=radius)
-    predef.add_return_type(s1, s1.Float * s1.radius * s1.radius)
-    return predef.get_return_type(s1)
+    s1 = api__tapl.create_scope(s0, radius=radius)
+    api__tapl.add_return_type(s1, s1.Float * s1.radius * s1.radius)
+    return api__tapl.get_return_type(s1)
 s0.area = predef.FunctionType([s0.Int], area(s0.Int))
 """.strip()
     )
@@ -161,11 +161,11 @@ print(b)
     assert (
         ast.unparse(stmt2)
         == """
-with predef.scope_forker(s0) as f0:
-    s1 = f0.new_scope()
+with api__tapl.scope_forker(s0) as f0:
+    s1 = api__tapl.fork_scope(f0)
     s1.a == s1.Int
     s1.b = s1.Int
-    s1 = f0.new_scope()
+    s1 = api__tapl.fork_scope(f0)
     s1.b = s1.Str
 s0.print(s0.b)
 """.strip()
@@ -193,11 +193,11 @@ class Circle:
 class Circle:
 
     def __init__(self, radius):
-        s1 = predef.create_scope_proxy(s0, self=self, radius=radius)
+        s1 = api__tapl.create_scope(s0, self=self, radius=radius)
         s1.self.radius = s1.radius
-        return predef.get_return_type(s1)
-s0.Circle = predef.create_scope_proxy(label__tapl='Circle')
-s0.Circle_ = predef.create_scope_proxy(label__tapl='Circle_')
+        return api__tapl.get_return_type(s1)
+s0.Circle = api__tapl.create_scope(label__tapl='Circle')
+s0.Circle_ = api__tapl.create_scope(label__tapl='Circle_')
 s0.Circle.__init__ = predef.FunctionType([s0.Circle_, s0.Float], Circle.__init__(s0.Circle_, s0.Float))
 s0.Circle_.__init__ = predef.FunctionType([s0.Float], s0.Circle.__init__.result)
 s0.Circle.__call__ = predef.FunctionType([s0.Circle, s0.Float], s0.Circle_)

@@ -14,10 +14,6 @@ FunctionType = typelib.FunctionType
 function_type = typelib.function_type
 
 
-create_scope_proxy = scope.create_scope_proxy
-scope_forker = scope.scope_forker
-add_return_type = scope.add_return_type
-get_return_type = scope.get_return_type
 predef_scope = scope.Scope(label='predef_scope')
 predef_scope.store_many(
     {

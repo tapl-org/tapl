@@ -31,22 +31,19 @@ class PythonlikeLanguage(Language):
                 location,
                 func=expr.Attribute(
                     location,
-                    expr.Name(location=location, id='predef', ctx='load'),
-                    attr='create_scope_proxy',
+                    expr.Name(location=location, id='api__tapl', ctx='load'),
+                    attr='ScopeProxy',
                     ctx='load',
                 ),
-                args=[],
-                keywords=[
-                    (
-                        'scope__tapl',
-                        expr.Attribute(
-                            location=location,
-                            value=expr.Name(location=location, id='predef', ctx='load'),
-                            attr='predef_scope',
-                            ctx='load',
-                        ),
+                args=[
+                    expr.Attribute(
+                        location=location,
+                        value=expr.Name(location=location, id='predef', ctx='load'),
+                        attr='predef_scope',
+                        ctx='load',
                     )
                 ],
+                keywords=[],
             ),
         )
         return syntax.Block(
@@ -54,6 +51,7 @@ class PythonlikeLanguage(Language):
                 stmt.ImportFrom(
                     location, 'tapl_lang.pythonlike', [stmt.Alias(name='predef1', asname='predef')], IMPORT_LEVEL
                 ),
+                stmt.ImportFrom(location, 'tapl_lang.core', [stmt.Alias(name='api', asname='api__tapl')], IMPORT_LEVEL),
                 syntax.AstSettingTerm(
                     ast_setting_changer=syntax.AstSettingChanger(
                         lambda setting: setting.clone(scope_mode=syntax.ScopeMode.NATIVE)

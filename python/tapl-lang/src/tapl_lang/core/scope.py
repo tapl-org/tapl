@@ -91,67 +91,10 @@ class ScopeForker:
             if len(values) == len(self.branches):
                 self.parent.store(var, typelib.create_union(*values))
 
-    def new_scope(self) -> ScopeProxy:
+    def new_scope(self) -> Scope:
         forked = Scope(label=f'{self.parent.label}.fork{len(self.branches)}', parent=self.parent)
         self.branches.append(forked)
-        return ScopeProxy(forked)
+        return forked
 
 
 NoneType = Scope(label='NoneType')
-
-_SCOPE_FIELD_NAME = 'internal__tapl'
-
-
-# ruff: noqa: N805
-class ScopeProxy:
-    """A scope proxy providing dynamic attribute access."""
-
-    def __init__(self__tapl, scope__tapl: Scope):
-        object.__setattr__(self__tapl, _SCOPE_FIELD_NAME, scope__tapl)
-
-    def __getattribute__(self__tapl, name):
-        return object.__getattribute__(self__tapl, _SCOPE_FIELD_NAME).load(name)
-
-    def __setattr__(self__tapl, name: str, value: Any):
-        object.__getattribute__(self__tapl, _SCOPE_FIELD_NAME).store(name, value)
-
-    def __call__(self__tapl, *args, **kwargs):
-        return object.__getattribute__(self__tapl, _SCOPE_FIELD_NAME).load('__call__')(self__tapl, *args, **kwargs)
-
-    def __repr__(self__tapl):
-        return object.__getattribute__(self__tapl, _SCOPE_FIELD_NAME).__repr__()
-
-
-def create_scope_proxy(
-    parent__tapl: ScopeProxy | None = None,
-    scope__tapl: Scope | None = None,
-    label__tapl: str | None = None,
-    **kwargs: Any,
-) -> ScopeProxy:
-    if parent__tapl and scope__tapl:
-        raise TypeError('Cannot specify both parent and scope.')
-    if scope__tapl:
-        if label__tapl or kwargs:
-            raise TypeError('Cannot specify both (label, kwargs) and scope.')
-        return ScopeProxy(scope__tapl)
-    parent_scope = None
-    if parent__tapl:
-        parent_scope = object.__getattribute__(parent__tapl, _SCOPE_FIELD_NAME)
-    current = Scope(label=label__tapl, parent=parent_scope)
-    current.store_many(kwargs)
-    return ScopeProxy(current)
-
-
-def add_return_type(proxy: ScopeProxy, return_type: Any) -> None:
-    object.__getattribute__(proxy, _SCOPE_FIELD_NAME).returns.append(return_type)
-
-
-def get_return_type(proxy: ScopeProxy) -> Any:
-    returns = object.__getattribute__(proxy, _SCOPE_FIELD_NAME).returns
-    if returns:
-        return typelib.create_union(*returns)
-    return NoneType
-
-
-def scope_forker(proxy: ScopeProxy) -> ScopeForker:
-    return ScopeForker(object.__getattribute__(proxy, _SCOPE_FIELD_NAME))
