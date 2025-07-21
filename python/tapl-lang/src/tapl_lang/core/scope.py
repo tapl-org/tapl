@@ -4,47 +4,21 @@
 
 from __future__ import annotations
 
-from typing import Any, Self
+from typing import Any, Self, cast
 
-from tapl_lang.core import typelib
+from tapl_lang.core import context, typelib
 from tapl_lang.core.tapl_error import TaplError
 
 
-class Slot:
-    def __init__(self, value: Any):
-        self.value = value
-
-
-class Context:
-    def __init__(self, label: str | None = None, fields: dict[str, Any] | None = None):
+class Scope(context.Context):
+    # TODO: parent should be a Context, not a Scope
+    def __init__(self, fields: dict[str, Any] | None = None, label: str | None = None, parent: Scope | None = None):
+        super().__init__(fields)
         self.label = label
-        self.fields: dict[str, Slot] = {}
-        if fields:
-            self.store_many(fields)
-
-    def load(self, name: str) -> Any:
-        return self.fields[name].value
-
-    def store(self, name: str, value: Any) -> None:
-        self.fields[name] = Slot(value)
-
-    def store_many(self, fields: dict[str, Any]) -> None:
-        for name, value in fields.items():
-            self.store(name, value)
-
-    def __repr__(self) -> str:
-        if self.label:
-            return self.label
-        return object.__repr__(self)
-
-
-class Scope(Context):
-    def __init__(self, label: str | None = None, fields: dict[str, Any] | None = None, parent: Scope | None = None):
-        super().__init__(label, fields)
         self.parent = parent
         self.returns: list[Any] = []
 
-    def find_slot(self, name: str) -> Slot | None:
+    def find_slot(self, name: str) -> context.Slot | None:
         if name in self.fields:
             return self.fields[name]
         if self.parent is not None:
@@ -60,8 +34,9 @@ class Scope(Context):
     def store(self, name: str, value: Any) -> None:
         slot = self.find_slot(name)
         if slot is None:
-            self.fields[name] = Slot(value)
+            self.fields[name] = context.Slot(value)
             return
+        # TODO: convert this to strategy pattern
         if slot.value != value:
             raise TypeError(f'Variable {name} already exists with a different type.')
 
@@ -97,59 +72,40 @@ class ScopeForker:
         return forked
 
 
-_SCOPE_FIELD_NAME = 'internal__tapl'
-
-
-# ruff: noqa: N805
-class ScopeProxy:
-    """A scope proxy providing dynamic attribute access."""
-
-    def __init__(self__tapl, scope__tapl: Scope):
-        object.__setattr__(self__tapl, _SCOPE_FIELD_NAME, scope__tapl)
-
-    def __getattribute__(self__tapl, name):
-        return object.__getattribute__(self__tapl, _SCOPE_FIELD_NAME).load(name)
-
-    def __setattr__(self__tapl, name: str, value: Any):
-        object.__getattribute__(self__tapl, _SCOPE_FIELD_NAME).store(name, value)
-
-    def __call__(self__tapl, *args, **kwargs):
-        return object.__getattribute__(self__tapl, _SCOPE_FIELD_NAME).load('__call__')(self__tapl, *args, **kwargs)
-
-    def __repr__(self__tapl):
-        return object.__getattribute__(self__tapl, _SCOPE_FIELD_NAME).__repr__()
+def get_scope_from_proxy(proxy: context.Proxy) -> Scope:
+    return cast(Scope, context.get_proxy_internal(proxy))
 
 
 def create_scope(
-    parent__tapl: ScopeProxy | None = None,
+    parent__tapl: context.Proxy | None = None,
     label__tapl: str | None = None,
     **kwargs: Any,
-) -> ScopeProxy:
+) -> context.Proxy:
     parent_scope = None
     if parent__tapl:
-        parent_scope = object.__getattribute__(parent__tapl, _SCOPE_FIELD_NAME)
+        parent_scope = get_scope_from_proxy(parent__tapl)
     current = Scope(label=label__tapl, parent=parent_scope)
     current.store_many(kwargs)
-    return ScopeProxy(current)
+    return context.Proxy(current)
 
 
-def add_return_type(proxy: ScopeProxy, return_type: Any) -> None:
-    object.__getattribute__(proxy, _SCOPE_FIELD_NAME).returns.append(return_type)
+def add_return_type(proxy: context.Proxy, return_type: Any) -> None:
+    get_scope_from_proxy(proxy).returns.append(return_type)
 
 
-def get_return_type(proxy: ScopeProxy) -> Any:
-    returns = object.__getattribute__(proxy, _SCOPE_FIELD_NAME).returns
+def get_return_type(proxy: context.Proxy) -> Any:
+    returns = get_scope_from_proxy(proxy).returns
     if returns:
         return typelib.create_union(*returns)
     return NoneType
 
 
-def scope_forker(proxy: ScopeProxy) -> ScopeForker:
-    return ScopeForker(object.__getattribute__(proxy, _SCOPE_FIELD_NAME))
+def scope_forker(proxy: context.Proxy) -> ScopeForker:
+    return ScopeForker(get_scope_from_proxy(proxy))
 
 
-def fork_scope(forker: ScopeForker) -> ScopeProxy:
-    return ScopeProxy(forker.new_scope())
+def fork_scope(forker: ScopeForker) -> context.Proxy:
+    return context.Proxy(forker.new_scope())
 
 
 NoneType = Scope(label='NoneType')

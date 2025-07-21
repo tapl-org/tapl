@@ -5,7 +5,7 @@
 
 import ast
 
-from tapl_lang.core import scope, syntax
+from tapl_lang.core import context, scope, syntax
 from tapl_lang.core.chunker import chunk_text
 from tapl_lang.core.parser import parse_text
 from tapl_lang.pythonlike import grammar, predef1, stmt
@@ -34,7 +34,7 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
 
 def run_stmt(stmts: list[ast.stmt]):
     compiled_code = compile(ast.Module(body=stmts), filename='', mode='exec')
-    daa = scope.ScopeProxy(scope.Scope(parent=predef1.predef_scope))
+    daa = context.Proxy(scope.Scope(parent=predef1.predef_scope))
     globals_ = {'create_union': predef1.create_union, 's0': daa}
     return eval(compiled_code, globals=globals_)
 
@@ -200,6 +200,6 @@ s0.Circle = api__tapl.create_scope(label__tapl='Circle')
 s0.Circle_ = api__tapl.create_scope(label__tapl='Circle_')
 s0.Circle.__init__ = predef.FunctionType([s0.Circle_, s0.Float], Circle.__init__(s0.Circle_, s0.Float))
 s0.Circle_.__init__ = predef.FunctionType([s0.Float], s0.Circle.__init__.result)
-s0.Circle.__call__ = predef.FunctionType([s0.Circle, s0.Float], s0.Circle_)
+s0.Circle.__call__ = predef.FunctionType([s0.Float], s0.Circle_)
 """.strip()
     )

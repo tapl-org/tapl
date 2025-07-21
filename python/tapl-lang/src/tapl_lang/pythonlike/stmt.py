@@ -582,7 +582,7 @@ class ClassDef(syntax.Term):
         constructor = declare_method(
             namespace=class_name,
             method_name='__call__',
-            args=[ast_attribute([setting.scope_name, class_name]), *constructor_args],
+            args=constructor_args,
             result=ast_attribute([setting.scope_name, instance_name]),
         )
 

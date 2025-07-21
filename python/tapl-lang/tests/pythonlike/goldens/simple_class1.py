@@ -6,7 +6,7 @@ class SimplestClass:
     pass
 s0.SimplestClass = api__tapl.create_scope(label__tapl='SimplestClass')
 s0.SimplestClass_ = api__tapl.create_scope(label__tapl='SimplestClass_')
-s0.SimplestClass.__call__ = predef.FunctionType([s0.SimplestClass], s0.SimplestClass_)
+s0.SimplestClass.__call__ = predef.FunctionType([], s0.SimplestClass_)
 
 def accept(param):
     s1 = api__tapl.create_scope(s0, param=param)
@@ -32,7 +32,7 @@ s0.Circle.__init__ = predef.FunctionType([s0.Circle_, s0.Float], Circle.__init__
 s0.Circle_.__init__ = predef.FunctionType([s0.Float], s0.Circle.__init__.result)
 s0.Circle.area = predef.FunctionType([s0.Circle_], Circle.area(s0.Circle_))
 s0.Circle_.area = predef.FunctionType([], s0.Circle.area.result)
-s0.Circle.__call__ = predef.FunctionType([s0.Circle, s0.Float], s0.Circle_)
+s0.Circle.__call__ = predef.FunctionType([s0.Float], s0.Circle_)
 
 def print_area(circle):
     s1 = api__tapl.create_scope(s0, circle=circle)
