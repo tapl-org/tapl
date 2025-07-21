@@ -5,7 +5,7 @@
 
 import ast
 
-from tapl_lang.core import api, scope, syntax
+from tapl_lang.core import scope, syntax
 from tapl_lang.core.parser import Grammar, parse_text
 from tapl_lang.pythonlike import expr, grammar, predef, predef1, rule_names
 
@@ -36,7 +36,7 @@ def typecheck(expr: ast.expr, locals_=None):
     compiled_code = compile(ast.Expression(body=expr), filename='', mode='eval')
     scope0 = scope.Scope(parent=predef1.predef_scope)
     scope0.store_many(locals_ or {})
-    globals_ = {'create_union': predef1.create_union, 's0': api.ScopeProxy(scope0)}
+    globals_ = {'create_union': predef1.create_union, 's0': scope.ScopeProxy(scope0)}
     return eval(compiled_code, globals=globals_)
 
 
