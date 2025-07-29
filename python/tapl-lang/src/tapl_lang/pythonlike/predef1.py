@@ -14,7 +14,7 @@ FunctionType = typelib.FunctionType
 function_type = typelib.function_type
 
 
-predef_scope = scope.Scope(name='predef_scope')
+predef_scope = scope.Scope(label='predef_scope')
 predef_scope.store_many(
     {
         'NoneType': NoneType,
@@ -27,6 +27,7 @@ predef_scope.store_many(
         'FunctionType': typelib.FunctionType,
         'function_type': typelib.function_type,
         'print__tapl': print,
+        # 'print': typelib.FunctionType(lock: A)
     }
 )
 

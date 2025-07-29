@@ -1,0 +1,4 @@
+language pythonlike
+
+i = 100
+print(i)

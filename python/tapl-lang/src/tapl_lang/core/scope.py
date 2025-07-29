@@ -16,13 +16,12 @@ class Slot:
 
 
 class Scope:
-    def __init__(self, parent: Scope | None = None, fields: dict[str, Any] | None = None, name: str | None = None):
+    def __init__(self, parent: Scope | None = None, fields: dict[str, Any] | None = None, label: str | None = None):
         self.parent = parent
         self.fields: dict[str, Slot] = {}
         if fields:
             self.store_many(fields)
-        # TODO: move name into fields
-        self.name = name
+        self.label = label
         # TODO: move returns into fields
         self.returns: list[Any] = []
 
@@ -55,8 +54,8 @@ class Scope:
     def __repr__(self) -> str:
         if '__repr__' in self.fields:
             return self.fields['__repr__'].value()
-        if self.name:
-            return self.name
+        if self.label:
+            return self.label
         if self.parent is None:
             return f'Scope(parent={self.parent})'
         return object.__repr__(self)
@@ -83,7 +82,7 @@ class ScopeForker:
                 self.parent.store(var, typelib.create_union(*values))
 
     def new_scope(self) -> Scope:
-        forked = Scope(parent=self.parent, name=f'{self.parent}.fork{len(self.branches)}')
+        forked = Scope(parent=self.parent, label=f'{self.parent}.fork{len(self.branches)}')
         self.branches.append(forked)
         return forked
 
@@ -128,7 +127,7 @@ def create_scope(
     parent_scope = None
     if parent__tapl:
         parent_scope = get_scope_from_proxy(parent__tapl)
-    current = Scope(parent=parent_scope, name=label__tapl)
+    current = Scope(parent=parent_scope, label=label__tapl)
     current.store_many(kwargs)
     return Proxy(current)
 
@@ -152,4 +151,4 @@ def fork_scope(forker: ScopeForker) -> Proxy:
     return Proxy(forker.new_scope())
 
 
-NoneType = Scope(name='NoneType')
+NoneType = Scope(label='NoneType')
