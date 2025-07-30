@@ -72,11 +72,8 @@ def run_golden_test(test_name: str) -> None:
     verify(output.getvalue(), namer=ApprovalNamer(f'{base_path}.output'))
 
 
-def test_simple_function():
+def test_goldens():
     run_golden_test('simple_function')
-
-
-def test_simple_class():
     run_golden_test('simple_class')
 
 

@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Any, Self
 
 from tapl_lang.core import typelib
+from tapl_lang.core.attribute import Proxy, get_proxy_subject
 from tapl_lang.core.tapl_error import TaplError
 
 
@@ -60,6 +61,15 @@ class Scope:
             return f'Scope(parent={self.parent})'
         return object.__repr__(self)
 
+    def __getitem__(self, key):
+        return self.load(key)
+
+    def __setitem__(self, key, value):
+        self.store(key, value)
+
+    def __delitem__(self, key):
+        del self.fields[key]
+
 
 class ScopeForker:
     def __init__(self, scope: Scope):
@@ -87,36 +97,8 @@ class ScopeForker:
         return forked
 
 
-_INTERNAL_FIELD_NAME = 'internal__tapl'
-
-
-def get_proxy_internal(proxy: Proxy) -> Scope:
-    """Retrieve the internal scope from a Proxy instance."""
-    return object.__getattribute__(proxy, _INTERNAL_FIELD_NAME)
-
-
-# ruff: noqa: N805
-class Proxy:
-    """A proxy providing dynamic attribute access."""
-
-    def __init__(self__tapl, scope__tapl: Scope):
-        object.__setattr__(self__tapl, _INTERNAL_FIELD_NAME, scope__tapl)
-
-    def __getattribute__(self__tapl, name):
-        return get_proxy_internal(self__tapl).load(name)
-
-    def __setattr__(self__tapl, name: str, value: Any):
-        get_proxy_internal(self__tapl).store(name, value)
-
-    def __call__(self__tapl, *args, **kwargs):
-        return get_proxy_internal(self__tapl).load('__call__')(*args, **kwargs)
-
-    def __repr__(self__tapl):
-        return get_proxy_internal(self__tapl).__repr__()
-
-
 def get_scope_from_proxy(proxy: Proxy) -> Scope:
-    return get_proxy_internal(proxy)
+    return get_proxy_subject(proxy)
 
 
 def create_scope(
