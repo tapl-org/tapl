@@ -272,5 +272,12 @@ person:
     \():
       return self
      
+---------------------------------------------------------------------------------------------------------------
+August 1, 2025 - Continuation of June 17, 2025
 
+We build context by dividing bytes into spans, and label each span (One requirement can be each span should support return statement like function).
+Now we can create a new programm by selecting labels among that available labels, and sequence them.
+Main question is how executor dereference those labels. There should be current dereferencer then, right?
+Signature is like this: deref(label) -> return_start_pointer_of_referenced_span
+How can I easily deref the deref function?
 
