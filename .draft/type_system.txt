@@ -281,3 +281,12 @@ Main question is how executor dereference those labels. There should be current 
 Signature is like this: deref(label) -> return_start_pointer_of_referenced_span
 How can I easily deref the deref function?
 
+---------------------------------------------------------------------------------------------------------------
+August 4, 2025 - Continuation of June 17, 2025
+
+Main purpose of TAPL is a multi layer untyped computation calculus, where users can use one layer as type-checking, and another as evaluation.
+So , the calculus is just a function with a guard. The guard first validates the argument, allows it to pass by if it passes validation.
+For the dependent type, types contain a programmar, and a core challenge is that a type-checker or a guard should evaluate to check the equality.
+This is not the way for the TAPL. Instead TAPL postpone the program, until the argument is available. Once it receives the argument, then evaluates those programms,
+obtains the result, and make a structural comparison on those results.
+

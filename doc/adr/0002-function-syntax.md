@@ -33,3 +33,42 @@ We can devide them into 2 kinds: dependent and non-dependent.
 ## Consequences
 
 *What becomes easier or more difficult to do and any risks introduced by the change that will need to be mitigated.*
+
+## Appendi
+### A: In Python, argument is needed before checking whether the caller is callable or not
+I guess, to identify whether the caller side is a callable or not, it needs some extra logic. So python do not adds extra logic to do this, instead prepares the argument and calls the function with that argument. On the otherhand, when the caller side raises an error, then then interpretator knows about that the caller is not a callable, then justs escalates that error.
+What if the caller is not a callable, but the argument evaluates to an error. Then the error should be re-raised, or new "Expected a function" error should be raised. I guess re-raise the argument error will be effective.
+So the order: caller error, argument error, caller is a callable, and then application.
+```python
+def get_function1():
+    print('get_function1 called')
+    def greeting(input):
+        print('greeting called')
+        print('Hello ' + input)
+    return greeting
+
+def get_function2():
+    print('get_function2 called')
+    return 'greeting'
+
+def get_name():
+    print("get_name called")
+    return 'World'
+
+get_function1()(get_name())
+get_function2()(get_name())
+```
+
+Output
+```text
+get_function1 called
+get_name called
+greeting called
+Hello World
+get_function2 called
+get_name called
+Traceback (most recent call last):
+  File "/Users/orti/projects/python/test2.py", line 17, in <module>
+    get_function2()(get_name())
+TypeError: 'str' object is not callable
+```
