@@ -15,12 +15,13 @@ $t ::=$          | $\hspace{20em}$                                              
 &nbsp;
 &nbsp;           | **Meta-variables**                                                           | $t = g{\mid}h$
 $g ::=$          | $x\ \mid\ \lambda{x}.g\ \mid\ g{\ }g\ \mid\ \xi.t$                           | *single layer*
-$s ::=$          | $\lambda{x}.h\mid\ g{\ }h\ \mid\ h{\ }g\mid\ h{\ }h$                         | *separable*
-$h ::=$          | $s\ \mid\ t{:}t$                                                             | *multi layer*
-&nbsp;           | **Single Layer Meta-variables**                                              | $g = v{\mid}r = x{\mid}w$
+$h ::=$          | $\lambda{x}.h\mid\ g{\ }h\ \mid\ h{\ }g\mid\ h{\ }h\ \mid\ t{:}t$            | *multi layer*
+&nbsp;           | **Single Layer Meta-variables**                                              | $g = v{\mid}r$.
 $v ::=$          | $\lambda{x}.g$                                                               | *value*
 $r ::=$          | $x\ \mid\ g{\ }g\ \mid\ \xi.t$                                               | *non-value*
-$w ::=$          | $\lambda{x}.g\ \mid\ g{\ }g\ \mid\ \xi.t$                                    | *non-variable*
+&nbsp;           | **Multi Layer Meta-variables**                                               | $h = p{\mid}s$
+$p ::=$          | $t{:}t$                                                                      | *separated*
+$s ::=$          | $\lambda{x}.h\mid\ g{\ }h\ \mid\ h{\ }g\mid\ h{\ }h$                         | *separable*
 &nbsp;
 &nbsp;           | **Evaluation**                                                               | $\epsilon[t] \to t$
 $x$              | $\dfrac{\epsilon[x]}{x}$                                                     | *variable*
@@ -29,28 +30,24 @@ $g\ g$           | $r{\ }g\ \mid\ v{\ }r\ \mid\ v{\ }v$                         
 &nbsp;           | $\dfrac{\epsilon[r{\ }g]}{\epsilon[r]{\ }g}$                                 | *function*
 &nbsp;           | $\dfrac{\epsilon[v{\ }r]}{v{\ }\epsilon[r]}$                                 | *argument*
 &nbsp;           | $\dfrac{\epsilon[(\lambda{x}.g){\ }v]}{[x{\mapsto}{v}]g}$                    | *substitution*
-$\xi.t$          | $\xi.g\ \mid\ \xi.s\ \mid\ \xi.t{:}t$                                        | *unlayering*
-&nbsp;           | $\dfrac{\epsilon[\xi.g]}{g}$
-&nbsp;           | $\dfrac{\epsilon[\xi.s]}{\xi.\sigma[s]}$
-&nbsp;           | $\dfrac{\epsilon[\xi.t_1{:}t_2]}{\lambda{x}.x\ \xi.t_1\ \xi.t_2}$
+$\xi.t$          | $\xi.g\ \mid\ \xi.s\ \mid\ \xi.p$                                            | *unlayering*
+&nbsp;           | $\dfrac{\epsilon[\xi.g]}{g}$                                                 | *unbox*
+&nbsp;           | $\dfrac{\epsilon[\xi.s]}{\xi.\sigma[s]}$                                     | *separate*
+&nbsp;           | $\dfrac{\epsilon[\xi.t_1{:}t_2]}{\lambda{x}.x\ \xi.t_2\ \xi.t_1}$            | *squash*
 $h$              | $\dfrac{\epsilon[h]}{h}$                                                     | *multi layer*
 &nbsp;
 &nbsp;           | **Separation**                                                               | $\sigma[t] \to t$
 $g$              | $\dfrac{\sigma[g]}{g}$                                                       | *single layer*
-$\lambda{x}.h$   | $\lambda{x}.s\ \mid\ \lambda{x}.t{:}t$                                       | *abstraction*
-&nbsp;           | $\dfrac{\sigma[\lambda{x}.s]}{\lambda{x}.\sigma[s]}$
-&nbsp;           | $\dfrac{\sigma[\lambda{x}.t_1{:}t_2]}{(\lambda{x}.t_1){:}(\lambda{x}.t_2)}$
-$g\ h$           | $x\ h\ \mid\ w\ h$                                                           | *application*
-&nbsp;           | $\dfrac{\sigma[x\ h]}{x{:}x\ h}$                                             | *clone variable*
-&nbsp;           | $\dfrac{\sigma[w\ h]}{w\ h}$                                                 | *layer mismatch*
-$h\ g$           | $h\ x\ \mid\ h\ w$                                                           | *application*
-&nbsp;           | $\dfrac{\sigma[h\ x]}{h\ x{:}x}$                                             | *clone variable*
-&nbsp;           | $\dfrac{\sigma[h\ w]}{h\ w}$                                                 | *layer mismatch*
-$h\ h$           | $\ s\ h\ \mid\ t{:}t\ s\ \mid\ t{:}t\ t{:}t$                                 | *application*
-&nbsp;           | $\dfrac{\sigma[s\ h]}{\sigma[s]\ h}$
-&nbsp;           | $\dfrac{\sigma[t_1{:}t_2\ s]}{t_1{:}t_2\ \sigma[s]}$
-&nbsp;           | $\dfrac{\sigma[t_1{:}t_2\ t_3{:}t_4]}{(t_1\ t_3){:}(t_2\ t_4)}$
-$t{:}t$          | $\dfrac{\sigma[t_1{:}t_2]}{t_1{:}t_2}$                                       | *already separated*
+$p$              | $\dfrac{\sigma[p]}{p}$                                                       | *already separated*
+$\lambda{x}.h$   | $\lambda{x}.s\ \mid\ \lambda{x}.p$                                           | *abstraction*
+&nbsp;           | $\dfrac{\sigma[\lambda{x}.s]}{\lambda{x}.\sigma[s]}$                         | *separate body*
+&nbsp;           | $\dfrac{\sigma[\lambda{x}.t_1{:}t_2]}{(\lambda{x}.t_1){:}(\lambda{x}.t_2)}$  | *distribute*
+$g\ h$           | $\dfrac{\sigma[g\ h]}{g{:}g\ h}$                                             | *clone function*
+$h\ g$           | $\dfrac{\sigma[h\ g]}{h\ g{:}g}$                                             | *clone argument*
+$h\ h$           | $\ s\ h\ \mid\ p\ s\ \mid\ p\ p$                                             | *application*
+&nbsp;           | $\dfrac{\sigma[s\ h]}{\sigma[s]\ h}$                                         | *function*
+&nbsp;           | $\dfrac{\sigma[p\ s]}{p\ \sigma[s]}$                                         | *argument*
+&nbsp;           | $\dfrac{\sigma[t_1{:}t_2\ t_3{:}t_4]}{(t_1\ t_3){:}(t_2\ t_4)}$              | *distribute*
 
 
 ## Notes
@@ -62,18 +59,20 @@ $t{:}t$          | $\dfrac{\sigma[t_1{:}t_2]}{t_1{:}t_2}$                       
   * A closed term is stuck if it is in normal form but not a value ~ TAPL Book 3.5.15
 
 ## Examples
-### Combinators
+#### Combinators
 
 $I:= \lambda x. x$
 
 $C:= \lambda f.\lambda g. \lambda x.g\ (f\ x)$
 
-$E:= \lambda a.\lambda b. \text{if}\  a{=}b\text{ then }a\text{ else }error$
+$E:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }b\text{ else }error$
 
-rule: $A' \equiv A{:}A$
-
-### Simply Typed Lambda-Calculus (STL) Correspondence
+#### Simply Typed Lambda-Calculus (STL) Correspondence
 STL: $\lambda x{:}T.t$
 
-TAPL: $C'\ ET{:}I\ (\lambda x.t)$
+TAPL: $C\ I{:}(E\ T)\ (\lambda x.t)$
 
+#### Polymorphic lambda-calculus (System F) Correspondence
+System F: $id = \lambda X. \lambda x{:}X. x$
+
+TAPL: $id = \lambda X. C\ I{:}(E\ X)\ (\lambda x. x) $

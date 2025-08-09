@@ -2676,3 +2676,35 @@ inc_H Int
 
 readFileContent=\f!-:String. (h=open f:void;close h;read h) as low.low:@(low.high:(high.low:high.high))
 
+-------------------------------------------------------------------------------
+August 8, 2025
+
+I = \x.x
+C = \fgx.g(fx)
+E = \ab. b<=a?b:error
+
+id = \A.C I:(E A) I
+=(\A.C I I):(\A.C (E A) I)
+
+id Nat 3:Nat
+=(id0 Nat 3):(id1 Nat Nat)
+
+id1 Nat Nat
+=(\A.C (E A) I) Nat Nat
+=(C (E Nat) I) Nat
+=(C (\b.b<=Nat?b:error) I) Nat
+=(\x.I ((\b.b<=Nat?b:error) x)) Nat
+=I ((\b.b<=Nat?b:error) Nat)
+=I (Nat<=Nat?Nat:error)
+=I Nat
+=Nat
+
+id0 Nat 3
+=(\A.C I I) Nat 3
+=(C I I) 3
+=(\x. I(I x)) 3
+=I (I 3)
+=I 3
+=3
+
+id Nat 3:Nat = 3:Nat
