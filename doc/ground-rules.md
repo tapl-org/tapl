@@ -30,10 +30,12 @@ $g\ g$           | $r{\ }g\ \mid\ v{\ }r\ \mid\ v{\ }v$                         
 &nbsp;           | $\dfrac{\epsilon[r{\ }g]}{\epsilon[r]{\ }g}$                                 | *function*
 &nbsp;           | $\dfrac{\epsilon[v{\ }r]}{v{\ }\epsilon[r]}$                                 | *argument*
 &nbsp;           | $\dfrac{\epsilon[(\lambda{x}.g){\ }v]}{[x{\mapsto}{v}]g}$                    | *substitution*
-$\xi.t$          | $\xi.g\ \mid\ \xi.s\ \mid\ \xi.p$                                            | *unlayering*
-&nbsp;           | $\dfrac{\epsilon[\xi.g]}{g}$                                                 | *unbox*
+$\xi.t$          | $\xi.g\ \mid\ \xi.s\ \mid\ \xi.g{:}g\ \mid\ \xi.g{:}h\ \mid\ \xi.h{:}t$      | *unlayering*
+&nbsp;           | $\dfrac{\epsilon[\xi.g]}{\xi.g}$                                             | *stuck*
 &nbsp;           | $\dfrac{\epsilon[\xi.s]}{\xi.\sigma[s]}$                                     | *separate*
-&nbsp;           | $\dfrac{\epsilon[\xi.t_1{:}t_2]}{\lambda{x}.x\ \xi.t_2\ \xi.t_1}$            | *squash*
+&nbsp;           | $\dfrac{\epsilon[\xi.g_1{:}g_2]}{\lambda{x}.x\ g_2\ g_1}$                    | *squash*
+&nbsp;           | $\dfrac{\epsilon[\xi.g{:}h]}{\xi.g{:}h}$                                     | *stuck*
+&nbsp;           | $\dfrac{\epsilon[\xi.h{:}t]}{\xi.h{:}t}$                                     | *stuck*
 $h$              | $\dfrac{\epsilon[h]}{h}$                                                     | *multi layer*
 &nbsp;
 &nbsp;           | **Separation**                                                               | $\sigma[t] \to t$
