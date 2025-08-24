@@ -57,7 +57,7 @@ $h\ h$           | $\ s\ h\ \mid\ p\ s\ \mid\ p\ p$                             
 * Tapl doesn't have a type system; it's a multi-layered codebase. Parts of each layer may type-check, evaluate, or perform other operations.
 * $\dfrac{a}{a'} \coloneqq a$ evaluates to $a'$ in one step, or forward the evaluation.
 * VS Code shows the formulas in a pretty format
-* When the evaluation or the seperation opertor returns the same term, it indicates that the term is either a value or has become stuck.
+* When the evaluation or the seperation operator returns the same term, it indicates that the term is either a value or has become stuck.
   * A closed term is stuck if it is in normal form but not a value ~ TAPL Book 3.5.15
 
 ## Examples
@@ -67,14 +67,32 @@ $I:= \lambda x. x$
 
 $C:= \lambda f.\lambda g. \lambda x.g\ (f\ x)$
 
-$E:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }b\text{ else }error$
+$E_a:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }a\text{ else }error$
+
+$E_b:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }b\text{ else }error$
 
 #### Simply Typed Lambda-Calculus (STL) Correspondence
 STL: $\lambda x{:}T.t$
 
-TAPL: $C\ I{:}(E\ T)\ (\lambda x.t)$
+TAPL: $C\ (I{:}(E_a\ T))\ (\lambda x.t)$
 
 #### Polymorphic lambda-calculus (System F) Correspondence
 System F: $id = \lambda X. \lambda x{:}X. x$
 
-TAPL: $id = \lambda X. C\ I{:}(E\ X)\ (\lambda x. x) $
+TAPL: $id = \lambda X. C\ I{:}(E_a\ X)\ (\lambda x. x) $
+
+#### Substructural type Correspondence
+
+STL: $\lambda x{:}T.t$
+
+TAPL: $C\ (I{:}(E_b\ T))\ (\lambda x.t)$
+
+#### Dependent type Correspondence
+
+$T_D:= \lambda x. t_d$
+
+$E_D:= \lambda a.\lambda b. \lambda x. E_{a\mid b\mid D}\ (a\ x)\ (b\ x)$
+
+Dependent type: $\lambda x{:}T_D.t$
+
+TAPL: $C\ (I{:}(E_D\ T_D))\ (\lambda x.t)$
