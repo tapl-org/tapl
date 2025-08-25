@@ -77,5 +77,5 @@ def test_goldens():
     run_golden_test('simple_class')
 
 
-# def test_sum():
-#     run_golden_test('sum')
+def test_sum():
+    run_golden_test('sum')

@@ -1,3 +1,3 @@
 from tapl_lang.pythonlike.predef import *
 i = 100
-print(i)
+print__tapl(i)

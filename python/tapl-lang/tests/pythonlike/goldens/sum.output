@@ -1,0 +1,14 @@
+====== layer=1 exit-status:0 stdout:
+Int
+
+------ stderr:
+
+------ end.
+
+====== layer=0 exit-status:0 stdout:
+100
+
+------ stderr:
+
+------ end.
+
