@@ -101,18 +101,17 @@ def create_union(*args: Any) -> Any:
 
 
 class FunctionType:
-    def __init__(self, lock, result):
-        self.lock = lock
+    def __init__(self, parameters, result):
+        self.parameters = parameters
         self.result = result
 
     def __repr__(self):
-        return f'{self.lock}->{self.result}'
+        return f'{self.parameters}->{self.result}'
 
-    # TODO: rename args to keys, lock to the locks since they are arrays
-    def __call__(self, *args):
-        args = list(args)
-        if self.lock != args:
-            raise TypeError(f'Not equal: lock={self.lock} key={args}')
+    def __call__(self, *arguments):
+        args = list(arguments)
+        if self.parameters != args:
+            raise TypeError(f'Not equal: parameters={self.parameters} arguments={args}')
         return self.result
 
 
