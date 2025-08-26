@@ -12,51 +12,50 @@ if TYPE_CHECKING:
     import ast
     from collections.abc import Callable, Generator
 
-from tapl_lang.core.syntax import AstSetting, CodeMode, ErrorTerm, LayerSeparator, ScopeMode, Term
-from tapl_lang.core.tapl_error import TaplError
+from tapl_lang.core import syntax, tapl_error
 
 
 # Used when a term depends on a Block to be merged into it.
 # For example: # An else statement must be merged into the preceding sibling if statement.
-class DependentTerm(Term):
+class DependentTerm(syntax.Term):
     def merge_into(self, parent_block: Block) -> None:
         """Merges this term into the terms of specified parent block."""
         del parent_block
-        raise TaplError(f'{self.__class__.__name__}.merge_into is not implemented.')
+        raise tapl_error.TaplError(f'{self.__class__.__name__}.merge_into is not implemented.')
 
 
 @dataclass
-class Block(Term):
-    terms: list[Term]
+class Block(syntax.Term):
+    terms: list[syntax.Term]
     # Indicates a delayed term list, useful when its initialization depends on child chunk parsing.
     # For example: if, elif, else, for, and while statements.
     delayed: bool = False
 
     @override
-    def children(self) -> Generator[Term, None, None]:
+    def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.terms
 
     @override
-    def separate(self, ls: LayerSeparator) -> list[Term]:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: Block(terms=[layer(s) for s in self.terms], delayed=self.delayed))
 
     @override
     def codegen_stmt(self, setting) -> list[ast.stmt]:
         if self.delayed:
-            raise TaplError('Block is delayed and cannot be used for code generation.')
+            raise tapl_error.TaplError('Block is delayed and cannot be used for code generation.')
         return [s for b in self.terms for s in b.codegen_stmt(setting)]
 
 
-def find_delayed_block(term: Term) -> Block | None:
+def find_delayed_block(term: syntax.Term) -> Block | None:
     delayed_block: Block | None = None
 
-    def loop(t: Term) -> None:
+    def loop(t: syntax.Term) -> None:
         nonlocal delayed_block
         if isinstance(t, Block) and t.delayed:
             if delayed_block is None:
                 delayed_block = t
             else:
-                raise TaplError('Multiple delayed blocks found.')
+                raise tapl_error.TaplError('Multiple delayed blocks found.')
         for child in t.children():
             loop(child)
 
@@ -64,8 +63,8 @@ def find_delayed_block(term: Term) -> Block | None:
     return delayed_block
 
 
-class Layers(Term):
-    def __init__(self, layers: list[Term]) -> None:
+class Layers(syntax.Term):
+    def __init__(self, layers: list[syntax.Term]) -> None:
         self.layers = layers
         self._validate_layer_count()
 
@@ -74,71 +73,73 @@ class Layers(Term):
 
     def _validate_layer_count(self) -> None:
         if len(self.layers) <= 1:
-            raise TaplError('Number of layers must be equal or greater than 2.')
+            raise tapl_error.TaplError('Number of layers must be equal or greater than 2.')
 
     @override
-    def children(self) -> Generator[Term, None, None]:
+    def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.layers
 
     @override
-    def separate(self, ls: LayerSeparator) -> list[Term]:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         self._validate_layer_count()
         actual_count = len(self.layers)
         if actual_count != ls.layer_count:
-            raise TaplError(f'Mismatched layer lengths, actual_count={actual_count}, expected_count={ls.layer_count}')
+            raise tapl_error.TaplError(
+                f'Mismatched layer lengths, actual_count={actual_count}, expected_count={ls.layer_count}'
+            )
         return self.layers
 
     @override
-    def codegen_ast(self, setting: AstSetting) -> ast.AST:
-        raise TaplError('Layers should be separated before generating AST code.')
+    def codegen_ast(self, setting: syntax.AstSetting) -> ast.AST:
+        raise tapl_error.TaplError('Layers should be separated before generating AST code.')
 
     @override
-    def codegen_expr(self, setting: AstSetting) -> ast.expr:
-        raise TaplError('Layers should be separated before generating AST code.')
+    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+        raise tapl_error.TaplError('Layers should be separated before generating AST code.')
 
     @override
-    def codegen_stmt(self, setting: AstSetting) -> list[ast.stmt]:
-        raise TaplError('Layers should be separated before generating AST code.')
+    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        raise tapl_error.TaplError('Layers should be separated before generating AST code.')
 
 
 @dataclass
-class RearrangeLayers(Term):
-    term: Term
+class RearrangeLayers(syntax.Term):
+    term: syntax.Term
     layer_indices: list[int]
 
     @override
-    def children(self) -> Generator[Term, None, None]:
+    def children(self) -> Generator[syntax.Term, None, None]:
         yield self.term
 
     @override
-    def separate(self, ls: LayerSeparator) -> list[Term]:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         layers = ls.build(lambda layer: layer(self.term))
         result = []
         for i in self.layer_indices:
             if i >= len(layers):
-                raise TaplError(f'Layer index {i} out of range for layers {layers}')
+                raise tapl_error.TaplError(f'Layer index {i} out of range for layers {layers}')
             result.append(layers[i])
         return result
 
 
 @dataclass
-class Realm(Term):
+class Realm(syntax.Term):
     layer_count: int
-    term: Term
+    term: syntax.Term
 
     @override
-    def children(self) -> Generator[Term, None, None]:
+    def children(self) -> Generator[syntax.Term, None, None]:
         yield self.term
 
 
-def gather_errors(term: Term) -> list[ErrorTerm]:
-    error_bucket: list[ErrorTerm] = []
+def gather_errors(term: syntax.Term) -> list[syntax.ErrorTerm]:
+    error_bucket: list[syntax.ErrorTerm] = []
 
-    def gather_errors_recursive(t: Term) -> None:
-        if isinstance(t, ErrorTerm):
+    def gather_errors_recursive(t: syntax.Term) -> None:
+        if isinstance(t, syntax.ErrorTerm):
             error_bucket.append(t)
         if isinstance(t, Block) and t.delayed:
-            error = ErrorTerm(
+            error = syntax.ErrorTerm(
                 message='Block term is still delayed and not initialized yet. Expecting its body to be set.',
             )
             error_bucket.append(error)
@@ -150,68 +151,68 @@ def gather_errors(term: Term) -> list[ErrorTerm]:
 
 
 @dataclass
-class AstSettingChanger(Term):
-    changer: Callable[[AstSetting], AstSetting]
+class AstSettingChanger(syntax.Term):
+    changer: Callable[[syntax.AstSetting], syntax.AstSetting]
 
     @override
-    def children(self) -> Generator[Term, None, None]:
+    def children(self) -> Generator[syntax.Term, None, None]:
         yield from ()
 
     @override
-    def separate(self, ls: LayerSeparator) -> list[Term]:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda _: AstSettingChanger(changer=self.changer))
 
 
 @dataclass
-class AstSettingTerm(Term):
-    ast_setting_changer: Term
-    term: Term
+class AstSettingTerm(syntax.Term):
+    ast_setting_changer: syntax.Term
+    term: syntax.Term
 
     @override
-    def children(self) -> Generator[Term, None, None]:
+    def children(self) -> Generator[syntax.Term, None, None]:
         yield self.ast_setting_changer
         yield self.term
 
     @override
-    def separate(self, ls: LayerSeparator) -> list[Term]:
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: AstSettingTerm(ast_setting_changer=layer(self.ast_setting_changer), term=layer(self.term))
         )
 
-    def _ensure_changer(self) -> Callable[[AstSetting], AstSetting]:
+    def _ensure_changer(self) -> Callable[[syntax.AstSetting], syntax.AstSetting]:
         if not isinstance(self.ast_setting_changer, AstSettingChanger):
-            raise TaplError(
+            raise tapl_error.TaplError(
                 f'Expected setting to be an instance of AstSetting, got {type(self.ast_setting_changer).__name__}'
             )
         return cast(AstSettingChanger, self.ast_setting_changer).changer
 
     @override
-    def codegen_ast(self, setting: AstSetting) -> ast.AST:
+    def codegen_ast(self, setting: syntax.AstSetting) -> ast.AST:
         return self.term.codegen_ast(self._ensure_changer()(setting))
 
     @override
-    def codegen_expr(self, setting: AstSetting) -> ast.expr:
+    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
         return self.term.codegen_expr(self._ensure_changer()(setting))
 
     @override
-    def codegen_stmt(self, setting: AstSetting) -> list[ast.stmt]:
+    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
         return self.term.codegen_stmt(self._ensure_changer()(setting))
 
 
-def create_safe_ast_settings() -> list[AstSetting]:
+def create_safe_ast_settings() -> list[syntax.AstSetting]:
     return [
-        AstSetting(code_mode=CodeMode.EVALUATE, scope_mode=ScopeMode.NATIVE),
-        AstSetting(code_mode=CodeMode.TYPECHECK, scope_mode=ScopeMode.MANUAL),
+        syntax.AstSetting(code_mode=syntax.CodeMode.EVALUATE, scope_mode=syntax.ScopeMode.NATIVE),
+        syntax.AstSetting(code_mode=syntax.CodeMode.TYPECHECK, scope_mode=syntax.ScopeMode.MANUAL),
     ]
 
 
 SAFE_LAYER_COUNT = len(create_safe_ast_settings())
 
 
-def make_safe_term(term: Term) -> AstSettingTerm:
-    def create_changer(setting: AstSetting) -> Callable[[AstSetting], AstSetting]:
+def make_safe_term(term: syntax.Term) -> AstSettingTerm:
+    def create_changer(setting: syntax.AstSetting) -> Callable[[syntax.AstSetting], syntax.AstSetting]:
         return lambda _: setting
 
     settings = create_safe_ast_settings()
-    changers: list[Term] = [AstSettingChanger(changer=create_changer(setting)) for setting in settings]
+    changers: list[syntax.Term] = [AstSettingChanger(changer=create_changer(setting)) for setting in settings]
     return AstSettingTerm(ast_setting_changer=Layers(layers=changers), term=term)

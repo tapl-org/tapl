@@ -5,17 +5,15 @@
 
 from abc import ABC, abstractmethod
 
-from tapl_lang.core import aux_terms, parser, syntax
-from tapl_lang.core.chunker import Chunk
-from tapl_lang.core.tapl_error import TaplError
+from tapl_lang.core import aux_terms, chunker, parser, syntax, tapl_error
 
 
 class Language(ABC):
-    def parse_chunks(self, chunks: list[Chunk], parent_stack: list[syntax.Term]) -> None:
+    def parse_chunks(self, chunks: list[chunker.Chunk], parent_stack: list[syntax.Term]) -> None:
         body: aux_terms.Block | None = aux_terms.find_delayed_block(parent_stack[-1])
         if body is None:
             # TODO: return an ErrorTerm
-            raise TaplError('Delayed body not found.')
+            raise tapl_error.TaplError('Delayed body not found.')
         for chunk in chunks:
             term = self.parse_chunk(chunk, parent_stack)
             if isinstance(term, aux_terms.DependentTerm):
@@ -24,7 +22,7 @@ class Language(ABC):
                 body.terms.append(term)
         body.delayed = False
 
-    def parse_chunk(self, chunk: Chunk, parent_stack: list[syntax.Term]) -> syntax.Term:
+    def parse_chunk(self, chunk: chunker.Chunk, parent_stack: list[syntax.Term]) -> syntax.Term:
         grammar = self.get_grammar(parent_stack)
         term = parser.parse_line_records(chunk.line_records, grammar)
         if not isinstance(term, syntax.ErrorTerm) and chunk.children:

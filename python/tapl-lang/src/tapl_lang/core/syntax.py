@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, override
 
-from tapl_lang.core.tapl_error import TaplError
+from tapl_lang.core import tapl_error
 
 if TYPE_CHECKING:
     import ast
@@ -19,27 +19,27 @@ if TYPE_CHECKING:
 class Term:
     def children(self) -> Generator[Term, None, None]:
         """Yields the child terms of this term for tree traversal or visitor operations."""
-        raise TaplError(f'{self.__class__.__name__}.children is not implemented.')
+        raise tapl_error.TaplError(f'{self.__class__.__name__}.children is not implemented.')
 
     def separate(self, ls: LayerSeparator) -> list[Term]:
         """Separate the term into layers based on the number of layers specified by the LayerSeparator."""
         del ls
-        raise TaplError(f'The {self.__class__.__name__} class does not support separate.')
+        raise tapl_error.TaplError(f'The {self.__class__.__name__} class does not support separate.')
 
     def codegen_ast(self, setting: AstSetting) -> ast.AST:
         """Generates the AST representation of this term."""
         del setting
-        raise TaplError(f'codegen_ast is not implemented in {self.__class__.__name__}')
+        raise tapl_error.TaplError(f'codegen_ast is not implemented in {self.__class__.__name__}')
 
     def codegen_expr(self, setting: AstSetting) -> ast.expr:
         """Generates the expression AST representation of this term."""
         del setting
-        raise TaplError(f'codegen_expr is not implemented in {self.__class__.__name__}')
+        raise tapl_error.TaplError(f'codegen_expr is not implemented in {self.__class__.__name__}')
 
     def codegen_stmt(self, setting: AstSetting) -> list[ast.stmt]:
         """Generates the statement AST representation of this term."""
         del setting
-        raise TaplError(f'codegen_stmt is not implemented in {self.__class__.__name__}')
+        raise tapl_error.TaplError(f'codegen_stmt is not implemented in {self.__class__.__name__}')
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}()'
@@ -48,7 +48,7 @@ class Term:
 class LayerSeparator:
     def __init__(self, layer_count: int) -> None:
         if layer_count <= 1:
-            raise TaplError('layer_count must be equal or greater than 2 to separate.')
+            raise tapl_error.TaplError('layer_count must be equal or greater than 2 to separate.')
         self.layer_count = layer_count
 
     def build(self, factory: Callable[[Callable[[Term], Term]], Term]) -> list[Term]:
@@ -62,7 +62,7 @@ class LayerSeparator:
             original_term, layers = memo[memo_index[0]]
             memo_index[0] += 1
             if original_term is not term:
-                raise TaplError('layer function call order is changed.')
+                raise tapl_error.TaplError('layer function call order is changed.')
             return layers[index]
 
         def create_extract_layer_fn(index: int) -> Callable[[Term], Term]:

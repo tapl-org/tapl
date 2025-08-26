@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass
 
-from tapl_lang.core import aux_terms, parser, syntax
+from tapl_lang.core import parser, syntax
 from tapl_lang.core.parser import Cursor, route
 from tapl_lang.core.syntax import Location, Position, Term
 
@@ -75,7 +75,7 @@ def expect_punct(c: Cursor, *puncts: str) -> Term:
     if t.validate(term := c.consume_rule('token')) and isinstance(term, Punct) and term.value in puncts:
         return term
     puncts_text = ', '.join(f'"{p}"' for p in puncts)
-    return t.captured_error or aux_terms.ErrorTerm(
+    return t.captured_error or syntax.ErrorTerm(
         message=f'Expected {puncts_text}, but found {term}', location=t.location
     )
 
@@ -91,14 +91,14 @@ def expect_number(c: Cursor) -> Term:
     t = c.start_tracker()
     if t.validate(term := consume_number(c)):
         return term
-    return t.captured_error or aux_terms.ErrorTerm(message=f'Expected number, but found {term}', location=t.location)
+    return t.captured_error or syntax.ErrorTerm(message=f'Expected number, but found {term}', location=t.location)
 
 
 def expect_rule(c: Cursor, rule: str) -> Term:
     t = c.start_tracker()
     if t.validate(term := c.consume_rule(rule)):
         return term
-    return t.captured_error or aux_terms.ErrorTerm(message=f'Expected rule "{rule}"', location=t.location)
+    return t.captured_error or syntax.ErrorTerm(message=f'Expected rule "{rule}"', location=t.location)
 
 
 def parse_value__expr(c: Cursor) -> Term:

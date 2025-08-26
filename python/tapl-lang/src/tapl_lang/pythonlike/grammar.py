@@ -678,7 +678,7 @@ def _expect_punct(c: Cursor, *puncts: str) -> syntax.Term:
     if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, _TokenPunct) and term.value in puncts:
         return term
     puncts_text = ', '.join(f'"{p}"' for p in puncts)
-    return t.captured_error or aux_terms.ErrorTerm(
+    return t.captured_error or syntax.ErrorTerm(
         message=f'Expected {puncts_text}, but found {term}', location=t.location
     )
 

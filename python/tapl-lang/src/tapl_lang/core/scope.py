@@ -6,9 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Self
 
-from tapl_lang.core import typelib
-from tapl_lang.core.attribute import Proxy, get_proxy_subject
-from tapl_lang.core.tapl_error import TaplError
+from tapl_lang.core import attribute, tapl_error, typelib
 
 
 class Slot:
@@ -37,7 +35,7 @@ class Scope:
         slot = self.find_slot(name)
         if slot is not None:
             return slot.value
-        raise TaplError(f'Variable {name} not found in the scope.')
+        raise tapl_error.TaplError(f'Variable {name} not found in the scope.')
 
     def store(self, name: str, value: Any) -> None:
         slot = self.find_slot(name)
@@ -97,40 +95,40 @@ class ScopeForker:
         return forked
 
 
-def get_scope_from_proxy(proxy: Proxy) -> Scope:
-    return get_proxy_subject(proxy)
+def get_scope_from_proxy(proxy: attribute.Proxy) -> Scope:
+    return attribute.get_proxy_subject(proxy)
 
 
 def create_scope(
-    parent__tapl: Proxy | None = None,
+    parent__tapl: attribute.Proxy | None = None,
     label__tapl: str | None = None,
     **kwargs: Any,
-) -> Proxy:
+) -> attribute.Proxy:
     parent_scope = None
     if parent__tapl:
         parent_scope = get_scope_from_proxy(parent__tapl)
     current = Scope(parent=parent_scope, label=label__tapl)
     current.store_many(kwargs)
-    return Proxy(current)
+    return attribute.Proxy(current)
 
 
-def add_return_type(proxy: Proxy, return_type: Any) -> None:
+def add_return_type(proxy: attribute.Proxy, return_type: Any) -> None:
     get_scope_from_proxy(proxy).returns.append(return_type)
 
 
-def get_return_type(proxy: Proxy) -> Any:
+def get_return_type(proxy: attribute.Proxy) -> Any:
     returns = get_scope_from_proxy(proxy).returns
     if returns:
         return typelib.create_union(*returns)
     return NoneType
 
 
-def scope_forker(proxy: Proxy) -> ScopeForker:
+def scope_forker(proxy: attribute.Proxy) -> ScopeForker:
     return ScopeForker(get_scope_from_proxy(proxy))
 
 
-def fork_scope(forker: ScopeForker) -> Proxy:
-    return Proxy(forker.new_scope())
+def fork_scope(forker: ScopeForker) -> attribute.Proxy:
+    return attribute.Proxy(forker.new_scope())
 
 
 NoneType = Scope(label='NoneType')
