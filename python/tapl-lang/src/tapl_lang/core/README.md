@@ -14,4 +14,5 @@ SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 graph TD;
     tapl_error-->syntax;
     syntax-->parser;
+    line_record;
 ```
