@@ -149,7 +149,6 @@ def gather_errors(term: Term) -> list[ErrorTerm]:
     return error_bucket
 
 
-# TODO: move to aux syntax module
 @dataclass
 class AstSettingChanger(Term):
     changer: Callable[[AstSetting], AstSetting]
@@ -163,7 +162,6 @@ class AstSettingChanger(Term):
         return ls.build(lambda _: AstSettingChanger(changer=self.changer))
 
 
-# TODO: move to aux syntax module
 @dataclass
 class AstSettingTerm(Term):
     ast_setting_changer: Term
@@ -200,7 +198,6 @@ class AstSettingTerm(Term):
         return self.term.codegen_stmt(self._ensure_changer()(setting))
 
 
-# TODO: move to pythonlike section
 def create_safe_ast_settings() -> list[AstSetting]:
     return [
         AstSetting(code_mode=CodeMode.EVALUATE, scope_mode=ScopeMode.NATIVE),
@@ -208,11 +205,9 @@ def create_safe_ast_settings() -> list[AstSetting]:
     ]
 
 
-# TODO: move to pythonlike section
 SAFE_LAYER_COUNT = len(create_safe_ast_settings())
 
 
-# TODO: move to pythonlike section
 def make_safe_term(term: Term) -> AstSettingTerm:
     def create_changer(setting: AstSetting) -> Callable[[AstSetting], AstSetting]:
         return lambda _: setting
