@@ -62,9 +62,9 @@ class PythonlikeLanguage(Language):
         )
 
     @override
-    def get_predef_layers(self) -> aux_terms.Layers:
-        layers: list[syntax.Term] = [
+    def get_predef_headers(self) -> list[syntax.Term]:
+        headers: list[syntax.Term] = [
             self.create_header_for_evaluate_layer(),
             self.create_header_for_typecheck_layer(),
         ]
-        return aux_terms.Layers(layers)
+        return headers

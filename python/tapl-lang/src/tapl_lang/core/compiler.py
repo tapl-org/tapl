@@ -33,7 +33,8 @@ def compile_tapl(text: str) -> list[ast.AST]:
     if language_name != 'pythonlike':
         raise TaplError('Only pythonlike language is supported now.')
     language = PythonlikeLanguage()
-    predef_layers = language.get_predef_layers()
+    predef_headers = language.get_predef_headers()
+    predef_layers = aux_terms.Layers(predef_headers)
     body = aux_terms.Block([predef_layers], delayed=True)
     module = stmt.Module(body=body)
     language.parse_chunks(chunks[1:], [module])

@@ -27,7 +27,7 @@ class Language(ABC):
     def parse_chunk(self, chunk: Chunk, parent_stack: list[syntax.Term]) -> syntax.Term:
         grammar = self.get_grammar(parent_stack)
         term = parser.parse_line_records(chunk.line_records, grammar)
-        if not isinstance(term, aux_terms.ErrorTerm) and chunk.children:
+        if not isinstance(term, syntax.ErrorTerm) and chunk.children:
             parent_stack.append(term)
             try:
                 self.parse_chunks(chunk.children, parent_stack)
@@ -37,9 +37,8 @@ class Language(ABC):
 
     @abstractmethod
     def get_grammar(self, parent_stack: list[syntax.Term]) -> parser.Grammar:
-        pass
+        """Returns the grammar for the language."""
 
-    # TODO: return list of term instead of Layers
     @abstractmethod
-    def get_predef_layers(self) -> aux_terms.Layers:
-        pass
+    def get_predef_headers(self) -> list[syntax.Term]:
+        """Returns the list of each layer's predefined headers for the language."""
