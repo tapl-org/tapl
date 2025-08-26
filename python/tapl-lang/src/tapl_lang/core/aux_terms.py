@@ -16,6 +16,54 @@ from tapl_lang.core.syntax import AstSetting, CodeMode, ErrorTerm, LayerSeparato
 from tapl_lang.core.tapl_error import TaplError
 
 
+# Used when a term depends on a Block to be merged into it.
+# For example: # An else statement must be merged into the preceding sibling if statement.
+class DependentTerm(Term):
+    def merge_into(self, parent_block: Block) -> None:
+        """Merges this term into the terms of specified parent block."""
+        del parent_block
+        raise TaplError(f'{self.__class__.__name__}.merge_into is not implemented.')
+
+
+@dataclass
+class Block(Term):
+    terms: list[Term]
+    # Indicates a delayed term list, useful when its initialization depends on child chunk parsing.
+    # For example: if, elif, else, for, and while statements.
+    delayed: bool = False
+
+    @override
+    def children(self) -> Generator[Term, None, None]:
+        yield from self.terms
+
+    @override
+    def separate(self, ls: LayerSeparator) -> list[Term]:
+        return ls.build(lambda layer: Block(terms=[layer(s) for s in self.terms], delayed=self.delayed))
+
+    @override
+    def codegen_stmt(self, setting) -> list[ast.stmt]:
+        if self.delayed:
+            raise TaplError('Block is delayed and cannot be used for code generation.')
+        return [s for b in self.terms for s in b.codegen_stmt(setting)]
+
+
+def find_delayed_block(term: Term) -> Block | None:
+    delayed_block: Block | None = None
+
+    def loop(t: Term) -> None:
+        nonlocal delayed_block
+        if isinstance(t, Block) and t.delayed:
+            if delayed_block is None:
+                delayed_block = t
+            else:
+                raise TaplError('Multiple delayed blocks found.')
+        for child in t.children():
+            loop(child)
+
+    loop(term)
+    return delayed_block
+
+
 class Layers(Term):
     def __init__(self, layers: list[Term]) -> None:
         self.layers = layers
@@ -99,51 +147,6 @@ def gather_errors(term: Term) -> list[ErrorTerm]:
 
     gather_errors_recursive(term)
     return error_bucket
-
-
-@dataclass
-class Block(Term):
-    terms: list[Term]
-    # Indicates a delayed term list, useful when its initialization depends on child chunk parsing.
-    delayed: bool = False
-
-    @override
-    def children(self) -> Generator[Term, None, None]:
-        yield from self.terms
-
-    @override
-    def separate(self, ls: LayerSeparator) -> list[Term]:
-        return ls.build(lambda layer: Block(terms=[layer(s) for s in self.terms], delayed=self.delayed))
-
-    @override
-    def codegen_stmt(self, setting) -> list[ast.stmt]:
-        if self.delayed:
-            raise TaplError('Block is delayed and cannot be used for code generation.')
-        return [s for b in self.terms for s in b.codegen_stmt(setting)]
-
-
-# TODO: Add a doc for this, or make the method an class names more descriptive.
-class DependentTerm(Term):
-    def merge_into(self, block: Block) -> None:
-        del block
-        raise TaplError(f'{self.__class__.__name__}.merge_into is not implemented.')
-
-
-def find_delayed_block(term: Term) -> Block | None:
-    delayed_block: Block | None = None
-
-    def loop(t: Term) -> None:
-        nonlocal delayed_block
-        if isinstance(t, Block) and t.delayed:
-            if delayed_block is None:
-                delayed_block = t
-            else:
-                raise TaplError('Multiple delayed blocks found.')
-        for child in t.children():
-            loop(child)
-
-    loop(term)
-    return delayed_block
 
 
 # TODO: move to aux syntax module
