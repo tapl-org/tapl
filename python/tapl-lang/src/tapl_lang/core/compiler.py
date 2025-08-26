@@ -44,5 +44,5 @@ def compile_tapl(text: str) -> list[ast.AST]:
         raise TaplError(f'{len(error_bucket)} errors found:\n\n' + '\n\n'.join(messages))
     safe_module = aux_terms.make_safe_term(module)
     ls = syntax.LayerSeparator(len(predef_layers.layers))
-    layers = ls.separate(safe_module)
+    layers = ls.build(lambda layer: layer(safe_module))
     return [layer.codegen_ast(syntax.AstSetting()) for layer in layers]

@@ -28,7 +28,7 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
         delayed_block.delayed = False
     check_parsed_term(parsed)
     safe_term = aux_terms.make_safe_term(parsed)
-    layers = syntax.LayerSeparator(2).separate(safe_term)
+    layers = syntax.LayerSeparator(2).build(lambda layer: layer(safe_term))
     return [s for layer in layers for s in layer.codegen_stmt(syntax.AstSetting())]
 
 
@@ -48,7 +48,7 @@ def parse_module(text: str) -> list[ast.AST]:
     check_parsed_term(module)
     ls = syntax.LayerSeparator(2)
     safe_module = aux_terms.make_safe_term(module)
-    layers = ls.separate(safe_module)
+    layers = ls.build(lambda layer: layer(safe_module))
     return [layer.codegen_ast(syntax.AstSetting()) for layer in layers]
 
 

@@ -74,10 +74,6 @@ class LayerSeparator:
             layers.append(factory(create_extract_layer_fn(i)))
         return layers
 
-    # TODO: rename
-    def separate(self, term: Term) -> list[Term]:
-        return self.build(lambda layer: layer(term))
-
 
 class CodeMode(Enum):
     EVALUATE = 1  # For generating a evaluating code

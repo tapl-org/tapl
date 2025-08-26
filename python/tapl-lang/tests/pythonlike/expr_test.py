@@ -23,7 +23,7 @@ def parse_expr(text: str, *, debug=False) -> list[ast.expr]:
     parsed = parse_text(text, Grammar(grammar.get_grammar().rule_map, rule_names.EXPRESSION), debug=debug)
     check_parsed_term(parsed)
     safe_term = aux_terms.make_safe_term(parsed)
-    separated = syntax.LayerSeparator(2).separate(safe_term)
+    separated = syntax.LayerSeparator(2).build(lambda layer: layer(safe_term))
     return [layer.codegen_expr(syntax.AstSetting()) for layer in separated]
 
 
