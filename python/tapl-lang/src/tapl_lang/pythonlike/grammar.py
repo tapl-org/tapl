@@ -5,7 +5,7 @@
 from dataclasses import dataclass
 from typing import cast
 
-from tapl_lang.core import parser, syntax
+from tapl_lang.core import aux_terms, parser, syntax
 from tapl_lang.core.parser import Cursor
 from tapl_lang.pythonlike import expr, stmt
 from tapl_lang.pythonlike import rule_names as rn
@@ -678,7 +678,7 @@ def _expect_punct(c: Cursor, *puncts: str) -> syntax.Term:
     if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, _TokenPunct) and term.value in puncts:
         return term
     puncts_text = ', '.join(f'"{p}"' for p in puncts)
-    return t.captured_error or syntax.ErrorTerm(
+    return t.captured_error or aux_terms.ErrorTerm(
         message=f'Expected {puncts_text}, but found {term}', location=t.location
     )
 
@@ -699,7 +699,7 @@ def _scan_arguments(c: Cursor) -> syntax.Term:
         while t.validate(_consume_punct(k, ',')) and t.validate(arg := _expect_rule(k, rn.EXPRESSION)):
             c.copy_from(k)
             args.append(arg)
-    return t.captured_error or syntax.Block(terms=args)
+    return t.captured_error or aux_terms.Block(terms=args)
 
 
 def _parse_primary__attribute(c: Cursor) -> syntax.Term:
@@ -721,7 +721,7 @@ def _parse_primary__call(c: Cursor) -> syntax.Term:
         and t.validate(args := _scan_arguments(c))
         and t.validate(_expect_punct(c, ')'))
     ):
-        return expr.Call(t.location, func, cast(syntax.Block, args).terms, keywords=[])
+        return expr.Call(t.location, func, cast(aux_terms.Block, args).terms, keywords=[])
     return t.fail()
 
 
@@ -907,7 +907,7 @@ def _rule_parameter_with_type(c: Cursor) -> syntax.Term:
         and t.validate(param_type := _expect_rule(c, rn.EXPRESSION))
     ):
         param_name = cast(_TokenName, name).value
-        return stmt.Parameter(t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), param_type]))
+        return stmt.Parameter(t.location, name=param_name, type_=aux_terms.Layers([stmt.Absence(), param_type]))
     return t.fail()
 
 
@@ -915,7 +915,7 @@ def _rule_parameter_no_type(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(name := _consume_name(c)):
         param_name = cast(_TokenName, name).value
-        return stmt.Parameter(t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), stmt.Absence()]))
+        return stmt.Parameter(t.location, name=param_name, type_=aux_terms.Layers([stmt.Absence(), stmt.Absence()]))
     return t.fail()
 
 
@@ -928,7 +928,7 @@ def _scan_parameters(c: Cursor) -> syntax.Term:
         while t.validate(_consume_punct(k, ',')) and t.validate(param := _expect_rule(k, 'parameter')):
             c.copy_from(k)
             params.append(param)
-    return t.captured_error or syntax.Block(terms=params)
+    return t.captured_error or aux_terms.Block(terms=params)
 
 
 def _parse_function_def(c: Cursor) -> syntax.Term:
@@ -945,8 +945,8 @@ def _parse_function_def(c: Cursor) -> syntax.Term:
         return stmt.FunctionDef(
             location=t.location,
             name=name,
-            parameters=cast(syntax.Block, params).terms,
-            body=syntax.Block([], delayed=True),
+            parameters=cast(aux_terms.Block, params).terms,
+            body=aux_terms.Block([], delayed=True),
         )
     return t.fail()
 
@@ -958,14 +958,14 @@ def _parse_if_stmt(c: Cursor) -> syntax.Term:
         and t.validate(test := _expect_rule(c, rn.EXPRESSION))
         and t.validate(_expect_punct(c, ':'))
     ):
-        return stmt.If(location=t.location, test=test, body=syntax.Block([], delayed=True), orelse=None)
+        return stmt.If(location=t.location, test=test, body=aux_terms.Block([], delayed=True), orelse=None)
     return t.fail()
 
 
 def _parse_else_stmt(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'else')) and t.validate(_expect_punct(c, ':')):
-        return stmt.Else(location=t.location, body=syntax.Block([], delayed=True))
+        return stmt.Else(location=t.location, body=aux_terms.Block([], delayed=True))
     return t.fail()
 
 
@@ -984,7 +984,7 @@ def _parse_class_def(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, ':'))
     ):
         name = cast(_TokenName, class_name).value
-        return stmt.ClassDef(location=t.location, name=name, bases=[], body=syntax.Block([], delayed=True))
+        return stmt.ClassDef(location=t.location, name=name, bases=[], body=aux_terms.Block([], delayed=True))
     return t.fail()
 
 

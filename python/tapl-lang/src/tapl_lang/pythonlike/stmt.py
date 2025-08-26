@@ -7,7 +7,7 @@ from collections.abc import Generator
 from dataclasses import dataclass
 from typing import cast, override
 
-from tapl_lang.core import syntax, tapl_error
+from tapl_lang.core import aux_terms, syntax, tapl_error
 
 
 def ast_name(name: str, ctx: ast.expr_context | None = None) -> ast.expr:
@@ -418,7 +418,7 @@ class If(syntax.Term):
 
 
 @dataclass
-class Else(syntax.DependentTerm):
+class Else(aux_terms.DependentTerm):
     location: syntax.Location
     body: syntax.Term
 
@@ -427,7 +427,7 @@ class Else(syntax.DependentTerm):
         yield self.body
 
     @override
-    def merge_into(self, block: syntax.Block) -> None:
+    def merge_into(self, block: aux_terms.Block) -> None:
         term = block.terms[-1]
         if isinstance(term, syntax.ErrorTerm):
             return
@@ -494,7 +494,7 @@ class ClassDef(syntax.Term):
         return [stmt]
 
     def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if not isinstance(self.body, syntax.Block):
+        if not isinstance(self.body, aux_terms.Block):
             raise tapl_error.TaplError('Class body must be a Block for type-checking.')
         class_name = self.name
         instance_name = f'{class_name}_'

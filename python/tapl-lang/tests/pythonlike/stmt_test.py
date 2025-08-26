@@ -5,7 +5,7 @@
 
 import ast
 
-from tapl_lang.core import scope, syntax
+from tapl_lang.core import aux_terms, scope, syntax
 from tapl_lang.core.chunker import chunk_text
 from tapl_lang.core.parser import parse_text
 from tapl_lang.pythonlike import grammar, predef1, stmt
@@ -15,7 +15,7 @@ from tapl_lang.pythonlike.language import PythonlikeLanguage
 def check_parsed_term(parsed: syntax.Term) -> None:
     if parsed is None:
         raise RuntimeError('Parser returns None.')
-    error_bucket: list[syntax.ErrorTerm] = syntax.gather_errors(parsed)
+    error_bucket: list[syntax.ErrorTerm] = aux_terms.gather_errors(parsed)
     if error_bucket:
         messages = [e.message for e in error_bucket]
         raise SyntaxError('\n\n'.join(messages))
@@ -23,11 +23,11 @@ def check_parsed_term(parsed: syntax.Term) -> None:
 
 def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
     parsed = parse_text(text, grammar.get_grammar(), debug=debug)
-    delayed_block = syntax.find_delayed_block(parsed)
+    delayed_block = aux_terms.find_delayed_block(parsed)
     if delayed_block is not None:
         delayed_block.delayed = False
     check_parsed_term(parsed)
-    safe_term = syntax.make_safe_term(parsed)
+    safe_term = aux_terms.make_safe_term(parsed)
     layers = syntax.LayerSeparator(2).separate(safe_term)
     return [s for layer in layers for s in layer.codegen_stmt(syntax.AstSetting())]
 
@@ -42,12 +42,12 @@ def run_stmt(stmts: list[ast.stmt]):
 def parse_module(text: str) -> list[ast.AST]:
     chunks = chunk_text(text.strip())
     language = PythonlikeLanguage()
-    body = syntax.Block([], delayed=True)
+    body = aux_terms.Block([], delayed=True)
     module = stmt.Module(body=body)
     language.parse_chunks(chunks, [module])
     check_parsed_term(module)
     ls = syntax.LayerSeparator(2)
-    safe_module = syntax.make_safe_term(module)
+    safe_module = aux_terms.make_safe_term(module)
     layers = ls.separate(safe_module)
     return [layer.codegen_ast(syntax.AstSetting()) for layer in layers]
 

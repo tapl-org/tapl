@@ -4,7 +4,7 @@
 
 from typing import override
 
-from tapl_lang.core import parser, syntax
+from tapl_lang.core import aux_terms, parser, syntax
 from tapl_lang.core.language import Language
 from tapl_lang.pythonlike import expr, stmt
 from tapl_lang.pythonlike import grammar as pythonlike_grammar
@@ -46,14 +46,14 @@ class PythonlikeLanguage(Language):
                 keywords=[],
             ),
         )
-        return syntax.Block(
+        return aux_terms.Block(
             [
                 stmt.ImportFrom(
                     location, 'tapl_lang.pythonlike', [stmt.Alias(name='predef1', asname='predef')], IMPORT_LEVEL
                 ),
                 stmt.ImportFrom(location, 'tapl_lang.core', [stmt.Alias(name='api', asname='api__tapl')], IMPORT_LEVEL),
-                syntax.AstSettingTerm(
-                    ast_setting_changer=syntax.AstSettingChanger(
+                aux_terms.AstSettingTerm(
+                    ast_setting_changer=aux_terms.AstSettingChanger(
                         lambda setting: setting.clone(scope_mode=syntax.ScopeMode.NATIVE)
                     ),
                     term=scope0,
@@ -62,9 +62,9 @@ class PythonlikeLanguage(Language):
         )
 
     @override
-    def get_predef_layers(self) -> syntax.Layers:
+    def get_predef_layers(self) -> aux_terms.Layers:
         layers: list[syntax.Term] = [
             self.create_header_for_evaluate_layer(),
             self.create_header_for_typecheck_layer(),
         ]
-        return syntax.Layers(layers)
+        return aux_terms.Layers(layers)
