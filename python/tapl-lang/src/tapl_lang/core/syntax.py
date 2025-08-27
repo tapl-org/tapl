@@ -56,6 +56,17 @@ class Term:
         return f'{self.__class__.__name__}()'
 
 
+class SiblingTerm(Term):
+    """Represents a term that is a sibling to other terms.
+    Example: An else statement must be integrated into the preceding sibling if statement.
+    """
+
+    def integrate_into(self, parent_body: list[Term]) -> None:
+        """Integrates this term into the specified parent body."""
+        del parent_body
+        raise tapl_error.TaplError(f'{self.__class__.__name__}.integrate_into is not implemented.')
+
+
 class LayerSeparator:
     def __init__(self, layer_count: int) -> None:
         if layer_count <= 1:

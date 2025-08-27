@@ -5,7 +5,7 @@
 
 from abc import ABC, abstractmethod
 
-from tapl_lang.core import aux_terms, chunker, parser, syntax, tapl_error
+from tapl_lang.core import chunker, parser, syntax, tapl_error
 
 
 class Language(ABC):
@@ -18,8 +18,8 @@ class Language(ABC):
             )
         for chunk in chunks:
             term = self.parse_chunk(chunk, parent_stack)
-            if isinstance(term, aux_terms.DependentTerm):
-                term.merge_into(body)
+            if isinstance(term, syntax.SiblingTerm):
+                term.integrate_into(body)
             else:
                 body.append(term)
 

@@ -7,7 +7,7 @@ from collections.abc import Generator
 from dataclasses import dataclass
 from typing import cast, override
 
-from tapl_lang.core import aux_terms, syntax, tapl_error
+from tapl_lang.core import syntax, tapl_error
 
 
 def ast_name(name: str, ctx: ast.expr_context | None = None) -> ast.expr:
@@ -427,7 +427,7 @@ class If(syntax.Term):
 
 
 @dataclass
-class Else(aux_terms.DependentTerm):
+class Else(syntax.SiblingTerm):
     location: syntax.Location
     body: list[syntax.Term]
 
@@ -440,12 +440,12 @@ class Else(aux_terms.DependentTerm):
         return self.body
 
     @override
-    def merge_into(self, parent_body: list[syntax.Term]) -> None:
+    def integrate_into(self, parent_body: list[syntax.Term]) -> None:
         term = parent_body[-1]
         if isinstance(term, syntax.ErrorTerm):
             return
         if not isinstance(term, If):
-            error = syntax.ErrorTerm('Else can only be merged into If.' + repr(term), location=self.location)
+            error = syntax.ErrorTerm('Else can only be integrated into If.' + repr(term), location=self.location)
             parent_body.append(error)
         elif term.orelse:
             error = syntax.ErrorTerm('An If statement can only have one Else clause.', location=self.location)

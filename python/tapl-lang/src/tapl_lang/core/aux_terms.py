@@ -15,15 +15,6 @@ if TYPE_CHECKING:
 from tapl_lang.core import syntax, tapl_error
 
 
-# Used when a term depends on a Block to be merged into it.
-# For example: # An else statement must be merged into the preceding sibling if statement.
-class DependentTerm(syntax.Term):
-    def merge_into(self, parent_body: list[syntax.Term]) -> None:
-        """Merges this term into the terms of specified parent block."""
-        del parent_body
-        raise tapl_error.TaplError(f'{self.__class__.__name__}.merge_into is not implemented.')
-
-
 @dataclass
 class Statements(syntax.Term):
     terms: list[syntax.Term]
