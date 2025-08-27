@@ -8,7 +8,7 @@ import ast
 from tapl_lang.core import attribute, scope, syntax
 from tapl_lang.core.chunker import chunk_text
 from tapl_lang.core.parser import parse_text
-from tapl_lang.lib import aux_terms
+from tapl_lang.lib import terms
 from tapl_lang.pythonlike import grammar, predef1, stmt
 from tapl_lang.pythonlike.language import PythonlikeLanguage
 
@@ -16,7 +16,7 @@ from tapl_lang.pythonlike.language import PythonlikeLanguage
 def check_parsed_term(parsed: syntax.Term) -> None:
     if parsed is None:
         raise RuntimeError('Parser returns None.')
-    error_bucket: list[syntax.ErrorTerm] = aux_terms.gather_errors(parsed)
+    error_bucket: list[syntax.ErrorTerm] = terms.gather_errors(parsed)
     if error_bucket:
         messages = [e.message for e in error_bucket]
         raise SyntaxError('\n\n'.join(messages))
@@ -25,7 +25,7 @@ def check_parsed_term(parsed: syntax.Term) -> None:
 def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
     parsed = parse_text(text, grammar.get_grammar(), debug=debug)
     check_parsed_term(parsed)
-    safe_term = aux_terms.make_safe_term(parsed)
+    safe_term = terms.make_safe_term(parsed)
     layers = syntax.LayerSeparator(2).build(lambda layer: layer(safe_term))
     return [s for layer in layers for s in layer.codegen_stmt(syntax.AstSetting())]
 
@@ -44,7 +44,7 @@ def parse_module(text: str) -> list[ast.AST]:
     language.parse_chunks(chunks, [module])
     check_parsed_term(module)
     ls = syntax.LayerSeparator(2)
-    safe_module = aux_terms.make_safe_term(module)
+    safe_module = terms.make_safe_term(module)
     layers = ls.build(lambda layer: layer(safe_module))
     return [layer.codegen_ast(syntax.AstSetting()) for layer in layers]
 

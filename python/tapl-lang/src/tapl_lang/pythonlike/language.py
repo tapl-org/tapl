@@ -6,7 +6,7 @@ from typing import override
 
 from tapl_lang.core import parser, syntax
 from tapl_lang.core.language import Language
-from tapl_lang.lib import aux_terms
+from tapl_lang.lib import terms
 from tapl_lang.pythonlike import expr, stmt
 from tapl_lang.pythonlike import grammar as pythonlike_grammar
 
@@ -47,14 +47,14 @@ class PythonlikeLanguage(Language):
                 keywords=[],
             ),
         )
-        return aux_terms.Statements(
+        return terms.Statements(
             [
                 stmt.ImportFrom(
                     location, 'tapl_lang.pythonlike', [stmt.Alias(name='predef1', asname='predef')], IMPORT_LEVEL
                 ),
                 stmt.ImportFrom(location, 'tapl_lang.core', [stmt.Alias(name='api', asname='api__tapl')], IMPORT_LEVEL),
-                aux_terms.AstSettingTerm(
-                    ast_setting_changer=aux_terms.AstSettingChanger(
+                terms.AstSettingTerm(
+                    ast_setting_changer=terms.AstSettingChanger(
                         lambda setting: setting.clone(scope_mode=syntax.ScopeMode.NATIVE)
                     ),
                     term=scope0,

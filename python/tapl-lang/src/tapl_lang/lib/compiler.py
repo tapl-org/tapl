@@ -6,7 +6,7 @@ import ast
 import re
 
 from tapl_lang.core import chunker, syntax, tapl_error
-from tapl_lang.lib import aux_terms
+from tapl_lang.lib import terms
 from tapl_lang.pythonlike import language as python_language
 from tapl_lang.pythonlike import stmt
 
@@ -33,14 +33,14 @@ def compile_tapl(text: str) -> list[ast.AST]:
         raise tapl_error.TaplError('Only pythonlike language is supported now.')
     language = python_language.PythonlikeLanguage()
     predef_headers = language.get_predef_headers()
-    predef_layers = aux_terms.Layers(predef_headers)
+    predef_layers = terms.Layers(predef_headers)
     module = stmt.Module(body=[predef_layers])
     language.parse_chunks(chunks[1:], [module])
-    error_bucket: list[syntax.ErrorTerm] = aux_terms.gather_errors(module)
+    error_bucket: list[syntax.ErrorTerm] = terms.gather_errors(module)
     if error_bucket:
         messages = [repr(e) for e in error_bucket]
         raise tapl_error.TaplError(f'{len(error_bucket)} errors found:\n\n' + '\n\n'.join(messages))
-    safe_module = aux_terms.make_safe_term(module)
+    safe_module = terms.make_safe_term(module)
     ls = syntax.LayerSeparator(len(predef_layers.layers))
     layers = ls.build(lambda layer: layer(safe_module))
     return [layer.codegen_ast(syntax.AstSetting()) for layer in layers]

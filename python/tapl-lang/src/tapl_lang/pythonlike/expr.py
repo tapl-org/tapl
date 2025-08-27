@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, override
 
 from tapl_lang.core import syntax, tapl_error
-from tapl_lang.lib import aux_terms
+from tapl_lang.lib import terms
 
 # Unary 'not' has a dedicated 'BoolNot' term for logical negation
 UNARY_OP_MAP: dict[str, ast.unaryop] = {'+': ast.UAdd(), '-': ast.USub(), '~': ast.Invert()}
@@ -119,7 +119,7 @@ class Literal(syntax.Term):
         yield from ()
 
     def typeit(self, ls: syntax.LayerSeparator, value: Any, type_id: str) -> list[syntax.Term]:
-        if ls.layer_count != aux_terms.SAFE_LAYER_COUNT:
+        if ls.layer_count != terms.SAFE_LAYER_COUNT:
             raise ValueError('NoneLiteral must be separated in 2 layers')
         return [
             Constant(location=self.location, value=value),
