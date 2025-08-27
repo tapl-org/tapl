@@ -105,7 +105,7 @@ def hello():
         ast.unparse(stmt2)
         == """
 def hello():
-    s1 = api__tapl.create_scope(s0)
+    s1 = api__tapl.create_scope(parent__tapl=s0)
     api__tapl.add_return_type(s1, s1.Int)
     return api__tapl.get_return_type(s1)
 s0.hello = predef.FunctionType([], hello())
@@ -129,7 +129,7 @@ def area(radius):
         ast.unparse(stmt2)
         == """
 def area(radius):
-    s1 = api__tapl.create_scope(s0, radius=radius)
+    s1 = api__tapl.create_scope(parent__tapl=s0, radius=radius)
     api__tapl.add_return_type(s1, s1.Float * s1.radius * s1.radius)
     return api__tapl.get_return_type(s1)
 s0.area = predef.FunctionType([s0.Int], area(s0.Int))
@@ -190,7 +190,7 @@ class Circle:
 class Circle:
 
     def __init__(self, radius):
-        s1 = api__tapl.create_scope(s0, self=self, radius=radius)
+        s1 = api__tapl.create_scope(parent__tapl=s0, self=self, radius=radius)
         s1.self.radius = s1.radius
         return api__tapl.get_return_type(s1)
 s0.Circle = api__tapl.create_scope(label__tapl='Circle')

@@ -201,8 +201,9 @@ class FunctionDef(syntax.Term):
             targets=[ast.Name(id=body_setting.scope_name, ctx=ast.Store())],
             value=ast.Call(
                 func=ast_attribute(['api__tapl', 'create_scope']),
-                args=[ast_name(setting.scope_name)],
-                keywords=[
+                args=[],
+                keywords=[ast.keyword(arg='parent__tapl', value=ast_name(setting.scope_name))]
+                + [
                     ast.keyword(
                         arg=cast(Parameter, p).name,
                         value=ast_name(cast(Parameter, p).name),

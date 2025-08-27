@@ -3,20 +3,20 @@ from tapl_lang.pythonlike import predef1 as predef
 s0 = api__tapl.ScopeProxy(predef.predef_scope)
 
 def int_print(a):
-    s1 = api__tapl.create_scope(s0, a=a)
+    s1 = api__tapl.create_scope(parent__tapl=s0, a=a)
     s1.print__tapl(s1.a)
     return api__tapl.get_return_type(s1)
 s0.int_print = predef.FunctionType([s0.Int], int_print(s0.Int))
 s0.int_print(s0.Int)
 
 def zero():
-    s1 = api__tapl.create_scope(s0)
+    s1 = api__tapl.create_scope(parent__tapl=s0)
     api__tapl.add_return_type(s1, s1.Int)
     return api__tapl.get_return_type(s1)
 s0.zero = predef.FunctionType([], zero())
 
 def increment(a):
-    s1 = api__tapl.create_scope(s0, a=a)
+    s1 = api__tapl.create_scope(parent__tapl=s0, a=a)
     api__tapl.add_return_type(s1, s1.a + s1.Int)
     return api__tapl.get_return_type(s1)
 s0.increment = predef.FunctionType([s0.Int], increment(s0.Int))
