@@ -52,7 +52,7 @@ class PythonlikeLanguage(Language):
                 stmt.ImportFrom(
                     location, 'tapl_lang.pythonlike', [stmt.Alias(name='predef1', asname='predef')], IMPORT_LEVEL
                 ),
-                stmt.ImportFrom(location, 'tapl_lang.core', [stmt.Alias(name='api', asname='api__tapl')], IMPORT_LEVEL),
+                stmt.ImportFrom(location, 'tapl_lang.lib', [stmt.Alias(name='api', asname='api__tapl')], IMPORT_LEVEL),
                 terms.AstSettingTerm(
                     ast_setting_changer=terms.AstSettingChanger(
                         lambda setting: setting.clone(scope_mode=syntax.ScopeMode.NATIVE)
