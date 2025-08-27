@@ -61,9 +61,9 @@ class SiblingTerm(Term):
     Example: An else statement must be integrated into the preceding sibling if statement.
     """
 
-    def integrate_into(self, parent_body: list[Term]) -> None:
-        """Integrates this term into the specified parent body."""
-        del parent_body
+    def integrate_into(self, previous_siblings: list[Term]) -> None:
+        """Integrates this term into the given previous siblings."""
+        del previous_siblings
         raise tapl_error.TaplError(f'{self.__class__.__name__}.integrate_into is not implemented.')
 
 

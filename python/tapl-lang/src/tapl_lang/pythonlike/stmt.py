@@ -440,16 +440,16 @@ class Else(syntax.SiblingTerm):
         return self.body
 
     @override
-    def integrate_into(self, parent_body: list[syntax.Term]) -> None:
-        term = parent_body[-1]
+    def integrate_into(self, previous_siblings: list[syntax.Term]) -> None:
+        term = previous_siblings[-1]
         if isinstance(term, syntax.ErrorTerm):
             return
         if not isinstance(term, If):
             error = syntax.ErrorTerm('Else can only be integrated into If.' + repr(term), location=self.location)
-            parent_body.append(error)
+            previous_siblings.append(error)
         elif term.orelse:
             error = syntax.ErrorTerm('An If statement can only have one Else clause.', location=self.location)
-            parent_body.append(error)
+            previous_siblings.append(error)
         else:
             term.orelse = self.body
 
