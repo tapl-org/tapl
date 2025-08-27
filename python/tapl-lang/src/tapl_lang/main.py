@@ -5,20 +5,9 @@
 import ast
 import logging
 
-from tapl_lang.core import typelib
-
 # ruff: noqa: T201
 
 logging.basicConfig(level=logging.INFO)
-
-
-@typelib.function_type(typelib.Int_)
-def inc(a):
-    return a + typelib.Int_
-
-
-print(inc)
-print(inc(typelib.Int_))
 
 
 parsed_code = ast.parse(

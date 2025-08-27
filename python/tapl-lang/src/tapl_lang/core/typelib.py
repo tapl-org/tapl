@@ -113,10 +113,3 @@ class FunctionType:
         if self.parameters != args:
             raise TypeError(f'Not equal: parameters={self.parameters} arguments={args}')
         return self.result
-
-
-def function_type(*param_types):
-    def decorator(func):
-        return FunctionType(list(param_types), func(*param_types))
-
-    return decorator

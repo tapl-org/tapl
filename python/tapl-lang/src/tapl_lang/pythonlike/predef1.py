@@ -11,7 +11,6 @@ Str = typelib.Str_
 Union = typelib.Union
 create_union = typelib.create_union
 FunctionType = typelib.FunctionType
-function_type = typelib.function_type
 
 
 predef_scope = scope.Scope(label='predef_scope')
@@ -25,7 +24,6 @@ predef_scope.store_many(
         'Union': typelib.Union,
         'create_union': typelib.create_union,
         'FunctionType': typelib.FunctionType,
-        'function_type': typelib.function_type,
         'print__tapl': print,
         # 'print': typelib.FunctionType(lock: A)
     }
