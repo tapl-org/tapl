@@ -4,8 +4,9 @@
 
 from typing import override
 
-from tapl_lang.core import aux_terms, parser, syntax
+from tapl_lang.core import parser, syntax
 from tapl_lang.core.language import Language
+from tapl_lang.lib import aux_terms
 from tapl_lang.pythonlike import expr, stmt
 from tapl_lang.pythonlike import grammar as pythonlike_grammar
 

@@ -5,7 +5,8 @@
 import ast
 import re
 
-from tapl_lang.core import aux_terms, chunker, syntax, tapl_error
+from tapl_lang.core import chunker, syntax, tapl_error
+from tapl_lang.lib import aux_terms
 from tapl_lang.pythonlike import language as python_language
 from tapl_lang.pythonlike import stmt
 

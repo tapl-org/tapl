@@ -5,8 +5,9 @@
 
 import ast
 
-from tapl_lang.core import attribute, aux_terms, scope, syntax
+from tapl_lang.core import attribute, scope, syntax
 from tapl_lang.core.parser import Grammar, parse_text
+from tapl_lang.lib import aux_terms
 from tapl_lang.pythonlike import expr, grammar, predef, predef1, rule_names
 
 

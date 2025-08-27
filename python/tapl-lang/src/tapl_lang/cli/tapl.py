@@ -7,7 +7,7 @@ import ast
 import os
 import pathlib
 
-from tapl_lang.core.compiler import compile_tapl
+from tapl_lang.lib.compiler import compile_tapl
 
 # If you want to install it in editable mode for development,
 # you can use the following command:

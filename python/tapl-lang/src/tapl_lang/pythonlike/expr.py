@@ -7,7 +7,8 @@ from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any, override
 
-from tapl_lang.core import aux_terms, syntax, tapl_error
+from tapl_lang.core import syntax, tapl_error
+from tapl_lang.lib import aux_terms
 
 # Unary 'not' has a dedicated 'BoolNot' term for logical negation
 UNARY_OP_MAP: dict[str, ast.unaryop] = {'+': ast.UAdd(), '-': ast.USub(), '~': ast.Invert()}
