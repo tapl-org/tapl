@@ -46,7 +46,7 @@ class PythonlikeLanguage(Language):
                 keywords=[],
             ),
         )
-        return aux_terms.Block(
+        return aux_terms.Statements(
             [
                 stmt.ImportFrom(
                     location, 'tapl_lang.pythonlike', [stmt.Alias(name='predef1', asname='predef')], IMPORT_LEVEL

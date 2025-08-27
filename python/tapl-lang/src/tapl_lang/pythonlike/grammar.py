@@ -455,6 +455,14 @@ class _TokenEndOfText(syntax.Term):
         return f'TokenEndOfText({self.location})'
 
 
+@dataclass
+class BlockTerm(syntax.Term):
+    terms: list[syntax.Term]
+
+    def repr__tapl(self) -> str:
+        return 'BlockTerm'
+
+
 # https://github.com/python/cpython/blob/main/Parser/token.c
 _PUNCT_SET = {
     '!',
@@ -699,7 +707,7 @@ def _scan_arguments(c: Cursor) -> syntax.Term:
         while t.validate(_consume_punct(k, ',')) and t.validate(arg := _expect_rule(k, rn.EXPRESSION)):
             c.copy_from(k)
             args.append(arg)
-    return t.captured_error or aux_terms.Block(terms=args)
+    return t.captured_error or BlockTerm(terms=args)
 
 
 def _parse_primary__attribute(c: Cursor) -> syntax.Term:
@@ -721,7 +729,7 @@ def _parse_primary__call(c: Cursor) -> syntax.Term:
         and t.validate(args := _scan_arguments(c))
         and t.validate(_expect_punct(c, ')'))
     ):
-        return expr.Call(t.location, func, cast(aux_terms.Block, args).terms, keywords=[])
+        return expr.Call(t.location, func, cast(BlockTerm, args).terms, keywords=[])
     return t.fail()
 
 
@@ -928,7 +936,7 @@ def _scan_parameters(c: Cursor) -> syntax.Term:
         while t.validate(_consume_punct(k, ',')) and t.validate(param := _expect_rule(k, 'parameter')):
             c.copy_from(k)
             params.append(param)
-    return t.captured_error or aux_terms.Block(terms=params)
+    return t.captured_error or BlockTerm(terms=params)
 
 
 def _parse_function_def(c: Cursor) -> syntax.Term:
@@ -945,8 +953,8 @@ def _parse_function_def(c: Cursor) -> syntax.Term:
         return stmt.FunctionDef(
             location=t.location,
             name=name,
-            parameters=cast(aux_terms.Block, params).terms,
-            body=aux_terms.Block([], delayed=True),
+            parameters=cast(BlockTerm, params).terms,
+            body=[],  # Body to be filled later
         )
     return t.fail()
 
@@ -958,14 +966,14 @@ def _parse_if_stmt(c: Cursor) -> syntax.Term:
         and t.validate(test := _expect_rule(c, rn.EXPRESSION))
         and t.validate(_expect_punct(c, ':'))
     ):
-        return stmt.If(location=t.location, test=test, body=aux_terms.Block([], delayed=True), orelse=None)
+        return stmt.If(location=t.location, test=test, body=[], orelse=[])  # Body to be filled later
     return t.fail()
 
 
 def _parse_else_stmt(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'else')) and t.validate(_expect_punct(c, ':')):
-        return stmt.Else(location=t.location, body=aux_terms.Block([], delayed=True))
+        return stmt.Else(location=t.location, body=[])  # Body to be filled later
     return t.fail()
 
 
@@ -984,7 +992,7 @@ def _parse_class_def(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, ':'))
     ):
         name = cast(_TokenName, class_name).value
-        return stmt.ClassDef(location=t.location, name=name, bases=[], body=aux_terms.Block([], delayed=True))
+        return stmt.ClassDef(location=t.location, name=name, bases=[], body=[])  # Body to be filled later
     return t.fail()
 
 

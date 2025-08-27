@@ -23,9 +23,6 @@ def check_parsed_term(parsed: syntax.Term) -> None:
 
 def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
     parsed = parse_text(text, grammar.get_grammar(), debug=debug)
-    delayed_block = aux_terms.find_delayed_block(parsed)
-    if delayed_block is not None:
-        delayed_block.delayed = False
     check_parsed_term(parsed)
     safe_term = aux_terms.make_safe_term(parsed)
     layers = syntax.LayerSeparator(2).build(lambda layer: layer(safe_term))
@@ -42,8 +39,7 @@ def run_stmt(stmts: list[ast.stmt]):
 def parse_module(text: str) -> list[ast.AST]:
     chunks = chunk_text(text.strip())
     language = PythonlikeLanguage()
-    body = aux_terms.Block([], delayed=True)
-    module = stmt.Module(body=body)
+    module = stmt.Module(body=[])
     language.parse_chunks(chunks, [module])
     check_parsed_term(module)
     ls = syntax.LayerSeparator(2)

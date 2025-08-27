@@ -18,18 +18,15 @@ from tapl_lang.core import syntax, tapl_error
 # Used when a term depends on a Block to be merged into it.
 # For example: # An else statement must be merged into the preceding sibling if statement.
 class DependentTerm(syntax.Term):
-    def merge_into(self, parent_block: Block) -> None:
+    def merge_into(self, parent_body: list[syntax.Term]) -> None:
         """Merges this term into the terms of specified parent block."""
-        del parent_block
+        del parent_body
         raise tapl_error.TaplError(f'{self.__class__.__name__}.merge_into is not implemented.')
 
 
 @dataclass
-class Block(syntax.Term):
+class Statements(syntax.Term):
     terms: list[syntax.Term]
-    # Indicates a delayed term list, useful when its initialization depends on child chunk parsing.
-    # For example: if, elif, else, for, and while statements.
-    delayed: bool = False
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -37,30 +34,11 @@ class Block(syntax.Term):
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Block(terms=[layer(s) for s in self.terms], delayed=self.delayed))
+        return ls.build(lambda layer: Statements(terms=[layer(s) for s in self.terms]))
 
     @override
     def codegen_stmt(self, setting) -> list[ast.stmt]:
-        if self.delayed:
-            raise tapl_error.TaplError('Block is delayed and cannot be used for code generation.')
         return [s for b in self.terms for s in b.codegen_stmt(setting)]
-
-
-def find_delayed_block(term: syntax.Term) -> Block | None:
-    delayed_block: Block | None = None
-
-    def loop(t: syntax.Term) -> None:
-        nonlocal delayed_block
-        if isinstance(t, Block) and t.delayed:
-            if delayed_block is None:
-                delayed_block = t
-            else:
-                raise tapl_error.TaplError('Multiple delayed blocks found.')
-        for child in t.children():
-            loop(child)
-
-    loop(term)
-    return delayed_block
 
 
 class Layers(syntax.Term):
@@ -138,11 +116,6 @@ def gather_errors(term: syntax.Term) -> list[syntax.ErrorTerm]:
     def gather_errors_recursive(t: syntax.Term) -> None:
         if isinstance(t, syntax.ErrorTerm):
             error_bucket.append(t)
-        if isinstance(t, Block) and t.delayed:
-            error = syntax.ErrorTerm(
-                message='Block term is still delayed and not initialized yet. Expecting its body to be set.',
-            )
-            error_bucket.append(error)
         for child in t.children():
             gather_errors_recursive(child)
 
