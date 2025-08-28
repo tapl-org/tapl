@@ -6,9 +6,8 @@ from typing import override
 
 from tapl_lang.core import parser, syntax
 from tapl_lang.core.language import Language
-from tapl_lang.lib import terms
-from tapl_lang.pythonlike import expr, stmt
 from tapl_lang.pythonlike import grammar as pythonlike_grammar
+from tapl_lang.pythonlike import stmt
 
 IMPORT_LEVEL = 0
 
@@ -25,39 +24,14 @@ class PythonlikeLanguage(Language):
 
     def create_header_for_typecheck_layer(self) -> syntax.Term:
         location = syntax.Location(start=syntax.Position(line=1, column=0))
-        scope0 = stmt.Assign(
-            location,
-            [expr.Name(location=location, id='s0', ctx='store')],
-            expr.Call(
-                location,
-                func=expr.Attribute(
-                    location,
-                    expr.Name(location=location, id='api__tapl', ctx='load'),
-                    attr='Proxy',
-                    ctx='load',
-                ),
-                args=[
-                    expr.Attribute(
-                        location=location,
-                        value=expr.Name(location=location, id='predef', ctx='load'),
-                        attr='predef_scope',
-                        ctx='load',
-                    )
-                ],
-                keywords=[],
-            ),
-        )
         return syntax.Statements(
             [
                 stmt.ImportFrom(location, 'tapl_lang.lib', [stmt.Alias(name='api', asname='api__tapl')], IMPORT_LEVEL),
                 stmt.ImportFrom(
-                    location, 'tapl_lang.pythonlike', [stmt.Alias(name='predef1', asname='predef')], IMPORT_LEVEL
-                ),
-                terms.AstSettingTerm(
-                    ast_setting_changer=terms.AstSettingChanger(
-                        lambda setting: setting.clone(scope_mode=syntax.ScopeMode.NATIVE)
-                    ),
-                    term=scope0,
+                    location,
+                    'tapl_lang.pythonlike.predef1',
+                    [stmt.Alias(name='predef_proxy', asname='s0')],
+                    IMPORT_LEVEL,
                 ),
             ]
         )
