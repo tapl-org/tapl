@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-from tapl_lang.core import chunk_dumper, chunker
+from tapl_lang.core import chunker
+from tapl_lang.dev import chunk_dumper
 
 
 def check(text: str, expected: str) -> None:
