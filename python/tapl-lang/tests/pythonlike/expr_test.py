@@ -5,9 +5,9 @@
 
 import ast
 
-from tapl_lang.core import scope, syntax
+from tapl_lang.core import syntax
 from tapl_lang.core.parser import Grammar, parse_text
-from tapl_lang.lib import proxy, terms
+from tapl_lang.lib import proxy, scope, terms
 from tapl_lang.pythonlike import expr, grammar, predef, predef1, rule_names
 
 

@@ -6,7 +6,8 @@ from __future__ import annotations
 
 from typing import Any, Self
 
-from tapl_lang.core import tapl_error, typelib
+from tapl_lang.core import tapl_error
+from tapl_lang.lib import typelib
 
 
 class Slot:

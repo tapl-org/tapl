@@ -4,8 +4,7 @@
 
 from typing import Any
 
-from tapl_lang.core import scope, typelib
-from tapl_lang.lib import proxy
+from tapl_lang.lib import proxy, scope, typelib
 
 
 def get_scope_from_proxy(p: proxy.Proxy) -> scope.Scope:

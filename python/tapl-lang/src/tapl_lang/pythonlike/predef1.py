@@ -2,7 +2,7 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from tapl_lang.core import scope, typelib
+from tapl_lang.lib import scope, typelib
 
 NoneType = scope.NoneType
 Bool = typelib.Bool_

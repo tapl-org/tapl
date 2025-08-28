@@ -4,8 +4,8 @@
 
 import pytest
 
-from tapl_lang.core import scope, tapl_error
-from tapl_lang.lib import api
+from tapl_lang.core import tapl_error
+from tapl_lang.lib import api, scope
 
 
 def test_define_variable():
