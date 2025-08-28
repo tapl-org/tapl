@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Self
 
-from tapl_lang.core import attribute, tapl_error, typelib
+from tapl_lang.core import tapl_error, typelib
 
 
 class Slot:
@@ -93,42 +93,6 @@ class ScopeForker:
         forked = Scope(parent=self.parent, label=f'{self.parent}.fork{len(self.branches)}')
         self.branches.append(forked)
         return forked
-
-
-def get_scope_from_proxy(proxy: attribute.Proxy) -> Scope:
-    return attribute.get_proxy_subject(proxy)
-
-
-def create_scope(
-    parent__tapl: attribute.Proxy | None = None,
-    label__tapl: str | None = None,
-    **kwargs: Any,
-) -> attribute.Proxy:
-    parent_scope = None
-    if parent__tapl:
-        parent_scope = get_scope_from_proxy(parent__tapl)
-    current = Scope(parent=parent_scope, label=label__tapl)
-    current.store_many(kwargs)
-    return attribute.Proxy(current)
-
-
-def add_return_type(proxy: attribute.Proxy, return_type: Any) -> None:
-    get_scope_from_proxy(proxy).returns.append(return_type)
-
-
-def get_return_type(proxy: attribute.Proxy) -> Any:
-    returns = get_scope_from_proxy(proxy).returns
-    if returns:
-        return typelib.create_union(*returns)
-    return NoneType
-
-
-def scope_forker(proxy: attribute.Proxy) -> ScopeForker:
-    return ScopeForker(get_scope_from_proxy(proxy))
-
-
-def fork_scope(forker: ScopeForker) -> attribute.Proxy:
-    return attribute.Proxy(forker.new_scope())
 
 
 NoneType = Scope(label='NoneType')
