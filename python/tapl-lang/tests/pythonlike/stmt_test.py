@@ -5,10 +5,10 @@
 
 import ast
 
-from tapl_lang.core import attribute, scope, syntax
+from tapl_lang.core import scope, syntax
 from tapl_lang.core.chunker import chunk_text
 from tapl_lang.core.parser import parse_text
-from tapl_lang.lib import terms
+from tapl_lang.lib import proxy, terms
 from tapl_lang.pythonlike import grammar, predef1, stmt
 from tapl_lang.pythonlike.language import PythonlikeLanguage
 
@@ -32,7 +32,7 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
 
 def run_stmt(stmts: list[ast.stmt]):
     compiled_code = compile(ast.Module(body=stmts), filename='', mode='exec')
-    daa = attribute.Proxy(scope.Scope(parent=predef1.predef_scope))
+    daa = proxy.Proxy(scope.Scope(parent=predef1.predef_scope))
     globals_ = {'create_union': predef1.create_union, 's0': daa}
     return eval(compiled_code, globals=globals_)
 

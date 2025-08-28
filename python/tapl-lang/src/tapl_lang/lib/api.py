@@ -2,10 +2,9 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from tapl_lang.core import attribute
-from tapl_lang.lib import utils
+from tapl_lang.lib import proxy, utils
 
-Proxy = attribute.Proxy
+Proxy = proxy.Proxy
 create_scope = utils.create_scope
 add_return_type = utils.add_return_type
 get_return_type = utils.get_return_type
