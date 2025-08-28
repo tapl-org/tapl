@@ -1,6 +1,6 @@
 from tapl_lang.lib import api as api__tapl
 from tapl_lang.pythonlike import predef1 as predef
-s0 = api__tapl.ScopeProxy(predef.predef_scope)
+s0 = api__tapl.Proxy(predef.predef_scope)
 
 class SimplestClass:
     pass

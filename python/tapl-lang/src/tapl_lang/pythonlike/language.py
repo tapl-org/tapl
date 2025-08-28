@@ -33,7 +33,7 @@ class PythonlikeLanguage(Language):
                 func=expr.Attribute(
                     location,
                     expr.Name(location=location, id='api__tapl', ctx='load'),
-                    attr='ScopeProxy',
+                    attr='Proxy',
                     ctx='load',
                 ),
                 args=[
