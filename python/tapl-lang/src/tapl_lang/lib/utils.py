@@ -7,8 +7,8 @@ from typing import Any
 from tapl_lang.core import attribute, scope, typelib
 
 
-def get_scope_from_proxy(proxy: attribute.Proxy) -> scope.Scope:
-    return attribute.get_proxy_subject(proxy)
+def get_scope_from_proxy(p: attribute.Proxy) -> scope.Scope:
+    return attribute.extract_subject(p)
 
 
 def create_scope(
