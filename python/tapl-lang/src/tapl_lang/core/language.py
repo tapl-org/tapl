@@ -10,18 +10,20 @@ from tapl_lang.core import chunker, parser, syntax, tapl_error
 
 class Language(ABC):
     def parse_chunks(self, chunks: list[chunker.Chunk], parent_stack: list[syntax.Term]) -> None:
-        body: list[syntax.Term] | None = parent_stack[-1].get_body()
-        if body is None:
-            # TODO: return an ErrorTerm
+        delayed_statements: syntax.Statements | None = syntax.find_delayed_statements(parent_stack[-1])
+        if delayed_statements is None:
             raise tapl_error.TaplError(
-                f'The top of parent_stack[{parent_stack[-1].__class__.__name__}] does not have a body to hold parsed terms.'
+                f'The top of parent_stack[{parent_stack[-1].__class__.__name__}] does not have a delayed statements to hold parsed child terms.'
             )
+        body: list[syntax.Term] = []
         for chunk in chunks:
             term = self.parse_chunk(chunk, parent_stack)
             if isinstance(term, syntax.SiblingTerm):
                 term.integrate_into(body)
             else:
                 body.append(term)
+        delayed_statements.terms = body
+        delayed_statements.delayed = False
 
     def parse_chunk(self, chunk: chunker.Chunk, parent_stack: list[syntax.Term]) -> syntax.Term:
         grammar = self.get_grammar(parent_stack)

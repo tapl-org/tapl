@@ -159,16 +159,12 @@ class FunctionDef(syntax.Term):
     location: syntax.Location
     name: str
     parameters: list[syntax.Term]
-    body: list[syntax.Term]
+    body: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.parameters
-        yield from self.body
-
-    @override
-    def get_body(self) -> list[syntax.Term] | None:
-        return self.body
+        yield self.body
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -177,7 +173,7 @@ class FunctionDef(syntax.Term):
                 location=self.location,
                 name=self.name,
                 parameters=[layer(p) for p in self.parameters],
-                body=[layer(b) for b in self.body],
+                body=layer(self.body),
             )
         )
 
@@ -187,8 +183,7 @@ class FunctionDef(syntax.Term):
 
         params = [ast.arg(arg=cast(Parameter, p).name) for p in self.parameters]
         body: list[ast.stmt] = []
-        for b in self.body:
-            body.extend(b.codegen_stmt(setting))
+        body.extend(self.body.codegen_stmt(setting))
         func = ast.FunctionDef(name=self.name, args=ast.arguments(args=params), body=body, decorator_list=[])
         self.location.locate(func)
         return [func]
@@ -214,8 +209,7 @@ class FunctionDef(syntax.Term):
         )
         self.location.locate(assign)
         body.append(assign)
-        for b in self.body:
-            body.extend(b.codegen_stmt(body_setting))
+        body.extend(self.body.codegen_stmt(body_setting))
         body.append(
             ast.Return(
                 value=ast.Call(
@@ -328,18 +322,15 @@ class ImportFrom(syntax.Term):
 class If(syntax.Term):
     location: syntax.Location
     test: syntax.Term
-    body: list[syntax.Term]
-    orelse: list[syntax.Term]
+    body: syntax.Term
+    orelse: syntax.Term | None
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.test
-        yield from self.body
-        yield from self.orelse
-
-    @override
-    def get_body(self):
-        return self.body
+        yield self.body
+        if self.orelse is not None:
+            yield self.orelse
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -347,16 +338,16 @@ class If(syntax.Term):
             lambda layer: If(
                 location=self.location,
                 test=layer(self.test),
-                body=[layer(b) for b in self.body],
-                orelse=[layer(e) for e in self.orelse],
+                body=layer(self.body),
+                orelse=layer(self.orelse) if self.orelse is not None else None,
             )
         )
 
     def codegen_evaluate(self, setting: syntax.AstSetting) -> list[ast.stmt]:
         if_stmt = ast.If(
             test=self.test.codegen_expr(setting),
-            body=[s for b in self.body for s in b.codegen_stmt(setting)],
-            orelse=[s for b in self.orelse for s in b.codegen_stmt(setting)],
+            body=self.body.codegen_stmt(setting),
+            orelse=self.orelse.codegen_stmt(setting) if self.orelse is not None else [],
         )
         self.location.locate(if_stmt)
         return [if_stmt]
@@ -393,11 +384,10 @@ class If(syntax.Term):
         test_stmt = ast.Expr(self.test.codegen_expr(body_setting))
         self.location.locate(test_stmt)
         body.append(test_stmt)
-        for b in self.body:
-            body.extend(b.codegen_stmt(body_setting))
+        body.extend(self.body.codegen_stmt(body_setting))
         add_new_scope_stmt()
-        for e in self.orelse:
-            body.extend(e.codegen_stmt(body_setting))
+        if self.orelse is not None:
+            body.extend(self.orelse.codegen_stmt(body_setting))
         with_stmt = ast.With(
             items=[
                 ast.withitem(
@@ -430,15 +420,11 @@ class If(syntax.Term):
 @dataclass
 class Else(syntax.SiblingTerm):
     location: syntax.Location
-    body: list[syntax.Term]
+    body: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
-        yield from self.body
-
-    @override
-    def get_body(self) -> list[syntax.Term] | None:
-        return self.body
+        yield self.body
 
     @override
     def integrate_into(self, previous_siblings: list[syntax.Term]) -> None:
@@ -448,7 +434,7 @@ class Else(syntax.SiblingTerm):
         if not isinstance(term, If):
             error = syntax.ErrorTerm('Else can only be integrated into If.' + repr(term), location=self.location)
             previous_siblings.append(error)
-        elif term.orelse:
+        elif term.orelse is not None:
             error = syntax.ErrorTerm('An If statement can only have one Else clause.', location=self.location)
             previous_siblings.append(error)
         else:
@@ -479,16 +465,12 @@ class ClassDef(syntax.Term):
     location: syntax.Location
     name: str
     bases: list[syntax.Term]
-    body: list[syntax.Term]
+    body: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.bases
-        yield from self.body
-
-    @override
-    def get_body(self) -> list[syntax.Term] | None:
-        return self.body
+        yield self.body
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -497,7 +479,7 @@ class ClassDef(syntax.Term):
                 location=self.location,
                 name=self.name,
                 bases=[layer(b) for b in self.bases],
-                body=[layer(b) for b in self.body],
+                body=layer(self.body),
             )
         )
 
@@ -505,7 +487,7 @@ class ClassDef(syntax.Term):
         stmt = ast.ClassDef(
             name=self.name,
             bases=[b.codegen_expr(setting) for b in self.bases],
-            body=[s for b in self.body for s in b.codegen_stmt(setting)],
+            body=self.body.codegen_stmt(setting),
             decorator_list=[],
         )
         self.location.locate(stmt)
@@ -517,7 +499,7 @@ class ClassDef(syntax.Term):
         body = []
         methods: list[FunctionDef] = []
         init_method = None
-        for item in self.body:
+        for item in self.body.children():
             if isinstance(item, FunctionDef):
                 if item.name == '__init__':
                     init_method = item
@@ -615,23 +597,21 @@ class ClassDef(syntax.Term):
 
 @dataclass
 class Module(syntax.Term):
-    body: list[syntax.Term]
+    header: syntax.Term
+    body: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
-        yield from self.body
-
-    @override
-    def get_body(self) -> list[syntax.Term] | None:
-        return self.body
+        yield self.header
+        yield self.body
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Module(body=[layer(term) for term in self.body]))
+        return ls.build(lambda layer: Module(header=layer(self.header), body=layer(self.body)))
 
     @override
     def codegen_ast(self, setting: syntax.AstSetting) -> ast.AST:
         body: list[ast.stmt] = []
-        for term in self.body:
-            body.extend(term.codegen_stmt(setting))
+        body.extend(self.header.codegen_stmt(setting))
+        body.extend(self.body.codegen_stmt(setting))
         return ast.Module(body=body)

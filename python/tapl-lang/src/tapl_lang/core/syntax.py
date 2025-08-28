@@ -21,17 +21,6 @@ class Term:
         """Yields the child terms of this term for tree traversal or visitor operations."""
         raise tapl_error.TaplError(f'{self.__class__.__name__}.children is not implemented.')
 
-    def get_body(self) -> list[Term] | None:
-        """Returns the body section of this term, if it exists. Otherwise, returns None. See: If, For, or While terms"""
-        result = None
-        for child in self.children():
-            body = child.get_body()
-            if body is not None:
-                if result is not None:
-                    raise tapl_error.TaplError('Invalid structure: multiple body sections detected.')
-                result = body
-        return result
-
     def separate(self, ls: LayerSeparator) -> list[Term]:
         """Separate the term into layers based on the number of layers specified by the LayerSeparator."""
         del ls
@@ -193,3 +182,43 @@ class ErrorTerm(Term):
         if self.location:
             return f'{self.location} {self.message}'
         return self.message
+
+
+@dataclass
+class Statements(Term):
+    terms: list[Term]
+    # Indicates a delayed statements, useful when its initialization depends on child chunk parsing.
+    delayed: bool = False
+
+    @override
+    def children(self) -> Generator[Term, None, None]:
+        yield from self.terms
+
+    @override
+    def separate(self, ls: LayerSeparator) -> list[Term]:
+        if self.delayed:
+            raise tapl_error.TaplError('Delayed statements must be initialized before separation.')
+        return ls.build(lambda layer: Statements(terms=[layer(s) for s in self.terms], delayed=False))
+
+    @override
+    def codegen_stmt(self, setting: AstSetting) -> list[ast.stmt]:
+        if self.delayed:
+            raise tapl_error.TaplError('Delayed statements must be initialized before code generation.')
+        return [s for b in self.terms for s in b.codegen_stmt(setting)]
+
+
+def find_delayed_statements(term: Term) -> Statements | None:
+    delayed_statements: Statements | None = None
+
+    def loop(t: Term) -> None:
+        nonlocal delayed_statements
+        if isinstance(t, Statements) and t.delayed:
+            if delayed_statements is None:
+                delayed_statements = t
+            else:
+                raise tapl_error.TaplError('Multiple delayed statements found.')
+        for child in t.children():
+            loop(child)
+
+    loop(term)
+    return delayed_statements

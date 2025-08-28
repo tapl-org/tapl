@@ -15,23 +15,6 @@ if TYPE_CHECKING:
 from tapl_lang.core import syntax, tapl_error
 
 
-@dataclass
-class Statements(syntax.Term):
-    terms: list[syntax.Term]
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield from self.terms
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Statements(terms=[layer(s) for s in self.terms]))
-
-    @override
-    def codegen_stmt(self, setting) -> list[ast.stmt]:
-        return [s for b in self.terms for s in b.codegen_stmt(setting)]
-
-
 class Layers(syntax.Term):
     def __init__(self, layers: list[syntax.Term]) -> None:
         self.layers = layers

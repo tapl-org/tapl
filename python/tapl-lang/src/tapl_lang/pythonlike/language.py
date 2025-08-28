@@ -47,7 +47,7 @@ class PythonlikeLanguage(Language):
                 keywords=[],
             ),
         )
-        return terms.Statements(
+        return syntax.Statements(
             [
                 stmt.ImportFrom(location, 'tapl_lang.lib', [stmt.Alias(name='api', asname='api__tapl')], IMPORT_LEVEL),
                 stmt.ImportFrom(

@@ -955,7 +955,7 @@ def _parse_function_def(c: Cursor) -> syntax.Term:
             location=t.location,
             name=name,
             parameters=cast(BlockTerm, params).terms,
-            body=[],  # Body to be filled later
+            body=syntax.Statements(terms=[], delayed=True),
         )
     return t.fail()
 
@@ -967,14 +967,19 @@ def _parse_if_stmt(c: Cursor) -> syntax.Term:
         and t.validate(test := _expect_rule(c, rn.EXPRESSION))
         and t.validate(_expect_punct(c, ':'))
     ):
-        return stmt.If(location=t.location, test=test, body=[], orelse=[])  # Body to be filled later
+        return stmt.If(
+            location=t.location,
+            test=test,
+            body=syntax.Statements(terms=[], delayed=True),
+            orelse=None,
+        )
     return t.fail()
 
 
 def _parse_else_stmt(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'else')) and t.validate(_expect_punct(c, ':')):
-        return stmt.Else(location=t.location, body=[])  # Body to be filled later
+        return stmt.Else(location=t.location, body=syntax.Statements(terms=[], delayed=True))
     return t.fail()
 
 
@@ -993,7 +998,7 @@ def _parse_class_def(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, ':'))
     ):
         name = cast(_TokenName, class_name).value
-        return stmt.ClassDef(location=t.location, name=name, bases=[], body=[])  # Body to be filled later
+        return stmt.ClassDef(location=t.location, name=name, bases=[], body=syntax.Statements(terms=[], delayed=True))
     return t.fail()
 
 
