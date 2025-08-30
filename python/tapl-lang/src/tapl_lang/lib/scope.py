@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Any, Self
 
 from tapl_lang.core import tapl_error
-from tapl_lang.lib import proxy, typelib
+from tapl_lang.lib import proxy, types
 
 
 class Slot:
@@ -79,7 +79,7 @@ class ScopeForker:
                 if slot is not None:
                     values.append(slot.value)
             if len(values) == len(self.branches):
-                self.parent.store(var, typelib.create_union(*values))
+                self.parent.store(var, types.create_union(*values))
 
     def new_scope(self) -> Scope:
         forked = Scope(parent=self.parent, label=f'{self.parent}.fork{len(self.branches)}')

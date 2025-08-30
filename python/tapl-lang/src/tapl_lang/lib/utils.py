@@ -4,7 +4,7 @@
 
 from typing import Any
 
-from tapl_lang.lib import proxy, scope, typelib, types
+from tapl_lang.lib import proxy, scope, types
 
 
 def get_scope_from_proxy(p: proxy.Proxy) -> scope.Scope:
@@ -31,7 +31,7 @@ def add_return_type(proxy: proxy.Proxy, return_type: Any) -> None:
 def get_return_type(proxy: proxy.Proxy) -> Any:
     returns = get_scope_from_proxy(proxy).returns
     if returns:
-        return typelib.create_union(*returns)
+        return types.create_union(*returns)
     return types.BUILTIN_PROXY['NoneType']
 
 
