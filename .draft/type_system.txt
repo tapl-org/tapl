@@ -34,6 +34,8 @@ Type vs Set: https://cs.stackexchange.com/a/91345/163752
 This differences are more keen to math concept. In programming, if I consider them as same concept, where do I make a mistake?
 Some conversations about this - https://www.reddit.com/r/ProgrammingLanguages/comments/oqpynj/types_versus_sets_in_math_and_programming/
 
+Recursive type link - https://www3.nd.edu/~dchiang/teaching/pl/2022/mu.html
+
 class Egg:
   color: str
   weight: float
