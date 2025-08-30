@@ -20,6 +20,24 @@ def test_any_subtype_of_bool():
     assert not types.is_subtype(types.BUILTIN['Any'], types.BUILTIN['Bool'])
 
 
+def test_create_union():
+    # Empty union
+    assert str(types.create_union()) == 'Nothing'
+    # Single type
+    assert str(types.Union(types=[types.BUILTIN['Bool']])) == '[Bool]'
+    assert str(types.create_union(types.BUILTIN['Bool'])) == 'Bool'
+    # Multiple types
+    assert str(types.create_union(types.BUILTIN['Bool'], types.BUILTIN['Int'])) == 'Bool | Int'
+    # Flatten union
+    type_list = [types.BUILTIN['Bool'], types.Union(types=[types.BUILTIN['Int']])]
+    assert str(types.Union(types=type_list)) == 'Bool | [Int]'
+    assert str(types.create_union(*type_list)) == 'Bool | Int'
+    # Trim union
+    type_list = [types.BUILTIN['Bool'], types.BUILTIN['Int'], types.BUILTIN['Bool']]
+    assert str(types.Union(types=type_list)) == 'Bool | Int | Bool'
+    assert str(types.create_union(*type_list)) == 'Bool | Int'
+
+
 def test_function_parameters_invariants():
     with pytest.raises(tapl_error.TaplError, match='SyntaxError: Function parameters must be a list.'):
         types.Function(parameters=types.BUILTIN['Any'], result=types.BUILTIN['Bool'])

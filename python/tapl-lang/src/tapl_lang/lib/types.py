@@ -145,25 +145,78 @@ def is_subtype(subtype, supertype):
                 if sub_element is None or not is_subtype(sub_element.type, super_element.type):
                     return False
             else:
-                raise NotImplementedError
+                raise tapl_error.TaplError(f'Unsupported-1 subtype check for subtype={subtype} supertype={supertype}.')
         return True
-    return False
+    if isinstance(subtype, Function) and isinstance(supertype, Function):
+        return is_subtype(supertype.parameters, subtype.parameters) and is_subtype(subtype.result, supertype.result)
+    raise tapl_error.TaplError(f'Unsupported-2 subtype check for subtype={subtype} supertype={supertype}.')
 
-    raise NotImplementedError
+
+def is_equal(a, b):
+    return is_subtype(a, b) and is_subtype(b, a)
+
+
+def drop_same_types(types):
+    result = []
+    for t in types:
+        for r in result:
+            if is_equal(t, r):
+                break
+        else:
+            result.append(t)
+    return result
+
+
+def create_union(*args):
+    result = []
+    for arg in args:
+        # Union of unions are flattened
+        if isinstance(arg, Union):
+            result.extend(arg.types)
+        else:
+            result.append(arg)
+    result = drop_same_types(result)
+    # Unions of a single argument vanish
+    if len(result) == 1:
+        return next(iter(result))
+    return Union(types=result)
 
 
 BUILTIN = {
     'Any': Intersection(types=[]),
     'Nothing': Union(types=[]),
     'NoneType': Atom('None'),
-    'Bool': Intersection(types=[]),
+    'Bool': Intersection(types=[], title='Bool'),
+    'Int': Intersection(types=[], title='Int'),
+    'Float': Intersection(types=[], title='Float'),
+    'Str': Intersection(types=[], title='Str'),
 }
 
-BUILTIN['Bool'].types.extend(
-    [
-        Labeled(
-            '__lt__',
-            Function(parameters=[BUILTIN['Bool']], result=BUILTIN['Bool']),
-        ),
-    ]
+
+def process_method_types(methods):
+    types = []
+    for name, params, result in methods:
+        for i in range(len(params)):
+            if isinstance(params[i], str):
+                params[i] = BUILTIN[params[i]]
+        if isinstance(result, str):
+            result = BUILTIN[result]  # noqa: PLW2901
+        func = Function(parameters=params, result=result)
+        types.append(Labeled(name, func))
+    return types
+
+
+BUILTIN['Bool'].types.extend(process_method_types([['__lt__', ['Bool'], 'Bool']]))
+BUILTIN['Int'].types.extend(process_method_types([['__add__', ['Int'], 'Int'], ['__lt__', ['Int'], 'Bool']]))
+BUILTIN['Float'].types.extend(
+    process_method_types(
+        [
+            ['__add__', ['Float'], 'Float'],
+            ['__mul__', ['Float'], 'Float'],
+            ['__lt__', ['Float'], 'Bool'],
+            ['__gt__', ['Float'], 'Bool'],
+        ]
+    )
 )
+
+BUILTIN['Str'].types.extend(process_method_types([['isalpha', [], 'Bool']]))
