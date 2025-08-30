@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Any, Self
 
 from tapl_lang.core import tapl_error
-from tapl_lang.lib import typelib
+from tapl_lang.lib import proxy, typelib
 
 
 class Slot:
@@ -15,7 +15,7 @@ class Slot:
         self.value = value
 
 
-class Scope:
+class Scope(proxy.Subject):
     def __init__(self, parent: Scope | None = None, fields: dict[str, Any] | None = None, label: str | None = None):
         self.parent = parent
         self.fields: dict[str, Slot] = {}

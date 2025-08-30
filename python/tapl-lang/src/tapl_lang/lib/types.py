@@ -29,7 +29,7 @@ from tapl_lang.core import tapl_error
 from tapl_lang.lib import proxy
 
 
-class Atom:
+class Atom(proxy.Subject):
     def __init__(self, name):
         self.name = name
 
@@ -49,13 +49,13 @@ class Labeled:
 def check_unique_labels(types):
     seen_labels = set()
     for t in types:
-        if isinstance(t, Labeled):
+        if isinstance(proxy.extract_subject(t), Labeled):
             if t.label in seen_labels:
                 raise ValueError(f'Duplicate label found: {t.label}')
             seen_labels.add(t.label)
 
 
-class Union:
+class Union(proxy.Subject):
     def __init__(self, types, title=None):
         check_unique_labels(types)
         self.types = types
@@ -72,12 +72,18 @@ class Union:
 
     def find_label(self, label):
         for t in self.types:
-            if isinstance(t, Labeled) and t.label == label:
+            if isinstance(proxy.extract_subject(t), Labeled) and t.label == label:
                 return t
         return None
 
+    def load(self, key):
+        raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
 
-class Intersection:
+    def store(self, key):
+        raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
+
+
+class Intersection(proxy.Subject):
     def __init__(self, types, title=None):
         check_unique_labels(types)
         self.types = types
@@ -94,15 +100,21 @@ class Intersection:
 
     def find_label(self, label):
         for t in self.types:
-            if isinstance(t, Labeled) and t.label == label:
+            if isinstance(proxy.extract_subject(t), Labeled) and t.label == label:
                 return t
         return None
+
+    def load(self, key):
+        t = self.find_label(key)
+        if t is None:
+            raise AttributeError(f'In class[{self.__class__.__name__}] Attribute not found: {key}')
+        return t.type
 
 
 def process_parameters(params):
     labeled_parameter_seen = False
     for i in range(len(params)):
-        if isinstance(params[i], Labeled):
+        if isinstance(proxy.extract_subject(params[i]), Labeled):
             labeled_parameter_seen = True
         elif labeled_parameter_seen:
             raise tapl_error.TaplError('SyntaxError: positional parameter follows labeled parameter.')
@@ -124,13 +136,14 @@ class Function:
 
     def fix_labels(self, arguments):
         for i in range(len(arguments)):
-            if isinstance(arguments[i], Labeled):
+            if isinstance(proxy.extract_subject(arguments[i]), Labeled):
                 break
             arguments[i] = Labeled(self.parameters.types[i].label, arguments[i])
+        return arguments
 
     def __call__(self, *arguments):
         args = Intersection(types=self.fix_labels(list(arguments)))
-        if is_subtype(subtype=args, supertype=self.parameters):
+        if not is_subtype(subtype=args, supertype=self.parameters):
             raise TypeError(f'Not equal: parameters={self.parameters} arguments={args}')
         return self.result
 
@@ -138,6 +151,8 @@ class Function:
 def is_subtype(subtype, supertype):
     if subtype == supertype:
         return True
+    subtype = proxy.extract_subject(subtype)
+    supertype = proxy.extract_subject(supertype)
     if isinstance(subtype, Intersection) and isinstance(supertype, Intersection):
         for super_element in supertype.types:
             if isinstance(super_element, Labeled):
@@ -147,9 +162,18 @@ def is_subtype(subtype, supertype):
             else:
                 raise tapl_error.TaplError(f'Unsupported-1 subtype check for subtype={subtype} supertype={supertype}.')
         return True
+    if isinstance(subtype, Union) and isinstance(supertype, Union):
+        for sub_element in subtype.types:
+            if isinstance(sub_element, Labeled):
+                raise tapl_error.TaplError(f'Unsupported-2 subtype check for subtype={subtype} supertype={supertype}.')
+            if not any(is_subtype(sub_element, super_element) for super_element in supertype.types):
+                return False
+        return True
     if isinstance(subtype, Function) and isinstance(supertype, Function):
         return is_subtype(supertype.parameters, subtype.parameters) and is_subtype(subtype.result, supertype.result)
-    raise tapl_error.TaplError(f'Unsupported-2 subtype check for subtype={subtype} supertype={supertype}.')
+    raise tapl_error.TaplError(
+        f'Unsupported subtype check for subtype_class={type(subtype)} supertype_class={type(supertype)}.'
+    )
 
 
 def is_equal(a, b):
@@ -171,8 +195,9 @@ def create_union(*args):
     result = []
     for arg in args:
         # Union of unions are flattened
-        if isinstance(arg, Union):
-            result.extend(arg.types)
+        subject = proxy.extract_subject(arg)
+        if isinstance(subject, Union):
+            result.extend(subject.types)
         else:
             result.append(arg)
     result = drop_same_types(result)
@@ -182,72 +207,14 @@ def create_union(*args):
     return Union(types=result)
 
 
-class AtomSubject:
-    def __init__(self, atom):
-        self.atom = atom
-
-    def __repr__(self):
-        return repr(self.atom)
-
-    def load(self, key):
-        raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
-
-    def store(self, key):
-        raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
-
-
-class IntersectionSubject:
-    def __init__(self, intersection):
-        self.intersection = intersection
-
-    def __repr__(self):
-        return repr(self.intersection)
-
-    def load(self, key):
-        t = self.intersection.find_label(key)
-        if t is None:
-            raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
-        return t.type
-
-    def store(self, key):
-        raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
-
-
-class UnionSubject:
-    def __init__(self, union):
-        self.union = union
-
-    def __repr__(self):
-        return repr(self.union)
-
-    def load(self, key):
-        raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
-
-    def store(self, key):
-        raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
-
-
-def build_proxy(type_name: str):
-    if type_name not in BUILTIN:
-        raise tapl_error.TaplError(f'Type {type_name} not found in built-in types.')
-    typ = BUILTIN[type_name]
-    if isinstance(typ, Atom):
-        return proxy.Proxy(AtomSubject(typ))
-    if isinstance(typ, Intersection):
-        return proxy.Proxy(IntersectionSubject(typ))
-    if isinstance(typ, Union):
-        return proxy.Proxy(UnionSubject(typ))
-    raise tapl_error.TaplError(f'Cannot build proxy for type {type_name} of type {typ}.')
-
-
 def add_methods(type_name, methods):
     types = BUILTIN[type_name].types
     for name, params, result in methods:
         for i in range(len(params)):
             if isinstance(params[i], str):
-                params[i] = BUILTIN[params[i]]
+                params[i] = BUILTIN_PROXY[params[i]]
         if isinstance(result, str):
-            result = BUILTIN[result]  # noqa: PLW2901
+            result = BUILTIN_PROXY[result]  # noqa: PLW2901
         func = Function(parameters=params, result=result)
         types.append(Labeled(name, func))
 
@@ -261,7 +228,7 @@ BUILTIN = {
     'Float': Intersection(types=[], title='Float'),
     'Str': Intersection(types=[], title='Str'),
 }
-
+BUILTIN_PROXY = {k: proxy.Proxy(v) for k, v in BUILTIN.items()}
 
 add_methods('Bool', [['__lt__', ['Bool'], 'Bool']])
 add_methods('Int', [['__add__', ['Int'], 'Int'], ['__lt__', ['Int'], 'Bool']])
@@ -275,5 +242,3 @@ add_methods(
     ],
 )
 add_methods('Str', [['isalpha', [], 'Bool']])
-
-BUILTIN_PROXY = {k: build_proxy(k) for k in BUILTIN}

@@ -2,19 +2,14 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from tapl_lang.lib import proxy, scope, typelib, types
+from tapl_lang.lib import proxy, scope, types
 
 predef_scope = scope.Scope(label='predef_scope')
+predef_scope.store_many(types.BUILTIN_PROXY)
 predef_scope.store_many(
     {
-        'NoneType': types.BUILTIN_PROXY['NoneType'],
-        'Bool': typelib.Bool_,
-        'Int': typelib.Int_,
-        'Float': typelib.Float_,
-        'Str': typelib.Str_,
-        'Union': typelib.Union,
-        'create_union': typelib.create_union,
-        'FunctionType': typelib.FunctionType,
+        'create_union': types.create_union,
+        'FunctionType': types.Function,
         'print__tapl': print,
         # 'print': typelib.FunctionType(lock: A)
     }
