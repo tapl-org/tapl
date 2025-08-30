@@ -242,9 +242,10 @@ class BoolOp(syntax.Term):
             self.location.locate(op)
             return op
         if setting.code_typecheck:
-            create_union = ast.Name(id='create_union', ctx=ast.Load())
+            scope_name = ast.Name(id=setting.scope_name, ctx=ast.Load())
+            create_union = ast.Attribute(value=scope_name, attr='create_union', ctx=ast.Load())
             call = ast.Call(func=create_union, args=[v.codegen_expr(setting) for v in self.values])
-            self.location.locate(create_union, call)
+            self.location.locate(scope_name, create_union, call)
             return call
         raise tapl_error.UnhandledError
 

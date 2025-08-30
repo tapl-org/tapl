@@ -4,19 +4,10 @@
 
 from tapl_lang.lib import proxy, scope, typelib
 
-NoneType = scope.NoneType
-Bool = typelib.Bool_
-Int = typelib.Int_
-Str = typelib.Str_
-Union = typelib.Union
-create_union = typelib.create_union
-FunctionType = typelib.FunctionType
-
-
 predef_scope = scope.Scope(label='predef_scope')
 predef_scope.store_many(
     {
-        'NoneType': NoneType,
+        'NoneType': scope.NoneType,
         'Bool': typelib.Bool_,
         'Int': typelib.Int_,
         'Float': typelib.Float_,
@@ -30,8 +21,3 @@ predef_scope.store_many(
 )
 
 predef_proxy = proxy.Proxy(predef_scope)
-
-
-# TODO: remove once the class initialization is implemented
-def init_class(self):
-    return self
