@@ -4,7 +4,7 @@
 
 from typing import Any
 
-from tapl_lang.lib import proxy, scope, typelib
+from tapl_lang.lib import proxy, scope, typelib, types
 
 
 def get_scope_from_proxy(p: proxy.Proxy) -> scope.Scope:
@@ -32,7 +32,7 @@ def get_return_type(proxy: proxy.Proxy) -> Any:
     returns = get_scope_from_proxy(proxy).returns
     if returns:
         return typelib.create_union(*returns)
-    return scope.NoneType
+    return types.BUILTIN_PROXY['NoneType']
 
 
 def scope_forker(proxy: proxy.Proxy) -> scope.ScopeForker:

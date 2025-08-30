@@ -1,4 +1,3 @@
-# type: ignore
 # Part of the Tapl Language project, under the Apache License v2.0 with LLVM
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -27,6 +26,7 @@ The following does not use Python type hints intentionally.
 """
 
 from tapl_lang.core import tapl_error
+from tapl_lang.lib import proxy
 
 
 class Atom:
@@ -182,19 +182,66 @@ def create_union(*args):
     return Union(types=result)
 
 
-BUILTIN = {
-    'Any': Intersection(types=[]),
-    'Nothing': Union(types=[]),
-    'NoneType': Atom('None'),
-    'Bool': Intersection(types=[], title='Bool'),
-    'Int': Intersection(types=[], title='Int'),
-    'Float': Intersection(types=[], title='Float'),
-    'Str': Intersection(types=[], title='Str'),
-}
+class AtomSubject:
+    def __init__(self, atom):
+        self.atom = atom
+
+    def __repr__(self):
+        return repr(self.atom)
+
+    def load(self, key):
+        raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
+
+    def store(self, key):
+        raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
 
 
-def process_method_types(methods):
-    types = []
+class IntersectionSubject:
+    def __init__(self, intersection):
+        self.intersection = intersection
+
+    def __repr__(self):
+        return repr(self.intersection)
+
+    def load(self, key):
+        t = self.intersection.find_label(key)
+        if t is None:
+            raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
+        return t.type
+
+    def store(self, key):
+        raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
+
+
+class UnionSubject:
+    def __init__(self, union):
+        self.union = union
+
+    def __repr__(self):
+        return repr(self.union)
+
+    def load(self, key):
+        raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
+
+    def store(self, key):
+        raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
+
+
+def build_proxy(type_name: str):
+    if type_name not in BUILTIN:
+        raise tapl_error.TaplError(f'Type {type_name} not found in built-in types.')
+    typ = BUILTIN[type_name]
+    if isinstance(typ, Atom):
+        return proxy.Proxy(AtomSubject(typ))
+    if isinstance(typ, Intersection):
+        return proxy.Proxy(IntersectionSubject(typ))
+    if isinstance(typ, Union):
+        return proxy.Proxy(UnionSubject(typ))
+    raise tapl_error.TaplError(f'Cannot build proxy for type {type_name} of type {typ}.')
+
+
+def add_methods(type_name, methods):
+    types = BUILTIN[type_name].types
     for name, params, result in methods:
         for i in range(len(params)):
             if isinstance(params[i], str):
@@ -203,20 +250,30 @@ def process_method_types(methods):
             result = BUILTIN[result]  # noqa: PLW2901
         func = Function(parameters=params, result=result)
         types.append(Labeled(name, func))
-    return types
 
 
-BUILTIN['Bool'].types.extend(process_method_types([['__lt__', ['Bool'], 'Bool']]))
-BUILTIN['Int'].types.extend(process_method_types([['__add__', ['Int'], 'Int'], ['__lt__', ['Int'], 'Bool']]))
-BUILTIN['Float'].types.extend(
-    process_method_types(
-        [
-            ['__add__', ['Float'], 'Float'],
-            ['__mul__', ['Float'], 'Float'],
-            ['__lt__', ['Float'], 'Bool'],
-            ['__gt__', ['Float'], 'Bool'],
-        ]
-    )
+BUILTIN = {
+    'Any': Intersection(types=[]),
+    'Nothing': Union(types=[]),
+    'NoneType': Atom('NoneType'),
+    'Bool': Intersection(types=[], title='Bool'),
+    'Int': Intersection(types=[], title='Int'),
+    'Float': Intersection(types=[], title='Float'),
+    'Str': Intersection(types=[], title='Str'),
+}
+
+
+add_methods('Bool', [['__lt__', ['Bool'], 'Bool']])
+add_methods('Int', [['__add__', ['Int'], 'Int'], ['__lt__', ['Int'], 'Bool']])
+add_methods(
+    'Float',
+    [
+        ['__add__', ['Float'], 'Float'],
+        ['__mul__', ['Float'], 'Float'],
+        ['__lt__', ['Float'], 'Bool'],
+        ['__gt__', ['Float'], 'Bool'],
+    ],
 )
+add_methods('Str', [['isalpha', [], 'Bool']])
 
-BUILTIN['Str'].types.extend(process_method_types([['isalpha', [], 'Bool']]))
+BUILTIN_PROXY = {k: build_proxy(k) for k in BUILTIN}

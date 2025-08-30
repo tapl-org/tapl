@@ -43,5 +43,6 @@ def test_function_parameters_invariants():
         types.Function(parameters=types.BUILTIN['Any'], result=types.BUILTIN['Bool'])
     with pytest.raises(tapl_error.TaplError, match='SyntaxError: positional parameter follows labeled parameter.'):
         types.Function(
-            parameters=[types.Labeled('x', types.BUILTIN['Any']), types.BUILTIN['Any']], result=types.BUILTIN['Bool']
+            parameters=[types.Labeled('x', types.BUILTIN['Any']), types.BUILTIN['Any']],
+            result=types.BUILTIN['Bool'],
         )

@@ -60,15 +60,6 @@ class Scope:
             return f'Scope(parent={self.parent})'
         return object.__repr__(self)
 
-    def __getitem__(self, key):
-        return self.load(key)
-
-    def __setitem__(self, key, value):
-        self.store(key, value)
-
-    def __delitem__(self, key):
-        del self.fields[key]
-
 
 class ScopeForker:
     def __init__(self, scope: Scope):
@@ -94,6 +85,3 @@ class ScopeForker:
         forked = Scope(parent=self.parent, label=f'{self.parent}.fork{len(self.branches)}')
         self.branches.append(forked)
         return forked
-
-
-NoneType = Scope(label='NoneType')
