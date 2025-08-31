@@ -4,25 +4,33 @@
 
 import pytest
 
-from tapl_lang.core import tapl_error
-from tapl_lang.lib import api, scope
+from tapl_lang.lib import api, proxy
+
+
+class MySubject(proxy.Subject):
+    def __init__(self):
+        self.vars = {}
+
+    def load(self, key):
+        try:
+            return self.vars[key]
+        except KeyError:
+            super().load(key)
+
+    def store(self, key, value):
+        self.vars[key] = value
+
+    def delete(self, key):
+        del self.vars[key]
 
 
 def test_define_variable():
-    proxy = api.Proxy(scope.Scope())
-    proxy.x = 42
-    assert proxy.x == 42
+    a = proxy.Proxy(MySubject())
+    a.x = 42
+    assert a.x == 42
 
 
 def test_undefined_variable():
-    proxy = api.Proxy(scope.Scope())
-    with pytest.raises(tapl_error.TaplError):
+    proxy = api.Proxy(MySubject())
+    with pytest.raises(AttributeError):
         _ = proxy.undefined_variable
-
-
-def test_variable_from_parent_scope():
-    parent_scope = scope.Scope()
-    parent_proxy = api.Proxy(parent_scope)
-    parent_proxy.y = 'parent_value'
-    child_proxy = api.Proxy(scope.Scope(parent=parent_scope))
-    assert child_proxy.y == 'parent_value'

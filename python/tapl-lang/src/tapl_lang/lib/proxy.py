@@ -9,14 +9,14 @@ _SUBJECT_FIELD_NAME = 'subject__tapl'
 
 class Subject:
     def load(self, key: str) -> Any:
-        raise AttributeError(f'In class[{self.__class__.__name__}] Attribute not found: {key}')
+        raise AttributeError(f'{self.__class__.__name__} class has no attribute "{key}"')
 
     def store(self, key: str, value: Any) -> None:
         del value  # unused
-        raise AttributeError(f'In class[{self.__class__.__name__}] Attribute not found: {key}')
+        raise AttributeError(f'{self.__class__.__name__} class has no attribute "{key}"')
 
     def delete(self, key: str) -> None:
-        raise AttributeError(f'In class[{self.__class__.__name__}] Attribute not found: {key}')
+        raise AttributeError(f'{self.__class__.__name__} class has no attribute "{key}"')
 
 
 def extract_subject(p: 'Proxy') -> Any:
