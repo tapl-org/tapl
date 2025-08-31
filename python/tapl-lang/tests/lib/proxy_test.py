@@ -4,7 +4,7 @@
 
 import pytest
 
-from tapl_lang.lib import api, proxy
+from tapl_lang.lib import proxy
 
 
 class MySubject(proxy.Subject):
@@ -31,6 +31,9 @@ def test_define_variable():
 
 
 def test_undefined_variable():
-    proxy = api.Proxy(MySubject())
+    s = MySubject()
+    s.store('a', 100)
+    p = proxy.Proxy(s)
+    del p.a
     with pytest.raises(AttributeError):
-        _ = proxy.undefined_variable
+        _ = p.a

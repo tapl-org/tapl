@@ -67,6 +67,9 @@ class Proxy:
     def __setattr__(self__tapl, name: str, value: Any):
         object.__getattribute__(self__tapl, _SUBJECT_FIELD_NAME).store(name, value)
 
+    def __delattr__(self__tapl, name: str):
+        object.__getattribute__(self__tapl, _SUBJECT_FIELD_NAME).delete(name)
+
     def __call__(self__tapl, *args, **kwargs):
         return object.__getattribute__(self__tapl, _SUBJECT_FIELD_NAME).load('__call__')(*args, **kwargs)
 
