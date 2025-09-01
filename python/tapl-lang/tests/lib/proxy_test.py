@@ -23,6 +23,9 @@ class MySubject(proxy.Subject):
     def delete(self, key):
         del self.vars[key]
 
+    def __repr__(self):
+        return 'MySubject'
+
 
 def test_define_variable():
     a = proxy.Proxy(MySubject())
@@ -37,3 +40,22 @@ def test_undefined_variable():
     del p.a
     with pytest.raises(AttributeError):
         _ = p.a
+
+
+def test_repr():
+    p = proxy.Proxy(MySubject())
+    assert repr(p) == 'MySubject'
+
+
+def test_binop():
+    s = MySubject()
+    s.store('__add__', lambda other: f'Added {other}')
+    a = proxy.Proxy(s)
+    assert a + 3 == 'Added 3'
+
+
+def test_binop_error():
+    s = MySubject()
+    p = proxy.Proxy(s)
+    with pytest.raises(TypeError):
+        _ = p + 3

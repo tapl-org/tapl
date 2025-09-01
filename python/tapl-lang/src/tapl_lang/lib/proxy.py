@@ -42,11 +42,9 @@ OP_LABEL = {
 }
 
 
-def call_binop(op: str, self__tapl: 'Proxy', other: Any) -> Any | None:
-    left = self__tapl.subject__tapl
-    right = extract_subject(other)
+def call_binop(op: str, left: 'Proxy', right: Any) -> Any | None:
     try:
-        return left.load(op)(right)
+        return left.subject__tapl.load(op)(right)
     except Exception as e:
         label = OP_LABEL.get(op, op)
         raise TypeError(f'unsupported operand type(s) for {label}: {left} and {right}') from e
@@ -79,8 +77,8 @@ class Proxy:
     def __add__(self__tapl, other):
         return call_binop('__add__', self__tapl, other)
 
-    def __mul__(self__tapl, *args, **kwargs):
-        return call_binop('__mul__', self__tapl, *args, **kwargs)
+    def __mul__(self__tapl, other):
+        return call_binop('__mul__', self__tapl, other)
 
-    def __lt__(self__tapl, *args, **kwargs):
-        return call_binop('__lt__', self__tapl, *args, **kwargs)
+    def __lt__(self__tapl, other):
+        return call_binop('__lt__', self__tapl, other)
