@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Self
 
-from tapl_lang.lib import proxy, types
+from tapl_lang.lib import proxy, typelib
 
 
 class Slot:
@@ -26,7 +26,7 @@ class Scope(proxy.Subject):
 
     @property
     def kind(self):
-        return types.Kind.Scope
+        return typelib.Kind.Scope
 
     def can_be_used_as(self, target: proxy.Subject) -> bool:
         if self is target:
@@ -87,7 +87,7 @@ class ScopeForker:
                 if slot is not None:
                     values.append(slot.value)
             if len(values) == len(self.branches):
-                self.parent.store(var, types.create_union(*values))
+                self.parent.store(var, typelib.create_union(*values))
 
     def new_scope(self) -> Scope:
         forked = Scope(parent=self.parent, label=f'{self.parent}.fork{len(self.branches)}')

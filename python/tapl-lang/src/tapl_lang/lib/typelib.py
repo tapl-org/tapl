@@ -296,6 +296,7 @@ def is_equal(a, b):
 
 
 def drop_same_types(types):
+    # TODO: Build a directed graph, and keep only roots of the forests
     result = []
     for t in types:
         for r in result:
@@ -320,46 +321,3 @@ def create_union(*args):
     if len(result) == 1:
         return next(iter(result))
     return proxy.Proxy(Union(types=result))
-
-
-def init_record(type_name, methods):
-    """Initialize a new type with the given name and methods.
-    type_name: The name of the type.
-    methods: list[tuple[str, list[str|list[str]], str]]: A list of methods for the type, where each method is represented as a tuple
-    of (name, parameters, result). parameters are list of types which are represented as string or union of strings.
-    """
-    labels = []
-    for name, params, result in methods:
-        for i in range(len(params)):
-            if isinstance(params[i], str):
-                params[i] = BUILTIN[params[i]]
-            else:
-                params[i] = create_union(*(BUILTIN[p] for p in params[i]))
-        func = Function(parameters=params, result=BUILTIN[result])
-        labels.append(Labeled(name, proxy.Proxy(func)))
-    record = Intersection(types=[proxy.Proxy(label) for label in labels], title=type_name)
-    object.__setattr__(BUILTIN[type_name], proxy.SUBJECT_FIELD_NAME, record)
-
-
-BUILTIN = {
-    'Any': proxy.Proxy(Any()),
-    'Nothing': proxy.Proxy(Nothing()),
-    'NoneType': proxy.Proxy(NoneType()),
-    'Bool': proxy.Proxy(NoneType()),
-    'Int': proxy.Proxy(NoneType()),
-    'Float': proxy.Proxy(NoneType()),
-    'Str': proxy.Proxy(NoneType()),
-}
-
-init_record('Bool', [['__lt__', ['Bool'], 'Bool'], ['__gt__', ['Bool'], 'Bool']])
-init_record('Int', [['__add__', ['Int'], 'Int'], ['__lt__', ['Int'], 'Bool']])
-init_record(
-    'Float',
-    [
-        ['__add__', ['Float'], 'Float'],
-        ['__mul__', ['Float'], 'Float'],
-        ['__lt__', ['Float'], 'Bool'],
-        ['__gt__', ['Float'], 'Bool'],
-    ],
-)
-init_record('Str', [['isalpha', [], 'Bool'], ['isdigit', [], 'Bool']])
