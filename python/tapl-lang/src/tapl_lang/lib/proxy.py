@@ -18,11 +18,6 @@ class Subject:
     def delete(self, key: str) -> None:
         raise AttributeError(f'{self.__class__.__name__} class has no attribute "{key}"')
 
-    # TODO: remove this method
-    @property
-    def subject__tapl(self):
-        return self
-
 
 OP_LABEL = {
     '__add__': '+',

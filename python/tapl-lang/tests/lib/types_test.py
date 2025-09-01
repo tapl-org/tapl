@@ -5,7 +5,7 @@
 import pytest
 
 from tapl_lang.core import tapl_error
-from tapl_lang.lib import builtin, typelib
+from tapl_lang.lib import builtin, proxy, typelib
 
 _any = builtin.Types['Any']
 _bool = builtin.Types['Bool']
@@ -33,7 +33,7 @@ def test_create_union():
     assert union_types[0] is _bool
     assert union_types[1] is _int
     # Flatten union
-    type_list = [_bool, typelib.Union(types=[_int, _float])]
+    type_list = [_bool, proxy.Proxy(typelib.Union(types=[_int, _float]))]
     assert len(list(typelib.Union(types=type_list))) == 2
     assert len(list(typelib.create_union(*type_list).subject__tapl)) == 3
     # Trim union
@@ -47,9 +47,9 @@ def test_function_parameters_invariants():
         typelib.Function(parameters=_any, result=_bool)
     with pytest.raises(tapl_error.TaplError, match='Positional parameter follows labeled parameter.'):
         typelib.Function(
-            parameters=[typelib.Labeled('x', _any), _bool],
+            parameters=[proxy.Proxy(typelib.Labeled('x', _any)), _bool],
             result=_bool,
         )
 
 
-# Union(None | Any) should be only Any
+# TODO: Union(None | Any) should be only Any

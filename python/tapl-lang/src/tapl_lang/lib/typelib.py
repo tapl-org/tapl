@@ -239,7 +239,7 @@ class Function(proxy.Subject):
         for i in range(len(arguments)):
             if arguments[i].subject__tapl.kind == Kind.Labeled:
                 break
-            arguments[i] = Labeled(self._parameters[i].subject__tapl.label, arguments[i])
+            arguments[i] = proxy.Proxy(Labeled(self._parameters[i].subject__tapl.label, arguments[i]))
         return arguments
 
     def apply(self, *arguments):
