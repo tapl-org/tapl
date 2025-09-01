@@ -321,3 +321,8 @@ def create_union(*args):
     if len(result) == 1:
         return next(iter(result))
     return proxy.Proxy(Union(types=result))
+
+
+def create_function(parameters, result):
+    func = Function(parameters=parameters, result=result)
+    return proxy.Proxy(func)

@@ -14,8 +14,6 @@ predef_scope = scope.Scope(label='predef_scope')
 predef_scope.store_many(builtin.Types)
 predef_scope.store_many(
     {
-        # TODO: move these to types module
-        'create_union': typelib.create_union,
         'Function': create_function,
         'print__tapl': print,
         'api__tapl': api,
