@@ -18,12 +18,9 @@ class Subject:
     def delete(self, key: str) -> None:
         raise AttributeError(f'{self.__class__.__name__} class has no attribute "{key}"')
 
-
-def extract_subject(p: 'Proxy') -> Any:
-    """Retrieve the internal subject from a Proxy instance."""
-    if isinstance(p, Proxy) is False:
-        return p
-    return object.__getattribute__(p, _SUBJECT_FIELD_NAME)
+    @property
+    def subject__tapl(self):
+        return self
 
 
 OP_LABEL = {

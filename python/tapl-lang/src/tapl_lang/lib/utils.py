@@ -8,7 +8,7 @@ from tapl_lang.lib import proxy, scope, types
 
 
 def get_scope_from_proxy(p: proxy.Proxy) -> scope.Scope:
-    return proxy.extract_subject(p)
+    return p.subject__tapl
 
 
 def create_scope(

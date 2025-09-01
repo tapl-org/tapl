@@ -25,16 +25,19 @@ Labels must be unique in Intersection and Union type.
 The following does not use Python type hints intentionally.
 """
 
+import enum
+
 from tapl_lang.core import tapl_error
 from tapl_lang.lib import proxy
 
 
-class Atom(proxy.Subject):
-    def __init__(self, name):
-        self.name = name
-
-    def __repr__(self):
-        return str(self.name)
+class Kind(enum.Enum):
+    Atom = 'Atom'
+    Labeled = 'Labeled'
+    Union = 'Union'
+    Intersection = 'Intersection'
+    Function = 'Function'
+    Scope = 'Scope'
 
 
 class Labeled:
@@ -42,17 +45,16 @@ class Labeled:
         self.label = label
         self.type = typ
 
+    @property
+    def kind(self):
+        return Kind.Labeled
+
+    @property
+    def subject__tapl(self):
+        return self
+
     def __repr__(self):
         return f'{self.label}={self.type}'
-
-
-def check_unique_labels(types):
-    seen_labels = set()
-    for t in types:
-        if isinstance(proxy.extract_subject(t), Labeled):
-            if t.label in seen_labels:
-                raise ValueError(f'Duplicate label found: {t.label}')
-            seen_labels.add(t.label)
 
 
 class Union(proxy.Subject):
@@ -60,6 +62,10 @@ class Union(proxy.Subject):
         check_unique_labels(types)
         self.types = types
         self.title = title
+
+    @property
+    def kind(self):
+        return Kind.Union
 
     def __repr__(self):
         if self.title is not None:
@@ -72,7 +78,7 @@ class Union(proxy.Subject):
 
     def find_label(self, label):
         for t in self.types:
-            if isinstance(proxy.extract_subject(t), Labeled) and t.label == label:
+            if isinstance(t.subject__tapl, Labeled) and t.label == label:
                 return t
         return None
 
@@ -89,6 +95,10 @@ class Intersection(proxy.Subject):
         self.types = types
         self.title = title
 
+    @property
+    def kind(self):
+        return Kind.Intersection
+
     def __repr__(self):
         if self.title is not None:
             return self.title
@@ -100,7 +110,7 @@ class Intersection(proxy.Subject):
 
     def find_label(self, label):
         for t in self.types:
-            if isinstance(proxy.extract_subject(t), Labeled) and t.label == label:
+            if isinstance(t.subject__tapl, Labeled) and t.label == label:
                 return t
         return None
 
@@ -111,17 +121,16 @@ class Intersection(proxy.Subject):
         return t.type
 
 
-def process_parameters(params):
-    labeled_parameter_seen = False
-    for i in range(len(params)):
-        if isinstance(proxy.extract_subject(params[i]), Labeled):
-            labeled_parameter_seen = True
-        elif labeled_parameter_seen:
-            raise tapl_error.TaplError('SyntaxError: positional parameter follows labeled parameter.')
-        else:
-            params[i] = Labeled(str(i), params[i])
+class Atom(proxy.Subject):
+    def __init__(self, name):
+        self.name = name
 
-    return Intersection(types=params)
+    @property
+    def kind(self):
+        return Kind.Atom
+
+    def __repr__(self):
+        return str(self.name)
 
 
 class Function:
@@ -131,12 +140,20 @@ class Function:
         self.parameters = process_parameters(parameters[:])
         self.result = result
 
+    @property
+    def kind(self):
+        return Kind.Function
+
+    @property
+    def subject__tapl(self):
+        return self
+
     def __repr__(self):
         return f'{self.parameters}->{self.result}'
 
     def fix_labels(self, arguments):
         for i in range(len(arguments)):
-            if isinstance(proxy.extract_subject(arguments[i]), Labeled):
+            if isinstance(arguments[i].subject__tapl, Labeled):
                 break
             arguments[i] = Labeled(self.parameters.types[i].label, arguments[i])
         return arguments
@@ -148,11 +165,33 @@ class Function:
         return self.result
 
 
+def process_parameters(params):
+    labeled_parameter_seen = False
+    for i in range(len(params)):
+        if isinstance(params[i].subject__tapl, Labeled):
+            labeled_parameter_seen = True
+        elif labeled_parameter_seen:
+            raise tapl_error.TaplError('SyntaxError: positional parameter follows labeled parameter.')
+        else:
+            params[i] = Labeled(str(i), params[i])
+
+    return Intersection(types=params)
+
+
+def check_unique_labels(types):
+    seen_labels = set()
+    for t in types:
+        if isinstance(t.subject__tapl, Labeled):
+            if t.label in seen_labels:
+                raise ValueError(f'Duplicate label found: {t.label}')
+            seen_labels.add(t.label)
+
+
 def is_subtype(subtype, supertype):
     if subtype == supertype:
         return True
-    subtype = proxy.extract_subject(subtype)
-    supertype = proxy.extract_subject(supertype)
+    subtype = subtype.subject__tapl
+    supertype = supertype.subject__tapl
     if isinstance(subtype, Intersection) and isinstance(supertype, Intersection):
         for super_element in supertype.types:
             if isinstance(super_element, Labeled):
@@ -195,7 +234,7 @@ def create_union(*args):
     result = []
     for arg in args:
         # Union of unions are flattened
-        subject = proxy.extract_subject(arg)
+        subject = arg.subject__tapl
         if isinstance(subject, Union):
             result.extend(subject.types)
         else:
