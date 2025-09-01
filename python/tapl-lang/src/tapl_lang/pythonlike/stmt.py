@@ -85,9 +85,7 @@ class Return(syntax.Term):
         stmt = ast.Expr(
             value=locate(
                 ast.Call(
-                    func=locate(
-                        ast.Attribute(value=locate(ast.Name(id='api__tapl', ctx=ast.Load())), attr='add_return_type')
-                    ),
+                    func=ast_attribute([setting.scope_name, 'api__tapl', 'add_return_type']),
                     args=[locate(ast.Name(id=setting.scope_name, ctx=ast.Load())), self.value.codegen_expr(setting)],
                 )
             )
@@ -195,7 +193,7 @@ class FunctionDef(syntax.Term):
         assign = ast.Assign(
             targets=[ast.Name(id=body_setting.scope_name, ctx=ast.Store())],
             value=ast.Call(
-                func=ast_attribute(['api__tapl', 'create_scope']),
+                func=ast_attribute([setting.scope_name, 'api__tapl', 'create_scope']),
                 args=[],
                 keywords=[ast.keyword(arg='parent__tapl', value=ast_name(setting.scope_name))]
                 + [
@@ -213,7 +211,7 @@ class FunctionDef(syntax.Term):
         body.append(
             ast.Return(
                 value=ast.Call(
-                    func=ast_attribute(['api__tapl', 'get_return_type']),
+                    func=ast_attribute([body_setting.scope_name, 'api__tapl', 'get_return_type']),
                     args=[ast_name(body_setting.scope_name)],
                 )
             )
@@ -367,13 +365,7 @@ class If(syntax.Term):
             assign = ast.Assign(
                 targets=[locate(ast.Name(id=body_setting.scope_name, ctx=ast.Store()))],
                 value=ast.Call(
-                    func=locate(
-                        ast.Attribute(
-                            value=locate(ast.Name(id='api__tapl', ctx=ast.Load())),
-                            attr='fork_scope',
-                            ctx=ast.Load(),
-                        )
-                    ),
+                    func=ast_attribute([setting.scope_name, 'api__tapl', 'fork_scope']),
                     args=[ast.Name(id=setting.forker_name, ctx=ast.Load())],
                 ),
             )
@@ -393,9 +385,7 @@ class If(syntax.Term):
                 ast.withitem(
                     context_expr=locate(
                         ast.Call(
-                            func=locate(
-                                ast.Attribute(locate(ast.Name('api__tapl', ctx=ast.Load())), attr='scope_forker')
-                            ),
+                            func=ast_attribute([setting.scope_name, 'api__tapl', 'scope_forker']),
                             args=[locate(ast.Name(id=setting.scope_name))],
                         )
                     ),
@@ -520,7 +510,7 @@ class ClassDef(syntax.Term):
             assign = ast.Assign(
                 targets=[ast_attribute([setting.scope_name, namespace], ctx=ast.Store())],
                 value=ast.Call(
-                    func=ast_attribute(['api__tapl', 'create_scope']),
+                    func=ast_attribute([setting.scope_name, 'api__tapl', 'create_scope']),
                     keywords=[
                         ast.keyword('label__tapl', ast.Constant(value=namespace)),
                     ],

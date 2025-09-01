@@ -2,7 +2,7 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from tapl_lang.lib import builtin, proxy, scope, typelib
+from tapl_lang.lib import api, builtin, proxy, scope, typelib
 
 
 def create_function(parameters, result):
@@ -18,6 +18,7 @@ predef_scope.store_many(
         'create_union': typelib.create_union,
         'Function': create_function,
         'print__tapl': print,
+        'api__tapl': api,
         # 'print': typelib.FunctionType(lock: A)
     }
 )

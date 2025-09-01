@@ -26,7 +26,6 @@ class PythonlikeLanguage(Language):
         location = syntax.Location(start=syntax.Position(line=1, column=0))
         return syntax.Statements(
             [
-                stmt.ImportFrom(location, 'tapl_lang.lib', [stmt.Alias(name='api', asname='api__tapl')], IMPORT_LEVEL),
                 stmt.ImportFrom(
                     location,
                     'tapl_lang.pythonlike.predef1',
