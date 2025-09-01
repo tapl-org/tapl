@@ -8,8 +8,9 @@ predef_scope = scope.Scope(label='predef_scope')
 predef_scope.store_many(types.BUILTIN_PROXY)
 predef_scope.store_many(
     {
+        # TODO: move these to types module
         'create_union': types.create_union,
-        'FunctionType': types.Function,
+        'Function': types.Function,
         'print__tapl': print,
         # 'print': typelib.FunctionType(lock: A)
     }

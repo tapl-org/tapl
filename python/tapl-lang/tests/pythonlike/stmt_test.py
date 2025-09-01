@@ -111,7 +111,7 @@ def hello():
     s1 = api__tapl.create_scope(parent__tapl=s0)
     api__tapl.add_return_type(s1, s1.Int)
     return api__tapl.get_return_type(s1)
-s0.hello = s0.FunctionType([], hello())
+s0.hello = s0.Function([], hello())
 """.strip()
     )
 
@@ -135,7 +135,7 @@ def area(radius):
     s1 = api__tapl.create_scope(parent__tapl=s0, radius=radius)
     api__tapl.add_return_type(s1, s1.Float * s1.radius * s1.radius)
     return api__tapl.get_return_type(s1)
-s0.area = s0.FunctionType([s0.Int], area(s0.Int))
+s0.area = s0.Function([s0.Int], area(s0.Int))
 """.strip()
     )
 
@@ -199,6 +199,6 @@ class Circle:
 s0.Circle = api__tapl.create_scope(label__tapl='Circle')
 s0.Circle_ = api__tapl.create_scope(label__tapl='Circle_')
 Circle.__init__(s0.Circle_, s0.Float)
-s0.Circle.__call__ = s0.FunctionType([s0.Float], s0.Circle_)
+s0.Circle.__call__ = s0.Function([s0.Float], s0.Circle_)
 """.strip()
     )
