@@ -32,7 +32,7 @@ def get_return_type(proxy: proxy.Proxy) -> Any:
     returns = get_scope_from_proxy(proxy).returns
     if returns:
         return types.create_union(*returns)
-    return types.BUILTIN_PROXY['NoneType']
+    return types.BUILTIN['NoneType']
 
 
 def scope_forker(proxy: proxy.Proxy) -> scope.ScopeForker:

@@ -30,7 +30,7 @@ s0.Circle = api__tapl.create_scope(label__tapl='Circle')
 s0.Circle_ = api__tapl.create_scope(label__tapl='Circle_')
 Circle.__init__(s0.Circle_, s0.Float)
 s0.Circle.area = s0.Function([s0.Circle_], Circle.area(s0.Circle_))
-s0.Circle_.area = s0.Function([], s0.Circle.area.result)
+s0.Circle_.area = s0.Function([], s0.Circle.area.subject__tapl.result)
 s0.Circle.__call__ = s0.Function([s0.Float], s0.Circle_)
 
 def print_area(circle):

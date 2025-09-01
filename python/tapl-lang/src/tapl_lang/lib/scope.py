@@ -6,7 +6,6 @@ from __future__ import annotations
 
 from typing import Any, Self
 
-from tapl_lang.core import tapl_error
 from tapl_lang.lib import proxy, types
 
 
@@ -25,6 +24,15 @@ class Scope(proxy.Subject):
         # TODO: move returns into fields
         self.returns: list[Any] = []
 
+    @property
+    def kind(self):
+        return types.Kind.Scope
+
+    def can_be_used_as(self, target: proxy.Subject) -> bool:
+        if self is target:
+            return True
+        return False
+
     def find_slot(self, name: str) -> Slot | None:
         if name in self.fields:
             return self.fields[name]
@@ -36,7 +44,7 @@ class Scope(proxy.Subject):
         slot = self.find_slot(name)
         if slot is not None:
             return slot.value
-        raise tapl_error.TaplError(f'Variable {name} not found in the scope.')
+        return super().load(name)
 
     def store(self, name: str, value: Any) -> None:
         slot = self.find_slot(name)

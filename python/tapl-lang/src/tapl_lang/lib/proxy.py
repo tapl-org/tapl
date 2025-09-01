@@ -4,7 +4,7 @@
 
 from typing import Any
 
-_SUBJECT_FIELD_NAME = 'subject__tapl'
+SUBJECT_FIELD_NAME = 'subject__tapl'
 
 
 class Subject:
@@ -18,6 +18,7 @@ class Subject:
     def delete(self, key: str) -> None:
         raise AttributeError(f'{self.__class__.__name__} class has no attribute "{key}"')
 
+    # TODO: remove this method
     @property
     def subject__tapl(self):
         return self
@@ -54,7 +55,7 @@ class Proxy:
     def __init__(self__tapl, subject__tapl: Any):
         if not isinstance(subject__tapl, Subject):
             raise TypeError(f'Proxy can only wrap Subject instances, but found {type(subject__tapl)}')
-        object.__setattr__(self__tapl, _SUBJECT_FIELD_NAME, subject__tapl)
+        object.__setattr__(self__tapl, SUBJECT_FIELD_NAME, subject__tapl)
 
     def __getattr__(self__tapl, name):
         return self__tapl.subject__tapl.load(name)
@@ -69,7 +70,7 @@ class Proxy:
         return self__tapl.subject__tapl.load('__call__')(*args, **kwargs)
 
     def __repr__(self__tapl):
-        return repr(self__tapl.subject__tapl)
+        return self__tapl.subject__tapl.__repr__()
 
     def __add__(self__tapl, other):
         return call_binop('__add__', self__tapl, other)

@@ -579,7 +579,7 @@ class ClassDef(syntax.Term):
                     namespace=instance_name,
                     method_name=method.name,
                     args=tail_args,
-                    result=ast_attribute([setting.scope_name, class_name, method.name, 'result']),
+                    result=ast_attribute([setting.scope_name, class_name, method.name, 'subject__tapl', 'result']),
                 )
             )
 

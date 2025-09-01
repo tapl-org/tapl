@@ -22,6 +22,12 @@ Bottom or Nothing type is a empty Union type
 
 Labels must be unique in Intersection and Union type.
 
+All types should be immutable.
+
+Source.can_be_used_as(Target) checks if Source can be used as Target. This returns True if Source is a subtype of Target.
+
+Variable with underscore suffix means the type is wrapped with Proxy
+
 The following does not use Python type hints intentionally.
 """
 
@@ -32,7 +38,9 @@ from tapl_lang.lib import proxy
 
 
 class Kind(enum.Enum):
-    Atom = 'Atom'
+    Any = 'Any'  # Top type except NoneType (like Kotlin)
+    Nothing = 'Nothing'  # Bottom type
+    NoneType = 'NoneType'  # Singleton/Unit/Void type
     Labeled = 'Labeled'
     Union = 'Union'
     Intersection = 'Intersection'
@@ -40,18 +48,83 @@ class Kind(enum.Enum):
     Scope = 'Scope'
 
 
-class Labeled:
+class NoneType(proxy.Subject):
+    @property
+    def kind(self):
+        return Kind.NoneType
+
+    def can_be_used_as(self, target):
+        if self is target:
+            return True
+        if target.kind == Kind.NoneType:
+            return True
+        if target.kind == Kind.Union:
+            return any(self.can_be_used_as(e.subject__tapl) for e in target)
+        return False
+
+    def __repr__(self):
+        return 'NoneType'
+
+
+class Any(proxy.Subject):
+    @property
+    def kind(self):
+        return Kind.Any
+
+    def can_be_used_as(self, target):
+        if self is target:
+            return True
+        if target.kind == Kind.Any:
+            return True
+        if target.kind == Kind.Union:
+            return any(self.can_be_used_as(e.subject__tapl) for e in target)
+        return False
+
+    def __repr__(self):
+        return 'Any'
+
+
+class Nothing(proxy.Subject):
+    @property
+    def kind(self):
+        return Kind.Nothing
+
+    def can_be_used_as(self, target):
+        del target
+        # Can be used as anything
+        return True
+
+    def __repr__(self):
+        return 'Nothing'
+
+
+class Labeled(proxy.Subject):
     def __init__(self, label, typ):
-        self.label = label
-        self.type = typ
+        self._label = label
+        self._type = typ
 
     @property
     def kind(self):
         return Kind.Labeled
 
+    def can_be_used_as(self, target):
+        if self is target:
+            return True
+        if target.kind == Kind.Any:
+            return True
+        if target.kind == Kind.Labeled:
+            return self.label == target.label and self.type.subject__tapl.can_be_used_as(target.type.subject__tapl)
+        if target.kind in (Kind.Union, Kind.Intersection):
+            return any(self.can_be_used_as(e.subject__tapl) for e in target)
+        return False
+
     @property
-    def subject__tapl(self):
-        return self
+    def label(self):
+        return self._label
+
+    @property
+    def type(self):
+        return self._type
 
     def __repr__(self):
         return f'{self.label}={self.type}'
@@ -59,164 +132,167 @@ class Labeled:
 
 class Union(proxy.Subject):
     def __init__(self, types, title=None):
-        check_unique_labels(types)
-        self.types = types
-        self.title = title
+        _validate_types(types)
+        self._types = types
+        self._title = title
 
     @property
     def kind(self):
         return Kind.Union
 
+    def __iter__(self):
+        yield from self._types
+
+    def can_be_used_as(self, target):
+        if self is target:
+            return True
+        if target.kind == Kind.Union:
+            return all(any(can_be_used_as(se, te) for te in target) for se in self)
+        return False
+
     def __repr__(self):
-        if self.title is not None:
-            return self.title
-        if len(self.types) == 0:
-            return 'Nothing'
-        if len(self.types) <= 1 or any(isinstance(t, Labeled) for t in self.types):
-            return '[{}]'.format(', '.join([str(t) for t in self.types]))
-        return ' | '.join([str(t) for t in self.types])
-
-    def find_label(self, label):
-        for t in self.types:
-            if isinstance(t.subject__tapl, Labeled) and t.label == label:
-                return t
-        return None
-
-    def load(self, key):
-        raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
-
-    def store(self, key):
-        raise tapl_error.TaplError(f'AttributeError: Attribute not found: {key}')
+        if self._title is not None:
+            return self._title
+        return ' | '.join([str(t) for t in self._types])
 
 
 class Intersection(proxy.Subject):
     def __init__(self, types, title=None):
-        check_unique_labels(types)
-        self.types = types
-        self.title = title
+        _validate_types(types)
+        self._types = types
+        self._title = title
 
     @property
     def kind(self):
         return Kind.Intersection
 
-    def __repr__(self):
-        if self.title is not None:
-            return self.title
-        if len(self.types) == 0:
-            return 'Any'
-        if len(self.types) <= 1 or any(isinstance(t, Labeled) for t in self.types):
-            return '{{{}}}'.format(', '.join([str(t) for t in self.types]))
-        return ' & '.join([str(t) for t in self.types])
+    def __iter__(self):
+        yield from self._types
 
-    def find_label(self, label):
-        for t in self.types:
-            if isinstance(t.subject__tapl, Labeled) and t.label == label:
+    def can_be_used_as(self, target):
+        if self is target:
+            return True
+        if target.kind == Kind.Any:
+            return True
+        if target.kind == Kind.Union:
+            return any(self.can_be_used_as(e.subject__tapl) for e in target)
+        if target.kind == Kind.Intersection:
+            for te_ in target:
+                te = te_.subject__tapl
+                if te.kind == Kind.Labeled:
+                    se = self._find_labeled(te.label)
+                    if se is None or not se.can_be_used_as(te.type.subject__tapl):
+                        return False
+                else:
+                    raise tapl_error.TaplError(
+                        f'Unsupported: Intersection type contains non-Labeled type self={self} target={target}.'
+                    )
+        return False
+
+    def _find_labeled(self, label):
+        for t_ in self:
+            t = t_.subject__tapl
+            if t.kind == Kind.Labeled and t.label == label:
                 return t
         return None
 
     def load(self, key):
-        t = self.find_label(key)
-        if t is None:
-            raise AttributeError(f'In class[{self.__class__.__name__}] Attribute not found: {key}')
-        return t.type
-
-
-class Atom(proxy.Subject):
-    def __init__(self, name):
-        self.name = name
-
-    @property
-    def kind(self):
-        return Kind.Atom
+        t = self._find_labeled(key)
+        if t:
+            return t.type
+        return super().load(key)
 
     def __repr__(self):
-        return str(self.name)
+        if self._title is not None:
+            return self._title
+        return ' & '.join([str(t) for t in self._types])
 
 
-class Function:
+class Function(proxy.Subject):
     def __init__(self, parameters, result):
-        if not isinstance(parameters, list):
-            raise tapl_error.TaplError('SyntaxError: Function parameters must be a list.')
-        self.parameters = process_parameters(parameters[:])
-        self.result = result
+        self._parameters = _process_parameters(parameters)
+        self._result = result
 
     @property
     def kind(self):
         return Kind.Function
 
     @property
-    def subject__tapl(self):
-        return self
+    def parameters(self):
+        yield from self._parameters
+
+    @property
+    def result(self):
+        return self._result
+
+    def can_be_used_as(self, target):
+        if self is target:
+            return True
+        if target.kind != Kind.Function:
+            return False
+        for self_param, target_param in zip(self.parameters, target.parameters, strict=True):
+            if not can_be_used_as(self_param, target_param):
+                return False
+        return can_be_used_as(self.result, target.result)
+
+    def fix_labels(self, arguments):
+        for i in range(len(arguments)):
+            if arguments[i].subject__tapl.kind == Kind.Labeled:
+                break
+            arguments[i] = Labeled(self._parameters[i].subject__tapl.label, arguments[i])
+        return arguments
+
+    def apply(self, *arguments):
+        args = self.fix_labels(list(arguments))
+        for p, a in zip(self.parameters, args, strict=True):
+            if not can_be_used_as(a, p):
+                raise TypeError(f'Not equal: parameters={self.parameters} arguments={args}')
+        return self.result
+
+    def load(self, key):
+        if key == '__call__':
+            return self.apply
+        return super().load(key)
 
     def __repr__(self):
         return f'{self.parameters}->{self.result}'
 
-    def fix_labels(self, arguments):
-        for i in range(len(arguments)):
-            if isinstance(arguments[i].subject__tapl, Labeled):
-                break
-            arguments[i] = Labeled(self.parameters.types[i].label, arguments[i])
-        return arguments
 
-    def __call__(self, *arguments):
-        args = Intersection(types=self.fix_labels(list(arguments)))
-        if not is_subtype(subtype=args, supertype=self.parameters):
-            raise TypeError(f'Not equal: parameters={self.parameters} arguments={args}')
-        return self.result
-
-
-def process_parameters(params):
+def _process_parameters(parameters):
+    if not isinstance(parameters, list):
+        raise tapl_error.TaplError('Function parameters must be a list.')
+    params = parameters[:]
     labeled_parameter_seen = False
     for i in range(len(params)):
-        if isinstance(params[i].subject__tapl, Labeled):
+        p = params[i].subject__tapl
+        if p.kind == Kind.Labeled:
             labeled_parameter_seen = True
         elif labeled_parameter_seen:
-            raise tapl_error.TaplError('SyntaxError: positional parameter follows labeled parameter.')
+            raise tapl_error.TaplError('Positional parameter follows labeled parameter.')
         else:
-            params[i] = Labeled(str(i), params[i])
+            params[i] = proxy.Proxy(Labeled(str(i), params[i]))
+    return params
 
-    return Intersection(types=params)
 
-
-def check_unique_labels(types):
+def _validate_types(types):
+    if len(types) <= 1:
+        raise ValueError('At least two types are required.')
+    # check for duplicate labels
     seen_labels = set()
-    for t in types:
-        if isinstance(t.subject__tapl, Labeled):
+    for t_ in types:
+        t = t_.subject__tapl
+        if t.kind == Kind.Labeled:
             if t.label in seen_labels:
                 raise ValueError(f'Duplicate label found: {t.label}')
             seen_labels.add(t.label)
 
 
-def is_subtype(subtype, supertype):
-    if subtype == supertype:
-        return True
-    subtype = subtype.subject__tapl
-    supertype = supertype.subject__tapl
-    if isinstance(subtype, Intersection) and isinstance(supertype, Intersection):
-        for super_element in supertype.types:
-            if isinstance(super_element, Labeled):
-                sub_element = subtype.find_label(super_element.label)
-                if sub_element is None or not is_subtype(sub_element.type, super_element.type):
-                    return False
-            else:
-                raise tapl_error.TaplError(f'Unsupported-1 subtype check for subtype={subtype} supertype={supertype}.')
-        return True
-    if isinstance(subtype, Union) and isinstance(supertype, Union):
-        for sub_element in subtype.types:
-            if isinstance(sub_element, Labeled):
-                raise tapl_error.TaplError(f'Unsupported-2 subtype check for subtype={subtype} supertype={supertype}.')
-            if not any(is_subtype(sub_element, super_element) for super_element in supertype.types):
-                return False
-        return True
-    if isinstance(subtype, Function) and isinstance(supertype, Function):
-        return is_subtype(supertype.parameters, subtype.parameters) and is_subtype(subtype.result, supertype.result)
-    raise tapl_error.TaplError(
-        f'Unsupported subtype check for subtype_class={type(subtype)} supertype_class={type(supertype)}.'
-    )
+def can_be_used_as(source, target):
+    return source.subject__tapl.can_be_used_as(target.subject__tapl)
 
 
 def is_equal(a, b):
-    return is_subtype(a, b) and is_subtype(b, a)
+    return can_be_used_as(a, b) and can_be_used_as(b, a)
 
 
 def drop_same_types(types):
@@ -235,43 +311,49 @@ def create_union(*args):
     for arg in args:
         # Union of unions are flattened
         subject = arg.subject__tapl
-        if isinstance(subject, Union):
-            result.extend(subject.types)
+        if subject.kind == Kind.Union:
+            result.extend(subject)  # consume as iterable
         else:
             result.append(arg)
     result = drop_same_types(result)
     # Unions of a single argument vanish
     if len(result) == 1:
         return next(iter(result))
-    return Union(types=result)
+    return proxy.Proxy(Union(types=result))
 
 
-def add_methods(type_name, methods):
-    types = BUILTIN[type_name].types
+def init_record(type_name, methods):
+    """Initialize a new type with the given name and methods.
+    type_name: The name of the type.
+    methods: list[tuple[str, list[str|list[str]], str]]: A list of methods for the type, where each method is represented as a tuple
+    of (name, parameters, result). parameters are list of types which are represented as string or union of strings.
+    """
+    labels = []
     for name, params, result in methods:
         for i in range(len(params)):
             if isinstance(params[i], str):
-                params[i] = BUILTIN_PROXY[params[i]]
-        if isinstance(result, str):
-            result = BUILTIN_PROXY[result]  # noqa: PLW2901
-        func = Function(parameters=params, result=result)
-        types.append(Labeled(name, func))
+                params[i] = BUILTIN[params[i]]
+            else:
+                params[i] = create_union(*(BUILTIN[p] for p in params[i]))
+        func = Function(parameters=params, result=BUILTIN[result])
+        labels.append(Labeled(name, proxy.Proxy(func)))
+    record = Intersection(types=[proxy.Proxy(label) for label in labels], title=type_name)
+    object.__setattr__(BUILTIN[type_name], proxy.SUBJECT_FIELD_NAME, record)
 
 
 BUILTIN = {
-    'Any': Intersection(types=[]),
-    'Nothing': Union(types=[]),
-    'NoneType': Atom('NoneType'),
-    'Bool': Intersection(types=[], title='Bool'),
-    'Int': Intersection(types=[], title='Int'),
-    'Float': Intersection(types=[], title='Float'),
-    'Str': Intersection(types=[], title='Str'),
+    'Any': proxy.Proxy(Any()),
+    'Nothing': proxy.Proxy(Nothing()),
+    'NoneType': proxy.Proxy(NoneType()),
+    'Bool': proxy.Proxy(NoneType()),
+    'Int': proxy.Proxy(NoneType()),
+    'Float': proxy.Proxy(NoneType()),
+    'Str': proxy.Proxy(NoneType()),
 }
-BUILTIN_PROXY = {k: proxy.Proxy(v) for k, v in BUILTIN.items()}
 
-add_methods('Bool', [['__lt__', ['Bool'], 'Bool']])
-add_methods('Int', [['__add__', ['Int'], 'Int'], ['__lt__', ['Int'], 'Bool']])
-add_methods(
+init_record('Bool', [['__lt__', ['Bool'], 'Bool'], ['__gt__', ['Bool'], 'Bool']])
+init_record('Int', [['__add__', ['Int'], 'Int'], ['__lt__', ['Int'], 'Bool']])
+init_record(
     'Float',
     [
         ['__add__', ['Float'], 'Float'],
@@ -280,4 +362,4 @@ add_methods(
         ['__gt__', ['Float'], 'Bool'],
     ],
 )
-add_methods('Str', [['isalpha', [], 'Bool']])
+init_record('Str', [['isalpha', [], 'Bool'], ['isdigit', [], 'Bool']])
