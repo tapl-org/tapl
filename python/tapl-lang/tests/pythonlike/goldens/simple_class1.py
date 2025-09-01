@@ -5,6 +5,7 @@ class SimplestClass:
     pass
 s0.SimplestClass = api__tapl.create_scope(label__tapl='SimplestClass')
 s0.SimplestClass_ = api__tapl.create_scope(label__tapl='SimplestClass_')
+SimplestClass.__init__(s0.SimplestClass_)
 s0.SimplestClass.__call__ = s0.FunctionType([], s0.SimplestClass_)
 
 def accept(param):
@@ -27,8 +28,7 @@ class Circle:
         return api__tapl.get_return_type(s1)
 s0.Circle = api__tapl.create_scope(label__tapl='Circle')
 s0.Circle_ = api__tapl.create_scope(label__tapl='Circle_')
-s0.Circle.__init__ = s0.FunctionType([s0.Circle_, s0.Float], Circle.__init__(s0.Circle_, s0.Float))
-s0.Circle_.__init__ = s0.FunctionType([s0.Float], s0.Circle.__init__.result)
+Circle.__init__(s0.Circle_, s0.Float)
 s0.Circle.area = s0.FunctionType([s0.Circle_], Circle.area(s0.Circle_))
 s0.Circle_.area = s0.FunctionType([], s0.Circle.area.result)
 s0.Circle.__call__ = s0.FunctionType([s0.Float], s0.Circle_)

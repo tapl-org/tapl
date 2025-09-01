@@ -43,7 +43,7 @@ OP_LABEL = {
 
 
 def call_binop(op: str, self__tapl: 'Proxy', other: Any) -> Any | None:
-    left = object.__getattribute__(self__tapl, _SUBJECT_FIELD_NAME)
+    left = self__tapl.subject__tapl
     right = extract_subject(other)
     try:
         return left.load(op)(right)
@@ -61,20 +61,20 @@ class Proxy:
             raise TypeError(f'Proxy can only wrap Subject instances, but found {type(subject__tapl)}')
         object.__setattr__(self__tapl, _SUBJECT_FIELD_NAME, subject__tapl)
 
-    def __getattribute__(self__tapl, name):
-        return object.__getattribute__(self__tapl, _SUBJECT_FIELD_NAME).load(name)
+    def __getattr__(self__tapl, name):
+        return self__tapl.subject__tapl.load(name)
 
     def __setattr__(self__tapl, name: str, value: Any):
-        object.__getattribute__(self__tapl, _SUBJECT_FIELD_NAME).store(name, value)
+        self__tapl.subject__tapl.store(name, value)
 
     def __delattr__(self__tapl, name: str):
-        object.__getattribute__(self__tapl, _SUBJECT_FIELD_NAME).delete(name)
+        self__tapl.subject__tapl.delete(name)
 
     def __call__(self__tapl, *args, **kwargs):
-        return object.__getattribute__(self__tapl, _SUBJECT_FIELD_NAME).load('__call__')(*args, **kwargs)
+        return self__tapl.subject__tapl.load('__call__')(*args, **kwargs)
 
     def __repr__(self__tapl):
-        return repr(object.__getattribute__(self__tapl, _SUBJECT_FIELD_NAME))
+        return repr(self__tapl.subject__tapl)
 
     def __add__(self__tapl, other):
         return call_binop('__add__', self__tapl, other)

@@ -498,12 +498,13 @@ class ClassDef(syntax.Term):
         instance_name = f'{class_name}_'
         body = []
         methods: list[FunctionDef] = []
-        init_method = None
+        constructor_args = []
         for item in self.body.children():
             if isinstance(item, FunctionDef):
                 if item.name == '__init__':
-                    init_method = item
-                methods.append(item)
+                    constructor_args = [p.codegen_expr(setting) for p in item.parameters[1:]]
+                else:
+                    methods.append(item)
                 body.append(item.codegen_typecheck_main(setting))
             else:
                 body.extend(item.codegen_stmt(setting))
@@ -527,6 +528,13 @@ class ClassDef(syntax.Term):
             )
             self.location.locate(assign)
             return assign
+
+        def init_instance(instance_name: str) -> ast.stmt:
+            call = ast.Call(
+                func=ast_attribute([class_name, '__init__']),
+                args=[ast_attribute([setting.scope_name, instance_name]), *constructor_args],
+            )
+            return ast.Expr(value=call)
 
         def declare_method(namespace: str, method_name: str, args: list[ast.expr], result: ast.expr) -> ast.stmt:
             assign = ast.Assign(
@@ -574,9 +582,7 @@ class ClassDef(syntax.Term):
                     result=ast_attribute([setting.scope_name, class_name, method.name, 'result']),
                 )
             )
-        constructor_args = []
-        if init_method:
-            constructor_args = [p.codegen_expr(setting) for p in init_method.parameters[1:]]
+
         constructor = declare_method(
             namespace=class_name,
             method_name='__call__',
@@ -584,7 +590,14 @@ class ClassDef(syntax.Term):
             result=ast_attribute([setting.scope_name, instance_name]),
         )
 
-        return [class_stmt, declare_class(class_name), declare_class(instance_name), *method_types, constructor]
+        return [
+            class_stmt,
+            declare_class(class_name),
+            declare_class(instance_name),
+            init_instance(instance_name),
+            *method_types,
+            constructor,
+        ]
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
