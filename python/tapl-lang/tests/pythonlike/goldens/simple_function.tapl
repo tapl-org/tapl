@@ -1,7 +1,7 @@
 language pythonlike
 
 def int_print(a: Int):
-    print__tapl(a)
+    api__tapl.print_log(a)
 
 int_print(123)
 
@@ -23,4 +23,4 @@ if a == 2:
     b = 7
 else:
     b = 'banana'
-print__tapl(b)
+api__tapl.print_log(b)

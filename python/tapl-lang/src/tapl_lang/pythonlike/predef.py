@@ -2,5 +2,4 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-
-print__tapl = print
+import tapl_lang.lib.api as api__tapl  # noqa: F401

@@ -34,7 +34,7 @@ s0.Circle.__call__ = s0.api__tapl.create_function([s0.Float], s0.Circle_)
 
 def print_area(circle):
     s1 = s0.api__tapl.create_scope(parent__tapl=s0, circle=circle)
-    s1.print__tapl(s1.circle.area())
+    s1.api__tapl.print_log(s1.circle.area())
     return s1.api__tapl.get_return_type(s1)
 s0.print_area = s0.api__tapl.create_function([s0.Circle_], print_area(s0.Circle_))
 s0.print_area(s0.Circle(s0.Float))

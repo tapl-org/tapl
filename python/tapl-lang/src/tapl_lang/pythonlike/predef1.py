@@ -11,13 +11,7 @@ def create_function(parameters, result):
 
 
 predef_scope = scope.Scope(label='predef_scope')
+predef_scope.store('api__tapl', api)
 predef_scope.store_many(builtin.Types)
-predef_scope.store_many(
-    {
-        'print__tapl': print,
-        'api__tapl': api,
-        # 'print': typelib.FunctionType(lock: A)
-    }
-)
 
 predef_proxy = proxy.Proxy(predef_scope)

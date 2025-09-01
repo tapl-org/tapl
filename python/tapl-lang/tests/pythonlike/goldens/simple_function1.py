@@ -2,7 +2,7 @@ from tapl_lang.pythonlike.predef1 import predef_proxy as s0
 
 def int_print(a):
     s1 = s0.api__tapl.create_scope(parent__tapl=s0, a=a)
-    s1.print__tapl(s1.a)
+    s1.api__tapl.print_log(s1.a)
     return s1.api__tapl.get_return_type(s1)
 s0.int_print = s0.api__tapl.create_function([s0.Int], int_print(s0.Int))
 s0.int_print(s0.Int)
@@ -31,4 +31,4 @@ with s0.api__tapl.scope_forker(s0) as f0:
     s1.b = s1.Int
     s1 = s0.api__tapl.fork_scope(f0)
     s1.b = s1.Str
-s0.print__tapl(s0.b)
+s0.api__tapl.print_log(s0.b)
