@@ -229,7 +229,7 @@ class FunctionDef(syntax.Term):
         assign = ast.Assign(
             targets=[ast_attribute([setting.scope_name, self.name], ctx=ast.Store())],
             value=ast.Call(
-                func=ast_attribute([setting.scope_name, 'Function']),
+                func=ast_attribute([setting.scope_name, 'api__tapl', 'create_function']),
                 args=[
                     ast.List(
                         elts=[cast(Parameter, p).type_.codegen_expr(setting) for p in self.parameters],
@@ -530,7 +530,7 @@ class ClassDef(syntax.Term):
             assign = ast.Assign(
                 targets=[ast_attribute([setting.scope_name, namespace, method_name], ctx=ast.Store())],
                 value=ast.Call(
-                    func=ast_attribute([setting.scope_name, 'Function']),
+                    func=ast_attribute([setting.scope_name, 'api__tapl', 'create_function']),
                     args=[
                         ast.List(elts=args, ctx=ast.Load()),
                         result,

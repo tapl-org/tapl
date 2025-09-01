@@ -14,7 +14,6 @@ predef_scope = scope.Scope(label='predef_scope')
 predef_scope.store_many(builtin.Types)
 predef_scope.store_many(
     {
-        'Function': create_function,
         'print__tapl': print,
         'api__tapl': api,
         # 'print': typelib.FunctionType(lock: A)
