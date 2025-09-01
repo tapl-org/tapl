@@ -5,6 +5,8 @@
 
 import ast
 
+import pytest
+
 from tapl_lang.core import syntax
 from tapl_lang.core.parser import Grammar, parse_text
 from tapl_lang.lib import proxy, scope, terms, types
@@ -140,13 +142,12 @@ def test_term1():
     assert evaluate(expr1) == 5
 
 
-# TODO: catch type error in this test, Int + Bool should not work implicityly
-# def test_term2():
-#     [expr1, expr2] = parse_expr('2 + True')
-#     assert ast.unparse(expr1) == '2 + True'
-#     assert ast.unparse(expr2) == 's0.Int + s0.Bool'
-#     assert types.is_equal(typecheck(expr2), predef1.predef_proxy.Int)
-#     assert evaluate(expr1) == 3  # True is considered as 1 in Python
+def test_term2():
+    [expr1, expr2] = parse_expr('2 + True')
+    assert ast.unparse(expr1) == '2 + True'
+    assert ast.unparse(expr2) == 's0.Int + s0.Bool'
+    with pytest.raises(TypeError, match=r'unsupported operand type\(s\) for \+: Int and Bool'):
+        typecheck(expr2)
 
 
 def test_term_error():
@@ -156,22 +157,20 @@ def test_term_error():
     assert expect_type_error(expr2) == "TypeError('unsupported operand type(s) for +: Int and Str')"
 
 
-# TODO: WHY Variable __class__ not found in the scope.
-# def test_compare1():
-#     [expr1, expr2] = parse_expr('2 < 3')
-#     assert ast.unparse(expr1) == '2 < 3'
-#     assert ast.unparse(expr2) == 's0.Int < s0.Int'
-#     assert types.is_equal(typecheck(expr2), predef1.predef_proxy.Int)
-#     assert evaluate(expr1) is True
+def test_compare1():
+    [expr1, expr2] = parse_expr('2 < 3')
+    assert ast.unparse(expr1) == '2 < 3'
+    assert ast.unparse(expr2) == 's0.Int < s0.Int'
+    assert types.is_equal(typecheck(expr2), predef1.predef_proxy.Bool)
+    assert evaluate(expr1) is True
 
 
-# TODO: catch type error in this test, Bool < Int should not work implicityly
-# def test_compare2():
-#     [expr1, expr2] = parse_expr('True < 0')
-#     assert ast.unparse(expr1) == 'True < 0'
-#     assert ast.unparse(expr2) == 's0.Bool < s0.Int'
-#     assert typecheck(expr2) == predef1.predef_proxy.Bool
-#     assert evaluate(expr1) is False
+def test_compare2():
+    [expr1, expr2] = parse_expr('True < 0')
+    assert ast.unparse(expr1) == 'True < 0'
+    assert ast.unparse(expr2) == 's0.Bool < s0.Int'
+    with pytest.raises(TypeError, match=r'unsupported operand type\(s\) for <: Bool and Int'):
+        typecheck(expr2)
 
 
 def test_var1():
