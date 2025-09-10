@@ -41,3 +41,32 @@ def scope_forker(proxy: proxy.Proxy) -> scope.ScopeForker:
 
 def fork_scope(forker: scope.ScopeForker) -> proxy.Proxy:
     return proxy.Proxy(forker.new_scope())
+
+
+def create_class(
+    cls, init_args: list[proxy.Proxy], methods: list[tuple[str, list[proxy.Proxy]]]
+) -> tuple[proxy.Proxy, proxy.Proxy]:
+    instance_scope = scope.Scope()
+    for method_name, param_types in methods:
+
+        def create_lazy_result(name, types):
+            return lambda: getattr(cls, name)(*(instance_scope, *types))
+
+        method = typelib.Function(parameters=param_types, lazy_result=create_lazy_result(method_name, param_types))
+        instance_scope.store(method_name, proxy.Proxy(method))
+    cls.__init__(*[proxy.Proxy(instance_scope), *init_args])
+    labels = [
+        proxy.Proxy(typelib.Labeled('__repr__', typelib.Function(parameters=[], result=builtin.Str))),
+        proxy.Proxy(typelib.Labeled('__str__', typelib.Function(parameters=[], result=builtin.Str))),
+    ]
+    for label in instance_scope.fields:
+        labeled = typelib.Labeled(label, instance_scope.load(label))
+        labels.append(proxy.Proxy(labeled))
+    class_type = typelib.Intersection(
+        types=labels,
+        title=cls.__name__ + '_',
+    )
+    class_type_proxy = proxy.Proxy(class_type)
+    factory = typelib.Function(parameters=[], result=class_type_proxy)
+
+    return class_type_proxy, proxy.Proxy(factory)

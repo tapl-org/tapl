@@ -209,9 +209,12 @@ class Intersection(proxy.Subject):
 
 
 class Function(proxy.Subject):
-    def __init__(self, parameters, result):
+    def __init__(self, parameters, result=None, lazy_result=None):
+        if lazy_result is not None and result is not None:
+            raise ValueError('Pass either the result or lazy_result argument, but not both.')
         self._parameters = _process_parameters(parameters)
         self._result = result
+        self._lazy_result = lazy_result
 
     @property
     def kind(self):
@@ -223,6 +226,8 @@ class Function(proxy.Subject):
 
     @property
     def result(self):
+        if self._lazy_result:
+            self._result = self._lazy_result()
         return self._result
 
     def can_be_used_as(self, target):
@@ -255,7 +260,9 @@ class Function(proxy.Subject):
         return super().load(key)
 
     def __repr__(self):
-        return f'{self.parameters}->{self.result}'
+        if self._lazy_result:
+            return f'{self._parameters}->[uncomputed]'
+        return f'{self._parameters}->{self._result}'
 
 
 def _process_parameters(parameters):

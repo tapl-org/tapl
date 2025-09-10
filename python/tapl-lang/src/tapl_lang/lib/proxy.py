@@ -18,6 +18,11 @@ class Subject:
     def delete(self, key: str) -> None:
         raise AttributeError(f'{self.__class__.__name__} class has no attribute "{key}"')
 
+    def subject__tapl(self):
+        raise AttributeError(
+            f'{self.__class__.__name__} class has no attribute "{SUBJECT_FIELD_NAME}". It is used where Proxy is expected.'
+        )
+
 
 OP_LABEL = {
     '__add__': '+',

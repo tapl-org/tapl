@@ -52,3 +52,11 @@ _init_record(
     ],
 )
 _init_record('Str', [['isalpha', [], 'Bool'], ['isdigit', [], 'Bool']])
+
+Any = Types['Any']
+Nothing = Types['Nothing']
+NoneType = Types['NoneType']
+Bool = Types['Bool']
+Int = Types['Int']
+Float = Types['Float']
+Str = Types['Str']
