@@ -38,6 +38,7 @@ from tapl_lang.lib import proxy
 
 
 class Kind(enum.Enum):
+    Interim = 'Interim'
     Any = 'Any'  # Top type except NoneType (like Kotlin)
     Nothing = 'Nothing'  # Bottom type
     NoneType = 'NoneType'  # Singleton/Unit/Void type
@@ -46,6 +47,15 @@ class Kind(enum.Enum):
     Intersection = 'Intersection'
     Function = 'Function'
     Scope = 'Scope'
+
+
+class Interim(proxy.Subject):
+    @property
+    def kind(self):
+        return Kind.Interim
+
+    def __repr__(self):
+        return 'Interim'
 
 
 class NoneType(proxy.Subject):
