@@ -473,9 +473,12 @@ class ClassDef(syntax.Term):
             )
         )
 
+    def _class_name(self) -> str:
+        return f'{self.name}_'
+
     def codegen_evaluate(self, setting: syntax.AstSetting) -> list[ast.stmt]:
         stmt = ast.ClassDef(
-            name=self.name,
+            name=self._class_name(),
             bases=[b.codegen_expr(setting) for b in self.bases],
             body=self.body.codegen_stmt(setting),
             decorator_list=[],
@@ -484,8 +487,8 @@ class ClassDef(syntax.Term):
         return [stmt]
 
     def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        class_name = self.name
-        instance_name = f'{class_name}_'
+        instance_name = self.name
+        class_name = self._class_name()
         body = []
         methods: list[FunctionDef] = []
         constructor_args = []

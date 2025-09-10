@@ -181,7 +181,7 @@ class Circle:
     assert (
         ast.unparse(stmt1)
         == """
-class Circle:
+class Circle_:
 
     def __init__(self, radius):
         self.radius = radius
@@ -190,12 +190,12 @@ class Circle:
     assert (
         ast.unparse(stmt2)
         == """
-class Circle:
+class Circle_:
 
     def __init__(self, radius):
         s1 = s0.api__tapl.create_scope(parent__tapl=s0, self=self, radius=radius)
         s1.self.radius = s1.radius
         return s1.api__tapl.get_return_type(s1)
-s0.Circle_, s0.Circle = s0.api__tapl.create_class(cls=Circle, init_args=[s0.Float], methods=[])
+s0.Circle, s0.Circle_ = s0.api__tapl.create_class(cls=Circle_, init_args=[s0.Float], methods=[])
 """.strip()
     )

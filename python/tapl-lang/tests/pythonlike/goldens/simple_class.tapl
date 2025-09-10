@@ -3,10 +3,10 @@ language pythonlike
 class SimplestClass:
   pass
 
-def accept(param: SimplestClass_):
+def accept(param: SimplestClass):
   pass
 
-accept(SimplestClass())
+accept(SimplestClass_())
 
 
 class Circle:
@@ -15,7 +15,7 @@ class Circle:
   def area(self):
     return 3.14 * self.radius * self.radius
 
-def print_area(circle: Circle_):
+def print_area(circle: Circle):
   api__tapl.print_log(circle.area())
 
-print_area(Circle(2.0))
+print_area(Circle_(2.0))
