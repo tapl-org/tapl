@@ -110,6 +110,8 @@ class Nothing(proxy.Subject):
 
 class Labeled(proxy.Subject):
     def __init__(self, label, typ):
+        if not isinstance(typ, proxy.Proxy):
+            raise TypeError(f'Labeled type must be a Proxy, but found {type(typ)} in label={label}')
         self._label = label
         self._type = typ
 
@@ -236,9 +238,13 @@ class Function(proxy.Subject):
 
     @property
     def result(self):
+        self.force()
+        return self._result
+
+    def force(self):
         if self._lazy_result:
             self._result = self._lazy_result()
-        return self._result
+            self._lazy_result = None
 
     def can_be_used_as(self, target):
         if self is target:
@@ -258,7 +264,10 @@ class Function(proxy.Subject):
         return arguments
 
     def apply(self, *arguments):
-        args = self.fix_labels(list(arguments))
+        args = list(arguments)
+        if len(args) != len(self._parameters):
+            raise TypeError(f'Expected {len(self._parameters)} arguments, got {len(args)}')
+        args = self.fix_labels(args)
         for p, a in zip(self.parameters, args, strict=True):
             if not can_be_used_as(a, p):
                 raise TypeError(f'Not equal: parameters={self.parameters} arguments={args}')
@@ -297,6 +306,8 @@ def _validate_types(types):
     # check for duplicate labels
     seen_labels = set()
     for t_ in types:
+        if not isinstance(t_, proxy.Proxy):
+            raise TypeError(f'Type must be a Proxy, but found {type(t_)}')
         t = t_.subject__tapl
         if t.kind == Kind.Labeled:
             if t.label in seen_labels:

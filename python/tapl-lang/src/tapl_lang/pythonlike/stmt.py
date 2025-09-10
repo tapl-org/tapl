@@ -506,41 +506,7 @@ class ClassDef(syntax.Term):
         )
         self.location.locate(class_stmt)
 
-        def declare_class(namespace: str) -> ast.stmt:
-            assign = ast.Assign(
-                targets=[ast_attribute([setting.scope_name, namespace], ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast_attribute([setting.scope_name, 'api__tapl', 'create_scope']),
-                    keywords=[
-                        ast.keyword('label__tapl', ast.Constant(value=namespace)),
-                    ],
-                ),
-            )
-            self.location.locate(assign)
-            return assign
-
-        def init_instance(instance_name: str) -> ast.stmt:
-            call = ast.Call(
-                func=ast_attribute([class_name, '__init__']),
-                args=[ast_attribute([setting.scope_name, instance_name]), *constructor_args],
-            )
-            return ast.Expr(value=call)
-
-        def declare_method(namespace: str, method_name: str, args: list[ast.expr], result: ast.expr) -> ast.stmt:
-            assign = ast.Assign(
-                targets=[ast_attribute([setting.scope_name, namespace, method_name], ctx=ast.Store())],
-                value=ast.Call(
-                    func=ast_attribute([setting.scope_name, 'api__tapl', 'create_function']),
-                    args=[
-                        ast.List(elts=args, ctx=ast.Load()),
-                        result,
-                    ],
-                ),
-            )
-            self.location.locate(assign)
-            return assign
-
-        method_types = []
+        method_types: list[ast.expr] = []
         for method in methods:
             # The first parameter is the instance itself, so we can set it to the instance type.
             if not (
@@ -552,42 +518,35 @@ class ClassDef(syntax.Term):
                     f'First parameter of method {method.name} in class {class_name} must be self with no type annotation.'
                 )
             tail_args = [p.codegen_expr(setting) for p in method.parameters[1:]]
-            class_args = [ast_attribute([setting.scope_name, instance_name]), *tail_args]
             method_types.append(
-                declare_method(
-                    namespace=class_name,
-                    method_name=method.name,
-                    args=class_args,
-                    result=ast.Call(
-                        func=ast_attribute([class_name, method.name]),
-                        args=class_args,
-                    ),
-                )
-            )
-            method_types.append(
-                declare_method(
-                    namespace=instance_name,
-                    method_name=method.name,
-                    args=tail_args,
-                    result=ast_attribute([setting.scope_name, class_name, method.name, 'subject__tapl', 'result']),
+                ast.Tuple(
+                    elts=[ast.Constant(value=method.name), ast.List(elts=tail_args, ctx=ast.Load())], ctx=ast.Load()
                 )
             )
 
-        constructor = declare_method(
-            namespace=class_name,
-            method_name='__call__',
-            args=constructor_args,
-            result=ast_attribute([setting.scope_name, instance_name]),
+        create_class = ast.Assign(
+            targets=[
+                ast.Tuple(
+                    elts=[
+                        ast_attribute([setting.scope_name, instance_name], ctx=ast.Store()),
+                        ast_attribute([setting.scope_name, class_name], ctx=ast.Store()),
+                    ],
+                    ctx=ast.Store(),
+                )
+            ],
+            value=ast.Call(
+                func=ast_attribute([setting.scope_name, 'api__tapl', 'create_class']),
+                args=[],
+                keywords=[
+                    ast.keyword(arg='cls', value=ast_name(class_name)),
+                    ast.keyword(arg='init_args', value=ast.List(elts=constructor_args, ctx=ast.Load())),
+                    ast.keyword(arg='methods', value=ast.List(elts=method_types, ctx=ast.Load())),
+                ],
+            ),
         )
+        self.location.locate(create_class)
 
-        return [
-            class_stmt,
-            declare_class(class_name),
-            declare_class(instance_name),
-            init_instance(instance_name),
-            *method_types,
-            constructor,
-        ]
+        return [class_stmt, create_class]
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:

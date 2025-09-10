@@ -196,9 +196,6 @@ class Circle:
         s1 = s0.api__tapl.create_scope(parent__tapl=s0, self=self, radius=radius)
         s1.self.radius = s1.radius
         return s1.api__tapl.get_return_type(s1)
-s0.Circle = s0.api__tapl.create_scope(label__tapl='Circle')
-s0.Circle_ = s0.api__tapl.create_scope(label__tapl='Circle_')
-Circle.__init__(s0.Circle_, s0.Float)
-s0.Circle.__call__ = s0.api__tapl.create_function([s0.Float], s0.Circle_)
+s0.Circle_, s0.Circle = s0.api__tapl.create_class(cls=Circle, init_args=[s0.Float], methods=[])
 """.strip()
     )

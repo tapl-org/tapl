@@ -1,16 +1,15 @@
 from tapl_lang.pythonlike.predef1 import predef_proxy as s0
 
-# class SimplestClass:
-#     pass
-# s0.SimplestClass_, s0.SimplestClass = s0.api__tapl.create_class(SimplestClass, init_args=[], methods=[])
+class SimplestClass:
+    pass
+s0.SimplestClass_, s0.SimplestClass = s0.api__tapl.create_class(cls=SimplestClass, init_args=[], methods=[])
 
-
-# def accept(param):
-#     s1 = s0.api__tapl.create_scope(parent__tapl=s0, param=param)
-#     pass
-#     return s1.api__tapl.get_return_type(s1)
-# s0.accept = s0.api__tapl.create_function([s0.SimplestClass_], accept(s0.SimplestClass_))
-# s0.accept(s0.SimplestClass())
+def accept(param):
+    s1 = s0.api__tapl.create_scope(parent__tapl=s0, param=param)
+    pass
+    return s1.api__tapl.get_return_type(s1)
+s0.accept = s0.api__tapl.create_function([s0.SimplestClass_], accept(s0.SimplestClass_))
+s0.accept(s0.SimplestClass())
 
 class Circle:
 
@@ -23,9 +22,7 @@ class Circle:
         s1 = s0.api__tapl.create_scope(parent__tapl=s0, self=self)
         s1.api__tapl.add_return_type(s1, s1.Float * s1.self.radius * s1.self.radius)
         return s1.api__tapl.get_return_type(s1)
-s0.Circle_, s0.Circle = s0.api__tapl.create_class(Circle, init_args=[s0.Float], methods=[('area', [])])
-
-s0.api__tapl.print_log(list(s0.Circle_.subject__tapl))
+s0.Circle_, s0.Circle = s0.api__tapl.create_class(cls=Circle, init_args=[s0.Float], methods=[('area', [])])
 
 def print_area(circle):
     s1 = s0.api__tapl.create_scope(parent__tapl=s0, circle=circle)

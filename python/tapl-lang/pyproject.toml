@@ -38,7 +38,7 @@ extend-exclude = ["**/goldens/*.py", "**/examples/*"]
 
 [tool.ruff.lint]
 ignore = [
-  "T201", # Ignore print statements used warning
+  # "T201", # Ignore print statements used warning
   "TRY003", # Avoid specifying long messages outside the exception class.
   "EM101",  # Exception must not use a string literal, assign to variable first.
   "EM102",  # Exception must not use an f-string literal, assign to variable first.
