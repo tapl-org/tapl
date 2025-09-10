@@ -69,7 +69,7 @@ def create_class(
 
     class_type = typelib.Intersection(
         types=labeleds,
-        title=cls.__name__ + '_',
+        title=cls.__name__[:-1],
     )
     object.__setattr__(class_type_proxy, proxy.SUBJECT_FIELD_NAME, class_type)
     for labeled_proxy in labeleds:
