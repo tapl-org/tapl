@@ -14,3 +14,4 @@ create_union = typelib.create_union
 create_function = typelib.create_function
 create_class = utils.create_class
 print_log = print
+create_dynamic_variables = utils.create_dynamic_variables

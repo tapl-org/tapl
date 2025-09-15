@@ -81,3 +81,8 @@ def create_class(
 
     factory = typelib.Function(parameters=init_args, result=class_type_proxy)
     return class_type_proxy, proxy.Proxy(factory)
+
+
+def create_dynamic_variables(namespace, variables):
+    for var_name, var_value in variables.items():
+        namespace[var_name] = var_value
