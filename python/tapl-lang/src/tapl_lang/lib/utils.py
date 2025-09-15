@@ -5,7 +5,7 @@
 import itertools
 from typing import Any
 
-from tapl_lang.lib import builtin, proxy, scope, typelib
+from tapl_lang.lib import builtin_types, proxy, scope, typelib
 
 
 def get_scope_from_proxy(p: proxy.Proxy) -> scope.Scope:
@@ -33,7 +33,7 @@ def get_return_type(proxy: proxy.Proxy) -> Any:
     returns = get_scope_from_proxy(proxy).returns
     if returns:
         return typelib.create_union(*returns)
-    return builtin.Types['NoneType']
+    return builtin_types.Types['NoneType']
 
 
 def scope_forker(proxy: proxy.Proxy) -> scope.ScopeForker:
@@ -59,8 +59,10 @@ def create_class(
     self_current = scope.Scope(parent=self_parent)
     cls.__init__(*[proxy.Proxy(self_current), *init_args])
     labeleds = [
-        proxy.Proxy(typelib.Labeled('__repr__', proxy.Proxy(typelib.Function(parameters=[], result=builtin.Str)))),
-        proxy.Proxy(typelib.Labeled('__str__', proxy.Proxy(typelib.Function(parameters=[], result=builtin.Str)))),
+        proxy.Proxy(
+            typelib.Labeled('__repr__', proxy.Proxy(typelib.Function(parameters=[], result=builtin_types.Str)))
+        ),
+        proxy.Proxy(typelib.Labeled('__str__', proxy.Proxy(typelib.Function(parameters=[], result=builtin_types.Str)))),
     ]
     for label in itertools.chain(self_parent.fields.keys(), self_current.fields.keys()):
         member = self_current.load(label)
