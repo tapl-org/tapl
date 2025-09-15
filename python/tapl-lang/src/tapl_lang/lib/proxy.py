@@ -75,6 +75,9 @@ class Proxy:
     def __add__(self__tapl, other):
         return call_binop('__add__', self__tapl, other)
 
+    def __sub__(self__tapl, other):
+        return call_binop('__sub__', self__tapl, other)
+
     def __mul__(self__tapl, other):
         return call_binop('__mul__', self__tapl, other)
 

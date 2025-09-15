@@ -51,11 +51,12 @@ Float = Types['Float']
 Str = Types['Str']
 
 _init_record('Bool', [['__lt__', [Bool], Bool], ['__gt__', [Bool], Bool]])
-_init_record('Int', [['__add__', [Int], Int], ['__lt__', [Int], Bool]])
+_init_record('Int', [['__add__', [Int], Int], ['__sub__', [Int], Int], ['__lt__', [Int], Bool]])
 _init_record(
     'Float',
     [
         ['__add__', [Float], Float],
+        ['__sub__', [Float], Float],
         ['__mul__', [Float], Float],
         ['__lt__', [Float], Bool],
         ['__gt__', [Float], Bool],

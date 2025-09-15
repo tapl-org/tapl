@@ -42,7 +42,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.STATEMENT_NEWLINE, [])
     add(rn.SIMPLE_STMTS, [rn.SIMPLE_STMT])
     add(rn.SIMPLE_STMT, [rn.ASSIGNMENT, _parse_statement__star_expressions, rn.RETURN_STMT, rn.PASS_STMT])
-    add(rn.COMPOUND_STMT, [rn.FUNCTION_DEF, rn.IF_STMT, rn.CLASS_DEF])
+    add(rn.COMPOUND_STMT, [rn.FUNCTION_DEF, rn.IF_STMT, rn.CLASS_DEF, rn.FOR_STMT, rn.WHILE_STMT])
 
     # SIMPLE STATEMENTS
     # =================
@@ -115,11 +115,11 @@ def get_grammar() -> parser.Grammar:
 
     # While statement
     # ---------------
-    add(rn.WHILE_STMT, [])
+    add(rn.WHILE_STMT, [_parse_while_stmt])
 
     # For statement
     # -------------
-    add(rn.FOR_STMT, [])
+    add(rn.FOR_STMT, [_parse_for_stmt])
 
     # With statement
     # --------------
@@ -198,7 +198,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.STAR_NAMED_EXPRESSIONS, [])
     add(rn.STAR_NAMED_EXPRESSION, [])
     add(rn.ASSIGNMENT_EXPRESSION, [])
-    add(rn.NAMED_EXPRESSION, [])
+    add(rn.NAMED_EXPRESSION, [_parse_expression_no_walrus])
     add(rn.DISJUNCTION, [_parse_disjunction__or, rn.CONJUNCTION])
     add(rn.CONJUNCTION, [_parse_conjunction__and, rn.INVERSION])
     add(rn.INVERSION, [_parse_inversion__not, rn.COMPARISON])
@@ -876,6 +876,13 @@ def _parse_disjunction__or(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
+def _parse_expression_no_walrus(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(value := c.consume_rule(rn.EXPRESSION)) and not t.validate(_consume_punct(c.clone(), ':=')):
+        return value
+    return t.fail()
+
+
 def _parse_assignment(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
@@ -980,6 +987,41 @@ def _parse_else_stmt(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'else')) and t.validate(_expect_punct(c, ':')):
         return stmt.Else(location=t.location, body=syntax.Statements(terms=[], delayed=True))
+    return t.fail()
+
+
+def _parse_while_stmt(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(_consume_keyword(c, 'while'))
+        and t.validate(test := _expect_rule(c, rn.NAMED_EXPRESSION))
+        and t.validate(_expect_punct(c, ':'))
+    ):
+        return stmt.While(
+            location=t.location,
+            test=test,
+            body=syntax.Statements(terms=[], delayed=True),
+            orelse=None,
+        )
+    return t.fail()
+
+
+def _parse_for_stmt(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(_consume_keyword(c, 'for'))
+        and t.validate(target := _expect_rule(c, rn.STAR_TARGETS))
+        and t.validate(_consume_keyword(c, 'in'))
+        and t.validate(iter_ := _expect_rule(c, rn.STAR_EXPRESSIONS))
+        and t.validate(_expect_punct(c, ':'))
+    ):
+        return stmt.For(
+            location=t.location,
+            target=target,
+            iter=iter_,
+            body=syntax.Statements(terms=[], delayed=True),
+            orelse=None,
+        )
     return t.fail()
 
 

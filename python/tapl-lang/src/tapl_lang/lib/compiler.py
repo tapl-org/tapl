@@ -41,7 +41,7 @@ def compile_tapl(text: str) -> list[ast.AST]:
     error_bucket: list[syntax.ErrorTerm] = terms.gather_errors(module)
     if error_bucket:
         messages = [repr(e) for e in error_bucket]
-        raise tapl_error.TaplError(f'{len(error_bucket)} errors found:\n\n' + '\n\n'.join(messages))
+        raise tapl_error.TaplError(f'{len(error_bucket)} parsing error(s) found:\n\n' + '\n\n'.join(messages))
     safe_module = terms.make_safe_term(module)
     ls = syntax.LayerSeparator(len(predef_layers.layers))
     layers = ls.build(lambda layer: layer(safe_module))
