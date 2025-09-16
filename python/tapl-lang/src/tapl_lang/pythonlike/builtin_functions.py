@@ -8,7 +8,11 @@ functions = {
     'print': (
         print,
         typelib.create_function(parameters=[builtin_types.Any], result=builtin_types.NoneType),
-    )
+    ),
+    'range': (
+        range,
+        typelib.create_function(parameters=[builtin_types.Int], result=[builtin_types.Int]),
+    ),
 }
 
 

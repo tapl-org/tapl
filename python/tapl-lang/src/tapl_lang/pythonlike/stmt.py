@@ -550,8 +550,7 @@ class For(syntax.Term):
             )
         )
 
-    @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+    def codegen_evaluate(self, setting: syntax.AstSetting) -> list[ast.stmt]:
         for_stmt = ast.For(
             target=self.target.codegen_expr(setting),
             iter=self.iter.codegen_expr(setting),
@@ -561,6 +560,69 @@ class For(syntax.Term):
         )
         self.location.locate(for_stmt)
         return [for_stmt]
+
+    def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        if setting.scope_native:
+            raise tapl_error.TaplError('"For" statement type-checking does not support native scope.')
+
+        def locate(ast_expr: ast.expr) -> ast.expr:
+            self.location.locate(ast_expr)
+            return ast_expr
+
+        body_setting = setting.clone(scope_level=setting.scope_level + 1)
+        body: list[ast.stmt] = []
+
+        def add_new_scope_stmt() -> None:
+            assign = ast.Assign(
+                targets=[locate(ast.Name(id=body_setting.scope_name, ctx=ast.Store()))],
+                value=ast.Call(
+                    func=ast_attribute([setting.scope_name, 'api__tapl', 'fork_scope']),
+                    args=[ast.Name(id=setting.forker_name, ctx=ast.Load())],
+                ),
+            )
+            self.location.locate(assign)
+            body.append(assign)
+
+        def extract_iter_item(value: ast.expr) -> ast.expr:
+            iterator = ast.Call(func=ast.Attribute(value=value, attr='__iter__'), args=[])
+            return ast.Call(func=ast.Attribute(value=iterator, attr='__next__'), args=[])
+
+        add_new_scope_stmt()
+        header_stmt = ast.Assign(
+            targets=[self.target.codegen_expr(body_setting)],
+            value=extract_iter_item(self.iter.codegen_expr(body_setting)),
+        )
+        self.location.locate(header_stmt)
+        body.append(header_stmt)
+        body.extend(self.body.codegen_stmt(body_setting))
+        add_new_scope_stmt()
+        if self.orelse is not None:
+            body.extend(self.orelse.codegen_stmt(body_setting))
+        with_stmt = ast.With(
+            items=[
+                ast.withitem(
+                    context_expr=locate(
+                        ast.Call(
+                            func=ast_attribute([setting.scope_name, 'api__tapl', 'scope_forker']),
+                            args=[locate(ast.Name(id=setting.scope_name))],
+                        )
+                    ),
+                    optional_vars=locate(ast.Name(id=setting.forker_name, ctx=ast.Store())),
+                )
+            ],
+            body=body,
+            type_comment=None,
+        )
+        self.location.locate(with_stmt)
+        return [with_stmt]
+
+    @override
+    def codegen_stmt(self, setting):
+        if setting.code_evaluate:
+            return self.codegen_evaluate(setting)
+        if setting.code_typecheck:
+            return self.codegen_typecheck(setting)
+        raise tapl_error.UnhandledError
 
 
 @dataclass
