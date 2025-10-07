@@ -39,6 +39,7 @@ Types = {
     'Int': proxy.Proxy(typelib.Interim()),
     'Float': proxy.Proxy(typelib.Interim()),
     'Str': proxy.Proxy(typelib.Interim()),
+    'ListInt': proxy.Proxy(typelib.Interim()),
 }
 
 
@@ -49,9 +50,22 @@ Bool = Types['Bool']
 Int = Types['Int']
 Float = Types['Float']
 Str = Types['Str']
+ListInt = Types['ListInt']
 
 _init_record('Bool', [['__lt__', [Bool], Bool], ['__gt__', [Bool], Bool]])
-_init_record('Int', [['__add__', [Int], Int], ['__sub__', [Int], Int], ['__lt__', [Int], Bool]])
+_init_record(
+    'Int',
+    [
+        ['__add__', [Int], Int],
+        ['__sub__', [Int], Int],
+        ['__mul__', [Int], Int],
+        ['__truediv__', [Int], Float],
+        ['__mod__', [Int], Int],
+        ['__floordiv__', [Int], Int],
+        ['__ne__', [Int], Bool],
+        ['__lt__', [Int], Bool],
+    ],
+)
 _init_record(
     'Float',
     [
@@ -63,3 +77,4 @@ _init_record(
     ],
 )
 _init_record('Str', [['isalpha', [], Bool], ['isdigit', [], Bool]])
+_init_record('ListInt', [['append', [Int], NoneType], ['__len__', [], Int]])

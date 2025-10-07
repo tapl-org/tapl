@@ -193,7 +193,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.EXPRESSIONS, [])
     add(rn.EXPRESSION, [rn.DISJUNCTION])
     add(rn.YIELD_EXPR, [])
-    add(rn.STAR_EXPRESSIONS, [rn.STAR_EXPRESSION])
+    add(rn.STAR_EXPRESSIONS, [rn.STAR_EXPRESSION])  # TODO: _parse_star_expressions__multi
     add(rn.STAR_EXPRESSION, [rn.EXPRESSION])
     add(rn.STAR_NAMED_EXPRESSIONS, [])
     add(rn.STAR_NAMED_EXPRESSION, [])
@@ -239,7 +239,10 @@ def get_grammar() -> parser.Grammar:
     add(rn.PRIMARY, [_parse_primary__attribute, _parse_primary__call, rn.ATOM])
     add(rn.SLICES, [])
     add(rn.SLICE, [])
-    add(rn.ATOM, [_parse_atom__name_load, _parse_atom__bool, _parse_atom__string, _parse_atom__number])
+    add(
+        rn.ATOM,
+        [_parse_atom__name_load, _parse_atom__bool, _parse_atom__string, _parse_atom__number, _parse_atom__list],
+    )
     add(rn.GROUP, [])
 
     # Lambda functions
@@ -770,6 +773,20 @@ def _parse_atom__number(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
+def _parse_atom__list(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(_consume_punct(c, '['))
+        # TODO: star_named_expressions?
+        and t.validate(_expect_punct(c, ']'))
+    ):
+        # TODO: Hard coded to ListIntLiteral for simplicity. Should be ListLiteral+Generics with element type.
+        return terms.Layers(
+            layers=[expr.ListIntLiteral(t.location), expr.Name(location=t.location, id='ListInt', ctx='load')]
+        )
+    return t.fail()
+
+
 def _parse_factor__unary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(op := _consume_punct(c, '+', '-', '~')) and t.validate(factor := _expect_rule(c, rn.FACTOR)):
@@ -874,6 +891,18 @@ def _parse_disjunction__or(c: Cursor) -> syntax.Term:
         if len(values) > 1:
             return expr.BoolOp(location=t.location, op='or', values=values)
     return t.fail()
+
+
+def _parse_star_expressions__multi(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    elements = []
+    if t.validate(first := c.consume_rule(rn.STAR_EXPRESSION)):
+        elements.append(first)
+        k = c.clone()
+        while t.validate(_consume_punct(k, ',')) and t.validate(next_ := _expect_rule(k, rn.STAR_EXPRESSION)):
+            c.copy_from(k)
+            elements.append(next_)
+    return t.captured_error or BlockTerm(terms=elements)
 
 
 def _parse_expression_no_walrus(c: Cursor) -> syntax.Term:

@@ -139,7 +139,7 @@ class Labeled(proxy.Subject):
         return self._type
 
     def __repr__(self):
-        return f'{self.label}={self.type}'
+        return f'{self._label}={self._type}'
 
 
 class Union(proxy.Subject):
@@ -316,6 +316,8 @@ def _validate_types(types):
 
 
 def can_be_used_as(source, target):
+    if source is target:
+        return True
     return source.subject__tapl.can_be_used_as(target.subject__tapl)
 
 

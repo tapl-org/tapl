@@ -60,6 +60,14 @@ def test_assign_name():
     assert run_stmt([stmt1]) is None
 
 
+def test_assign_empty_list():
+    [stmt1, stmt2] = parse_stmt('a=[]')
+    assert ast.unparse(stmt1) == 'a = []'
+    assert ast.unparse(stmt2) == 's0.a = s0.ListInt'
+    assert run_stmt([stmt2]) is None
+    assert run_stmt([stmt1]) is None
+
+
 def test_assign_attribute():
     [stmt1, stmt2] = parse_stmt('a.b=1')
     assert ast.unparse(stmt1) == 'a.b = 1'

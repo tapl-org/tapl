@@ -171,6 +171,25 @@ class StringLiteral(Literal):
 
 
 @dataclass
+class ListIntLiteral(Literal):
+    location: syntax.Location
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from ()
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda _: ListIntLiteral(location=self.location))
+
+    @override
+    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+        list_expr = ast.List(elts=[], ctx=ast.Load())
+        self.location.locate(list_expr)
+        return list_expr
+
+
+@dataclass
 class UnaryOp(syntax.Term):
     location: syntax.Location
     op: str

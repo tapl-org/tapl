@@ -348,9 +348,14 @@ class PegEngineDebug(PegEngine):
     def tableize_parse_traces(self) -> list[list[str]]:
         sorted_traces = sorted(self.parse_traces, key=lambda t: (t.start_row, t.start_col, t.rule, t.start_call_order))
         table = [['Start/Rule', 'End', 'Order#', 'Status/Grow', 'Applied rules', 'Details']]
+        last_pos = None
         for (row, col, rule), group in itertools.groupby(
             sorted_traces, key=lambda t: (t.start_row, t.start_col, t.rule)
         ):
+            pos = f'{row}:{col}'
+            if last_pos != pos:
+                table.append(['', '', '', '', '', ''])
+            last_pos = pos
             table.append([f'{row}:{col}:{rule}', '', '', '', '', ''])
             for trace in group:
                 rule_key = f'   {trace.function_index}'

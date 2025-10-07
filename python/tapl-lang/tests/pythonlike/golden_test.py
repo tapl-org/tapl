@@ -79,3 +79,7 @@ def test_goldens():
 
 def test_sum():
     run_golden_test('sum')
+
+
+def test_collatz_conjecture():
+    run_golden_test('collatz_conjecture')

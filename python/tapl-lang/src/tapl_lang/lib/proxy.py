@@ -81,5 +81,14 @@ class Proxy:
     def __mul__(self__tapl, other):
         return call_binop('__mul__', self__tapl, other)
 
+    def __mod__(self__tapl, other):
+        return call_binop('__mod__', self__tapl, other)
+
+    def __floordiv__(self__tapl, other):
+        return call_binop('__floordiv__', self__tapl, other)
+
+    def __ne__(self__tapl, other):
+        return call_binop('__ne__', self__tapl, other)
+
     def __lt__(self__tapl, other):
         return call_binop('__lt__', self__tapl, other)
