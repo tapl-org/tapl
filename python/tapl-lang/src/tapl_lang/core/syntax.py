@@ -189,6 +189,30 @@ class ErrorTerm(Term):
 
 
 @dataclass
+class TermList(Term):
+    terms: list[Term]
+    # True if the statement is a placeholder requiring resolution (e.g., waiting for child chunk parsing).
+    is_placeholder: bool = False
+
+    @override
+    def children(self) -> Generator[Term, None, None]:
+        yield from self.terms
+
+    def flattened(self) -> Generator[Term, None, None]:
+        for term in self.terms:
+            if isinstance(term, TermList):
+                yield from term.flattened()
+            else:
+                yield term
+
+    @override
+    def separate(self, ls: LayerSeparator) -> list[Term]:
+        if self.is_placeholder:
+            raise tapl_error.TaplError('The placeholder list must be resolved before separation.')
+        return ls.build(lambda layer: TermList(terms=[layer(s) for s in self.terms], is_placeholder=False))
+
+
+@dataclass
 class Statements(Term):
     terms: list[Term]
     # Indicates a delayed statements, useful when its initialization depends on child chunk parsing.

@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast, override
 
+from tapl_lang.lib import python_backend
+
 if TYPE_CHECKING:
     import ast
     from collections.abc import Callable, Generator
@@ -135,15 +137,15 @@ class AstSettingTerm(syntax.Term):
 
     @override
     def codegen_ast(self, setting: syntax.AstSetting) -> ast.AST:
-        return self.term.codegen_ast(self._ensure_changer()(setting))
+        return python_backend.codegen_ast(self.term, self._ensure_changer()(setting))
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        return self.term.codegen_expr(self._ensure_changer()(setting))
+        return python_backend.codegen_expr(self.term, self._ensure_changer()(setting))
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        return self.term.codegen_stmt(self._ensure_changer()(setting))
+        return python_backend.codegen_stmt(self.term, self._ensure_changer()(setting))
 
 
 def create_safe_ast_settings() -> list[syntax.AstSetting]:

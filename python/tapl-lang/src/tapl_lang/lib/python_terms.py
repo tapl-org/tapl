@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from collections.abc import Generator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, override
 
 from tapl_lang.core import syntax
@@ -29,20 +29,20 @@ class Module(syntax.Term):
 class FunctionDef(syntax.Term):
     location: syntax.Location
     name: str
-    posonlyargs: list[str]
-    args: list[str]
-    vararg: str | None
-    kwonlyargs: list[str]
-    kw_defaults: list[syntax.Term]
-    kwarg: str | None
-    defaults: list[syntax.Term]
     body: syntax.Term
+    posonlyargs: list[str] = field(default_factory=list)
+    args: list[str] = field(default_factory=list)
+    vararg: str | None = None
+    kwonlyargs: list[str] = field(default_factory=list)
+    kw_defaults: list[syntax.Term] = field(default_factory=list)
+    kwarg: str | None = None
+    defaults: list[syntax.Term] = field(default_factory=list)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.body
         yield from self.kw_defaults
         yield from self.defaults
-        yield self.body
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -50,6 +50,7 @@ class FunctionDef(syntax.Term):
             lambda layer: FunctionDef(
                 location=self.location,
                 name=self.name,
+                body=layer(self.body),
                 posonlyargs=self.posonlyargs,
                 args=self.args,
                 vararg=self.vararg,
@@ -57,7 +58,6 @@ class FunctionDef(syntax.Term):
                 kw_defaults=[layer(k) for k in self.kw_defaults],
                 kwarg=self.kwarg,
                 defaults=[layer(d) for d in self.defaults],
-                body=layer(self.body),
             )
         )
 
@@ -66,13 +66,13 @@ class FunctionDef(syntax.Term):
 class ClassDef(syntax.Term):
     location: syntax.Location
     name: str
-    bases: list[syntax.Term]
-    body: list[syntax.Term]
+    bases: syntax.Term
+    body: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
-        yield from self.bases
-        yield from self.body
+        yield self.bases
+        yield self.body
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -80,8 +80,8 @@ class ClassDef(syntax.Term):
             lambda layer: ClassDef(
                 location=self.location,
                 name=self.name,
-                bases=[layer(b) for b in self.bases],
-                body=[layer(b) for b in self.body],
+                bases=layer(self.bases),
+                body=layer(self.body),
             )
         )
 
@@ -119,20 +119,6 @@ class Assign(syntax.Term):
                 location=self.location, targets=[layer(t) for t in self.targets], value=layer(self.value)
             )
         )
-
-
-@dataclass
-class Expr(syntax.Term):
-    location: syntax.Location
-    value: syntax.Term
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield self.value
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Expr(location=self.location, value=layer(self.value)))
 
 
 @dataclass
@@ -259,6 +245,20 @@ class ImportFrom(syntax.Term):
                 level=self.level,
             )
         )
+
+
+@dataclass
+class Expr(syntax.Term):
+    location: syntax.Location
+    value: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.value
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda layer: Expr(location=self.location, value=layer(self.value)))
 
 
 @dataclass

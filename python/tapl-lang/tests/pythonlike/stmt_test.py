@@ -8,7 +8,7 @@ import ast
 from tapl_lang.core import syntax
 from tapl_lang.core.chunker import chunk_text
 from tapl_lang.core.parser import parse_text
-from tapl_lang.lib import proxy, scope, terms
+from tapl_lang.lib import proxy, python_backend, scope, terms
 from tapl_lang.pythonlike import grammar, predef1, stmt
 from tapl_lang.pythonlike.language import PythonlikeLanguage
 
@@ -30,7 +30,7 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
     check_parsed_term(parsed)
     safe_term = terms.make_safe_term(parsed)
     layers = syntax.LayerSeparator(2).build(lambda layer: layer(safe_term))
-    return [s for layer in layers for s in layer.codegen_stmt(syntax.AstSetting())]
+    return [s for layer in layers for s in python_backend.codegen_stmt(layer, syntax.AstSetting())]
 
 
 def run_stmt(stmts: list[ast.stmt]):
@@ -49,7 +49,7 @@ def parse_module(text: str) -> list[ast.AST]:
     ls = syntax.LayerSeparator(2)
     safe_module = terms.make_safe_term(module)
     layers = ls.build(lambda layer: layer(safe_module))
-    return [layer.codegen_ast(syntax.AstSetting()) for layer in layers]
+    return [python_backend.codegen_ast(layer, syntax.AstSetting()) for layer in layers]
 
 
 def test_assign_name():
