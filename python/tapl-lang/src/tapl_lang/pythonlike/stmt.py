@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import cast, override
 
 from tapl_lang.core import syntax, tapl_error
+from tapl_lang.lib import terms
 
 
 def ast_name(name: str, ctx: ast.expr_context | None = None) -> ast.expr:
@@ -63,14 +64,16 @@ class Assign(syntax.Term):
 class Return(syntax.Term):
     location: syntax.Location
     value: syntax.Term
+    mode: syntax.Term = terms.MODE_SAFE
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.value
+        yield self.mode
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Return(location=self.location, value=layer(self.value)))
+        return ls.build(lambda layer: Return(location=self.location, value=layer(self.value), mode=layer(self.mode)))
 
     def codegen_evaluate(self, setting: syntax.AstSetting) -> list[ast.stmt]:
         stmt = ast.Return(self.value.codegen_expr(setting)) if self.value else ast.Return()
@@ -95,9 +98,9 @@ class Return(syntax.Term):
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if setting.code_evaluate and setting.scope_native:
+        if self.mode is terms.MODE_EVALUATE and setting.scope_native:
             return self.codegen_evaluate(setting)
-        if setting.code_typecheck and setting.scope_manual:
+        if self.mode is terms.MODE_TYPECHECK and setting.scope_manual:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
 
@@ -137,17 +140,23 @@ class Parameter(syntax.Term):
     location: syntax.Location
     name: str
     type_: syntax.Term
+    mode: syntax.Term = terms.MODE_SAFE
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.type_
+        yield self.mode
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Parameter(location=self.location, name=self.name, type_=layer(self.type_)))
+        return ls.build(
+            lambda layer: Parameter(
+                location=self.location, name=self.name, type_=layer(self.type_), mode=layer(self.mode)
+            )
+        )
 
     def codegen_expr(self, setting):
-        if setting.code_typecheck and setting.scope_manual:
+        if self.mode is terms.MODE_TYPECHECK and setting.scope_manual:
             return self.type_.codegen_expr(setting)
         raise tapl_error.UnhandledError
 
@@ -158,11 +167,13 @@ class FunctionDef(syntax.Term):
     name: str
     parameters: list[syntax.Term]
     body: syntax.Term
+    mode: syntax.Term = terms.MODE_SAFE
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.parameters
         yield self.body
+        yield self.mode
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -172,6 +183,7 @@ class FunctionDef(syntax.Term):
                 name=self.name,
                 parameters=[layer(p) for p in self.parameters],
                 body=layer(self.body),
+                mode=layer(self.mode),
             )
         )
 
@@ -250,9 +262,9 @@ class FunctionDef(syntax.Term):
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if setting.code_evaluate and setting.scope_native:
+        if self.mode is terms.MODE_EVALUATE and setting.scope_native:
             return self.codegen_evaluate(setting)
-        if setting.code_typecheck and setting.scope_manual:
+        if self.mode is terms.MODE_TYPECHECK and setting.scope_manual:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
 
@@ -322,6 +334,7 @@ class If(syntax.Term):
     test: syntax.Term
     body: syntax.Term
     orelse: syntax.Term | None
+    mode: syntax.Term = terms.MODE_SAFE
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -329,6 +342,7 @@ class If(syntax.Term):
         yield self.body
         if self.orelse is not None:
             yield self.orelse
+        yield self.mode
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -338,6 +352,7 @@ class If(syntax.Term):
                 test=layer(self.test),
                 body=layer(self.body),
                 orelse=layer(self.orelse) if self.orelse is not None else None,
+                mode=layer(self.mode),
             )
         )
 
@@ -400,9 +415,9 @@ class If(syntax.Term):
 
     @override
     def codegen_stmt(self, setting):
-        if setting.code_evaluate:
+        if self.mode is terms.MODE_EVALUATE and setting.scope_native:
             return self.codegen_evaluate(setting)
-        if setting.code_typecheck:
+        if self.mode is terms.MODE_TYPECHECK and setting.scope_manual:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
 
@@ -437,6 +452,7 @@ class While(syntax.Term):
     test: syntax.Term
     body: syntax.Term
     orelse: syntax.Term | None
+    mode: syntax.Term = terms.MODE_SAFE
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -444,6 +460,7 @@ class While(syntax.Term):
         yield self.body
         if self.orelse is not None:
             yield self.orelse
+        yield self.mode
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -453,6 +470,7 @@ class While(syntax.Term):
                 test=layer(self.test),
                 body=layer(self.body),
                 orelse=layer(self.orelse) if self.orelse is not None else None,
+                mode=layer(self.mode),
             )
         )
 
@@ -515,9 +533,9 @@ class While(syntax.Term):
 
     @override
     def codegen_stmt(self, setting):
-        if setting.code_evaluate:
+        if self.mode is terms.MODE_EVALUATE:
             return self.codegen_evaluate(setting)
-        if setting.code_typecheck:
+        if self.mode is terms.MODE_TYPECHECK:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
 
@@ -529,6 +547,7 @@ class For(syntax.Term):
     iter: syntax.Term
     body: syntax.Term
     orelse: syntax.Term | None
+    mode: syntax.Term = terms.MODE_SAFE
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -537,6 +556,7 @@ class For(syntax.Term):
         yield self.body
         if self.orelse is not None:
             yield self.orelse
+        yield self.mode
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -547,6 +567,7 @@ class For(syntax.Term):
                 iter=layer(self.iter),
                 body=layer(self.body),
                 orelse=layer(self.orelse) if self.orelse is not None else None,
+                mode=layer(self.mode),
             )
         )
 
@@ -618,9 +639,9 @@ class For(syntax.Term):
 
     @override
     def codegen_stmt(self, setting):
-        if setting.code_evaluate:
+        if self.mode is terms.MODE_EVALUATE:
             return self.codegen_evaluate(setting)
-        if setting.code_typecheck:
+        if self.mode is terms.MODE_TYPECHECK:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
 
@@ -650,6 +671,7 @@ class ClassDef(syntax.Term):
     name: str
     bases: list[syntax.Term]
     body: syntax.Term
+    mode: syntax.Term = terms.MODE_SAFE
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -664,6 +686,7 @@ class ClassDef(syntax.Term):
                 name=self.name,
                 bases=[layer(b) for b in self.bases],
                 body=layer(self.body),
+                mode=layer(self.mode),
             )
         )
 
@@ -747,9 +770,9 @@ class ClassDef(syntax.Term):
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if setting.code_evaluate and setting.scope_native:
+        if self.mode is terms.MODE_EVALUATE and setting.scope_native:
             return self.codegen_evaluate(setting)
-        if setting.code_typecheck and setting.scope_manual:
+        if self.mode is terms.MODE_TYPECHECK and setting.scope_manual:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
 

@@ -102,17 +102,8 @@ class ScopeMode(Enum):
 
 @dataclass
 class AstSetting:
-    code_mode: CodeMode = CodeMode.EVALUATE
     scope_mode: ScopeMode = ScopeMode.NATIVE
     scope_level: int = 0
-
-    @property
-    def code_evaluate(self) -> bool:
-        return self.code_mode == CodeMode.EVALUATE
-
-    @property
-    def code_typecheck(self) -> bool:
-        return self.code_mode == CodeMode.TYPECHECK
 
     @property
     def scope_native(self) -> bool:
@@ -122,11 +113,8 @@ class AstSetting:
     def scope_manual(self) -> bool:
         return self.scope_mode == ScopeMode.MANUAL
 
-    def clone(
-        self, code_mode: CodeMode | None = None, scope_mode: ScopeMode | None = None, scope_level: int | None = None
-    ) -> AstSetting:
+    def clone(self, scope_mode: ScopeMode | None = None, scope_level: int | None = None) -> AstSetting:
         return AstSetting(
-            code_mode=code_mode or self.code_mode,
             scope_mode=scope_mode or self.scope_mode,
             scope_level=scope_level or self.scope_level,
         )

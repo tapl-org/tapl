@@ -215,23 +215,27 @@ class UnaryOp(syntax.Term):
 class BoolNot(syntax.Term):
     location: syntax.Location
     operand: syntax.Term
+    mode: syntax.Term = terms.MODE_SAFE
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.operand
+        yield self.mode
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: BoolNot(location=self.location, operand=layer(self.operand)))
+        return ls.build(
+            lambda layer: BoolNot(location=self.location, operand=layer(self.operand), mode=layer(self.mode))
+        )
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        if setting.code_evaluate:
+        if self.mode is terms.MODE_EVALUATE:
             operand = self.operand.codegen_expr(setting)
             unary = ast.UnaryOp(ast.Not(), operand)
             self.location.locate(unary)
             return unary
-        if setting.code_typecheck:
+        if self.mode is terms.MODE_TYPECHECK:
             # unary not operator always returns Bool type
             bool_type = Name(location=self.location, id='Bool', ctx='load')
             return bool_type.codegen_expr(setting)
@@ -243,24 +247,28 @@ class BoolOp(syntax.Term):
     location: syntax.Location
     op: str
     values: list[syntax.Term]
+    mode: syntax.Term = terms.MODE_SAFE
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.values
+        yield self.mode
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: BoolOp(location=self.location, op=self.op, values=[layer(v) for v in self.values])
+            lambda layer: BoolOp(
+                location=self.location, op=self.op, values=[layer(v) for v in self.values], mode=layer(self.mode)
+            )
         )
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        if setting.code_evaluate:
+        if self.mode is terms.MODE_EVALUATE:
             op = ast.BoolOp(BOOL_OP_MAP[self.op], [v.codegen_expr(setting) for v in self.values])
             self.location.locate(op)
             return op
-        if setting.code_typecheck:
+        if self.mode is terms.MODE_TYPECHECK:
             scope_name = ast.Name(id=setting.scope_name, ctx=ast.Load())
             api__tapl = ast.Attribute(value=scope_name, attr='api__tapl', ctx=ast.Load())
             create_union = ast.Attribute(value=api__tapl, attr='create_union', ctx=ast.Load())
