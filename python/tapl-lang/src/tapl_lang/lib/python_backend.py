@@ -21,11 +21,16 @@ def locate(location: syntax.Location, *nodes: ast.expr | ast.stmt) -> None:
 
 def codegen_ast(term: syntax.Term, setting: syntax.AstSetting) -> ast.AST:
     if isinstance(term, python_terms.Module):
-        return ast.Module(body=codegen_stmt(term, setting), type_ignores=[])
+        return ast.Module(body=codegen_stmt(term.body, setting), type_ignores=[])
     return term.codegen_ast(setting)
 
 
 def codegen_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stmt]:
+    if isinstance(term, syntax.TermList):
+        stmts: list[ast.stmt] = []
+        for t in term.flattened():
+            stmts.extend(codegen_stmt(t, setting))
+        return stmts
     if isinstance(term, python_terms.FunctionDef):
         func_def = ast.FunctionDef(
             name=term.name,

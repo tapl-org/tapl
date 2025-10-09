@@ -775,25 +775,3 @@ class ClassDef(syntax.Term):
         if self.mode is terms.MODE_TYPECHECK and setting.scope_manual:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
-
-
-@dataclass
-class Module(syntax.Term):
-    header: syntax.Term
-    body: syntax.Term
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield self.header
-        yield self.body
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Module(header=layer(self.header), body=layer(self.body)))
-
-    @override
-    def codegen_ast(self, setting: syntax.AstSetting) -> ast.AST:
-        body: list[ast.stmt] = []
-        body.extend(self.header.codegen_stmt(setting))
-        body.extend(self.body.codegen_stmt(setting))
-        return ast.Module(body=body)
