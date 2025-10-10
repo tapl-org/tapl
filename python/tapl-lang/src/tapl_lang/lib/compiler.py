@@ -46,7 +46,7 @@ def compile_tapl(text: str) -> list[ast.AST]:
     language = python_language.PythonlikeLanguage()
     predef_headers = language.get_predef_headers()
     predef_layers = syntax.Layers(predef_headers)
-    module = untyped_terms.Module(body=[predef_layers, syntax.Statements(terms=[], delayed=True)])
+    module = untyped_terms.Module(body=[predef_layers, syntax.TermList(terms=[], is_placeholder=True)])
     language.parse_chunks(chunks[1:], [module])
     error_bucket: list[syntax.ErrorTerm] = gather_errors(module)
     if error_bucket:

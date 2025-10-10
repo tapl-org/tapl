@@ -10,10 +10,10 @@ from tapl_lang.core import chunker, parser, syntax, tapl_error
 
 class Language(ABC):
     def parse_chunks(self, chunks: list[chunker.Chunk], parent_stack: list[syntax.Term]) -> None:
-        delayed_statements: syntax.Statements | None = syntax.find_delayed_statements(parent_stack[-1])
+        delayed_statements: syntax.TermList | None = syntax.find_placeholder(parent_stack[-1])
         if delayed_statements is None:
             raise tapl_error.TaplError(
-                f'The top of parent_stack[{parent_stack[-1].__class__.__name__}] does not have a delayed statements to hold parsed child terms.'
+                f'The top of parent_stack[{parent_stack[-1].__class__.__name__}] does not have a placeholder to hold parsed child terms.'
             )
         body: list[syntax.Term] = []
         for chunk in chunks:
@@ -23,7 +23,7 @@ class Language(ABC):
             else:
                 body.append(term)
         delayed_statements.terms = body
-        delayed_statements.delayed = False
+        delayed_statements.is_placeholder = False
 
     def parse_chunk(self, chunk: chunker.Chunk, parent_stack: list[syntax.Term]) -> syntax.Term:
         grammar = self.get_grammar(parent_stack)

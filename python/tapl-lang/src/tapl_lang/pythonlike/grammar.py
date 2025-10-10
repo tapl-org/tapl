@@ -995,7 +995,7 @@ def _parse_function_def(c: Cursor) -> syntax.Term:
             location=t.location,
             name=name,
             parameters=cast(BlockTerm, params).terms,
-            body=syntax.Statements(terms=[], delayed=True),
+            body=syntax.TermList(terms=[], is_placeholder=True),
         )
     return t.fail()
 
@@ -1010,7 +1010,7 @@ def _parse_if_stmt(c: Cursor) -> syntax.Term:
         return stmt.If(
             location=t.location,
             test=test,
-            body=syntax.Statements(terms=[], delayed=True),
+            body=syntax.TermList(terms=[], is_placeholder=True),
             orelse=None,
         )
     return t.fail()
@@ -1019,7 +1019,7 @@ def _parse_if_stmt(c: Cursor) -> syntax.Term:
 def _parse_else_stmt(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'else')) and t.validate(_expect_punct(c, ':')):
-        return stmt.Else(location=t.location, body=syntax.Statements(terms=[], delayed=True))
+        return stmt.Else(location=t.location, body=syntax.TermList(terms=[], is_placeholder=True))
     return t.fail()
 
 
@@ -1033,7 +1033,7 @@ def _parse_while_stmt(c: Cursor) -> syntax.Term:
         return stmt.While(
             location=t.location,
             test=test,
-            body=syntax.Statements(terms=[], delayed=True),
+            body=syntax.TermList(terms=[], is_placeholder=True),
             orelse=None,
         )
     return t.fail()
@@ -1052,7 +1052,7 @@ def _parse_for_stmt(c: Cursor) -> syntax.Term:
             location=t.location,
             target=target,
             iter=iter_,
-            body=syntax.Statements(terms=[], delayed=True),
+            body=syntax.TermList(terms=[], is_placeholder=True),
             orelse=None,
         )
     return t.fail()
@@ -1073,7 +1073,9 @@ def _parse_class_def(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, ':'))
     ):
         name = cast(_TokenName, class_name).value
-        return stmt.ClassDef(location=t.location, name=name, bases=[], body=syntax.Statements(terms=[], delayed=True))
+        return stmt.ClassDef(
+            location=t.location, name=name, bases=[], body=syntax.TermList(terms=[], is_placeholder=True)
+        )
     return t.fail()
 
 

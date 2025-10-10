@@ -24,7 +24,7 @@ class PythonlikeLanguage(Language):
 
     def create_header_for_typecheck_layer(self) -> syntax.Term:
         location = syntax.Location(start=syntax.Position(line=1, column=0))
-        return syntax.Statements(
+        return syntax.TermList(
             [
                 stmt.ImportFrom(
                     location,

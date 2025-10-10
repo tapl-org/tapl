@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     import ast
     from collections.abc import Callable, Generator
 
+# TODO: No more default values in dataclass fields
+
 
 class Term:
     def children(self) -> Generator[Term, None, None]:
@@ -228,42 +230,25 @@ class TermList(Term):
             raise tapl_error.TaplError('The placeholder list must be resolved before separation.')
         return ls.build(lambda layer: TermList(terms=[layer(s) for s in self.terms], is_placeholder=False))
 
-
-@dataclass
-class Statements(Term):
-    terms: list[Term]
-    # Indicates a delayed statements, useful when its initialization depends on child chunk parsing.
-    delayed: bool = False
-
-    @override
-    def children(self) -> Generator[Term, None, None]:
-        yield from self.terms
-
-    @override
-    def separate(self, ls: LayerSeparator) -> list[Term]:
-        if self.delayed:
-            raise tapl_error.TaplError('Delayed statements must be initialized before separation.')
-        return ls.build(lambda layer: Statements(terms=[layer(s) for s in self.terms], delayed=False))
-
     @override
     def codegen_stmt(self, setting: AstSetting) -> list[ast.stmt]:
-        if self.delayed:
-            raise tapl_error.TaplError('Delayed statements must be initialized before code generation.')
+        if self.is_placeholder:
+            raise tapl_error.TaplError('The placeholder list must be initialized before code generation.')
         return [s for b in self.terms for s in b.codegen_stmt(setting)]
 
 
-def find_delayed_statements(term: Term) -> Statements | None:
-    delayed_statements: Statements | None = None
+def find_placeholder(term: Term) -> TermList | None:
+    placeholder: TermList | None = None
 
     def loop(t: Term) -> None:
-        nonlocal delayed_statements
-        if isinstance(t, Statements) and t.delayed:
-            if delayed_statements is None:
-                delayed_statements = t
+        nonlocal placeholder
+        if isinstance(t, TermList) and t.is_placeholder:
+            if placeholder is None:
+                placeholder = t
             else:
-                raise tapl_error.TaplError('Multiple delayed statements found.')
+                raise tapl_error.TaplError('Multiple placeholders found.')
         for child in t.children():
             loop(child)
 
     loop(term)
-    return delayed_statements
+    return placeholder
