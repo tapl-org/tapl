@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
 from typing import TYPE_CHECKING, override
 
 from tapl_lang.core import tapl_error
@@ -129,16 +128,6 @@ class LayerSeparator:
             memo_index[0] = 0
             layers.append(factory(create_extract_layer_fn(i)))
         return layers
-
-
-class CodeMode(Enum):
-    EVALUATE = 1  # For generating a evaluating code
-    TYPECHECK = 2  # For generating a type-checking code
-
-
-class ScopeMode(Enum):
-    NATIVE = 1  # Variables are handled natively
-    MANUAL = 2  # Variables are managed manually (e.g., in a scope)
 
 
 @dataclass

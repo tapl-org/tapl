@@ -6,7 +6,7 @@ import ast
 import re
 
 from tapl_lang.core import chunker, syntax, tapl_error
-from tapl_lang.lib import python_backend, terms, untyped_terms
+from tapl_lang.lib import codegen, terms, untyped_terms
 from tapl_lang.pythonlike import language as python_language
 
 
@@ -55,4 +55,4 @@ def compile_tapl(text: str) -> list[ast.AST]:
     safe_module = terms.make_safe_term(module)
     ls = syntax.LayerSeparator(len(predef_layers.layers))
     layers = ls.build(lambda layer: layer(safe_module))
-    return [python_backend.codegen_ast(layer, syntax.AstSetting()) for layer in layers]
+    return [codegen.codegen_ast(layer, syntax.AstSetting()) for layer in layers]

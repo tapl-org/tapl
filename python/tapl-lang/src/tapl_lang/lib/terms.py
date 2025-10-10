@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast, override
 
-from tapl_lang.lib import python_backend
+from tapl_lang.lib import codegen
 
 if TYPE_CHECKING:
     import ast
@@ -55,15 +55,15 @@ class AstSettingTerm(syntax.Term):
 
     @override
     def codegen_ast(self, setting: syntax.AstSetting) -> ast.AST:
-        return python_backend.codegen_ast(self.term, self._ensure_changer()(setting))
+        return codegen.codegen_ast(self.term, self._ensure_changer()(setting))
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        return python_backend.codegen_expr(self.term, self._ensure_changer()(setting))
+        return codegen.codegen_expr(self.term, self._ensure_changer()(setting))
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        return python_backend.codegen_stmt(self.term, self._ensure_changer()(setting))
+        return codegen.codegen_stmt(self.term, self._ensure_changer()(setting))
 
 
 @dataclass
