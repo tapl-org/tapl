@@ -6,7 +6,7 @@
 import ast
 
 from tapl_lang.core import syntax
-from tapl_lang.lib import python_terms
+from tapl_lang.lib import untyped_terms
 
 
 def locate(location: syntax.Location, *nodes: ast.expr | ast.stmt) -> None:
@@ -20,8 +20,11 @@ def locate(location: syntax.Location, *nodes: ast.expr | ast.stmt) -> None:
 
 
 def codegen_ast(term: syntax.Term, setting: syntax.AstSetting) -> ast.AST:
-    if isinstance(term, python_terms.Module):
-        return ast.Module(body=codegen_stmt(term.body, setting), type_ignores=[])
+    if isinstance(term, untyped_terms.Module):
+        stmts = []
+        for t in term.body:
+            stmts.extend(codegen_stmt(t, setting))
+        return ast.Module(body=stmts, type_ignores=[])
     return term.codegen_ast(setting)
 
 
@@ -31,7 +34,7 @@ def codegen_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stmt
         for t in term.flattened():
             stmts.extend(codegen_stmt(t, setting))
         return stmts
-    if isinstance(term, python_terms.FunctionDef):
+    if isinstance(term, untyped_terms.FunctionDef):
         func_def = ast.FunctionDef(
             name=term.name,
             args=ast.arguments(
@@ -54,15 +57,15 @@ def codegen_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stmt
 
 
 def codegen_expr(term: syntax.Term, setting: syntax.AstSetting) -> ast.expr:
-    if isinstance(term, python_terms.Constant):
+    if isinstance(term, untyped_terms.Constant):
         const = ast.Constant(value=term.value)
         locate(term.location, const)
         return const
-    if isinstance(term, python_terms.Name):
+    if isinstance(term, untyped_terms.Name):
         name = ast.Name(id=term.id, ctx=ast.Load())
         locate(term.location, name)
         return name
-    if isinstance(term, python_terms.Attribute):
+    if isinstance(term, untyped_terms.Attribute):
         attr = ast.Attribute(
             value=codegen_expr(term.value, setting),
             attr=term.attr,

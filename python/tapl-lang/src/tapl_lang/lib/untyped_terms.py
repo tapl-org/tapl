@@ -11,15 +11,15 @@ from tapl_lang.core import syntax
 
 @dataclass
 class Module(syntax.Term):
-    body: syntax.Term
+    body: list[syntax.Term]
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
-        yield self.body
+        yield from self.body
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Module(body=layer(self.body)))
+        return ls.build(lambda layer: Module(body=[layer(b) for b in self.body]))
 
 
 # STATEMENTS

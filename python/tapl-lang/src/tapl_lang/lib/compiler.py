@@ -6,7 +6,7 @@ import ast
 import re
 
 from tapl_lang.core import chunker, syntax, tapl_error
-from tapl_lang.lib import python_backend, python_terms, terms
+from tapl_lang.lib import python_backend, terms, untyped_terms
 from tapl_lang.pythonlike import language as python_language
 
 
@@ -46,7 +46,7 @@ def compile_tapl(text: str) -> list[ast.AST]:
     language = python_language.PythonlikeLanguage()
     predef_headers = language.get_predef_headers()
     predef_layers = syntax.Layers(predef_headers)
-    module = python_terms.Module(body=syntax.TermList(terms=[predef_layers, syntax.Statements(terms=[], delayed=True)]))
+    module = untyped_terms.Module(body=[predef_layers, syntax.Statements(terms=[], delayed=True)])
     language.parse_chunks(chunks[1:], [module])
     error_bucket: list[syntax.ErrorTerm] = gather_errors(module)
     if error_bucket:
