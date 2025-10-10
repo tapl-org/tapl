@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import override
 
 from tapl_lang.core import line_record, syntax, tapl_error
+from tapl_lang.lib import terms  # TODO: Remove this import
 
 # Implemented PEG parser - https://en.wikipedia.org/wiki/Parsing_expression_grammar,
 # https://pdos.csail.mit.edu/~baford/packrat/thesis/
@@ -38,15 +39,22 @@ def route(rule: str) -> ParseFunction:
     return parse
 
 
+@dataclass
+class Context:
+    mode: syntax.Term
+
+
 class Cursor:
-    def __init__(self, row: int, col: int, engine: PegEngine) -> None:
+    def __init__(self, row: int, col: int, context: Context, engine: PegEngine) -> None:
         self.row = row
         self.col = col
+        self.context = context
         self.engine = engine
 
     def clone(self) -> Cursor:
-        return Cursor(self.row, self.col, self.engine)
+        return Cursor(self.row, self.col, self.context, self.engine)
 
+    # TODO: Rethink this method's name. This should not be copy by context and engine.
     def copy_from(self, other: Cursor) -> None:
         if self.engine is not other.engine:
             raise tapl_error.TaplError('Both cursors do not have a same engine instance.')
@@ -88,7 +96,7 @@ class Cursor:
         return syntax.Position(self.engine.line_records[self.row].line_number, self.col)
 
     def consume_rule(self, rule) -> syntax.Term:
-        term, self.row, self.col = self.engine.apply_rule(self.row, self.col, rule)
+        term, self.row, self.col = self.engine.apply_rule(self.row, self.col, rule, self.context)
         return term
 
     def start_tracker(self) -> Tracker:
@@ -158,12 +166,12 @@ class PegEngine:
         self.rule_call_stack_limit = 1000
 
     def call_parse_function(
-        self, key: CellKey, function: ParseFunction, function_index: int
+        self, key: CellKey, function: ParseFunction, function_index: int, context: Context
     ) -> tuple[syntax.Term, int, int]:
-        cursor = Cursor(key.row, key.col, engine=self)
+        cursor = Cursor(key.row, key.col, context=context, engine=self)
 
         def create_location() -> syntax.Location:
-            start_cursor = Cursor(key.row, key.col, engine=self)
+            start_cursor = Cursor(key.row, key.col, context=context, engine=self)
             return syntax.Location(start=start_cursor.current_position(), end=cursor.current_position())
 
         try:
@@ -178,22 +186,22 @@ class PegEngine:
             )
         return term, cursor.row, cursor.col
 
-    def call_ordered_parse_functions(self, key: CellKey) -> tuple[syntax.Term, int, int]:
+    def call_ordered_parse_functions(self, key: CellKey, context: Context) -> tuple[syntax.Term, int, int]:
         functions = self.grammar_rule_map.get(key.rule)
         if not functions:
             raise tapl_error.TaplError(f'PegEngine: Rule "{key.rule}" is not defined in Grammar.')
         for i in range(len(functions)):
-            term, row, col = self.call_parse_function(key, functions[i], function_index=i)
+            term, row, col = self.call_parse_function(key, functions[i], function_index=i, context=context)
             if term is not ParseFailed:
                 return term, row, col
         return ParseFailed, key.row, key.col
 
-    def grow_seed(self, key: CellKey, cell: Cell) -> None:
+    def grow_seed(self, key: CellKey, cell: Cell, context: Context) -> None:
         seed_next_row, seed_next_col = cell.next_row, cell.next_col
         iteration_count = 10  # Prevent infinite loop by limiting iterations
         while iteration_count > 0:
             iteration_count -= 1
-            term, next_row, next_col = self.call_ordered_parse_functions(key)
+            term, next_row, next_col = self.call_ordered_parse_functions(key, context)
             if term is ParseFailed:
                 cell.term = syntax.ErrorTerm(
                     message='PegEngine: Once ordered_parse_functions was successful, but it failed afterward. This indicates an inconsistency between ordered parse functions.'
@@ -208,7 +216,7 @@ class PegEngine:
             cell.term, cell.next_row, cell.next_col = term, next_row, next_col
         cell.term = syntax.ErrorTerm(message='PegEngine: Growing failed due to too many iterations.')
 
-    def apply_rule(self, row: int, col: int, rule: str) -> tuple[syntax.Term, int, int]:
+    def apply_rule(self, row: int, col: int, rule: str, context: Context) -> tuple[syntax.Term, int, int]:
         self.rule_call_stack_limit -= 1
         if self.rule_call_stack_limit < 0:
             error = syntax.ErrorTerm(message='PEG Parser: Rule application limit exceeded.')
@@ -223,10 +231,10 @@ class PegEngine:
         match cell.state:
             case CellState.BLANK:
                 cell.state = CellState.START
-                cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(cell_key)
+                cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(cell_key, context)
                 cell.state = CellState.DONE
                 if cell.growable and not isinstance(cell.term, syntax.ErrorTerm):
-                    self.grow_seed(cell_key, cell)
+                    self.grow_seed(cell_key, cell, context)
             case CellState.START:
                 # Left recursion detected. Delaying expansion of this rule.
                 cell.growable = True
@@ -272,12 +280,12 @@ class PegEngineDebug(PegEngine):
 
     @override
     def call_parse_function(
-        self, key: CellKey, function: ParseFunction, function_index: int
+        self, key: CellKey, function: ParseFunction, function_index: int, context: Context
     ) -> tuple[syntax.Term, int, int]:
         old_applied_rules = self.applied_rules
         self.applied_rules = []
         start_call_order = self.next_call_order()
-        term, row, col = super().call_parse_function(key, function, function_index)
+        term, row, col = super().call_parse_function(key, function, function_index, context)
         self.parse_traces.append(
             ParseTrace(
                 start_row=key.row,
@@ -297,17 +305,17 @@ class PegEngineDebug(PegEngine):
         return term, row, col
 
     @override
-    def grow_seed(self, key: CellKey, cell: Cell) -> None:
+    def grow_seed(self, key: CellKey, cell: Cell, context: Context) -> None:
         old_growing_id = self.growing_id
         self.next_growing_id += 1
         self.growing_id = self.next_growing_id
-        super().grow_seed(key, cell)
+        super().grow_seed(key, cell, context)
         self.growing_id = old_growing_id
 
     @override
-    def apply_rule(self, row: int, col: int, rule: str) -> tuple[syntax.Term, int, int]:
+    def apply_rule(self, row: int, col: int, rule: str, context: Context) -> tuple[syntax.Term, int, int]:
         self.applied_rules.append(f'{row}:{col}:{rule}')
-        term, next_row, next_col = super().apply_rule(row, col, rule)
+        term, next_row, next_col = super().apply_rule(row, col, rule, context)
         if self.cell_memo[CellKey(row, col, rule)].state == CellState.START:
             self.applied_rules[-1] += ' (left recursion)'
         return term, next_row, next_col
@@ -404,13 +412,14 @@ def find_first_position(line_records: list[line_record.LineRecord]) -> tuple[int
 
 
 def parse_line_records(
-    line_records: list[line_record.LineRecord], grammar: Grammar, *, debug: bool = False
+    line_records: list[line_record.LineRecord], grammar: Grammar, *, debug: bool = False, context: Context | None = None
 ) -> syntax.Term:
+    context = context or Context(mode=terms.MODE_SAFE)
     engine = PegEngineDebug(line_records, grammar.rule_map) if debug else PegEngine(line_records, grammar.rule_map)
     row, col = find_first_position(line_records)
     if row == len(line_records) and col == 0:
         return syntax.ErrorTerm(message='Empty text.')
-    term, next_row, next_col = engine.apply_rule(row, col, grammar.start_rule)
+    term, next_row, next_col = engine.apply_rule(row, col, grammar.start_rule, context=context)
     if debug:
         logging.warning(engine.dump())
     if not isinstance(term, syntax.ErrorTerm) and not (next_row == len(line_records) and next_col == 0):

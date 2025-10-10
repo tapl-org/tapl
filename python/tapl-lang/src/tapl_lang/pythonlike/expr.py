@@ -62,22 +62,23 @@ class Name(syntax.Term):
     location: syntax.Location
     id: str
     ctx: str
+    mode: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
-        yield from ()
+        yield self.mode
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda _: Name(location=self.location, id=self.id, ctx=self.ctx))
+        return ls.build(lambda layer: Name(location=self.location, id=self.id, ctx=self.ctx, mode=layer(self.mode)))
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        if setting.scope_native:
+        if self.mode is terms.MODE_EVALUATE:
             name = ast.Name(id=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
             self.location.locate(name)
             return name
-        if setting.scope_manual:
+        if self.mode is terms.MODE_TYPECHECK:
             scope = ast.Name(id=setting.scope_name, ctx=ast.Load())
             attr = ast.Attribute(value=scope, attr=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
             self.location.locate(scope, scope, attr)
@@ -123,7 +124,7 @@ class Literal(syntax.Term):
             raise ValueError('NoneLiteral must be separated in 2 layers')
         return [
             Constant(location=self.location, value=value),
-            Name(location=self.location, id=type_id, ctx='load'),
+            Name(location=self.location, id=type_id, ctx='load', mode=terms.MODE_TYPECHECK),
         ]
 
 
@@ -237,7 +238,7 @@ class BoolNot(syntax.Term):
             return unary
         if self.mode is terms.MODE_TYPECHECK:
             # unary not operator always returns Bool type
-            bool_type = Name(location=self.location, id='Bool', ctx='load')
+            bool_type = Name(location=self.location, id='Bool', ctx='load', mode=self.mode)
             return bool_type.codegen_expr(setting)
         raise tapl_error.UnhandledError
 

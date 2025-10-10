@@ -98,9 +98,9 @@ class Return(syntax.Term):
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if self.mode is terms.MODE_EVALUATE and setting.scope_native:
+        if self.mode is terms.MODE_EVALUATE:
             return self.codegen_evaluate(setting)
-        if self.mode is terms.MODE_TYPECHECK and setting.scope_manual:
+        if self.mode is terms.MODE_TYPECHECK:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
 
@@ -155,8 +155,8 @@ class Parameter(syntax.Term):
             )
         )
 
-    def codegen_expr(self, setting):
-        if self.mode is terms.MODE_TYPECHECK and setting.scope_manual:
+    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+        if self.mode is terms.MODE_TYPECHECK:
             return self.type_.codegen_expr(setting)
         raise tapl_error.UnhandledError
 
@@ -262,9 +262,9 @@ class FunctionDef(syntax.Term):
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if self.mode is terms.MODE_EVALUATE and setting.scope_native:
+        if self.mode is terms.MODE_EVALUATE:
             return self.codegen_evaluate(setting)
-        if self.mode is terms.MODE_TYPECHECK and setting.scope_manual:
+        if self.mode is terms.MODE_TYPECHECK:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
 
@@ -366,9 +366,6 @@ class If(syntax.Term):
         return [if_stmt]
 
     def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if setting.scope_native:
-            raise tapl_error.TaplError('"If" statement type-checking does not support native scope.')
-
         def locate(ast_expr: ast.expr) -> ast.expr:
             self.location.locate(ast_expr)
             return ast_expr
@@ -414,10 +411,10 @@ class If(syntax.Term):
         return [with_stmt]
 
     @override
-    def codegen_stmt(self, setting):
-        if self.mode is terms.MODE_EVALUATE and setting.scope_native:
+    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        if self.mode is terms.MODE_EVALUATE:
             return self.codegen_evaluate(setting)
-        if self.mode is terms.MODE_TYPECHECK and setting.scope_manual:
+        if self.mode is terms.MODE_TYPECHECK:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
 
@@ -484,9 +481,6 @@ class While(syntax.Term):
         return [while_stmt]
 
     def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if setting.scope_native:
-            raise tapl_error.TaplError('"While" statement type-checking does not support native scope.')
-
         def locate(ast_expr: ast.expr) -> ast.expr:
             self.location.locate(ast_expr)
             return ast_expr
@@ -583,9 +577,6 @@ class For(syntax.Term):
         return [for_stmt]
 
     def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if setting.scope_native:
-            raise tapl_error.TaplError('"For" statement type-checking does not support native scope.')
-
         def locate(ast_expr: ast.expr) -> ast.expr:
             self.location.locate(ast_expr)
             return ast_expr
@@ -770,8 +761,8 @@ class ClassDef(syntax.Term):
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if self.mode is terms.MODE_EVALUATE and setting.scope_native:
+        if self.mode is terms.MODE_EVALUATE:
             return self.codegen_evaluate(setting)
-        if self.mode is terms.MODE_TYPECHECK and setting.scope_manual:
+        if self.mode is terms.MODE_TYPECHECK:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError

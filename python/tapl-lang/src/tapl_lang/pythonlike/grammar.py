@@ -7,6 +7,7 @@ from typing import cast
 
 from tapl_lang.core import parser, syntax
 from tapl_lang.core.parser import Cursor
+from tapl_lang.lib import terms
 from tapl_lang.pythonlike import expr, stmt
 from tapl_lang.pythonlike import rule_names as rn
 
@@ -739,7 +740,7 @@ def _parse_primary__call(c: Cursor) -> syntax.Term:
 def _parse_atom__name_load(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, _TokenName):
-        return expr.Name(location=token.location, id=token.value, ctx='load')
+        return expr.Name(location=token.location, id=token.value, ctx='load', mode=c.context.mode)
     return t.fail()
 
 
@@ -781,7 +782,10 @@ def _parse_atom__list(c: Cursor) -> syntax.Term:
     ):
         # TODO: Hard coded to ListIntLiteral for simplicity. Should be ListLiteral+Generics with element type.
         return syntax.Layers(
-            layers=[expr.ListIntLiteral(t.location), expr.Name(location=t.location, id='ListInt', ctx='load')]
+            layers=[
+                expr.ListIntLiteral(t.location),
+                expr.Name(location=t.location, id='ListInt', ctx='load', mode=terms.MODE_TYPECHECK),
+            ]
         )
     return t.fail()
 
@@ -945,13 +949,13 @@ def _parse_return(c: Cursor) -> syntax.Term:
 
 def _rule_parameter_with_type(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if (
-        t.validate(name := _consume_name(c))
-        and t.validate(_consume_punct(c, ':'))
-        and t.validate(param_type := _expect_rule(c, rn.EXPRESSION))
-    ):
-        param_name = cast(_TokenName, name).value
-        return stmt.Parameter(t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), param_type]))
+    if t.validate(name := _consume_name(c)) and t.validate(_consume_punct(c, ':')):
+        k = c.clone()
+        k.context = parser.Context(mode=terms.MODE_TYPECHECK)
+        if t.validate(param_type := _expect_rule(k, rn.EXPRESSION)):
+            c.copy_from(k)
+            param_name = cast(_TokenName, name).value
+            return stmt.Parameter(t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), param_type]))
     return t.fail()
 
 
@@ -969,6 +973,7 @@ def _scan_parameters(c: Cursor) -> syntax.Term:
     if t.validate(first_param := c.consume_rule('parameter')):
         params.append(first_param)
         k = c.clone()
+        # TODO: remove location and cursor from tracker, becuase when cursor cloned, tracker keeps old cursor and its location.
         while t.validate(_consume_punct(k, ',')) and t.validate(param := _expect_rule(k, 'parameter')):
             c.copy_from(k)
             params.append(param)
@@ -1090,7 +1095,7 @@ def _parse_star_targets__single(c: Cursor) -> syntax.Term:
 def _parse_star_atom__name_store(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, _TokenName):
-        return expr.Name(location=token.location, id=token.value, ctx='store')
+        return expr.Name(location=token.location, id=token.value, ctx='store', mode=terms.MODE_SAFE)
     return t.fail()
 
 
