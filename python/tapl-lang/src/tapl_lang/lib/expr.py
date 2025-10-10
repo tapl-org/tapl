@@ -216,7 +216,7 @@ class UnaryOp(syntax.Term):
 class BoolNot(syntax.Term):
     location: syntax.Location
     operand: syntax.Term
-    mode: syntax.Term = terms.MODE_SAFE
+    mode: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -248,7 +248,7 @@ class BoolOp(syntax.Term):
     location: syntax.Location
     op: str
     values: list[syntax.Term]
-    mode: syntax.Term = terms.MODE_SAFE
+    mode: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:

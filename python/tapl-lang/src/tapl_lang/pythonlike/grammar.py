@@ -865,7 +865,7 @@ def _parse_comparison(c: Cursor) -> syntax.Term:
 def _parse_inversion__not(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'not')) and t.validate(operand := _expect_rule(c, rn.COMPARISON)):
-        return expr.BoolNot(location=t.location, operand=operand)
+        return expr.BoolNot(location=t.location, operand=operand, mode=c.context.mode)
     return t.fail()
 
 
@@ -878,7 +878,7 @@ def _parse_conjunction__and(c: Cursor) -> syntax.Term:
             c.copy_from(k)
             values.append(right)
         if len(values) > 1:
-            return expr.BoolOp(location=t.location, op='and', values=values)
+            return expr.BoolOp(location=t.location, op='and', values=values, mode=c.context.mode)
     return t.fail()
 
 
@@ -891,7 +891,7 @@ def _parse_disjunction__or(c: Cursor) -> syntax.Term:
             c.copy_from(k)
             values.append(right)
         if len(values) > 1:
-            return expr.BoolOp(location=t.location, op='or', values=values)
+            return expr.BoolOp(location=t.location, op='or', values=values, mode=c.context.mode)
     return t.fail()
 
 
@@ -941,8 +941,8 @@ def _parse_return(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'return')):
         if t.validate(value := c.consume_rule(rn.EXPRESSION)):
-            return stmt.Return(t.location, value=value)
-        return t.captured_error or stmt.Return(t.location, value=expr.NoneLiteral(t.location))
+            return stmt.Return(t.location, value=value, mode=c.context.mode)
+        return t.captured_error or stmt.Return(t.location, value=expr.NoneLiteral(t.location), mode=c.context.mode)
     return t.fail()
 
 
@@ -954,7 +954,9 @@ def _rule_parameter_with_type(c: Cursor) -> syntax.Term:
         if t.validate(param_type := _expect_rule(k, rn.EXPRESSION)):
             c.copy_from(k)
             param_name = cast(_TokenName, name).value
-            return stmt.Parameter(t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), param_type]))
+            return stmt.Parameter(
+                t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), param_type]), mode=c.context.mode
+            )
     return t.fail()
 
 
@@ -962,7 +964,9 @@ def _rule_parameter_no_type(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(name := _consume_name(c)):
         param_name = cast(_TokenName, name).value
-        return stmt.Parameter(t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), stmt.Absence()]))
+        return stmt.Parameter(
+            t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), stmt.Absence()]), mode=c.context.mode
+        )
     return t.fail()
 
 
@@ -995,6 +999,7 @@ def _parse_function_def(c: Cursor) -> syntax.Term:
             name=name,
             parameters=cast(BlockTerm, params).terms,
             body=syntax.TermList(terms=[], is_placeholder=True),
+            mode=c.context.mode,
         )
     return t.fail()
 
@@ -1011,6 +1016,7 @@ def _parse_if_stmt(c: Cursor) -> syntax.Term:
             test=test,
             body=syntax.TermList(terms=[], is_placeholder=True),
             orelse=None,
+            mode=c.context.mode,
         )
     return t.fail()
 
@@ -1034,6 +1040,7 @@ def _parse_while_stmt(c: Cursor) -> syntax.Term:
             test=test,
             body=syntax.TermList(terms=[], is_placeholder=True),
             orelse=None,
+            mode=c.context.mode,
         )
     return t.fail()
 
@@ -1053,6 +1060,7 @@ def _parse_for_stmt(c: Cursor) -> syntax.Term:
             iter=iter_,
             body=syntax.TermList(terms=[], is_placeholder=True),
             orelse=None,
+            mode=c.context.mode,
         )
     return t.fail()
 
@@ -1073,7 +1081,11 @@ def _parse_class_def(c: Cursor) -> syntax.Term:
     ):
         name = cast(_TokenName, class_name).value
         return stmt.ClassDef(
-            location=t.location, name=name, bases=[], body=syntax.TermList(terms=[], is_placeholder=True)
+            location=t.location,
+            name=name,
+            bases=[],
+            body=syntax.TermList(terms=[], is_placeholder=True),
+            mode=c.context.mode,
         )
     return t.fail()
 

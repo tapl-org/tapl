@@ -90,8 +90,8 @@ SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
 
 def create_safe_ast_settings() -> list[syntax.AstSetting]:
     return [
-        syntax.AstSetting(),
-        syntax.AstSetting(),
+        syntax.AstSetting(scope_level=0),
+        syntax.AstSetting(scope_level=0),
     ]
 
 

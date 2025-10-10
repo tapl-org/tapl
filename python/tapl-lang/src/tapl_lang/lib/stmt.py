@@ -64,7 +64,7 @@ class Assign(syntax.Term):
 class Return(syntax.Term):
     location: syntax.Location
     value: syntax.Term
-    mode: syntax.Term = terms.MODE_SAFE
+    mode: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -140,7 +140,7 @@ class Parameter(syntax.Term):
     location: syntax.Location
     name: str
     type_: syntax.Term
-    mode: syntax.Term = terms.MODE_SAFE
+    mode: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -167,7 +167,7 @@ class FunctionDef(syntax.Term):
     name: str
     parameters: list[syntax.Term]
     body: syntax.Term
-    mode: syntax.Term = terms.MODE_SAFE
+    mode: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -334,7 +334,7 @@ class If(syntax.Term):
     test: syntax.Term
     body: syntax.Term
     orelse: syntax.Term | None
-    mode: syntax.Term = terms.MODE_SAFE
+    mode: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -449,7 +449,7 @@ class While(syntax.Term):
     test: syntax.Term
     body: syntax.Term
     orelse: syntax.Term | None
-    mode: syntax.Term = terms.MODE_SAFE
+    mode: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -541,7 +541,7 @@ class For(syntax.Term):
     iter: syntax.Term
     body: syntax.Term
     orelse: syntax.Term | None
-    mode: syntax.Term = terms.MODE_SAFE
+    mode: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -662,7 +662,7 @@ class ClassDef(syntax.Term):
     name: str
     bases: list[syntax.Term]
     body: syntax.Term
-    mode: syntax.Term = terms.MODE_SAFE
+    mode: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:

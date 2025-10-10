@@ -14,8 +14,6 @@ if TYPE_CHECKING:
     import ast
     from collections.abc import Callable, Generator
 
-# TODO: No more default values in dataclass fields
-
 
 class Term:
     def children(self) -> Generator[Term, None, None]:
@@ -132,7 +130,7 @@ class LayerSeparator:
 
 @dataclass
 class AstSetting:
-    scope_level: int = 0
+    scope_level: int
 
     def clone(self, scope_level: int | None = None) -> AstSetting:
         return AstSetting(
