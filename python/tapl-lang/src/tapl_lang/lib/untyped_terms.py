@@ -66,13 +66,13 @@ class FunctionDef(syntax.Term):
 class ClassDef(syntax.Term):
     location: syntax.Location
     name: str
-    bases: syntax.Term
-    body: syntax.Term
+    bases: list[syntax.Term]
+    body: list[syntax.Term]
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
-        yield self.bases
-        yield self.body
+        yield from self.bases
+        yield from self.body
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -80,8 +80,8 @@ class ClassDef(syntax.Term):
             lambda layer: ClassDef(
                 location=self.location,
                 name=self.name,
-                bases=layer(self.bases),
-                body=layer(self.body),
+                bases=[layer(b) for b in self.bases],
+                body=[layer(b) for b in self.body],
             )
         )
 
@@ -126,16 +126,15 @@ class For(syntax.Term):
     location: syntax.Location
     target: syntax.Term
     iter: syntax.Term
-    body: syntax.Term
-    orelse: syntax.Term | None
+    body: list[syntax.Term]
+    orelse: list[syntax.Term]
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.target
         yield self.iter
-        yield self.body
-        if self.orelse is not None:
-            yield self.orelse
+        yield from self.body
+        yield from self.orelse
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -144,8 +143,8 @@ class For(syntax.Term):
                 location=self.location,
                 target=layer(self.target),
                 iter=layer(self.iter),
-                body=layer(self.body),
-                orelse=layer(self.orelse) if self.orelse is not None else None,
+                body=[layer(t) for t in self.body],
+                orelse=[layer(t) for t in self.orelse],
             )
         )
 
@@ -154,15 +153,14 @@ class For(syntax.Term):
 class While(syntax.Term):
     location: syntax.Location
     test: syntax.Term
-    body: syntax.Term
-    orelse: syntax.Term | None
+    body: list[syntax.Term]
+    orelse: list[syntax.Term]
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.test
-        yield self.body
-        if self.orelse is not None:
-            yield self.orelse
+        yield from self.body
+        yield from self.orelse
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -170,8 +168,8 @@ class While(syntax.Term):
             lambda layer: While(
                 location=self.location,
                 test=layer(self.test),
-                body=layer(self.body),
-                orelse=layer(self.orelse) if self.orelse is not None else None,
+                body=[layer(t) for t in self.body],
+                orelse=[layer(t) for t in self.orelse],
             )
         )
 
@@ -180,15 +178,14 @@ class While(syntax.Term):
 class If(syntax.Term):
     location: syntax.Location
     test: syntax.Term
-    body: syntax.Term
-    orelse: syntax.Term | None
+    body: list[syntax.Term]
+    orelse: list[syntax.Term]
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.test
-        yield self.body
-        if self.orelse is not None:
-            yield self.orelse
+        yield from self.body
+        yield from self.orelse
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -196,8 +193,8 @@ class If(syntax.Term):
             lambda layer: If(
                 location=self.location,
                 test=layer(self.test),
-                body=layer(self.body),
-                orelse=layer(self.orelse) if self.orelse is not None else None,
+                body=[layer(t) for t in self.body],
+                orelse=[layer(t) for t in self.orelse],
             )
         )
 
