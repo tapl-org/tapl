@@ -60,6 +60,45 @@ class SiblingTerm(Term):
         raise tapl_error.TaplError(f'{self.__class__.__name__}.integrate_into is not implemented.')
 
 
+class Layers(Term):
+    def __init__(self, layers: list[Term]) -> None:
+        self.layers = layers
+        self._validate_layer_count()
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}({self.layers})'
+
+    def _validate_layer_count(self) -> None:
+        if len(self.layers) <= 1:
+            raise tapl_error.TaplError('Number of layers must be equal or greater than 2.')
+
+    @override
+    def children(self) -> Generator[Term, None, None]:
+        yield from self.layers
+
+    @override
+    def separate(self, ls: LayerSeparator) -> list[Term]:
+        self._validate_layer_count()
+        actual_count = len(self.layers)
+        if actual_count != ls.layer_count:
+            raise tapl_error.TaplError(
+                f'Mismatched layer lengths, actual_count={actual_count}, expected_count={ls.layer_count}'
+            )
+        return self.layers
+
+    @override
+    def codegen_ast(self, setting: AstSetting) -> ast.AST:
+        raise tapl_error.TaplError('Layers should be separated before generating AST code.')
+
+    @override
+    def codegen_expr(self, setting: AstSetting) -> ast.expr:
+        raise tapl_error.TaplError('Layers should be separated before generating AST code.')
+
+    @override
+    def codegen_stmt(self, setting: AstSetting) -> list[ast.stmt]:
+        raise tapl_error.TaplError('Layers should be separated before generating AST code.')
+
+
 class LayerSeparator:
     def __init__(self, layer_count: int) -> None:
         if layer_count <= 1:

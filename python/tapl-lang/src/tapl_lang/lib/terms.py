@@ -17,45 +17,6 @@ if TYPE_CHECKING:
 from tapl_lang.core import syntax, tapl_error
 
 
-class Layers(syntax.Term):
-    def __init__(self, layers: list[syntax.Term]) -> None:
-        self.layers = layers
-        self._validate_layer_count()
-
-    def __repr__(self) -> str:
-        return f'{self.__class__.__name__}({self.layers})'
-
-    def _validate_layer_count(self) -> None:
-        if len(self.layers) <= 1:
-            raise tapl_error.TaplError('Number of layers must be equal or greater than 2.')
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield from self.layers
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        self._validate_layer_count()
-        actual_count = len(self.layers)
-        if actual_count != ls.layer_count:
-            raise tapl_error.TaplError(
-                f'Mismatched layer lengths, actual_count={actual_count}, expected_count={ls.layer_count}'
-            )
-        return self.layers
-
-    @override
-    def codegen_ast(self, setting: syntax.AstSetting) -> ast.AST:
-        raise tapl_error.TaplError('Layers should be separated before generating AST code.')
-
-    @override
-    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        raise tapl_error.TaplError('Layers should be separated before generating AST code.')
-
-    @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        raise tapl_error.TaplError('Layers should be separated before generating AST code.')
-
-
 @dataclass
 class RearrangeLayers(syntax.Term):
     term: syntax.Term
@@ -166,7 +127,7 @@ class ModeTerm(syntax.Term):
 
 MODE_EVALUATE = ModeTerm(name='MODE_EVALUATE')
 MODE_TYPECHECK = ModeTerm(name='MODE_TYPECHECK')
-MODE_SAFE = Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
+MODE_SAFE = syntax.Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
 SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
 
 
@@ -183,4 +144,4 @@ def make_safe_term(term: syntax.Term) -> AstSettingTerm:
 
     settings = create_safe_ast_settings()
     changers: list[syntax.Term] = [AstSettingChanger(changer=create_changer(setting)) for setting in settings]
-    return AstSettingTerm(ast_setting_changer=Layers(layers=changers), term=term)
+    return AstSettingTerm(ast_setting_changer=syntax.Layers(layers=changers), term=term)

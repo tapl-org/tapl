@@ -32,7 +32,7 @@ def compile_tapl(text: str) -> list[ast.AST]:
         raise tapl_error.TaplError('Only pythonlike language is supported now.')
     language = python_language.PythonlikeLanguage()
     predef_headers = language.get_predef_headers()
-    predef_layers = terms.Layers(predef_headers)
+    predef_layers = syntax.Layers(predef_headers)
     module = python_terms.Module(body=syntax.TermList(terms=[predef_layers, syntax.Statements(terms=[], delayed=True)]))
     language.parse_chunks(chunks[1:], [module])
     error_bucket: list[syntax.ErrorTerm] = terms.gather_errors(module)

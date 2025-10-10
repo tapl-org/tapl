@@ -7,7 +7,6 @@ from typing import cast
 
 from tapl_lang.core import parser, syntax
 from tapl_lang.core.parser import Cursor
-from tapl_lang.lib import terms
 from tapl_lang.pythonlike import expr, stmt
 from tapl_lang.pythonlike import rule_names as rn
 
@@ -781,7 +780,7 @@ def _parse_atom__list(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, ']'))
     ):
         # TODO: Hard coded to ListIntLiteral for simplicity. Should be ListLiteral+Generics with element type.
-        return terms.Layers(
+        return syntax.Layers(
             layers=[expr.ListIntLiteral(t.location), expr.Name(location=t.location, id='ListInt', ctx='load')]
         )
     return t.fail()
@@ -952,7 +951,7 @@ def _rule_parameter_with_type(c: Cursor) -> syntax.Term:
         and t.validate(param_type := _expect_rule(c, rn.EXPRESSION))
     ):
         param_name = cast(_TokenName, name).value
-        return stmt.Parameter(t.location, name=param_name, type_=terms.Layers([stmt.Absence(), param_type]))
+        return stmt.Parameter(t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), param_type]))
     return t.fail()
 
 
@@ -960,7 +959,7 @@ def _rule_parameter_no_type(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(name := _consume_name(c)):
         param_name = cast(_TokenName, name).value
-        return stmt.Parameter(t.location, name=param_name, type_=terms.Layers([stmt.Absence(), stmt.Absence()]))
+        return stmt.Parameter(t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), stmt.Absence()]))
     return t.fail()
 
 
