@@ -8,7 +8,7 @@ import ast
 from tapl_lang.core import syntax
 from tapl_lang.core.chunker import chunk_text
 from tapl_lang.core.parser import parse_text
-from tapl_lang.lib import proxy, python_backend, python_terms, scope, terms
+from tapl_lang.lib import compiler, proxy, python_backend, python_terms, scope, terms
 from tapl_lang.pythonlike import grammar, predef1
 from tapl_lang.pythonlike.language import PythonlikeLanguage
 
@@ -16,7 +16,7 @@ from tapl_lang.pythonlike.language import PythonlikeLanguage
 def check_parsed_term(parsed: syntax.Term) -> None:
     if parsed is None:
         raise RuntimeError('Parser returns None.')
-    error_bucket: list[syntax.ErrorTerm] = terms.gather_errors(parsed)
+    error_bucket: list[syntax.ErrorTerm] = compiler.gather_errors(parsed)
     if error_bucket:
         messages = [e.message for e in error_bucket]
         raise SyntaxError('\n\n'.join(messages))

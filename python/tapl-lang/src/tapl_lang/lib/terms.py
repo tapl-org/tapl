@@ -18,49 +18,6 @@ from tapl_lang.core import syntax, tapl_error
 
 
 @dataclass
-class RearrangeLayers(syntax.Term):
-    term: syntax.Term
-    layer_indices: list[int]
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield self.term
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        layers = ls.build(lambda layer: layer(self.term))
-        result = []
-        for i in self.layer_indices:
-            if i >= len(layers):
-                raise tapl_error.TaplError(f'Layer index {i} out of range for layers {layers}')
-            result.append(layers[i])
-        return result
-
-
-@dataclass
-class Realm(syntax.Term):
-    layer_count: int
-    term: syntax.Term
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield self.term
-
-
-def gather_errors(term: syntax.Term) -> list[syntax.ErrorTerm]:
-    error_bucket: list[syntax.ErrorTerm] = []
-
-    def gather_errors_recursive(t: syntax.Term) -> None:
-        if isinstance(t, syntax.ErrorTerm):
-            error_bucket.append(t)
-        for child in t.children():
-            gather_errors_recursive(child)
-
-    gather_errors_recursive(term)
-    return error_bucket
-
-
-@dataclass
 class AstSettingChanger(syntax.Term):
     changer: Callable[[syntax.AstSetting], syntax.AstSetting]
 

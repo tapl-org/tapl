@@ -9,14 +9,14 @@ import pytest
 
 from tapl_lang.core import syntax
 from tapl_lang.core.parser import Grammar, parse_text
-from tapl_lang.lib import proxy, python_backend, scope, terms, typelib
+from tapl_lang.lib import compiler, proxy, python_backend, scope, terms, typelib
 from tapl_lang.pythonlike import expr, grammar, predef, predef1, rule_names
 
 
 def check_parsed_term(parsed: syntax.Term) -> None:
     if parsed is None:
         raise RuntimeError('Parser returns None.')
-    error_bucket: list[syntax.ErrorTerm] = terms.gather_errors(parsed)
+    error_bucket: list[syntax.ErrorTerm] = compiler.gather_errors(parsed)
     if error_bucket:
         messages = [e.message for e in error_bucket]
         raise SyntaxError('\n\n'.join(messages))
@@ -191,7 +191,7 @@ def test_gather_errors():
     c = syntax.ErrorTerm('Expected number')
     d = expr.BinOp(location, b, '*', c)
     e = expr.BinOp(location, a, '+', d)
-    error_bucket = terms.gather_errors(e)
+    error_bucket = compiler.gather_errors(e)
     assert len(error_bucket) == 1
     assert isinstance(error_bucket[0], syntax.ErrorTerm)
     assert error_bucket[0].message == 'Expected number'

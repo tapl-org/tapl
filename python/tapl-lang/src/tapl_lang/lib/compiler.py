@@ -10,6 +10,19 @@ from tapl_lang.lib import python_backend, python_terms, terms
 from tapl_lang.pythonlike import language as python_language
 
 
+def gather_errors(term: syntax.Term) -> list[syntax.ErrorTerm]:
+    error_bucket: list[syntax.ErrorTerm] = []
+
+    def gather_errors_recursive(t: syntax.Term) -> None:
+        if isinstance(t, syntax.ErrorTerm):
+            error_bucket.append(t)
+        for child in t.children():
+            gather_errors_recursive(child)
+
+    gather_errors_recursive(term)
+    return error_bucket
+
+
 def extract_language(chunk: chunker.Chunk) -> str:
     if chunk.children:
         raise tapl_error.TaplError('language clause chunk should not have children.')
@@ -35,7 +48,7 @@ def compile_tapl(text: str) -> list[ast.AST]:
     predef_layers = syntax.Layers(predef_headers)
     module = python_terms.Module(body=syntax.TermList(terms=[predef_layers, syntax.Statements(terms=[], delayed=True)]))
     language.parse_chunks(chunks[1:], [module])
-    error_bucket: list[syntax.ErrorTerm] = terms.gather_errors(module)
+    error_bucket: list[syntax.ErrorTerm] = gather_errors(module)
     if error_bucket:
         messages = [repr(e) for e in error_bucket]
         raise tapl_error.TaplError(f'{len(error_bucket)} parsing error(s) found:\n\n' + '\n\n'.join(messages))
