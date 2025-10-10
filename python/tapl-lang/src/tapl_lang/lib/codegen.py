@@ -18,6 +18,7 @@ def locate(location: syntax.Location, *nodes: ast.expr | ast.stmt) -> None:
             node.end_lineno = location.end.line
             node.end_col_offset = location.end.column
 
+
 # TODO: generate_ast
 def codegen_ast(term: syntax.Term, setting: syntax.AstSetting) -> ast.AST:
     if isinstance(term, untyped_terms.Module):

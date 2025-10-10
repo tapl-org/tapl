@@ -6,8 +6,8 @@ from typing import override
 
 from tapl_lang.core import parser, syntax
 from tapl_lang.core.language import Language
+from tapl_lang.lib import stmt
 from tapl_lang.pythonlike import grammar as pythonlike_grammar
-from tapl_lang.pythonlike import stmt
 
 IMPORT_LEVEL = 0
 

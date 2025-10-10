@@ -9,8 +9,8 @@ import pytest
 
 from tapl_lang.core import syntax
 from tapl_lang.core.parser import Grammar, parse_text
-from tapl_lang.lib import codegen, compiler, proxy, scope, terms, typelib
-from tapl_lang.pythonlike import expr, grammar, predef, predef1, rule_names
+from tapl_lang.lib import codegen, compiler, expr, proxy, scope, terms, typelib
+from tapl_lang.pythonlike import grammar, predef, predef1, rule_names
 
 
 def check_parsed_term(parsed: syntax.Term) -> None:

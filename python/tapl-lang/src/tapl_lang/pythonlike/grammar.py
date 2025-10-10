@@ -7,8 +7,7 @@ from typing import cast
 
 from tapl_lang.core import parser, syntax
 from tapl_lang.core.parser import Cursor
-from tapl_lang.lib import terms
-from tapl_lang.pythonlike import expr, stmt
+from tapl_lang.lib import expr, stmt, terms
 from tapl_lang.pythonlike import rule_names as rn
 
 # https://docs.python.org/3/reference/grammar.html
