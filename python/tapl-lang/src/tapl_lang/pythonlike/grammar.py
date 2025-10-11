@@ -7,7 +7,7 @@ from typing import cast
 
 from tapl_lang.core import parser, syntax
 from tapl_lang.core.parser import Cursor
-from tapl_lang.lib import stmt, terms, typed_terms
+from tapl_lang.lib import stmt, typed_terms
 from tapl_lang.pythonlike import rule_names as rn
 
 # https://docs.python.org/3/reference/grammar.html
@@ -783,7 +783,7 @@ def _parse_atom__list(c: Cursor) -> syntax.Term:
         return syntax.Layers(
             layers=[
                 typed_terms.ListIntLiteral(t.location),
-                typed_terms.Name(location=t.location, id='ListInt', ctx='load', mode=terms.MODE_TYPECHECK),
+                typed_terms.Name(location=t.location, id='ListInt', ctx='load', mode=typed_terms.MODE_TYPECHECK),
             ]
         )
     return t.fail()
@@ -952,7 +952,7 @@ def _rule_parameter_with_type(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(name := _consume_name(c)) and t.validate(_consume_punct(c, ':')):
         k = c.clone()
-        k.context = parser.Context(mode=terms.MODE_TYPECHECK)
+        k.context = parser.Context(mode=typed_terms.MODE_TYPECHECK)
         if t.validate(param_type := _expect_rule(k, rn.EXPRESSION)):
             c.copy_from(k)
             param_name = cast(_TokenName, name).value
@@ -1110,7 +1110,7 @@ def _parse_star_targets__single(c: Cursor) -> syntax.Term:
 def _parse_star_atom__name_store(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, _TokenName):
-        return typed_terms.Name(location=token.location, id=token.value, ctx='store', mode=terms.MODE_SAFE)
+        return typed_terms.Name(location=token.location, id=token.value, ctx='store', mode=typed_terms.MODE_SAFE)
     return t.fail()
 
 

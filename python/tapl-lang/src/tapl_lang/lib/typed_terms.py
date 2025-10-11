@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, override
 
 from tapl_lang.core import syntax, tapl_error
-from tapl_lang.lib import terms, untyped_terms
+from tapl_lang.lib import untyped_terms
 
 # Unary 'not' has a dedicated 'BoolNot' term for logical negation
 UNARY_OP_MAP: dict[str, ast.unaryop] = {'+': ast.UAdd(), '-': ast.USub(), '~': ast.Invert()}
@@ -38,6 +38,29 @@ EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': as
 
 
 @dataclass
+class ModeTerm(syntax.Term):
+    name: str
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from ()
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda _: self)
+
+    def __repr__(self) -> str:
+        return self.name
+
+
+MODE_EVALUATE = ModeTerm(name='MODE_EVALUATE')
+MODE_TYPECHECK = ModeTerm(name='MODE_TYPECHECK')
+MODE_SAFE = syntax.Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
+SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
+
+
+# TODO: Implment unfold for this term, then move the todo to the next term #refactor
+@dataclass
 class Name(syntax.Term):
     location: syntax.Location
     id: str
@@ -54,11 +77,11 @@ class Name(syntax.Term):
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        if self.mode is terms.MODE_EVALUATE:
+        if self.mode is MODE_EVALUATE:
             name = ast.Name(id=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
             self.location.locate(name)
             return name
-        if self.mode is terms.MODE_TYPECHECK:
+        if self.mode is MODE_TYPECHECK:
             scope = ast.Name(id=setting.scope_name, ctx=ast.Load())
             attr = ast.Attribute(value=scope, attr=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
             self.location.locate(scope, scope, attr)
@@ -100,11 +123,11 @@ class Literal(syntax.Term):
         yield from ()
 
     def typeit(self, ls: syntax.LayerSeparator, value: Any, type_id: str) -> list[syntax.Term]:
-        if ls.layer_count != terms.SAFE_LAYER_COUNT:
+        if ls.layer_count != SAFE_LAYER_COUNT:
             raise ValueError('NoneLiteral must be separated in 2 layers')
         return [
             untyped_terms.Constant(location=self.location, value=value),
-            Name(location=self.location, id=type_id, ctx='load', mode=terms.MODE_TYPECHECK),
+            Name(location=self.location, id=type_id, ctx='load', mode=MODE_TYPECHECK),
         ]
 
 
@@ -211,12 +234,12 @@ class BoolNot(syntax.Term):
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        if self.mode is terms.MODE_EVALUATE:
+        if self.mode is MODE_EVALUATE:
             operand = self.operand.codegen_expr(setting)
             unary = ast.UnaryOp(ast.Not(), operand)
             self.location.locate(unary)
             return unary
-        if self.mode is terms.MODE_TYPECHECK:
+        if self.mode is MODE_TYPECHECK:
             # unary not operator always returns Bool type
             bool_type = Name(location=self.location, id='Bool', ctx='load', mode=self.mode)
             return bool_type.codegen_expr(setting)
@@ -245,11 +268,11 @@ class BoolOp(syntax.Term):
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        if self.mode is terms.MODE_EVALUATE:
+        if self.mode is MODE_EVALUATE:
             op = ast.BoolOp(BOOL_OP_MAP[self.op], [v.codegen_expr(setting) for v in self.values])
             self.location.locate(op)
             return op
-        if self.mode is terms.MODE_TYPECHECK:
+        if self.mode is MODE_TYPECHECK:
             scope_name = ast.Name(id=setting.scope_name, ctx=ast.Load())
             api__tapl = ast.Attribute(value=scope_name, attr='api__tapl', ctx=ast.Load())
             create_union = ast.Attribute(value=api__tapl, attr='create_union', ctx=ast.Load())

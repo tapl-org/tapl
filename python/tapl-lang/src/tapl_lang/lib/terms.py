@@ -66,31 +66,6 @@ class AstSettingTerm(syntax.Term):
         return python_backend.generate_stmt(self.term, self._ensure_changer()(setting))
 
 
-# TODO: move ModeTerm to expr.py #refactor
-
-
-@dataclass
-class ModeTerm(syntax.Term):
-    name: str
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield from ()
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda _: self)
-
-    def __repr__(self) -> str:
-        return self.name
-
-
-MODE_EVALUATE = ModeTerm(name='MODE_EVALUATE')
-MODE_TYPECHECK = ModeTerm(name='MODE_TYPECHECK')
-MODE_SAFE = syntax.Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
-SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
-
-
 def create_safe_ast_settings() -> list[syntax.AstSetting]:
     return [
         syntax.AstSetting(scope_level=0),

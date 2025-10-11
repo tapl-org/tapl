@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import cast, override
 
 from tapl_lang.core import syntax, tapl_error
-from tapl_lang.lib import terms
+from tapl_lang.lib import typed_terms
 
 
 def ast_name(name: str, ctx: ast.expr_context | None = None) -> ast.expr:
@@ -98,9 +98,9 @@ class Return(syntax.Term):
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if self.mode is terms.MODE_EVALUATE:
+        if self.mode is typed_terms.MODE_EVALUATE:
             return self.codegen_evaluate(setting)
-        if self.mode is terms.MODE_TYPECHECK:
+        if self.mode is typed_terms.MODE_TYPECHECK:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
 
@@ -156,7 +156,7 @@ class Parameter(syntax.Term):
         )
 
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        if self.mode is terms.MODE_TYPECHECK:
+        if self.mode is typed_terms.MODE_TYPECHECK:
             return self.type_.codegen_expr(setting)
         raise tapl_error.UnhandledError
 
@@ -262,9 +262,9 @@ class FunctionDef(syntax.Term):
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if self.mode is terms.MODE_EVALUATE:
+        if self.mode is typed_terms.MODE_EVALUATE:
             return self.codegen_evaluate(setting)
-        if self.mode is terms.MODE_TYPECHECK:
+        if self.mode is typed_terms.MODE_TYPECHECK:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
 
@@ -412,9 +412,9 @@ class If(syntax.Term):
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if self.mode is terms.MODE_EVALUATE:
+        if self.mode is typed_terms.MODE_EVALUATE:
             return self.codegen_evaluate(setting)
-        if self.mode is terms.MODE_TYPECHECK:
+        if self.mode is typed_terms.MODE_TYPECHECK:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
 
@@ -526,10 +526,10 @@ class While(syntax.Term):
         return [with_stmt]
 
     @override
-    def codegen_stmt(self, setting):
-        if self.mode is terms.MODE_EVALUATE:
+    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        if self.mode is typed_terms.MODE_EVALUATE:
             return self.codegen_evaluate(setting)
-        if self.mode is terms.MODE_TYPECHECK:
+        if self.mode is typed_terms.MODE_TYPECHECK:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
 
@@ -629,10 +629,10 @@ class For(syntax.Term):
         return [with_stmt]
 
     @override
-    def codegen_stmt(self, setting):
-        if self.mode is terms.MODE_EVALUATE:
+    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        if self.mode is typed_terms.MODE_EVALUATE:
             return self.codegen_evaluate(setting)
-        if self.mode is terms.MODE_TYPECHECK:
+        if self.mode is typed_terms.MODE_TYPECHECK:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
 
@@ -761,8 +761,8 @@ class ClassDef(syntax.Term):
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if self.mode is terms.MODE_EVALUATE:
+        if self.mode is typed_terms.MODE_EVALUATE:
             return self.codegen_evaluate(setting)
-        if self.mode is terms.MODE_TYPECHECK:
+        if self.mode is typed_terms.MODE_TYPECHECK:
             return self.codegen_typecheck(setting)
         raise tapl_error.UnhandledError
