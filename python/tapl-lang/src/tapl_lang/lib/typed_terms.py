@@ -60,7 +60,6 @@ MODE_SAFE = syntax.Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
 SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
 
 
-# XXX: Implment unfold for this term, then move the todo to the next term #refactor
 @dataclass
 class Name(syntax.Term):
     location: syntax.Location
@@ -92,6 +91,7 @@ class Name(syntax.Term):
         return python_backend.generate_expr(self, setting)
 
 
+# XXX: Implment unfold for this term, then move the todo to the next term #refactor
 @dataclass
 class Attribute(syntax.Term):
     location: syntax.Location
