@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, override
 
 from tapl_lang.core import syntax
-from tapl_lang.lib import codegen
+from tapl_lang.lib import python_backend
 
 # NOTE: These terms are designed to closely mirror the `ast` module's classes.
 # Keep the order of terms in the file consistent with https://docs.python.org/3/library/ast.html
@@ -405,7 +405,7 @@ class Constant(syntax.Term):
     @override
     def codegen_expr(self, setting: syntax.AstSetting):
         # HACK: temporary redirect #refactor
-        return codegen.generate_expr(self, setting)
+        return python_backend.generate_expr(self, setting)
 
 
 @dataclass

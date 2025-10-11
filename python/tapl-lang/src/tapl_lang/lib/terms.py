@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast, override
 
-from tapl_lang.lib import codegen
+from tapl_lang.lib import python_backend
 
 if TYPE_CHECKING:
     import ast
@@ -55,15 +55,15 @@ class AstSettingTerm(syntax.Term):
 
     @override
     def codegen_ast(self, setting: syntax.AstSetting) -> ast.AST:
-        return codegen.generate_ast(self.term, self._ensure_changer()(setting))
+        return python_backend.generate_ast(self.term, self._ensure_changer()(setting))
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        return codegen.generate_expr(self.term, self._ensure_changer()(setting))
+        return python_backend.generate_expr(self.term, self._ensure_changer()(setting))
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        return codegen.generate_stmt(self.term, self._ensure_changer()(setting))
+        return python_backend.generate_stmt(self.term, self._ensure_changer()(setting))
 
 
 # TODO: move ModeTerm to expr.py #refactor
