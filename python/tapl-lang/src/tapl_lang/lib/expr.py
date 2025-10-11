@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, override
 
 from tapl_lang.core import syntax, tapl_error
-from tapl_lang.lib import terms
+from tapl_lang.lib import terms, untyped_terms
 
 # Unary 'not' has a dedicated 'BoolNot' term for logical negation
 UNARY_OP_MAP: dict[str, ast.unaryop] = {'+': ast.UAdd(), '-': ast.USub(), '~': ast.Invert()}
@@ -35,26 +35,6 @@ COMPARE_OP_MAP: dict[str, ast.cmpop] = {
 }
 # TODO: add class with static fields for the context keys
 EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': ast.Store(), 'delete': ast.Del()}
-
-
-@dataclass
-class Constant(syntax.Term):
-    location: syntax.Location
-    value: Any
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield from ()
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda _: Constant(location=self.location, value=self.value))
-
-    @override
-    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        const = ast.Constant(self.value)
-        self.location.locate(const)
-        return const
 
 
 @dataclass
@@ -123,7 +103,7 @@ class Literal(syntax.Term):
         if ls.layer_count != terms.SAFE_LAYER_COUNT:
             raise ValueError('NoneLiteral must be separated in 2 layers')
         return [
-            Constant(location=self.location, value=value),
+            untyped_terms.Constant(location=self.location, value=value),
             Name(location=self.location, id=type_id, ctx='load', mode=terms.MODE_TYPECHECK),
         ]
 

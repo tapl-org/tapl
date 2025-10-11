@@ -66,6 +66,9 @@ class AstSettingTerm(syntax.Term):
         return codegen.generate_stmt(self.term, self._ensure_changer()(setting))
 
 
+# TODO: move ModeTerm to expr.py #refactor
+
+
 @dataclass
 class ModeTerm(syntax.Term):
     name: str

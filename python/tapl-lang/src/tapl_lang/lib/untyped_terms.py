@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, override
 
 from tapl_lang.core import syntax
+from tapl_lang.lib import codegen
 
 # NOTE: These terms are designed to closely mirror the `ast` module's classes.
 # Keep the order of terms in the file consistent with https://docs.python.org/3/library/ast.html
@@ -400,6 +401,11 @@ class Constant(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda _: Constant(location=self.location, value=self.value))
+
+    @override
+    def codegen_expr(self, setting: syntax.AstSetting):
+        # HACK: temporary redirect #refactor
+        return codegen.generate_expr(self, setting)
 
 
 @dataclass
