@@ -8,6 +8,32 @@ import ast
 from tapl_lang.core import syntax
 from tapl_lang.lib import untyped_terms
 
+# Unary 'not' has a dedicated 'BoolNot' term for logical negation
+UNARY_OP_MAP: dict[str, ast.unaryop] = {'+': ast.UAdd(), '-': ast.USub(), '~': ast.Invert()}
+BIN_OP_MAP: dict[str, ast.operator] = {
+    '+': ast.Add(),
+    '-': ast.Sub(),
+    '*': ast.Mult(),
+    '/': ast.Div(),
+    '//': ast.FloorDiv(),
+    '%': ast.Mod(),
+}
+BOOL_OP_MAP: dict[str, ast.boolop] = {'and': ast.And(), 'or': ast.Or()}
+COMPARE_OP_MAP: dict[str, ast.cmpop] = {
+    '==': ast.Eq(),
+    '!=': ast.NotEq(),
+    '<': ast.Lt(),
+    '<=': ast.LtE(),
+    '>': ast.Gt(),
+    '>=': ast.GtE(),
+    'is': ast.Is(),
+    'is not': ast.IsNot(),
+    'in': ast.In(),
+    'not in': ast.NotIn(),
+}
+# TODO: add class with static fields for the context keys
+EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': ast.Store(), 'delete': ast.Del()}
+
 
 def locate(location: syntax.Location, *nodes: ast.expr | ast.stmt) -> None:
     for node in nodes:
@@ -25,6 +51,9 @@ def generate_ast(term: syntax.Term, setting: syntax.AstSetting) -> ast.AST:
         for t in term.body:
             stmts.extend(generate_stmt(t, setting))
         return ast.Module(body=stmts, type_ignores=[])
+    if unfolded := term.unfold():
+        return generate_ast(unfolded, setting)
+    # TODO: raise error once refactor complete #refactor
     return term.codegen_ast(setting)
 
 
@@ -35,8 +64,9 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
             stmts.extend(generate_stmt(t, setting))
         return stmts
     if isinstance(term, untyped_terms.FunctionDef):
+        name = term.name(setting) if callable(term.name) else term.name
         func_def = ast.FunctionDef(
-            name=term.name,
+            name=name,
             args=ast.arguments(
                 posonlyargs=[ast.arg(arg=name) for name in term.posonlyargs],
                 args=[ast.arg(arg=name) for name in term.args],
@@ -53,6 +83,8 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
         )
         locate(term.location, func_def)
         return [func_def]
+    if unfolded := term.unfold():
+        return generate_stmt(unfolded, setting)
     return term.codegen_stmt(setting)
 
 
@@ -62,15 +94,19 @@ def generate_expr(term: syntax.Term, setting: syntax.AstSetting) -> ast.expr:
         locate(term.location, const)
         return const
     if isinstance(term, untyped_terms.Name):
-        name = ast.Name(id=term.id, ctx=ast.Load())
+        name_id = term.id(setting) if callable(term.id) else term.id
+        name = ast.Name(id=name_id, ctx=EXPR_CONTEXT_MAP[term.ctx])
         locate(term.location, name)
         return name
     if isinstance(term, untyped_terms.Attribute):
+        attr_name = term.attr(setting) if callable(term.attr) else term.attr
         attr = ast.Attribute(
             value=generate_expr(term.value, setting),
-            attr=term.attr,
-            ctx=ast.Load(),
+            attr=attr_name,
+            ctx=EXPR_CONTEXT_MAP[term.ctx],
         )
         locate(term.location, attr)
         return attr
+    if unfolded := term.unfold():
+        return generate_expr(unfolded, setting)
     return term.codegen_expr(setting)

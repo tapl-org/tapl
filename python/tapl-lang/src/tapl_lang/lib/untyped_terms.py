@@ -2,15 +2,17 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from typing import Any, override
 
-from tapl_lang.core import syntax
+from tapl_lang.core import syntax, tapl_error
 from tapl_lang.lib import python_backend
 
 # NOTE: These terms are designed to closely mirror the `ast` module's classes.
 # Keep the order of terms in the file consistent with https://docs.python.org/3/library/ast.html
+
+type Identifier = str | Callable[[syntax.AstSetting], str]
 
 
 @dataclass
@@ -28,13 +30,11 @@ class Module(syntax.Term):
 
 # STATEMENTS
 
-# TODO: imlement Identifier term #refactor
-
 
 @dataclass
 class FunctionDef(syntax.Term):
     location: syntax.Location
-    name: str
+    name: Identifier
     posonlyargs: list[str]
     args: list[str]
     vararg: str | None
@@ -74,7 +74,7 @@ class FunctionDef(syntax.Term):
 @dataclass
 class ClassDef(syntax.Term):
     location: syntax.Location
-    name: str
+    name: Identifier
     bases: list[syntax.Term]
     keywords: list[tuple[str, syntax.Term]]
     body: list[syntax.Term]
@@ -412,7 +412,7 @@ class Constant(syntax.Term):
 class Attribute(syntax.Term):
     location: syntax.Location
     value: syntax.Term
-    attr: str
+    attr: Identifier
     ctx: str
 
     @override
@@ -429,7 +429,7 @@ class Attribute(syntax.Term):
 @dataclass
 class Name(syntax.Term):
     location: syntax.Location
-    id: str
+    id: Identifier
     ctx: str
 
     @override
@@ -439,3 +439,27 @@ class Name(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda _: Name(location=self.location, id=self.id, ctx=self.ctx))
+
+
+def select_path(
+    location: syntax.Location,
+    value: syntax.Term,
+    names: list[Identifier],
+    ctx: str = 'load',
+) -> syntax.Term:
+    if not names:
+        raise tapl_error.TaplError('At least one name is required to select a path.')
+    term = value
+    for i in range(len(names) - 1):
+        term = Attribute(location=location, value=term, attr=names[i], ctx='load')
+    return Attribute(location=location, value=term, attr=names[-1], ctx=ctx)
+
+
+def create_path(location: syntax.Location, names: list[Identifier], ctx: str = 'load') -> syntax.Term:
+    if not names:
+        raise tapl_error.TaplError('At least one name is required to select a path.')
+    if len(names) == 1:
+        return Name(location=location, id=names[0], ctx=ctx)
+    return select_path(
+        location=location, value=Name(location=location, id=names[0], ctx='load'), names=names[1:], ctx=ctx
+    )

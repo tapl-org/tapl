@@ -8,8 +8,9 @@ from dataclasses import dataclass
 from typing import Any, override
 
 from tapl_lang.core import syntax, tapl_error
-from tapl_lang.lib import untyped_terms
+from tapl_lang.lib import python_backend, untyped_terms
 
+# TODO: remove these constants once refactor complete #refactor
 # Unary 'not' has a dedicated 'BoolNot' term for logical negation
 UNARY_OP_MAP: dict[str, ast.unaryop] = {'+': ast.UAdd(), '-': ast.USub(), '~': ast.Invert()}
 BIN_OP_MAP: dict[str, ast.operator] = {
@@ -59,7 +60,7 @@ MODE_SAFE = syntax.Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
 SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
 
 
-# TODO: Implment unfold for this term, then move the todo to the next term #refactor
+# XXX: Implment unfold for this term, then move the todo to the next term #refactor
 @dataclass
 class Name(syntax.Term):
     location: syntax.Location
@@ -76,17 +77,19 @@ class Name(syntax.Term):
         return ls.build(lambda layer: Name(location=self.location, id=self.id, ctx=self.ctx, mode=layer(self.mode)))
 
     @override
-    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+    def unfold(self) -> syntax.Term | None:
         if self.mode is MODE_EVALUATE:
-            name = ast.Name(id=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
-            self.location.locate(name)
-            return name
+            return untyped_terms.Name(location=self.location, id=self.id, ctx=self.ctx)
         if self.mode is MODE_TYPECHECK:
-            scope = ast.Name(id=setting.scope_name, ctx=ast.Load())
-            attr = ast.Attribute(value=scope, attr=self.id, ctx=EXPR_CONTEXT_MAP[self.ctx])
-            self.location.locate(scope, scope, attr)
-            return attr
+            return untyped_terms.create_path(
+                location=self.location, names=[lambda setting: setting.scope_name, self.id], ctx=self.ctx
+            )
+        # TODO: return None and write a unit test which captures the unhandled error #refactor
         raise tapl_error.UnhandledError
+
+    @override
+    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+        return python_backend.generate_expr(self, setting)
 
 
 @dataclass
