@@ -18,7 +18,7 @@ void ChunkProcessor::SplitLines() {
   std::size_t nextPos;
 
   while ((nextPos = sv.find('\n', pos)) != std::string::npos) {
-    //  strip out trailing spaces
+    // strip out trailing spaces
     lines_.emplace_back(sv.substr(pos, nextPos - pos));
     pos = nextPos + 1;
   }

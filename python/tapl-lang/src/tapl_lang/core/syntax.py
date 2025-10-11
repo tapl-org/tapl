@@ -137,7 +137,7 @@ class AstSetting:
             scope_level=scope_level or self.scope_level,
         )
 
-    # TODO: AstSetting is not the right place for scope_name and forker_name function
+    # TODO: AstSetting is not the right place for scope_name and forker_name function #refactor
     @property
     def scope_name(self) -> str:
         return f's{self.scope_level}'

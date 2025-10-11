@@ -27,6 +27,7 @@ class Module(syntax.Term):
 
 # STATEMENTS
 
+# TODO imlement Identifier term #refactor
 
 @dataclass
 class FunctionDef(syntax.Term):
