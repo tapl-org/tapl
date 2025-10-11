@@ -55,15 +55,15 @@ class AstSettingTerm(syntax.Term):
 
     @override
     def codegen_ast(self, setting: syntax.AstSetting) -> ast.AST:
-        return codegen.codegen_ast(self.term, self._ensure_changer()(setting))
+        return codegen.generate_ast(self.term, self._ensure_changer()(setting))
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        return codegen.codegen_expr(self.term, self._ensure_changer()(setting))
+        return codegen.generate_expr(self.term, self._ensure_changer()(setting))
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        return codegen.codegen_stmt(self.term, self._ensure_changer()(setting))
+        return codegen.generate_stmt(self.term, self._ensure_changer()(setting))
 
 
 @dataclass
