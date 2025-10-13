@@ -441,6 +441,36 @@ class Name(syntax.Term):
         return ls.build(lambda _: Name(location=self.location, id=self.id, ctx=self.ctx))
 
 
+@dataclass
+class List(syntax.Term):
+    location: syntax.Location
+    elts: list[syntax.Term]
+    ctx: str
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.elts
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda layer: List(location=self.location, elts=[layer(v) for v in self.elts], ctx=self.ctx))
+
+
+@dataclass
+class Tuple(syntax.Term):
+    location: syntax.Location
+    elts: list[syntax.Term]
+    ctx: str
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.elts
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda layer: Tuple(location=self.location, elts=[layer(v) for v in self.elts], ctx=self.ctx))
+
+
 def select_path(
     location: syntax.Location,
     value: syntax.Term,

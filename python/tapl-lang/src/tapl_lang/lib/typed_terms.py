@@ -91,7 +91,6 @@ class Name(syntax.Term):
         return python_backend.generate_expr(self, setting)
 
 
-# XXX: Implment unfold for this term, then move the todo to the next term #refactor
 @dataclass
 class Attribute(syntax.Term):
     location: syntax.Location
@@ -111,10 +110,14 @@ class Attribute(syntax.Term):
 
     # TODO: Attribute must have a type layer to check attribute exists or not. find a test case first
     @override
+    def unfold(self) -> syntax.Term | None:
+        return untyped_terms.Attribute(
+            location=self.location, value=self.value.unfold() or self.value, attr=self.attr, ctx=self.ctx
+        )
+
+    @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        attr = ast.Attribute(self.value.codegen_expr(setting), attr=self.attr, ctx=EXPR_CONTEXT_MAP[self.ctx])
-        self.location.locate(attr)
-        return attr
+        return python_backend.generate_expr(self, setting)
 
 
 @dataclass
@@ -190,12 +193,15 @@ class ListIntLiteral(Literal):
         return ls.build(lambda _: ListIntLiteral(location=self.location))
 
     @override
+    def unfold(self) -> syntax.Term | None:
+        return untyped_terms.List(location=self.location, elts=[], ctx='load')
+
+    @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        list_expr = ast.List(elts=[], ctx=ast.Load())
-        self.location.locate(list_expr)
-        return list_expr
+        return python_backend.generate_expr(self, setting)
 
 
+# XXX: Implment unfold for this term, then move the todo to the next term #refactor
 @dataclass
 class UnaryOp(syntax.Term):
     location: syntax.Location

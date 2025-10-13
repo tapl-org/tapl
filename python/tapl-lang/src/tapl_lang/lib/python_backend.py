@@ -107,6 +107,20 @@ def generate_expr(term: syntax.Term, setting: syntax.AstSetting) -> ast.expr:
         )
         locate(term.location, attr)
         return attr
+    if isinstance(term, untyped_terms.List):
+        list_expr = ast.List(
+            elts=[generate_expr(elt, setting) for elt in term.elts],
+            ctx=EXPR_CONTEXT_MAP[term.ctx],
+        )
+        locate(term.location, list_expr)
+        return list_expr
+    if isinstance(term, untyped_terms.Tuple):
+        tuple_expr = ast.Tuple(
+            elts=[generate_expr(elt, setting) for elt in term.elts],
+            ctx=EXPR_CONTEXT_MAP[term.ctx],
+        )
+        locate(term.location, tuple_expr)
+        return tuple_expr
     if unfolded := term.unfold():
         return generate_expr(unfolded, setting)
     return term.codegen_expr(setting)
