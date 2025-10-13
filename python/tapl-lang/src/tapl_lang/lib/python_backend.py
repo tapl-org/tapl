@@ -9,7 +9,7 @@ from tapl_lang.core import syntax
 from tapl_lang.lib import untyped_terms
 
 # Unary 'not' has a dedicated 'BoolNot' term for logical negation
-UNARY_OP_MAP: dict[str, ast.unaryop] = {'+': ast.UAdd(), '-': ast.USub(), '~': ast.Invert()}
+UNARY_OP_MAP: dict[str, ast.unaryop] = {'+': ast.UAdd(), '-': ast.USub(), 'not': ast.Not(), '~': ast.Invert()}
 BIN_OP_MAP: dict[str, ast.operator] = {
     '+': ast.Add(),
     '-': ast.Sub(),
@@ -89,6 +89,10 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
 
 
 def generate_expr(term: syntax.Term, setting: syntax.AstSetting) -> ast.expr:
+    if isinstance(term, untyped_terms.UnaryOp):
+        op = ast.UnaryOp(op=UNARY_OP_MAP[term.op], operand=generate_expr(term.operand, setting))
+        locate(term.location, op)
+        return op
     if isinstance(term, untyped_terms.Constant):
         const = ast.Constant(value=term.value)
         locate(term.location, const)

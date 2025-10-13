@@ -111,9 +111,7 @@ class Attribute(syntax.Term):
     # TODO: Attribute must have a type layer to check attribute exists or not. find a test case first
     @override
     def unfold(self) -> syntax.Term:
-        return untyped_terms.Attribute(
-            location=self.location, value=self.value.unfold() or self.value, attr=self.attr, ctx=self.ctx
-        )
+        return untyped_terms.Attribute(location=self.location, value=self.value.unfold(), attr=self.attr, ctx=self.ctx)
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
@@ -201,7 +199,6 @@ class ListIntLiteral(Literal):
         return python_backend.generate_expr(self, setting)
 
 
-# XXX: Implment unfold for this term, then move the todo to the next term #refactor
 @dataclass
 class UnaryOp(syntax.Term):
     location: syntax.Location
@@ -217,13 +214,15 @@ class UnaryOp(syntax.Term):
         return ls.build(lambda layer: UnaryOp(location=self.location, op=self.op, operand=layer(self.operand)))
 
     @override
+    def unfold(self) -> syntax.Term:
+        return untyped_terms.UnaryOp(location=self.location, op=self.op, operand=self.operand.unfold())
+
+    @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        operand = self.operand.codegen_expr(setting)
-        unary = ast.UnaryOp(UNARY_OP_MAP[self.op], operand)
-        self.location.locate(unary)
-        return unary
+        return python_backend.generate_expr(self, setting)
 
 
+# XXX: Implment unfold for this term, then move the todo to the next term #refactor
 @dataclass
 class BoolNot(syntax.Term):
     location: syntax.Location
@@ -242,17 +241,17 @@ class BoolNot(syntax.Term):
         )
 
     @override
-    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+    def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            operand = self.operand.codegen_expr(setting)
-            unary = ast.UnaryOp(ast.Not(), operand)
-            self.location.locate(unary)
-            return unary
+            return untyped_terms.UnaryOp(location=self.location, op='not', operand=self.operand)
         if self.mode is MODE_TYPECHECK:
             # unary not operator always returns Bool type
-            bool_type = Name(location=self.location, id='Bool', ctx='load', mode=self.mode)
-            return bool_type.codegen_expr(setting)
+            return Name(location=self.location, id='Bool', ctx='load', mode=MODE_TYPECHECK)
         raise tapl_error.UnhandledError
+
+    @override
+    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+        return python_backend.generate_expr(self, setting)
 
 
 @dataclass
