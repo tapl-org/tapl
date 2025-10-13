@@ -25,9 +25,10 @@ class Term:
         del ls
         raise tapl_error.TaplError(f'The {self.__class__.__name__} class does not support separate.')
 
-    def unfold(self) -> Term | None:
-        """Unfolds the term if it is a wrapper term, otherwise returns None."""
-        return None
+    def unfold(self) -> Term:
+        """Unfolds the term if it is a wrapper or syntactic sugar, returning the underlying term.
+        If the term is already in its simplest form, it returns itself."""
+        return self
 
     def codegen_ast(self, setting: AstSetting) -> ast.AST:
         """Generates the AST representation of this term."""

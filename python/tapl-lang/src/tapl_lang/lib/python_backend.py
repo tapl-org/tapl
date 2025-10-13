@@ -51,7 +51,7 @@ def generate_ast(term: syntax.Term, setting: syntax.AstSetting) -> ast.AST:
         for t in term.body:
             stmts.extend(generate_stmt(t, setting))
         return ast.Module(body=stmts, type_ignores=[])
-    if unfolded := term.unfold():
+    if (unfolded := term.unfold()) and unfolded is not term:
         return generate_ast(unfolded, setting)
     # TODO: raise error once refactor complete #refactor
     return term.codegen_ast(setting)
@@ -83,7 +83,7 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
         )
         locate(term.location, func_def)
         return [func_def]
-    if unfolded := term.unfold():
+    if (unfolded := term.unfold()) and unfolded is not term:
         return generate_stmt(unfolded, setting)
     return term.codegen_stmt(setting)
 
@@ -121,6 +121,6 @@ def generate_expr(term: syntax.Term, setting: syntax.AstSetting) -> ast.expr:
         )
         locate(term.location, tuple_expr)
         return tuple_expr
-    if unfolded := term.unfold():
+    if (unfolded := term.unfold()) and unfolded is not term:
         return generate_expr(unfolded, setting)
     return term.codegen_expr(setting)

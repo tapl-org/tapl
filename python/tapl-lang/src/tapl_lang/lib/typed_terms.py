@@ -76,7 +76,7 @@ class Name(syntax.Term):
         return ls.build(lambda layer: Name(location=self.location, id=self.id, ctx=self.ctx, mode=layer(self.mode)))
 
     @override
-    def unfold(self) -> syntax.Term | None:
+    def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return untyped_terms.Name(location=self.location, id=self.id, ctx=self.ctx)
         if self.mode is MODE_TYPECHECK:
@@ -110,7 +110,7 @@ class Attribute(syntax.Term):
 
     # TODO: Attribute must have a type layer to check attribute exists or not. find a test case first
     @override
-    def unfold(self) -> syntax.Term | None:
+    def unfold(self) -> syntax.Term:
         return untyped_terms.Attribute(
             location=self.location, value=self.value.unfold() or self.value, attr=self.attr, ctx=self.ctx
         )
@@ -193,7 +193,7 @@ class ListIntLiteral(Literal):
         return ls.build(lambda _: ListIntLiteral(location=self.location))
 
     @override
-    def unfold(self) -> syntax.Term | None:
+    def unfold(self) -> syntax.Term:
         return untyped_terms.List(location=self.location, elts=[], ctx='load')
 
     @override
