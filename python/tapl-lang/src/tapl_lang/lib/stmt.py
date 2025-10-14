@@ -84,14 +84,11 @@ class Return(syntax.Term):
         if self.mode is typed_terms.MODE_EVALUATE:
             return untyped_terms.Return(location=self.location, value=self.value)
         if self.mode is typed_terms.MODE_TYPECHECK:
-            # FIXME: think about creating Path term #refactor
-            api__tapl = typed_terms.Name(location=self.location, id='api__tapl', ctx='load', mode=self.mode)
-            create_union = typed_terms.Select(
-                location=self.location, value=api__tapl, names=['add_return_type'], ctx='load'
-            )
             call = untyped_terms.Call(
                 location=self.location,
-                func=create_union,
+                func=typed_terms.Path(
+                    location=self.location, names=['api__tapl', 'add_return_type'], ctx='load', mode=self.mode
+                ),
                 args=[
                     untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
                     self.value,

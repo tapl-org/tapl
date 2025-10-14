@@ -151,6 +151,33 @@ class Select(syntax.Term):
 
 
 @dataclass
+class Path(syntax.Term):
+    location: syntax.Location
+    names: list[str]
+    ctx: str
+    mode: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.mode
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: Path(location=self.location, names=self.names, ctx=self.ctx, mode=layer(self.mode))
+        )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if len(self.names) <= 1:
+            return syntax.ErrorTerm(location=self.location, message='At least two names are required to create a path.')
+        value: syntax.Term = Name(location=self.location, id=self.names[0], ctx='load', mode=self.mode)
+        for i in range(1, len(self.names) - 1):
+            value = Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
+        return Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
+
+
+@dataclass
 class Literal(syntax.Term):
     location: syntax.Location
 
@@ -310,12 +337,9 @@ class BoolOp(syntax.Term):
         if self.mode is MODE_EVALUATE:
             return untyped_terms.BoolOp(location=self.location, op=self.op, values=self.values)
         if self.mode is MODE_TYPECHECK:
-            # FIXME: think about creating Path term #refactor
-            api__tapl = Name(location=self.location, id='api__tapl', ctx='load', mode=self.mode)
-            create_union = Select(location=self.location, value=api__tapl, names=['create_union'], ctx='load')
             return untyped_terms.Call(
                 location=self.location,
-                func=create_union,
+                func=Path(location=self.location, names=['api__tapl', 'create_union'], ctx='load', mode=self.mode),
                 args=self.values,
                 keywords=[],
             )
