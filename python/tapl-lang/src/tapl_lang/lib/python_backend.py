@@ -143,7 +143,7 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
 
     if isinstance(term, syntax.AstSettingChanger):
         new_setting = term.changer(setting)
-        return generate_stmt(term.inner, new_setting)
+        return generate_stmt(term.nested, new_setting)
 
     if (unfolded := term.unfold()) and unfolded is not term:
         return generate_stmt(unfolded, setting)
@@ -225,7 +225,7 @@ def generate_expr(term: syntax.Term, setting: syntax.AstSetting) -> ast.expr:
 
     if isinstance(term, syntax.AstSettingChanger):
         new_setting = term.changer(setting)
-        return generate_expr(term.inner, new_setting)
+        return generate_expr(term.nested, new_setting)
 
     if (unfolded := term.unfold()) and unfolded is not term:
         return generate_expr(unfolded, setting)

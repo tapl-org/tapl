@@ -152,15 +152,15 @@ class AstSetting:
 @dataclass
 class AstSettingChanger(Term):
     changer: Callable[[AstSetting], AstSetting]
-    inner: Term
+    nested: Term
 
     @override
     def children(self) -> Generator[Term, None, None]:
-        yield self.inner
+        yield self.nested
 
     @override
     def separate(self, ls: LayerSeparator) -> list[Term]:
-        return ls.build(lambda layer: AstSettingChanger(changer=self.changer, inner=layer(self.inner)))
+        return ls.build(lambda layer: AstSettingChanger(changer=self.changer, nested=layer(self.nested)))
 
 
 @dataclass

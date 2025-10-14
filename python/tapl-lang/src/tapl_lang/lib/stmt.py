@@ -207,8 +207,10 @@ class FunctionDef(syntax.Term):
         )
 
     def unfold_typecheck_main(self) -> syntax.Term:
-        def setting_changer(setting: syntax.AstSetting) -> syntax.AstSetting:
-            return setting.clone(scope_level=setting.scope_level + 1)
+        def nested_scope(nested_term: syntax.Term) -> syntax.Term:
+            return syntax.AstSettingChanger(
+                changer=lambda setting: setting.clone(scope_level=setting.scope_level + 1), nested=nested_term
+            )
 
         param_names = [cast(Parameter, p).name for p in self.parameters]
 
@@ -223,9 +225,8 @@ class FunctionDef(syntax.Term):
         new_scope = Assign(
             location=self.location,
             targets=[
-                syntax.AstSettingChanger(
-                    changer=setting_changer,
-                    inner=untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                nested_scope(
+                    untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
                 )
             ],
             value=typed_terms.Call(
@@ -238,22 +239,15 @@ class FunctionDef(syntax.Term):
             ),
         )
 
-        nested_body = syntax.AstSettingChanger(changer=setting_changer, inner=self.body)
-
-        return_type = syntax.AstSettingChanger(
-            changer=setting_changer,
-            inner=untyped_terms.Return(
+        return_type = untyped_terms.Return(
+            location=self.location,
+            value=untyped_terms.Call(
                 location=self.location,
-                value=untyped_terms.Call(
-                    location=self.location,
-                    func=typed_terms.Path(
-                        location=self.location, names=['api__tapl', 'get_return_type'], ctx='load', mode=self.mode
-                    ),
-                    args=[
-                        untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load')
-                    ],
-                    keywords=[],
+                func=typed_terms.Path(
+                    location=self.location, names=['api__tapl', 'get_return_type'], ctx='load', mode=self.mode
                 ),
+                args=[untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load')],
+                keywords=[],
             ),
         )
 
@@ -267,7 +261,7 @@ class FunctionDef(syntax.Term):
             kw_defaults=[],
             kwarg=None,
             defaults=[],
-            body=syntax.TermList(terms=[new_scope, nested_body, return_type]),
+            body=syntax.TermList(terms=[new_scope, nested_scope(self.body), nested_scope(return_type)]),
             decorator_list=[],
         )
 
@@ -459,7 +453,7 @@ class If(syntax.Term):
     def codegen_typecheck(self) -> syntax.Term:
         def nested_scope(inner_term: syntax.Term) -> syntax.Term:
             return syntax.AstSettingChanger(
-                changer=lambda setting: setting.clone(scope_level=setting.scope_level + 1), inner=inner_term
+                changer=lambda setting: setting.clone(scope_level=setting.scope_level + 1), nested=inner_term
             )
 
         def new_scope() -> syntax.Term:
