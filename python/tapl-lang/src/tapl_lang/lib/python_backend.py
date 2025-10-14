@@ -89,19 +89,30 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
 
 
 def generate_expr(term: syntax.Term, setting: syntax.AstSetting) -> ast.expr:
+    if isinstance(term, untyped_terms.BoolOp):
+        bool_op = ast.BoolOp(op=BOOL_OP_MAP[term.op], values=[generate_expr(v, setting) for v in term.values])
+        locate(term.location, bool_op)
+        return bool_op
+
     if isinstance(term, untyped_terms.UnaryOp):
         op = ast.UnaryOp(op=UNARY_OP_MAP[term.op], operand=generate_expr(term.operand, setting))
         locate(term.location, op)
         return op
+
+    if isinstance(term, untyped_terms.Call):
+        call = ast.Call(
+            func=generate_expr(term.func, setting),
+            args=[generate_expr(arg, setting) for arg in term.args],
+            keywords=[ast.keyword(arg=k, value=generate_expr(v, setting)) for k, v in term.keywords],
+        )
+        locate(term.location, call)
+        return call
+
     if isinstance(term, untyped_terms.Constant):
         const = ast.Constant(value=term.value)
         locate(term.location, const)
         return const
-    if isinstance(term, untyped_terms.Name):
-        name_id = term.id(setting) if callable(term.id) else term.id
-        name = ast.Name(id=name_id, ctx=EXPR_CONTEXT_MAP[term.ctx])
-        locate(term.location, name)
-        return name
+
     if isinstance(term, untyped_terms.Attribute):
         attr_name = term.attr(setting) if callable(term.attr) else term.attr
         attr = ast.Attribute(
@@ -111,6 +122,13 @@ def generate_expr(term: syntax.Term, setting: syntax.AstSetting) -> ast.expr:
         )
         locate(term.location, attr)
         return attr
+
+    if isinstance(term, untyped_terms.Name):
+        name_id = term.id(setting) if callable(term.id) else term.id
+        name = ast.Name(id=name_id, ctx=EXPR_CONTEXT_MAP[term.ctx])
+        locate(term.location, name)
+        return name
+
     if isinstance(term, untyped_terms.List):
         list_expr = ast.List(
             elts=[generate_expr(elt, setting) for elt in term.elts],
@@ -118,6 +136,7 @@ def generate_expr(term: syntax.Term, setting: syntax.AstSetting) -> ast.expr:
         )
         locate(term.location, list_expr)
         return list_expr
+
     if isinstance(term, untyped_terms.Tuple):
         tuple_expr = ast.Tuple(
             elts=[generate_expr(elt, setting) for elt in term.elts],
@@ -125,6 +144,7 @@ def generate_expr(term: syntax.Term, setting: syntax.AstSetting) -> ast.expr:
         )
         locate(term.location, tuple_expr)
         return tuple_expr
+
     if (unfolded := term.unfold()) and unfolded is not term:
         return generate_expr(unfolded, setting)
     return term.codegen_expr(setting)

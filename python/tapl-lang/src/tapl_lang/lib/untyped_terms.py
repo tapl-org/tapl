@@ -471,6 +471,7 @@ class Tuple(syntax.Term):
         return ls.build(lambda layer: Tuple(location=self.location, elts=[layer(v) for v in self.elts], ctx=self.ctx))
 
 
+# FIXME: remove these path functions #refactor
 def select_path(
     location: syntax.Location,
     value: syntax.Term,

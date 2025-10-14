@@ -80,10 +80,10 @@ class Name(syntax.Term):
         if self.mode is MODE_EVALUATE:
             return untyped_terms.Name(location=self.location, id=self.id, ctx=self.ctx)
         if self.mode is MODE_TYPECHECK:
+            # FIXME: hard code scope_name, should be set in setting #refactor
             return untyped_terms.create_path(
                 location=self.location, names=[lambda setting: setting.scope_name, self.id], ctx=self.ctx
             )
-        # TODO: return None and write a unit test which captures the unhandled error #refactor
         raise tapl_error.UnhandledError
 
     @override
@@ -108,14 +108,46 @@ class Attribute(syntax.Term):
             lambda layer: Attribute(location=self.location, value=layer(self.value), attr=self.attr, ctx=self.ctx)
         )
 
-    # TODO: Attribute must have a type layer to check attribute exists or not. find a test case first
+    # TODO: Attribute must have a type layer to check attribute exists or not. find a test case first. should have? maybe scope should support this.
     @override
     def unfold(self) -> syntax.Term:
-        return untyped_terms.Attribute(location=self.location, value=self.value.unfold(), attr=self.attr, ctx=self.ctx)
+        return untyped_terms.Attribute(location=self.location, value=self.value, attr=self.attr, ctx=self.ctx)
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
         return python_backend.generate_expr(self, setting)
+
+
+@dataclass
+class Select(syntax.Term):
+    location: syntax.Location
+    value: syntax.Term
+    names: list[str]
+    ctx: str
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.value
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: Select(
+                location=self.location,
+                value=layer(self.value),
+                names=self.names,
+                ctx=self.ctx,
+            )
+        )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if not self.names:
+            return syntax.ErrorTerm(location=self.location, message='At least one name is required to select a path.')
+        value = self.value
+        for i in range(len(self.names) - 1):
+            value = Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
+        return Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
 
 
 @dataclass
@@ -215,14 +247,13 @@ class UnaryOp(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        return untyped_terms.UnaryOp(location=self.location, op=self.op, operand=self.operand.unfold())
+        return untyped_terms.UnaryOp(location=self.location, op=self.op, operand=self.operand)
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
         return python_backend.generate_expr(self, setting)
 
 
-# XXX: Implment unfold for this term, then move the todo to the next term #refactor
 @dataclass
 class BoolNot(syntax.Term):
     location: syntax.Location
@@ -254,6 +285,7 @@ class BoolNot(syntax.Term):
         return python_backend.generate_expr(self, setting)
 
 
+# XXX: Implment unfold for this term, then move the todo to the next term #refactor
 @dataclass
 class BoolOp(syntax.Term):
     location: syntax.Location
@@ -273,6 +305,22 @@ class BoolOp(syntax.Term):
                 location=self.location, op=self.op, values=[layer(v) for v in self.values], mode=layer(self.mode)
             )
         )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is MODE_EVALUATE:
+            return untyped_terms.BoolOp(location=self.location, op=self.op, values=self.values)
+        if self.mode is MODE_TYPECHECK:
+            # FIXME: think about creating Path term #refactor
+            api__tapl = Name(location=self.location, id='api__tapl', ctx='load', mode=self.mode)
+            create_union = Select(location=self.location, value=api__tapl, names=['create_union'], ctx='load')
+            return untyped_terms.Call(
+                location=self.location,
+                func=create_union,
+                args=self.values,
+                keywords=[],
+            )
+        raise tapl_error.UnhandledError
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
