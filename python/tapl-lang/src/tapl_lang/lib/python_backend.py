@@ -98,6 +98,35 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
         locate(term.location, assign_stmt)
         return [assign_stmt]
 
+    if isinstance(term, untyped_terms.If):
+        if_stmt = ast.If(
+            test=generate_expr(term.test, setting),
+            body=generate_stmt(term.body, setting),
+            orelse=generate_stmt(term.orelse, setting),
+        )
+        locate(term.location, if_stmt)
+        return [if_stmt]
+
+    if isinstance(term, untyped_terms.With):
+        with_stmt = ast.With(
+            items=[
+                ast.withitem(
+                    context_expr=generate_expr(item.context_expr, setting),
+                    optional_vars=generate_expr(item.optional_vars, setting) if item.optional_vars else None,
+                )
+                for item in term.items
+            ],
+            body=generate_stmt(term.body, setting),
+            type_comment=None,
+        )
+        locate(term.location, with_stmt)
+        return [with_stmt]
+
+    if isinstance(term, untyped_terms.Import):
+        import_stmt = ast.Import(names=[ast.alias(name=n.name, asname=n.asname) for n in term.names])
+        locate(term.location, import_stmt)
+        return [import_stmt]
+
     if isinstance(term, untyped_terms.ImportFrom):
         import_from = ast.ImportFrom(
             module=term.module,

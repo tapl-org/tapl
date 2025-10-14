@@ -193,14 +193,14 @@ class While(syntax.Term):
 class If(syntax.Term):
     location: syntax.Location
     test: syntax.Term
-    body: list[syntax.Term]
-    orelse: list[syntax.Term]
+    body: syntax.Term
+    orelse: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.test
-        yield from self.body
-        yield from self.orelse
+        yield self.body
+        yield self.orelse
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -208,8 +208,45 @@ class If(syntax.Term):
             lambda layer: If(
                 location=self.location,
                 test=layer(self.test),
-                body=[layer(t) for t in self.body],
-                orelse=[layer(t) for t in self.orelse],
+                body=layer(self.body),
+                orelse=layer(self.orelse),
+            )
+        )
+
+
+@dataclass
+class WithItem:
+    context_expr: syntax.Term
+    optional_vars: syntax.Term | None = None
+
+
+@dataclass
+class With(syntax.Term):
+    location: syntax.Location
+    items: list[WithItem]
+    body: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        for item in self.items:
+            yield item.context_expr
+            if item.optional_vars is not None:
+                yield item.optional_vars
+        yield self.body
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: With(
+                location=self.location,
+                items=[
+                    WithItem(
+                        context_expr=layer(t.context_expr),
+                        optional_vars=layer(t.optional_vars) if t.optional_vars is not None else None,
+                    )
+                    for t in self.items
+                ],
+                body=layer(self.body),
             )
         )
 
