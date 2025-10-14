@@ -168,14 +168,14 @@ class For(syntax.Term):
 class While(syntax.Term):
     location: syntax.Location
     test: syntax.Term
-    body: list[syntax.Term]
-    orelse: list[syntax.Term]
+    body: syntax.Term
+    orelse: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.test
-        yield from self.body
-        yield from self.orelse
+        yield self.body
+        yield self.orelse
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -183,8 +183,8 @@ class While(syntax.Term):
             lambda layer: While(
                 location=self.location,
                 test=layer(self.test),
-                body=[layer(t) for t in self.body],
-                orelse=[layer(t) for t in self.orelse],
+                body=layer(self.body),
+                orelse=layer(self.orelse),
             )
         )
 
