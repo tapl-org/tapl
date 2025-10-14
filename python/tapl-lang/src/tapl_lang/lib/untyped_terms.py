@@ -141,15 +141,15 @@ class For(syntax.Term):
     location: syntax.Location
     target: syntax.Term
     iter: syntax.Term
-    body: list[syntax.Term]
-    orelse: list[syntax.Term]
+    body: syntax.Term
+    orelse: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.target
         yield self.iter
-        yield from self.body
-        yield from self.orelse
+        yield self.body
+        yield self.orelse
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
@@ -158,8 +158,8 @@ class For(syntax.Term):
                 location=self.location,
                 target=layer(self.target),
                 iter=layer(self.iter),
-                body=[layer(t) for t in self.body],
-                orelse=[layer(t) for t in self.orelse],
+                body=layer(self.body),
+                orelse=layer(self.orelse),
             )
         )
 

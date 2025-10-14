@@ -98,6 +98,17 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
         locate(term.location, assign_stmt)
         return [assign_stmt]
 
+    if isinstance(term, untyped_terms.For):
+        for_stmt = ast.For(
+            target=generate_expr(term.target, setting),
+            iter=generate_expr(term.iter, setting),
+            body=generate_stmt(term.body, setting),
+            orelse=generate_stmt(term.orelse, setting) if term.orelse else [],
+            type_comment=None,
+        )
+        locate(term.location, for_stmt)
+        return [for_stmt]
+
     if isinstance(term, untyped_terms.While):
         while_stmt = ast.While(
             test=generate_expr(term.test, setting),

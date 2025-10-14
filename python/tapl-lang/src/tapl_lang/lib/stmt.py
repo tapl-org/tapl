@@ -565,9 +565,6 @@ class Else(syntax.SiblingTerm):
             term.orelse = self.body
 
 
-# XXX: Implement unfold for this term, then move the todo to the next term #refactor
-
-
 @dataclass
 class While(syntax.Term):
     location: syntax.Location
@@ -657,76 +654,54 @@ class For(syntax.Term):
             )
         )
 
-    def codegen_evaluate(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        for_stmt = ast.For(
-            target=self.target.codegen_expr(setting),
-            iter=self.iter.codegen_expr(setting),
-            body=self.body.codegen_stmt(setting),
-            orelse=self.orelse.codegen_stmt(setting) if self.orelse is not None else [],
-            type_comment=None,
+    def codegen_evaluate(self) -> syntax.Term:
+        return untyped_terms.For(
+            location=self.location,
+            target=self.target,
+            iter=self.iter,
+            body=self.body,
+            orelse=self.orelse if self.orelse is not None else syntax.TermList(terms=[]),
         )
-        self.location.locate(for_stmt)
-        return [for_stmt]
 
-    def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        def locate(ast_expr: ast.expr) -> ast.expr:
-            self.location.locate(ast_expr)
-            return ast_expr
-
-        body_setting = setting.clone(scope_level=setting.scope_level + 1)
-        body: list[ast.stmt] = []
-
-        def add_new_scope_stmt() -> None:
-            assign = ast.Assign(
-                targets=[locate(ast.Name(id=body_setting.scope_name, ctx=ast.Store()))],
-                value=ast.Call(
-                    func=ast_attribute([setting.scope_name, 'api__tapl', 'fork_scope']),
-                    args=[ast.Name(id=setting.forker_name, ctx=ast.Load())],
-                ),
-            )
-            self.location.locate(assign)
-            body.append(assign)
-
-        def extract_iter_item(value: ast.expr) -> ast.expr:
-            iterator = ast.Call(func=ast.Attribute(value=value, attr='__iter__'), args=[])
-            return ast.Call(func=ast.Attribute(value=iterator, attr='__next__'), args=[])
-
-        add_new_scope_stmt()
-        header_stmt = ast.Assign(
-            targets=[self.target.codegen_expr(body_setting)],
-            value=extract_iter_item(self.iter.codegen_expr(body_setting)),
+    def codegen_typecheck(self) -> syntax.Term:
+        iterator_type = untyped_terms.Call(
+            location=self.location,
+            func=untyped_terms.Attribute(location=self.location, value=self.iter, attr='__iter__', ctx='load'),
+            args=[],
+            keywords=[],
         )
-        self.location.locate(header_stmt)
-        body.append(header_stmt)
-        body.extend(self.body.codegen_stmt(body_setting))
-        add_new_scope_stmt()
-        if self.orelse is not None:
-            body.extend(self.orelse.codegen_stmt(body_setting))
-        with_stmt = ast.With(
-            items=[
-                ast.withitem(
-                    context_expr=locate(
-                        ast.Call(
-                            func=ast_attribute([setting.scope_name, 'api__tapl', 'scope_forker']),
-                            args=[locate(ast.Name(id=setting.scope_name))],
-                        )
-                    ),
-                    optional_vars=locate(ast.Name(id=setting.forker_name, ctx=ast.Store())),
-                )
-            ],
-            body=body,
-            type_comment=None,
+        item_type = untyped_terms.Call(
+            location=self.location,
+            func=untyped_terms.Attribute(location=self.location, value=iterator_type, attr='__next__', ctx='load'),
+            args=[],
+            keywords=[],
         )
-        self.location.locate(with_stmt)
-        return [with_stmt]
+        assign_target = Assign(
+            location=self.location,
+            targets=[self.target],
+            value=item_type,
+        )
+        for_branch = syntax.TermList(terms=[assign_target, self.body])
+        else_branch = self.orelse if self.orelse is not None else syntax.TermList(terms=[])
+        return BranchTyping(
+            location=self.location,
+            branches=[for_branch, else_branch],
+        )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is typed_terms.MODE_EVALUATE:
+            return self.codegen_evaluate()
+        if self.mode is typed_terms.MODE_TYPECHECK:
+            return self.codegen_typecheck()
+        raise tapl_error.UnhandledError
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if self.mode is typed_terms.MODE_EVALUATE:
-            return self.codegen_evaluate(setting)
-        if self.mode is typed_terms.MODE_TYPECHECK:
-            return self.codegen_typecheck(setting)
-        raise tapl_error.UnhandledError
+        return python_backend.generate_stmt(self, setting)
+
+
+# XXX: Implement unfold for this term, then move the todo to the next term #refactor
 
 
 @dataclass
