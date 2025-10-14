@@ -412,6 +412,82 @@ class ImportFrom(syntax.Term):
 
 
 @dataclass
+class BranchTyping(syntax.Term):
+    location: syntax.Location
+    branches: list[syntax.Term]
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.branches
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda layer: BranchTyping(location=self.location, branches=[layer(b) for b in self.branches]))
+
+    @override
+    def unfold(self) -> syntax.Term:
+        def nested_scope(inner_term: syntax.Term) -> syntax.Term:
+            return syntax.AstSettingChanger(
+                changer=lambda setting: setting.clone(scope_level=setting.scope_level + 1), nested=inner_term
+            )
+
+        def new_scope() -> syntax.Term:
+            return Assign(
+                location=self.location,
+                targets=[
+                    nested_scope(
+                        untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='store')
+                    )
+                ],
+                value=untyped_terms.Call(
+                    location=self.location,
+                    func=typed_terms.Path(
+                        location=self.location,
+                        names=['api__tapl', 'fork_scope'],
+                        ctx='load',
+                        mode=typed_terms.MODE_TYPECHECK,
+                    ),
+                    args=[
+                        untyped_terms.Name(location=self.location, id=lambda setting: setting.forker_name, ctx='load')
+                    ],
+                    keywords=[],
+                ),
+            )
+
+        body: list[syntax.Term] = []
+        for b in self.branches:
+            body.append(new_scope())
+            body.append(nested_scope(b))
+
+        return untyped_terms.With(
+            location=self.location,
+            items=[
+                untyped_terms.WithItem(
+                    context_expr=typed_terms.Call(
+                        location=self.location,
+                        func=typed_terms.Path(
+                            location=self.location,
+                            names=['api__tapl', 'scope_forker'],
+                            ctx='load',
+                            mode=typed_terms.MODE_TYPECHECK,
+                        ),
+                        args=[
+                            untyped_terms.Name(
+                                location=self.location, id=lambda setting: setting.scope_name, ctx='load'
+                            )
+                        ],
+                        keywords=[],
+                    ),
+                    optional_vars=untyped_terms.Name(
+                        location=self.location, id=lambda setting: setting.forker_name, ctx='store'
+                    ),
+                )
+            ],
+            body=syntax.TermList(terms=body),
+        )
+
+
+@dataclass
 class If(syntax.Term):
     location: syntax.Location
     test: syntax.Term
@@ -448,63 +524,9 @@ class If(syntax.Term):
         )
 
     def codegen_typecheck(self) -> syntax.Term:
-        def nested_scope(inner_term: syntax.Term) -> syntax.Term:
-            return syntax.AstSettingChanger(
-                changer=lambda setting: setting.clone(scope_level=setting.scope_level + 1), nested=inner_term
-            )
-
-        def new_scope() -> syntax.Term:
-            return Assign(
-                location=self.location,
-                targets=[
-                    nested_scope(
-                        untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='store')
-                    )
-                ],
-                value=untyped_terms.Call(
-                    location=self.location,
-                    func=typed_terms.Path(
-                        location=self.location, names=['api__tapl', 'fork_scope'], ctx='load', mode=self.mode
-                    ),
-                    args=[
-                        untyped_terms.Name(location=self.location, id=lambda setting: setting.forker_name, ctx='load')
-                    ],
-                    keywords=[],
-                ),
-            )
-
-        body: list[syntax.Term] = []
-
-        body.append(new_scope())
-        body.append(nested_scope(Expr(location=self.location, value=self.test)))
-        body.append(nested_scope(self.body))
-        body.append(new_scope())
-        if self.orelse is not None:
-            body.append(nested_scope(self.orelse))
-
-        return untyped_terms.With(
-            location=self.location,
-            items=[
-                untyped_terms.WithItem(
-                    context_expr=typed_terms.Call(
-                        location=self.location,
-                        func=typed_terms.Path(
-                            location=self.location, names=['api__tapl', 'scope_forker'], ctx='load', mode=self.mode
-                        ),
-                        args=[
-                            untyped_terms.Name(
-                                location=self.location, id=lambda setting: setting.scope_name, ctx='load'
-                            )
-                        ],
-                        keywords=[],
-                    ),
-                    optional_vars=untyped_terms.Name(
-                        location=self.location, id=lambda setting: setting.forker_name, ctx='store'
-                    ),
-                )
-            ],
-            body=syntax.TermList(terms=body),
-        )
+        true_side = syntax.TermList(terms=[Expr(location=self.location, value=self.test), self.body])
+        false_side = self.orelse if self.orelse is not None else syntax.TermList(terms=[])
+        return BranchTyping(location=self.location, branches=[true_side, false_side])
 
     @override
     def unfold(self) -> syntax.Term:
