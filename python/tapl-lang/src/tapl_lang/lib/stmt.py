@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import cast, override
 
 from tapl_lang.core import syntax, tapl_error
-from tapl_lang.lib import typed_terms
+from tapl_lang.lib import python_backend, typed_terms, untyped_terms
 
 
 def ast_name(name: str, ctx: ast.expr_context | None = None) -> ast.expr:
@@ -32,9 +32,6 @@ def ast_attribute(names: list[str], ctx: ast.expr_context | None = None) -> ast.
     return attr
 
 
-# XXX: Implment unfold for this term, then move the todo to the next term #refactor
-
-
 @dataclass
 class Assign(syntax.Term):
     location: syntax.Location
@@ -55,12 +52,16 @@ class Assign(syntax.Term):
         )
 
     @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        stmt = ast.Assign(
-            targets=[t.codegen_expr(setting) for t in self.targets], value=self.value.codegen_expr(setting)
+    def unfold(self) -> syntax.Term:
+        return untyped_terms.Assign(
+            location=self.location,
+            targets=self.targets,
+            value=self.value,
         )
-        self.location.locate(stmt)
-        return [stmt]
+
+    @override
+    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        return python_backend.generate_stmt(self, setting)
 
 
 @dataclass
@@ -78,34 +79,31 @@ class Return(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: Return(location=self.location, value=layer(self.value), mode=layer(self.mode)))
 
-    def codegen_evaluate(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        stmt = ast.Return(self.value.codegen_expr(setting)) if self.value else ast.Return()
-        self.location.locate(stmt)
-        return [stmt]
-
-    def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        def locate(ast_expr: ast.expr) -> ast.expr:
-            self.location.locate(ast_expr)
-            return ast_expr
-
-        stmt = ast.Expr(
-            value=locate(
-                ast.Call(
-                    func=ast_attribute([setting.scope_name, 'api__tapl', 'add_return_type']),
-                    args=[locate(ast.Name(id=setting.scope_name, ctx=ast.Load())), self.value.codegen_expr(setting)],
-                )
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is typed_terms.MODE_EVALUATE:
+            return untyped_terms.Return(location=self.location, value=self.value)
+        if self.mode is typed_terms.MODE_TYPECHECK:
+            # FIXME: think about creating Path term #refactor
+            api__tapl = typed_terms.Name(location=self.location, id='api__tapl', ctx='load', mode=self.mode)
+            create_union = typed_terms.Select(
+                location=self.location, value=api__tapl, names=['add_return_type'], ctx='load'
             )
-        )
-        self.location.locate(stmt)
-        return [stmt]
+            call = untyped_terms.Call(
+                location=self.location,
+                func=create_union,
+                args=[
+                    untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                    self.value,
+                ],
+                keywords=[],
+            )
+            return untyped_terms.Expr(location=self.location, value=call)
+        raise tapl_error.UnhandledError
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if self.mode is typed_terms.MODE_EVALUATE:
-            return self.codegen_evaluate(setting)
-        if self.mode is typed_terms.MODE_TYPECHECK:
-            return self.codegen_typecheck(setting)
-        raise tapl_error.UnhandledError
+        return python_backend.generate_stmt(self, setting)
 
 
 @dataclass
@@ -122,10 +120,15 @@ class Expr(syntax.Term):
         return ls.build(lambda layer: Expr(location=self.location, value=layer(self.value)))
 
     @override
+    def unfold(self):
+        return untyped_terms.Expr(location=self.location, value=self.value)
+
+    @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        stmt = ast.Expr(self.value.codegen_expr(setting))
-        self.location.locate(stmt)
-        return [stmt]
+        return python_backend.generate_stmt(self, setting)
+
+
+# XXX: Implment unfold for this term, then move the todo to the next term #refactor
 
 
 @dataclass

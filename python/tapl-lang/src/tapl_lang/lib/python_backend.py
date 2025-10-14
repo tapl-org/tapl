@@ -63,6 +63,7 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
         for t in term.flattened():
             stmts.extend(generate_stmt(t, setting))
         return stmts
+
     if isinstance(term, untyped_terms.FunctionDef):
         name = term.name(setting) if callable(term.name) else term.name
         func_def = ast.FunctionDef(
@@ -83,6 +84,25 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
         )
         locate(term.location, func_def)
         return [func_def]
+
+    if isinstance(term, untyped_terms.Return):
+        return_stmt = ast.Return(generate_expr(term.value, setting)) if term.value else ast.Return()
+        locate(term.location, return_stmt)
+        return [return_stmt]
+
+    if isinstance(term, untyped_terms.Assign):
+        assign_stmt = ast.Assign(
+            targets=[generate_expr(t, setting) for t in term.targets],
+            value=generate_expr(term.value, setting),
+        )
+        locate(term.location, assign_stmt)
+        return [assign_stmt]
+
+    if isinstance(term, untyped_terms.Expr):
+        expr_stmt = ast.Expr(value=generate_expr(term.value, setting))
+        locate(term.location, expr_stmt)
+        return [expr_stmt]
+
     if (unfolded := term.unfold()) and unfolded is not term:
         return generate_stmt(unfolded, setting)
     return term.codegen_stmt(setting)
