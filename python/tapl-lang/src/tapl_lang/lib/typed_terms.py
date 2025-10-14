@@ -285,7 +285,6 @@ class BoolNot(syntax.Term):
         return python_backend.generate_expr(self, setting)
 
 
-# XXX: Implment unfold for this term, then move the todo to the next term #refactor
 @dataclass
 class BoolOp(syntax.Term):
     location: syntax.Location
@@ -324,18 +323,7 @@ class BoolOp(syntax.Term):
 
     @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        if self.mode is MODE_EVALUATE:
-            op = ast.BoolOp(BOOL_OP_MAP[self.op], [v.codegen_expr(setting) for v in self.values])
-            self.location.locate(op)
-            return op
-        if self.mode is MODE_TYPECHECK:
-            scope_name = ast.Name(id=setting.scope_name, ctx=ast.Load())
-            api__tapl = ast.Attribute(value=scope_name, attr='api__tapl', ctx=ast.Load())
-            create_union = ast.Attribute(value=api__tapl, attr='create_union', ctx=ast.Load())
-            call = ast.Call(func=create_union, args=[v.codegen_expr(setting) for v in self.values])
-            self.location.locate(scope_name, api__tapl, create_union, call)
-            return call
-        raise tapl_error.UnhandledError
+        return python_backend.generate_expr(self, setting)
 
 
 @dataclass
@@ -357,10 +345,12 @@ class BinOp(syntax.Term):
         )
 
     @override
+    def unfold(self) -> syntax.Term:
+        return untyped_terms.BinOp(location=self.location, left=self.left, op=self.op, right=self.right)
+
+    @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        op = ast.BinOp(self.left.codegen_expr(setting), BIN_OP_MAP[self.op], self.right.codegen_expr(setting))
-        self.location.locate(op)
-        return op
+        return python_backend.generate_expr(self, setting)
 
 
 @dataclass
@@ -387,14 +377,12 @@ class Compare(syntax.Term):
         )
 
     @override
+    def unfold(self) -> syntax.Term:
+        return untyped_terms.Compare(location=self.location, left=self.left, ops=self.ops, comparators=self.comparators)
+
+    @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        compare = ast.Compare(
-            self.left.codegen_expr(setting),
-            [COMPARE_OP_MAP[op] for op in self.ops],
-            [v.codegen_expr(setting) for v in self.comparators],
-        )
-        self.location.locate(compare)
-        return compare
+        return python_backend.generate_expr(self, setting)
 
 
 @dataclass
@@ -422,11 +410,9 @@ class Call(syntax.Term):
         )
 
     @override
+    def unfold(self) -> syntax.Term:
+        return untyped_terms.Call(location=self.location, func=self.func, args=self.args, keywords=self.keywords)
+
+    @override
     def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        call = ast.Call(
-            func=self.func.codegen_expr(setting),
-            args=[v.codegen_expr(setting) for v in self.args],
-            keywords=[ast.keyword(arg=k, value=v.codegen_expr(setting)) for k, v in self.keywords],
-        )
-        self.location.locate(call)
-        return call
+        return python_backend.generate_expr(self, setting)

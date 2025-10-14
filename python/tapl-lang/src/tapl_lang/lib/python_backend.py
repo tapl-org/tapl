@@ -94,10 +94,26 @@ def generate_expr(term: syntax.Term, setting: syntax.AstSetting) -> ast.expr:
         locate(term.location, bool_op)
         return bool_op
 
+    if isinstance(term, untyped_terms.BinOp):
+        bin_op = ast.BinOp(
+            left=generate_expr(term.left, setting), op=BIN_OP_MAP[term.op], right=generate_expr(term.right, setting)
+        )
+        locate(term.location, bin_op)
+        return bin_op
+
     if isinstance(term, untyped_terms.UnaryOp):
         op = ast.UnaryOp(op=UNARY_OP_MAP[term.op], operand=generate_expr(term.operand, setting))
         locate(term.location, op)
         return op
+
+    if isinstance(term, untyped_terms.Compare):
+        compare = ast.Compare(
+            left=generate_expr(term.left, setting),
+            ops=[COMPARE_OP_MAP[op] for op in term.ops],
+            comparators=[generate_expr(v, setting) for v in term.comparators],
+        )
+        locate(term.location, compare)
+        return compare
 
     if isinstance(term, untyped_terms.Call):
         call = ast.Call(

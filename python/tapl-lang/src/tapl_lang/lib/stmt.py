@@ -32,6 +32,9 @@ def ast_attribute(names: list[str], ctx: ast.expr_context | None = None) -> ast.
     return attr
 
 
+# XXX: Implment unfold for this term, then move the todo to the next term #refactor
+
+
 @dataclass
 class Assign(syntax.Term):
     location: syntax.Location
