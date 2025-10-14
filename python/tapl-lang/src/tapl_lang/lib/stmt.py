@@ -125,7 +125,6 @@ class Expr(syntax.Term):
         return python_backend.generate_stmt(self, setting)
 
 
-
 # TODO: Remove Absence, and implement it differently according to ground rules.
 @dataclass
 class Absence(syntax.Term):
@@ -350,7 +349,6 @@ class FunctionDef(syntax.Term):
         return func
 
 
-# XXX: Implement unfold for this term, then move the todo to the next term #refactor
 
 @dataclass
 class Alias:
@@ -374,10 +372,14 @@ class Import(syntax.Term):
         )
 
     @override
+    def unfold(self) -> syntax.Term:
+        return untyped_terms.Import(
+            location=self.location, names=[untyped_terms.Alias(name=n.name, asname=n.asname) for n in self.names]
+        )
+
+    @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        stmt = ast.Import(names=[ast.alias(n.name, n.asname) for n in self.names])
-        self.location.locate(stmt)
-        return [stmt]
+        return python_backend.generate_stmt(self, setting)
 
 
 @dataclass
@@ -403,13 +405,20 @@ class ImportFrom(syntax.Term):
         )
 
     @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        stmt = ast.ImportFrom(
-            module=self.module, names=[ast.alias(n.name, n.asname) for n in self.names], level=self.level
+    def unfold(self) -> syntax.Term:
+        return untyped_terms.ImportFrom(
+            location=self.location,
+            module=self.module,
+            names=[untyped_terms.Alias(name=n.name, asname=n.asname) for n in self.names],
+            level=self.level,
         )
-        self.location.locate(stmt)
-        return [stmt]
 
+    @override
+    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        return python_backend.generate_stmt(self, setting)
+
+
+# XXX: Implement unfold for this term, then move the todo to the next term #refactor
 
 @dataclass
 class If(syntax.Term):

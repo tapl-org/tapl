@@ -98,6 +98,15 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
         locate(term.location, assign_stmt)
         return [assign_stmt]
 
+    if isinstance(term, untyped_terms.ImportFrom):
+        import_from = ast.ImportFrom(
+            module=term.module,
+            names=[ast.alias(name=n.name, asname=n.asname) for n in term.names],
+            level=term.level,
+        )
+        locate(term.location, import_from)
+        return [import_from]
+
     if isinstance(term, untyped_terms.Expr):
         expr_stmt = ast.Expr(value=generate_expr(term.value, setting))
         locate(term.location, expr_stmt)
