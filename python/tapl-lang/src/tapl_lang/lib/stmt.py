@@ -125,9 +125,8 @@ class Expr(syntax.Term):
         return python_backend.generate_stmt(self, setting)
 
 
-# XXX: Implment unfold for this term, then move the todo to the next term #refactor
 
-
+# TODO: Remove Absence, and implement it differently according to ground rules.
 @dataclass
 class Absence(syntax.Term):
     @override
@@ -190,16 +189,131 @@ class FunctionDef(syntax.Term):
             )
         )
 
-    def codegen_evaluate(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+    def unfold_evaluate(self) -> syntax.Term:
         if not all(isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
             raise tapl_error.TaplError('All parameter type must be Absence when generating function in evaluate mode.')
 
-        params = [ast.arg(arg=cast(Parameter, p).name) for p in self.parameters]
-        body: list[ast.stmt] = []
-        body.extend(self.body.codegen_stmt(setting))
-        func = ast.FunctionDef(name=self.name, args=ast.arguments(args=params), body=body, decorator_list=[])
-        self.location.locate(func)
-        return [func]
+        return untyped_terms.FunctionDef(
+            location=self.location,
+            name=self.name,
+            posonlyargs=[],
+            args=[cast(Parameter, p).name for p in self.parameters],
+            vararg=None,
+            kwonlyargs=[],
+            kw_defaults=[],
+            kwarg=None,
+            defaults=[],
+            body=self.body,
+            decorator_list=[],
+        )
+
+    def unfold_typecheck_main(self) -> syntax.Term:
+        def setting_changer(setting: syntax.AstSetting) -> syntax.AstSetting:
+            return setting.clone(scope_level=setting.scope_level + 1)
+
+        param_names = [cast(Parameter, p).name for p in self.parameters]
+
+        keywords: list[tuple[str, syntax.Term]] = []
+        keywords.append(
+            (
+                'parent__tapl',
+                untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+            )
+        )
+        keywords.extend((name, untyped_terms.Name(location=self.location, id=name, ctx='load')) for name in param_names)
+        new_scope = Assign(
+            location=self.location,
+            targets=[
+                syntax.AstSettingChanger(
+                    changer=setting_changer,
+                    inner=untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                )
+            ],
+            value=typed_terms.Call(
+                location=self.location,
+                func=typed_terms.Path(
+                    location=self.location, names=['api__tapl', 'create_scope'], ctx='load', mode=self.mode
+                ),
+                args=[],
+                keywords=keywords,
+            ),
+        )
+
+        nested_body = syntax.AstSettingChanger(changer=setting_changer, inner=self.body)
+
+        return_type = syntax.AstSettingChanger(
+            changer=setting_changer,
+            inner=untyped_terms.Return(
+                location=self.location,
+                value=untyped_terms.Call(
+                    location=self.location,
+                    func=typed_terms.Path(
+                        location=self.location, names=['api__tapl', 'get_return_type'], ctx='load', mode=self.mode
+                    ),
+                    args=[
+                        untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load')
+                    ],
+                    keywords=[],
+                ),
+            ),
+        )
+
+        return untyped_terms.FunctionDef(
+            location=self.location,
+            name=self.name,
+            posonlyargs=[],
+            args=param_names,
+            vararg=None,
+            kwonlyargs=[],
+            kw_defaults=[],
+            kwarg=None,
+            defaults=[],
+            body=syntax.TermList(terms=[new_scope, nested_body, return_type]),
+            decorator_list=[],
+        )
+
+    def unfold_typecheck_type(self) -> syntax.Term:
+        if not all(not isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
+            raise tapl_error.TaplError(
+                'All parameter type must not be Absence when generating function type in type-check mode.'
+            )
+
+        return Assign(
+            location=self.location,
+            targets=[typed_terms.Name(location=self.location, id=self.name, ctx='store', mode=self.mode)],
+            value=typed_terms.Call(
+                location=self.location,
+                func=typed_terms.Path(
+                    location=self.location, names=['api__tapl', 'create_function'], ctx='load', mode=self.mode
+                ),
+                args=[
+                    untyped_terms.List(
+                        location=self.location,
+                        elts=[cast(Parameter, p).type_ for p in self.parameters],
+                        ctx='load',
+                    ),
+                    typed_terms.Call(
+                        location=self.location,
+                        func=untyped_terms.Name(location=self.location, id=self.name, ctx='load'),
+                        args=[cast(Parameter, p).type_ for p in self.parameters],
+                        keywords=[],
+                    ),
+                ],
+                keywords=[],
+            ),
+        )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is typed_terms.MODE_EVALUATE:
+            return self.unfold_evaluate()
+        if self.mode is typed_terms.MODE_TYPECHECK:
+            return syntax.TermList(terms=[self.unfold_typecheck_main(), self.unfold_typecheck_type()])
+        raise tapl_error.UnhandledError
+
+    @override
+    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+        return python_backend.generate_stmt(self, setting)
 
     def codegen_typecheck_main(self, setting: syntax.AstSetting) -> ast.stmt:
         params = [ast.arg(arg=cast(Parameter, p).name) for p in self.parameters]
@@ -235,42 +349,8 @@ class FunctionDef(syntax.Term):
         self.location.locate(func)
         return func
 
-    def codegen_typecheck_type(self, setting: syntax.AstSetting) -> ast.stmt:
-        if not all(not isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
-            raise tapl_error.TaplError(
-                'All parameter type must not be Absence when generating function type in type-check mode.'
-            )
 
-        assign = ast.Assign(
-            targets=[ast_attribute([setting.scope_name, self.name], ctx=ast.Store())],
-            value=ast.Call(
-                func=ast_attribute([setting.scope_name, 'api__tapl', 'create_function']),
-                args=[
-                    ast.List(
-                        elts=[cast(Parameter, p).type_.codegen_expr(setting) for p in self.parameters],
-                        ctx=ast.Load(),
-                    ),
-                    ast.Call(
-                        func=ast_name(self.name),
-                        args=[cast(Parameter, p).type_.codegen_expr(setting) for p in self.parameters],
-                    ),
-                ],
-            ),
-        )
-        self.location.locate(assign)
-        return assign
-
-    def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        return [self.codegen_typecheck_main(setting), self.codegen_typecheck_type(setting)]
-
-    @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if self.mode is typed_terms.MODE_EVALUATE:
-            return self.codegen_evaluate(setting)
-        if self.mode is typed_terms.MODE_TYPECHECK:
-            return self.codegen_typecheck(setting)
-        raise tapl_error.UnhandledError
-
+# XXX: Implement unfold for this term, then move the todo to the next term #refactor
 
 @dataclass
 class Alias:

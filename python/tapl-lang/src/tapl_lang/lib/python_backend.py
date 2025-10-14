@@ -103,6 +103,10 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
         locate(term.location, expr_stmt)
         return [expr_stmt]
 
+    if isinstance(term, syntax.AstSettingChanger):
+        new_setting = term.changer(setting)
+        return generate_stmt(term.inner, new_setting)
+
     if (unfolded := term.unfold()) and unfolded is not term:
         return generate_stmt(unfolded, setting)
     return term.codegen_stmt(setting)
@@ -180,6 +184,10 @@ def generate_expr(term: syntax.Term, setting: syntax.AstSetting) -> ast.expr:
         )
         locate(term.location, tuple_expr)
         return tuple_expr
+
+    if isinstance(term, syntax.AstSettingChanger):
+        new_setting = term.changer(setting)
+        return generate_expr(term.inner, new_setting)
 
     if (unfolded := term.unfold()) and unfolded is not term:
         return generate_expr(unfolded, setting)

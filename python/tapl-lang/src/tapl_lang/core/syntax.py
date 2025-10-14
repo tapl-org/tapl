@@ -129,6 +129,7 @@ class LayerSeparator:
         return layers
 
 
+# FIXME: rename to BackendSetting #refactor
 @dataclass
 class AstSetting:
     scope_level: int
@@ -146,6 +147,20 @@ class AstSetting:
     @property
     def forker_name(self) -> str:
         return f'f{self.scope_level}'
+
+
+@dataclass
+class AstSettingChanger(Term):
+    changer: Callable[[AstSetting], AstSetting]
+    inner: Term
+
+    @override
+    def children(self) -> Generator[Term, None, None]:
+        yield self.inner
+
+    @override
+    def separate(self, ls: LayerSeparator) -> list[Term]:
+        return ls.build(lambda layer: AstSettingChanger(changer=self.changer, inner=layer(self.inner)))
 
 
 @dataclass

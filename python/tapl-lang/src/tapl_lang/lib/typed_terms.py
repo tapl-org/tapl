@@ -60,6 +60,7 @@ MODE_SAFE = syntax.Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
 SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
 
 
+# FIXME: Find different names fro typed terms to distinguish from untyped terms
 @dataclass
 class Name(syntax.Term):
     location: syntax.Location
