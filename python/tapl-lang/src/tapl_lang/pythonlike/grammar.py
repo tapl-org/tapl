@@ -7,7 +7,7 @@ from typing import cast
 
 from tapl_lang.core import parser, syntax
 from tapl_lang.core.parser import Cursor
-from tapl_lang.lib import terms, terms2
+from tapl_lang.lib import terms
 from tapl_lang.pythonlike import rule_names as rn
 
 # https://docs.python.org/3/reference/grammar.html
@@ -720,7 +720,7 @@ def _parse_primary__attribute(c: Cursor) -> syntax.Term:
         and t.validate(_consume_punct(c, '.'))
         and t.validate(attr := _expect_name(c))
     ):
-        return terms2.Attribute(t.location, value=value, attr=cast(_TokenName, attr).value, ctx='load')
+        return terms.Attribute(t.location, value=value, attr=cast(_TokenName, attr).value, ctx='load')
     return t.fail()
 
 
@@ -732,7 +732,7 @@ def _parse_primary__call(c: Cursor) -> syntax.Term:
         and t.validate(args := _scan_arguments(c))
         and t.validate(_expect_punct(c, ')'))
     ):
-        return terms2.Call(t.location, func, cast(BlockTerm, args).terms, keywords=[])
+        return terms.Call(t.location, func, cast(BlockTerm, args).terms, keywords=[])
     return t.fail()
 
 
@@ -792,7 +792,7 @@ def _parse_atom__list(c: Cursor) -> syntax.Term:
 def _parse_factor__unary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(op := _consume_punct(c, '+', '-', '~')) and t.validate(factor := _expect_rule(c, rn.FACTOR)):
-        return terms2.UnaryOp(t.location, cast(_TokenPunct, op).value, factor)
+        return terms.UnaryOp(t.location, cast(_TokenPunct, op).value, factor)
     return t.fail()
 
 
@@ -814,7 +814,7 @@ def _parse_term__binary(c: Cursor) -> syntax.Term:
         and t.validate(op := _consume_punct(c, '*', '/', '//', '%'))
         and t.validate(right := _expect_rule(c, rn.FACTOR))
     ):
-        return terms2.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
+        return terms.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
     return t.fail()
 
 
@@ -825,7 +825,7 @@ def _parse_sum__binary(c: Cursor) -> syntax.Term:
         and t.validate(op := _consume_punct(c, '+', '-'))
         and t.validate(right := _expect_rule(c, rn.TERM))
     ):
-        return terms2.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
+        return terms.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
     return t.fail()
 
 
@@ -858,7 +858,7 @@ def _parse_comparison(c: Cursor) -> syntax.Term:
             ops.append(op)
             comparators.append(comparator)
         if ops:
-            return terms2.Compare(t.location, left=left, ops=ops, comparators=comparators)
+            return terms.Compare(t.location, left=left, ops=ops, comparators=comparators)
     return t.fail()
 
 
@@ -922,7 +922,7 @@ def _parse_assignment(c: Cursor) -> syntax.Term:
         and t.validate(value := _expect_rule(c, rn.ANNOTATED_RHS))
         and not t.validate(_consume_punct(c.clone(), '='))
     ):
-        return terms2.Assign(t.location, targets=[name], value=value)
+        return terms.Assign(t.location, targets=[name], value=value)
     return t.fail()
 
 
@@ -933,7 +933,7 @@ def _parse_statement__star_expressions(c: Cursor) -> syntax.Term:
             location = value.location
         else:
             location = t.location
-        return terms2.Expr(location=location, value=value)
+        return terms.Expr(location=location, value=value)
     return t.fail()
 
 
@@ -1070,7 +1070,7 @@ def _parse_for_stmt(c: Cursor) -> syntax.Term:
 def _parse_pass(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'pass')):
-        return terms2.Pass(location=t.location)
+        return terms.Pass(location=t.location)
     return t.fail()
 
 
@@ -1122,7 +1122,7 @@ def _parse_target_with_star_atom__attribute(c: Cursor) -> syntax.Term:
         and t.validate(name := _expect_name(c))
         and not t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
     ):
-        return terms2.Attribute(t.location, value=target, attr=cast(_TokenName, name).value, ctx='store')
+        return terms.Attribute(t.location, value=target, attr=cast(_TokenName, name).value, ctx='store')
     return t.fail()
 
 
@@ -1134,7 +1134,7 @@ def _parse_t_primary__attribute(c: Cursor) -> syntax.Term:
         and t.validate(name := _expect_name(c))
         and t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
     ):
-        return terms2.Attribute(t.location, value=value, attr=cast(_TokenName, name).value, ctx='load')
+        return terms.Attribute(t.location, value=value, attr=cast(_TokenName, name).value, ctx='load')
     return t.fail()
 
 

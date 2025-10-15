@@ -6,7 +6,7 @@
 import ast
 
 from tapl_lang.core import syntax, tapl_error
-from tapl_lang.lib import terms2
+from tapl_lang.lib import terms
 
 # Unary 'not' has a dedicated 'BoolNot' term for logical negation
 UNARY_OP_MAP: dict[str, ast.unaryop] = {'+': ast.UAdd(), '-': ast.USub(), 'not': ast.Not(), '~': ast.Invert()}
@@ -48,7 +48,7 @@ def locate(location: syntax.Location, *nodes: ast.expr | ast.stmt) -> None:
 
 
 def generate_ast(term: syntax.Term, setting: syntax.BackendSetting) -> ast.AST:
-    if isinstance(term, terms2.Module):
+    if isinstance(term, terms.Module):
         stmts = []
         for t in term.body:
             stmts.extend(generate_stmt(t, setting))
@@ -74,7 +74,7 @@ def generate_stmt(term: syntax.Term, setting: syntax.BackendSetting) -> list[ast
             stmts.extend(generate_stmt(t, setting))
         return stmts
 
-    if isinstance(term, terms2.FunctionDef):
+    if isinstance(term, terms.FunctionDef):
         name = term.name(setting) if callable(term.name) else term.name
         func_def = ast.FunctionDef(
             name=name,
@@ -95,7 +95,7 @@ def generate_stmt(term: syntax.Term, setting: syntax.BackendSetting) -> list[ast
         locate(term.location, func_def)
         return [func_def]
 
-    if isinstance(term, terms2.ClassDef):
+    if isinstance(term, terms.ClassDef):
         name = term.name(setting) if callable(term.name) else term.name
         class_def = ast.ClassDef(
             name=name,
@@ -111,12 +111,12 @@ def generate_stmt(term: syntax.Term, setting: syntax.BackendSetting) -> list[ast
             class_def.body.extend(generate_stmt(t, setting))
         return [class_def]
 
-    if isinstance(term, terms2.Return):
+    if isinstance(term, terms.Return):
         return_stmt = ast.Return(generate_expr(term.value, setting)) if term.value else ast.Return()
         locate(term.location, return_stmt)
         return [return_stmt]
 
-    if isinstance(term, terms2.Assign):
+    if isinstance(term, terms.Assign):
         assign_stmt = ast.Assign(
             targets=[generate_expr(t, setting) for t in term.targets],
             value=generate_expr(term.value, setting),
@@ -124,7 +124,7 @@ def generate_stmt(term: syntax.Term, setting: syntax.BackendSetting) -> list[ast
         locate(term.location, assign_stmt)
         return [assign_stmt]
 
-    if isinstance(term, terms2.For):
+    if isinstance(term, terms.For):
         for_stmt = ast.For(
             target=generate_expr(term.target, setting),
             iter=generate_expr(term.iter, setting),
@@ -135,7 +135,7 @@ def generate_stmt(term: syntax.Term, setting: syntax.BackendSetting) -> list[ast
         locate(term.location, for_stmt)
         return [for_stmt]
 
-    if isinstance(term, terms2.While):
+    if isinstance(term, terms.While):
         while_stmt = ast.While(
             test=generate_expr(term.test, setting),
             body=generate_stmt(term.body, setting),
@@ -144,7 +144,7 @@ def generate_stmt(term: syntax.Term, setting: syntax.BackendSetting) -> list[ast
         locate(term.location, while_stmt)
         return [while_stmt]
 
-    if isinstance(term, terms2.If):
+    if isinstance(term, terms.If):
         if_stmt = ast.If(
             test=generate_expr(term.test, setting),
             body=generate_stmt(term.body, setting),
@@ -153,7 +153,7 @@ def generate_stmt(term: syntax.Term, setting: syntax.BackendSetting) -> list[ast
         locate(term.location, if_stmt)
         return [if_stmt]
 
-    if isinstance(term, terms2.With):
+    if isinstance(term, terms.With):
         with_stmt = ast.With(
             items=[
                 ast.withitem(
@@ -168,12 +168,12 @@ def generate_stmt(term: syntax.Term, setting: syntax.BackendSetting) -> list[ast
         locate(term.location, with_stmt)
         return [with_stmt]
 
-    if isinstance(term, terms2.Import):
+    if isinstance(term, terms.Import):
         import_stmt = ast.Import(names=[ast.alias(name=n.name, asname=n.asname) for n in term.names])
         locate(term.location, import_stmt)
         return [import_stmt]
 
-    if isinstance(term, terms2.ImportFrom):
+    if isinstance(term, terms.ImportFrom):
         import_from = ast.ImportFrom(
             module=term.module,
             names=[ast.alias(name=n.name, asname=n.asname) for n in term.names],
@@ -182,7 +182,7 @@ def generate_stmt(term: syntax.Term, setting: syntax.BackendSetting) -> list[ast
         locate(term.location, import_from)
         return [import_from]
 
-    if isinstance(term, terms2.Expr):
+    if isinstance(term, terms.Expr):
         expr_stmt = ast.Expr(value=generate_expr(term.value, setting))
         locate(term.location, expr_stmt)
         return [expr_stmt]
@@ -191,7 +191,7 @@ def generate_stmt(term: syntax.Term, setting: syntax.BackendSetting) -> list[ast
         new_setting = term.new_setting(setting)
         return generate_stmt(term.term, new_setting)
 
-    if isinstance(term, terms2.Pass):
+    if isinstance(term, terms.Pass):
         pass_stmt = ast.Pass()
         locate(term.location, pass_stmt)
         return [pass_stmt]
@@ -204,24 +204,24 @@ def generate_stmt(term: syntax.Term, setting: syntax.BackendSetting) -> list[ast
 
 
 def generate_expr(term: syntax.Term, setting: syntax.BackendSetting) -> ast.expr:
-    if isinstance(term, terms2.BoolOp):
+    if isinstance(term, terms.BoolOp):
         bool_op = ast.BoolOp(op=BOOL_OP_MAP[term.op], values=[generate_expr(v, setting) for v in term.values])
         locate(term.location, bool_op)
         return bool_op
 
-    if isinstance(term, terms2.BinOp):
+    if isinstance(term, terms.BinOp):
         bin_op = ast.BinOp(
             left=generate_expr(term.left, setting), op=BIN_OP_MAP[term.op], right=generate_expr(term.right, setting)
         )
         locate(term.location, bin_op)
         return bin_op
 
-    if isinstance(term, terms2.UnaryOp):
+    if isinstance(term, terms.UnaryOp):
         op = ast.UnaryOp(op=UNARY_OP_MAP[term.op], operand=generate_expr(term.operand, setting))
         locate(term.location, op)
         return op
 
-    if isinstance(term, terms2.Compare):
+    if isinstance(term, terms.Compare):
         compare = ast.Compare(
             left=generate_expr(term.left, setting),
             ops=[COMPARE_OP_MAP[op] for op in term.ops],
@@ -230,7 +230,7 @@ def generate_expr(term: syntax.Term, setting: syntax.BackendSetting) -> ast.expr
         locate(term.location, compare)
         return compare
 
-    if isinstance(term, terms2.Call):
+    if isinstance(term, terms.Call):
         call = ast.Call(
             func=generate_expr(term.func, setting),
             args=[generate_expr(arg, setting) for arg in term.args],
@@ -239,12 +239,12 @@ def generate_expr(term: syntax.Term, setting: syntax.BackendSetting) -> ast.expr
         locate(term.location, call)
         return call
 
-    if isinstance(term, terms2.Constant):
+    if isinstance(term, terms.Constant):
         const = ast.Constant(value=term.value)
         locate(term.location, const)
         return const
 
-    if isinstance(term, terms2.Attribute):
+    if isinstance(term, terms.Attribute):
         attr_name = term.attr(setting) if callable(term.attr) else term.attr
         attr = ast.Attribute(
             value=generate_expr(term.value, setting),
@@ -254,13 +254,13 @@ def generate_expr(term: syntax.Term, setting: syntax.BackendSetting) -> ast.expr
         locate(term.location, attr)
         return attr
 
-    if isinstance(term, terms2.Name):
+    if isinstance(term, terms.Name):
         name_id = term.id(setting) if callable(term.id) else term.id
         name = ast.Name(id=name_id, ctx=EXPR_CONTEXT_MAP[term.ctx])
         locate(term.location, name)
         return name
 
-    if isinstance(term, terms2.List):
+    if isinstance(term, terms.List):
         list_expr = ast.List(
             elts=[generate_expr(elt, setting) for elt in term.elts],
             ctx=EXPR_CONTEXT_MAP[term.ctx],
@@ -268,7 +268,7 @@ def generate_expr(term: syntax.Term, setting: syntax.BackendSetting) -> ast.expr
         locate(term.location, list_expr)
         return list_expr
 
-    if isinstance(term, terms2.Tuple):
+    if isinstance(term, terms.Tuple):
         tuple_expr = ast.Tuple(
             elts=[generate_expr(elt, setting) for elt in term.elts],
             ctx=EXPR_CONTEXT_MAP[term.ctx],

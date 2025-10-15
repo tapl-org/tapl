@@ -2,12 +2,511 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from typing import Any, cast, override
 
 from tapl_lang.core import syntax, tapl_error
-from tapl_lang.lib import terms2
+
+################################################################################
+# Python AST Terms
+#
+# These terms closely mirror the classes in the `ast` module.
+# Keep them sorted as in https://docs.python.org/3/library/ast.html
+################################################################################
+
+type Identifier = str | Callable[[syntax.BackendSetting], str]
+
+
+@dataclass
+class Module(syntax.Term):
+    body: list[syntax.Term]
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.body
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda layer: Module(body=[layer(b) for b in self.body]))
+
+
+################################################################################
+# STATEMENTS
+
+
+@dataclass
+class FunctionDef(syntax.Term):
+    location: syntax.Location
+    name: Identifier
+    posonlyargs: list[str]
+    args: list[str]
+    vararg: str | None
+    kwonlyargs: list[str]
+    kw_defaults: list[syntax.Term]
+    kwarg: str | None
+    defaults: list[syntax.Term]
+    body: syntax.Term
+    decorator_list: list[syntax.Term]
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.kw_defaults
+        yield from self.defaults
+        yield self.body
+        yield from self.decorator_list
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: FunctionDef(
+                location=self.location,
+                name=self.name,
+                posonlyargs=self.posonlyargs,
+                args=self.args,
+                vararg=self.vararg,
+                kwonlyargs=self.kwonlyargs,
+                kw_defaults=[layer(k) for k in self.kw_defaults],
+                kwarg=self.kwarg,
+                defaults=[layer(d) for d in self.defaults],
+                body=layer(self.body),
+                decorator_list=[layer(d) for d in self.decorator_list],
+            )
+        )
+
+
+@dataclass
+class ClassDef(syntax.Term):
+    location: syntax.Location
+    name: Identifier
+    bases: list[syntax.Term]
+    keywords: list[tuple[str, syntax.Term]]
+    body: list[syntax.Term]
+    decorator_list: list[syntax.Term]
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.bases
+        yield from (t for _, t in self.keywords)
+        yield from self.body
+        yield from self.decorator_list
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: ClassDef(
+                location=self.location,
+                name=self.name,
+                bases=[layer(b) for b in self.bases],
+                keywords=[(k, layer(v)) for k, v in self.keywords],
+                body=[layer(b) for b in self.body],
+                decorator_list=[layer(d) for d in self.decorator_list],
+            )
+        )
+
+
+@dataclass
+class Return(syntax.Term):
+    location: syntax.Location
+    value: syntax.Term | None
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        if self.value is not None:
+            yield self.value
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda layer: Return(location=self.location, value=layer(self.value) if self.value else None))
+
+
+@dataclass
+class Assign(syntax.Term):
+    location: syntax.Location
+    targets: list[syntax.Term]
+    value: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.targets
+        yield self.value
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: Assign(
+                location=self.location, targets=[layer(t) for t in self.targets], value=layer(self.value)
+            )
+        )
+
+
+@dataclass
+class For(syntax.Term):
+    location: syntax.Location
+    target: syntax.Term
+    iter: syntax.Term
+    body: syntax.Term
+    orelse: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.target
+        yield self.iter
+        yield self.body
+        yield self.orelse
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: For(
+                location=self.location,
+                target=layer(self.target),
+                iter=layer(self.iter),
+                body=layer(self.body),
+                orelse=layer(self.orelse),
+            )
+        )
+
+
+@dataclass
+class While(syntax.Term):
+    location: syntax.Location
+    test: syntax.Term
+    body: syntax.Term
+    orelse: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.test
+        yield self.body
+        yield self.orelse
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: While(
+                location=self.location,
+                test=layer(self.test),
+                body=layer(self.body),
+                orelse=layer(self.orelse),
+            )
+        )
+
+
+@dataclass
+class If(syntax.Term):
+    location: syntax.Location
+    test: syntax.Term
+    body: syntax.Term
+    orelse: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.test
+        yield self.body
+        yield self.orelse
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: If(
+                location=self.location,
+                test=layer(self.test),
+                body=layer(self.body),
+                orelse=layer(self.orelse),
+            )
+        )
+
+
+@dataclass
+class WithItem:
+    context_expr: syntax.Term
+    optional_vars: syntax.Term | None = None
+
+
+@dataclass
+class With(syntax.Term):
+    location: syntax.Location
+    items: list[WithItem]
+    body: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        for item in self.items:
+            yield item.context_expr
+            if item.optional_vars is not None:
+                yield item.optional_vars
+        yield self.body
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: With(
+                location=self.location,
+                items=[
+                    WithItem(
+                        context_expr=layer(t.context_expr),
+                        optional_vars=layer(t.optional_vars) if t.optional_vars is not None else None,
+                    )
+                    for t in self.items
+                ],
+                body=layer(self.body),
+            )
+        )
+
+
+@dataclass
+class Alias:
+    name: str
+    asname: str | None = None
+
+
+@dataclass
+class Import(syntax.Term):
+    location: syntax.Location
+    names: list[Alias]
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from ()
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda _: Import(location=self.location, names=[Alias(name=n.name, asname=n.asname) for n in self.names])
+        )
+
+
+@dataclass
+class ImportFrom(syntax.Term):
+    location: syntax.Location
+    module: str | None
+    names: list[Alias]
+    level: int
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from ()
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda _: ImportFrom(
+                location=self.location,
+                module=self.module,
+                names=[Alias(name=n.name, asname=n.asname) for n in self.names],
+                level=self.level,
+            )
+        )
+
+
+@dataclass
+class Expr(syntax.Term):
+    location: syntax.Location
+    value: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.value
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda layer: Expr(location=self.location, value=layer(self.value)))
+
+
+@dataclass
+class Pass(syntax.Term):
+    location: syntax.Location
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from ()
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda _: Pass(location=self.location))
+
+
+################################################################################
+# EXPRESSIONS
+
+
+@dataclass
+class BoolOp(syntax.Term):
+    location: syntax.Location
+    op: str
+    values: list[syntax.Term]
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.values
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: BoolOp(location=self.location, op=self.op, values=[layer(v) for v in self.values])
+        )
+
+
+@dataclass
+class BinOp(syntax.Term):
+    location: syntax.Location
+    left: syntax.Term
+    op: str
+    right: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.left
+        yield self.right
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: BinOp(location=self.location, left=layer(self.left), op=self.op, right=layer(self.right))
+        )
+
+
+@dataclass
+class UnaryOp(syntax.Term):
+    location: syntax.Location
+    op: str
+    operand: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.operand
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda layer: UnaryOp(location=self.location, op=self.op, operand=layer(self.operand)))
+
+
+@dataclass
+class Compare(syntax.Term):
+    location: syntax.Location
+    left: syntax.Term
+    ops: list[str]
+    comparators: list[syntax.Term]
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.left
+        yield from self.comparators
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: Compare(
+                location=self.location,
+                left=layer(self.left),
+                ops=self.ops,
+                comparators=[layer(v) for v in self.comparators],
+            )
+        )
+
+
+@dataclass
+class Call(syntax.Term):
+    location: syntax.Location
+    func: syntax.Term
+    args: list[syntax.Term]
+    keywords: list[tuple[str, syntax.Term]]
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.func
+        yield from self.args
+        yield from (v for _, v in self.keywords)
+
+    @override
+    def separate(self, ls) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: Call(
+                location=self.location,
+                func=layer(self.func),
+                args=[layer(v) for v in self.args],
+                keywords=[(k, layer(v)) for k, v in self.keywords],
+            )
+        )
+
+
+@dataclass
+class Constant(syntax.Term):
+    location: syntax.Location
+    value: Any
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from ()
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda _: Constant(location=self.location, value=self.value))
+
+
+@dataclass
+class Attribute(syntax.Term):
+    location: syntax.Location
+    value: syntax.Term
+    attr: Identifier
+    ctx: str
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.value
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: Attribute(location=self.location, value=layer(self.value), attr=self.attr, ctx=self.ctx)
+        )
+
+
+@dataclass
+class Name(syntax.Term):
+    location: syntax.Location
+    id: Identifier
+    ctx: str
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from ()
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda _: Name(location=self.location, id=self.id, ctx=self.ctx))
+
+
+@dataclass
+class List(syntax.Term):
+    location: syntax.Location
+    elts: list[syntax.Term]
+    ctx: str
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.elts
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda layer: List(location=self.location, elts=[layer(v) for v in self.elts], ctx=self.ctx))
+
+
+@dataclass
+class Tuple(syntax.Term):
+    location: syntax.Location
+    elts: list[syntax.Term]
+    ctx: str
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.elts
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda layer: Tuple(location=self.location, elts=[layer(v) for v in self.elts], ctx=self.ctx))
+
 
 ################################################################################
 # Untyped Terms
@@ -44,8 +543,8 @@ class Select(syntax.Term):
             return syntax.ErrorTerm(location=self.location, message='At least one name is required to select a path.')
         value = self.value
         for i in range(len(self.names) - 1):
-            value = terms2.Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
-        return terms2.Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
+            value = Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
+        return Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
 
 
 @dataclass
@@ -71,8 +570,8 @@ class Path(syntax.Term):
             return syntax.ErrorTerm(location=self.location, message='At least two names are required to create a path.')
         value: syntax.Term = TypedName(location=self.location, id=self.names[0], ctx='load', mode=self.mode)
         for i in range(1, len(self.names) - 1):
-            value = terms2.Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
-        return terms2.Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
+            value = Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
+        return Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
 
 
 @dataclass
@@ -99,14 +598,12 @@ class BranchTyping(syntax.Term):
             )
 
         def new_scope() -> syntax.Term:
-            return terms2.Assign(
+            return Assign(
                 location=self.location,
                 targets=[
-                    nested_scope(
-                        terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='store')
-                    )
+                    nested_scope(Name(location=self.location, id=lambda setting: setting.scope_name, ctx='store'))
                 ],
-                value=terms2.Call(
+                value=Call(
                     location=self.location,
                     func=Path(
                         location=self.location,
@@ -114,7 +611,7 @@ class BranchTyping(syntax.Term):
                         ctx='load',
                         mode=MODE_TYPECHECK,
                     ),
-                    args=[terms2.Name(location=self.location, id=lambda setting: setting.forker_name, ctx='load')],
+                    args=[Name(location=self.location, id=lambda setting: setting.forker_name, ctx='load')],
                     keywords=[],
                 ),
             )
@@ -124,11 +621,11 @@ class BranchTyping(syntax.Term):
             body.append(new_scope())
             body.append(nested_scope(b))
 
-        return terms2.With(
+        return With(
             location=self.location,
             items=[
-                terms2.WithItem(
-                    context_expr=terms2.Call(
+                WithItem(
+                    context_expr=Call(
                         location=self.location,
                         func=Path(
                             location=self.location,
@@ -136,12 +633,10 @@ class BranchTyping(syntax.Term):
                             ctx='load',
                             mode=MODE_TYPECHECK,
                         ),
-                        args=[terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load')],
+                        args=[Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load')],
                         keywords=[],
                     ),
-                    optional_vars=terms2.Name(
-                        location=self.location, id=lambda setting: setting.forker_name, ctx='store'
-                    ),
+                    optional_vars=Name(location=self.location, id=lambda setting: setting.forker_name, ctx='store'),
                 )
             ],
             body=syntax.TermList(terms=body),
@@ -198,11 +693,11 @@ class TypedName(syntax.Term):
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return terms2.Name(location=self.location, id=self.id, ctx=self.ctx)
+            return Name(location=self.location, id=self.id, ctx=self.ctx)
         if self.mode is MODE_TYPECHECK:
-            return terms2.Attribute(
+            return Attribute(
                 location=self.location,
-                value=terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                value=Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
                 attr=self.id,
                 ctx=self.ctx,
             )
@@ -221,7 +716,7 @@ class Literal(syntax.Term):
         if ls.layer_count != SAFE_LAYER_COUNT:
             raise ValueError('NoneLiteral must be separated in 2 layers')
         return [
-            terms2.Constant(location=self.location, value=value),
+            Constant(location=self.location, value=value),
             TypedName(location=self.location, id=type_id, ctx='load', mode=MODE_TYPECHECK),
         ]
 
@@ -283,7 +778,7 @@ class ListIntLiteral(Literal):
 
     @override
     def unfold(self) -> syntax.Term:
-        return terms2.List(location=self.location, elts=[], ctx='load')
+        return List(location=self.location, elts=[], ctx='load')
 
 
 @dataclass
@@ -306,7 +801,7 @@ class BoolNot(syntax.Term):
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return terms2.UnaryOp(location=self.location, op='not', operand=self.operand)
+            return UnaryOp(location=self.location, op='not', operand=self.operand)
         if self.mode is MODE_TYPECHECK:
             # unary not operator always returns Bool type
             return TypedName(location=self.location, id='Bool', ctx='load', mode=MODE_TYPECHECK)
@@ -336,9 +831,9 @@ class TypedBoolOp(syntax.Term):
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return terms2.BoolOp(location=self.location, op=self.op, values=self.values)
+            return BoolOp(location=self.location, op=self.op, values=self.values)
         if self.mode is MODE_TYPECHECK:
-            return terms2.Call(
+            return Call(
                 location=self.location,
                 func=Path(location=self.location, names=['api__tapl', 'create_union'], ctx='load', mode=self.mode),
                 args=self.values,
@@ -367,18 +862,18 @@ class TypedReturn(syntax.Term):
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return terms2.Return(location=self.location, value=self.value)
+            return Return(location=self.location, value=self.value)
         if self.mode is MODE_TYPECHECK:
-            call = terms2.Call(
+            call = Call(
                 location=self.location,
                 func=Path(location=self.location, names=['api__tapl', 'add_return_type'], ctx='load', mode=self.mode),
                 args=[
-                    terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                    Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
                     self.value,
                 ],
                 keywords=[],
             )
-            return terms2.Expr(location=self.location, value=call)
+            return Expr(location=self.location, value=call)
         raise tapl_error.UnhandledError
 
 
@@ -450,7 +945,7 @@ class TypedFunctionDef(syntax.Term):
         if not all(isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
             raise tapl_error.TaplError('All parameter type must be Absence when generating function in evaluate mode.')
 
-        return terms2.FunctionDef(
+        return FunctionDef(
             location=self.location,
             name=self.name,
             posonlyargs=[],
@@ -479,18 +974,18 @@ class TypedFunctionDef(syntax.Term):
         keywords.append(
             (
                 'parent__tapl',
-                terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
             )
         )
-        keywords.extend((name, terms2.Name(location=self.location, id=name, ctx='load')) for name in param_names)
-        new_scope = terms2.Assign(
+        keywords.extend((name, Name(location=self.location, id=name, ctx='load')) for name in param_names)
+        new_scope = Assign(
             location=self.location,
             targets=[
                 nested_scope(
-                    terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                    Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
                 )
             ],
-            value=terms2.Call(
+            value=Call(
                 location=self.location,
                 func=Path(location=self.location, names=['api__tapl', 'create_scope'], ctx='load', mode=self.mode),
                 args=[],
@@ -498,17 +993,17 @@ class TypedFunctionDef(syntax.Term):
             ),
         )
 
-        return_type = terms2.Return(
+        return_type = Return(
             location=self.location,
-            value=terms2.Call(
+            value=Call(
                 location=self.location,
                 func=Path(location=self.location, names=['api__tapl', 'get_return_type'], ctx='load', mode=self.mode),
-                args=[terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load')],
+                args=[Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load')],
                 keywords=[],
             ),
         )
 
-        return terms2.FunctionDef(
+        return FunctionDef(
             location=self.location,
             name=self.name,
             posonlyargs=[],
@@ -528,21 +1023,21 @@ class TypedFunctionDef(syntax.Term):
                 'All parameter type must not be Absence when generating function type in type-check mode.'
             )
 
-        return terms2.Assign(
+        return Assign(
             location=self.location,
             targets=[TypedName(location=self.location, id=self.name, ctx='store', mode=self.mode)],
-            value=terms2.Call(
+            value=Call(
                 location=self.location,
                 func=Path(location=self.location, names=['api__tapl', 'create_function'], ctx='load', mode=self.mode),
                 args=[
-                    terms2.List(
+                    List(
                         location=self.location,
                         elts=[cast(Parameter, p).type_ for p in self.parameters],
                         ctx='load',
                     ),
-                    terms2.Call(
+                    Call(
                         location=self.location,
-                        func=terms2.Name(location=self.location, id=self.name, ctx='load'),
+                        func=Name(location=self.location, id=self.name, ctx='load'),
                         args=[cast(Parameter, p).type_ for p in self.parameters],
                         keywords=[],
                     ),
@@ -589,7 +1084,7 @@ class TypedIf(syntax.Term):
         )
 
     def codegen_evaluate(self) -> syntax.Term:
-        return terms2.If(
+        return If(
             location=self.location,
             test=self.test,
             body=self.body,
@@ -597,7 +1092,7 @@ class TypedIf(syntax.Term):
         )
 
     def codegen_typecheck(self) -> syntax.Term:
-        true_side = syntax.TermList(terms=[terms2.Expr(location=self.location, value=self.test), self.body])
+        true_side = syntax.TermList(terms=[Expr(location=self.location, value=self.test), self.body])
         false_side = self.orelse if self.orelse is not None else syntax.TermList(terms=[])
         return BranchTyping(location=self.location, branches=[true_side, false_side])
 
@@ -663,7 +1158,7 @@ class TypedWhile(syntax.Term):
         )
 
     def codegen_evaluate(self) -> syntax.Term:
-        return terms2.While(
+        return While(
             location=self.location,
             test=self.test,
             body=self.body,
@@ -720,7 +1215,7 @@ class TypedFor(syntax.Term):
         )
 
     def codegen_evaluate(self) -> syntax.Term:
-        return terms2.For(
+        return For(
             location=self.location,
             target=self.target,
             iter=self.iter,
@@ -729,19 +1224,19 @@ class TypedFor(syntax.Term):
         )
 
     def codegen_typecheck(self) -> syntax.Term:
-        iterator_type = terms2.Call(
+        iterator_type = Call(
             location=self.location,
-            func=terms2.Attribute(location=self.location, value=self.iter, attr='__iter__', ctx='load'),
+            func=Attribute(location=self.location, value=self.iter, attr='__iter__', ctx='load'),
             args=[],
             keywords=[],
         )
-        item_type = terms2.Call(
+        item_type = Call(
             location=self.location,
-            func=terms2.Attribute(location=self.location, value=iterator_type, attr='__next__', ctx='load'),
+            func=Attribute(location=self.location, value=iterator_type, attr='__next__', ctx='load'),
             args=[],
             keywords=[],
         )
-        assign_target = terms2.Assign(
+        assign_target = Assign(
             location=self.location,
             targets=[self.target],
             value=item_type,
@@ -791,7 +1286,7 @@ class TypedClassDef(syntax.Term):
         return f'{self.name}_'
 
     def codegen_evaluate(self) -> syntax.Term:
-        return terms2.ClassDef(
+        return ClassDef(
             location=self.location,
             name=self._class_name(),
             bases=self.bases,
@@ -815,7 +1310,7 @@ class TypedClassDef(syntax.Term):
                 body.append(item.unfold_typecheck_main())
             else:
                 body.append(item)
-        class_stmt = terms2.ClassDef(
+        class_stmt = ClassDef(
             location=self.location,
             name=class_name,
             bases=self.bases,
@@ -837,20 +1332,20 @@ class TypedClassDef(syntax.Term):
                 )
             tail_args = method.parameters[1:]
             method_types.append(
-                terms2.Tuple(
+                Tuple(
                     location=self.location,
                     elts=[
-                        terms2.Constant(location=self.location, value=method.name),
-                        terms2.List(location=self.location, elts=tail_args, ctx='load'),
+                        Constant(location=self.location, value=method.name),
+                        List(location=self.location, elts=tail_args, ctx='load'),
                     ],
                     ctx='load',
                 )
             )
 
-        create_class = terms2.Assign(
+        create_class = Assign(
             location=self.location,
             targets=[
-                terms2.Tuple(
+                Tuple(
                     location=self.location,
                     elts=[
                         TypedName(location=self.location, id=instance_name, ctx='store', mode=self.mode),
@@ -859,14 +1354,14 @@ class TypedClassDef(syntax.Term):
                     ctx='store',
                 )
             ],
-            value=terms2.Call(
+            value=Call(
                 location=self.location,
                 func=Path(location=self.location, names=['api__tapl', 'create_class'], ctx='load', mode=self.mode),
                 args=[],
                 keywords=[
-                    ('cls', terms2.Name(location=self.location, id=class_name, ctx='load')),
-                    ('init_args', terms2.List(location=self.location, elts=constructor_args, ctx='load')),
-                    ('methods', terms2.List(location=self.location, elts=method_types, ctx='load')),
+                    ('cls', Name(location=self.location, id=class_name, ctx='load')),
+                    ('init_args', List(location=self.location, elts=constructor_args, ctx='load')),
+                    ('methods', List(location=self.location, elts=method_types, ctx='load')),
                 ],
             ),
         )
