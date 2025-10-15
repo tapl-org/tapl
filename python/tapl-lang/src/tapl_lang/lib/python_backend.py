@@ -49,6 +49,8 @@ class AstGenerator:
     def generate_ast(self, term: syntax.Term, setting: syntax.BackendSetting) -> ast.AST:
         if (ast_node := self.try_generate_ast(term, setting)) is not None:
             return ast_node
+        if (unfolded := term.unfold()) and unfolded is not term:
+            return self.generate_ast(unfolded, setting)
         raise tapl_error.TaplError(
             f'The python_backend does not support AST generation for term: {term.__class__.__name__}'
         )
@@ -56,6 +58,8 @@ class AstGenerator:
     def generate_stmt(self, term: syntax.Term, setting: syntax.BackendSetting) -> list[ast.stmt]:
         if (stmts := self.try_generate_stmt(term, setting)) is not None:
             return stmts
+        if (unfolded := term.unfold()) and unfolded is not term:
+            return self.generate_stmt(unfolded, setting)
         raise tapl_error.TaplError(
             f'The python_backend does not support statement generation for term: {term.__class__.__name__}'
         )
@@ -63,6 +67,8 @@ class AstGenerator:
     def generate_expr(self, term: syntax.Term, setting: syntax.BackendSetting) -> ast.expr:
         if (expr := self.try_generate_expr(term, setting)) is not None:
             return expr
+        if (unfolded := term.unfold()) and unfolded is not term:
+            return self.generate_expr(unfolded, setting)
         raise tapl_error.TaplError(
             f'The python_backend does not support expression generation for term: {term.__class__.__name__}'
         )
@@ -78,8 +84,6 @@ class AstGenerator:
             new_setting = term.new_setting(setting)
             return self.generate_ast(term.term, new_setting)
 
-        if (unfolded := term.unfold()) and unfolded is not term:
-            return self.generate_ast(unfolded, setting)
         return None
 
     def try_generate_stmt(self, term: syntax.Term, setting: syntax.BackendSetting) -> list[ast.stmt] | None:
@@ -213,11 +217,7 @@ class AstGenerator:
             locate(term.location, pass_stmt)
             return [pass_stmt]
 
-        if (unfolded := term.unfold()) and unfolded is not term:
-            return self.generate_stmt(unfolded, setting)
-        raise tapl_error.TaplError(
-            f'The python_backend does not support statement generation for term: {term.__class__.__name__}'
-        )
+        return None
 
     def try_generate_expr(self, term: syntax.Term, setting: syntax.BackendSetting) -> ast.expr | None:
         if isinstance(term, terms.BoolOp):
@@ -298,6 +298,4 @@ class AstGenerator:
             new_setting = term.new_setting(setting)
             return self.generate_expr(term.term, new_setting)
 
-        if (unfolded := term.unfold()) and unfolded is not term:
-            return self.generate_expr(unfolded, setting)
         return None
