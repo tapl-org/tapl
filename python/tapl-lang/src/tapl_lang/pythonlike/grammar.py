@@ -627,7 +627,7 @@ def _parse_token(c: Cursor) -> syntax.Term:
             k.move_to_next()
         if char2 is not None:
             if char3 is not None and (temp := char + char2 + char3) in _PUNCT_SET:
-                c.copy_from(k)
+                c.copy_position_from(k)
                 return _TokenPunct(tracker.location, value=temp)
             if (temp := char + char2) in _PUNCT_SET:
                 c.move_to_next()
@@ -708,7 +708,7 @@ def _scan_arguments(c: Cursor) -> syntax.Term:
         args.append(first_arg)
         k = c.clone()
         while t.validate(_consume_punct(k, ',')) and t.validate(arg := _expect_rule(k, rn.EXPRESSION)):
-            c.copy_from(k)
+            c.copy_position_from(k)
             args.append(arg)
     return t.captured_error or BlockTerm(terms=args)
 
@@ -854,7 +854,7 @@ def _parse_comparison(c: Cursor) -> syntax.Term:
         comparators = []
         k = c.clone()
         while (op := _scan_operator(k)) and t.validate(comparator := _expect_rule(k, rn.SUM)):
-            c.copy_from(k)
+            c.copy_position_from(k)
             ops.append(op)
             comparators.append(comparator)
         if ops:
@@ -875,7 +875,7 @@ def _parse_conjunction__and(c: Cursor) -> syntax.Term:
         values = [left]
         k = c.clone()
         while t.validate(_consume_keyword(k, 'and')) and t.validate(right := _expect_rule(k, rn.INVERSION)):
-            c.copy_from(k)
+            c.copy_position_from(k)
             values.append(right)
         if len(values) > 1:
             return typed_terms.BoolOp(location=t.location, op='and', values=values, mode=c.context.mode)
@@ -888,7 +888,7 @@ def _parse_disjunction__or(c: Cursor) -> syntax.Term:
         values = [left]
         k = c.clone()
         while t.validate(_consume_keyword(k, 'or')) and t.validate(right := _expect_rule(k, rn.CONJUNCTION)):
-            c.copy_from(k)
+            c.copy_position_from(k)
             values.append(right)
         if len(values) > 1:
             return typed_terms.BoolOp(location=t.location, op='or', values=values, mode=c.context.mode)
@@ -902,7 +902,7 @@ def _parse_star_expressions__multi(c: Cursor) -> syntax.Term:
         elements.append(first)
         k = c.clone()
         while t.validate(_consume_punct(k, ',')) and t.validate(next_ := _expect_rule(k, rn.STAR_EXPRESSION)):
-            c.copy_from(k)
+            c.copy_position_from(k)
             elements.append(next_)
     return t.captured_error or BlockTerm(terms=elements)
 
@@ -954,7 +954,7 @@ def _rule_parameter_with_type(c: Cursor) -> syntax.Term:
         k = c.clone()
         k.context = parser.Context(mode=typed_terms.MODE_TYPECHECK)
         if t.validate(param_type := _expect_rule(k, rn.EXPRESSION)):
-            c.copy_from(k)
+            c.copy_position_from(k)
             param_name = cast(_TokenName, name).value
             return stmt.Parameter(
                 t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), param_type]), mode=c.context.mode
@@ -980,7 +980,7 @@ def _scan_parameters(c: Cursor) -> syntax.Term:
         k = c.clone()
         # TODO: remove location and cursor from tracker, becuase when cursor cloned, tracker keeps old cursor and its location.
         while t.validate(_consume_punct(k, ',')) and t.validate(param := _expect_rule(k, 'parameter')):
-            c.copy_from(k)
+            c.copy_position_from(k)
             params.append(param)
     return t.captured_error or BlockTerm(terms=params)
 

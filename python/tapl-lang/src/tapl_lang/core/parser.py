@@ -54,8 +54,7 @@ class Cursor:
     def clone(self) -> Cursor:
         return Cursor(self.row, self.col, self.context, self.engine)
 
-    # TODO: Rethink this method's name. This should not be copy by context and engine. #refactor
-    def copy_from(self, other: Cursor) -> None:
+    def copy_position_from(self, other: Cursor) -> None:
         if self.engine is not other.engine:
             raise tapl_error.TaplError('Both cursors do not have a same engine instance.')
         self.row = other.row
