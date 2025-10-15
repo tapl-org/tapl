@@ -792,7 +792,7 @@ def _parse_atom__list(c: Cursor) -> syntax.Term:
 def _parse_factor__unary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(op := _consume_punct(c, '+', '-', '~')) and t.validate(factor := _expect_rule(c, rn.FACTOR)):
-        return terms.UnaryOp(t.location, cast(_TokenPunct, op).value, factor)
+        return untyped_terms.UnaryOp(t.location, cast(_TokenPunct, op).value, factor)
     return t.fail()
 
 
@@ -814,7 +814,7 @@ def _parse_term__binary(c: Cursor) -> syntax.Term:
         and t.validate(op := _consume_punct(c, '*', '/', '//', '%'))
         and t.validate(right := _expect_rule(c, rn.FACTOR))
     ):
-        return terms.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
+        return untyped_terms.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
     return t.fail()
 
 
@@ -825,7 +825,7 @@ def _parse_sum__binary(c: Cursor) -> syntax.Term:
         and t.validate(op := _consume_punct(c, '+', '-'))
         and t.validate(right := _expect_rule(c, rn.TERM))
     ):
-        return terms.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
+        return untyped_terms.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
     return t.fail()
 
 
@@ -878,7 +878,7 @@ def _parse_conjunction__and(c: Cursor) -> syntax.Term:
             c.copy_position_from(k)
             values.append(right)
         if len(values) > 1:
-            return terms.BoolOp(location=t.location, op='and', values=values, mode=c.context.mode)
+            return terms.TypedBoolOp(location=t.location, op='and', values=values, mode=c.context.mode)
     return t.fail()
 
 
@@ -891,7 +891,7 @@ def _parse_disjunction__or(c: Cursor) -> syntax.Term:
             c.copy_position_from(k)
             values.append(right)
         if len(values) > 1:
-            return terms.BoolOp(location=t.location, op='or', values=values, mode=c.context.mode)
+            return terms.TypedBoolOp(location=t.location, op='or', values=values, mode=c.context.mode)
     return t.fail()
 
 

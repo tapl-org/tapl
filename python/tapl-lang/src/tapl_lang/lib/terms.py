@@ -201,25 +201,6 @@ class ListIntLiteral(Literal):
 
 
 @dataclass
-class UnaryOp(syntax.Term):
-    location: syntax.Location
-    op: str
-    operand: syntax.Term
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield self.operand
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: UnaryOp(location=self.location, op=self.op, operand=layer(self.operand)))
-
-    @override
-    def unfold(self) -> syntax.Term:
-        return untyped_terms.UnaryOp(location=self.location, op=self.op, operand=self.operand)
-
-
-@dataclass
 class BoolNot(syntax.Term):
     location: syntax.Location
     operand: syntax.Term
@@ -247,7 +228,7 @@ class BoolNot(syntax.Term):
 
 
 @dataclass
-class BoolOp(syntax.Term):
+class TypedBoolOp(syntax.Term):
     location: syntax.Location
     op: str
     values: list[syntax.Term]
@@ -261,7 +242,7 @@ class BoolOp(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: BoolOp(
+            lambda layer: TypedBoolOp(
                 location=self.location, op=self.op, values=[layer(v) for v in self.values], mode=layer(self.mode)
             )
         )
@@ -278,29 +259,6 @@ class BoolOp(syntax.Term):
                 keywords=[],
             )
         raise tapl_error.UnhandledError
-
-
-@dataclass
-class BinOp(syntax.Term):
-    location: syntax.Location
-    left: syntax.Term
-    op: str
-    right: syntax.Term
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield self.left
-        yield self.right
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(
-            lambda layer: BinOp(location=self.location, left=layer(self.left), op=self.op, right=layer(self.right))
-        )
-
-    @override
-    def unfold(self) -> syntax.Term:
-        return untyped_terms.BinOp(location=self.location, left=self.left, op=self.op, right=self.right)
 
 
 @dataclass
