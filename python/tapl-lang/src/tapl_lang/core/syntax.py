@@ -88,7 +88,7 @@ class LayerSeparator:
             original_term, layers = memo[memo_index[0]]
             memo_index[0] += 1
             if original_term is not term:
-                raise tapl_error.TaplError('layer function call order is changed.')
+                raise tapl_error.TaplError('LAYER FUNCTION CALL ORDER IS CHANGED.')
             return layers[index]
 
         def create_extract_layer_fn(index: int) -> Callable[[Term], Term]:

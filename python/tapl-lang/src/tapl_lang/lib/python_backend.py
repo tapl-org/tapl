@@ -34,6 +34,7 @@ COMPARE_OP_MAP: dict[str, ast.cmpop] = {
 # TODO: add class with static fields for the context keys
 EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': ast.Store(), 'delete': ast.Del()}
 
+# TODO: These should be in a class so later on can be extended for other backends #refactor
 
 def locate(location: syntax.Location, *nodes: ast.expr | ast.stmt) -> None:
     for node in nodes:
