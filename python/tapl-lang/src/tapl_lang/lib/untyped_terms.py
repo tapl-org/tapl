@@ -6,7 +6,7 @@ from collections.abc import Callable, Generator
 from dataclasses import dataclass
 from typing import Any, override
 
-from tapl_lang.core import syntax, tapl_error
+from tapl_lang.core import syntax
 
 # NOTE: These terms are designed to closely mirror the `ast` module's classes.
 # Keep the order of terms in the file consistent with https://docs.python.org/3/library/ast.html
@@ -500,28 +500,3 @@ class Tuple(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: Tuple(location=self.location, elts=[layer(v) for v in self.elts], ctx=self.ctx))
-
-
-# FIXME: remove these path functions #refactor
-def select_path(
-    location: syntax.Location,
-    value: syntax.Term,
-    names: list[Identifier],
-    ctx: str = 'load',
-) -> syntax.Term:
-    if not names:
-        raise tapl_error.TaplError('At least one name is required to select a path.')
-    term = value
-    for i in range(len(names) - 1):
-        term = Attribute(location=location, value=term, attr=names[i], ctx='load')
-    return Attribute(location=location, value=term, attr=names[-1], ctx=ctx)
-
-
-def create_path(location: syntax.Location, names: list[Identifier], ctx: str = 'load') -> syntax.Term:
-    if not names:
-        raise tapl_error.TaplError('At least one name is required to select a path.')
-    if len(names) == 1:
-        return Name(location=location, id=names[0], ctx=ctx)
-    return select_path(
-        location=location, value=Name(location=location, id=names[0], ctx='load'), names=names[1:], ctx=ctx
-    )

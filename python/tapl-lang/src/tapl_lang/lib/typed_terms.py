@@ -53,9 +53,11 @@ class Name(syntax.Term):
         if self.mode is MODE_EVALUATE:
             return untyped_terms.Name(location=self.location, id=self.id, ctx=self.ctx)
         if self.mode is MODE_TYPECHECK:
-            # FIXME: hard code scope_name, should be set in setting #refactor
-            return untyped_terms.create_path(
-                location=self.location, names=[lambda setting: setting.scope_name, self.id], ctx=self.ctx
+            return untyped_terms.Attribute(
+                location=self.location,
+                value=untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                attr=self.id,
+                ctx=self.ctx,
             )
         raise tapl_error.UnhandledError
 
