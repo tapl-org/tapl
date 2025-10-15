@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import override
 
 from tapl_lang.core import line_record, syntax, tapl_error
-from tapl_lang.lib import terms  # TODO: Remove this import #refactor
+from tapl_lang.lib import terms
 
 # Implemented PEG parser - https://en.wikipedia.org/wiki/Parsing_expression_grammar,
 # https://pdos.csail.mit.edu/~baford/packrat/thesis/

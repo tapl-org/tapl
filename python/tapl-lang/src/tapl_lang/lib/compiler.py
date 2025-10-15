@@ -67,4 +67,4 @@ def compile_tapl(text: str) -> list[ast.AST]:
     safe_module = make_safe_term(module)
     ls = syntax.LayerSeparator(len(predef_layers.layers))
     layers = ls.build(lambda layer: layer(safe_module))
-    return [python_backend.generate_ast(layer, syntax.BackendSetting(scope_level=0)) for layer in layers]
+    return [python_backend.AstGenerator().generate_ast(layer, syntax.BackendSetting(scope_level=0)) for layer in layers]

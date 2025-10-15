@@ -30,7 +30,8 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
     check_parsed_term(parsed)
     safe_term = compiler.make_safe_term(parsed)
     layers = syntax.LayerSeparator(2).build(lambda layer: layer(safe_term))
-    return [s for layer in layers for s in python_backend.generate_stmt(layer, syntax.BackendSetting(scope_level=0))]
+    ast_generator = python_backend.AstGenerator()
+    return [s for layer in layers for s in ast_generator.generate_stmt(layer, syntax.BackendSetting(scope_level=0))]
 
 
 def run_stmt(stmts: list[ast.stmt]):
@@ -49,7 +50,7 @@ def parse_module(text: str) -> list[ast.AST]:
     ls = syntax.LayerSeparator(2)
     safe_module = compiler.make_safe_term(module)
     layers = ls.build(lambda layer: layer(safe_module))
-    return [python_backend.generate_ast(layer, syntax.BackendSetting(scope_level=0)) for layer in layers]
+    return [python_backend.AstGenerator().generate_ast(layer, syntax.BackendSetting(scope_level=0)) for layer in layers]
 
 
 def test_assign_name():
