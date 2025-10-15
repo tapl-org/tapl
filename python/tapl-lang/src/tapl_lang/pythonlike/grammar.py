@@ -7,7 +7,7 @@ from typing import cast
 
 from tapl_lang.core import parser, syntax
 from tapl_lang.core.parser import Cursor
-from tapl_lang.lib import stmt, terms
+from tapl_lang.lib import terms
 from tapl_lang.pythonlike import rule_names as rn
 
 # https://docs.python.org/3/reference/grammar.html
@@ -922,7 +922,7 @@ def _parse_assignment(c: Cursor) -> syntax.Term:
         and t.validate(value := _expect_rule(c, rn.ANNOTATED_RHS))
         and not t.validate(_consume_punct(c.clone(), '='))
     ):
-        return stmt.Assign(t.location, targets=[name], value=value)
+        return terms.Assign(t.location, targets=[name], value=value)
     return t.fail()
 
 
@@ -933,7 +933,7 @@ def _parse_statement__star_expressions(c: Cursor) -> syntax.Term:
             location = value.location
         else:
             location = t.location
-        return stmt.Expr(location=location, value=value)
+        return terms.Expr(location=location, value=value)
     return t.fail()
 
 
@@ -941,8 +941,8 @@ def _parse_return(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'return')):
         if t.validate(value := c.consume_rule(rn.EXPRESSION)):
-            return stmt.Return(t.location, value=value, mode=c.context.mode)
-        return t.captured_error or stmt.Return(t.location, value=terms.NoneLiteral(t.location), mode=c.context.mode)
+            return terms.Return(t.location, value=value, mode=c.context.mode)
+        return t.captured_error or terms.Return(t.location, value=terms.NoneLiteral(t.location), mode=c.context.mode)
     return t.fail()
 
 
@@ -954,8 +954,8 @@ def _rule_parameter_with_type(c: Cursor) -> syntax.Term:
         if t.validate(param_type := _expect_rule(k, rn.EXPRESSION)):
             c.copy_position_from(k)
             param_name = cast(_TokenName, name).value
-            return stmt.Parameter(
-                t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), param_type]), mode=c.context.mode
+            return terms.Parameter(
+                t.location, name=param_name, type_=syntax.Layers([terms.Absence(), param_type]), mode=c.context.mode
             )
     return t.fail()
 
@@ -964,8 +964,8 @@ def _rule_parameter_no_type(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(name := _consume_name(c)):
         param_name = cast(_TokenName, name).value
-        return stmt.Parameter(
-            t.location, name=param_name, type_=syntax.Layers([stmt.Absence(), stmt.Absence()]), mode=c.context.mode
+        return terms.Parameter(
+            t.location, name=param_name, type_=syntax.Layers([terms.Absence(), terms.Absence()]), mode=c.context.mode
         )
     return t.fail()
 
@@ -994,7 +994,7 @@ def _parse_function_def(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, ':'))
     ):
         name = cast(_TokenName, func_name).value
-        return stmt.FunctionDef(
+        return terms.FunctionDef(
             location=t.location,
             name=name,
             parameters=cast(BlockTerm, params).terms,
@@ -1011,7 +1011,7 @@ def _parse_if_stmt(c: Cursor) -> syntax.Term:
         and t.validate(test := _expect_rule(c, rn.EXPRESSION))
         and t.validate(_expect_punct(c, ':'))
     ):
-        return stmt.If(
+        return terms.If(
             location=t.location,
             test=test,
             body=syntax.TermList(terms=[], is_placeholder=True),
@@ -1024,7 +1024,7 @@ def _parse_if_stmt(c: Cursor) -> syntax.Term:
 def _parse_else_stmt(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'else')) and t.validate(_expect_punct(c, ':')):
-        return stmt.Else(location=t.location, body=syntax.TermList(terms=[], is_placeholder=True))
+        return terms.Else(location=t.location, body=syntax.TermList(terms=[], is_placeholder=True))
     return t.fail()
 
 
@@ -1035,7 +1035,7 @@ def _parse_while_stmt(c: Cursor) -> syntax.Term:
         and t.validate(test := _expect_rule(c, rn.NAMED_EXPRESSION))
         and t.validate(_expect_punct(c, ':'))
     ):
-        return stmt.While(
+        return terms.While(
             location=t.location,
             test=test,
             body=syntax.TermList(terms=[], is_placeholder=True),
@@ -1054,7 +1054,7 @@ def _parse_for_stmt(c: Cursor) -> syntax.Term:
         and t.validate(iter_ := _expect_rule(c, rn.STAR_EXPRESSIONS))
         and t.validate(_expect_punct(c, ':'))
     ):
-        return stmt.For(
+        return terms.For(
             location=t.location,
             target=target,
             iter=iter_,
@@ -1068,7 +1068,7 @@ def _parse_for_stmt(c: Cursor) -> syntax.Term:
 def _parse_pass(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'pass')):
-        return stmt.Pass(location=t.location)
+        return terms.Pass(location=t.location)
     return t.fail()
 
 
@@ -1080,7 +1080,7 @@ def _parse_class_def(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, ':'))
     ):
         name = cast(_TokenName, class_name).value
-        return stmt.ClassDef(
+        return terms.ClassDef(
             location=t.location,
             name=name,
             bases=[],
