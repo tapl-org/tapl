@@ -36,6 +36,7 @@ EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': as
 
 # TODO: These should be in a class so later on can be extended for other backends #refactor
 
+
 def locate(location: syntax.Location, *nodes: ast.expr | ast.stmt) -> None:
     for node in nodes:
         node.lineno = location.start.line

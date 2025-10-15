@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import cast, override
 
 from tapl_lang.core import syntax, tapl_error
-from tapl_lang.lib import typed_terms, untyped_terms
+from tapl_lang.lib import terms, untyped_terms
 
 
 @dataclass
@@ -55,12 +55,12 @@ class Return(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        if self.mode is typed_terms.MODE_EVALUATE:
+        if self.mode is terms.MODE_EVALUATE:
             return untyped_terms.Return(location=self.location, value=self.value)
-        if self.mode is typed_terms.MODE_TYPECHECK:
+        if self.mode is terms.MODE_TYPECHECK:
             call = untyped_terms.Call(
                 location=self.location,
-                func=typed_terms.Path(
+                func=terms.Path(
                     location=self.location, names=['api__tapl', 'add_return_type'], ctx='load', mode=self.mode
                 ),
                 args=[
@@ -124,7 +124,7 @@ class Parameter(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        if self.mode is typed_terms.MODE_TYPECHECK:
+        if self.mode is terms.MODE_TYPECHECK:
             return self.type_
         raise tapl_error.UnhandledError
 
@@ -199,9 +199,9 @@ class FunctionDef(syntax.Term):
                     untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
                 )
             ],
-            value=typed_terms.Call(
+            value=terms.Call(
                 location=self.location,
-                func=typed_terms.Path(
+                func=terms.Path(
                     location=self.location, names=['api__tapl', 'create_scope'], ctx='load', mode=self.mode
                 ),
                 args=[],
@@ -213,7 +213,7 @@ class FunctionDef(syntax.Term):
             location=self.location,
             value=untyped_terms.Call(
                 location=self.location,
-                func=typed_terms.Path(
+                func=terms.Path(
                     location=self.location, names=['api__tapl', 'get_return_type'], ctx='load', mode=self.mode
                 ),
                 args=[untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load')],
@@ -243,10 +243,10 @@ class FunctionDef(syntax.Term):
 
         return Assign(
             location=self.location,
-            targets=[typed_terms.Name(location=self.location, id=self.name, ctx='store', mode=self.mode)],
-            value=typed_terms.Call(
+            targets=[terms.Name(location=self.location, id=self.name, ctx='store', mode=self.mode)],
+            value=terms.Call(
                 location=self.location,
-                func=typed_terms.Path(
+                func=terms.Path(
                     location=self.location, names=['api__tapl', 'create_function'], ctx='load', mode=self.mode
                 ),
                 args=[
@@ -255,7 +255,7 @@ class FunctionDef(syntax.Term):
                         elts=[cast(Parameter, p).type_ for p in self.parameters],
                         ctx='load',
                     ),
-                    typed_terms.Call(
+                    terms.Call(
                         location=self.location,
                         func=untyped_terms.Name(location=self.location, id=self.name, ctx='load'),
                         args=[cast(Parameter, p).type_ for p in self.parameters],
@@ -268,9 +268,9 @@ class FunctionDef(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        if self.mode is typed_terms.MODE_EVALUATE:
+        if self.mode is terms.MODE_EVALUATE:
             return self.unfold_evaluate()
-        if self.mode is typed_terms.MODE_TYPECHECK:
+        if self.mode is terms.MODE_TYPECHECK:
             return syntax.TermList(terms=[self.unfold_typecheck_main(), self.unfold_typecheck_type()])
         raise tapl_error.UnhandledError
 
@@ -368,11 +368,11 @@ class BranchTyping(syntax.Term):
                 ],
                 value=untyped_terms.Call(
                     location=self.location,
-                    func=typed_terms.Path(
+                    func=terms.Path(
                         location=self.location,
                         names=['api__tapl', 'fork_scope'],
                         ctx='load',
-                        mode=typed_terms.MODE_TYPECHECK,
+                        mode=terms.MODE_TYPECHECK,
                     ),
                     args=[
                         untyped_terms.Name(location=self.location, id=lambda setting: setting.forker_name, ctx='load')
@@ -390,13 +390,13 @@ class BranchTyping(syntax.Term):
             location=self.location,
             items=[
                 untyped_terms.WithItem(
-                    context_expr=typed_terms.Call(
+                    context_expr=terms.Call(
                         location=self.location,
-                        func=typed_terms.Path(
+                        func=terms.Path(
                             location=self.location,
                             names=['api__tapl', 'scope_forker'],
                             ctx='load',
-                            mode=typed_terms.MODE_TYPECHECK,
+                            mode=terms.MODE_TYPECHECK,
                         ),
                         args=[
                             untyped_terms.Name(
@@ -457,9 +457,9 @@ class If(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        if self.mode is typed_terms.MODE_EVALUATE:
+        if self.mode is terms.MODE_EVALUATE:
             return self.codegen_evaluate()
-        if self.mode is typed_terms.MODE_TYPECHECK:
+        if self.mode is terms.MODE_TYPECHECK:
             return self.codegen_typecheck()
         raise tapl_error.UnhandledError
 
@@ -535,9 +535,9 @@ class While(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        if self.mode is typed_terms.MODE_EVALUATE:
+        if self.mode is terms.MODE_EVALUATE:
             return self.codegen_evaluate()
-        if self.mode is typed_terms.MODE_TYPECHECK:
+        if self.mode is terms.MODE_TYPECHECK:
             return self.codegen_typecheck()
         raise tapl_error.UnhandledError
 
@@ -609,9 +609,9 @@ class For(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        if self.mode is typed_terms.MODE_EVALUATE:
+        if self.mode is terms.MODE_EVALUATE:
             return self.codegen_evaluate()
-        if self.mode is typed_terms.MODE_TYPECHECK:
+        if self.mode is terms.MODE_TYPECHECK:
             return self.codegen_typecheck()
         raise tapl_error.UnhandledError
 
@@ -724,15 +724,15 @@ class ClassDef(syntax.Term):
                 untyped_terms.Tuple(
                     location=self.location,
                     elts=[
-                        typed_terms.Name(location=self.location, id=instance_name, ctx='store', mode=self.mode),
-                        typed_terms.Name(location=self.location, id=class_name, ctx='store', mode=self.mode),
+                        terms.Name(location=self.location, id=instance_name, ctx='store', mode=self.mode),
+                        terms.Name(location=self.location, id=class_name, ctx='store', mode=self.mode),
                     ],
                     ctx='store',
                 )
             ],
             value=untyped_terms.Call(
                 location=self.location,
-                func=typed_terms.Path(
+                func=terms.Path(
                     location=self.location, names=['api__tapl', 'create_class'], ctx='load', mode=self.mode
                 ),
                 args=[],
@@ -748,8 +748,8 @@ class ClassDef(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        if self.mode is typed_terms.MODE_EVALUATE:
+        if self.mode is terms.MODE_EVALUATE:
             return self.codegen_evaluate()
-        if self.mode is typed_terms.MODE_TYPECHECK:
+        if self.mode is terms.MODE_TYPECHECK:
             return self.codegen_typecheck()
         raise tapl_error.UnhandledError

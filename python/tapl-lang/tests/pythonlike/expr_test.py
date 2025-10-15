@@ -9,7 +9,7 @@ import pytest
 
 from tapl_lang.core import syntax
 from tapl_lang.core.parser import Grammar, parse_text
-from tapl_lang.lib import compiler, proxy, python_backend, scope, typed_terms, typelib
+from tapl_lang.lib import compiler, proxy, python_backend, scope, terms, typelib
 from tapl_lang.pythonlike import grammar, predef, predef1, rule_names
 
 
@@ -186,11 +186,11 @@ def test_var1():
 
 def test_gather_errors():
     location = syntax.Location(start=syntax.Position(line=1, column=0))
-    a = typed_terms.IntegerLiteral(location, 2)
-    b = typed_terms.IntegerLiteral(location, 3)
+    a = terms.IntegerLiteral(location, 2)
+    b = terms.IntegerLiteral(location, 3)
     c = syntax.ErrorTerm('Expected number')
-    d = typed_terms.BinOp(location, b, '*', c)
-    e = typed_terms.BinOp(location, a, '+', d)
+    d = terms.BinOp(location, b, '*', c)
+    e = terms.BinOp(location, a, '+', d)
     error_bucket = compiler.gather_errors(e)
     assert len(error_bucket) == 1
     assert isinstance(error_bucket[0], syntax.ErrorTerm)

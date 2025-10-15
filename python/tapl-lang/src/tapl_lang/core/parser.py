@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import override
 
 from tapl_lang.core import line_record, syntax, tapl_error
-from tapl_lang.lib import typed_terms  # TODO: Remove this import #refactor
+from tapl_lang.lib import terms  # TODO: Remove this import #refactor
 
 # Implemented PEG parser - https://en.wikipedia.org/wiki/Parsing_expression_grammar,
 # https://pdos.csail.mit.edu/~baford/packrat/thesis/
@@ -413,7 +413,7 @@ def find_first_position(line_records: list[line_record.LineRecord]) -> tuple[int
 def parse_line_records(
     line_records: list[line_record.LineRecord], grammar: Grammar, *, debug: bool = False, context: Context | None = None
 ) -> syntax.Term:
-    context = context or Context(mode=typed_terms.MODE_SAFE)
+    context = context or Context(mode=terms.MODE_SAFE)
     engine = PegEngineDebug(line_records, grammar.rule_map) if debug else PegEngine(line_records, grammar.rule_map)
     row, col = find_first_position(line_records)
     if row == len(line_records) and col == 0:
