@@ -2,34 +2,12 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import ast
 from collections.abc import Generator
 from dataclasses import dataclass
 from typing import cast, override
 
 from tapl_lang.core import syntax, tapl_error
-from tapl_lang.lib import python_backend, typed_terms, untyped_terms
-
-
-def ast_name(name: str, ctx: ast.expr_context | None = None) -> ast.expr:
-    """Create an AST name with the given context."""
-    if not name:
-        raise ValueError('Name cannot be empty.')
-    return ast.Name(id=name, ctx=ctx or ast.Load())
-
-
-def ast_attribute(names: list[str], ctx: ast.expr_context | None = None) -> ast.expr:
-    """Create an AST attribute from a list of names."""
-    if not names:
-        raise ValueError('Names list cannot be empty.')
-
-    def get_ctx(i: int) -> ast.expr_context:
-        return (ctx or ast.Load()) if i == len(names) - 1 else ast.Load()
-
-    attr: ast.expr = ast.Name(id=names[0], ctx=get_ctx(0))
-    for i, name in enumerate(names[1:], start=1):
-        attr = ast.Attribute(value=attr, attr=name, ctx=get_ctx(i))
-    return attr
+from tapl_lang.lib import typed_terms, untyped_terms
 
 
 @dataclass
@@ -58,10 +36,6 @@ class Assign(syntax.Term):
             targets=self.targets,
             value=self.value,
         )
-
-    @override
-    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
-        return python_backend.generate_stmt(self, setting)
 
 
 @dataclass
@@ -98,10 +72,6 @@ class Return(syntax.Term):
             return untyped_terms.Expr(location=self.location, value=call)
         raise tapl_error.UnhandledError
 
-    @override
-    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
-        return python_backend.generate_stmt(self, setting)
-
 
 @dataclass
 class Expr(syntax.Term):
@@ -119,10 +89,6 @@ class Expr(syntax.Term):
     @override
     def unfold(self):
         return untyped_terms.Expr(location=self.location, value=self.value)
-
-    @override
-    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
-        return python_backend.generate_stmt(self, setting)
 
 
 # TODO: Remove Absence, and implement it differently according to ground rules.
@@ -156,9 +122,10 @@ class Parameter(syntax.Term):
             )
         )
 
-    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
+    @override
+    def unfold(self) -> syntax.Term:
         if self.mode is typed_terms.MODE_TYPECHECK:
-            return self.type_.codegen_expr(setting)
+            return self.type_
         raise tapl_error.UnhandledError
 
 
@@ -307,44 +274,6 @@ class FunctionDef(syntax.Term):
             return syntax.TermList(terms=[self.unfold_typecheck_main(), self.unfold_typecheck_type()])
         raise tapl_error.UnhandledError
 
-    @override
-    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
-        return python_backend.generate_stmt(self, setting)
-
-    def codegen_typecheck_main(self, setting: syntax.BackendSetting) -> ast.stmt:
-        params = [ast.arg(arg=cast(Parameter, p).name) for p in self.parameters]
-        body: list[ast.stmt] = []
-        body_setting = setting.clone(scope_level=setting.scope_level + 1)
-        assign = ast.Assign(
-            targets=[ast.Name(id=body_setting.scope_name, ctx=ast.Store())],
-            value=ast.Call(
-                func=ast_attribute([setting.scope_name, 'api__tapl', 'create_scope']),
-                args=[],
-                keywords=[ast.keyword(arg='parent__tapl', value=ast_name(setting.scope_name))]
-                + [
-                    ast.keyword(
-                        arg=cast(Parameter, p).name,
-                        value=ast_name(cast(Parameter, p).name),
-                    )
-                    for p in self.parameters
-                ],
-            ),
-        )
-        self.location.locate(assign)
-        body.append(assign)
-        body.extend(self.body.codegen_stmt(body_setting))
-        body.append(
-            ast.Return(
-                value=ast.Call(
-                    func=ast_attribute([body_setting.scope_name, 'api__tapl', 'get_return_type']),
-                    args=[ast_name(body_setting.scope_name)],
-                )
-            )
-        )
-        func = ast.FunctionDef(name=self.name, args=ast.arguments(args=params), body=body, decorator_list=[])
-        self.location.locate(func)
-        return func
-
 
 @dataclass
 class Alias:
@@ -372,10 +301,6 @@ class Import(syntax.Term):
         return untyped_terms.Import(
             location=self.location, names=[untyped_terms.Alias(name=n.name, asname=n.asname) for n in self.names]
         )
-
-    @override
-    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
-        return python_backend.generate_stmt(self, setting)
 
 
 @dataclass
@@ -408,10 +333,6 @@ class ImportFrom(syntax.Term):
             names=[untyped_terms.Alias(name=n.name, asname=n.asname) for n in self.names],
             level=self.level,
         )
-
-    @override
-    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
-        return python_backend.generate_stmt(self, setting)
 
 
 @dataclass
@@ -542,10 +463,6 @@ class If(syntax.Term):
             return self.codegen_typecheck()
         raise tapl_error.UnhandledError
 
-    @override
-    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
-        return python_backend.generate_stmt(self, setting)
-
 
 @dataclass
 class Else(syntax.SiblingTerm):
@@ -624,10 +541,6 @@ class While(syntax.Term):
             return self.codegen_typecheck()
         raise tapl_error.UnhandledError
 
-    @override
-    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
-        return python_backend.generate_stmt(self, setting)
-
 
 @dataclass
 class For(syntax.Term):
@@ -702,10 +615,6 @@ class For(syntax.Term):
             return self.codegen_typecheck()
         raise tapl_error.UnhandledError
 
-    @override
-    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
-        return python_backend.generate_stmt(self, setting)
-
 
 @dataclass
 class Pass(syntax.Term):
@@ -722,10 +631,6 @@ class Pass(syntax.Term):
     @override
     def unfold(self) -> syntax.Term:
         return untyped_terms.Pass(location=self.location)
-
-    @override
-    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
-        return python_backend.generate_stmt(self, setting)
 
 
 @dataclass
@@ -848,7 +753,3 @@ class ClassDef(syntax.Term):
         if self.mode is typed_terms.MODE_TYPECHECK:
             return self.codegen_typecheck()
         raise tapl_error.UnhandledError
-
-    @override
-    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
-        return python_backend.generate_stmt(self, setting)
