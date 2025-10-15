@@ -208,8 +208,11 @@ class FunctionDef(syntax.Term):
 
     def unfold_typecheck_main(self) -> syntax.Term:
         def nested_scope(nested_term: syntax.Term) -> syntax.Term:
-            return syntax.AstSettingChanger(
-                changer=lambda setting: setting.clone(scope_level=setting.scope_level + 1), nested=nested_term
+            return syntax.BackendSettingTerm(
+                backend_setting_changer=syntax.AstSettingChanger(
+                    lambda setting: setting.clone(scope_level=setting.scope_level + 1)
+                ),
+                term=nested_term,
             )
 
         param_names = [cast(Parameter, p).name for p in self.parameters]
@@ -427,8 +430,11 @@ class BranchTyping(syntax.Term):
     @override
     def unfold(self) -> syntax.Term:
         def nested_scope(inner_term: syntax.Term) -> syntax.Term:
-            return syntax.AstSettingChanger(
-                changer=lambda setting: setting.clone(scope_level=setting.scope_level + 1), nested=inner_term
+            return syntax.BackendSettingTerm(
+                backend_setting_changer=syntax.AstSettingChanger(
+                    lambda setting: setting.clone(scope_level=setting.scope_level + 1)
+                ),
+                term=inner_term,
             )
 
         def new_scope() -> syntax.Term:

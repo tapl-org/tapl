@@ -51,6 +51,11 @@ def generate_ast(term: syntax.Term, setting: syntax.AstSetting) -> ast.AST:
         for t in term.body:
             stmts.extend(generate_stmt(t, setting))
         return ast.Module(body=stmts, type_ignores=[])
+
+    if isinstance(term, syntax.BackendSettingTerm):
+        new_setting = term.new_setting(setting)
+        return generate_ast(term.term, new_setting)
+
     if (unfolded := term.unfold()) and unfolded is not term:
         return generate_ast(unfolded, setting)
     # TODO: raise error once refactor complete #refactor
@@ -177,9 +182,9 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
         locate(term.location, expr_stmt)
         return [expr_stmt]
 
-    if isinstance(term, syntax.AstSettingChanger):
-        new_setting = term.changer(setting)
-        return generate_stmt(term.nested, new_setting)
+    if isinstance(term, syntax.BackendSettingTerm):
+        new_setting = term.new_setting(setting)
+        return generate_stmt(term.term, new_setting)
 
     if isinstance(term, untyped_terms.Pass):
         pass_stmt = ast.Pass()
@@ -264,9 +269,9 @@ def generate_expr(term: syntax.Term, setting: syntax.AstSetting) -> ast.expr:
         locate(term.location, tuple_expr)
         return tuple_expr
 
-    if isinstance(term, syntax.AstSettingChanger):
-        new_setting = term.changer(setting)
-        return generate_expr(term.nested, new_setting)
+    if isinstance(term, syntax.BackendSettingTerm):
+        new_setting = term.new_setting(setting)
+        return generate_expr(term.term, new_setting)
 
     if (unfolded := term.unfold()) and unfolded is not term:
         return generate_expr(unfolded, setting)

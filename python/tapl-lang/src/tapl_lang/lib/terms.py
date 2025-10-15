@@ -5,65 +5,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast, override
-
-from tapl_lang.lib import python_backend
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import ast
-    from collections.abc import Callable, Generator
+    from collections.abc import Callable
 
-from tapl_lang.core import syntax, tapl_error
-
-
-@dataclass
-class AstSettingChanger(syntax.Term):
-    changer: Callable[[syntax.AstSetting], syntax.AstSetting]
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield from ()
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda _: AstSettingChanger(changer=self.changer))
-
-
-@dataclass
-class AstSettingTerm(syntax.Term):
-    ast_setting_changer: syntax.Term
-    term: syntax.Term
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield self.ast_setting_changer
-        yield self.term
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(
-            lambda layer: AstSettingTerm(ast_setting_changer=layer(self.ast_setting_changer), term=layer(self.term))
-        )
-
-    def _ensure_changer(self) -> Callable[[syntax.AstSetting], syntax.AstSetting]:
-        if not isinstance(self.ast_setting_changer, AstSettingChanger):
-            raise tapl_error.TaplError(
-                f'Expected setting to be an instance of AstSetting, got {type(self.ast_setting_changer).__name__}'
-            )
-        return cast(AstSettingChanger, self.ast_setting_changer).changer
-
-    @override
-    def codegen_ast(self, setting: syntax.AstSetting) -> ast.AST:
-        return python_backend.generate_ast(self.term, self._ensure_changer()(setting))
-
-    @override
-    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
-        return python_backend.generate_expr(self.term, self._ensure_changer()(setting))
-
-    @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        return python_backend.generate_stmt(self.term, self._ensure_changer()(setting))
+from tapl_lang.core import syntax
 
 
 def create_safe_ast_settings() -> list[syntax.AstSetting]:
@@ -73,10 +20,13 @@ def create_safe_ast_settings() -> list[syntax.AstSetting]:
     ]
 
 
-def make_safe_term(term: syntax.Term) -> AstSettingTerm:
+def make_safe_term(term: syntax.Term) -> syntax.Term:
     def create_changer(setting: syntax.AstSetting) -> Callable[[syntax.AstSetting], syntax.AstSetting]:
         return lambda _: setting
 
-    settings = create_safe_ast_settings()
-    changers: list[syntax.Term] = [AstSettingChanger(changer=create_changer(setting)) for setting in settings]
-    return AstSettingTerm(ast_setting_changer=syntax.Layers(layers=changers), term=term)
+    settings = [
+        syntax.AstSetting(scope_level=0),
+        syntax.AstSetting(scope_level=0),
+    ]
+    changers: list[syntax.Term] = [syntax.AstSettingChanger(changer=create_changer(setting)) for setting in settings]
+    return syntax.BackendSettingTerm(backend_setting_changer=syntax.Layers(layers=changers), term=term)

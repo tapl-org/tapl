@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, cast, override
 
 from tapl_lang.core import tapl_error
 
@@ -152,15 +152,40 @@ class AstSetting:
 @dataclass
 class AstSettingChanger(Term):
     changer: Callable[[AstSetting], AstSetting]
-    nested: Term
 
     @override
     def children(self) -> Generator[Term, None, None]:
-        yield self.nested
+        yield from ()
 
     @override
     def separate(self, ls: LayerSeparator) -> list[Term]:
-        return ls.build(lambda layer: AstSettingChanger(changer=self.changer, nested=layer(self.nested)))
+        return ls.build(lambda _: AstSettingChanger(changer=self.changer))
+
+
+@dataclass
+class BackendSettingTerm(Term):
+    backend_setting_changer: Term
+    term: Term
+
+    @override
+    def children(self) -> Generator[Term, None, None]:
+        yield self.backend_setting_changer
+        yield self.term
+
+    @override
+    def separate(self, ls: LayerSeparator) -> list[Term]:
+        return ls.build(
+            lambda layer: BackendSettingTerm(
+                backend_setting_changer=layer(self.backend_setting_changer), term=layer(self.term)
+            )
+        )
+
+    def new_setting(self, setting: AstSetting) -> AstSetting:
+        if not isinstance(self.backend_setting_changer, AstSettingChanger):
+            raise tapl_error.TaplError(
+                f'Expected setting to be an instance of {AstSettingChanger.__name__}, got {type(self.backend_setting_changer).__name__}'
+            )
+        return cast(AstSettingChanger, self.backend_setting_changer).changer(setting)
 
 
 @dataclass
