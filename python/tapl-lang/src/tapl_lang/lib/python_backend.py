@@ -45,7 +45,7 @@ def locate(location: syntax.Location, *nodes: ast.expr | ast.stmt) -> None:
             node.end_col_offset = location.end.column
 
 
-def generate_ast(term: syntax.Term, setting: syntax.AstSetting) -> ast.AST:
+def generate_ast(term: syntax.Term, setting: syntax.BackendSetting) -> ast.AST:
     if isinstance(term, untyped_terms.Module):
         stmts = []
         for t in term.body:
@@ -62,7 +62,7 @@ def generate_ast(term: syntax.Term, setting: syntax.AstSetting) -> ast.AST:
     return term.codegen_ast(setting)
 
 
-def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stmt]:
+def generate_stmt(term: syntax.Term, setting: syntax.BackendSetting) -> list[ast.stmt]:
     if isinstance(term, syntax.TermList):
         stmts: list[ast.stmt] = []
         for t in term.flattened():
@@ -196,7 +196,7 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
     return term.codegen_stmt(setting)
 
 
-def generate_expr(term: syntax.Term, setting: syntax.AstSetting) -> ast.expr:
+def generate_expr(term: syntax.Term, setting: syntax.BackendSetting) -> ast.expr:
     if isinstance(term, untyped_terms.BoolOp):
         bool_op = ast.BoolOp(op=BOOL_OP_MAP[term.op], values=[generate_expr(v, setting) for v in term.values])
         locate(term.location, bool_op)

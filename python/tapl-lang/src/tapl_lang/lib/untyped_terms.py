@@ -12,7 +12,7 @@ from tapl_lang.lib import python_backend
 # NOTE: These terms are designed to closely mirror the `ast` module's classes.
 # Keep the order of terms in the file consistent with https://docs.python.org/3/library/ast.html
 
-type Identifier = str | Callable[[syntax.AstSetting], str]
+type Identifier = str | Callable[[syntax.BackendSetting], str]
 
 
 @dataclass
@@ -323,7 +323,7 @@ class Pass(syntax.Term):
         return ls.build(lambda _: Pass(location=self.location))
 
     @override
-    def codegen_stmt(self, setting: syntax.AstSetting):
+    def codegen_stmt(self, setting: syntax.BackendSetting):
         return python_backend
 
 
@@ -444,7 +444,7 @@ class Constant(syntax.Term):
         return ls.build(lambda _: Constant(location=self.location, value=self.value))
 
     @override
-    def codegen_expr(self, setting: syntax.AstSetting):
+    def codegen_expr(self, setting: syntax.BackendSetting):
         # HACK: temporary redirect #refactor
         return python_backend.generate_expr(self, setting)
 

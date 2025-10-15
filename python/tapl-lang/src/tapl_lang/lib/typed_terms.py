@@ -88,7 +88,7 @@ class Name(syntax.Term):
         raise tapl_error.UnhandledError
 
     @override
-    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
         return python_backend.generate_expr(self, setting)
 
 
@@ -115,7 +115,7 @@ class Attribute(syntax.Term):
         return untyped_terms.Attribute(location=self.location, value=self.value, attr=self.attr, ctx=self.ctx)
 
     @override
-    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
         return python_backend.generate_expr(self, setting)
 
 
@@ -255,7 +255,7 @@ class ListIntLiteral(Literal):
         return untyped_terms.List(location=self.location, elts=[], ctx='load')
 
     @override
-    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
         return python_backend.generate_expr(self, setting)
 
 
@@ -278,7 +278,7 @@ class UnaryOp(syntax.Term):
         return untyped_terms.UnaryOp(location=self.location, op=self.op, operand=self.operand)
 
     @override
-    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
         return python_backend.generate_expr(self, setting)
 
 
@@ -309,7 +309,7 @@ class BoolNot(syntax.Term):
         raise tapl_error.UnhandledError
 
     @override
-    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
         return python_backend.generate_expr(self, setting)
 
 
@@ -347,7 +347,7 @@ class BoolOp(syntax.Term):
         raise tapl_error.UnhandledError
 
     @override
-    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
         return python_backend.generate_expr(self, setting)
 
 
@@ -374,7 +374,7 @@ class BinOp(syntax.Term):
         return untyped_terms.BinOp(location=self.location, left=self.left, op=self.op, right=self.right)
 
     @override
-    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
         return python_backend.generate_expr(self, setting)
 
 
@@ -406,7 +406,7 @@ class Compare(syntax.Term):
         return untyped_terms.Compare(location=self.location, left=self.left, ops=self.ops, comparators=self.comparators)
 
     @override
-    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
         return python_backend.generate_expr(self, setting)
 
 
@@ -439,5 +439,5 @@ class Call(syntax.Term):
         return untyped_terms.Call(location=self.location, func=self.func, args=self.args, keywords=self.keywords)
 
     @override
-    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
         return python_backend.generate_expr(self, setting)

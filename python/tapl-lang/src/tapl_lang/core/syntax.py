@@ -30,17 +30,17 @@ class Term:
         If the term is already in its simplest form, it returns itself."""
         return self
 
-    def codegen_ast(self, setting: AstSetting) -> ast.AST:
+    def codegen_ast(self, setting: BackendSetting) -> ast.AST:
         """Generates the AST representation of this term."""
         del setting
         raise tapl_error.TaplError(f'codegen_ast is not implemented in {self.__class__.__name__}')
 
-    def codegen_expr(self, setting: AstSetting) -> ast.expr:
+    def codegen_expr(self, setting: BackendSetting) -> ast.expr:
         """Generates the expression AST representation of this term."""
         del setting
         raise tapl_error.TaplError(f'codegen_expr is not implemented in {self.__class__.__name__}')
 
-    def codegen_stmt(self, setting: AstSetting) -> list[ast.stmt]:
+    def codegen_stmt(self, setting: BackendSetting) -> list[ast.stmt]:
         """Generates the statement AST representation of this term."""
         del setting
         raise tapl_error.TaplError(f'codegen_stmt is not implemented in {self.__class__.__name__}')
@@ -87,15 +87,15 @@ class Layers(Term):
         return self.layers
 
     @override
-    def codegen_ast(self, setting: AstSetting) -> ast.AST:
+    def codegen_ast(self, setting: BackendSetting) -> ast.AST:
         raise tapl_error.TaplError('Layers should be separated before generating AST code.')
 
     @override
-    def codegen_expr(self, setting: AstSetting) -> ast.expr:
+    def codegen_expr(self, setting: BackendSetting) -> ast.expr:
         raise tapl_error.TaplError('Layers should be separated before generating AST code.')
 
     @override
-    def codegen_stmt(self, setting: AstSetting) -> list[ast.stmt]:
+    def codegen_stmt(self, setting: BackendSetting) -> list[ast.stmt]:
         raise tapl_error.TaplError('Layers should be separated before generating AST code.')
 
 
@@ -129,13 +129,12 @@ class LayerSeparator:
         return layers
 
 
-# FIXME: rename to BackendSetting #refactor
 @dataclass
-class AstSetting:
+class BackendSetting:
     scope_level: int
 
-    def clone(self, scope_level: int | None = None) -> AstSetting:
-        return AstSetting(
+    def clone(self, scope_level: int | None = None) -> BackendSetting:
+        return BackendSetting(
             scope_level=scope_level or self.scope_level,
         )
 
@@ -150,8 +149,8 @@ class AstSetting:
 
 
 @dataclass
-class AstSettingChanger(Term):
-    changer: Callable[[AstSetting], AstSetting]
+class BackendSettingChanger(Term):
+    changer: Callable[[BackendSetting], BackendSetting]
 
     @override
     def children(self) -> Generator[Term, None, None]:
@@ -159,7 +158,7 @@ class AstSettingChanger(Term):
 
     @override
     def separate(self, ls: LayerSeparator) -> list[Term]:
-        return ls.build(lambda _: AstSettingChanger(changer=self.changer))
+        return ls.build(lambda _: BackendSettingChanger(changer=self.changer))
 
 
 @dataclass
@@ -180,12 +179,12 @@ class BackendSettingTerm(Term):
             )
         )
 
-    def new_setting(self, setting: AstSetting) -> AstSetting:
-        if not isinstance(self.backend_setting_changer, AstSettingChanger):
+    def new_setting(self, setting: BackendSetting) -> BackendSetting:
+        if not isinstance(self.backend_setting_changer, BackendSettingChanger):
             raise tapl_error.TaplError(
-                f'Expected setting to be an instance of {AstSettingChanger.__name__}, got {type(self.backend_setting_changer).__name__}'
+                f'Expected setting to be an instance of {BackendSettingChanger.__name__}, got {type(self.backend_setting_changer).__name__}'
             )
-        return cast(AstSettingChanger, self.backend_setting_changer).changer(setting)
+        return cast(BackendSettingChanger, self.backend_setting_changer).changer(setting)
 
 
 @dataclass
@@ -259,7 +258,7 @@ class TermList(Term):
         return ls.build(lambda layer: TermList(terms=[layer(s) for s in self.terms], is_placeholder=False))
 
     @override
-    def codegen_stmt(self, setting: AstSetting) -> list[ast.stmt]:
+    def codegen_stmt(self, setting: BackendSetting) -> list[ast.stmt]:
         if self.is_placeholder:
             raise tapl_error.TaplError('The placeholder list must be initialized before code generation.')
         return [s for b in self.terms for s in b.codegen_stmt(setting)]

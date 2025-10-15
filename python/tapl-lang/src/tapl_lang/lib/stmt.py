@@ -60,7 +60,7 @@ class Assign(syntax.Term):
         )
 
     @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
         return python_backend.generate_stmt(self, setting)
 
 
@@ -99,7 +99,7 @@ class Return(syntax.Term):
         raise tapl_error.UnhandledError
 
     @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
         return python_backend.generate_stmt(self, setting)
 
 
@@ -121,7 +121,7 @@ class Expr(syntax.Term):
         return untyped_terms.Expr(location=self.location, value=self.value)
 
     @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
         return python_backend.generate_stmt(self, setting)
 
 
@@ -156,7 +156,7 @@ class Parameter(syntax.Term):
             )
         )
 
-    def codegen_expr(self, setting: syntax.AstSetting) -> ast.expr:
+    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
         if self.mode is typed_terms.MODE_TYPECHECK:
             return self.type_.codegen_expr(setting)
         raise tapl_error.UnhandledError
@@ -209,7 +209,7 @@ class FunctionDef(syntax.Term):
     def unfold_typecheck_main(self) -> syntax.Term:
         def nested_scope(nested_term: syntax.Term) -> syntax.Term:
             return syntax.BackendSettingTerm(
-                backend_setting_changer=syntax.AstSettingChanger(
+                backend_setting_changer=syntax.BackendSettingChanger(
                     lambda setting: setting.clone(scope_level=setting.scope_level + 1)
                 ),
                 term=nested_term,
@@ -308,10 +308,10 @@ class FunctionDef(syntax.Term):
         raise tapl_error.UnhandledError
 
     @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
         return python_backend.generate_stmt(self, setting)
 
-    def codegen_typecheck_main(self, setting: syntax.AstSetting) -> ast.stmt:
+    def codegen_typecheck_main(self, setting: syntax.BackendSetting) -> ast.stmt:
         params = [ast.arg(arg=cast(Parameter, p).name) for p in self.parameters]
         body: list[ast.stmt] = []
         body_setting = setting.clone(scope_level=setting.scope_level + 1)
@@ -374,7 +374,7 @@ class Import(syntax.Term):
         )
 
     @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
         return python_backend.generate_stmt(self, setting)
 
 
@@ -410,7 +410,7 @@ class ImportFrom(syntax.Term):
         )
 
     @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
         return python_backend.generate_stmt(self, setting)
 
 
@@ -431,7 +431,7 @@ class BranchTyping(syntax.Term):
     def unfold(self) -> syntax.Term:
         def nested_scope(inner_term: syntax.Term) -> syntax.Term:
             return syntax.BackendSettingTerm(
-                backend_setting_changer=syntax.AstSettingChanger(
+                backend_setting_changer=syntax.BackendSettingChanger(
                     lambda setting: setting.clone(scope_level=setting.scope_level + 1)
                 ),
                 term=inner_term,
@@ -543,7 +543,7 @@ class If(syntax.Term):
         raise tapl_error.UnhandledError
 
     @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
         return python_backend.generate_stmt(self, setting)
 
 
@@ -625,7 +625,7 @@ class While(syntax.Term):
         raise tapl_error.UnhandledError
 
     @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
         return python_backend.generate_stmt(self, setting)
 
 
@@ -703,7 +703,7 @@ class For(syntax.Term):
         raise tapl_error.UnhandledError
 
     @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
         return python_backend.generate_stmt(self, setting)
 
 
@@ -724,7 +724,7 @@ class Pass(syntax.Term):
         return untyped_terms.Pass(location=self.location)
 
     @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
         return python_backend.generate_stmt(self, setting)
 
 
@@ -850,5 +850,5 @@ class ClassDef(syntax.Term):
         raise tapl_error.UnhandledError
 
     @override
-    def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+    def codegen_stmt(self, setting: syntax.BackendSetting) -> list[ast.stmt]:
         return python_backend.generate_stmt(self, setting)

@@ -41,8 +41,8 @@ def make_safe_term(term: syntax.Term) -> syntax.Term:
     return syntax.BackendSettingTerm(
         backend_setting_changer=syntax.Layers(
             layers=[
-                syntax.AstSettingChanger(changer=lambda _: syntax.AstSetting(scope_level=0)),
-                syntax.AstSettingChanger(changer=lambda _: syntax.AstSetting(scope_level=0)),
+                syntax.BackendSettingChanger(changer=lambda _: syntax.BackendSetting(scope_level=0)),
+                syntax.BackendSettingChanger(changer=lambda _: syntax.BackendSetting(scope_level=0)),
             ]
         ),
         term=term,
@@ -67,4 +67,4 @@ def compile_tapl(text: str) -> list[ast.AST]:
     safe_module = make_safe_term(module)
     ls = syntax.LayerSeparator(len(predef_layers.layers))
     layers = ls.build(lambda layer: layer(safe_module))
-    return [python_backend.generate_ast(layer, syntax.AstSetting(scope_level=0)) for layer in layers]
+    return [python_backend.generate_ast(layer, syntax.BackendSetting(scope_level=0)) for layer in layers]
