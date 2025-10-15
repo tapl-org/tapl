@@ -996,7 +996,7 @@ def _parse_function_def(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, ':'))
     ):
         name = cast(_TokenName, func_name).value
-        return terms.FunctionDef(
+        return terms.TypedFunctionDef(
             location=t.location,
             name=name,
             parameters=cast(BlockTerm, params).terms,
@@ -1013,7 +1013,7 @@ def _parse_if_stmt(c: Cursor) -> syntax.Term:
         and t.validate(test := _expect_rule(c, rn.EXPRESSION))
         and t.validate(_expect_punct(c, ':'))
     ):
-        return terms.If(
+        return terms.TypedIf(
             location=t.location,
             test=test,
             body=syntax.TermList(terms=[], is_placeholder=True),
@@ -1037,7 +1037,7 @@ def _parse_while_stmt(c: Cursor) -> syntax.Term:
         and t.validate(test := _expect_rule(c, rn.NAMED_EXPRESSION))
         and t.validate(_expect_punct(c, ':'))
     ):
-        return terms.While(
+        return terms.TypedWhile(
             location=t.location,
             test=test,
             body=syntax.TermList(terms=[], is_placeholder=True),
@@ -1056,7 +1056,7 @@ def _parse_for_stmt(c: Cursor) -> syntax.Term:
         and t.validate(iter_ := _expect_rule(c, rn.STAR_EXPRESSIONS))
         and t.validate(_expect_punct(c, ':'))
     ):
-        return terms.For(
+        return terms.TypedFor(
             location=t.location,
             target=target,
             iter=iter_,
@@ -1082,7 +1082,7 @@ def _parse_class_def(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, ':'))
     ):
         name = cast(_TokenName, class_name).value
-        return terms.ClassDef(
+        return terms.TypedClassDef(
             location=t.location,
             name=name,
             bases=[],

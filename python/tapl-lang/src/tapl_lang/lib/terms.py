@@ -335,7 +335,7 @@ class Parameter(syntax.Term):
 
 
 @dataclass
-class FunctionDef(syntax.Term):
+class TypedFunctionDef(syntax.Term):
     location: syntax.Location
     name: str
     parameters: list[syntax.Term]
@@ -351,7 +351,7 @@ class FunctionDef(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: FunctionDef(
+            lambda layer: TypedFunctionDef(
                 location=self.location,
                 name=self.name,
                 parameters=[layer(p) for p in self.parameters],
@@ -608,7 +608,7 @@ class BranchTyping(syntax.Term):
 
 
 @dataclass
-class If(syntax.Term):
+class TypedIf(syntax.Term):
     location: syntax.Location
     test: syntax.Term
     body: syntax.Term
@@ -626,7 +626,7 @@ class If(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: If(
+            lambda layer: TypedIf(
                 location=self.location,
                 test=layer(self.test),
                 body=layer(self.body),
@@ -671,7 +671,7 @@ class Else(syntax.SiblingTerm):
         term = previous_siblings[-1]
         if isinstance(term, syntax.ErrorTerm):
             return
-        if not isinstance(term, If):
+        if not isinstance(term, TypedIf):
             error = syntax.ErrorTerm('Else can only be integrated into If.' + repr(term), location=self.location)
             previous_siblings.append(error)
         elif term.orelse is not None:
@@ -682,7 +682,7 @@ class Else(syntax.SiblingTerm):
 
 
 @dataclass
-class While(syntax.Term):
+class TypedWhile(syntax.Term):
     location: syntax.Location
     test: syntax.Term
     body: syntax.Term
@@ -700,7 +700,7 @@ class While(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: While(
+            lambda layer: TypedWhile(
                 location=self.location,
                 test=layer(self.test),
                 body=layer(self.body),
@@ -718,7 +718,7 @@ class While(syntax.Term):
         )
 
     def codegen_typecheck(self) -> syntax.Term:
-        return If(
+        return TypedIf(
             location=self.location,
             test=self.test,
             body=self.body,
@@ -736,7 +736,7 @@ class While(syntax.Term):
 
 
 @dataclass
-class For(syntax.Term):
+class TypedFor(syntax.Term):
     location: syntax.Location
     target: syntax.Term
     iter: syntax.Term
@@ -756,7 +756,7 @@ class For(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: For(
+            lambda layer: TypedFor(
                 location=self.location,
                 target=layer(self.target),
                 iter=layer(self.iter),
@@ -827,7 +827,7 @@ class Pass(syntax.Term):
 
 
 @dataclass
-class ClassDef(syntax.Term):
+class TypedClassDef(syntax.Term):
     location: syntax.Location
     name: str
     bases: list[syntax.Term]
@@ -842,7 +842,7 @@ class ClassDef(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: ClassDef(
+            lambda layer: TypedClassDef(
                 location=self.location,
                 name=self.name,
                 bases=[layer(b) for b in self.bases],
@@ -868,10 +868,10 @@ class ClassDef(syntax.Term):
         instance_name = self.name
         class_name = self._class_name()
         body = []
-        methods: list[FunctionDef] = []
+        methods: list[TypedFunctionDef] = []
         constructor_args = []
         for item in self.body.children():
-            if isinstance(item, FunctionDef):
+            if isinstance(item, TypedFunctionDef):
                 if item.name == '__init__':
                     constructor_args = item.parameters[1:]
                 else:
