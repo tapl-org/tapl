@@ -8,7 +8,7 @@ import ast
 from tapl_lang.core import syntax
 from tapl_lang.core.chunker import chunk_text
 from tapl_lang.core.parser import parse_text
-from tapl_lang.lib import compiler, proxy, python_backend, scope, terms, untyped_terms
+from tapl_lang.lib import compiler, proxy, python_backend, scope, untyped_terms
 from tapl_lang.pythonlike import grammar, predef1
 from tapl_lang.pythonlike.language import PythonlikeLanguage
 
@@ -28,7 +28,7 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
     if placeholder is not None:
         placeholder.is_placeholder = False
     check_parsed_term(parsed)
-    safe_term = terms.make_safe_term(parsed)
+    safe_term = compiler.make_safe_term(parsed)
     layers = syntax.LayerSeparator(2).build(lambda layer: layer(safe_term))
     return [s for layer in layers for s in python_backend.generate_stmt(layer, syntax.AstSetting(scope_level=0))]
 
@@ -47,7 +47,7 @@ def parse_module(text: str) -> list[ast.AST]:
     language.parse_chunks(chunks, [module])
     check_parsed_term(module)
     ls = syntax.LayerSeparator(2)
-    safe_module = terms.make_safe_term(module)
+    safe_module = compiler.make_safe_term(module)
     layers = ls.build(lambda layer: layer(safe_module))
     return [python_backend.generate_ast(layer, syntax.AstSetting(scope_level=0)) for layer in layers]
 

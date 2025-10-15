@@ -9,7 +9,7 @@ import pytest
 
 from tapl_lang.core import syntax
 from tapl_lang.core.parser import Grammar, parse_text
-from tapl_lang.lib import compiler, proxy, python_backend, scope, terms, typed_terms, typelib
+from tapl_lang.lib import compiler, proxy, python_backend, scope, typed_terms, typelib
 from tapl_lang.pythonlike import grammar, predef, predef1, rule_names
 
 
@@ -25,7 +25,7 @@ def check_parsed_term(parsed: syntax.Term) -> None:
 def parse_expr(text: str, *, debug=False) -> list[ast.expr]:
     parsed = parse_text(text, Grammar(grammar.get_grammar().rule_map, rule_names.EXPRESSION), debug=debug)
     check_parsed_term(parsed)
-    safe_term = terms.make_safe_term(parsed)
+    safe_term = compiler.make_safe_term(parsed)
     separated = syntax.LayerSeparator(2).build(lambda layer: layer(safe_term))
     return [python_backend.generate_expr(layer, syntax.AstSetting(scope_level=0)) for layer in separated]
 

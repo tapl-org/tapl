@@ -6,7 +6,7 @@ import ast
 import re
 
 from tapl_lang.core import chunker, syntax, tapl_error
-from tapl_lang.lib import python_backend, terms, untyped_terms
+from tapl_lang.lib import python_backend, untyped_terms
 from tapl_lang.pythonlike import language as python_language
 
 
@@ -37,6 +37,18 @@ def extract_language(chunk: chunker.Chunk) -> str:
     return match[0]
 
 
+def make_safe_term(term: syntax.Term) -> syntax.Term:
+    return syntax.BackendSettingTerm(
+        backend_setting_changer=syntax.Layers(
+            layers=[
+                syntax.AstSettingChanger(changer=lambda _: syntax.AstSetting(scope_level=0)),
+                syntax.AstSettingChanger(changer=lambda _: syntax.AstSetting(scope_level=0)),
+            ]
+        ),
+        term=term,
+    )
+
+
 def compile_tapl(text: str) -> list[ast.AST]:
     chunks = chunker.chunk_text(text)
     language_name = extract_language(chunks[0])
@@ -52,7 +64,7 @@ def compile_tapl(text: str) -> list[ast.AST]:
     if error_bucket:
         messages = [repr(e) for e in error_bucket]
         raise tapl_error.TaplError(f'{len(error_bucket)} parsing error(s) found:\n\n' + '\n\n'.join(messages))
-    safe_module = terms.make_safe_term(module)
+    safe_module = make_safe_term(module)
     ls = syntax.LayerSeparator(len(predef_layers.layers))
     layers = ls.build(lambda layer: layer(safe_module))
     return [python_backend.generate_ast(layer, syntax.AstSetting(scope_level=0)) for layer in layers]
