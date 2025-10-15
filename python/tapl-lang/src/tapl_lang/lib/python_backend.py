@@ -165,6 +165,11 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
         new_setting = term.changer(setting)
         return generate_stmt(term.nested, new_setting)
 
+    if isinstance(term, untyped_terms.Pass):
+        pass_stmt = ast.Pass()
+        locate(term.location, pass_stmt)
+        return [pass_stmt]
+
     if (unfolded := term.unfold()) and unfolded is not term:
         return generate_stmt(unfolded, setting)
     return term.codegen_stmt(setting)

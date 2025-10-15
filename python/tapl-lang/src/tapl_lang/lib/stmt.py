@@ -701,9 +701,6 @@ class For(syntax.Term):
         return python_backend.generate_stmt(self, setting)
 
 
-# XXX: Implement unfold for this term, then move the todo to the next term #refactor
-
-
 @dataclass
 class Pass(syntax.Term):
     location: syntax.Location
@@ -717,10 +714,15 @@ class Pass(syntax.Term):
         return ls.build(lambda _: Pass(location=self.location))
 
     @override
+    def unfold(self) -> syntax.Term:
+        return untyped_terms.Pass(location=self.location)
+
+    @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        stmt = ast.Pass()
-        self.location.locate(stmt)
-        return [stmt]
+        return python_backend.generate_stmt(self, setting)
+
+
+# XXX: Implement unfold for this term, then move the todo to the next term #refactor
 
 
 @dataclass

@@ -322,6 +322,10 @@ class Pass(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda _: Pass(location=self.location))
 
+    @override
+    def codegen_stmt(self, setting: syntax.AstSetting):
+        return python_backend
+
 
 # EXPRESSIONS
 
