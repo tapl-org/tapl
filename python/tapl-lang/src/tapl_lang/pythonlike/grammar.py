@@ -7,7 +7,7 @@ from typing import cast
 
 from tapl_lang.core import parser, syntax
 from tapl_lang.core.parser import Cursor
-from tapl_lang.lib import terms
+from tapl_lang.lib import terms, untyped_terms
 from tapl_lang.pythonlike import rule_names as rn
 
 # https://docs.python.org/3/reference/grammar.html
@@ -720,7 +720,7 @@ def _parse_primary__attribute(c: Cursor) -> syntax.Term:
         and t.validate(_consume_punct(c, '.'))
         and t.validate(attr := _expect_name(c))
     ):
-        return terms.Attribute(t.location, value=value, attr=cast(_TokenName, attr).value, ctx='load')
+        return untyped_terms.Attribute(t.location, value=value, attr=cast(_TokenName, attr).value, ctx='load')
     return t.fail()
 
 
@@ -739,7 +739,7 @@ def _parse_primary__call(c: Cursor) -> syntax.Term:
 def _parse_atom__name_load(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, _TokenName):
-        return terms.Name(location=token.location, id=token.value, ctx='load', mode=c.context.mode)
+        return terms.TypedName(location=token.location, id=token.value, ctx='load', mode=c.context.mode)
     return t.fail()
 
 
@@ -783,7 +783,7 @@ def _parse_atom__list(c: Cursor) -> syntax.Term:
         return syntax.Layers(
             layers=[
                 terms.ListIntLiteral(t.location),
-                terms.Name(location=t.location, id='ListInt', ctx='load', mode=terms.MODE_TYPECHECK),
+                terms.TypedName(location=t.location, id='ListInt', ctx='load', mode=terms.MODE_TYPECHECK),
             ]
         )
     return t.fail()
@@ -1108,7 +1108,7 @@ def _parse_star_targets__single(c: Cursor) -> syntax.Term:
 def _parse_star_atom__name_store(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, _TokenName):
-        return terms.Name(location=token.location, id=token.value, ctx='store', mode=terms.MODE_SAFE)
+        return terms.TypedName(location=token.location, id=token.value, ctx='store', mode=terms.MODE_SAFE)
     return t.fail()
 
 
@@ -1120,7 +1120,7 @@ def _parse_target_with_star_atom__attribute(c: Cursor) -> syntax.Term:
         and t.validate(name := _expect_name(c))
         and not t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
     ):
-        return terms.Attribute(t.location, value=target, attr=cast(_TokenName, name).value, ctx='store')
+        return untyped_terms.Attribute(t.location, value=target, attr=cast(_TokenName, name).value, ctx='store')
     return t.fail()
 
 
@@ -1132,7 +1132,7 @@ def _parse_t_primary__attribute(c: Cursor) -> syntax.Term:
         and t.validate(name := _expect_name(c))
         and t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
     ):
-        return terms.Attribute(t.location, value=value, attr=cast(_TokenName, name).value, ctx='load')
+        return untyped_terms.Attribute(t.location, value=value, attr=cast(_TokenName, name).value, ctx='load')
     return t.fail()
 
 

@@ -34,9 +34,9 @@ SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
 
 # FIXME: Find different names fro typed terms to distinguish from untyped terms
 @dataclass
-class Name(syntax.Term):
+class TypedName(syntax.Term):
     location: syntax.Location
-    id: str
+    id: str  # FIXME: should be identifier
     ctx: str
     mode: syntax.Term
 
@@ -46,7 +46,9 @@ class Name(syntax.Term):
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Name(location=self.location, id=self.id, ctx=self.ctx, mode=layer(self.mode)))
+        return ls.build(
+            lambda layer: TypedName(location=self.location, id=self.id, ctx=self.ctx, mode=layer(self.mode))
+        )
 
     @override
     def unfold(self) -> syntax.Term:
@@ -60,29 +62,6 @@ class Name(syntax.Term):
                 ctx=self.ctx,
             )
         raise tapl_error.UnhandledError
-
-
-@dataclass
-class Attribute(syntax.Term):
-    location: syntax.Location
-    value: syntax.Term
-    attr: str
-    ctx: str
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield self.value
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(
-            lambda layer: Attribute(location=self.location, value=layer(self.value), attr=self.attr, ctx=self.ctx)
-        )
-
-    # TODO: Attribute must have a type layer to check attribute exists or not. find a test case first. should have? maybe scope should support this.
-    @override
-    def unfold(self) -> syntax.Term:
-        return untyped_terms.Attribute(location=self.location, value=self.value, attr=self.attr, ctx=self.ctx)
 
 
 @dataclass
@@ -113,8 +92,8 @@ class Select(syntax.Term):
             return syntax.ErrorTerm(location=self.location, message='At least one name is required to select a path.')
         value = self.value
         for i in range(len(self.names) - 1):
-            value = Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
-        return Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
+            value = untyped_terms.Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
+        return untyped_terms.Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
 
 
 @dataclass
@@ -138,10 +117,10 @@ class Path(syntax.Term):
     def unfold(self) -> syntax.Term:
         if len(self.names) <= 1:
             return syntax.ErrorTerm(location=self.location, message='At least two names are required to create a path.')
-        value: syntax.Term = Name(location=self.location, id=self.names[0], ctx='load', mode=self.mode)
+        value: syntax.Term = TypedName(location=self.location, id=self.names[0], ctx='load', mode=self.mode)
         for i in range(1, len(self.names) - 1):
-            value = Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
-        return Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
+            value = untyped_terms.Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
+        return untyped_terms.Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
 
 
 @dataclass
@@ -157,7 +136,7 @@ class Literal(syntax.Term):
             raise ValueError('NoneLiteral must be separated in 2 layers')
         return [
             untyped_terms.Constant(location=self.location, value=value),
-            Name(location=self.location, id=type_id, ctx='load', mode=MODE_TYPECHECK),
+            TypedName(location=self.location, id=type_id, ctx='load', mode=MODE_TYPECHECK),
         ]
 
 
@@ -263,7 +242,7 @@ class BoolNot(syntax.Term):
             return untyped_terms.UnaryOp(location=self.location, op='not', operand=self.operand)
         if self.mode is MODE_TYPECHECK:
             # unary not operator always returns Bool type
-            return Name(location=self.location, id='Bool', ctx='load', mode=MODE_TYPECHECK)
+            return TypedName(location=self.location, id='Bool', ctx='load', mode=MODE_TYPECHECK)
         raise tapl_error.UnhandledError
 
 
@@ -608,7 +587,7 @@ class FunctionDef(syntax.Term):
 
         return Assign(
             location=self.location,
-            targets=[Name(location=self.location, id=self.name, ctx='store', mode=self.mode)],
+            targets=[TypedName(location=self.location, id=self.name, ctx='store', mode=self.mode)],
             value=Call(
                 location=self.location,
                 func=Path(location=self.location, names=['api__tapl', 'create_function'], ctx='load', mode=self.mode),
@@ -1087,8 +1066,8 @@ class ClassDef(syntax.Term):
                 untyped_terms.Tuple(
                     location=self.location,
                     elts=[
-                        Name(location=self.location, id=instance_name, ctx='store', mode=self.mode),
-                        Name(location=self.location, id=class_name, ctx='store', mode=self.mode),
+                        TypedName(location=self.location, id=instance_name, ctx='store', mode=self.mode),
+                        TypedName(location=self.location, id=class_name, ctx='store', mode=self.mode),
                     ],
                     ctx='store',
                 )
