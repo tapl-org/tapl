@@ -7,7 +7,7 @@ from typing import cast
 
 from tapl_lang.core import parser, syntax
 from tapl_lang.core.parser import Cursor
-from tapl_lang.lib import terms, untyped_terms
+from tapl_lang.lib import terms, terms2
 from tapl_lang.pythonlike import rule_names as rn
 
 # https://docs.python.org/3/reference/grammar.html
@@ -720,7 +720,7 @@ def _parse_primary__attribute(c: Cursor) -> syntax.Term:
         and t.validate(_consume_punct(c, '.'))
         and t.validate(attr := _expect_name(c))
     ):
-        return untyped_terms.Attribute(t.location, value=value, attr=cast(_TokenName, attr).value, ctx='load')
+        return terms2.Attribute(t.location, value=value, attr=cast(_TokenName, attr).value, ctx='load')
     return t.fail()
 
 
@@ -792,7 +792,7 @@ def _parse_atom__list(c: Cursor) -> syntax.Term:
 def _parse_factor__unary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(op := _consume_punct(c, '+', '-', '~')) and t.validate(factor := _expect_rule(c, rn.FACTOR)):
-        return untyped_terms.UnaryOp(t.location, cast(_TokenPunct, op).value, factor)
+        return terms2.UnaryOp(t.location, cast(_TokenPunct, op).value, factor)
     return t.fail()
 
 
@@ -814,7 +814,7 @@ def _parse_term__binary(c: Cursor) -> syntax.Term:
         and t.validate(op := _consume_punct(c, '*', '/', '//', '%'))
         and t.validate(right := _expect_rule(c, rn.FACTOR))
     ):
-        return untyped_terms.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
+        return terms2.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
     return t.fail()
 
 
@@ -825,7 +825,7 @@ def _parse_sum__binary(c: Cursor) -> syntax.Term:
         and t.validate(op := _consume_punct(c, '+', '-'))
         and t.validate(right := _expect_rule(c, rn.TERM))
     ):
-        return untyped_terms.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
+        return terms2.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
     return t.fail()
 
 
@@ -1120,7 +1120,7 @@ def _parse_target_with_star_atom__attribute(c: Cursor) -> syntax.Term:
         and t.validate(name := _expect_name(c))
         and not t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
     ):
-        return untyped_terms.Attribute(t.location, value=target, attr=cast(_TokenName, name).value, ctx='store')
+        return terms2.Attribute(t.location, value=target, attr=cast(_TokenName, name).value, ctx='store')
     return t.fail()
 
 
@@ -1132,7 +1132,7 @@ def _parse_t_primary__attribute(c: Cursor) -> syntax.Term:
         and t.validate(name := _expect_name(c))
         and t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
     ):
-        return untyped_terms.Attribute(t.location, value=value, attr=cast(_TokenName, name).value, ctx='load')
+        return terms2.Attribute(t.location, value=value, attr=cast(_TokenName, name).value, ctx='load')
     return t.fail()
 
 

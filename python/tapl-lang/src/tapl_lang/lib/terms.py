@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, cast, override
 
 from tapl_lang.core import syntax, tapl_error
-from tapl_lang.lib import untyped_terms
+from tapl_lang.lib import terms2
 
 
 @dataclass
@@ -53,11 +53,11 @@ class TypedName(syntax.Term):
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return untyped_terms.Name(location=self.location, id=self.id, ctx=self.ctx)
+            return terms2.Name(location=self.location, id=self.id, ctx=self.ctx)
         if self.mode is MODE_TYPECHECK:
-            return untyped_terms.Attribute(
+            return terms2.Attribute(
                 location=self.location,
-                value=untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                value=terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
                 attr=self.id,
                 ctx=self.ctx,
             )
@@ -92,8 +92,8 @@ class Select(syntax.Term):
             return syntax.ErrorTerm(location=self.location, message='At least one name is required to select a path.')
         value = self.value
         for i in range(len(self.names) - 1):
-            value = untyped_terms.Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
-        return untyped_terms.Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
+            value = terms2.Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
+        return terms2.Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
 
 
 @dataclass
@@ -119,8 +119,8 @@ class Path(syntax.Term):
             return syntax.ErrorTerm(location=self.location, message='At least two names are required to create a path.')
         value: syntax.Term = TypedName(location=self.location, id=self.names[0], ctx='load', mode=self.mode)
         for i in range(1, len(self.names) - 1):
-            value = untyped_terms.Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
-        return untyped_terms.Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
+            value = terms2.Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
+        return terms2.Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
 
 
 @dataclass
@@ -135,7 +135,7 @@ class Literal(syntax.Term):
         if ls.layer_count != SAFE_LAYER_COUNT:
             raise ValueError('NoneLiteral must be separated in 2 layers')
         return [
-            untyped_terms.Constant(location=self.location, value=value),
+            terms2.Constant(location=self.location, value=value),
             TypedName(location=self.location, id=type_id, ctx='load', mode=MODE_TYPECHECK),
         ]
 
@@ -197,7 +197,7 @@ class ListIntLiteral(Literal):
 
     @override
     def unfold(self) -> syntax.Term:
-        return untyped_terms.List(location=self.location, elts=[], ctx='load')
+        return terms2.List(location=self.location, elts=[], ctx='load')
 
 
 @dataclass
@@ -220,7 +220,7 @@ class BoolNot(syntax.Term):
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return untyped_terms.UnaryOp(location=self.location, op='not', operand=self.operand)
+            return terms2.UnaryOp(location=self.location, op='not', operand=self.operand)
         if self.mode is MODE_TYPECHECK:
             # unary not operator always returns Bool type
             return TypedName(location=self.location, id='Bool', ctx='load', mode=MODE_TYPECHECK)
@@ -250,9 +250,9 @@ class TypedBoolOp(syntax.Term):
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return untyped_terms.BoolOp(location=self.location, op=self.op, values=self.values)
+            return terms2.BoolOp(location=self.location, op=self.op, values=self.values)
         if self.mode is MODE_TYPECHECK:
-            return untyped_terms.Call(
+            return terms2.Call(
                 location=self.location,
                 func=Path(location=self.location, names=['api__tapl', 'create_union'], ctx='load', mode=self.mode),
                 args=self.values,
@@ -286,7 +286,7 @@ class Compare(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        return untyped_terms.Compare(location=self.location, left=self.left, ops=self.ops, comparators=self.comparators)
+        return terms2.Compare(location=self.location, left=self.left, ops=self.ops, comparators=self.comparators)
 
 
 @dataclass
@@ -315,7 +315,7 @@ class Call(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        return untyped_terms.Call(location=self.location, func=self.func, args=self.args, keywords=self.keywords)
+        return terms2.Call(location=self.location, func=self.func, args=self.args, keywords=self.keywords)
 
 
 @dataclass
@@ -339,7 +339,7 @@ class Assign(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        return untyped_terms.Assign(
+        return terms2.Assign(
             location=self.location,
             targets=self.targets,
             value=self.value,
@@ -364,18 +364,18 @@ class Return(syntax.Term):
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return untyped_terms.Return(location=self.location, value=self.value)
+            return terms2.Return(location=self.location, value=self.value)
         if self.mode is MODE_TYPECHECK:
-            call = untyped_terms.Call(
+            call = terms2.Call(
                 location=self.location,
                 func=Path(location=self.location, names=['api__tapl', 'add_return_type'], ctx='load', mode=self.mode),
                 args=[
-                    untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                    terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
                     self.value,
                 ],
                 keywords=[],
             )
-            return untyped_terms.Expr(location=self.location, value=call)
+            return terms2.Expr(location=self.location, value=call)
         raise tapl_error.UnhandledError
 
 
@@ -394,7 +394,7 @@ class Expr(syntax.Term):
 
     @override
     def unfold(self):
-        return untyped_terms.Expr(location=self.location, value=self.value)
+        return terms2.Expr(location=self.location, value=self.value)
 
 
 # TODO: Remove Absence, and implement it differently according to ground rules.
@@ -465,7 +465,7 @@ class FunctionDef(syntax.Term):
         if not all(isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
             raise tapl_error.TaplError('All parameter type must be Absence when generating function in evaluate mode.')
 
-        return untyped_terms.FunctionDef(
+        return terms2.FunctionDef(
             location=self.location,
             name=self.name,
             posonlyargs=[],
@@ -494,15 +494,15 @@ class FunctionDef(syntax.Term):
         keywords.append(
             (
                 'parent__tapl',
-                untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
             )
         )
-        keywords.extend((name, untyped_terms.Name(location=self.location, id=name, ctx='load')) for name in param_names)
+        keywords.extend((name, terms2.Name(location=self.location, id=name, ctx='load')) for name in param_names)
         new_scope = Assign(
             location=self.location,
             targets=[
                 nested_scope(
-                    untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                    terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
                 )
             ],
             value=Call(
@@ -513,17 +513,17 @@ class FunctionDef(syntax.Term):
             ),
         )
 
-        return_type = untyped_terms.Return(
+        return_type = terms2.Return(
             location=self.location,
-            value=untyped_terms.Call(
+            value=terms2.Call(
                 location=self.location,
                 func=Path(location=self.location, names=['api__tapl', 'get_return_type'], ctx='load', mode=self.mode),
-                args=[untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load')],
+                args=[terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load')],
                 keywords=[],
             ),
         )
 
-        return untyped_terms.FunctionDef(
+        return terms2.FunctionDef(
             location=self.location,
             name=self.name,
             posonlyargs=[],
@@ -550,14 +550,14 @@ class FunctionDef(syntax.Term):
                 location=self.location,
                 func=Path(location=self.location, names=['api__tapl', 'create_function'], ctx='load', mode=self.mode),
                 args=[
-                    untyped_terms.List(
+                    terms2.List(
                         location=self.location,
                         elts=[cast(Parameter, p).type_ for p in self.parameters],
                         ctx='load',
                     ),
                     Call(
                         location=self.location,
-                        func=untyped_terms.Name(location=self.location, id=self.name, ctx='load'),
+                        func=terms2.Name(location=self.location, id=self.name, ctx='load'),
                         args=[cast(Parameter, p).type_ for p in self.parameters],
                         keywords=[],
                     ),
@@ -598,8 +598,8 @@ class Import(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        return untyped_terms.Import(
-            location=self.location, names=[untyped_terms.Alias(name=n.name, asname=n.asname) for n in self.names]
+        return terms2.Import(
+            location=self.location, names=[terms2.Alias(name=n.name, asname=n.asname) for n in self.names]
         )
 
 
@@ -627,10 +627,10 @@ class ImportFrom(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        return untyped_terms.ImportFrom(
+        return terms2.ImportFrom(
             location=self.location,
             module=self.module,
-            names=[untyped_terms.Alias(name=n.name, asname=n.asname) for n in self.names],
+            names=[terms2.Alias(name=n.name, asname=n.asname) for n in self.names],
             level=self.level,
         )
 
@@ -663,10 +663,10 @@ class BranchTyping(syntax.Term):
                 location=self.location,
                 targets=[
                     nested_scope(
-                        untyped_terms.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='store')
+                        terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='store')
                     )
                 ],
-                value=untyped_terms.Call(
+                value=terms2.Call(
                     location=self.location,
                     func=Path(
                         location=self.location,
@@ -674,9 +674,7 @@ class BranchTyping(syntax.Term):
                         ctx='load',
                         mode=MODE_TYPECHECK,
                     ),
-                    args=[
-                        untyped_terms.Name(location=self.location, id=lambda setting: setting.forker_name, ctx='load')
-                    ],
+                    args=[terms2.Name(location=self.location, id=lambda setting: setting.forker_name, ctx='load')],
                     keywords=[],
                 ),
             )
@@ -686,10 +684,10 @@ class BranchTyping(syntax.Term):
             body.append(new_scope())
             body.append(nested_scope(b))
 
-        return untyped_terms.With(
+        return terms2.With(
             location=self.location,
             items=[
-                untyped_terms.WithItem(
+                terms2.WithItem(
                     context_expr=Call(
                         location=self.location,
                         func=Path(
@@ -698,14 +696,10 @@ class BranchTyping(syntax.Term):
                             ctx='load',
                             mode=MODE_TYPECHECK,
                         ),
-                        args=[
-                            untyped_terms.Name(
-                                location=self.location, id=lambda setting: setting.scope_name, ctx='load'
-                            )
-                        ],
+                        args=[terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load')],
                         keywords=[],
                     ),
-                    optional_vars=untyped_terms.Name(
+                    optional_vars=terms2.Name(
                         location=self.location, id=lambda setting: setting.forker_name, ctx='store'
                     ),
                 )
@@ -743,7 +737,7 @@ class If(syntax.Term):
         )
 
     def codegen_evaluate(self) -> syntax.Term:
-        return untyped_terms.If(
+        return terms2.If(
             location=self.location,
             test=self.test,
             body=self.body,
@@ -817,7 +811,7 @@ class While(syntax.Term):
         )
 
     def codegen_evaluate(self) -> syntax.Term:
-        return untyped_terms.While(
+        return terms2.While(
             location=self.location,
             test=self.test,
             body=self.body,
@@ -874,7 +868,7 @@ class For(syntax.Term):
         )
 
     def codegen_evaluate(self) -> syntax.Term:
-        return untyped_terms.For(
+        return terms2.For(
             location=self.location,
             target=self.target,
             iter=self.iter,
@@ -883,15 +877,15 @@ class For(syntax.Term):
         )
 
     def codegen_typecheck(self) -> syntax.Term:
-        iterator_type = untyped_terms.Call(
+        iterator_type = terms2.Call(
             location=self.location,
-            func=untyped_terms.Attribute(location=self.location, value=self.iter, attr='__iter__', ctx='load'),
+            func=terms2.Attribute(location=self.location, value=self.iter, attr='__iter__', ctx='load'),
             args=[],
             keywords=[],
         )
-        item_type = untyped_terms.Call(
+        item_type = terms2.Call(
             location=self.location,
-            func=untyped_terms.Attribute(location=self.location, value=iterator_type, attr='__next__', ctx='load'),
+            func=terms2.Attribute(location=self.location, value=iterator_type, attr='__next__', ctx='load'),
             args=[],
             keywords=[],
         )
@@ -930,7 +924,7 @@ class Pass(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        return untyped_terms.Pass(location=self.location)
+        return terms2.Pass(location=self.location)
 
 
 @dataclass
@@ -962,7 +956,7 @@ class ClassDef(syntax.Term):
         return f'{self.name}_'
 
     def codegen_evaluate(self) -> syntax.Term:
-        return untyped_terms.ClassDef(
+        return terms2.ClassDef(
             location=self.location,
             name=self._class_name(),
             bases=self.bases,
@@ -986,7 +980,7 @@ class ClassDef(syntax.Term):
                 body.append(item.unfold_typecheck_main())
             else:
                 body.append(item)
-        class_stmt = untyped_terms.ClassDef(
+        class_stmt = terms2.ClassDef(
             location=self.location,
             name=class_name,
             bases=self.bases,
@@ -1008,20 +1002,20 @@ class ClassDef(syntax.Term):
                 )
             tail_args = method.parameters[1:]
             method_types.append(
-                untyped_terms.Tuple(
+                terms2.Tuple(
                     location=self.location,
                     elts=[
-                        untyped_terms.Constant(location=self.location, value=method.name),
-                        untyped_terms.List(location=self.location, elts=tail_args, ctx='load'),
+                        terms2.Constant(location=self.location, value=method.name),
+                        terms2.List(location=self.location, elts=tail_args, ctx='load'),
                     ],
                     ctx='load',
                 )
             )
 
-        create_class = untyped_terms.Assign(
+        create_class = terms2.Assign(
             location=self.location,
             targets=[
-                untyped_terms.Tuple(
+                terms2.Tuple(
                     location=self.location,
                     elts=[
                         TypedName(location=self.location, id=instance_name, ctx='store', mode=self.mode),
@@ -1030,14 +1024,14 @@ class ClassDef(syntax.Term):
                     ctx='store',
                 )
             ],
-            value=untyped_terms.Call(
+            value=terms2.Call(
                 location=self.location,
                 func=Path(location=self.location, names=['api__tapl', 'create_class'], ctx='load', mode=self.mode),
                 args=[],
                 keywords=[
-                    ('cls', untyped_terms.Name(location=self.location, id=class_name, ctx='load')),
-                    ('init_args', untyped_terms.List(location=self.location, elts=constructor_args, ctx='load')),
-                    ('methods', untyped_terms.List(location=self.location, elts=method_types, ctx='load')),
+                    ('cls', terms2.Name(location=self.location, id=class_name, ctx='load')),
+                    ('init_args', terms2.List(location=self.location, elts=constructor_args, ctx='load')),
+                    ('methods', terms2.List(location=self.location, elts=method_types, ctx='load')),
                 ],
             ),
         )

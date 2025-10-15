@@ -8,7 +8,7 @@ import ast
 from tapl_lang.core import syntax
 from tapl_lang.core.chunker import chunk_text
 from tapl_lang.core.parser import parse_text
-from tapl_lang.lib import compiler, proxy, python_backend, scope, untyped_terms
+from tapl_lang.lib import compiler, proxy, python_backend, scope, terms2
 from tapl_lang.pythonlike import grammar, predef1
 from tapl_lang.pythonlike.language import PythonlikeLanguage
 
@@ -43,7 +43,7 @@ def run_stmt(stmts: list[ast.stmt]):
 def parse_module(text: str) -> list[ast.AST]:
     chunks = chunk_text(text.strip())
     language = PythonlikeLanguage()
-    module = untyped_terms.Module(body=[syntax.TermList(terms=[], is_placeholder=True)])
+    module = terms2.Module(body=[syntax.TermList(terms=[], is_placeholder=True)])
     language.parse_chunks(chunks, [module])
     check_parsed_term(module)
     ls = syntax.LayerSeparator(2)
