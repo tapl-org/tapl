@@ -1070,7 +1070,7 @@ def _parse_for_stmt(c: Cursor) -> syntax.Term:
 def _parse_pass(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'pass')):
-        return terms.Pass(location=t.location)
+        return terms2.Pass(location=t.location)
     return t.fail()
 
 

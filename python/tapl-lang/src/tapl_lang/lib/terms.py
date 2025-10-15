@@ -475,66 +475,6 @@ class TypedFunctionDef(syntax.Term):
 
 
 @dataclass
-class Alias:
-    name: str
-    asname: str | None = None
-
-
-@dataclass
-class Import(syntax.Term):
-    location: syntax.Location
-    names: list[Alias]
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield from ()
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(
-            lambda _: Import(location=self.location, names=[Alias(name=n.name, asname=n.asname) for n in self.names])
-        )
-
-    @override
-    def unfold(self) -> syntax.Term:
-        return terms2.Import(
-            location=self.location, names=[terms2.Alias(name=n.name, asname=n.asname) for n in self.names]
-        )
-
-
-@dataclass
-class ImportFrom(syntax.Term):
-    location: syntax.Location
-    module: str | None
-    names: list[Alias]
-    level: int
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield from ()
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(
-            lambda _: ImportFrom(
-                location=self.location,
-                module=self.module,
-                names=[Alias(name=n.name, asname=n.asname) for n in self.names],
-                level=self.level,
-            )
-        )
-
-    @override
-    def unfold(self) -> syntax.Term:
-        return terms2.ImportFrom(
-            location=self.location,
-            module=self.module,
-            names=[terms2.Alias(name=n.name, asname=n.asname) for n in self.names],
-            level=self.level,
-        )
-
-
-@dataclass
 class BranchTyping(syntax.Term):
     location: syntax.Location
     branches: list[syntax.Term]
@@ -807,23 +747,6 @@ class TypedFor(syntax.Term):
         if self.mode is MODE_TYPECHECK:
             return self.codegen_typecheck()
         raise tapl_error.UnhandledError
-
-
-@dataclass
-class Pass(syntax.Term):
-    location: syntax.Location
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield from ()
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda _: Pass(location=self.location))
-
-    @override
-    def unfold(self) -> syntax.Term:
-        return terms2.Pass(location=self.location)
 
 
 @dataclass

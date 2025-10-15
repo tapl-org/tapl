@@ -6,7 +6,7 @@ from typing import override
 
 from tapl_lang.core import parser, syntax
 from tapl_lang.core.language import Language
-from tapl_lang.lib import terms
+from tapl_lang.lib import terms2
 from tapl_lang.pythonlike import grammar as pythonlike_grammar
 
 IMPORT_LEVEL = 0
@@ -20,16 +20,16 @@ class PythonlikeLanguage(Language):
 
     def create_header_for_evaluate_layer(self) -> syntax.Term:
         location = syntax.Location(start=syntax.Position(line=1, column=0))
-        return terms.ImportFrom(location, 'tapl_lang.pythonlike.predef', [terms.Alias(name='*')], IMPORT_LEVEL)
+        return terms2.ImportFrom(location, 'tapl_lang.pythonlike.predef', [terms2.Alias(name='*')], IMPORT_LEVEL)
 
     def create_header_for_typecheck_layer(self) -> syntax.Term:
         location = syntax.Location(start=syntax.Position(line=1, column=0))
         return syntax.TermList(
             [
-                terms.ImportFrom(
+                terms2.ImportFrom(
                     location,
                     'tapl_lang.pythonlike.predef1',
-                    [terms.Alias(name='predef_proxy', asname='s0')],
+                    [terms2.Alias(name='predef_proxy', asname='s0')],
                     IMPORT_LEVEL,
                 ),
             ]
