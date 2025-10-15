@@ -1026,7 +1026,7 @@ def _parse_if_stmt(c: Cursor) -> syntax.Term:
 def _parse_else_stmt(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'else')) and t.validate(_expect_punct(c, ':')):
-        return terms.Else(location=t.location, body=syntax.TermList(terms=[], is_placeholder=True))
+        return terms.ElseSibling(location=t.location, body=syntax.TermList(terms=[], is_placeholder=True))
     return t.fail()
 
 

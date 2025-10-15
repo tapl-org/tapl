@@ -9,59 +9,11 @@ from typing import Any, cast, override
 from tapl_lang.core import syntax, tapl_error
 from tapl_lang.lib import terms2
 
-
-@dataclass
-class ModeTerm(syntax.Term):
-    name: str
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield from ()
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda _: self)
-
-    def __repr__(self) -> str:
-        return self.name
-
-
-MODE_EVALUATE = ModeTerm(name='MODE_EVALUATE')
-MODE_TYPECHECK = ModeTerm(name='MODE_TYPECHECK')
-MODE_SAFE = syntax.Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
-SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
-
-
-# FIXME: Find different names fro typed terms to distinguish from untyped terms
-@dataclass
-class TypedName(syntax.Term):
-    location: syntax.Location
-    id: str  # FIXME: should be identifier
-    ctx: str
-    mode: syntax.Term
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield self.mode
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(
-            lambda layer: TypedName(location=self.location, id=self.id, ctx=self.ctx, mode=layer(self.mode))
-        )
-
-    @override
-    def unfold(self) -> syntax.Term:
-        if self.mode is MODE_EVALUATE:
-            return terms2.Name(location=self.location, id=self.id, ctx=self.ctx)
-        if self.mode is MODE_TYPECHECK:
-            return terms2.Attribute(
-                location=self.location,
-                value=terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
-                attr=self.id,
-                ctx=self.ctx,
-            )
-        raise tapl_error.UnhandledError
+################################################################################
+# Untyped Terms
+#
+# These terms extend the Python AST terms defined above.
+################################################################################
 
 
 @dataclass
@@ -121,6 +73,140 @@ class Path(syntax.Term):
         for i in range(1, len(self.names) - 1):
             value = terms2.Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
         return terms2.Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
+
+
+@dataclass
+class BranchTyping(syntax.Term):
+    location: syntax.Location
+    branches: list[syntax.Term]
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.branches
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda layer: BranchTyping(location=self.location, branches=[layer(b) for b in self.branches]))
+
+    @override
+    def unfold(self) -> syntax.Term:
+        def nested_scope(inner_term: syntax.Term) -> syntax.Term:
+            return syntax.BackendSettingTerm(
+                backend_setting_changer=syntax.BackendSettingChanger(
+                    lambda setting: setting.clone(scope_level=setting.scope_level + 1)
+                ),
+                term=inner_term,
+            )
+
+        def new_scope() -> syntax.Term:
+            return terms2.Assign(
+                location=self.location,
+                targets=[
+                    nested_scope(
+                        terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='store')
+                    )
+                ],
+                value=terms2.Call(
+                    location=self.location,
+                    func=Path(
+                        location=self.location,
+                        names=['api__tapl', 'fork_scope'],
+                        ctx='load',
+                        mode=MODE_TYPECHECK,
+                    ),
+                    args=[terms2.Name(location=self.location, id=lambda setting: setting.forker_name, ctx='load')],
+                    keywords=[],
+                ),
+            )
+
+        body: list[syntax.Term] = []
+        for b in self.branches:
+            body.append(new_scope())
+            body.append(nested_scope(b))
+
+        return terms2.With(
+            location=self.location,
+            items=[
+                terms2.WithItem(
+                    context_expr=terms2.Call(
+                        location=self.location,
+                        func=Path(
+                            location=self.location,
+                            names=['api__tapl', 'scope_forker'],
+                            ctx='load',
+                            mode=MODE_TYPECHECK,
+                        ),
+                        args=[terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load')],
+                        keywords=[],
+                    ),
+                    optional_vars=terms2.Name(
+                        location=self.location, id=lambda setting: setting.forker_name, ctx='store'
+                    ),
+                )
+            ],
+            body=syntax.TermList(terms=body),
+        )
+
+
+################################################################################
+# Typed Terms
+#
+# These terms add a type layer to enable type checking.
+################################################################################
+
+
+@dataclass
+class ModeTerm(syntax.Term):
+    name: str
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from ()
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda _: self)
+
+    def __repr__(self) -> str:
+        return self.name
+
+
+MODE_EVALUATE = ModeTerm(name='MODE_EVALUATE')
+MODE_TYPECHECK = ModeTerm(name='MODE_TYPECHECK')
+MODE_SAFE = syntax.Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
+SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
+
+
+# FIXME: Find different names fro typed terms to distinguish from untyped terms
+@dataclass
+class TypedName(syntax.Term):
+    location: syntax.Location
+    id: str  # FIXME: should be identifier
+    ctx: str
+    mode: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.mode
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: TypedName(location=self.location, id=self.id, ctx=self.ctx, mode=layer(self.mode))
+        )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is MODE_EVALUATE:
+            return terms2.Name(location=self.location, id=self.id, ctx=self.ctx)
+        if self.mode is MODE_TYPECHECK:
+            return terms2.Attribute(
+                location=self.location,
+                value=terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                attr=self.id,
+                ctx=self.ctx,
+            )
+        raise tapl_error.UnhandledError
 
 
 @dataclass
@@ -475,79 +561,6 @@ class TypedFunctionDef(syntax.Term):
 
 
 @dataclass
-class BranchTyping(syntax.Term):
-    location: syntax.Location
-    branches: list[syntax.Term]
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield from self.branches
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: BranchTyping(location=self.location, branches=[layer(b) for b in self.branches]))
-
-    @override
-    def unfold(self) -> syntax.Term:
-        def nested_scope(inner_term: syntax.Term) -> syntax.Term:
-            return syntax.BackendSettingTerm(
-                backend_setting_changer=syntax.BackendSettingChanger(
-                    lambda setting: setting.clone(scope_level=setting.scope_level + 1)
-                ),
-                term=inner_term,
-            )
-
-        def new_scope() -> syntax.Term:
-            return terms2.Assign(
-                location=self.location,
-                targets=[
-                    nested_scope(
-                        terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='store')
-                    )
-                ],
-                value=terms2.Call(
-                    location=self.location,
-                    func=Path(
-                        location=self.location,
-                        names=['api__tapl', 'fork_scope'],
-                        ctx='load',
-                        mode=MODE_TYPECHECK,
-                    ),
-                    args=[terms2.Name(location=self.location, id=lambda setting: setting.forker_name, ctx='load')],
-                    keywords=[],
-                ),
-            )
-
-        body: list[syntax.Term] = []
-        for b in self.branches:
-            body.append(new_scope())
-            body.append(nested_scope(b))
-
-        return terms2.With(
-            location=self.location,
-            items=[
-                terms2.WithItem(
-                    context_expr=terms2.Call(
-                        location=self.location,
-                        func=Path(
-                            location=self.location,
-                            names=['api__tapl', 'scope_forker'],
-                            ctx='load',
-                            mode=MODE_TYPECHECK,
-                        ),
-                        args=[terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load')],
-                        keywords=[],
-                    ),
-                    optional_vars=terms2.Name(
-                        location=self.location, id=lambda setting: setting.forker_name, ctx='store'
-                    ),
-                )
-            ],
-            body=syntax.TermList(terms=body),
-        )
-
-
-@dataclass
 class TypedIf(syntax.Term):
     location: syntax.Location
     test: syntax.Term
@@ -598,7 +611,7 @@ class TypedIf(syntax.Term):
 
 
 @dataclass
-class Else(syntax.SiblingTerm):
+class ElseSibling(syntax.SiblingTerm):
     location: syntax.Location
     body: syntax.Term
 
