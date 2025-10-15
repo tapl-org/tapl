@@ -85,6 +85,22 @@ def generate_stmt(term: syntax.Term, setting: syntax.AstSetting) -> list[ast.stm
         locate(term.location, func_def)
         return [func_def]
 
+    if isinstance(term, untyped_terms.ClassDef):
+        name = term.name(setting) if callable(term.name) else term.name
+        class_def = ast.ClassDef(
+            name=name,
+            bases=[generate_expr(b, setting) for b in term.bases],
+            keywords=[ast.keyword(arg=k, value=generate_expr(v, setting)) for k, v in term.keywords],
+            body=[],
+            decorator_list=[generate_expr(d, setting) for d in term.decorator_list],
+        )
+        locate(term.location, class_def)
+        # FIXME: body should be a list of term??? for improving usability
+        class_def.body = []
+        for t in term.body:
+            class_def.body.extend(generate_stmt(t, setting))
+        return [class_def]
+
     if isinstance(term, untyped_terms.Return):
         return_stmt = ast.Return(generate_expr(term.value, setting)) if term.value else ast.Return()
         locate(term.location, return_stmt)

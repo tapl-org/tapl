@@ -722,9 +722,6 @@ class Pass(syntax.Term):
         return python_backend.generate_stmt(self, setting)
 
 
-# XXX: Implement unfold for this term, then move the todo to the next term #refactor
-
-
 @dataclass
 class ClassDef(syntax.Term):
     location: syntax.Location
@@ -753,17 +750,17 @@ class ClassDef(syntax.Term):
     def _class_name(self) -> str:
         return f'{self.name}_'
 
-    def codegen_evaluate(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        stmt = ast.ClassDef(
+    def codegen_evaluate(self) -> syntax.Term:
+        return untyped_terms.ClassDef(
+            location=self.location,
             name=self._class_name(),
-            bases=[b.codegen_expr(setting) for b in self.bases],
-            body=self.body.codegen_stmt(setting),
+            bases=self.bases,
+            keywords=[],
+            body=[self.body],
             decorator_list=[],
         )
-        self.location.locate(stmt)
-        return [stmt]
 
-    def codegen_typecheck(self, setting: syntax.AstSetting) -> list[ast.stmt]:
+    def codegen_typecheck(self) -> syntax.Term:
         instance_name = self.name
         class_name = self._class_name()
         body = []
@@ -772,21 +769,22 @@ class ClassDef(syntax.Term):
         for item in self.body.children():
             if isinstance(item, FunctionDef):
                 if item.name == '__init__':
-                    constructor_args = [p.codegen_expr(setting) for p in item.parameters[1:]]
+                    constructor_args = item.parameters[1:]
                 else:
                     methods.append(item)
-                body.append(item.codegen_typecheck_main(setting))
+                body.append(item.unfold_typecheck_main())
             else:
-                body.extend(item.codegen_stmt(setting))
-        class_stmt = ast.ClassDef(
+                body.append(item)
+        class_stmt = untyped_terms.ClassDef(
+            location=self.location,
             name=class_name,
-            bases=[b.codegen_expr(setting) for b in self.bases],
+            bases=self.bases,
+            keywords=[],
             body=body,
             decorator_list=[],
         )
-        self.location.locate(class_stmt)
 
-        method_types: list[ast.expr] = []
+        method_types: list[syntax.Term] = []
         for method in methods:
             # The first parameter is the instance itself, so we can set it to the instance type.
             if not (
@@ -797,41 +795,54 @@ class ClassDef(syntax.Term):
                 raise tapl_error.TaplError(
                     f'First parameter of method {method.name} in class {class_name} must be self with no type annotation.'
                 )
-            tail_args = [p.codegen_expr(setting) for p in method.parameters[1:]]
+            tail_args = method.parameters[1:]
             method_types.append(
-                ast.Tuple(
-                    elts=[ast.Constant(value=method.name), ast.List(elts=tail_args, ctx=ast.Load())], ctx=ast.Load()
+                untyped_terms.Tuple(
+                    location=self.location,
+                    elts=[
+                        untyped_terms.Constant(location=self.location, value=method.name),
+                        untyped_terms.List(location=self.location, elts=tail_args, ctx='load'),
+                    ],
+                    ctx='load',
                 )
             )
 
-        create_class = ast.Assign(
+        create_class = untyped_terms.Assign(
+            location=self.location,
             targets=[
-                ast.Tuple(
+                untyped_terms.Tuple(
+                    location=self.location,
                     elts=[
-                        ast_attribute([setting.scope_name, instance_name], ctx=ast.Store()),
-                        ast_attribute([setting.scope_name, class_name], ctx=ast.Store()),
+                        typed_terms.Name(location=self.location, id=instance_name, ctx='store', mode=self.mode),
+                        typed_terms.Name(location=self.location, id=class_name, ctx='store', mode=self.mode),
                     ],
-                    ctx=ast.Store(),
+                    ctx='store',
                 )
             ],
-            value=ast.Call(
-                func=ast_attribute([setting.scope_name, 'api__tapl', 'create_class']),
+            value=untyped_terms.Call(
+                location=self.location,
+                func=typed_terms.Path(
+                    location=self.location, names=['api__tapl', 'create_class'], ctx='load', mode=self.mode
+                ),
                 args=[],
                 keywords=[
-                    ast.keyword(arg='cls', value=ast_name(class_name)),
-                    ast.keyword(arg='init_args', value=ast.List(elts=constructor_args, ctx=ast.Load())),
-                    ast.keyword(arg='methods', value=ast.List(elts=method_types, ctx=ast.Load())),
+                    ('cls', untyped_terms.Name(location=self.location, id=class_name, ctx='load')),
+                    ('init_args', untyped_terms.List(location=self.location, elts=constructor_args, ctx='load')),
+                    ('methods', untyped_terms.List(location=self.location, elts=method_types, ctx='load')),
                 ],
             ),
         )
-        self.location.locate(create_class)
 
-        return [class_stmt, create_class]
+        return syntax.TermList(terms=[class_stmt, create_class])
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is typed_terms.MODE_EVALUATE:
+            return self.codegen_evaluate()
+        if self.mode is typed_terms.MODE_TYPECHECK:
+            return self.codegen_typecheck()
+        raise tapl_error.UnhandledError
 
     @override
     def codegen_stmt(self, setting: syntax.AstSetting) -> list[ast.stmt]:
-        if self.mode is typed_terms.MODE_EVALUATE:
-            return self.codegen_evaluate(setting)
-        if self.mode is typed_terms.MODE_TYPECHECK:
-            return self.codegen_typecheck(setting)
-        raise tapl_error.UnhandledError
+        return python_backend.generate_stmt(self, setting)
