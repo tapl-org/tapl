@@ -262,7 +262,7 @@ class TypedBoolOp(syntax.Term):
 
 
 @dataclass
-class Return(syntax.Term):
+class TypedReturn(syntax.Term):
     location: syntax.Location
     value: syntax.Term
     mode: syntax.Term
@@ -274,7 +274,9 @@ class Return(syntax.Term):
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Return(location=self.location, value=layer(self.value), mode=layer(self.mode)))
+        return ls.build(
+            lambda layer: TypedReturn(location=self.location, value=layer(self.value), mode=layer(self.mode))
+        )
 
     @override
     def unfold(self) -> syntax.Term:
@@ -292,24 +294,6 @@ class Return(syntax.Term):
             )
             return terms2.Expr(location=self.location, value=call)
         raise tapl_error.UnhandledError
-
-
-@dataclass
-class Expr(syntax.Term):
-    location: syntax.Location
-    value: syntax.Term
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield self.value
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Expr(location=self.location, value=layer(self.value)))
-
-    @override
-    def unfold(self):
-        return terms2.Expr(location=self.location, value=self.value)
 
 
 # TODO: Remove Absence, and implement it differently according to ground rules.
@@ -660,7 +644,7 @@ class If(syntax.Term):
         )
 
     def codegen_typecheck(self) -> syntax.Term:
-        true_side = syntax.TermList(terms=[Expr(location=self.location, value=self.test), self.body])
+        true_side = syntax.TermList(terms=[terms2.Expr(location=self.location, value=self.test), self.body])
         false_side = self.orelse if self.orelse is not None else syntax.TermList(terms=[])
         return BranchTyping(location=self.location, branches=[true_side, false_side])
 

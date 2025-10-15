@@ -933,7 +933,7 @@ def _parse_statement__star_expressions(c: Cursor) -> syntax.Term:
             location = value.location
         else:
             location = t.location
-        return terms.Expr(location=location, value=value)
+        return terms2.Expr(location=location, value=value)
     return t.fail()
 
 
@@ -941,8 +941,10 @@ def _parse_return(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'return')):
         if t.validate(value := c.consume_rule(rn.EXPRESSION)):
-            return terms.Return(t.location, value=value, mode=c.context.mode)
-        return t.captured_error or terms.Return(t.location, value=terms.NoneLiteral(t.location), mode=c.context.mode)
+            return terms.TypedReturn(t.location, value=value, mode=c.context.mode)
+        return t.captured_error or terms.TypedReturn(
+            t.location, value=terms.NoneLiteral(t.location), mode=c.context.mode
+        )
     return t.fail()
 
 
