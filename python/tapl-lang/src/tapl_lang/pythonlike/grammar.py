@@ -732,7 +732,7 @@ def _parse_primary__call(c: Cursor) -> syntax.Term:
         and t.validate(args := _scan_arguments(c))
         and t.validate(_expect_punct(c, ')'))
     ):
-        return terms.Call(t.location, func, cast(BlockTerm, args).terms, keywords=[])
+        return terms2.Call(t.location, func, cast(BlockTerm, args).terms, keywords=[])
     return t.fail()
 
 
@@ -858,7 +858,7 @@ def _parse_comparison(c: Cursor) -> syntax.Term:
             ops.append(op)
             comparators.append(comparator)
         if ops:
-            return terms.Compare(t.location, left=left, ops=ops, comparators=comparators)
+            return terms2.Compare(t.location, left=left, ops=ops, comparators=comparators)
     return t.fail()
 
 
@@ -922,7 +922,7 @@ def _parse_assignment(c: Cursor) -> syntax.Term:
         and t.validate(value := _expect_rule(c, rn.ANNOTATED_RHS))
         and not t.validate(_consume_punct(c.clone(), '='))
     ):
-        return terms.Assign(t.location, targets=[name], value=value)
+        return terms2.Assign(t.location, targets=[name], value=value)
     return t.fail()
 
 

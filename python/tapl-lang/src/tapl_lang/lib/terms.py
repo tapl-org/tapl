@@ -262,91 +262,6 @@ class TypedBoolOp(syntax.Term):
 
 
 @dataclass
-class Compare(syntax.Term):
-    location: syntax.Location
-    left: syntax.Term
-    ops: list[str]
-    comparators: list[syntax.Term]
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield self.left
-        yield from self.comparators
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(
-            lambda layer: Compare(
-                location=self.location,
-                left=layer(self.left),
-                ops=self.ops,
-                comparators=[layer(v) for v in self.comparators],
-            )
-        )
-
-    @override
-    def unfold(self) -> syntax.Term:
-        return terms2.Compare(location=self.location, left=self.left, ops=self.ops, comparators=self.comparators)
-
-
-@dataclass
-class Call(syntax.Term):
-    location: syntax.Location
-    func: syntax.Term
-    args: list[syntax.Term]
-    keywords: list[tuple[str, syntax.Term]]
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield self.func
-        yield from self.args
-        yield from (v for _, v in self.keywords)
-
-    @override
-    def separate(self, ls) -> list[syntax.Term]:
-        return ls.build(
-            lambda layer: Call(
-                location=self.location,
-                func=layer(self.func),
-                args=[layer(v) for v in self.args],
-                keywords=[(k, layer(v)) for k, v in self.keywords],
-            )
-        )
-
-    @override
-    def unfold(self) -> syntax.Term:
-        return terms2.Call(location=self.location, func=self.func, args=self.args, keywords=self.keywords)
-
-
-@dataclass
-class Assign(syntax.Term):
-    location: syntax.Location
-    targets: list[syntax.Term]
-    value: syntax.Term
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield from self.targets
-        yield self.value
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(
-            lambda layer: Assign(
-                location=self.location, targets=[layer(t) for t in self.targets], value=layer(self.value)
-            )
-        )
-
-    @override
-    def unfold(self) -> syntax.Term:
-        return terms2.Assign(
-            location=self.location,
-            targets=self.targets,
-            value=self.value,
-        )
-
-
-@dataclass
 class Return(syntax.Term):
     location: syntax.Location
     value: syntax.Term
@@ -498,14 +413,14 @@ class FunctionDef(syntax.Term):
             )
         )
         keywords.extend((name, terms2.Name(location=self.location, id=name, ctx='load')) for name in param_names)
-        new_scope = Assign(
+        new_scope = terms2.Assign(
             location=self.location,
             targets=[
                 nested_scope(
                     terms2.Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
                 )
             ],
-            value=Call(
+            value=terms2.Call(
                 location=self.location,
                 func=Path(location=self.location, names=['api__tapl', 'create_scope'], ctx='load', mode=self.mode),
                 args=[],
@@ -543,10 +458,10 @@ class FunctionDef(syntax.Term):
                 'All parameter type must not be Absence when generating function type in type-check mode.'
             )
 
-        return Assign(
+        return terms2.Assign(
             location=self.location,
             targets=[TypedName(location=self.location, id=self.name, ctx='store', mode=self.mode)],
-            value=Call(
+            value=terms2.Call(
                 location=self.location,
                 func=Path(location=self.location, names=['api__tapl', 'create_function'], ctx='load', mode=self.mode),
                 args=[
@@ -555,7 +470,7 @@ class FunctionDef(syntax.Term):
                         elts=[cast(Parameter, p).type_ for p in self.parameters],
                         ctx='load',
                     ),
-                    Call(
+                    terms2.Call(
                         location=self.location,
                         func=terms2.Name(location=self.location, id=self.name, ctx='load'),
                         args=[cast(Parameter, p).type_ for p in self.parameters],
@@ -659,7 +574,7 @@ class BranchTyping(syntax.Term):
             )
 
         def new_scope() -> syntax.Term:
-            return Assign(
+            return terms2.Assign(
                 location=self.location,
                 targets=[
                     nested_scope(
@@ -688,7 +603,7 @@ class BranchTyping(syntax.Term):
             location=self.location,
             items=[
                 terms2.WithItem(
-                    context_expr=Call(
+                    context_expr=terms2.Call(
                         location=self.location,
                         func=Path(
                             location=self.location,
@@ -889,7 +804,7 @@ class For(syntax.Term):
             args=[],
             keywords=[],
         )
-        assign_target = Assign(
+        assign_target = terms2.Assign(
             location=self.location,
             targets=[self.target],
             value=item_type,
