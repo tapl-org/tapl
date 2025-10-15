@@ -5,7 +5,7 @@
 
 import ast
 
-from tapl_lang.core import syntax
+from tapl_lang.core import syntax, tapl_error
 from tapl_lang.lib import untyped_terms
 
 # Unary 'not' has a dedicated 'BoolNot' term for logical negation
@@ -58,12 +58,15 @@ def generate_ast(term: syntax.Term, setting: syntax.BackendSetting) -> ast.AST:
 
     if (unfolded := term.unfold()) and unfolded is not term:
         return generate_ast(unfolded, setting)
-    # TODO: raise error once refactor complete #refactor
-    return term.codegen_ast(setting)
+    raise tapl_error.TaplError(
+        f'The python_backend does not support AST generation for term: {term.__class__.__name__}'
+    )
 
 
 def generate_stmt(term: syntax.Term, setting: syntax.BackendSetting) -> list[ast.stmt]:
     if isinstance(term, syntax.TermList):
+        if term.is_placeholder:
+            raise tapl_error.TaplError('The placeholder list must be initialized before code generation.')
         stmts: list[ast.stmt] = []
         for t in term.flattened():
             stmts.extend(generate_stmt(t, setting))
@@ -193,7 +196,9 @@ def generate_stmt(term: syntax.Term, setting: syntax.BackendSetting) -> list[ast
 
     if (unfolded := term.unfold()) and unfolded is not term:
         return generate_stmt(unfolded, setting)
-    return term.codegen_stmt(setting)
+    raise tapl_error.TaplError(
+        f'The python_backend does not support statement generation for term: {term.__class__.__name__}'
+    )
 
 
 def generate_expr(term: syntax.Term, setting: syntax.BackendSetting) -> ast.expr:
@@ -275,4 +280,6 @@ def generate_expr(term: syntax.Term, setting: syntax.BackendSetting) -> ast.expr
 
     if (unfolded := term.unfold()) and unfolded is not term:
         return generate_expr(unfolded, setting)
-    return term.codegen_expr(setting)
+    raise tapl_error.TaplError(
+        f'The python_backend does not support expression generation for term: {term.__class__.__name__}'
+    )

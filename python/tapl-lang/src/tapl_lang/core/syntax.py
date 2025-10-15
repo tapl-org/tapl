@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, cast, override
 from tapl_lang.core import tapl_error
 
 if TYPE_CHECKING:
-    import ast
     from collections.abc import Callable, Generator
 
 
@@ -29,21 +28,6 @@ class Term:
         """Unfolds the term if it is a wrapper or syntactic sugar, returning the underlying term.
         If the term is already in its simplest form, it returns itself."""
         return self
-
-    def codegen_ast(self, setting: BackendSetting) -> ast.AST:
-        """Generates the AST representation of this term."""
-        del setting
-        raise tapl_error.TaplError(f'codegen_ast is not implemented in {self.__class__.__name__}')
-
-    def codegen_expr(self, setting: BackendSetting) -> ast.expr:
-        """Generates the expression AST representation of this term."""
-        del setting
-        raise tapl_error.TaplError(f'codegen_expr is not implemented in {self.__class__.__name__}')
-
-    def codegen_stmt(self, setting: BackendSetting) -> list[ast.stmt]:
-        """Generates the statement AST representation of this term."""
-        del setting
-        raise tapl_error.TaplError(f'codegen_stmt is not implemented in {self.__class__.__name__}')
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}()'
@@ -85,18 +69,6 @@ class Layers(Term):
                 f'Mismatched layer lengths, actual_count={actual_count}, expected_count={ls.layer_count}'
             )
         return self.layers
-
-    @override
-    def codegen_ast(self, setting: BackendSetting) -> ast.AST:
-        raise tapl_error.TaplError('Layers should be separated before generating AST code.')
-
-    @override
-    def codegen_expr(self, setting: BackendSetting) -> ast.expr:
-        raise tapl_error.TaplError('Layers should be separated before generating AST code.')
-
-    @override
-    def codegen_stmt(self, setting: BackendSetting) -> list[ast.stmt]:
-        raise tapl_error.TaplError('Layers should be separated before generating AST code.')
 
 
 class LayerSeparator:
@@ -206,15 +178,6 @@ class Location:
         end = repr(self.end) if self.end else '-'
         return f'({start},{end})'
 
-    def locate(self, *nodes: ast.expr | ast.stmt) -> None:
-        for node in nodes:
-            node.lineno = self.start.line
-            node.col_offset = self.start.column
-        if self.end:
-            for node in nodes:
-                node.end_lineno = self.end.line
-                node.end_col_offset = self.end.column
-
 
 @dataclass
 class ErrorTerm(Term):
@@ -256,12 +219,6 @@ class TermList(Term):
         if self.is_placeholder:
             raise tapl_error.TaplError('The placeholder list must be resolved before separation.')
         return ls.build(lambda layer: TermList(terms=[layer(s) for s in self.terms], is_placeholder=False))
-
-    @override
-    def codegen_stmt(self, setting: BackendSetting) -> list[ast.stmt]:
-        if self.is_placeholder:
-            raise tapl_error.TaplError('The placeholder list must be initialized before code generation.')
-        return [s for b in self.terms for s in b.codegen_stmt(setting)]
 
 
 def find_placeholder(term: Term) -> TermList | None:

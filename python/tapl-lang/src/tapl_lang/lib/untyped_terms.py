@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Any, override
 
 from tapl_lang.core import syntax, tapl_error
-from tapl_lang.lib import python_backend
 
 # NOTE: These terms are designed to closely mirror the `ast` module's classes.
 # Keep the order of terms in the file consistent with https://docs.python.org/3/library/ast.html
@@ -322,10 +321,6 @@ class Pass(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda _: Pass(location=self.location))
 
-    @override
-    def codegen_stmt(self, setting: syntax.BackendSetting):
-        return python_backend
-
 
 # EXPRESSIONS
 
@@ -442,11 +437,6 @@ class Constant(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda _: Constant(location=self.location, value=self.value))
-
-    @override
-    def codegen_expr(self, setting: syntax.BackendSetting):
-        # HACK: temporary redirect #refactor
-        return python_backend.generate_expr(self, setting)
 
 
 @dataclass

@@ -2,40 +2,12 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import ast
 from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any, override
 
 from tapl_lang.core import syntax, tapl_error
-from tapl_lang.lib import python_backend, untyped_terms
-
-# TODO: remove these constants once refactor complete #refactor
-# Unary 'not' has a dedicated 'BoolNot' term for logical negation
-UNARY_OP_MAP: dict[str, ast.unaryop] = {'+': ast.UAdd(), '-': ast.USub(), '~': ast.Invert()}
-BIN_OP_MAP: dict[str, ast.operator] = {
-    '+': ast.Add(),
-    '-': ast.Sub(),
-    '*': ast.Mult(),
-    '/': ast.Div(),
-    '//': ast.FloorDiv(),
-    '%': ast.Mod(),
-}
-BOOL_OP_MAP: dict[str, ast.boolop] = {'and': ast.And(), 'or': ast.Or()}
-COMPARE_OP_MAP: dict[str, ast.cmpop] = {
-    '==': ast.Eq(),
-    '!=': ast.NotEq(),
-    '<': ast.Lt(),
-    '<=': ast.LtE(),
-    '>': ast.Gt(),
-    '>=': ast.GtE(),
-    'is': ast.Is(),
-    'is not': ast.IsNot(),
-    'in': ast.In(),
-    'not in': ast.NotIn(),
-}
-# TODO: add class with static fields for the context keys
-EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': ast.Store(), 'delete': ast.Del()}
+from tapl_lang.lib import untyped_terms
 
 
 @dataclass
@@ -87,10 +59,6 @@ class Name(syntax.Term):
             )
         raise tapl_error.UnhandledError
 
-    @override
-    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
-        return python_backend.generate_expr(self, setting)
-
 
 @dataclass
 class Attribute(syntax.Term):
@@ -113,10 +81,6 @@ class Attribute(syntax.Term):
     @override
     def unfold(self) -> syntax.Term:
         return untyped_terms.Attribute(location=self.location, value=self.value, attr=self.attr, ctx=self.ctx)
-
-    @override
-    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
-        return python_backend.generate_expr(self, setting)
 
 
 @dataclass
@@ -254,10 +218,6 @@ class ListIntLiteral(Literal):
     def unfold(self) -> syntax.Term:
         return untyped_terms.List(location=self.location, elts=[], ctx='load')
 
-    @override
-    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
-        return python_backend.generate_expr(self, setting)
-
 
 @dataclass
 class UnaryOp(syntax.Term):
@@ -276,10 +236,6 @@ class UnaryOp(syntax.Term):
     @override
     def unfold(self) -> syntax.Term:
         return untyped_terms.UnaryOp(location=self.location, op=self.op, operand=self.operand)
-
-    @override
-    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
-        return python_backend.generate_expr(self, setting)
 
 
 @dataclass
@@ -307,10 +263,6 @@ class BoolNot(syntax.Term):
             # unary not operator always returns Bool type
             return Name(location=self.location, id='Bool', ctx='load', mode=MODE_TYPECHECK)
         raise tapl_error.UnhandledError
-
-    @override
-    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
-        return python_backend.generate_expr(self, setting)
 
 
 @dataclass
@@ -346,10 +298,6 @@ class BoolOp(syntax.Term):
             )
         raise tapl_error.UnhandledError
 
-    @override
-    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
-        return python_backend.generate_expr(self, setting)
-
 
 @dataclass
 class BinOp(syntax.Term):
@@ -372,10 +320,6 @@ class BinOp(syntax.Term):
     @override
     def unfold(self) -> syntax.Term:
         return untyped_terms.BinOp(location=self.location, left=self.left, op=self.op, right=self.right)
-
-    @override
-    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
-        return python_backend.generate_expr(self, setting)
 
 
 @dataclass
@@ -405,10 +349,6 @@ class Compare(syntax.Term):
     def unfold(self) -> syntax.Term:
         return untyped_terms.Compare(location=self.location, left=self.left, ops=self.ops, comparators=self.comparators)
 
-    @override
-    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
-        return python_backend.generate_expr(self, setting)
-
 
 @dataclass
 class Call(syntax.Term):
@@ -437,7 +377,3 @@ class Call(syntax.Term):
     @override
     def unfold(self) -> syntax.Term:
         return untyped_terms.Call(location=self.location, func=self.func, args=self.args, keywords=self.keywords)
-
-    @override
-    def codegen_expr(self, setting: syntax.BackendSetting) -> ast.expr:
-        return python_backend.generate_expr(self, setting)
