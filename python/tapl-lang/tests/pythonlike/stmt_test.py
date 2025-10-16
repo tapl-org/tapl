@@ -8,15 +8,15 @@ import ast
 from tapl_lang.core import syntax
 from tapl_lang.core.chunker import chunk_text
 from tapl_lang.core.parser import parse_text
-from tapl_lang.lib import proxy, scope, terms
-from tapl_lang.pythonlike import grammar, predef1, stmt
+from tapl_lang.lib import compiler, proxy, python_backend, scope, terms
+from tapl_lang.pythonlike import grammar, predef1
 from tapl_lang.pythonlike.language import PythonlikeLanguage
 
 
 def check_parsed_term(parsed: syntax.Term) -> None:
     if parsed is None:
         raise RuntimeError('Parser returns None.')
-    error_bucket: list[syntax.ErrorTerm] = terms.gather_errors(parsed)
+    error_bucket: list[syntax.ErrorTerm] = compiler.gather_errors(parsed)
     if error_bucket:
         messages = [e.message for e in error_bucket]
         raise SyntaxError('\n\n'.join(messages))
@@ -24,13 +24,14 @@ def check_parsed_term(parsed: syntax.Term) -> None:
 
 def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
     parsed = parse_text(text, grammar.get_grammar(), debug=debug)
-    delayed_statements = syntax.find_delayed_statements(parsed)
-    if delayed_statements is not None:
-        delayed_statements.delayed = False
+    placeholder = syntax.find_placeholder(parsed)
+    if placeholder is not None:
+        placeholder.is_placeholder = False
     check_parsed_term(parsed)
-    safe_term = terms.make_safe_term(parsed)
+    safe_term = compiler.make_safe_term(parsed)
     layers = syntax.LayerSeparator(2).build(lambda layer: layer(safe_term))
-    return [s for layer in layers for s in layer.codegen_stmt(syntax.AstSetting())]
+    ast_generator = python_backend.AstGenerator()
+    return [s for layer in layers for s in ast_generator.generate_stmt(layer, syntax.BackendSetting(scope_level=0))]
 
 
 def run_stmt(stmts: list[ast.stmt]):
@@ -43,13 +44,13 @@ def run_stmt(stmts: list[ast.stmt]):
 def parse_module(text: str) -> list[ast.AST]:
     chunks = chunk_text(text.strip())
     language = PythonlikeLanguage()
-    module = stmt.Module(header=syntax.Statements(terms=[]), body=syntax.Statements(terms=[], delayed=True))
+    module = terms.Module(body=[syntax.TermList(terms=[], is_placeholder=True)])
     language.parse_chunks(chunks, [module])
     check_parsed_term(module)
     ls = syntax.LayerSeparator(2)
-    safe_module = terms.make_safe_term(module)
+    safe_module = compiler.make_safe_term(module)
     layers = ls.build(lambda layer: layer(safe_module))
-    return [layer.codegen_ast(syntax.AstSetting()) for layer in layers]
+    return [python_backend.AstGenerator().generate_ast(layer, syntax.BackendSetting(scope_level=0)) for layer in layers]
 
 
 def test_assign_name():

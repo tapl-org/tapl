@@ -9,14 +9,14 @@ import pytest
 
 from tapl_lang.core import syntax
 from tapl_lang.core.parser import Grammar, parse_text
-from tapl_lang.lib import proxy, scope, terms, typelib
-from tapl_lang.pythonlike import expr, grammar, predef, predef1, rule_names
+from tapl_lang.lib import compiler, proxy, python_backend, scope, terms, typelib
+from tapl_lang.pythonlike import grammar, predef, predef1, rule_names
 
 
 def check_parsed_term(parsed: syntax.Term) -> None:
     if parsed is None:
         raise RuntimeError('Parser returns None.')
-    error_bucket: list[syntax.ErrorTerm] = terms.gather_errors(parsed)
+    error_bucket: list[syntax.ErrorTerm] = compiler.gather_errors(parsed)
     if error_bucket:
         messages = [e.message for e in error_bucket]
         raise SyntaxError('\n\n'.join(messages))
@@ -25,9 +25,11 @@ def check_parsed_term(parsed: syntax.Term) -> None:
 def parse_expr(text: str, *, debug=False) -> list[ast.expr]:
     parsed = parse_text(text, Grammar(grammar.get_grammar().rule_map, rule_names.EXPRESSION), debug=debug)
     check_parsed_term(parsed)
-    safe_term = terms.make_safe_term(parsed)
+    safe_term = compiler.make_safe_term(parsed)
     separated = syntax.LayerSeparator(2).build(lambda layer: layer(safe_term))
-    return [layer.codegen_expr(syntax.AstSetting()) for layer in separated]
+    return [
+        python_backend.AstGenerator().generate_expr(layer, syntax.BackendSetting(scope_level=0)) for layer in separated
+    ]
 
 
 def evaluate(expr: ast.expr, locals_=None):
@@ -186,12 +188,12 @@ def test_var1():
 
 def test_gather_errors():
     location = syntax.Location(start=syntax.Position(line=1, column=0))
-    a = expr.IntegerLiteral(location, 2)
-    b = expr.IntegerLiteral(location, 3)
+    a = terms.IntegerLiteral(location, 2)
+    b = terms.IntegerLiteral(location, 3)
     c = syntax.ErrorTerm('Expected number')
-    d = expr.BinOp(location, b, '*', c)
-    e = expr.BinOp(location, a, '+', d)
-    error_bucket = terms.gather_errors(e)
+    d = terms.BinOp(location, b, '*', c)
+    e = terms.BinOp(location, a, '+', d)
+    error_bucket = compiler.gather_errors(e)
     assert len(error_bucket) == 1
     assert isinstance(error_bucket[0], syntax.ErrorTerm)
     assert error_bucket[0].message == 'Expected number'

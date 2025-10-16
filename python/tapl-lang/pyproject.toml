@@ -51,6 +51,13 @@ quote-style = "single"
 [tool.hatch.version]
 path = "src/tapl_lang/__about__.py"
 
+[tool.hatch.envs.default.scripts]
+full-check = [
+  "hatch run types:check",
+  "hatch fmt",
+  "hatch test",
+]
+
 [tool.hatch.envs.types]
 extra-dependencies = [
   "mypy>=1.0.0",

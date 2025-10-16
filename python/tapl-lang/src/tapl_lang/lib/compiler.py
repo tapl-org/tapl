@@ -6,9 +6,21 @@ import ast
 import re
 
 from tapl_lang.core import chunker, syntax, tapl_error
-from tapl_lang.lib import terms
+from tapl_lang.lib import python_backend, terms
 from tapl_lang.pythonlike import language as python_language
-from tapl_lang.pythonlike import stmt
+
+
+def gather_errors(term: syntax.Term) -> list[syntax.ErrorTerm]:
+    error_bucket: list[syntax.ErrorTerm] = []
+
+    def gather_errors_recursive(t: syntax.Term) -> None:
+        if isinstance(t, syntax.ErrorTerm):
+            error_bucket.append(t)
+        for child in t.children():
+            gather_errors_recursive(child)
+
+    gather_errors_recursive(term)
+    return error_bucket
 
 
 def extract_language(chunk: chunker.Chunk) -> str:
@@ -25,6 +37,18 @@ def extract_language(chunk: chunker.Chunk) -> str:
     return match[0]
 
 
+def make_safe_term(term: syntax.Term) -> syntax.Term:
+    return syntax.BackendSettingTerm(
+        backend_setting_changer=syntax.Layers(
+            layers=[
+                syntax.BackendSettingChanger(changer=lambda _: syntax.BackendSetting(scope_level=0)),
+                syntax.BackendSettingChanger(changer=lambda _: syntax.BackendSetting(scope_level=0)),
+            ]
+        ),
+        term=term,
+    )
+
+
 def compile_tapl(text: str) -> list[ast.AST]:
     chunks = chunker.chunk_text(text)
     language_name = extract_language(chunks[0])
@@ -33,16 +57,14 @@ def compile_tapl(text: str) -> list[ast.AST]:
         raise tapl_error.TaplError('Only pythonlike language is supported now.')
     language = python_language.PythonlikeLanguage()
     predef_headers = language.get_predef_headers()
-    predef_layers = terms.Layers(predef_headers)
-    module = stmt.Module(
-        header=syntax.Statements(terms=[predef_layers]), body=syntax.Statements(terms=[], delayed=True)
-    )
+    predef_layers = syntax.Layers(predef_headers)
+    module = terms.Module(body=[predef_layers, syntax.TermList(terms=[], is_placeholder=True)])
     language.parse_chunks(chunks[1:], [module])
-    error_bucket: list[syntax.ErrorTerm] = terms.gather_errors(module)
+    error_bucket: list[syntax.ErrorTerm] = gather_errors(module)
     if error_bucket:
         messages = [repr(e) for e in error_bucket]
         raise tapl_error.TaplError(f'{len(error_bucket)} parsing error(s) found:\n\n' + '\n\n'.join(messages))
-    safe_module = terms.make_safe_term(module)
+    safe_module = make_safe_term(module)
     ls = syntax.LayerSeparator(len(predef_layers.layers))
     layers = ls.build(lambda layer: layer(safe_module))
-    return [layer.codegen_ast(syntax.AstSetting()) for layer in layers]
+    return [python_backend.AstGenerator().generate_ast(layer, syntax.BackendSetting(scope_level=0)) for layer in layers]

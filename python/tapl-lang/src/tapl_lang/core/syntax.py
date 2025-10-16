@@ -6,13 +6,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, cast, override
 
 from tapl_lang.core import tapl_error
 
 if TYPE_CHECKING:
-    import ast
     from collections.abc import Callable, Generator
 
 
@@ -27,23 +25,9 @@ class Term:
         raise tapl_error.TaplError(f'The {self.__class__.__name__} class does not support separate.')
 
     def unfold(self) -> Term:
-        """Unfolds the term if it is a wrapper term, otherwise returns itself."""
+        """Unfolds the term if it is a wrapper or syntactic sugar, returning the underlying term.
+        If the term is already in its simplest form, it returns itself."""
         return self
-
-    def codegen_ast(self, setting: AstSetting) -> ast.AST:
-        """Generates the AST representation of this term."""
-        del setting
-        raise tapl_error.TaplError(f'codegen_ast is not implemented in {self.__class__.__name__}')
-
-    def codegen_expr(self, setting: AstSetting) -> ast.expr:
-        """Generates the expression AST representation of this term."""
-        del setting
-        raise tapl_error.TaplError(f'codegen_expr is not implemented in {self.__class__.__name__}')
-
-    def codegen_stmt(self, setting: AstSetting) -> list[ast.stmt]:
-        """Generates the statement AST representation of this term."""
-        del setting
-        raise tapl_error.TaplError(f'codegen_stmt is not implemented in {self.__class__.__name__}')
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}()'
@@ -58,6 +42,33 @@ class SiblingTerm(Term):
         """Integrates this term into the given previous siblings."""
         del previous_siblings
         raise tapl_error.TaplError(f'{self.__class__.__name__}.integrate_into is not implemented.')
+
+
+class Layers(Term):
+    def __init__(self, layers: list[Term]) -> None:
+        self.layers = layers
+        self._validate_layer_count()
+
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}({self.layers})'
+
+    def _validate_layer_count(self) -> None:
+        if len(self.layers) <= 1:
+            raise tapl_error.TaplError('Number of layers must be equal or greater than 2.')
+
+    @override
+    def children(self) -> Generator[Term, None, None]:
+        yield from self.layers
+
+    @override
+    def separate(self, ls: LayerSeparator) -> list[Term]:
+        self._validate_layer_count()
+        actual_count = len(self.layers)
+        if actual_count != ls.layer_count:
+            raise tapl_error.TaplError(
+                f'Mismatched layer lengths, actual_count={actual_count}, expected_count={ls.layer_count}'
+            )
+        return self.layers
 
 
 class LayerSeparator:
@@ -77,7 +88,7 @@ class LayerSeparator:
             original_term, layers = memo[memo_index[0]]
             memo_index[0] += 1
             if original_term is not term:
-                raise tapl_error.TaplError('layer function call order is changed.')
+                raise tapl_error.TaplError('LAYER FUNCTION CALL ORDER IS CHANGED.')
             return layers[index]
 
         def create_extract_layer_fn(index: int) -> Callable[[Term], Term]:
@@ -90,48 +101,15 @@ class LayerSeparator:
         return layers
 
 
-class CodeMode(Enum):
-    EVALUATE = 1  # For generating a evaluating code
-    TYPECHECK = 2  # For generating a type-checking code
-
-
-class ScopeMode(Enum):
-    NATIVE = 1  # Variables are handled natively
-    MANUAL = 2  # Variables are managed manually (e.g., in a scope)
-
-
 @dataclass
-class AstSetting:
-    code_mode: CodeMode = CodeMode.EVALUATE
-    scope_mode: ScopeMode = ScopeMode.NATIVE
-    scope_level: int = 0
+class BackendSetting:
+    scope_level: int
 
-    @property
-    def code_evaluate(self) -> bool:
-        return self.code_mode == CodeMode.EVALUATE
-
-    @property
-    def code_typecheck(self) -> bool:
-        return self.code_mode == CodeMode.TYPECHECK
-
-    @property
-    def scope_native(self) -> bool:
-        return self.scope_mode == ScopeMode.NATIVE
-
-    @property
-    def scope_manual(self) -> bool:
-        return self.scope_mode == ScopeMode.MANUAL
-
-    def clone(
-        self, code_mode: CodeMode | None = None, scope_mode: ScopeMode | None = None, scope_level: int | None = None
-    ) -> AstSetting:
-        return AstSetting(
-            code_mode=code_mode or self.code_mode,
-            scope_mode=scope_mode or self.scope_mode,
+    def clone(self, scope_level: int | None = None) -> BackendSetting:
+        return BackendSetting(
             scope_level=scope_level or self.scope_level,
         )
 
-    # TODO: AstSetting is not the right place for scope_name and forker_name function
     @property
     def scope_name(self) -> str:
         return f's{self.scope_level}'
@@ -139,6 +117,45 @@ class AstSetting:
     @property
     def forker_name(self) -> str:
         return f'f{self.scope_level}'
+
+
+@dataclass
+class BackendSettingChanger(Term):
+    changer: Callable[[BackendSetting], BackendSetting]
+
+    @override
+    def children(self) -> Generator[Term, None, None]:
+        yield from ()
+
+    @override
+    def separate(self, ls: LayerSeparator) -> list[Term]:
+        return ls.build(lambda _: BackendSettingChanger(changer=self.changer))
+
+
+@dataclass
+class BackendSettingTerm(Term):
+    backend_setting_changer: Term
+    term: Term
+
+    @override
+    def children(self) -> Generator[Term, None, None]:
+        yield self.backend_setting_changer
+        yield self.term
+
+    @override
+    def separate(self, ls: LayerSeparator) -> list[Term]:
+        return ls.build(
+            lambda layer: BackendSettingTerm(
+                backend_setting_changer=layer(self.backend_setting_changer), term=layer(self.term)
+            )
+        )
+
+    def new_setting(self, setting: BackendSetting) -> BackendSetting:
+        if not isinstance(self.backend_setting_changer, BackendSettingChanger):
+            raise tapl_error.TaplError(
+                f'Expected setting to be an instance of {BackendSettingChanger.__name__}, got {type(self.backend_setting_changer).__name__}'
+            )
+        return cast(BackendSettingChanger, self.backend_setting_changer).changer(setting)
 
 
 @dataclass
@@ -160,15 +177,6 @@ class Location:
         end = repr(self.end) if self.end else '-'
         return f'({start},{end})'
 
-    def locate(self, *nodes: ast.expr | ast.stmt) -> None:
-        for node in nodes:
-            node.lineno = self.start.line
-            node.col_offset = self.start.column
-        if self.end:
-            for node in nodes:
-                node.end_lineno = self.end.line
-                node.end_col_offset = self.end.column
-
 
 @dataclass
 class ErrorTerm(Term):
@@ -189,40 +197,41 @@ class ErrorTerm(Term):
 
 
 @dataclass
-class Statements(Term):
+class TermList(Term):
     terms: list[Term]
-    # Indicates a delayed statements, useful when its initialization depends on child chunk parsing.
-    delayed: bool = False
+    # True if the statement is a placeholder requiring resolution (e.g., waiting for child chunk parsing).
+    is_placeholder: bool = False
 
     @override
     def children(self) -> Generator[Term, None, None]:
         yield from self.terms
 
+    def flattened(self) -> Generator[Term, None, None]:
+        for term in self.terms:
+            if isinstance(term, TermList):
+                yield from term.flattened()
+            else:
+                yield term
+
     @override
     def separate(self, ls: LayerSeparator) -> list[Term]:
-        if self.delayed:
-            raise tapl_error.TaplError('Delayed statements must be initialized before separation.')
-        return ls.build(lambda layer: Statements(terms=[layer(s) for s in self.terms], delayed=False))
-
-    @override
-    def codegen_stmt(self, setting: AstSetting) -> list[ast.stmt]:
-        if self.delayed:
-            raise tapl_error.TaplError('Delayed statements must be initialized before code generation.')
-        return [s for b in self.terms for s in b.codegen_stmt(setting)]
+        if self.is_placeholder:
+            raise tapl_error.TaplError('The placeholder list must be resolved before separation.')
+        return ls.build(lambda layer: TermList(terms=[layer(s) for s in self.terms], is_placeholder=False))
 
 
-def find_delayed_statements(term: Term) -> Statements | None:
-    delayed_statements: Statements | None = None
+def find_placeholder(term: Term) -> TermList | None:
+    placeholder: TermList | None = None
 
     def loop(t: Term) -> None:
-        nonlocal delayed_statements
-        if isinstance(t, Statements) and t.delayed:
-            if delayed_statements is None:
-                delayed_statements = t
+        nonlocal placeholder
+        if isinstance(t, TermList) and t.is_placeholder:
+            if placeholder is None:
+                placeholder = t
             else:
-                raise tapl_error.TaplError('Multiple delayed statements found.')
+                raise tapl_error.TaplError('Multiple placeholders found.')
         for child in t.children():
             loop(child)
 
     loop(term)
-    return delayed_statements
+    return placeholder
