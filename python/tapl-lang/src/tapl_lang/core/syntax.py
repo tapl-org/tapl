@@ -33,6 +33,23 @@ class Term:
         return f'{self.__class__.__name__}()'
 
 
+class _EmptyTerm(Term):
+    @override
+    def children(self) -> Generator[Term, None, None]:
+        yield from ()
+
+    @override
+    def separate(self, ls):
+        return ls.build(lambda _: self)
+
+    @override
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}()'
+
+
+Empty = _EmptyTerm()
+
+
 class SiblingTerm(Term):
     """Represents a term that is a sibling to other terms.
     Example: An else statement must be integrated into the preceding sibling if statement.

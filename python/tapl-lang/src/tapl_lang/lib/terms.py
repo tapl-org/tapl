@@ -877,17 +877,7 @@ class TypedReturn(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-# TODO: Remove Absence, and implement it differently according to ground rules.
-@dataclass
-class Absence(syntax.Term):
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield from ()
-
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda _: Absence())
-
-
+# TODO: Add Parameters type to represent list of parameters which support posonly and kwonly args
 @dataclass
 class Parameter(syntax.Term):
     location: syntax.Location
@@ -942,8 +932,8 @@ class TypedFunctionDef(syntax.Term):
         )
 
     def unfold_evaluate(self) -> syntax.Term:
-        if not all(isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
-            raise tapl_error.TaplError('All parameter type must be Absence when generating function in evaluate mode.')
+        if not all(cast(Parameter, p).type_ is syntax.Empty for p in self.parameters):
+            raise tapl_error.TaplError('All parameter type must be Empty when generating function in evaluate mode.')
 
         return FunctionDef(
             location=self.location,
@@ -1018,9 +1008,9 @@ class TypedFunctionDef(syntax.Term):
         )
 
     def unfold_typecheck_type(self) -> syntax.Term:
-        if not all(not isinstance(cast(Parameter, p).type_, Absence) for p in self.parameters):
+        if not all(cast(Parameter, p).type_ is not syntax.Empty for p in self.parameters):
             raise tapl_error.TaplError(
-                'All parameter type must not be Absence when generating function type in type-check mode.'
+                'All parameter type must not be Empty when generating function type in type-check mode.'
             )
 
         return Assign(
@@ -1325,7 +1315,7 @@ class TypedClassDef(syntax.Term):
             if not (
                 len(method.parameters) >= 1
                 and isinstance(method.parameters[0], Parameter)
-                and isinstance(method.parameters[0].type_, Absence)
+                and method.parameters[0].type_ is syntax.Empty
             ):
                 raise tapl_error.TaplError(
                     f'First parameter of method {method.name} in class {class_name} must be self with no type annotation.'

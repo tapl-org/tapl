@@ -957,7 +957,7 @@ def _rule_parameter_with_type(c: Cursor) -> syntax.Term:
             c.copy_position_from(k)
             param_name = cast(_TokenName, name).value
             return terms.Parameter(
-                t.location, name=param_name, type_=syntax.Layers([terms.Absence(), param_type]), mode=c.context.mode
+                t.location, name=param_name, type_=syntax.Layers([syntax.Empty, param_type]), mode=c.context.mode
             )
     return t.fail()
 
@@ -967,7 +967,7 @@ def _rule_parameter_no_type(c: Cursor) -> syntax.Term:
     if t.validate(name := _consume_name(c)):
         param_name = cast(_TokenName, name).value
         return terms.Parameter(
-            t.location, name=param_name, type_=syntax.Layers([terms.Absence(), terms.Absence()]), mode=c.context.mode
+            t.location, name=param_name, type_=syntax.Layers([syntax.Empty, syntax.Empty]), mode=c.context.mode
         )
     return t.fail()
 
