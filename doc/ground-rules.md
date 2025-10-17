@@ -65,34 +65,34 @@ $h\ h$           | $\ s\ h\ \mid\ p\ s\ \mid\ p\ p$                             
 
 $I:= \lambda x. x$
 
-$C:= \lambda f.\lambda g. \lambda x.g\ (f\ x)$
+$B:= \lambda f.\lambda g. \lambda x.f\ (g\ x)$
 
-$E_a:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }a\text{ else }error$
+$G_a:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }a\text{ else }error$
 
-$E_b:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }b\text{ else }error$
+$G_b:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }b\text{ else }error$
 
 #### Simply Typed Lambda-Calculus (STL) Correspondence
 STL: $\lambda x{:}T.t$
 
-TAPL: $C\ (I{:}(E_a\ T))\ (\lambda x.t)$
+TAPL: $B\ (\lambda x.t)\ (I{:}(G_a\ T))$
 
 #### Polymorphic lambda-calculus (System F) Correspondence
 System F: $id = \lambda X. \lambda x{:}X. x$
 
-TAPL: $id = \lambda X. C\ I{:}(E_a\ X)\ (\lambda x. x) $
+TAPL: $id = \lambda X. B\ (\lambda x. x)\ (I{:}(G_a\ X))$
 
 #### Substructural type Correspondence
 
 STL: $\lambda x{:}T.t$
 
-TAPL: $C\ (I{:}(E_b\ T))\ (\lambda x.t)$
+TAPL: $B\ (\lambda x.t)\ (I{:}(G_b\ T))$
 
 #### Dependent type Correspondence
 
 $T_D:= \lambda x. t_d$
 
-$E_D:= \lambda a.\lambda b. \lambda x. E_{a\mid b\mid D}\ (a\ x)\ (b\ x)$
+$G_D:= \lambda a.\lambda b. \lambda x. G_{a\mid b\mid D}\ (a\ x)\ (b\ x)$
 
 Dependent type: $\lambda x{:}T_D.t$
 
-TAPL: $C\ (I{:}(E_D\ T_D))\ (\lambda x.t)$
+TAPL: $B\ (\lambda x.t)\ (I{:}(G_D\ T_D))$
