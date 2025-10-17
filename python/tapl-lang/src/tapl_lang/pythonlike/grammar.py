@@ -1017,7 +1017,7 @@ def _parse_if_stmt(c: Cursor) -> syntax.Term:
             location=t.location,
             test=test,
             body=syntax.TermList(terms=[], is_placeholder=True),
-            orelse=None,
+            orelse=syntax.Empty,
             mode=c.context.mode,
         )
     return t.fail()
@@ -1041,7 +1041,7 @@ def _parse_while_stmt(c: Cursor) -> syntax.Term:
             location=t.location,
             test=test,
             body=syntax.TermList(terms=[], is_placeholder=True),
-            orelse=None,
+            orelse=syntax.Empty,
             mode=c.context.mode,
         )
     return t.fail()
@@ -1061,7 +1061,7 @@ def _parse_for_stmt(c: Cursor) -> syntax.Term:
             target=target,
             iter=iter_,
             body=syntax.TermList(terms=[], is_placeholder=True),
-            orelse=None,
+            orelse=syntax.Empty,
             mode=c.context.mode,
         )
     return t.fail()

@@ -95,6 +95,9 @@ class AstGenerator:
                 stmts.extend(self.generate_stmt(t, setting))
             return stmts
 
+        if term is syntax.Empty:
+            return []
+
         if isinstance(term, terms.FunctionDef):
             name = term.name(setting) if callable(term.name) else term.name
             func_def = ast.FunctionDef(

@@ -1050,15 +1050,14 @@ class TypedIf(syntax.Term):
     location: syntax.Location
     test: syntax.Term
     body: syntax.Term
-    orelse: syntax.Term | None  # FIXME: Make non none
+    orelse: syntax.Term
     mode: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.test
         yield self.body
-        if self.orelse is not None:
-            yield self.orelse
+        yield self.orelse
         yield self.mode
 
     @override
@@ -1068,7 +1067,7 @@ class TypedIf(syntax.Term):
                 location=self.location,
                 test=layer(self.test),
                 body=layer(self.body),
-                orelse=layer(self.orelse) if self.orelse is not None else None,
+                orelse=layer(self.orelse),
                 mode=layer(self.mode),
             )
         )
@@ -1078,13 +1077,12 @@ class TypedIf(syntax.Term):
             location=self.location,
             test=self.test,
             body=self.body,
-            orelse=self.orelse if self.orelse is not None else syntax.TermList(terms=[]),
+            orelse=self.orelse,
         )
 
     def codegen_typecheck(self) -> syntax.Term:
         true_side = syntax.TermList(terms=[Expr(location=self.location, value=self.test), self.body])
-        false_side = self.orelse if self.orelse is not None else syntax.TermList(terms=[])
-        return BranchTyping(location=self.location, branches=[true_side, false_side])
+        return BranchTyping(location=self.location, branches=[true_side, self.orelse])
 
     @override
     def unfold(self) -> syntax.Term:
@@ -1112,7 +1110,7 @@ class ElseSibling(syntax.SiblingTerm):
         if not isinstance(term, TypedIf):
             error = syntax.ErrorTerm('Else can only be integrated into If.' + repr(term), location=self.location)
             previous_siblings.append(error)
-        elif term.orelse is not None:
+        elif term.orelse is not syntax.Empty:
             error = syntax.ErrorTerm('An If statement can only have one Else clause.', location=self.location)
             previous_siblings.append(error)
         else:
@@ -1124,15 +1122,14 @@ class TypedWhile(syntax.Term):
     location: syntax.Location
     test: syntax.Term
     body: syntax.Term
-    orelse: syntax.Term | None  # FIXME: Make non none
+    orelse: syntax.Term
     mode: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.test
         yield self.body
-        if self.orelse is not None:
-            yield self.orelse
+        yield self.orelse
         yield self.mode
 
     @override
@@ -1142,7 +1139,7 @@ class TypedWhile(syntax.Term):
                 location=self.location,
                 test=layer(self.test),
                 body=layer(self.body),
-                orelse=layer(self.orelse) if self.orelse is not None else None,
+                orelse=layer(self.orelse),
                 mode=layer(self.mode),
             )
         )
@@ -1152,7 +1149,7 @@ class TypedWhile(syntax.Term):
             location=self.location,
             test=self.test,
             body=self.body,
-            orelse=self.orelse if self.orelse is not None else syntax.TermList(terms=[]),
+            orelse=self.orelse,
         )
 
     def codegen_typecheck(self) -> syntax.Term:
@@ -1179,7 +1176,7 @@ class TypedFor(syntax.Term):
     target: syntax.Term
     iter: syntax.Term
     body: syntax.Term
-    orelse: syntax.Term | None  # FIXME: Make non none
+    orelse: syntax.Term
     mode: syntax.Term
 
     @override
@@ -1187,8 +1184,7 @@ class TypedFor(syntax.Term):
         yield self.target
         yield self.iter
         yield self.body
-        if self.orelse is not None:
-            yield self.orelse
+        yield self.orelse
         yield self.mode
 
     @override
@@ -1199,7 +1195,7 @@ class TypedFor(syntax.Term):
                 target=layer(self.target),
                 iter=layer(self.iter),
                 body=layer(self.body),
-                orelse=layer(self.orelse) if self.orelse is not None else None,
+                orelse=layer(self.orelse),
                 mode=layer(self.mode),
             )
         )
@@ -1210,7 +1206,7 @@ class TypedFor(syntax.Term):
             target=self.target,
             iter=self.iter,
             body=self.body,
-            orelse=self.orelse if self.orelse is not None else syntax.TermList(terms=[]),
+            orelse=self.orelse,
         )
 
     def codegen_typecheck(self) -> syntax.Term:
@@ -1232,10 +1228,9 @@ class TypedFor(syntax.Term):
             value=item_type,
         )
         for_branch = syntax.TermList(terms=[assign_target, self.body])
-        else_branch = self.orelse if self.orelse is not None else syntax.TermList(terms=[])
         return BranchTyping(
             location=self.location,
-            branches=[for_branch, else_branch],
+            branches=[for_branch, self.orelse],
         )
 
     @override
