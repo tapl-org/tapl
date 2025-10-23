@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
+TODO: This module doc is outdated, update it. Maybe write a separate explanation in doc folder.
 Type system has mainly six types: Atom, Labeled, Union, Intersection, Function, and Recursive.
 
 Atom type is the most basic type, most primitive type.
@@ -224,6 +225,8 @@ class Function(proxy.Subject):
     def __init__(self, parameters, result=None, lazy_result=None):
         if lazy_result is not None and result is not None:
             raise ValueError('Pass either the result or lazy_result argument, but not both.')
+        # TODO: Parameters must be Intersection type of Labeled types. In addition,
+        # Labeled type's name may be omitted for positional parameters.
         self._parameters = _process_parameters(parameters)
         self._result = result
         self._lazy_result = lazy_result

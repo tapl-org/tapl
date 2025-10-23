@@ -7,10 +7,10 @@ import pytest
 from tapl_lang.core import tapl_error
 from tapl_lang.lib import builtin_types, proxy, typelib
 
-_any = builtin_types.Types['Any']
-_bool = builtin_types.Types['Bool']
-_int = builtin_types.Types['Int']
-_float = builtin_types.Types['Float']
+_any = builtin_types.Any
+_bool = builtin_types.Bool
+_int = builtin_types.Int
+_float = builtin_types.Float
 
 
 def test_bool_subtype_of_itself():
