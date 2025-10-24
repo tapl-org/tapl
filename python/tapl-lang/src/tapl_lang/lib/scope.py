@@ -24,10 +24,6 @@ class Scope(proxy.Subject):
         # TODO: move returns into fields
         self.returns: list[Any] = []
 
-    @property
-    def kind(self):
-        return typelib.Kind.Scope
-
     def can_be_used_as(self, target: proxy.Subject) -> bool:
         if self is target:
             return True

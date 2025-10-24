@@ -40,44 +40,22 @@ The following does not use Python type hints intentionally.
 4. Variables with underscore suffix mean the type is unwrapped from Proxy.
 """
 
-import enum
-
 from tapl_lang.core import tapl_error
 from tapl_lang.lib import proxy
 
 
-class Kind(enum.Enum):
-    Interim = 'Interim'
-    Any = 'Any'  # Top type except NoneType (like Kotlin)
-    Nothing = 'Nothing'  # Bottom type
-    NoneType = 'NoneType'  # Singleton/Unit/Void type
-    Labeled = 'Labeled'
-    Union = 'Union'
-    Intersection = 'Intersection'
-    Function = 'Function'
-    Scope = 'Scope'
-
-
 class Interim(proxy.Subject):
-    @property
-    def kind(self):
-        return Kind.Interim
-
     def __repr__(self):
         return 'InterimType'
 
 
 class NoneType(proxy.Subject):
-    @property
-    def kind(self):
-        return Kind.NoneType
-
     def can_be_used_as(self, target):
         if self is target:
             return True
-        if target.kind == Kind.NoneType:
+        if isinstance(target, NoneType):
             return True
-        if target.kind == Kind.Union:
+        if isinstance(target, Union):
             return any(self.can_be_used_as(e.subject__tapl) for e in target)
         return False
 
@@ -86,17 +64,13 @@ class NoneType(proxy.Subject):
 
 
 class Any(proxy.Subject):
-    @property
-    def kind(self):
-        return Kind.Any
-
     # XXX: change to is_subtype_of and is_supertype_of methods
     def can_be_used_as(self, target):
         if self is target:
             return True
-        if target.kind == Kind.Any:
+        if isinstance(target, Any):
             return True
-        if target.kind == Kind.Union:
+        if isinstance(target, Union):
             return any(self.can_be_used_as(e.subject__tapl) for e in target)
         return False
 
@@ -105,10 +79,6 @@ class Any(proxy.Subject):
 
 
 class Nothing(proxy.Subject):
-    @property
-    def kind(self):
-        return Kind.Nothing
-
     def can_be_used_as(self, target):
         del target
         # Can be used as anything
@@ -126,18 +96,14 @@ class Labeled(proxy.Subject):
         self._label = label
         self._type = typ
 
-    @property
-    def kind(self):
-        return Kind.Labeled
-
     def can_be_used_as(self, target):
         if self is target:
             return True
-        if target.kind == Kind.Any:
+        if isinstance(target, Any):
             return True
-        if target.kind == Kind.Labeled:
+        if isinstance(target, Labeled):
             return self.label == target.label and self.type.subject__tapl.can_be_used_as(target.type.subject__tapl)
-        if target.kind in (Kind.Union, Kind.Intersection):
+        if isinstance(target, Intersection | Union):
             return any(self.can_be_used_as(e.subject__tapl) for e in target)
         return False
 
@@ -162,17 +128,13 @@ class Union(proxy.Subject):
         self._types = types
         self._title = title
 
-    @property
-    def kind(self):
-        return Kind.Union
-
     def __iter__(self):
         yield from self._types
 
     def can_be_used_as(self, target):
         if self is target:
             return True
-        if target.kind == Kind.Union:
+        if isinstance(target, Union):
             return all(any(can_be_used_as(se, te) for te in target) for se in self)
         return False
 
@@ -188,24 +150,20 @@ class Intersection(proxy.Subject):
         self._types = types
         self._title = title
 
-    @property
-    def kind(self):
-        return Kind.Intersection
-
     def __iter__(self):
         yield from self._types
 
     def can_be_used_as(self, target):
         if self is target:
             return True
-        if target.kind == Kind.Any:
+        if isinstance(target, Any):
             return True
-        if target.kind == Kind.Union:
+        if isinstance(target, Union):
             return any(self.can_be_used_as(e.subject__tapl) for e in target)
-        if target.kind == Kind.Intersection:
+        if isinstance(target, Intersection):
             for te_ in target:
                 te = te_.subject__tapl
-                if te.kind == Kind.Labeled:
+                if isinstance(te, Labeled):
                     se = self._find_labeled(te.label)
                     if se is None or not se.can_be_used_as(te.type.subject__tapl):
                         return False
@@ -218,7 +176,7 @@ class Intersection(proxy.Subject):
     def _find_labeled(self, label):
         for t_ in self:
             t = t_.subject__tapl
-            if t.kind == Kind.Labeled and t.label == label:
+            if isinstance(t, Labeled) and t.label == label:
                 return t
         return None
 
@@ -245,10 +203,6 @@ class Function(proxy.Subject):
         self._lazy_result = lazy_result
 
     @property
-    def kind(self):
-        return Kind.Function
-
-    @property
     def parameters(self):
         yield from self._parameters
 
@@ -265,7 +219,7 @@ class Function(proxy.Subject):
     def can_be_used_as(self, target):
         if self is target:
             return True
-        if target.kind != Kind.Function:
+        if not isinstance(target, Function):
             return False
         for self_param, target_param in zip(self.parameters, target.parameters, strict=True):
             if not can_be_used_as(self_param, target_param):
@@ -274,7 +228,7 @@ class Function(proxy.Subject):
 
     def fix_labels(self, arguments):
         for i in range(len(arguments)):
-            if arguments[i].subject__tapl.kind == Kind.Labeled:
+            if isinstance(arguments[i].subject__tapl, Labeled):
                 break
             arguments[i] = proxy.Proxy(Labeled(self._parameters[i].subject__tapl.label, arguments[i]))
         return arguments
@@ -307,7 +261,7 @@ def _process_parameters(parameters):
     labeled_parameter_seen = False
     for i in range(len(params)):
         p = params[i].subject__tapl
-        if p.kind == Kind.Labeled:
+        if isinstance(p, Labeled):
             labeled_parameter_seen = True
         elif labeled_parameter_seen:
             raise tapl_error.TaplError('Positional parameter follows labeled parameter.')
@@ -325,7 +279,7 @@ def _validate_types(types):
         if not isinstance(t_, proxy.Proxy):
             raise TypeError(f'Type must be a Proxy, but found {type(t_)}')
         t = t_.subject__tapl
-        if t.kind == Kind.Labeled:
+        if isinstance(t, Labeled):
             if t.label in seen_labels:
                 raise ValueError(f'Duplicate label found: {t.label}')
             seen_labels.add(t.label)
@@ -379,7 +333,7 @@ def create_union(*args):
     for arg in args:
         # Union of unions are flattened
         subject = arg.subject__tapl
-        if subject.kind == Kind.Union:
+        if isinstance(subject, Union):
             result.extend(subject)  # consume as iterable
         else:
             result.append(arg)

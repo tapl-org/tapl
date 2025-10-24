@@ -76,7 +76,7 @@ def create_class(
     object.__setattr__(class_type_proxy, proxy.SUBJECT_FIELD_NAME, class_type)
     for labeled_proxy in labeleds:
         member = labeled_proxy.subject__tapl.type.subject__tapl
-        if member.kind == typelib.Kind.Function:
+        if isinstance(member, typelib.Function):
             member.force()
 
     factory = typelib.Function(parameters=init_args, result=class_type_proxy)
