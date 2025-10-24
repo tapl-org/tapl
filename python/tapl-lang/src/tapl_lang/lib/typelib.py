@@ -32,7 +32,12 @@ Variable with underscore suffix means the type is wrapped with Proxy
 The following does not use Python type hints intentionally.
 
 1. Types are considered as immutable values.
-2.
+2. Inspired by Kotlin type hierarchy:
+   - Any: Top type except NoneType
+   - Nothing: Bottom type
+   - NoneType: Singleton/Unit/Void type
+3. is_subtype_of and is_supertype_of methods return None when the relationship cannot be determined.
+4. Variables with underscore suffix mean the type is unwrapped from Proxy.
 """
 
 import enum
@@ -59,7 +64,7 @@ class Interim(proxy.Subject):
         return Kind.Interim
 
     def __repr__(self):
-        return 'Interim'
+        return 'InterimType'
 
 
 class NoneType(proxy.Subject):
@@ -112,6 +117,7 @@ class Nothing(proxy.Subject):
     def __repr__(self):
         return 'Nothing'
 
+
 # XXX: change to Tuple and Record types.
 class Labeled(proxy.Subject):
     def __init__(self, label, typ):
@@ -144,7 +150,8 @@ class Labeled(proxy.Subject):
         return self._type
 
     def __repr__(self):
-        return f'{self._label}={self._type}'
+        return f'{self._label}:{self._type}'
+
 
 # TODO: implement '|' operator for Union and '&' operator for Intersection
 # e.g., T1 | T2, T1 & T2
@@ -323,22 +330,27 @@ def _validate_types(types):
                 raise ValueError(f'Duplicate label found: {t.label}')
             seen_labels.add(t.label)
 
-# XXX: implement this and find better name.
+
 # return False when both methods cannot determine the relationship.
-def check_relationship(A, B):
-    # Try the subtype check first
-    result = A.is_subtype_of(B)
-    
-    # Only if the first call returned None, delegate to the other method.
+def check_subtype_(subtype_, supertype_):
+    if subtype_ is supertype_:
+        return True
+    # Try the supertype check first, as the supertype has more responsibility for the function call's contract than the subtype.
+    result = supertype_.is_supertype_of(subtype_)
+    # Only if the supertype call returned None, delegate to the subtype method.
     if result is None:
-        result = B.is_supertype_of(A)
-        
-    # Crucial: If the second check also returns None, we must assume False (or raise an error)
-    # to prevent an infinite loop of 'None' returns between two types that don't know each other.
+        result = subtype_.is_subtype_of(supertype_)
+    # return False when both methods cannot determine the relationship.
     if result is None:
         return False
-        
     return result
+
+
+def check_subtype(subtype, supertype):
+    if subtype is supertype:
+        return True
+    return check_subtype_(subtype.subject__tapl, supertype.subject__tapl)
+
 
 def can_be_used_as(source, target):
     if source is target:
