@@ -30,6 +30,9 @@ Source.can_be_used_as(Target) checks if Source can be used as Target. This retur
 Variable with underscore suffix means the type is wrapped with Proxy
 
 The following does not use Python type hints intentionally.
+
+1. Types are considered as immutable values.
+2.
 """
 
 import enum
@@ -82,6 +85,7 @@ class Any(proxy.Subject):
     def kind(self):
         return Kind.Any
 
+    # XXX: change to is_subtype_of and is_supertype_of methods
     def can_be_used_as(self, target):
         if self is target:
             return True
@@ -108,7 +112,7 @@ class Nothing(proxy.Subject):
     def __repr__(self):
         return 'Nothing'
 
-
+# XXX: change to Tuple and Record types.
 class Labeled(proxy.Subject):
     def __init__(self, label, typ):
         if not isinstance(typ, proxy.Proxy):
@@ -142,7 +146,9 @@ class Labeled(proxy.Subject):
     def __repr__(self):
         return f'{self._label}={self._type}'
 
-
+# TODO: implement '|' operator for Union and '&' operator for Intersection
+# e.g., T1 | T2, T1 & T2
+# Exception for binary-operator methods in Python; not intended for direct use.
 class Union(proxy.Subject):
     def __init__(self, types, title=None):
         _validate_types(types)
@@ -317,6 +323,22 @@ def _validate_types(types):
                 raise ValueError(f'Duplicate label found: {t.label}')
             seen_labels.add(t.label)
 
+# XXX: implement this and find better name.
+# return False when both methods cannot determine the relationship.
+def check_relationship(A, B):
+    # Try the subtype check first
+    result = A.is_subtype_of(B)
+    
+    # Only if the first call returned None, delegate to the other method.
+    if result is None:
+        result = B.is_supertype_of(A)
+        
+    # Crucial: If the second check also returns None, we must assume False (or raise an error)
+    # to prevent an infinite loop of 'None' returns between two types that don't know each other.
+    if result is None:
+        return False
+        
+    return result
 
 def can_be_used_as(source, target):
     if source is target:
