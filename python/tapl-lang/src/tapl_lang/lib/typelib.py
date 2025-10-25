@@ -31,13 +31,13 @@ Variable with underscore suffix means the type is wrapped with Proxy
 
 The following does not use Python type hints intentionally.
 
-1. Types are considered as immutable values.
+1. Types are considered immutable.
 2. Inspired by Kotlin type hierarchy:
-   - Any: Top type except NoneType
-   - Nothing: Bottom type
-   - NoneType: Singleton/Unit/Void type
-3. is_subtype_of and is_supertype_of methods return None when the relationship cannot be determined.
-4. Variables with underscore suffix mean the type is unwrapped from Proxy.
+   - Any: the top type, excluding NoneType
+   - Nothing: the bottom type
+   - NoneType: The singleton, unit, or void type.
+3. The methods is_subtype_of and is_supertype_of return None when the type relationship can't be determined.
+4. Variables suffixed with an underscore denote a type instance not wrapped by a Proxy.
 """
 
 from tapl_lang.core import tapl_error
@@ -50,13 +50,16 @@ class Interim(proxy.Subject):
 
 
 class NoneType(proxy.Subject):
-    def can_be_used_as(self, target):
-        if self is target:
+    def is_supertype_of(self, subtype):
+        del subtype  # unused
+
+    def is_subtype_of(self, supertype):
+        if self is supertype:
             return True
-        if isinstance(target, NoneType):
+        if isinstance(supertype, NoneType):
             return True
-        if isinstance(target, Union):
-            return any(self.can_be_used_as(e.subject__tapl) for e in target)
+        if isinstance(supertype, Union):
+            return any(self.is_subtype_of(e.subject__tapl) for e in supertype)
         return False
 
     def __repr__(self):
@@ -64,14 +67,16 @@ class NoneType(proxy.Subject):
 
 
 class Any(proxy.Subject):
-    # XXX: change to is_subtype_of and is_supertype_of methods
-    def can_be_used_as(self, target):
-        if self is target:
+    def is_supertype_of(self, subtype):
+        del subtype  # unused
+
+    def is_subtype_of(self, supertype):
+        if self is supertype:
             return True
-        if isinstance(target, Any):
+        if isinstance(supertype, Any):
             return True
-        if isinstance(target, Union):
-            return any(self.can_be_used_as(e.subject__tapl) for e in target)
+        if isinstance(supertype, Union):
+            return any(self.is_subtype_of(e.subject__tapl) for e in supertype)
         return False
 
     def __repr__(self):
@@ -79,9 +84,11 @@ class Any(proxy.Subject):
 
 
 class Nothing(proxy.Subject):
-    def can_be_used_as(self, target):
-        del target
-        # Can be used as anything
+    def is_supertype_of(self, subtype):
+        del subtype  # unused
+
+    def is_subtype_of(self, supertype):
+        del supertype  # unused
         return True
 
     def __repr__(self):
@@ -96,15 +103,18 @@ class Labeled(proxy.Subject):
         self._label = label
         self._type = typ
 
-    def can_be_used_as(self, target):
-        if self is target:
+    def is_supertype_of(self, subtype):
+        del subtype  # unused
+
+    def is_subtype_of(self, supertype):
+        if self is supertype:
             return True
-        if isinstance(target, Any):
+        if isinstance(supertype, Any):
             return True
-        if isinstance(target, Labeled):
-            return self.label == target.label and self.type.subject__tapl.can_be_used_as(target.type.subject__tapl)
-        if isinstance(target, Intersection | Union):
-            return any(self.can_be_used_as(e.subject__tapl) for e in target)
+        if isinstance(supertype, Labeled):
+            return self.label == supertype.label and self.type.subject__tapl.is_subtype_of(supertype.type.subject__tapl)
+        if isinstance(supertype, Intersection | Union):
+            return any(self.is_subtype_of(e.subject__tapl) for e in supertype)
         return False
 
     @property
@@ -131,11 +141,14 @@ class Union(proxy.Subject):
     def __iter__(self):
         yield from self._types
 
-    def can_be_used_as(self, target):
-        if self is target:
+    def is_supertype_of(self, subtype):
+        del subtype  # unused
+
+    def is_subtype_of(self, supertype):
+        if self is supertype:
             return True
-        if isinstance(target, Union):
-            return all(any(can_be_used_as(se, te) for te in target) for se in self)
+        if isinstance(supertype, Union):
+            return all(any(check_subtype(se, te) for te in supertype) for se in self)
         return False
 
     def __repr__(self):
@@ -153,23 +166,26 @@ class Intersection(proxy.Subject):
     def __iter__(self):
         yield from self._types
 
-    def can_be_used_as(self, target):
-        if self is target:
+    def is_supertype_of(self, subtype):
+        del subtype  # unused
+
+    def is_subtype_of(self, supertype):
+        if self is supertype:
             return True
-        if isinstance(target, Any):
+        if isinstance(supertype, Any):
             return True
-        if isinstance(target, Union):
-            return any(self.can_be_used_as(e.subject__tapl) for e in target)
-        if isinstance(target, Intersection):
-            for te_ in target:
+        if isinstance(supertype, Union):
+            return any(self.is_subtype_of(e.subject__tapl) for e in supertype)
+        if isinstance(supertype, Intersection):
+            for te_ in supertype:
                 te = te_.subject__tapl
                 if isinstance(te, Labeled):
                     se = self._find_labeled(te.label)
-                    if se is None or not se.can_be_used_as(te.type.subject__tapl):
+                    if se is None or not se.is_subtype_of(te.type.subject__tapl):
                         return False
                 else:
                     raise tapl_error.TaplError(
-                        f'Unsupported: Intersection type contains non-Labeled type self={self} target={target}.'
+                        f'Unsupported: Intersection type contains non-Labeled type self={self} supertype={supertype}.'
                     )
         return False
 
@@ -216,15 +232,18 @@ class Function(proxy.Subject):
             self._result = self._lazy_result()
             self._lazy_result = None
 
-    def can_be_used_as(self, target):
-        if self is target:
+    def is_supertype_of(self, subtype):
+        del subtype  # unused
+
+    def is_subtype_of(self, supertype):
+        if self is supertype:
             return True
-        if not isinstance(target, Function):
+        if not isinstance(supertype, Function):
             return False
-        for self_param, target_param in zip(self.parameters, target.parameters, strict=True):
-            if not can_be_used_as(self_param, target_param):
+        for self_param, target_param in zip(self.parameters, supertype.parameters, strict=True):
+            if not check_subtype(self_param, target_param):
                 return False
-        return can_be_used_as(self.result, target.result)
+        return check_subtype(self.result, supertype.result)
 
     def fix_labels(self, arguments):
         for i in range(len(arguments)):
@@ -239,7 +258,7 @@ class Function(proxy.Subject):
             raise TypeError(f'Expected {len(self._parameters)} arguments, got {len(args)}')
         args = self.fix_labels(args)
         for p, a in zip(self.parameters, args, strict=True):
-            if not can_be_used_as(a, p):
+            if not check_subtype(a, p):
                 raise TypeError(f'Not equal: parameters={self.parameters} arguments={args}')
         return self.result
 
@@ -306,14 +325,8 @@ def check_subtype(subtype, supertype):
     return check_subtype_(subtype.subject__tapl, supertype.subject__tapl)
 
 
-def can_be_used_as(source, target):
-    if source is target:
-        return True
-    return source.subject__tapl.can_be_used_as(target.subject__tapl)
-
-
 def is_equal(a, b):
-    return can_be_used_as(a, b) and can_be_used_as(b, a)
+    return check_subtype(a, b) and check_subtype(b, a)
 
 
 def drop_same_types(types):

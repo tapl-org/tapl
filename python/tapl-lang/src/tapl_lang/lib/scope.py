@@ -48,7 +48,7 @@ class Scope(proxy.Subject):
             self.fields[name] = Slot(value)
             return
         # TODO: convert this to strategy pattern
-        if not typelib.can_be_used_as(value, slot.value):
+        if not typelib.check_subtype(value, slot.value):
             raise TypeError(f'Variable {name} already exists with a different type. Old: {slot.value}, new: {value}')
 
     def store_many(self, fields: dict[str, Any]) -> None:

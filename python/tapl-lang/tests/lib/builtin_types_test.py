@@ -14,15 +14,15 @@ _float = builtin_types.Float
 
 
 def test_bool_subtype_of_itself():
-    assert typelib.can_be_used_as(_bool, _bool)
+    assert typelib.check_subtype(_bool, _bool)
 
 
 def test_bool_subtype_of_any():
-    assert typelib.can_be_used_as(_bool, _any)
+    assert typelib.check_subtype(_bool, _any)
 
 
 def test_any_subtype_of_bool():
-    assert not typelib.can_be_used_as(_any, _bool)
+    assert not typelib.check_subtype(_any, _bool)
 
 
 def test_create_union():
