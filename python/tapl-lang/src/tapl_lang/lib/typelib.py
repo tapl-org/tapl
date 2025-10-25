@@ -33,9 +33,9 @@ The following does not use Python type hints intentionally.
 
 1. Types are considered immutable.
 2. Inspired by Kotlin type hierarchy:
+   - NoneType: The singleton, unit, or void type.
    - Any: the top type, excluding NoneType
    - Nothing: the bottom type
-   - NoneType: The singleton, unit, or void type.
 3. The methods is_subtype_of and is_supertype_of return None when the type relationship can't be determined.
 4. Variables suffixed with an underscore denote a type instance not wrapped by a Proxy.
 """
@@ -50,16 +50,16 @@ class Interim(proxy.Subject):
 
 
 class NoneType(proxy.Subject):
-    def is_supertype_of(self, subtype):
-        del subtype  # unused
+    def is_supertype_of(self, subtype_):
+        del subtype_  # unused
 
-    def is_subtype_of(self, supertype):
-        if self is supertype:
+    def is_subtype_of(self, supertype_):
+        if self is supertype_:
             return True
-        if isinstance(supertype, NoneType):
+        if isinstance(supertype_, NoneType):
             return True
-        if isinstance(supertype, Union):
-            return any(self.is_subtype_of(e.subject__tapl) for e in supertype)
+        if isinstance(supertype_, Union):
+            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
         return False
 
     def __repr__(self):
@@ -67,16 +67,16 @@ class NoneType(proxy.Subject):
 
 
 class Any(proxy.Subject):
-    def is_supertype_of(self, subtype):
-        del subtype  # unused
+    def is_supertype_of(self, subtype_):
+        del subtype_  # unused
 
-    def is_subtype_of(self, supertype):
-        if self is supertype:
+    def is_subtype_of(self, supertype_):
+        if self is supertype_:
             return True
-        if isinstance(supertype, Any):
+        if isinstance(supertype_, Any):
             return True
-        if isinstance(supertype, Union):
-            return any(self.is_subtype_of(e.subject__tapl) for e in supertype)
+        if isinstance(supertype_, Union):
+            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
         return False
 
     def __repr__(self):
@@ -84,11 +84,11 @@ class Any(proxy.Subject):
 
 
 class Nothing(proxy.Subject):
-    def is_supertype_of(self, subtype):
-        del subtype  # unused
+    def is_supertype_of(self, subtype_):
+        del subtype_  # unused
 
-    def is_subtype_of(self, supertype):
-        del supertype  # unused
+    def is_subtype_of(self, supertype_):
+        del supertype_  # unused
         return True
 
     def __repr__(self):
@@ -103,18 +103,20 @@ class Labeled(proxy.Subject):
         self._label = label
         self._type = typ
 
-    def is_supertype_of(self, subtype):
-        del subtype  # unused
+    def is_supertype_of(self, subtype_):
+        del subtype_  # unused
 
-    def is_subtype_of(self, supertype):
-        if self is supertype:
+    def is_subtype_of(self, supertype_):
+        if self is supertype_:
             return True
-        if isinstance(supertype, Any):
+        if isinstance(supertype_, Any):
             return True
-        if isinstance(supertype, Labeled):
-            return self.label == supertype.label and self.type.subject__tapl.is_subtype_of(supertype.type.subject__tapl)
-        if isinstance(supertype, Intersection | Union):
-            return any(self.is_subtype_of(e.subject__tapl) for e in supertype)
+        if isinstance(supertype_, Labeled):
+            return self.label == supertype_.label and self.type.subject__tapl.is_subtype_of(
+                supertype_.type.subject__tapl
+            )
+        if isinstance(supertype_, Intersection | Union):
+            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
         return False
 
     @property
@@ -141,14 +143,14 @@ class Union(proxy.Subject):
     def __iter__(self):
         yield from self._types
 
-    def is_supertype_of(self, subtype):
-        del subtype  # unused
+    def is_supertype_of(self, subtype_):
+        del subtype_  # unused
 
-    def is_subtype_of(self, supertype):
-        if self is supertype:
+    def is_subtype_of(self, supertype_):
+        if self is supertype_:
             return True
-        if isinstance(supertype, Union):
-            return all(any(check_subtype(se, te) for te in supertype) for se in self)
+        if isinstance(supertype_, Union):
+            return all(any(check_subtype(se, te) for te in supertype_) for se in self)
         return False
 
     def __repr__(self):
@@ -166,18 +168,18 @@ class Intersection(proxy.Subject):
     def __iter__(self):
         yield from self._types
 
-    def is_supertype_of(self, subtype):
-        del subtype  # unused
+    def is_supertype_of(self, subtype_):
+        del subtype_  # unused
 
-    def is_subtype_of(self, supertype):
-        if self is supertype:
+    def is_subtype_of(self, supertype_):
+        if self is supertype_:
             return True
-        if isinstance(supertype, Any):
+        if isinstance(supertype_, Any):
             return True
-        if isinstance(supertype, Union):
-            return any(self.is_subtype_of(e.subject__tapl) for e in supertype)
-        if isinstance(supertype, Intersection):
-            for te_ in supertype:
+        if isinstance(supertype_, Union):
+            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
+        if isinstance(supertype_, Intersection):
+            for te_ in supertype_:
                 te = te_.subject__tapl
                 if isinstance(te, Labeled):
                     se = self._find_labeled(te.label)
@@ -185,7 +187,7 @@ class Intersection(proxy.Subject):
                         return False
                 else:
                     raise tapl_error.TaplError(
-                        f'Unsupported: Intersection type contains non-Labeled type self={self} supertype={supertype}.'
+                        f'Unsupported: Intersection type contains non-Labeled type self={self} supertype={supertype_}.'
                     )
         return False
 
@@ -232,18 +234,18 @@ class Function(proxy.Subject):
             self._result = self._lazy_result()
             self._lazy_result = None
 
-    def is_supertype_of(self, subtype):
-        del subtype  # unused
+    def is_supertype_of(self, subtype_):
+        del subtype_  # unused
 
-    def is_subtype_of(self, supertype):
-        if self is supertype:
+    def is_subtype_of(self, supertype_):
+        if self is supertype_:
             return True
-        if not isinstance(supertype, Function):
+        if not isinstance(supertype_, Function):
             return False
-        for self_param, target_param in zip(self.parameters, supertype.parameters, strict=True):
+        for self_param, target_param in zip(self.parameters, supertype_.parameters, strict=True):
             if not check_subtype(self_param, target_param):
                 return False
-        return check_subtype(self.result, supertype.result)
+        return check_subtype(self.result, supertype_.result)
 
     def fix_labels(self, arguments):
         for i in range(len(arguments)):
