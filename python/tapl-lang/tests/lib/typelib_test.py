@@ -3,24 +3,64 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-from tapl_lang.lib import typelib
+from tapl_lang.lib import proxy, typelib
 
-NoneType = typelib.NoneType()
-Any = typelib.Any()
-Nothing = typelib.Nothing()
+
+class Atom(proxy.Subject):
+    def __init__(self, title: str):
+        self._title = title
+
+    def is_supertype_of(self, subtype_):
+        if self is subtype_:
+            return True
+        return None
+
+    def is_subtype_of(self, supertype_):
+        if self is supertype_:
+            return True
+        return None
+
+    def __repr__(self):
+        return self._title
+
+
+NoneType_ = typelib.NoneType()
+Any_ = typelib.Any()
+Nothing_ = typelib.Nothing()
+
+Alpha_ = Atom('Alpha')
+Alpha = proxy.Proxy(Alpha_)
+Beta_ = Atom('Beta')
+Beta = proxy.Proxy(Beta_)
 
 
 def test_none_type():
-    assert typelib.check_subtype_(NoneType, NoneType)
-    assert not typelib.check_subtype_(NoneType, Any)
-    assert not typelib.check_subtype_(Any, NoneType)
-    assert not typelib.check_subtype_(Nothing, NoneType)
-    assert not typelib.check_subtype_(NoneType, Nothing)
+    assert typelib.check_subtype_(NoneType_, NoneType_)
+    assert not typelib.check_subtype_(NoneType_, Any_)
+    assert not typelib.check_subtype_(Any_, NoneType_)
+    assert not typelib.check_subtype_(Nothing_, NoneType_)
+    assert not typelib.check_subtype_(NoneType_, Nothing_)
+    assert not typelib.check_subtype_(Alpha_, NoneType_)
+    assert not typelib.check_subtype_(NoneType_, Alpha_)
 
 
-def test_any_and_nothing():
-    assert typelib.check_subtype_(Nothing, Any)
-    assert not typelib.check_subtype_(Any, Nothing)
+def test_any():
+    assert typelib.check_subtype_(Nothing_, Any_)
+    assert not typelib.check_subtype_(Any_, Nothing_)
+    assert typelib.check_subtype_(Alpha_, Any_)
+    assert not typelib.check_subtype_(Any_, Alpha_)
+
+
+def test_nothing():
+    assert typelib.check_subtype_(Nothing_, Nothing_)
+    assert Nothing_.is_subtype_of(Alpha_) is True
+    assert Alpha_.is_supertype_of(Nothing_) is None
+    assert typelib.check_subtype_(Nothing_, Alpha_)
+    assert not typelib.check_subtype_(Alpha_, Nothing_)
+
+
+def test_union():
+    pass
 
 
 # def test_record():

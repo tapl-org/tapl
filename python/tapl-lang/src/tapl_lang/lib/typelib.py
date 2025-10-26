@@ -168,14 +168,13 @@ class Union(proxy.Subject):
         self._title = title
 
     def is_supertype_of(self, subtype_):
-        del subtype_  # unused
+        for typ in self._types:
+            if check_subtype_(subtype_, typ.subject__tapl):
+                return True
+        return None
 
     def is_subtype_of(self, supertype_):
-        if self is supertype_:
-            return True
-        if isinstance(supertype_, Union):
-            return all(any(check_subtype(se, te) for te in supertype_) for se in self)
-        return False
+        return all(check_subtype_(typ.subject__tapl, supertype_) for typ in self._types)
 
     def __iter__(self):
         yield from self._types
