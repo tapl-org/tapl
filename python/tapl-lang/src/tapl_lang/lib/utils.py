@@ -54,15 +54,21 @@ def create_class(
         def create_lazy_result(name, types):
             return lambda: getattr(cls, name)(*(class_type_proxy, *types))
 
-        method = typelib.Function(parameters=param_types, lazy_result=create_lazy_result(method_name, param_types))
+        method = typelib.Function(
+            posonlyargs=[], args=param_types, lazy_result=create_lazy_result(method_name, param_types)
+        )
         self_parent.store(method_name, proxy.Proxy(method))
     self_current = scope.Scope(parent=self_parent)
     cls.__init__(*[proxy.Proxy(self_current), *init_args])
     labeleds = [
         proxy.Proxy(
-            typelib.Labeled('__repr__', proxy.Proxy(typelib.Function(parameters=[], result=builtin_types.Str)))
+            typelib.Labeled(
+                '__repr__', proxy.Proxy(typelib.Function(posonlyargs=[], args=[], result=builtin_types.Str))
+            )
         ),
-        proxy.Proxy(typelib.Labeled('__str__', proxy.Proxy(typelib.Function(parameters=[], result=builtin_types.Str)))),
+        proxy.Proxy(
+            typelib.Labeled('__str__', proxy.Proxy(typelib.Function(posonlyargs=[], args=[], result=builtin_types.Str)))
+        ),
     ]
     for label in itertools.chain(self_parent.fields.keys(), self_current.fields.keys()):
         member = self_current.load(label)
@@ -79,7 +85,7 @@ def create_class(
         if isinstance(member, typelib.Function):
             member.force()
 
-    factory = typelib.Function(parameters=init_args, result=class_type_proxy)
+    factory = typelib.Function(posonlyargs=init_args, args=[], result=class_type_proxy)
     return class_type_proxy, proxy.Proxy(factory)
 
 

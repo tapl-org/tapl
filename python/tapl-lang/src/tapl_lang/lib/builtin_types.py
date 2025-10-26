@@ -15,6 +15,21 @@ def _fix_type(param):
     raise TypeError(f'Unexpected parameter type: {type(param)}')
 
 
+def _split_args(params):
+    posonlyargs = []
+    args = []
+    tuple_found = False
+    for p in params:
+        if isinstance(p, tuple):
+            tuple_found = True
+            args.append((p[0], _fix_type(p[1])))
+        elif not tuple_found:
+            posonlyargs.append(_fix_type(p))
+        else:
+            raise ValueError('Positional-only arguments must come before regular arguments')
+    return posonlyargs, args
+
+
 def _init_record(type_name, methods):
     """Initialize a new type with the given name and methods.
     type_name: The name of the type.
@@ -23,9 +38,8 @@ def _init_record(type_name, methods):
     """
     fields = {}
     for name, (params, result) in methods.items():
-        for i in range(len(params)):
-            params[i] = _fix_type(params[i])
-        func = typelib.Function(parameters=params, result=_fix_type(result))
+        posonlyargs, args = _split_args(params)
+        func = typelib.Function(posonlyargs=posonlyargs, args=args, result=_fix_type(result))
         fields[name] = proxy.Proxy(func)
     record = typelib.Record(fields=fields, title=type_name)
     object.__setattr__(Types[type_name], proxy.SUBJECT_FIELD_NAME, record)

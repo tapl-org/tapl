@@ -2,16 +2,17 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from tapl_lang.lib import builtin_types, typelib
+from tapl_lang.lib import builtin_types as bt
+from tapl_lang.lib import typelib
 
 functions = {
     'print': (
         print,
-        typelib.create_function(parameters=[builtin_types.Any], result=builtin_types.NoneType),
+        typelib.create_function([bt.Any], bt.NoneType),
     ),
     'range': (
         range,
-        typelib.create_function(parameters=[builtin_types.Int], result=[builtin_types.Int]),
+        typelib.create_function([bt.Int], [bt.Int]),
     ),
 }
 

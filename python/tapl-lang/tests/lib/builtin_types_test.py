@@ -4,7 +4,6 @@
 
 import pytest
 
-from tapl_lang.core import tapl_error
 from tapl_lang.lib import builtin_types, proxy, typelib
 
 _any = builtin_types.Any
@@ -43,17 +42,18 @@ def test_create_union():
 
 
 def test_function_parameters_invariants():
-    with pytest.raises(tapl_error.TaplError, match='Function parameters must be a list.'):
-        typelib.Function(parameters=_any, result=_bool)
-    with pytest.raises(tapl_error.TaplError, match='Positional parameter follows labeled parameter.'):
+    with pytest.raises(TypeError, match='Function posonlyargs must be a list.'):
+        typelib.Function(posonlyargs=_any, args=[], result=_bool)
+    with pytest.raises(ValueError, match='Function args must be a list of \\(name, type\\) pairs.'):
         typelib.Function(
-            parameters=[proxy.Proxy(typelib.Labeled('x', _any)), _bool],
+            posonlyargs=[],
+            args=[('x', _any), _bool],
             result=_bool,
         )
 
 
 def test_lazy_function_result():
-    func = typelib.Function(parameters=[_int], lazy_result=lambda: _bool)
+    func = typelib.Function(posonlyargs=[_int], args=[], lazy_result=lambda: _bool)
     assert func.result is _bool
 
 
