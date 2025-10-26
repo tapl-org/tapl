@@ -122,11 +122,16 @@ def test_none_type():
     assert not check_subtype_(NoneType_, Alpha_)
 
 
-# def test_record():
-#     record_a = typelib.Record(fields={'x': Any, 'y': Any})
-#     record_b = typelib.Record(fields={'x': Any})
-#     record_c = typelib.Record(fields={'x': Any, 'y': typelib.Float})
+def test_record():
+    ab = typelib.Record(fields={'a': Alpha, 'b': Beta})
+    g = typelib.Record(fields={'g': Gamma})
+    abg = typelib.Record(fields={'a': Alpha, 'b': Beta, 'g': Gamma})
 
-#     assert typelib.check_subtype_(record_a, record_b)
-#     assert not typelib.check_subtype_(record_b, record_a)
-#     assert not typelib.check_subtype_(record_a, record_c)
+    assert check_subtype_(ab, Any_)
+    assert check_subtype_(Nothing_, ab)
+    assert not check_subtype_(ab, NoneType_)
+    assert not check_subtype_(NoneType_, ab)
+    assert not check_subtype_(ab, abg)
+    assert check_subtype_(abg, ab)
+    assert not check_subtype_(ab, g)
+    assert not check_subtype_(g, ab)

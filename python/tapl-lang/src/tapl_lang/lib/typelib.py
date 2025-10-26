@@ -100,6 +100,7 @@ def drop_same_types(types):
     return result
 
 
+# Used in Builtin Types to resolve circular dependency
 class Interim(proxy.Subject):
     def is_supertype_of(self, subtype_):
         del subtype_  # unused
@@ -237,7 +238,7 @@ class Record(proxy.Subject):
         self._title = title
 
     def is_supertype_of(self, subtype_):
-        if isinstance(subtype_, NoneType):
+        if isinstance(subtype_, Nothing):
             return True
         # Inconclusive, example: {a: Alpha, b: Beta} <: {a: Alpha}
         return None
@@ -246,11 +247,10 @@ class Record(proxy.Subject):
         if isinstance(supertype_, Any):
             return True
         if isinstance(supertype_, Record):
-            for label, super_field_type in supertype_:
+            for label, super_field_type in supertype_._fields.items():
                 if label not in self._fields:
                     return False
-                subtype_field_type = self._fields[label]
-                if not check_subtype(subtype_field_type, super_field_type):
+                if not check_subtype(self._fields[label], super_field_type):
                     return False
             return True
         # Inconclusive, example: {a: Alpha, b: Beta} <: (Any | NoneType)
