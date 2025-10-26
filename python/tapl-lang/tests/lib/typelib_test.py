@@ -14,10 +14,14 @@ class Atom(proxy.Subject):
     def is_supertype_of(self, subtype_):
         if self is subtype_:
             return True
+        if isinstance(subtype_, typelib.Nothing):
+            return True
         return None
 
     def is_subtype_of(self, supertype_):
         if self is supertype_:
+            return True
+        if isinstance(supertype_, typelib.Any):
             return True
         return None
 
@@ -36,35 +40,6 @@ Beta_ = Atom('Beta')
 Beta = proxy.Proxy(Beta_)
 Gamma_ = Atom('Gamma')
 Gamma = proxy.Proxy(Gamma_)
-
-
-def test_none_type():
-    assert check_subtype_(NoneType_, typelib.NoneType())
-    assert check_subtype_(typelib.NoneType(), NoneType_)
-    assert not check_subtype_(NoneType_, Any_)
-    assert not check_subtype_(Any_, NoneType_)
-    assert not check_subtype_(Nothing_, NoneType_)
-    assert not check_subtype_(NoneType_, Nothing_)
-    assert not check_subtype_(Alpha_, NoneType_)
-    assert not check_subtype_(NoneType_, Alpha_)
-
-
-def test_any():
-    assert check_subtype_(Any_, typelib.Any())
-    assert check_subtype_(typelib.Any(), Any_)
-    assert check_subtype_(Nothing_, Any_)
-    assert not check_subtype_(Any_, Nothing_)
-    assert check_subtype_(Alpha_, Any_)
-    assert not check_subtype_(Any_, Alpha_)
-
-
-def test_nothing():
-    assert check_subtype_(Nothing_, typelib.Nothing())
-    assert check_subtype_(typelib.Nothing(), Nothing_)
-    assert Nothing_.is_subtype_of(Alpha_) is True
-    assert Alpha_.is_supertype_of(Nothing_) is None
-    assert check_subtype_(Nothing_, Alpha_)
-    assert not check_subtype_(Alpha_, Nothing_)
 
 
 def test_union():
@@ -96,11 +71,47 @@ def test_union_to_union():
 def test_intersection():
     alpha_and_beta_ = typelib.Intersection([Alpha, Beta])
     assert str(alpha_and_beta_) == 'Alpha & Beta'
-    # assert check_subtype_(alpha_and_beta_, Alpha_)
-    # assert check_subtype_(alpha_and_beta_, Beta_)
-    # assert check_subtype_(alpha_and_beta_, Any_)
-    # assert check_subtype_(Nothing_, alpha_and_beta_)
-    # assert not check_subtype_(NoneType_, alpha_and_beta_)
+    assert check_subtype_(alpha_and_beta_, Alpha_)
+    assert check_subtype_(alpha_and_beta_, Beta_)
+    assert check_subtype_(alpha_and_beta_, Any_)
+    assert check_subtype_(Nothing_, alpha_and_beta_)
+    assert not check_subtype_(NoneType_, alpha_and_beta_)
+
+
+def test_intersection_with_none():
+    alpha_and_none_ = typelib.Intersection([Alpha, NoneType])
+    assert str(alpha_and_none_) == 'Alpha & None'
+    assert check_subtype_(alpha_and_none_, Alpha_)
+    assert check_subtype_(alpha_and_none_, NoneType_)
+    assert check_subtype_(alpha_and_none_, Any_)
+    assert not check_subtype_(Nothing_, alpha_and_none_)
+
+
+def test_any():
+    assert check_subtype_(Any_, typelib.Any())
+    assert check_subtype_(typelib.Any(), Any_)
+    assert check_subtype_(Nothing_, Any_)
+    assert not check_subtype_(Any_, Nothing_)
+    assert check_subtype_(Alpha_, Any_)
+    assert not check_subtype_(Any_, Alpha_)
+
+
+def test_nothing():
+    assert check_subtype_(Nothing_, typelib.Nothing())
+    assert check_subtype_(typelib.Nothing(), Nothing_)
+    assert check_subtype_(Nothing_, Alpha_)
+    assert not check_subtype_(Alpha_, Nothing_)
+
+
+def test_none_type():
+    assert check_subtype_(NoneType_, typelib.NoneType())
+    assert check_subtype_(typelib.NoneType(), NoneType_)
+    assert not check_subtype_(NoneType_, Any_)
+    assert not check_subtype_(Any_, NoneType_)
+    assert not check_subtype_(Nothing_, NoneType_)
+    assert not check_subtype_(NoneType_, Nothing_)
+    assert not check_subtype_(Alpha_, NoneType_)
+    assert not check_subtype_(NoneType_, Alpha_)
 
 
 # def test_record():

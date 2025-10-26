@@ -113,54 +113,10 @@ class Interim(proxy.Subject):
         return 'InterimType'
 
 
-class NoneType(proxy.Subject):
-    def is_supertype_of(self, subtype_):
-        return isinstance(subtype_, NoneType)
-
-    def is_subtype_of(self, supertype_):
-        if isinstance(supertype_, NoneType):
-            return True
-        # Inspired by Kotlin type system - https://stackoverflow.com/a/54762815/22663977
-        if isinstance(supertype_, Any):
-            return False
-        # Example: NoneType can be subtype of Union(NoneType | T). Let Union handle it.
-        return None
-
-    def __repr__(self):
-        return 'None'
-
-
-class Any(proxy.Subject):
-    def is_supertype_of(self, subtype_):
-        del subtype_  # unused
-        return True
-
-    def is_subtype_of(self, supertype_):
-        if isinstance(supertype_, Any):
-            return True
-        return None
-
-    def __repr__(self):
-        return 'Any'
-
-
-class Nothing(proxy.Subject):
-    def is_supertype_of(self, subtype_):
-        # Nothing is supertype of nothing except itself
-        return isinstance(subtype_, Nothing)
-
-    def is_subtype_of(self, supertype_):
-        del supertype_  # unused
-        # Nothing is subtype of all types including itself
-        return True
-
-    def __repr__(self):
-        return 'Nothing'
-
-
 # TODO: implement '|' operator for Union and '&' operator for Intersection
 # e.g., T1 | T2, T1 & T2
 # Exception for binary-operator methods in Python; not intended for direct use.
+# Example: alpha <: (alpha | beta) or beta <: (alpha | beta)
 class Union(proxy.Subject):
     def __init__(self, types, title=None):
         if len(types) <= 1:
@@ -169,13 +125,15 @@ class Union(proxy.Subject):
         self._title = title
 
     def is_supertype_of(self, subtype_):
-        # Return True if any of the constituent types is a supertype of subtype_, otherwise inconclusive
+        # Example: alpha <: (alpha | beta)
         if any(check_subtype_(subtype_, typ.subject__tapl) for typ in self._types):
             return True
+        # Inconclusive when subtype_ is itself a Union.
+        # Example: (alpha | beta) <: (alpha | beta | gamma)
         return None
 
     def is_subtype_of(self, supertype_):
-        # Return True if all of the constituent types are subtypes of supertype_, otherwise False
+        # Example: (alpha | beta) <: (alpha | beta | gamma)
         return all(check_subtype_(typ.subject__tapl, supertype_) for typ in self._types)
 
     def __repr__(self):
@@ -187,6 +145,7 @@ class Union(proxy.Subject):
         yield from self._types
 
 
+# Example: alpha & beta <: alpha or alpha & beta <: beta
 class Intersection(proxy.Subject):
     def __init__(self, types, title=None):
         if len(types) <= 1:
@@ -195,10 +154,16 @@ class Intersection(proxy.Subject):
         self._title = title
 
     def is_supertype_of(self, subtype_):
+        # Example: (alpha & beta & gamma) <: (alpha & beta)
         return all(check_subtype_(subtype_, typ.subject__tapl) for typ in self._types)
 
     def is_subtype_of(self, supertype_):
-        return self is supertype_
+        # Example: (alpha & beta) <: alpha
+        if any(check_subtype_(typ.subject__tapl, supertype_) for typ in self._types):
+            return True
+        # Inconclusive when supertype_ is itself an Intersection.
+        # Example: (alpha & beta & gamma) <: (alpha & beta)
+        return None
 
     def __repr__(self):
         if self._title is not None:
@@ -209,13 +174,72 @@ class Intersection(proxy.Subject):
         yield from self._types
 
 
+# Top type
+class Any(proxy.Subject):
+    def is_supertype_of(self, subtype_):
+        if isinstance(subtype_, Any):
+            return True
+        # Inconclusive, let subtype decide
+        return None
+
+    def is_subtype_of(self, supertype_):
+        if isinstance(supertype_, Any):
+            return True
+        # Inconclusive, example: Any <: (Any | NoneType)
+        return None
+
+    def __repr__(self):
+        return 'Any'
+
+
+# Bottom type
+class Nothing(proxy.Subject):
+    def is_supertype_of(self, subtype_):
+        if isinstance(subtype_, Nothing):
+            return True
+        # Inconclusive, (Nothing & NoneType) <: Nothing
+        return None
+
+    def is_subtype_of(self, supertype_):
+        if isinstance(supertype_, Nothing):
+            return True
+        if isinstance(supertype_, Any):
+            return True
+        # Inconclusive, let supertype decide
+        return None
+
+    def __repr__(self):
+        return 'Nothing'
+
+
+# Inspired by Kotlin type system - https://stackoverflow.com/a/54762815/22663977
+class NoneType(proxy.Subject):
+    def is_supertype_of(self, subtype_):
+        if isinstance(subtype_, NoneType):
+            return True
+        # Inconclusive, example: (NoneType & T) <: NoneType
+        return None
+
+    def is_subtype_of(self, supertype_):
+        if isinstance(supertype_, NoneType):
+            return True
+        # Inconclusive, example: NoneType <: (T | NoneType)
+        return None
+
+    def __repr__(self):
+        return 'None'
+
+
 class Record(proxy.Subject):
     def __init__(self, fields, title=None):
         self._fields = fields
         self._title = title
 
     def is_supertype_of(self, subtype_):
-        del subtype_  # unused
+        if isinstance(subtype_, NoneType):
+            return True
+        # Inconclusive, example: {a: Alpha, b: Beta} <: {a: Alpha}
+        return None
 
     def is_subtype_of(self, supertype_):
         if isinstance(supertype_, Any):
@@ -228,9 +252,8 @@ class Record(proxy.Subject):
                 if not check_subtype(subtype_field_type, super_field_type):
                     return False
             return True
-        if isinstance(supertype_, Intersection | Union):
-            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
-        return False
+        # Inconclusive, example: {a: Alpha, b: Beta} <: (Any | NoneType)
+        return None
 
     def __iter__(self):
         yield from self._fields.items()
