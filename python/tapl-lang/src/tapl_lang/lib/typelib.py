@@ -230,6 +230,7 @@ class NoneType(proxy.Subject):
         return 'None'
 
 
+# TODO: A tuple type where labels are the characters 'a' through 'z'.
 class Record(proxy.Subject):
     def __init__(self, fields, title=None):
         self._fields = fields

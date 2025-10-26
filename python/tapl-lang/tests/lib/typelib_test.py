@@ -87,6 +87,14 @@ def test_intersection_with_none():
     assert not check_subtype_(Nothing_, alpha_and_none_)
 
 
+def test_intersection_to_intersection():
+    alpha_and_beta_ = typelib.Intersection([Alpha, Beta])
+    beta_and_gamma_ = typelib.Intersection([Beta, Gamma])
+    alpha_beta_gamma_ = typelib.Intersection([Alpha, Beta, Gamma])
+    assert check_subtype_(alpha_beta_gamma_, alpha_and_beta_)
+    assert not check_subtype_(alpha_and_beta_, beta_and_gamma_)
+
+
 def test_any():
     assert check_subtype_(Any_, typelib.Any())
     assert check_subtype_(typelib.Any(), Any_)
