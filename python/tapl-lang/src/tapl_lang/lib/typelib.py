@@ -44,54 +44,64 @@ from tapl_lang.core import tapl_error
 from tapl_lang.lib import proxy
 
 
-class Typer:
+# TODO: extend from threading.local, and write a unit test for this - https://docs.python.org/3/library/threading.html#thread-local-data
+class TypeCheckerState:
+    """Holds transient state for subtype checks (cache + assumption stack)."""
+
     def __init__(self):
-        self._known_subtype_pairs = set()  # set of (subtype, supertype) pairs
+        self.cached_subtype_pairs = set()  # set of (subtype, supertype) pairs
+        self.assumed_subtype_pairs = []  # stack of (subtype, supertype) pairs
 
 
+_TYPE_CHECKER_STATE = TypeCheckerState()
+
+
+def check_subtype_(subtype_, supertype_):
+    # Try the supertype check first, as the supertype has more responsibility for the function call's contract than the subtype.
+    result = supertype_.is_supertype_of(subtype_)
+    # Only if the supertype call returned None, delegate to the subtype method.
+    if result is None:
+        result = subtype_.is_subtype_of(supertype_)
     # return False when both methods cannot determine the relationship.
-    def check_subtype_(self, subtype_, supertype_):
-        # Try the supertype check first, as the supertype has more responsibility for the function call's contract than the subtype.
-        result = supertype_.is_supertype_of(subtype_)
-        # Only if the supertype call returned None, delegate to the subtype method.
-        if result is None:
-            result = subtype_.is_subtype_of(supertype_)
-        # return False when both methods cannot determine the relationship.
-        if result is None:
-            return False
+    if result is None:
+        return False
+    return result
+
+
+def check_subtype(subtype, supertype):
+    if subtype is supertype:
+        return True
+    pair = (subtype, supertype)
+    if pair in _TYPE_CHECKER_STATE.cached_subtype_pairs:
+        return True
+    if pair in _TYPE_CHECKER_STATE.assumed_subtype_pairs:
+        return True
+    try:
+        _TYPE_CHECKER_STATE.assumed_subtype_pairs.append(pair)
+        result = check_subtype_(subtype.subject__tapl, supertype.subject__tapl)
+        if result:
+            _TYPE_CHECKER_STATE.cached_subtype_pairs.add(pair)
         return result
+    finally:
+        _TYPE_CHECKER_STATE.assumed_subtype_pairs.pop()
+        # XXX: function tuple is creating too many entries
+        # print(_TYPE_CHECKER_STATE.cached_subtype_pairs)
 
 
-    def check_subtype(self, subtype, supertype):
-        if subtype is supertype:
-            return True
-        pair = (subtype, supertype)
-        if pair in self._known_subtype_pairs:
-            return True
-        result = False
-        try:
-            self._known_subtype_pairs.add(pair)
-            result = self.check_subtype_(subtype.subject__tapl, supertype.subject__tapl)
-        finally:
-            if not result:
-                self._known_subtype_pairs.remove(pair)
-        return result
+def is_equal(a, b):
+    return check_subtype(a, b) and check_subtype(b, a)
 
 
-    def is_equal(self, a, b):
-        return self.check_subtype(a, b) and self.check_subtype(b, a)
-    
-
-    def drop_same_types(self, types):
-        # TODO: Build a directed graph, and keep only roots of the forests
-        result = []
-        for t in types:
-            for r in result:
-                if self.is_equal(t, r):
-                    break
-            else:
-                result.append(t)
-        return result
+def drop_same_types(types):
+    # TODO: Build a directed graph, and keep only roots of the forests
+    result = []
+    for t in types:
+        for r in result:
+            if is_equal(t, r):
+                break
+        else:
+            result.append(t)
+    return result
 
 
 class Interim(proxy.Subject):
@@ -100,17 +110,16 @@ class Interim(proxy.Subject):
 
 
 class NoneType(proxy.Subject):
-    def is_supertype_of(self, subtype_, typer):
+    def is_supertype_of(self, subtype_):
         del subtype_  # unused
-        del typer  # unused
 
-    def is_subtype_of(self, supertype_, typer):
+    def is_subtype_of(self, supertype_):
         if self is supertype_:
             return True
         if isinstance(supertype_, NoneType):
             return True
         if isinstance(supertype_, Union):
-            return any(self.is_subtype_of(e.subject__tapl, typer) for e in supertype_)
+            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
         return False
 
     def __repr__(self):
@@ -118,17 +127,16 @@ class NoneType(proxy.Subject):
 
 
 class Any(proxy.Subject):
-    def is_supertype_of(self, subtype_, typer):
+    def is_supertype_of(self, subtype_):
         del subtype_  # unused
-        del typer  # unused
 
-    def is_subtype_of(self, supertype_, typer):
+    def is_subtype_of(self, supertype_):
         if self is supertype_:
             return True
         if isinstance(supertype_, Any):
             return True
         if isinstance(supertype_, Union):
-            return any(self.is_subtype_of(e.subject__tapl, typer) for e in supertype_)
+            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
         return False
 
     def __repr__(self):
@@ -136,13 +144,11 @@ class Any(proxy.Subject):
 
 
 class Nothing(proxy.Subject):
-    def is_supertype_of(self, subtype_, typer):
+    def is_supertype_of(self, subtype_):
         del subtype_  # unused
-        del typer  # unused
 
-    def is_subtype_of(self, supertype_, typer):
+    def is_subtype_of(self, supertype_):
         del supertype_  # unused
-        del typer  # unused
         return True
 
     def __repr__(self):
@@ -154,27 +160,24 @@ class Record(proxy.Subject):
         self._fields = fields
         self._title = title
 
-    def is_supertype_of(self, subtype_, typer):
+    def is_supertype_of(self, subtype_):
         del subtype_  # unused
-        del typer  # unused
 
-    def is_subtype_of(self, supertype_, typer):
+    def is_subtype_of(self, supertype_):
         if self is supertype_:
             return True
         if isinstance(supertype_, Any):
             return True
         if isinstance(supertype_, Record):
-            print(f'Checking Record subtype: self={self} supertype={supertype_}')
             for label, super_field_type in supertype_:
                 if label not in self._fields:
                     return False
                 subtype_field_type = self._fields[label]
-                print(f'Checking field label={label} subtype={subtype_field_type} supertype={super_field_type}')
-                if not typer.check_subtype(subtype_field_type, super_field_type):
+                if not check_subtype(subtype_field_type, super_field_type):
                     return False
             return True
         if isinstance(supertype_, Intersection | Union):
-            return any(self.is_subtype_of(e.subject__tapl, typer) for e in supertype_)
+            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
         return False
 
     def __iter__(self):
@@ -190,7 +193,7 @@ class Record(proxy.Subject):
 
     def __repr__(self):
         if self._title is not None:
-            return self._title
+            return self._title  # XXX:  + '#' + str(hash(self))
         field_strs = [f'{label}: {typ}' for label, typ in self._fields.items()]
         return '{' + ', '.join(field_strs) + '}'
 
@@ -203,21 +206,20 @@ class Labeled(proxy.Subject):
         self._label = label
         self._type = typ
 
-    def is_supertype_of(self, subtype_, typer):
+    def is_supertype_of(self, subtype_):
         del subtype_  # unused
-        del typer  # unused
 
-    def is_subtype_of(self, supertype_, typer):
+    def is_subtype_of(self, supertype_):
         if self is supertype_:
             return True
         if isinstance(supertype_, Any):
             return True
         if isinstance(supertype_, Labeled):
             return self.label == supertype_.label and self.type.subject__tapl.is_subtype_of(
-                supertype_.type.subject__tapl, typer
+                supertype_.type.subject__tapl
             )
         if isinstance(supertype_, Intersection | Union):
-            return any(self.is_subtype_of(e.subject__tapl, typer) for e in supertype_)
+            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
         return False
 
     @property
@@ -244,15 +246,14 @@ class Union(proxy.Subject):
     def __iter__(self):
         yield from self._types
 
-    def is_supertype_of(self, subtype_, typer):
+    def is_supertype_of(self, subtype_):
         del subtype_  # unused
-        del typer  # unused
 
-    def is_subtype_of(self, supertype_, typer):
+    def is_subtype_of(self, supertype_):
         if self is supertype_:
             return True
         if isinstance(supertype_, Union):
-            return all(any(typer.check_subtype(se, te) for te in supertype_) for se in self)
+            return all(any(check_subtype(se, te) for te in supertype_) for se in self)
         return False
 
     def __repr__(self):
@@ -270,23 +271,22 @@ class Intersection(proxy.Subject):
     def __iter__(self):
         yield from self._types
 
-    def is_supertype_of(self, subtype_, typer):
+    def is_supertype_of(self, subtype_):
         del subtype_  # unused
-        del typer  # unused
 
-    def is_subtype_of(self, supertype_, typer):
+    def is_subtype_of(self, supertype_):
         if self is supertype_:
             return True
         if isinstance(supertype_, Any):
             return True
         if isinstance(supertype_, Union):
-            return any(self.is_subtype_of(e.subject__tapl, typer) for e in supertype_)
+            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
         if isinstance(supertype_, Intersection):
             for te_ in supertype_:
                 te = te_.subject__tapl
                 if isinstance(te, Labeled):
                     se = self._find_labeled(te.label)
-                    if se is None or not se.is_subtype_of(te.type.subject__tapl, typer):
+                    if se is None or not se.is_subtype_of(te.type.subject__tapl):
                         return False
                 else:
                     raise tapl_error.TaplError(
@@ -337,19 +337,18 @@ class Function(proxy.Subject):
             self._result = self._lazy_result()
             self._lazy_result = None
 
-    def is_supertype_of(self, subtype_, typer):
+    def is_supertype_of(self, subtype_):
         del subtype_  # unused
-        del typer  # unused
 
-    def is_subtype_of(self, supertype_, typer):
+    def is_subtype_of(self, supertype_):
         if self is supertype_:
             return True
         if not isinstance(supertype_, Function):
             return False
         for self_param, target_param in zip(self.parameters, supertype_.parameters, strict=True):
-            if not typer.check_subtype(self_param, target_param):
+            if not check_subtype(self_param, target_param):
                 return False
-        return typer.check_subtype(self.result, supertype_.result)
+        return check_subtype(self.result, supertype_.result)
 
     def fix_labels(self, arguments):
         for i in range(len(arguments)):
@@ -358,13 +357,13 @@ class Function(proxy.Subject):
             arguments[i] = proxy.Proxy(Labeled(self._parameters[i].subject__tapl.label, arguments[i]))
         return arguments
 
-    def apply(self, typer, *arguments):
+    def apply(self, *arguments):
         args = list(arguments)
         if len(args) != len(self._parameters):
             raise TypeError(f'Expected {len(self._parameters)} arguments, got {len(args)}')
         args = self.fix_labels(args)
         for p, a in zip(self.parameters, args, strict=True):
-            if not typer.check_subtype(a, p):
+            if not check_subtype(a, p):
                 raise TypeError(f'Not equal: parameters={self.parameters} arguments={args}')
         return self.result
 
@@ -408,9 +407,6 @@ def _validate_types(types):
             if t.label in seen_labels:
                 raise ValueError(f'Duplicate label found: {t.label}')
             seen_labels.add(t.label)
-
-
-
 
 
 def create_union(*args):
