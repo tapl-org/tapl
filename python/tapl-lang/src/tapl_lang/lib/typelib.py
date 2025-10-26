@@ -48,7 +48,7 @@ class TypeCheckerState:
     """Holds transient state for subtype checks (cache + assumption stack)."""
 
     def __init__(self):
-        self.cached_subtype_pairs = set()  # set of (subtype, supertype) pairs
+        self.cached_subtype_pairs = {}  # mapping of (subtype, supertype) pairs to bool
         self.assumed_subtype_pairs = []  # stack of (subtype, supertype) pairs
 
 
@@ -71,20 +71,18 @@ def check_subtype(subtype, supertype):
     if subtype is supertype:
         return True
     pair = (subtype, supertype)
-    if pair in _TYPE_CHECKER_STATE.cached_subtype_pairs:
-        return True
+    result = _TYPE_CHECKER_STATE.cached_subtype_pairs.get(pair)
+    if result is not None:
+        return result
     if pair in _TYPE_CHECKER_STATE.assumed_subtype_pairs:
         return True
     try:
         _TYPE_CHECKER_STATE.assumed_subtype_pairs.append(pair)
         result = check_subtype_(subtype.subject__tapl, supertype.subject__tapl)
-        if result:
-            _TYPE_CHECKER_STATE.cached_subtype_pairs.add(pair)
-        return result
+        _TYPE_CHECKER_STATE.cached_subtype_pairs[pair] = result
     finally:
         _TYPE_CHECKER_STATE.assumed_subtype_pairs.pop()
-        # XXX: function tuple is creating too many entries
-        # print(_TYPE_CHECKER_STATE.cached_subtype_pairs)
+    return result
 
 
 def is_equal(a, b):
