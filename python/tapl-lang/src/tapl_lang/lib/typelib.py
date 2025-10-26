@@ -256,22 +256,22 @@ class Record(proxy.Subject):
         # Inconclusive, example: {a: Alpha, b: Beta} <: (Any | NoneType)
         return None
 
+    def __repr__(self):
+        if self._title is not None:
+            return self._title
+        field_strs = [f'{label}: {typ}' for label, typ in self._fields.items()]
+        return '{' + ', '.join(field_strs) + '}'
+
     def __iter__(self):
         yield from self._fields.items()
 
-    def get_label(self, label):
+    def try_load(self, label):
         return self._fields.get(label)
 
     def load(self, key):
         if key in self._fields:
             return self._fields[key]
         return super().load(key)
-
-    def __repr__(self):
-        if self._title is not None:
-            return self._title  # XXX:  + '#' + str(hash(self))
-        field_strs = [f'{label}: {typ}' for label, typ in self._fields.items()]
-        return '{' + ', '.join(field_strs) + '}'
 
 
 _PAIR_ELEMENT_COUNT = 2
