@@ -122,7 +122,7 @@ def test_conjuction_mix():
     [expr1, expr2] = parse_expr('True and 4')
     assert ast.unparse(expr1) == 'True and 4'
     assert ast.unparse(expr2) == 's0.api__tapl.create_union(s0.Bool, s0.Int)'
-    assert typelib.is_equal(
+    assert typelib.check_type_equality(
         typecheck(expr2),
         predef1.predef_proxy.api__tapl.create_union(predef1.predef_proxy.Int, predef1.predef_proxy.Bool),
     )
@@ -135,7 +135,7 @@ def test_disjunction():
     assert (
         ast.unparse(expr2) == 's0.api__tapl.create_union(s0.api__tapl.create_union(s0.Bool, s0.Bool, s0.Bool), s0.Bool)'
     )
-    assert typelib.is_equal(typecheck(expr2), predef1.predef_proxy.Bool)
+    assert typelib.check_type_equality(typecheck(expr2), predef1.predef_proxy.Bool)
     assert evaluate(expr1) is True
 
 
@@ -143,7 +143,7 @@ def test_term1():
     [expr1, expr2] = parse_expr('2 + 3')
     assert ast.unparse(expr1) == '2 + 3'
     assert ast.unparse(expr2) == 's0.Int + s0.Int'
-    assert typelib.is_equal(typecheck(expr2), predef1.predef_proxy.Int)
+    assert typelib.check_type_equality(typecheck(expr2), predef1.predef_proxy.Int)
     assert evaluate(expr1) == 5
 
 
@@ -166,7 +166,7 @@ def test_compare1():
     [expr1, expr2] = parse_expr('2 < 3')
     assert ast.unparse(expr1) == '2 < 3'
     assert ast.unparse(expr2) == 's0.Int < s0.Int'
-    assert typelib.is_equal(typecheck(expr2), predef1.predef_proxy.Bool)
+    assert typelib.check_type_equality(typecheck(expr2), predef1.predef_proxy.Bool)
     assert evaluate(expr1) is True
 
 

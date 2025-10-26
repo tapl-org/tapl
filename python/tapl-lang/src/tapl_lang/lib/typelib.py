@@ -85,7 +85,7 @@ def check_subtype(subtype, supertype):
     return result
 
 
-def is_equal(a, b):
+def check_type_equality(a, b):
     return check_subtype(a, b) and check_subtype(b, a)
 
 
@@ -94,7 +94,7 @@ def drop_same_types(types):
     result = []
     for t in types:
         for r in result:
-            if is_equal(t, r):
+            if check_type_equality(t, r):
                 break
         else:
             result.append(t)
