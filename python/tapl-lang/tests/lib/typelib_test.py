@@ -4,6 +4,7 @@
 
 
 from tapl_lang.lib import proxy, typelib
+from tapl_lang.lib.typelib import check_subtype_
 
 
 class Atom(proxy.Subject):
@@ -25,6 +26,7 @@ class Atom(proxy.Subject):
 
 
 NoneType_ = typelib.NoneType()
+NoneType = proxy.Proxy(NoneType_)
 Any_ = typelib.Any()
 Nothing_ = typelib.Nothing()
 
@@ -35,32 +37,46 @@ Beta = proxy.Proxy(Beta_)
 
 
 def test_none_type():
-    assert typelib.check_subtype_(NoneType_, NoneType_)
-    assert not typelib.check_subtype_(NoneType_, Any_)
-    assert not typelib.check_subtype_(Any_, NoneType_)
-    assert not typelib.check_subtype_(Nothing_, NoneType_)
-    assert not typelib.check_subtype_(NoneType_, Nothing_)
-    assert not typelib.check_subtype_(Alpha_, NoneType_)
-    assert not typelib.check_subtype_(NoneType_, Alpha_)
+    assert check_subtype_(NoneType_, NoneType_)
+    assert not check_subtype_(NoneType_, Any_)
+    assert not check_subtype_(Any_, NoneType_)
+    assert not check_subtype_(Nothing_, NoneType_)
+    assert not check_subtype_(NoneType_, Nothing_)
+    assert not check_subtype_(Alpha_, NoneType_)
+    assert not check_subtype_(NoneType_, Alpha_)
 
 
 def test_any():
-    assert typelib.check_subtype_(Nothing_, Any_)
-    assert not typelib.check_subtype_(Any_, Nothing_)
-    assert typelib.check_subtype_(Alpha_, Any_)
-    assert not typelib.check_subtype_(Any_, Alpha_)
+    assert check_subtype_(Nothing_, Any_)
+    assert not check_subtype_(Any_, Nothing_)
+    assert check_subtype_(Alpha_, Any_)
+    assert not check_subtype_(Any_, Alpha_)
 
 
 def test_nothing():
-    assert typelib.check_subtype_(Nothing_, Nothing_)
+    assert check_subtype_(Nothing_, Nothing_)
     assert Nothing_.is_subtype_of(Alpha_) is True
     assert Alpha_.is_supertype_of(Nothing_) is None
-    assert typelib.check_subtype_(Nothing_, Alpha_)
-    assert not typelib.check_subtype_(Alpha_, Nothing_)
+    assert check_subtype_(Nothing_, Alpha_)
+    assert not check_subtype_(Alpha_, Nothing_)
 
 
 def test_union():
-    pass
+    alpha_or_beta_ = typelib.Union([Alpha, Beta])
+    assert str(alpha_or_beta_) == 'Alpha | Beta'
+    assert check_subtype_(Alpha_, alpha_or_beta_)
+    assert check_subtype_(Beta_, alpha_or_beta_)
+    assert check_subtype_(alpha_or_beta_, Any_)
+    assert check_subtype_(Nothing_, alpha_or_beta_)
+
+
+def test_union_optional():
+    alpha_or_none_ = typelib.Union([Alpha, NoneType])
+    assert str(alpha_or_none_) == 'Alpha | None'
+    assert check_subtype_(Alpha_, alpha_or_none_)
+    assert check_subtype_(NoneType_, alpha_or_none_)
+    assert not check_subtype_(alpha_or_none_, Any_)
+    assert check_subtype_(Nothing_, alpha_or_none_)
 
 
 # def test_record():

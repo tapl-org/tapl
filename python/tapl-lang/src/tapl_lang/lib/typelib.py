@@ -127,7 +127,7 @@ class NoneType(proxy.Subject):
         return None
 
     def __repr__(self):
-        return 'NoneType'
+        return 'None'
 
 
 class Any(proxy.Subject):
@@ -163,7 +163,7 @@ class Nothing(proxy.Subject):
 class Union(proxy.Subject):
     def __init__(self, types, title=None):
         if len(types) <= 1:
-            raise ValueError('At least two types are required.')
+            raise ValueError('Union requires at least two types.')
         self._types = types
         self._title = title
 
@@ -188,7 +188,7 @@ class Union(proxy.Subject):
 class Intersection(proxy.Subject):
     def __init__(self, types, title=None):
         if len(types) <= 1:
-            raise ValueError('At least two types are required.')
+            raise ValueError('At least two types are required to create Intersection.')
         self._types = types
         self._title = title
 
