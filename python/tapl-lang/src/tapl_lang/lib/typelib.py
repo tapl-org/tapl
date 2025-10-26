@@ -33,7 +33,7 @@ The following does not use Python type hints intentionally.
 
 1. Types are considered immutable.
 2. Inspired by Kotlin type hierarchy:
-   - NoneType: The singleton, unit, or void type.
+   - NoneType: The singleton, unit, or void type. 'None' is only instance of this type.
    - Any: the top type, excluding NoneType
    - Nothing: the bottom type
 3. The methods is_subtype_of and is_supertype_of return None when the type relationship can't be determined.
@@ -56,15 +56,10 @@ _TYPE_CHECKER_STATE = TypeCheckerState()
 
 
 def compute_subtype_(subtype_, supertype_):
-    # Try the supertype check first, as the supertype has more responsibility for the function call's contract than the subtype.
-    result = supertype_.is_supertype_of(subtype_)
-    # Only if the supertype call returned None, delegate to the subtype method.
-    if result is None:
-        result = subtype_.is_subtype_of(supertype_)
-    # return False when both methods cannot determine the relationship.
-    if result is None:
-        return False
-    return result
+    is_supertype = supertype_.is_supertype_of(subtype_)
+    is_subtype = subtype_.is_subtype_of(supertype_)
+    # Return Truee if both methods agree on True, or if one is True and the other is inconclusive.
+    return is_supertype and is_subtype or (is_supertype is None and is_subtype) or (is_supertype and is_subtype is None)
 
 
 def check_subtype_(subtype_, supertype_):
@@ -106,22 +101,30 @@ def drop_same_types(types):
 
 
 class Interim(proxy.Subject):
+    def is_supertype_of(self, subtype_):
+        del subtype_  # unused
+        raise NotImplementedError('Interim type does not implement is_supertype_of method.')
+
+    def is_subtype_of(self, supertype_):
+        del supertype_  # unused
+        raise NotImplementedError('Interim type does not implement is_subtype_of method.')
+
     def __repr__(self):
         return 'InterimType'
 
 
 class NoneType(proxy.Subject):
     def is_supertype_of(self, subtype_):
-        del subtype_  # unused
+        return isinstance(subtype_, NoneType)
 
     def is_subtype_of(self, supertype_):
-        if self is supertype_:
-            return True
         if isinstance(supertype_, NoneType):
             return True
-        if isinstance(supertype_, Union):
-            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
-        return False
+        # Inspired by Kotlin type system - https://stackoverflow.com/a/54762815/22663977
+        if isinstance(supertype_, Any):
+            return False
+        # Example: NoneType can be subtype of Union(NoneType | T). Let Union handle it.
+        return None
 
     def __repr__(self):
         return 'NoneType'
@@ -130,15 +133,12 @@ class NoneType(proxy.Subject):
 class Any(proxy.Subject):
     def is_supertype_of(self, subtype_):
         del subtype_  # unused
+        return True
 
     def is_subtype_of(self, supertype_):
-        if self is supertype_:
-            return True
         if isinstance(supertype_, Any):
             return True
-        if isinstance(supertype_, Union):
-            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
-        return False
+        return None
 
     def __repr__(self):
         return 'Any'
@@ -147,6 +147,7 @@ class Any(proxy.Subject):
 class Nothing(proxy.Subject):
     def is_supertype_of(self, subtype_):
         del subtype_  # unused
+        return False
 
     def is_subtype_of(self, supertype_):
         del supertype_  # unused
@@ -154,49 +155,6 @@ class Nothing(proxy.Subject):
 
     def __repr__(self):
         return 'Nothing'
-
-
-class Record(proxy.Subject):
-    def __init__(self, fields, title=None):
-        self._fields = fields
-        self._title = title
-
-    def is_supertype_of(self, subtype_):
-        del subtype_  # unused
-
-    def is_subtype_of(self, supertype_):
-        if self is supertype_:
-            return True
-        if isinstance(supertype_, Any):
-            return True
-        if isinstance(supertype_, Record):
-            for label, super_field_type in supertype_:
-                if label not in self._fields:
-                    return False
-                subtype_field_type = self._fields[label]
-                if not check_subtype(subtype_field_type, super_field_type):
-                    return False
-            return True
-        if isinstance(supertype_, Intersection | Union):
-            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
-        return False
-
-    def __iter__(self):
-        yield from self._fields.items()
-
-    def get_label(self, label):
-        return self._fields.get(label)
-
-    def load(self, key):
-        if key in self._fields:
-            return self._fields[key]
-        return super().load(key)
-
-    def __repr__(self):
-        if self._title is not None:
-            return self._title  # XXX:  + '#' + str(hash(self))
-        field_strs = [f'{label}: {typ}' for label, typ in self._fields.items()]
-        return '{' + ', '.join(field_strs) + '}'
 
 
 # TODO: implement '|' operator for Union and '&' operator for Intersection
@@ -209,9 +167,6 @@ class Union(proxy.Subject):
         self._types = types
         self._title = title
 
-    def __iter__(self):
-        yield from self._types
-
     def is_supertype_of(self, subtype_):
         del subtype_  # unused
 
@@ -221,6 +176,9 @@ class Union(proxy.Subject):
         if isinstance(supertype_, Union):
             return all(any(check_subtype(se, te) for te in supertype_) for se in self)
         return False
+
+    def __iter__(self):
+        yield from self._types
 
     def __repr__(self):
         if self._title is not None:
@@ -256,6 +214,47 @@ class Intersection(proxy.Subject):
         if self._title is not None:
             return self._title
         return ' & '.join([str(t) for t in self._types])
+
+
+class Record(proxy.Subject):
+    def __init__(self, fields, title=None):
+        self._fields = fields
+        self._title = title
+
+    def is_supertype_of(self, subtype_):
+        del subtype_  # unused
+
+    def is_subtype_of(self, supertype_):
+        if isinstance(supertype_, Any):
+            return True
+        if isinstance(supertype_, Record):
+            for label, super_field_type in supertype_:
+                if label not in self._fields:
+                    return False
+                subtype_field_type = self._fields[label]
+                if not check_subtype(subtype_field_type, super_field_type):
+                    return False
+            return True
+        if isinstance(supertype_, Intersection | Union):
+            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
+        return False
+
+    def __iter__(self):
+        yield from self._fields.items()
+
+    def get_label(self, label):
+        return self._fields.get(label)
+
+    def load(self, key):
+        if key in self._fields:
+            return self._fields[key]
+        return super().load(key)
+
+    def __repr__(self):
+        if self._title is not None:
+            return self._title  # XXX:  + '#' + str(hash(self))
+        field_strs = [f'{label}: {typ}' for label, typ in self._fields.items()]
+        return '{' + ', '.join(field_strs) + '}'
 
 
 _PAIR_ELEMENT_COUNT = 2
