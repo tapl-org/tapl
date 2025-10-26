@@ -55,7 +55,7 @@ class TypeCheckerState:
 _TYPE_CHECKER_STATE = TypeCheckerState()
 
 
-def check_subtype_(subtype_, supertype_):
+def compute_subtype_(subtype_, supertype_):
     # Try the supertype check first, as the supertype has more responsibility for the function call's contract than the subtype.
     result = supertype_.is_supertype_of(subtype_)
     # Only if the supertype call returned None, delegate to the subtype method.
@@ -67,10 +67,10 @@ def check_subtype_(subtype_, supertype_):
     return result
 
 
-def check_subtype(subtype, supertype):
-    if subtype is supertype:
+def check_subtype_(subtype_, supertype_):
+    if subtype_ is supertype_:
         return True
-    pair = (subtype, supertype)
+    pair = (subtype_, supertype_)
     result = _TYPE_CHECKER_STATE.cached_subtype_pairs.get(pair)
     if result is not None:
         return result
@@ -78,11 +78,15 @@ def check_subtype(subtype, supertype):
         return True
     try:
         _TYPE_CHECKER_STATE.assumed_subtype_pairs.append(pair)
-        result = check_subtype_(subtype.subject__tapl, supertype.subject__tapl)
+        result = compute_subtype_(subtype_, supertype_)
         _TYPE_CHECKER_STATE.cached_subtype_pairs[pair] = result
     finally:
         _TYPE_CHECKER_STATE.assumed_subtype_pairs.pop()
     return result
+
+
+def check_subtype(subtype, supertype):
+    return check_subtype_(subtype.subject__tapl, supertype.subject__tapl)
 
 
 def check_type_equality(a, b):
