@@ -904,6 +904,7 @@ class Parameter(syntax.Term):
         raise tapl_error.UnhandledError
 
 
+# XXX: Implement posonly_args, regular_args, vararg, kwonly_args, kwarg, defaults if needed
 @dataclass
 class TypedFunctionDef(syntax.Term):
     location: syntax.Location

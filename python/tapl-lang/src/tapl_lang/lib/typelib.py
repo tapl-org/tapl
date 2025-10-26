@@ -313,19 +313,37 @@ class Intersection(proxy.Subject):
         return ' & '.join([str(t) for t in self._types])
 
 
+_PAIR_ELEMENT_COUNT = 2
+
+
+# TODO: Implement vararg, kwonlyargs, kw_defaults, kwarg, and defaults
 class Function(proxy.Subject):
-    def __init__(self, parameters, result=None, lazy_result=None):
+    def __init__(self, posonlyargs, args, result=None, lazy_result=None):
+        if not isinstance(posonlyargs, list):
+            raise TypeError('Function posonlyargs must be a list.')
+        if any(not isinstance(arg, proxy.Proxy) for arg in posonlyargs):
+            raise ValueError('Function posonlyargs must be a list of Proxy.')
+        if not isinstance(args, list):
+            raise TypeError('Function args must be a list.')
+        if any(not (isinstance(arg, tuple) and len(arg) == _PAIR_ELEMENT_COUNT) for arg in args):
+            raise ValueError('Function args must be a list of (name, type) pairs.')
+        if any(not (isinstance(name, str) and isinstance(arg_type, proxy.Proxy)) for name, arg_type in args):
+            raise ValueError('Function args must be a list of (str, Proxy) tuples.')
         if lazy_result is not None and result is not None:
             raise ValueError('Pass either the result or lazy_result argument, but not both.')
-        # TODO: Parameters must be Intersection type of Labeled types. In addition,
-        # Labeled type's name may be omitted for positional parameters.
-        self._parameters = _process_parameters(parameters)
+
+        self._posonlyargs = posonlyargs  # list of Type Proxy
+        self._args = args  # list of (name, Type Proxy)
         self._result = result
         self._lazy_result = lazy_result
 
     @property
-    def parameters(self):
-        yield from self._parameters
+    def posonlyargs(self):
+        yield from self._posonlyargs
+
+    @property
+    def args(self):
+        yield from self._args
 
     @property
     def result(self):
@@ -341,30 +359,21 @@ class Function(proxy.Subject):
         del subtype_  # unused
 
     def is_subtype_of(self, supertype_):
-        if self is supertype_:
-            return True
-        if not isinstance(supertype_, Function):
-            return False
-        for self_param, target_param in zip(self.parameters, supertype_.parameters, strict=True):
-            if not check_subtype(self_param, target_param):
-                return False
-        return check_subtype(self.result, supertype_.result)
-
-    def fix_labels(self, arguments):
-        for i in range(len(arguments)):
-            if isinstance(arguments[i].subject__tapl, Labeled):
-                break
-            arguments[i] = proxy.Proxy(Labeled(self._parameters[i].subject__tapl.label, arguments[i]))
-        return arguments
+        del supertype_  # unused
 
     def apply(self, *arguments):
-        args = list(arguments)
-        if len(args) != len(self._parameters):
-            raise TypeError(f'Expected {len(self._parameters)} arguments, got {len(args)}')
-        args = self.fix_labels(args)
-        for p, a in zip(self.parameters, args, strict=True):
+        actual_all_args = list(arguments)
+        expected_args_count = len(self._posonlyargs) + len(self._args)
+        if len(actual_all_args) != expected_args_count:
+            raise TypeError(f'Expected {expected_args_count} arguments, got {len(actual_all_args)}')
+        actual_posonlyargs = actual_all_args[: len(self._posonlyargs)]
+        actual_args = actual_all_args[len(self._posonlyargs) :]
+        for p, a in zip(self._posonlyargs, actual_posonlyargs, strict=False):
             if not check_subtype(a, p):
-                raise TypeError(f'Not equal: parameters={self.parameters} arguments={args}')
+                raise TypeError(f'Not equal: posonlyargs={self._posonlyargs} arguments={actual_posonlyargs}')
+        for p, a in zip(self._args, actual_args, strict=True):
+            if not check_subtype(a, p):
+                raise TypeError(f'Not equal: args={self._args} arguments={actual_args}')
         return self.result
 
     def load(self, key):
@@ -373,25 +382,12 @@ class Function(proxy.Subject):
         return super().load(key)
 
     def __repr__(self):
+        args = [str(t) for t in self._posonlyargs]
+        args += [f'{name}: {typ}' for name, typ in self._args]
+        args_str = f'({", ".join(args)})'
         if self._lazy_result:
-            return f'{self._parameters}->[uncomputed]'
-        return f'{self._parameters}->{self._result}'
-
-
-def _process_parameters(parameters):
-    if not isinstance(parameters, list):
-        raise tapl_error.TaplError('Function parameters must be a list.')
-    params = parameters[:]
-    labeled_parameter_seen = False
-    for i in range(len(params)):
-        p = params[i].subject__tapl
-        if isinstance(p, Labeled):
-            labeled_parameter_seen = True
-        elif labeled_parameter_seen:
-            raise tapl_error.TaplError('Positional parameter follows labeled parameter.')
-        else:
-            params[i] = proxy.Proxy(Labeled(str(i), params[i]))
-    return params
+            return f'{args_str}->[uncomputed]'
+        return f'{args_str}->{self._result}'
 
 
 def _validate_types(types):
@@ -425,6 +421,17 @@ def create_union(*args):
     return proxy.Proxy(Union(types=result))
 
 
-def create_function(parameters, result):
-    func = Function(parameters=parameters, result=result)
+def create_function(args, result):
+    posonly = []
+    regular = []
+    tuple_found = False
+    for arg in args:
+        if isinstance(arg, tuple):
+            tuple_found = True
+            args.append((arg[0], arg[1]))
+        elif not tuple_found:
+            posonly.append(arg)
+        else:
+            raise ValueError('Positional-only arguments must come before regular arguments')
+    func = Function(posonlyargs=posonly, args=regular, result=result)
     return proxy.Proxy(func)
