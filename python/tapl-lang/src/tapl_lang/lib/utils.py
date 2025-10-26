@@ -60,28 +60,21 @@ def create_class(
         self_parent.store(method_name, proxy.Proxy(method))
     self_current = scope.Scope(parent=self_parent)
     cls.__init__(*[proxy.Proxy(self_current), *init_args])
-    labeleds = [
-        proxy.Proxy(
-            typelib.Labeled(
-                '__repr__', proxy.Proxy(typelib.Function(posonlyargs=[], args=[], result=builtin_types.Str))
-            )
-        ),
-        proxy.Proxy(
-            typelib.Labeled('__str__', proxy.Proxy(typelib.Function(posonlyargs=[], args=[], result=builtin_types.Str)))
-        ),
-    ]
+    fields = {
+        '__repr__': proxy.Proxy(typelib.Function(posonlyargs=[], args=[], result=builtin_types.Str)),
+        '__str__': proxy.Proxy(typelib.Function(posonlyargs=[], args=[], result=builtin_types.Str)),
+    }
     for label in itertools.chain(self_parent.fields.keys(), self_current.fields.keys()):
         member = self_current.load(label)
-        labeled = typelib.Labeled(label, member)
-        labeleds.append(proxy.Proxy(labeled))
+        fields[label] = member
 
-    class_type = typelib.Intersection(
-        types=labeleds,
+    class_type = typelib.Record(
+        fields=fields,
         title=cls.__name__[:-1],
     )
     object.__setattr__(class_type_proxy, proxy.SUBJECT_FIELD_NAME, class_type)
-    for labeled_proxy in labeleds:
-        member = labeled_proxy.subject__tapl.type.subject__tapl
+    for type_proxy in fields.values():
+        member = type_proxy.subject__tapl
         if isinstance(member, typelib.Function):
             member.force()
 

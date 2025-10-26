@@ -40,7 +40,6 @@ The following does not use Python type hints intentionally.
 4. Variables suffixed with an underscore denote a type instance not wrapped by a Proxy.
 """
 
-from tapl_lang.core import tapl_error
 from tapl_lang.lib import proxy
 
 
@@ -198,48 +197,13 @@ class Record(proxy.Subject):
         return '{' + ', '.join(field_strs) + '}'
 
 
-# XXX: change to Tuple and Record types.
-class Labeled(proxy.Subject):
-    def __init__(self, label, typ):
-        if not isinstance(typ, proxy.Proxy):
-            raise TypeError(f'Labeled type must be a Proxy, but found {type(typ)} in label={label}')
-        self._label = label
-        self._type = typ
-
-    def is_supertype_of(self, subtype_):
-        del subtype_  # unused
-
-    def is_subtype_of(self, supertype_):
-        if self is supertype_:
-            return True
-        if isinstance(supertype_, Any):
-            return True
-        if isinstance(supertype_, Labeled):
-            return self.label == supertype_.label and self.type.subject__tapl.is_subtype_of(
-                supertype_.type.subject__tapl
-            )
-        if isinstance(supertype_, Intersection | Union):
-            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
-        return False
-
-    @property
-    def label(self):
-        return self._label
-
-    @property
-    def type(self):
-        return self._type
-
-    def __repr__(self):
-        return f'{self._label}:{self._type}'
-
-
 # TODO: implement '|' operator for Union and '&' operator for Intersection
 # e.g., T1 | T2, T1 & T2
 # Exception for binary-operator methods in Python; not intended for direct use.
 class Union(proxy.Subject):
     def __init__(self, types, title=None):
-        _validate_types(types)
+        if len(types) <= 1:
+            raise ValueError('At least two types are required.')
         self._types = types
         self._title = title
 
@@ -264,7 +228,8 @@ class Union(proxy.Subject):
 
 class Intersection(proxy.Subject):
     def __init__(self, types, title=None):
-        _validate_types(types)
+        if len(types) <= 1:
+            raise ValueError('At least two types are required.')
         self._types = types
         self._title = title
 
@@ -282,30 +247,8 @@ class Intersection(proxy.Subject):
         if isinstance(supertype_, Union):
             return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
         if isinstance(supertype_, Intersection):
-            for te_ in supertype_:
-                te = te_.subject__tapl
-                if isinstance(te, Labeled):
-                    se = self._find_labeled(te.label)
-                    if se is None or not se.is_subtype_of(te.type.subject__tapl):
-                        return False
-                else:
-                    raise tapl_error.TaplError(
-                        f'Unsupported: Intersection type contains non-Labeled type self={self} supertype={supertype_}.'
-                    )
+            return None
         return False
-
-    def _find_labeled(self, label):
-        for t_ in self:
-            t = t_.subject__tapl
-            if isinstance(t, Labeled) and t.label == label:
-                return t
-        return None
-
-    def load(self, key):
-        t = self._find_labeled(key)
-        if t:
-            return t.type
-        return super().load(key)
 
     def __repr__(self):
         if self._title is not None:
@@ -388,21 +331,6 @@ class Function(proxy.Subject):
         if self._lazy_result:
             return f'{args_str}->[uncomputed]'
         return f'{args_str}->{self._result}'
-
-
-def _validate_types(types):
-    if len(types) <= 1:
-        raise ValueError('At least two types are required.')
-    # check for duplicate labels
-    seen_labels = set()
-    for t_ in types:
-        if not isinstance(t_, proxy.Proxy):
-            raise TypeError(f'Type must be a Proxy, but found {type(t_)}')
-        t = t_.subject__tapl
-        if isinstance(t, Labeled):
-            if t.label in seen_labels:
-                raise ValueError(f'Duplicate label found: {t.label}')
-            seen_labels.add(t.label)
 
 
 def create_union(*args):
