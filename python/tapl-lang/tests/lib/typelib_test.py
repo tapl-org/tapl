@@ -34,10 +34,13 @@ Alpha_ = Atom('Alpha')
 Alpha = proxy.Proxy(Alpha_)
 Beta_ = Atom('Beta')
 Beta = proxy.Proxy(Beta_)
+Gamma_ = Atom('Gamma')
+Gamma = proxy.Proxy(Gamma_)
 
 
 def test_none_type():
-    assert check_subtype_(NoneType_, NoneType_)
+    assert check_subtype_(NoneType_, typelib.NoneType())
+    assert check_subtype_(typelib.NoneType(), NoneType_)
     assert not check_subtype_(NoneType_, Any_)
     assert not check_subtype_(Any_, NoneType_)
     assert not check_subtype_(Nothing_, NoneType_)
@@ -47,6 +50,8 @@ def test_none_type():
 
 
 def test_any():
+    assert check_subtype_(Any_, typelib.Any())
+    assert check_subtype_(typelib.Any(), Any_)
     assert check_subtype_(Nothing_, Any_)
     assert not check_subtype_(Any_, Nothing_)
     assert check_subtype_(Alpha_, Any_)
@@ -54,7 +59,8 @@ def test_any():
 
 
 def test_nothing():
-    assert check_subtype_(Nothing_, Nothing_)
+    assert check_subtype_(Nothing_, typelib.Nothing())
+    assert check_subtype_(typelib.Nothing(), Nothing_)
     assert Nothing_.is_subtype_of(Alpha_) is True
     assert Alpha_.is_supertype_of(Nothing_) is None
     assert check_subtype_(Nothing_, Alpha_)
@@ -77,6 +83,24 @@ def test_union_optional():
     assert check_subtype_(NoneType_, alpha_or_none_)
     assert not check_subtype_(alpha_or_none_, Any_)
     assert check_subtype_(Nothing_, alpha_or_none_)
+
+
+def test_union_to_union():
+    alpha_or_beta_ = typelib.Union([Alpha, Beta])
+    beta_or_gamma_ = typelib.Union([Beta, Gamma])
+    alpha_beta_gamma_ = typelib.Union([Alpha, Beta, Gamma])
+    assert check_subtype_(alpha_or_beta_, alpha_beta_gamma_)
+    assert not check_subtype_(beta_or_gamma_, alpha_or_beta_)
+
+
+def test_intersection():
+    alpha_and_beta_ = typelib.Intersection([Alpha, Beta])
+    assert str(alpha_and_beta_) == 'Alpha & Beta'
+    # assert check_subtype_(alpha_and_beta_, Alpha_)
+    # assert check_subtype_(alpha_and_beta_, Beta_)
+    # assert check_subtype_(alpha_and_beta_, Any_)
+    # assert check_subtype_(Nothing_, alpha_and_beta_)
+    # assert not check_subtype_(NoneType_, alpha_and_beta_)
 
 
 # def test_record():

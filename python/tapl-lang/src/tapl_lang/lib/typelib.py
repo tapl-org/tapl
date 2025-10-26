@@ -146,11 +146,12 @@ class Any(proxy.Subject):
 
 class Nothing(proxy.Subject):
     def is_supertype_of(self, subtype_):
-        del subtype_  # unused
-        return False
+        # Nothing is supertype of nothing except itself
+        return isinstance(subtype_, Nothing)
 
     def is_subtype_of(self, supertype_):
         del supertype_  # unused
+        # Nothing is subtype of all types including itself
         return True
 
     def __repr__(self):
@@ -168,21 +169,22 @@ class Union(proxy.Subject):
         self._title = title
 
     def is_supertype_of(self, subtype_):
-        for typ in self._types:
-            if check_subtype_(subtype_, typ.subject__tapl):
-                return True
+        # Return True if any of the constituent types is a supertype of subtype_, otherwise inconclusive
+        if any(check_subtype_(subtype_, typ.subject__tapl) for typ in self._types):
+            return True
         return None
 
     def is_subtype_of(self, supertype_):
+        # Return True if all of the constituent types are subtypes of supertype_, otherwise False
         return all(check_subtype_(typ.subject__tapl, supertype_) for typ in self._types)
-
-    def __iter__(self):
-        yield from self._types
 
     def __repr__(self):
         if self._title is not None:
             return self._title
         return ' | '.join([str(t) for t in self._types])
+
+    def __iter__(self):
+        yield from self._types
 
 
 class Intersection(proxy.Subject):
@@ -192,27 +194,19 @@ class Intersection(proxy.Subject):
         self._types = types
         self._title = title
 
-    def __iter__(self):
-        yield from self._types
-
     def is_supertype_of(self, subtype_):
-        del subtype_  # unused
+        return all(check_subtype_(subtype_, typ.subject__tapl) for typ in self._types)
 
     def is_subtype_of(self, supertype_):
-        if self is supertype_:
-            return True
-        if isinstance(supertype_, Any):
-            return True
-        if isinstance(supertype_, Union):
-            return any(self.is_subtype_of(e.subject__tapl) for e in supertype_)
-        if isinstance(supertype_, Intersection):
-            return None
-        return False
+        return self is supertype_
 
     def __repr__(self):
         if self._title is not None:
             return self._title
         return ' & '.join([str(t) for t in self._types])
+
+    def __iter__(self):
+        yield from self._types
 
 
 class Record(proxy.Subject):
