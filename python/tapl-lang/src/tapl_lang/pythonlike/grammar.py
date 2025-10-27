@@ -45,7 +45,7 @@ def get_grammar() -> parser.Grammar:
 
     # SIMPLE STATEMENTS
     # =================
-    add(rn.ASSIGNMENT, [_parse_assignment])
+    add(rn.ASSIGNMENT, [_parse_annotated_assignment, _parse_assignment])
     add(rn.ANNOTATED_RHS, [rn.STAR_EXPRESSIONS])
     add(rn.AUGASSIGN, [])
     add(rn.RETURN_STMT, [_parse_return])
@@ -911,6 +911,24 @@ def _parse_expression_no_walrus(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(value := c.consume_rule(rn.EXPRESSION)) and not t.validate(_consume_punct(c.clone(), ':=')):
         return value
+    return t.fail()
+
+
+def _parse_annotated_assignment(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(target_name := c.consume_rule(rn.STAR_TARGETS)) and t.validate(_consume_punct(c, ':')):
+        k = c.clone()
+        k.context = parser.Context(mode=terms.MODE_TYPECHECK)
+        if t.validate(target_type := _expect_rule(k, rn.EXPRESSION)):
+            c.copy_position_from(k)
+            if (
+                t.validate(_consume_punct(c, '='))
+                and t.validate(value := _expect_rule(c, rn.ANNOTATED_RHS))
+                and not t.validate(_consume_punct(c.clone(), '='))
+            ):
+                return terms.TypedAssign(
+                    t.location, target_name=target_name, target_type=target_type, value=value, mode=c.context.mode
+                )
     return t.fail()
 
 

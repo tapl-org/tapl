@@ -49,7 +49,7 @@ class Scope(proxy.Subject):
             return
         # TODO: convert this to strategy pattern
         if not typelib.check_subtype(value, slot.value):
-            raise TypeError(f'Variable {name} already exists with a different type. Old: {slot.value}, new: {value}')
+            raise TypeError(f'Type error in variable "{name}": Expected type "{slot.value}", but found "{value}".')
 
     def store_many(self, fields: dict[str, Any]) -> None:
         for name, value in fields.items():

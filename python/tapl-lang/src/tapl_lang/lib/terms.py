@@ -704,6 +704,48 @@ class TypedName(syntax.Term):
 
 
 @dataclass
+class TypedAssign(syntax.Term):
+    location: syntax.Location
+    target_name: syntax.Term
+    target_type: syntax.Term
+    value: syntax.Term
+    mode: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.target_name
+        yield self.target_type
+        yield self.value
+        yield self.mode
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: TypedAssign(
+                location=self.location,
+                target_name=layer(self.target_name),
+                target_type=layer(self.target_type),
+                value=layer(self.value),
+                mode=layer(self.mode),
+            )
+        )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is MODE_EVALUATE:
+            return Assign(
+                location=self.location,
+                targets=[self.target_name],
+                value=self.value,
+            )
+        if self.mode is MODE_TYPECHECK:
+            expected = Assign(location=self.location, targets=[self.target_name], value=self.target_type)
+            assigned = Assign(location=self.location, targets=[self.target_name], value=self.value)
+            return syntax.TermList(terms=[expected, assigned])
+        raise tapl_error.UnhandledError
+
+
+@dataclass
 class Literal(syntax.Term):
     location: syntax.Location
 

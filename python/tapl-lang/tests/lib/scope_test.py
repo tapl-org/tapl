@@ -21,5 +21,5 @@ def test_reassign_variable():
     assert s.load('x') == builtin_types.Int
     s.store('x', builtin_types.Int)
     assert s.load('x') == builtin_types.Int
-    with pytest.raises(TypeError, match='Variable x already exists with a different type. Old: Int, new: Str'):
+    with pytest.raises(TypeError, match='Type error in variable "x": Expected type "Int", but found "Str".'):
         s.store('x', builtin_types.Str)
