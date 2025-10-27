@@ -298,29 +298,20 @@ class Function(proxy.Subject):
         self._result = result
         self._lazy_result = lazy_result
 
-    @property
-    def posonlyargs(self):
-        yield from self._posonlyargs
-
-    @property
-    def args(self):
-        yield from self._args
-
-    @property
-    def result(self):
-        self.force()
-        return self._result
-
-    def force(self):
-        if self._lazy_result:
-            self._result = self._lazy_result()
-            self._lazy_result = None
-
+    # TODO: implement subtype checking for function types
     def is_supertype_of(self, subtype_):
         del subtype_  # unused
 
     def is_subtype_of(self, supertype_):
         del supertype_  # unused
+
+    def __repr__(self):
+        args = [str(t) for t in self._posonlyargs]
+        args += [f'{name}: {typ}' for name, typ in self._args]
+        args_str = f'({", ".join(args)})'
+        if self._lazy_result:
+            return f'{args_str}->[uncomputed]'
+        return f'{args_str}->{self._result}'
 
     def apply(self, *arguments):
         actual_all_args = list(arguments)
@@ -342,13 +333,23 @@ class Function(proxy.Subject):
             return self.apply
         return super().load(key)
 
-    def __repr__(self):
-        args = [str(t) for t in self._posonlyargs]
-        args += [f'{name}: {typ}' for name, typ in self._args]
-        args_str = f'({", ".join(args)})'
+    @property
+    def posonlyargs(self):
+        yield from self._posonlyargs
+
+    @property
+    def args(self):
+        yield from self._args
+
+    @property
+    def result(self):
+        self.force()
+        return self._result
+
+    def force(self):
         if self._lazy_result:
-            return f'{args_str}->[uncomputed]'
-        return f'{args_str}->{self._result}'
+            self._result = self._lazy_result()
+            self._lazy_result = None
 
 
 def create_union(*args):
