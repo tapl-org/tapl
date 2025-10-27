@@ -5,7 +5,7 @@ def int_print(a: Int):
 
 int_print(123)
 
-def zero():
+def zero() -> Int:
     return 0
 
 # hello comment

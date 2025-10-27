@@ -9,6 +9,7 @@ s0.int_print(s0.Int)
 
 def zero():
     s1 = s0.api__tapl.create_scope(parent__tapl=s0)
+    s1.api__tapl.set_return_type(s1, s1.Int)
     s1.api__tapl.add_return_type(s1, s1.Int)
     return s1.api__tapl.get_return_type(s1)
 s0.zero = s0.api__tapl.create_function([], zero())

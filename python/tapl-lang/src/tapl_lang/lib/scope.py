@@ -22,6 +22,7 @@ class Scope(proxy.Subject):
             self.store_many(fields)
         self.label = label
         # TODO: move returns into fields
+        self.return_type = None
         self.returns: list[Any] = []
 
     def can_be_used_as(self, target: proxy.Subject) -> bool:

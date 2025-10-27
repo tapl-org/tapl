@@ -952,12 +952,14 @@ class TypedFunctionDef(syntax.Term):
     location: syntax.Location
     name: str
     parameters: list[syntax.Term]
+    return_type: syntax.Term
     body: syntax.Term
     mode: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.parameters
+        yield self.return_type
         yield self.body
         yield self.mode
 
@@ -967,6 +969,7 @@ class TypedFunctionDef(syntax.Term):
             lambda layer: TypedFunctionDef(
                 location=self.location,
                 name=self.name,
+                return_type=layer(self.return_type),
                 parameters=[layer(p) for p in self.parameters],
                 body=layer(self.body),
                 mode=layer(self.mode),
@@ -1024,8 +1027,24 @@ class TypedFunctionDef(syntax.Term):
                 keywords=keywords,
             ),
         )
+        set_return_type: syntax.Term = syntax.Empty
+        if self.return_type is not syntax.Empty:
+            set_return_type = Expr(
+                location=self.location,
+                value=Call(
+                    location=self.location,
+                    func=Path(
+                        location=self.location, names=['api__tapl', 'set_return_type'], ctx='load', mode=self.mode
+                    ),
+                    args=[
+                        Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                        self.return_type,
+                    ],
+                    keywords=[],
+                ),
+            )
 
-        return_type = Return(
+        get_return_type = Return(
             location=self.location,
             value=Call(
                 location=self.location,
@@ -1045,7 +1064,9 @@ class TypedFunctionDef(syntax.Term):
             kw_defaults=[],
             kwarg=None,
             defaults=[],
-            body=syntax.TermList(terms=[new_scope, nested_scope(self.body), nested_scope(return_type)]),
+            body=syntax.TermList(
+                terms=[new_scope, nested_scope(syntax.TermList(terms=[set_return_type, self.body, get_return_type]))]
+            ),
             decorator_list=[],
         )
 

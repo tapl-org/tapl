@@ -1,0 +1,4 @@
+language pythonlike
+
+def one() -> Str:
+    return 0

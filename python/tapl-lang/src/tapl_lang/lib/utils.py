@@ -25,14 +25,27 @@ def create_scope(
     return proxy.Proxy(current)
 
 
+def set_return_type(proxy: proxy.Proxy, return_type: Any) -> None:
+    s = get_scope_from_proxy(proxy)
+    if s.returns or s.return_type is not None:
+        raise ValueError('Return type has already been set.')
+    s.return_type = return_type
+
+
 def add_return_type(proxy: proxy.Proxy, return_type: Any) -> None:
-    get_scope_from_proxy(proxy).returns.append(return_type)
+    s = get_scope_from_proxy(proxy)
+    if s.return_type is None:
+        s.returns.append(return_type)
+    elif not typelib.check_subtype(return_type, s.return_type):
+        raise TypeError(f'Return type mismatch: expected {s.return_type}, got {return_type}.')
 
 
 def get_return_type(proxy: proxy.Proxy) -> Any:
-    returns = get_scope_from_proxy(proxy).returns
-    if returns:
-        return typelib.create_union(*returns)
+    s = get_scope_from_proxy(proxy)
+    if s.return_type is not None:
+        return s.return_type
+    if s.returns:
+        return typelib.create_union(*s.returns)
     return builtin_types.Types['NoneType']
 
 

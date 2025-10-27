@@ -10,6 +10,7 @@ from tapl_lang.core.parser import Cursor
 from tapl_lang.lib import terms
 from tapl_lang.pythonlike import rule_names as rn
 
+# Below rules are going to be exactly as per Python 3 grammar
 # https://docs.python.org/3/reference/grammar.html
 
 
@@ -85,8 +86,8 @@ def get_grammar() -> parser.Grammar:
 
     # Function definitions
     # --------------------
-    add(rn.FUNCTION_DEF, [_parse_function_def])
-    add(rn.FUNCTION_DEF_RAW, [])
+    add(rn.FUNCTION_DEF, [rn.FUNCTION_DEF_RAW])
+    add(rn.FUNCTION_DEF_RAW, [_parse_function_def])
 
     # Function parameters
     # -------------------
@@ -1003,6 +1004,16 @@ def _scan_parameters(c: Cursor) -> syntax.Term:
     return t.captured_error or BlockTerm(terms=params)
 
 
+def _scan_return_type(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    k = c.clone()
+    k.context = parser.Context(mode=terms.MODE_TYPECHECK)
+    if t.validate(_consume_punct(k, '->')) and t.validate(return_type := _expect_rule(k, rn.EXPRESSION)):
+        c.copy_position_from(k)
+        return return_type
+    return t.captured_error or syntax.Empty
+
+
 def _parse_function_def(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
@@ -1011,6 +1022,7 @@ def _parse_function_def(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, '('))
         and t.validate(params := _scan_parameters(c))
         and t.validate(_expect_punct(c, ')'))
+        and t.validate(return_type := _scan_return_type(c))
         and t.validate(_expect_punct(c, ':'))
     ):
         name = cast(_TokenName, func_name).value
@@ -1018,6 +1030,7 @@ def _parse_function_def(c: Cursor) -> syntax.Term:
             location=t.location,
             name=name,
             parameters=cast(BlockTerm, params).terms,
+            return_type=return_type,
             body=syntax.TermList(terms=[], is_placeholder=True),
             mode=c.context.mode,
         )

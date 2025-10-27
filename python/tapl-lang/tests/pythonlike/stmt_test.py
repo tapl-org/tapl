@@ -125,6 +125,31 @@ s0.hello = s0.api__tapl.create_function([], hello())
     )
 
 
+def test_function_with_return_type():
+    [stmt1, stmt2] = parse_module("""
+def hello() -> Int:
+    return 0
+""")
+    assert (
+        ast.unparse(stmt1)
+        == """
+def hello():
+    return 0
+""".strip()
+    )
+    assert (
+        ast.unparse(stmt2)
+        == """
+def hello():
+    s1 = s0.api__tapl.create_scope(parent__tapl=s0)
+    s1.api__tapl.set_return_type(s1, s1.Int)
+    s1.api__tapl.add_return_type(s1, s1.Int)
+    return s1.api__tapl.get_return_type(s1)
+s0.hello = s0.api__tapl.create_function([], hello())
+""".strip()
+    )
+
+
 def test_area_function_codegen():
     [stmt1, stmt2] = parse_module("""
 def area(radius: Int):
