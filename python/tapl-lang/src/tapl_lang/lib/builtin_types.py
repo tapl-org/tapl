@@ -110,5 +110,3 @@ def create_list_type(element_type: proxy.Proxy) -> proxy.Proxy:
 
 
 TypeConstructors['List'] = create_list_type
-# XXX: remove this after generic types are implemented
-Types['ListInt'] = create_list_type(Int)
