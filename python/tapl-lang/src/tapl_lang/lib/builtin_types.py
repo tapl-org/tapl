@@ -8,6 +8,7 @@ from tapl_lang.lib import proxy, typelib
 def _fix_type(param):
     if isinstance(param, proxy.Proxy):
         return param
+    # TODO: remove str and list params if they are not needed anymore
     if isinstance(param, str):
         return Types[param]
     if isinstance(param, list):
@@ -30,9 +31,8 @@ def _split_args(params):
     return posonlyargs, args
 
 
-def _init_record(type_name, methods):
-    """Initialize a new type with the given name and methods.
-    type_name: The name of the type.
+def _init_methods(methods):
+    """Create a dict of methods for the type with the given method template.
     methods: dict[str, tuple[list[str|list[str]], str]]: A list of methods for the type, where each method is represented as a tuple
     of (name, parameters, result). parameters are list of types which are represented as string or union of strings.
     """
@@ -41,7 +41,11 @@ def _init_record(type_name, methods):
         posonlyargs, args = _split_args(params)
         func = typelib.Function(posonlyargs=posonlyargs, args=args, result=_fix_type(result))
         fields[name] = proxy.Proxy(func)
-    record = typelib.Record(fields=fields, title=type_name)
+    return fields
+
+
+def _init_record(type_name, methods):
+    record = typelib.Record(fields=_init_methods(methods), title=type_name)
     object.__setattr__(Types[type_name], proxy.SUBJECT_FIELD_NAME, record)
 
 
