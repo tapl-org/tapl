@@ -5,9 +5,9 @@ def collatz_sequence(n):
     with s1.api__tapl.scope_forker(s1) as f1:
         s2 = s1.api__tapl.fork_scope(f1)
         s2.n < s2.Int
-        s2.api__tapl.add_return_type(s2, s2.ListInt)
+        s2.api__tapl.add_return_type(s2, s2.api__tapl.create_typed_list())
         s2 = s1.api__tapl.fork_scope(f1)
-    s1.sequence = s1.ListInt
+    s1.sequence = s1.api__tapl.create_typed_list()
     with s1.api__tapl.scope_forker(s1) as f1:
         s2 = s1.api__tapl.fork_scope(f1)
         s2.n != s2.Int
@@ -25,3 +25,4 @@ s0.collatz_sequence = s0.api__tapl.create_function([s0.Int], collatz_sequence(s0
 s0.print(s0.collatz_sequence(s0.Int))
 s0.print(s0.collatz_sequence(s0.Int))
 s0.print(s0.collatz_sequence(s0.Int))
+s0.api__tapl.print_log(s0.collatz_sequence(s0.Int))

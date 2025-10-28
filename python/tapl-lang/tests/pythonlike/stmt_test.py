@@ -64,7 +64,7 @@ def test_assign_name():
 def test_assign_empty_list():
     [stmt1, stmt2] = parse_stmt('a=[]')
     assert ast.unparse(stmt1) == 'a = []'
-    assert ast.unparse(stmt2) == 's0.a = s0.ListInt'
+    assert ast.unparse(stmt2) == 's0.a = s0.api__tapl.create_typed_list()'
     assert run_stmt([stmt2]) is None
     assert run_stmt([stmt1]) is None
 

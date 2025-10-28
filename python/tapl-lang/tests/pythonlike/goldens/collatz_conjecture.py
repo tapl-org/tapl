@@ -14,3 +14,4 @@ def collatz_sequence(n):
 print(collatz_sequence(7))
 print(collatz_sequence(19))
 print(collatz_sequence(0))
+api__tapl.print_log(collatz_sequence(4))

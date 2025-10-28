@@ -5,7 +5,8 @@
 import itertools
 from typing import Any
 
-from tapl_lang.lib import builtin_types, proxy, scope, typelib
+from tapl_lang.lib import builtin_types as bt
+from tapl_lang.lib import proxy, scope, typelib
 
 
 def get_scope_from_proxy(p: proxy.Proxy) -> scope.Scope:
@@ -46,7 +47,7 @@ def get_return_type(proxy: proxy.Proxy) -> Any:
         return s.return_type
     if s.returns:
         return typelib.create_union(*s.returns)
-    return builtin_types.Types['NoneType']
+    return bt.NoneType
 
 
 def scope_forker(proxy: proxy.Proxy) -> scope.ScopeForker:
@@ -74,8 +75,8 @@ def create_class(
     self_current = scope.Scope(parent=self_parent)
     cls.__init__(*[proxy.Proxy(self_current), *init_args])
     fields = {
-        '__repr__': proxy.Proxy(typelib.Function(posonlyargs=[], args=[], result=builtin_types.Str)),
-        '__str__': proxy.Proxy(typelib.Function(posonlyargs=[], args=[], result=builtin_types.Str)),
+        '__repr__': proxy.Proxy(typelib.Function(posonlyargs=[], args=[], result=bt.Str)),
+        '__str__': proxy.Proxy(typelib.Function(posonlyargs=[], args=[], result=bt.Str)),
     }
     for label in itertools.chain(self_parent.fields.keys(), self_current.fields.keys()):
         member = self_current.load(label)
@@ -98,3 +99,14 @@ def create_class(
 def create_dynamic_variables(namespace, variables):
     for var_name, var_value in variables.items():
         namespace[var_name] = var_value
+
+
+def create_typed_list(*element_types) -> proxy.Proxy:
+    if len(element_types) == 0:
+        # TODO: implement dynamic Any element type which can be specified at runtime. For example, when appending Int to an empty list. element type becomes Int.
+        element_type = bt.Any
+    elif len(element_types) == 1:
+        element_type = element_types[0]
+    else:
+        element_type = typelib.create_union(*element_types)
+    return bt.create_list_type(element_type)

@@ -806,20 +806,43 @@ class StringLiteral(Literal):
 
 
 @dataclass
-class ListIntLiteral(Literal):
+class TypedList(syntax.Term):
     location: syntax.Location
+    elements: list[syntax.Term]
+    mode: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
-        yield from ()
+        yield from self.elements
+        yield self.mode
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda _: ListIntLiteral(location=self.location))
+        return ls.build(
+            lambda layer: TypedList(
+                location=self.location,
+                elements=[layer(e) for e in self.elements],
+                mode=layer(self.mode),
+            )
+        )
 
     @override
     def unfold(self) -> syntax.Term:
-        return List(location=self.location, elts=[], ctx='load')
+        if self.mode is MODE_EVALUATE:
+            return List(location=self.location, elts=self.elements, ctx='load')
+        if self.mode is MODE_TYPECHECK:
+            return Call(
+                location=self.location,
+                func=Path(
+                    location=self.location,
+                    names=['api__tapl', 'create_typed_list'],
+                    ctx='load',
+                    mode=self.mode,
+                ),
+                args=self.elements,
+                keywords=[],
+            )
+        raise tapl_error.UnhandledError
 
 
 @dataclass

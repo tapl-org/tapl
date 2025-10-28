@@ -780,13 +780,7 @@ def _parse_atom__list(c: Cursor) -> syntax.Term:
         # TODO: star_named_expressions?
         and t.validate(_expect_punct(c, ']'))
     ):
-        # TODO: Hard coded to ListIntLiteral for simplicity. Should be ListLiteral+Generics with element type.
-        return syntax.Layers(
-            layers=[
-                terms.ListIntLiteral(t.location),
-                terms.TypedName(location=t.location, id='ListInt', ctx='load', mode=terms.MODE_TYPECHECK),
-            ]
-        )
+        return terms.TypedList(location=t.location, elements=[], mode=c.context.mode)
     return t.fail()
 
 
