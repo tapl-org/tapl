@@ -57,8 +57,8 @@ Types = {
     'Int': proxy.Proxy(typelib.Interim()),
     'Float': proxy.Proxy(typelib.Interim()),
     'Str': proxy.Proxy(typelib.Interim()),
-    'ListInt': proxy.Proxy(typelib.Interim()),
 }
+TypeConstructors = {}
 
 
 Any = Types['Any']
@@ -68,7 +68,7 @@ Bool = Types['Bool']
 Int = Types['Int']
 Float = Types['Float']
 Str = Types['Str']
-ListInt = Types['ListInt']
+
 
 _init_record('Bool', {'__lt__': ([Bool], Bool), '__gt__': ([Bool], Bool)})
 _init_record(
@@ -95,4 +95,19 @@ _init_record(
     },
 )
 _init_record('Str', {'isalpha': ([], Bool), 'isdigit': ([], Bool)})
-_init_record('ListInt', {'append': ([Int], NoneType), '__len__': ([], Int)})
+
+
+def create_list_type(element_type: proxy.Proxy) -> proxy.Proxy:
+    methods = {
+        'append': ([element_type], NoneType),
+        '__len__': ([], Int),
+    }
+    list_type = typelib.Record(
+        fields=_init_methods(methods),
+        title=f'List[{element_type}]',
+    )
+    return proxy.Proxy(list_type)
+
+
+TypeConstructors['List'] = create_list_type
+Types['ListInt'] = create_list_type(Int)

@@ -352,6 +352,22 @@ class Function(proxy.Subject):
             self._lazy_result = None
 
 
+class TypeVariable(proxy.Subject):
+    def __init__(self, variable_name: str):
+        self.variable_name = variable_name
+
+    def is_supertype_of(self, subtype_):
+        del subtype_  # unused
+        # Inconclusive: (T & Alpha) <: T
+
+    def is_subtype_of(self, supertype_):
+        del supertype_  # unused
+        # Inconclusive: T <: (T | Alpha)
+
+    def __repr__(self):
+        return self.variable_name
+
+
 def create_union(*args):
     result = []
     for arg in args:
