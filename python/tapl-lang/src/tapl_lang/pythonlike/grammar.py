@@ -991,7 +991,6 @@ def _scan_parameters(c: Cursor) -> syntax.Term:
     if t.validate(first_param := c.consume_rule('parameter')):
         params.append(first_param)
         k = c.clone()
-        # TODO: remove location and cursor from tracker, becuase when cursor cloned, tracker keeps old cursor and its location.
         while t.validate(_consume_punct(k, ',')) and t.validate(param := _expect_rule(k, 'parameter')):
             c.copy_position_from(k)
             params.append(param)
