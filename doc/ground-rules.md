@@ -2,7 +2,7 @@
    Exceptions. See /LICENSE for license information.
    SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception ?>
 
-## TAPL Calculus
+# TAPL Calculus
 
 &nbsp;           | **Syntax**                                                                   | &nbsp;
 ---              | :-:                                                                          | ---:
@@ -96,3 +96,9 @@ $G_D:= \lambda a.\lambda b. \lambda x. G_{a\mid b\mid D}\ (a\ x)\ (b\ x)$
 Dependent type: $\lambda x{:}T_D.t$
 
 TAPL: $B\ (\lambda x.t)\ (I{:}(G_D\ T_D))$
+
+
+
+# Type System
+
+$ \text{Nothing} \to T \to \text{Any} \to \text{Any}|\text{None}$

@@ -2708,3 +2708,57 @@ id0 Nat 3
 =3
 
 id Nat 3:Nat = 3:Nat
+
+-------------------------------------------------------------------------------
+October 29, 2025
+
+I need a Polymorphic ID function which can accept only one argument instead of taking 2 arguments.
+
+I = \x.x
+B = \f.\g.\x. f (g x)
+G = \a.\b. if a == b then a else 'error'
+
+id = \X. B I (I:(G X))
+=\X.\x. I ((I:(G X)) x)
+=\X.\x. (I:(G X)) x
+=\X.\x. (I x):(G X x)
+=\X.\x. x:(G X x)
+
+newId = id 'type placeholder function = TPF'
+=\x. x:x
+
+???: (G TPF x) == x
+
+xG = \a. if a == TPF then (\b.b) else (G a)
+
+xG TPF x
+= (\b.b) x
+= x
+
+id = \X. B I (I:(xG X))
+newId = id TPF
+
+in python:
+v = [2]
+= List(2)
+= List[Int](2)
+
+w = []
+= List()
+= List[TPF]()
+
+There are many type guards then. 
+1. Check who you are
+2. Just collects whatever enters
+How to generalize the guard?
+Main problem is that guard logic is taken from context, not from function arguments.
+
+How about guard has default behavior, and that default behavior can be changed. how?
+Should changing behavior process be in type-check?
+
+
+def first[T](container: List[T]) -> T:
+    return container[0]
+
+print_log(["a", "b", "c"])
+print_log([1, 2, 3])
