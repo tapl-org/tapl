@@ -16,44 +16,42 @@ from tapl_lang.pythonlike import rule_names as rn
 
 # TODO: Implement grammar rules for #mvp
 """
-start: statement EOF
-statement: compound_stmt | simple_stmts
-compound_stmt:
-    | function_def |> function_def_raw
-    | if_stmt (full depth, requires named_expression)
-    | class_def |> class_def_raw
-    | for_stmt
-    | try_stmt (full depth)
-    | while_stmt
-    | ...
-function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'
-class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':'
-for_stmt: 'for' star_targets 'in' ~ star_expressions ':'
-while_stmt: 'while' named_expression ':' block [else_block]
+        start: statement EOF
+        statement: compound_stmt | simple_stmts
+        compound_stmt:
+            | function_def |> function_def_raw
+            | if_stmt (full depth, requires named_expression)
+            | class_def |> class_def_raw
+            | for_stmt
+            | try_stmt (full depth)
+            | while_stmt
+        function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'
+        class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':'
+        for_stmt: 'for' star_targets 'in' ~ star_expressions ':'
+        while_stmt: 'while' named_expression ':' block [else_block]
 
-simple_stmt:
-    | assignment
-    | star_expressions
-    | return_stmt |> 'return' [star_expressions]
-    | import_stmt |> import_name | import_from
-    | raise_stmt |> 'raise' expression?
-    | pass_stmt |> 'pass'
-    | break_stmt |> 'break'
-assignment:
-    | single_target ':' expression ['=' annotated_rhs]
-    | single_target '=' annotated_rhs
-single_subscript_attribute_target:
-    | t_primary '.' NAME !t_lookahead
-    | t_primary '[' slices ']' !t_lookahead
-star_targets: ...
-star_expressions:
-    | star_expression ("," star_expression)*
-    | star_expression
-star_expression: expression
-named_expression: assignment_expression | (expression !':=')
-assignment_expression: NAME ':=' ~ expression   # needed for parser rule in tapl syntax
-expression: ...
-t_primary: ...
+        simple_stmt:
+            | assignment
+            | star_expressions
+            | return_stmt |> 'return' [star_expressions]
+            | import_stmt |> import_name | import_from
+            | raise_stmt |> 'raise' expression?
+x           | pass_stmt |> 'pass'
+        assignment:
+            | single_target ':' expression ['=' annotated_rhs]
+            | single_target '=' annotated_rhs
+        single_subscript_attribute_target:
+            | t_primary '.' NAME !t_lookahead
+            | t_primary '[' slices ']' !t_lookahead
+        star_targets: ...
+        star_expressions:
+            | star_expression ("," star_expression)*
+            | star_expression
+        star_expression: expression
+        named_expression: assignment_expression | (expression !':=')
+        assignment_expression: NAME ':=' ~ expression   # needed for parser rule in tapl syntax
+        expression: ...
+        t_primary: ...
 """
 
 
@@ -84,7 +82,9 @@ def get_grammar() -> parser.Grammar:
     add(rn.SINGLE_COMPOUND_STMT, [])
     add(rn.STATEMENT_NEWLINE, [])
     add(rn.SIMPLE_STMTS, [rn.SIMPLE_STMT])
-    add(rn.SIMPLE_STMT, [rn.ASSIGNMENT, _parse_statement__star_expressions, rn.RETURN_STMT, rn.PASS_STMT])
+    add(
+        rn.SIMPLE_STMT, [rn.ASSIGNMENT, _parse_statement__star_expressions, rn.RETURN_STMT, rn.PASS_STMT, rn.BREAK_STMT]
+    )
     add(rn.COMPOUND_STMT, [rn.FUNCTION_DEF, rn.IF_STMT, rn.CLASS_DEF, rn.FOR_STMT, rn.WHILE_STMT])
 
     # SIMPLE STATEMENTS

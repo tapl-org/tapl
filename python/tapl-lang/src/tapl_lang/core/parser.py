@@ -22,6 +22,8 @@ from tapl_lang.lib import terms
 
 
 ParseFunction = Callable[['Cursor'], syntax.Term]
+# TODO: change list[ParseFunction] to list[ParseFunction | str] to allow direct rule references in ordered parse functions. #mvp
+# Maybe devide between production and terminal list.
 OrderedParseFunctions = list[ParseFunction]
 GrammarRuleMap = dict[str, OrderedParseFunctions]
 
