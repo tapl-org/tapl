@@ -31,7 +31,7 @@ COMPARE_OP_MAP: dict[str, ast.cmpop] = {
     'in': ast.In(),
     'not in': ast.NotIn(),
 }
-# TODO: add class with static fields for the context keys
+# TODO: add class with static fields for the context keys. introduce symbol type like scala #mvp
 EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': ast.Store(), 'delete': ast.Del()}
 
 
@@ -129,7 +129,7 @@ class AstGenerator:
                 decorator_list=[self.generate_expr(d, setting) for d in term.decorator_list],
             )
             locate(term.location, class_def)
-            # FIXME: body should be a list of term??? for improving usability
+            # FIXME: body should be a list of term??? for improving usability #mvp
             class_def.body = []
             for t in term.body:
                 class_def.body.extend(self.generate_stmt(t, setting))

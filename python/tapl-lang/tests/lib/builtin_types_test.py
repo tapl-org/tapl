@@ -55,6 +55,3 @@ def test_function_parameters_invariants():
 def test_lazy_function_result():
     func = typelib.Function(posonlyargs=[_int], args=[], lazy_result=lambda: _bool)
     assert func.result is _bool
-
-
-# TODO: Union(None | Any) should be only Any

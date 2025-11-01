@@ -29,7 +29,7 @@ compound_stmt:
 function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'
 class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':'
 for_stmt: 'for' star_targets 'in' ~ star_expressions ':'
-while_stmt: 'while' named_expression ':' block [else_block] 
+while_stmt: 'while' named_expression ':' block [else_block]
 
 simple_stmt:
     | assignment
@@ -55,6 +55,7 @@ assignment_expression: NAME ':=' ~ expression   # needed for parser rule in tapl
 expression: ...
 t_primary: ...
 """
+
 
 def get_grammar() -> parser.Grammar:
     rules: parser.GrammarRuleMap = {}
@@ -235,7 +236,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.EXPRESSIONS, [])
     add(rn.EXPRESSION, [rn.DISJUNCTION])
     add(rn.YIELD_EXPR, [])
-    add(rn.STAR_EXPRESSIONS, [rn.STAR_EXPRESSION])  # TODO: _parse_star_expressions__multi
+    add(rn.STAR_EXPRESSIONS, [rn.STAR_EXPRESSION])  # TODO: _parse_star_expressions__multi #mvp
     add(rn.STAR_EXPRESSION, [rn.EXPRESSION])
     add(rn.STAR_NAMED_EXPRESSIONS, [])
     add(rn.STAR_NAMED_EXPRESSION, [])
@@ -247,7 +248,7 @@ def get_grammar() -> parser.Grammar:
 
     # Comparison operators
     # --------------------
-    add(rn.COMPARISON, [_parse_comparison, rn.SUM])  # TODO: Implement using BITWISE_OR rule instead of SUM
+    add(rn.COMPARISON, [_parse_comparison, rn.SUM])  # TODO: Implement using BITWISE_OR rule instead of SUM #mvp
     add(rn.COMPARE_OP_BITWISE_OR_PAIR, [])
     add(rn.EQ_BITWISE_OR, [])
     add(rn.NOTEQ_BITWISE_OR, [])
@@ -819,7 +820,7 @@ def _parse_atom__list(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(_consume_punct(c, '['))
-        # TODO: star_named_expressions?
+        # TODO: star_named_expressions? #mvp
         and t.validate(_expect_punct(c, ']'))
     ):
         return terms.TypedList(location=t.location, elements=[], mode=c.context.mode)

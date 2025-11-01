@@ -2041,7 +2041,8 @@ add
 =\m.\n.\s.\z.((m s) ((n s) z)):\m:Number.\n:Number.\s:Succ.\z:Nat.Nat
 
 
-TODO: what happens here \a:Nat. let r=(n s) in ((\s.{+ 2 s}) r):((\s. {toString s}) r):*
+what happens here \a:Nat. let r=(n s) in ((\s.{+ 2 s}) r):((\s. {toString s}) r):*
+* symbol method is obsolete.
 
 let r=a1:a2:b1:b2 in (c1 r):(c2 r):d1:d2
 = a2 -> r=a1 -> c2 r -> c1 r

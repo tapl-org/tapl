@@ -8,7 +8,7 @@ from tapl_lang.lib import proxy, typelib
 def _fix_type(param):
     if isinstance(param, proxy.Proxy):
         return param
-    # TODO: remove str and list params if they are not needed anymore
+    # TODO: remove str and list params if they are not needed anymore #mvp
     if isinstance(param, str):
         return Types[param]
     if isinstance(param, list):

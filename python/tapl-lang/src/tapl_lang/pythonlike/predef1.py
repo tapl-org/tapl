@@ -12,7 +12,8 @@ def create_function(parameters, result):
 
 
 predef_scope = scope.Scope(label='predef_scope')
-# TODO: rename 'api__tapl' to 'tapl_api', and change doc saying that all Tapl names are prefixed with 'tapl_', please don't use tapl_ prefix for other things.
+# TODO: rename 'api__tapl' to 'tapl_api', and change doc saying that all Tapl names are prefixed with 'tapl_', please don't use tapl_ prefix for other things. #mvp
+# Maybe api__tapl is better then tapl_api. Decide which one to choose.
 predef_scope.store('api__tapl', api)
 predef_scope.store_many(builtin_types.Types)
 predef_scope.store_many(builtin_functions.export1)

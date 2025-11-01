@@ -33,7 +33,6 @@ Source = "https://github.com/tapl-org/tapl"
 tapl = "tapl_lang.cli.tapl:main"
 
 [tool.ruff]
-# TODO: Don't exclude examples
 extend-exclude = ["**/goldens/*.py", "**/examples/*"]
 
 [tool.ruff.lint]

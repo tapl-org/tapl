@@ -21,7 +21,7 @@ class Scope(proxy.Subject):
         if fields:
             self.store_many(fields)
         self.label = label
-        # TODO: move returns into fields
+        # TODO: move returns into fields. Find a better way to represent function return types #mvp
         self.return_type = None
         self.returns: list[Any] = []
 
@@ -48,7 +48,6 @@ class Scope(proxy.Subject):
         if slot is None:
             self.fields[name] = Slot(value)
             return
-        # TODO: convert this to strategy pattern
         if not typelib.check_subtype(value, slot.value):
             raise TypeError(f'Type error in variable "{name}": Expected type "{slot.value}", but found "{value}".')
 

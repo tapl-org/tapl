@@ -52,7 +52,7 @@ def make_safe_term(term: syntax.Term) -> syntax.Term:
 def compile_tapl(text: str) -> list[ast.AST]:
     chunks = chunker.chunk_text(text)
     language_name = extract_language(chunks[0])
-    # TODO: "language" must be linked dynamically
+    # TODO: "language" must be linked dynamically #mvp
     if language_name != 'pythonlike':
         raise tapl_error.TaplError('Only pythonlike language is supported now.')
     language = python_language.PythonlikeLanguage()

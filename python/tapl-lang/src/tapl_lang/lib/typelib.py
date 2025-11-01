@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
-TODO: This module doc is outdated, update it. Maybe write a separate explanation in doc folder.
+TODO: This module doc is outdated, update it. Maybe write a separate explanation in doc folder. #mvp
 Type system has mainly six types: Atom, Labeled, Union, Intersection, Function, and Recursive.
 
 Atom type is the most basic type, most primitive type.
@@ -89,7 +89,7 @@ def check_type_equality(a, b):
 
 
 def drop_same_types(types):
-    # TODO: Build a directed graph, and keep only roots of the forests
+    # TODO: Build a directed graph, and keep only roots of the forests #mvp
     result = []
     for t in types:
         for r in result:
@@ -114,7 +114,7 @@ class Interim(proxy.Subject):
         return 'InterimType'
 
 
-# TODO: implement '|' operator for Union and '&' operator for Intersection
+# TODO: implement '|' operator for Union and '&' operator for Intersection #mvp
 # e.g., T1 | T2, T1 & T2
 # Exception for binary-operator methods in Python; not intended for direct use.
 # Example: alpha <: (alpha | beta) or beta <: (alpha | beta)
@@ -277,7 +277,7 @@ class Record(proxy.Subject):
 _PAIR_ELEMENT_COUNT = 2
 
 
-# TODO: Implement vararg, kwonlyargs, kw_defaults, kwarg, and defaults
+# TODO: Implement vararg, kwonlyargs, kw_defaults, kwarg, and defaults #mvp
 class Function(proxy.Subject):
     def __init__(self, posonlyargs, args, result=None, lazy_result=None):
         if not isinstance(posonlyargs, list):
@@ -298,12 +298,14 @@ class Function(proxy.Subject):
         self._result = result
         self._lazy_result = lazy_result
 
-    # TODO: implement subtype checking for function types
+    # TODO: implement supertype and subtype checking for function types
     def is_supertype_of(self, subtype_):
         del subtype_  # unused
+        return False
 
     def is_subtype_of(self, supertype_):
         del supertype_  # unused
+        return False
 
     def __repr__(self):
         args = [str(t) for t in self._posonlyargs]
