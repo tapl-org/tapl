@@ -16,42 +16,140 @@ from tapl_lang.pythonlike import rule_names as rn
 
 # TODO: Implement grammar rules for #mvp
 """
-        start: statement EOF
-        statement: compound_stmt | simple_stmts
-        compound_stmt:
-            | function_def |> function_def_raw
-            | if_stmt (full depth, requires named_expression)
-            | class_def |> class_def_raw
-            | for_stmt
-            | try_stmt (full depth)
-            | while_stmt
-        function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'
-        class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':'
-        for_stmt: 'for' star_targets 'in' ~ star_expressions ':'
-        while_stmt: 'while' named_expression ':' block [else_block]
+x=not implemented
+d=dropped for mvp
+ =implemented
 
-        simple_stmt:
-            | assignment
-            | star_expressions
-            | return_stmt |> 'return' [star_expressions]
-            | import_stmt |> import_name | import_from
-            | raise_stmt |> 'raise' expression?
-x           | pass_stmt |> 'pass'
-        assignment:
-            | single_target ':' expression ['=' annotated_rhs]
-            | single_target '=' annotated_rhs
-        single_subscript_attribute_target:
-            | t_primary '.' NAME !t_lookahead
-            | t_primary '[' slices ']' !t_lookahead
-        star_targets: ...
-        star_expressions:
-            | star_expression ("," star_expression)*
-            | star_expression
-        star_expression: expression
-        named_expression: assignment_expression | (expression !':=')
-        assignment_expression: NAME ':=' ~ expression   # needed for parser rule in tapl syntax
-        expression: ...
-        t_primary: ...
+
+x       start: statement EOF
+x       statement: compound_stmt | simple_stmts
+x       compound_stmt:
+x           | function_def |> function_def_raw
+x           | if_stmt (full depth, requires named_expression)
+x           | class_def |> class_def_raw
+x           | for_stmt
+x           | try_stmt (full depth)
+x           | while_stmt
+x       function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'
+x       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':'
+x       for_stmt: 'for' star_targets 'in' ~ star_expressions ':'
+x       while_stmt: 'while' named_expression ':' block [else_block]
+x       simple_stmt:
+x           | assignment
+x           | star_expressions
+x           | return_stmt |> 'return' [star_expressions]
+x           | import_stmt |> import_name | import_from
+x           | raise_stmt |> 'raise' expression?
+            | pass_stmt |> 'pass'
+x       assignment:
+x           | single_target ':' expression ['=' annotated_rhs]
+x           | single_target '=' annotated_rhs
+x       single_subscript_attribute_target:
+x           | t_primary '.' NAME !t_lookahead
+x           | t_primary '[' slices ']' !t_lookahead
+x       star_targets: ...
+x       star_expressions:
+x           | star_expression ("," star_expression)+ [',']
+x           | star_expression
+x       star_expression:
+d           | '*' bitwise_or
+x           | expression
+x       star_named_expressions: ','.star_named_expression+ [',']
+x       star_named_expression:
+d           | '*' bitwise_or
+x           | named_expression
+x       named_expression:
+x           | assignment_expression
+x           | invalid_named_expression
+x           | expression !':='
+x       assignment_expression: NAME ':=' ~ expression   # needed for parser rule in tapl syntax
+x       t_primary: ...
+x           | atom
+x       t_lookahead: '(' | '[' | '.'
+x       expression:
+d           | invalid_expression
+d           | invalid_legacy_expression
+d           | disjunction 'if' disjunction 'else' expression
+x           | disjunction
+d           | lambda_def
+x       disjunction:
+x           | conjunction 'or' conjunction
+x           | conjunction
+x       conjunction:
+x           | inversion 'and' inversion
+x           | inversion
+x       inversion:
+x           | 'not' inversion
+x           | comparison
+x       comparison:
+x           | bitwise_or compare_op_bitwise_or_pair+
+x           | bitwise_or
+x       compare_op_bitwise_or_pair: ('==' | '!=' | '<=' | '<' | '>=' | '>' | 'not' 'in' | 'in' | 'is' 'not' | 'is') bitwise_or
+x       bitwise_or:
+x           | bitwise_or '|' bitwise_xor
+x           | bitwise_xor
+x       bitwise_xor:
+x           | bitwise_xor '^' bitwise_and
+x           | bitwise_and
+x       bitwise_and:
+x           | bitwise_and '&' shift_expr
+x           | shift_expr
+x       shift_expr:
+x           | shift_expr ('<<' | '>>') sum
+x           | invalid_arithmetic
+x           | sum
+x       sum:
+x           | sum ('+' | '-') term
+x           | term
+x       term:
+x           | term ('*' | '/' | '//' | '%', '@') factor
+x           | invalid_factor
+x           | factor
+x       factor:
+x           | ('+' | '-' | '~') factor
+x           | power
+*       power:
+d           | await_primary '**' factor
+x           | await_primary
+x       await_primary:
+d           | 'await' primary
+x           | primary
+x       primary:
+x           | primary '.' NAME
+d           | primary genexp
+x           | primary '(' arguments ')'
+x           | primary '[' slices ']'
+x           | atom
+x       slices:
+x           | slice !','
+d           | ','.(slice | starred_expression)+ [',']
+x       slice:
+d           | [expression] ':' [expression] [':' [expression]]
+x           | named_expression
+x       atom:
+x           | NAME
+x           | 'True' | 'False' | 'None'
+x           | STRING
+d           | FSTRING_START
+x           | NUMBER
+x           | &'(' (tuple | group)       # dropped genxp
+x           | &'[' (list)                # dropped listcomp
+x           | &'{' (dict | set)          # dropped dictcomp and setcomp
+d           | '...'
+x       tuple: '(' [star_named_expression ',' [star_named_expressions] ] ')'
+x       group:
+x           | '(' named_expression ')'
+x           | invalid_group
+x       list: '[' [star_named_expressions] ']'
+x       set: '{' star_named_expressions '}'
+x       dict: 
+x           | '{' [double_starred_kvpairs] '}'
+x           | '{' invalid_double_starred_kvpairs '}'
+x       double_starred_kvpairs: ','.double_starred_kvpair+ [',']
+x       double_starred_kvpair:
+x           | '**' bitwise_or
+x           | kvpair
+x       kvpair: expression ':' expression
 """
 
 
