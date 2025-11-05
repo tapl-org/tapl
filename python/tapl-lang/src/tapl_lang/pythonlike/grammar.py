@@ -78,13 +78,14 @@ d           | lambda_def
         conjunction:
             | inversion ('and' inversion)+
             | inversion
-x       inversion:
-x           | 'not' inversion
-x           | comparison
+        inversion:
+            | 'not' inversion
+            | comparison
 x       comparison:
 x           | bitwise_or compare_op_bitwise_or_pair+
-x           | bitwise_or
-x       compare_op_bitwise_or_pair: ('==' | '!=' | '<=' | '<' | '>=' | '>' | 'not' 'in' | 'in' | 'is' 'not' | 'is') bitwise_or
+            | bitwise_or
+        # compare_op_bitwise_or_pair is not implemented as a separate rule
+        compare_op_bitwise_or_pair: ('==' | '!=' | '<=' | '<' | '>=' | '>' | 'not' 'in' | 'in' | 'is' 'not' | 'is') bitwise_or
 x       bitwise_or:
 x           | bitwise_or '|' bitwise_xor
 x           | bitwise_xor
@@ -347,17 +348,17 @@ def get_grammar() -> parser.Grammar:
     # Comparison operators
     # --------------------
     add(rn.COMPARISON, [_parse_comparison, rn.SUM])  # TODO: Implement using BITWISE_OR rule instead of SUM #mvp
-    add(rn.COMPARE_OP_BITWISE_OR_PAIR, [])
-    add(rn.EQ_BITWISE_OR, [])
-    add(rn.NOTEQ_BITWISE_OR, [])
-    add(rn.LTE_BITWISE_OR, [])
-    add(rn.LT_BITWISE_OR, [])
-    add(rn.GTE_BITWISE_OR, [])
-    add(rn.GT_BITWISE_OR, [])
-    add(rn.NOTIN_BITWISE_OR, [])
-    add(rn.IN_BITWISE_OR, [])
-    add(rn.ISNOT_BITWISE_OR, [])
-    add(rn.IS_BITWISE_OR, [])
+    # add(rn.COMPARE_OP_BITWISE_OR_PAIR, [])
+    # add(rn.EQ_BITWISE_OR, [])
+    # add(rn.NOTEQ_BITWISE_OR, [])
+    # add(rn.LTE_BITWISE_OR, [])
+    # add(rn.LT_BITWISE_OR, [])
+    # add(rn.GTE_BITWISE_OR, [])
+    # add(rn.GT_BITWISE_OR, [])
+    # add(rn.NOTIN_BITWISE_OR, [])
+    # add(rn.IN_BITWISE_OR, [])
+    # add(rn.ISNOT_BITWISE_OR, [])
+    # add(rn.IS_BITWISE_OR, [])
 
     # Bitwise operators
     # -----------------
@@ -981,17 +982,21 @@ def _parse_sum__binary(c: Cursor) -> syntax.Term:
 
 def _scan_operator(c: Cursor) -> str | None:
     first = c.consume_rule(rn.TOKEN)
-    if isinstance(first, _TokenPunct) and first.value in ('==', '!=', '<=', '<', '>=', '>', 'in'):
+    if isinstance(first, _TokenPunct) and first.value in ('==', '!=', '<=', '<', '>=', '>'):
         return first.value
     if isinstance(first, _TokenKeyword):
+        if first.value == 'in':
+            return 'in'
         if first.value == 'not':
             second = c.consume_rule(rn.TOKEN)
             if isinstance(second, _TokenKeyword) and second.value == 'in':
                 return 'not in'
             return None
         if first.value == 'is':
-            second = c.consume_rule(rn.TOKEN)
+            k = c.clone()
+            second = k.consume_rule(rn.TOKEN)
             if isinstance(second, _TokenKeyword) and second.value == 'not':
+                c.copy_position_from(k)
                 return 'is not'
             return 'is'
     return None

@@ -107,13 +107,13 @@ def test_expression__disjunction():
 
 
 def test_disjunction__single():
-    actual = parse_expr('a', rn.EXPRESSION, mode=terms.MODE_SAFE)
+    actual = parse_expr('a', rn.DISJUNCTION, mode=terms.MODE_SAFE)
     expected = terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_SAFE)
     assert actual == expected
 
 
 def test_disjunction__or_chain():
-    actual = parse_expr('a or b or c', rn.EXPRESSION, mode=terms.MODE_EVALUATE)
+    actual = parse_expr('a or b or c', rn.DISJUNCTION, mode=terms.MODE_EVALUATE)
     expected = terms.TypedBoolOp(
         location=create_loc(1, 0, 1, 11),
         op='or',
@@ -128,7 +128,7 @@ def test_disjunction__or_chain():
 
 
 def test_conjunction__and_chain():
-    actual = parse_expr('x and y and z', rn.EXPRESSION, mode=terms.MODE_EVALUATE)
+    actual = parse_expr('x and y and z', rn.CONJUNCTION, mode=terms.MODE_EVALUATE)
     expected = terms.TypedBoolOp(
         location=create_loc(1, 0, 1, 13),
         op='and',
@@ -143,13 +143,13 @@ def test_conjunction__and_chain():
 
 
 def test_conjunction__single():
-    actual = parse_expr('x', rn.EXPRESSION, mode=terms.MODE_EVALUATE)
+    actual = parse_expr('x', rn.CONJUNCTION, mode=terms.MODE_EVALUATE)
     expected = terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='load', mode=terms.MODE_EVALUATE)
     assert actual == expected
 
 
 def test_inversion__not():
-    actual = parse_expr('not flag', rn.EXPRESSION, mode=terms.MODE_EVALUATE)
+    actual = parse_expr('not flag', rn.INVERSION, mode=terms.MODE_EVALUATE)
     expected = terms.BoolNot(
         location=create_loc(1, 0, 1, 8),
         operand=terms.TypedName(location=create_loc(1, 4, 1, 8), id='flag', ctx='load', mode=terms.MODE_EVALUATE),
@@ -159,6 +159,59 @@ def test_inversion__not():
 
 
 def test_inversion__single():
-    actual = parse_expr('flag', rn.EXPRESSION, mode=terms.MODE_EVALUATE)
+    actual = parse_expr('flag', rn.INVERSION, mode=terms.MODE_EVALUATE)
     expected = terms.TypedName(location=create_loc(1, 0, 1, 4), id='flag', ctx='load', mode=terms.MODE_EVALUATE)
     assert actual == expected
+
+
+def test_comparison__single():
+    actual = parse_expr('a', rn.COMPARISON, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE)
+    assert actual == expected
+
+
+def test_comparison__chain():
+    actual = parse_expr('a < b <= c', rn.COMPARISON, mode=terms.MODE_EVALUATE)
+    expected = terms.Compare(
+        location=create_loc(1, 0, 1, 10),
+        left=terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
+        ops=['<', '<='],
+        comparators=[
+            terms.TypedName(location=create_loc(1, 4, 1, 5), id='b', ctx='load', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 9, 1, 10), id='c', ctx='load', mode=terms.MODE_EVALUATE),
+        ],
+    )
+    assert actual == expected
+
+
+def test_comparison__operators():
+    operators = [
+        '==',
+        '!=',
+        '<=',
+        '<',
+        '>=',
+        '>',
+        'not in',
+        'in',
+        'is not',
+        'is',
+    ]
+    for op in operators:
+        op_length = len(op)
+        expr = f'a {op} b'
+        actual = parse_expr(expr, rn.COMPARISON, mode=terms.MODE_EVALUATE)
+        expected = terms.Compare(
+            location=create_loc(1, 0, 1, 4 + op_length),
+            left=terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
+            ops=[op],
+            comparators=[
+                terms.TypedName(
+                    location=create_loc(1, 3 + op_length, 1, 4 + op_length),
+                    id='b',
+                    ctx='load',
+                    mode=terms.MODE_EVALUATE,
+                ),
+            ],
+        )
+        assert actual == expected, f'Failed for operator: {expr}'
