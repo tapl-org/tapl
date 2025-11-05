@@ -206,12 +206,6 @@ class ErrorTerm(Term):
     def children(self) -> Generator[Term, None, None]:
         yield from ()
 
-    @override
-    def __repr__(self) -> str:
-        if self.location:
-            return f'{self.location} {self.message}'
-        return self.message
-
 
 @dataclass
 class TermList(Term):

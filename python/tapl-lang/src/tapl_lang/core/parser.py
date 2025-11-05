@@ -41,6 +41,7 @@ def route(rule: str) -> ParseFunction:
     return parse
 
 
+# Python backend AST has ctx attribute. Rename this class name to prevent confusion.
 @dataclass
 class Context:
     mode: syntax.Term
@@ -431,5 +432,5 @@ def parse_line_records(
     return term
 
 
-def parse_text(text: str, grammar: Grammar, *, debug: bool = False) -> syntax.Term:
-    return parse_line_records(line_record.split_text_to_lines(text), grammar, debug=debug)
+def parse_text(text: str, grammar: Grammar, *, debug: bool = False, context: Context | None = None) -> syntax.Term:
+    return parse_line_records(line_record.split_text_to_lines(text), grammar, debug=debug, context=context)

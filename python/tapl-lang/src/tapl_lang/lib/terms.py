@@ -481,31 +481,35 @@ class Name(syntax.Term):
 @dataclass
 class List(syntax.Term):
     location: syntax.Location
-    elts: list[syntax.Term]
+    elements: list[syntax.Term]
     ctx: str
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
-        yield from self.elts
+        yield from self.elements
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: List(location=self.location, elts=[layer(v) for v in self.elts], ctx=self.ctx))
+        return ls.build(
+            lambda layer: List(location=self.location, elements=[layer(v) for v in self.elements], ctx=self.ctx)
+        )
 
 
 @dataclass
 class Tuple(syntax.Term):
     location: syntax.Location
-    elts: list[syntax.Term]
+    elements: list[syntax.Term]
     ctx: str
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
-        yield from self.elts
+        yield from self.elements
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Tuple(location=self.location, elts=[layer(v) for v in self.elts], ctx=self.ctx))
+        return ls.build(
+            lambda layer: Tuple(location=self.location, elements=[layer(v) for v in self.elements], ctx=self.ctx)
+        )
 
 
 ################################################################################
@@ -551,6 +555,7 @@ class Select(syntax.Term):
 class Path(syntax.Term):
     location: syntax.Location
     names: list[str]
+    # TODO: change ctx to context enum. #mvp
     ctx: str
     mode: syntax.Term
 
@@ -829,7 +834,7 @@ class TypedList(syntax.Term):
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return List(location=self.location, elts=self.elements, ctx='load')
+            return List(location=self.location, elements=self.elements, ctx='load')
         if self.mode is MODE_TYPECHECK:
             return Call(
                 location=self.location,
@@ -1108,7 +1113,7 @@ class TypedFunctionDef(syntax.Term):
                 args=[
                     List(
                         location=self.location,
-                        elts=[cast(Parameter, p).type_ for p in self.parameters],
+                        elements=[cast(Parameter, p).type_ for p in self.parameters],
                         ctx='load',
                     ),
                     Call(
@@ -1405,9 +1410,9 @@ class TypedClassDef(syntax.Term):
             method_types.append(
                 Tuple(
                     location=self.location,
-                    elts=[
+                    elements=[
                         Constant(location=self.location, value=method.name),
-                        List(location=self.location, elts=tail_args, ctx='load'),
+                        List(location=self.location, elements=tail_args, ctx='load'),
                     ],
                     ctx='load',
                 )
@@ -1418,7 +1423,7 @@ class TypedClassDef(syntax.Term):
             targets=[
                 Tuple(
                     location=self.location,
-                    elts=[
+                    elements=[
                         TypedName(location=self.location, id=instance_name, ctx='store', mode=self.mode),
                         TypedName(location=self.location, id=class_name, ctx='store', mode=self.mode),
                     ],
@@ -1431,8 +1436,8 @@ class TypedClassDef(syntax.Term):
                 args=[],
                 keywords=[
                     ('cls', Name(location=self.location, id=class_name, ctx='load')),
-                    ('init_args', List(location=self.location, elts=constructor_args, ctx='load')),
-                    ('methods', List(location=self.location, elts=method_types, ctx='load')),
+                    ('init_args', List(location=self.location, elements=constructor_args, ctx='load')),
+                    ('methods', List(location=self.location, elements=method_types, ctx='load')),
                 ],
             ),
         )

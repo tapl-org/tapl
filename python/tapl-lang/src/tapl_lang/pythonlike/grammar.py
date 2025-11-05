@@ -127,14 +127,14 @@ x       slice:
 d           | [expression] ':' [expression] [':' [expression]]
 x           | named_expression
 x       atom:
-x           | NAME
-x           | 'True' | 'False' | 'None'
-x           | STRING
+            | NAME
+            | 'True' | 'False' | 'None'
+            | STRING
 d           | FSTRING_START
-x           | NUMBER
-x           | &'(' (tuple | group)       # dropped genxp
-x           | &'[' (list)                # dropped listcomp
-x           | &'{' (dict | set)          # dropped dictcomp and setcomp
+            | NUMBER
+x           | (tuple | group)       # dropped genxp
+x           | (list)                # dropped listcomp
+x           | (dict | set)          # dropped dictcomp and setcomp
 d           | '...'
 x       tuple: '(' [star_named_expression ',' [star_named_expressions] ] ')'
 x       group:
@@ -142,7 +142,7 @@ x           | '(' named_expression ')'
 x           | invalid_group
 x       list: '[' [star_named_expressions] ']'
 x       set: '{' star_named_expressions '}'
-x       dict: 
+x       dict:
 x           | '{' [double_starred_kvpairs] '}'
 x           | '{' invalid_double_starred_kvpairs '}'
 x       double_starred_kvpairs: ','.double_starred_kvpair+ [',']
@@ -382,7 +382,14 @@ def get_grammar() -> parser.Grammar:
     add(rn.SLICE, [])
     add(
         rn.ATOM,
-        [_parse_atom__name_load, _parse_atom__bool, _parse_atom__string, _parse_atom__number, _parse_atom__list],
+        [
+            _parse_atom__name_load,
+            _parse_atom__bool,
+            _parse_atom__string,
+            _parse_atom__number,
+            _parse_atom__tuple,
+            _parse_atom__list,
+        ],
     )
     add(rn.GROUP, [])
 
@@ -911,6 +918,13 @@ def _parse_atom__number(c: Cursor) -> syntax.Term:
             return terms.IntegerLiteral(token.location, value=token.value)
         if isinstance(token, _TokenFloat):
             return terms.FloatLiteral(token.location, value=token.value)
+    return t.fail()
+
+
+def _parse_atom__tuple(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(_consume_punct(c, '(')) and t.validate(_expect_punct(c, ')')):
+        return terms.Tuple(location=t.location, elements=[], ctx='load')
     return t.fail()
 
 

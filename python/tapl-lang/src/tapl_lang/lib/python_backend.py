@@ -283,7 +283,7 @@ class AstGenerator:
 
         if isinstance(term, terms.List):
             list_expr = ast.List(
-                elts=[self.generate_expr(elt, setting) for elt in term.elts],
+                elts=[self.generate_expr(elt, setting) for elt in term.elements],
                 ctx=EXPR_CONTEXT_MAP[term.ctx],
             )
             locate(term.location, list_expr)
@@ -291,7 +291,7 @@ class AstGenerator:
 
         if isinstance(term, terms.Tuple):
             tuple_expr = ast.Tuple(
-                elts=[self.generate_expr(elt, setting) for elt in term.elts],
+                elts=[self.generate_expr(elt, setting) for elt in term.elements],
                 ctx=EXPR_CONTEXT_MAP[term.ctx],
             )
             locate(term.location, tuple_expr)
