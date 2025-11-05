@@ -89,3 +89,76 @@ def test_atom__tuple():
         ctx='load',
     )
     assert actual == expected
+
+
+def test_expression__disjunction():
+    actual = parse_expr('a or b', rn.EXPRESSION, mode=terms.MODE_SAFE)
+    expected = terms.TypedBoolOp(
+        location=create_loc(1, 0, 1, 6),
+        # TODO: rename op to operator #mvp
+        op='or',
+        values=[
+            terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_SAFE),
+            terms.TypedName(location=create_loc(1, 5, 1, 6), id='b', ctx='load', mode=terms.MODE_SAFE),
+        ],
+        mode=terms.MODE_SAFE,
+    )
+    assert actual == expected
+
+
+def test_disjunction__single():
+    actual = parse_expr('a', rn.EXPRESSION, mode=terms.MODE_SAFE)
+    expected = terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_SAFE)
+    assert actual == expected
+
+
+def test_disjunction__or_chain():
+    actual = parse_expr('a or b or c', rn.EXPRESSION, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedBoolOp(
+        location=create_loc(1, 0, 1, 11),
+        op='or',
+        values=[
+            terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 5, 1, 6), id='b', ctx='load', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 10, 1, 11), id='c', ctx='load', mode=terms.MODE_EVALUATE),
+        ],
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
+
+
+def test_conjunction__and_chain():
+    actual = parse_expr('x and y and z', rn.EXPRESSION, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedBoolOp(
+        location=create_loc(1, 0, 1, 13),
+        op='and',
+        values=[
+            terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='load', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 6, 1, 7), id='y', ctx='load', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 12, 1, 13), id='z', ctx='load', mode=terms.MODE_EVALUATE),
+        ],
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
+
+
+def test_conjunction__single():
+    actual = parse_expr('x', rn.EXPRESSION, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='load', mode=terms.MODE_EVALUATE)
+    assert actual == expected
+
+
+def test_inversion__not():
+    actual = parse_expr('not flag', rn.EXPRESSION, mode=terms.MODE_EVALUATE)
+    expected = terms.BoolNot(
+        location=create_loc(1, 0, 1, 8),
+        operand=terms.TypedName(location=create_loc(1, 4, 1, 8), id='flag', ctx='load', mode=terms.MODE_EVALUATE),
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
+
+
+def test_inversion__single():
+    actual = parse_expr('flag', rn.EXPRESSION, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedName(location=create_loc(1, 0, 1, 4), id='flag', ctx='load', mode=terms.MODE_EVALUATE)
+    assert actual == expected

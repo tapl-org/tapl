@@ -60,24 +60,24 @@ d           | '*' bitwise_or
 x           | named_expression
 x       named_expression:
 x           | assignment_expression
-x           | invalid_named_expression
+d           | invalid_named_expression
 x           | expression !':='
 x       assignment_expression: NAME ':=' ~ expression   # needed for parser rule in tapl syntax
 x       t_primary: ...
 x           | atom
 x       t_lookahead: '(' | '[' | '.'
-x       expression:
+        expression:
 d           | invalid_expression
 d           | invalid_legacy_expression
 d           | disjunction 'if' disjunction 'else' expression
-x           | disjunction
+            | disjunction
 d           | lambda_def
-x       disjunction:
-x           | conjunction 'or' conjunction
-x           | conjunction
-x       conjunction:
-x           | inversion 'and' inversion
-x           | inversion
+        disjunction:
+            | conjunction ('or' conjunction)+
+            | conjunction
+        conjunction:
+            | inversion ('and' inversion)+
+            | inversion
 x       inversion:
 x           | 'not' inversion
 x           | comparison
@@ -89,14 +89,14 @@ x       bitwise_or:
 x           | bitwise_or '|' bitwise_xor
 x           | bitwise_xor
 x       bitwise_xor:
-x           | bitwise_xor '^' bitwise_and
+d           | bitwise_xor '^' bitwise_and
 x           | bitwise_and
 x       bitwise_and:
 x           | bitwise_and '&' shift_expr
 x           | shift_expr
 x       shift_expr:
-x           | shift_expr ('<<' | '>>') sum
-x           | invalid_arithmetic
+d           | shift_expr ('<<' | '>>') sum
+d           | invalid_arithmetic
 x           | sum
 x       sum:
 x           | sum ('+' | '-') term
