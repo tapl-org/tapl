@@ -489,3 +489,19 @@ def test_star_named_expressions__multiple():
         ],
     )
     assert actual == expected
+
+
+def test_assignment_expression__simple():
+    actual = parse_expr('x := 42', rn.ASSIGNMENT_EXPRESSION, mode=terms.MODE_EVALUATE)
+    expected = terms.NamedExpr(
+        location=create_loc(1, 0, 1, 7),
+        target=terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='store', mode=terms.MODE_EVALUATE),
+        value=terms.IntegerLiteral(location=create_loc(1, 5, 1, 7), value=42),
+    )
+    assert actual == expected
+
+
+def test_assignment_expression__expect_expression():
+    actual = parse_expr('y := ', rn.ASSIGNMENT_EXPRESSION, mode=terms.MODE_EVALUATE)
+    expected = syntax.ErrorTerm(message='Expected expression after ":="', location=create_loc(1, 0, 1, 4))
+    assert actual == expected

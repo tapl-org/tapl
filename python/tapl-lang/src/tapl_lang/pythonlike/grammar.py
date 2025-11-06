@@ -58,11 +58,11 @@ x           | expression
 d       star_named_expression:
 d           | '*' bitwise_or
 d           | named_expression
-x       named_expression:
-x           | assignment_expression
+        named_expression:
+            | assignment_expression
 d           | invalid_named_expression
-x           | expression !':='
-x       assignment_expression: NAME ':=' ~ expression   # needed for parser rule in tapl syntax
+            | expression !':='
+        assignment_expression: NAME ':=' ~ expression   # needed for parser rule in tapl syntax
 x       t_primary: ...
 x           | atom
 x       t_lookahead: '(' | '[' | '.'
@@ -339,8 +339,8 @@ def get_grammar() -> parser.Grammar:
     add(rn.STAR_EXPRESSION, [rn.EXPRESSION])
     add(rn.STAR_NAMED_EXPRESSIONS, [_parse_star_named_expressions])
     add(rn.STAR_NAMED_EXPRESSION, [])
-    add(rn.ASSIGNMENT_EXPRESSION, [])
-    add(rn.NAMED_EXPRESSION, [_parse_expression_no_walrus])
+    add(rn.ASSIGNMENT_EXPRESSION, [_parse_assignment_expression])
+    add(rn.NAMED_EXPRESSION, [rn.ASSIGNMENT_EXPRESSION, _parse_expression_no_walrus])
     add(rn.DISJUNCTION, [_parse_disjunction__or, rn.CONJUNCTION])
     add(rn.CONJUNCTION, [_parse_conjunction__and, rn.INVERSION])
     add(rn.INVERSION, [_parse_inversion__not, rn.COMPARISON])
@@ -1139,6 +1139,24 @@ def _parse_star_named_expressions(c: Cursor) -> syntax.Term:
             c.copy_position_from(k)
             elements.append(next_)
     return t.captured_error or syntax.TermList(terms=elements)
+
+
+def _parse_assignment_expression(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(token := c.consume_rule(rn.TOKEN))
+        and isinstance(token, _TokenName)
+        and (name_location := token.location)
+        and t.validate(_consume_punct(c, ':='))
+    ):
+        if t.validate(value := c.consume_rule(rn.EXPRESSION)):
+            return terms.NamedExpr(
+                t.location,
+                target=terms.TypedName(name_location, id=token.value, ctx='store', mode=c.context.mode),
+                value=value,
+            )
+        return t.captured_error or syntax.ErrorTerm(message='Expected expression after ":="', location=t.location)
+    return t.fail()
 
 
 def _parse_expression_no_walrus(c: Cursor) -> syntax.Term:

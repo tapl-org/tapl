@@ -34,6 +34,8 @@ class Module(syntax.Term):
 ################################################################################
 # STATEMENTS
 
+# TODO: move the location to the end of the dataclass fields for readability.
+
 
 @dataclass
 class FunctionDef(syntax.Term):
@@ -345,6 +347,28 @@ class BoolOp(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: BoolOp(location=self.location, op=self.op, values=[layer(v) for v in self.values])
+        )
+
+
+@dataclass
+class NamedExpr(syntax.Term):
+    location: syntax.Location
+    target: syntax.Term
+    value: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.target
+        yield self.value
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: NamedExpr(
+                location=self.location,
+                target=layer(self.target),
+                value=layer(self.value),
+            )
         )
 
 
