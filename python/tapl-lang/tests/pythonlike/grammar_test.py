@@ -469,3 +469,23 @@ def test_primary__atom():
     actual = parse_expr('variable', rn.PRIMARY, mode=terms.MODE_EVALUATE)
     expected = terms.TypedName(location=create_loc(1, 0, 1, 8), id='variable', ctx='load', mode=terms.MODE_EVALUATE)
     assert actual == expected
+
+
+def test_star_named_expressions__single():
+    actual = parse_expr('a', rn.STAR_NAMED_EXPRESSIONS, mode=terms.MODE_EVALUATE)
+    expected = syntax.TermList(
+        terms=[terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE)],
+    )
+    assert actual == expected
+
+
+def test_star_named_expressions__multiple():
+    actual = parse_expr('a, b, c', rn.STAR_NAMED_EXPRESSIONS, mode=terms.MODE_EVALUATE)
+    expected = syntax.TermList(
+        terms=[
+            terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 3, 1, 4), id='b', ctx='load', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 6, 1, 7), id='c', ctx='load', mode=terms.MODE_EVALUATE),
+        ],
+    )
+    assert actual == expected

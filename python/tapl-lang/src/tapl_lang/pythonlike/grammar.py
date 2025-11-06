@@ -54,10 +54,10 @@ x           | star_expression
 x       star_expression:
 d           | '*' bitwise_or
 x           | expression
-x       star_named_expressions: ','.star_named_expression+ [',']
-x       star_named_expression:
+        star_named_expressions: ','.(star_named_expression |> named_expression)+ ([','] #dropped for mvp)
+d       star_named_expression:
 d           | '*' bitwise_or
-x           | named_expression
+d           | named_expression
 x       named_expression:
 x           | assignment_expression
 d           | invalid_named_expression
@@ -337,7 +337,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.YIELD_EXPR, [])
     add(rn.STAR_EXPRESSIONS, [rn.STAR_EXPRESSION])  # TODO: _parse_star_expressions__multi #mvp
     add(rn.STAR_EXPRESSION, [rn.EXPRESSION])
-    add(rn.STAR_NAMED_EXPRESSIONS, [])
+    add(rn.STAR_NAMED_EXPRESSIONS, [_parse_star_named_expressions])
     add(rn.STAR_NAMED_EXPRESSION, [])
     add(rn.ASSIGNMENT_EXPRESSION, [])
     add(rn.NAMED_EXPRESSION, [_parse_expression_no_walrus])
@@ -1129,16 +1129,16 @@ def _parse_disjunction__or(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def _parse_star_expressions__multi(c: Cursor) -> syntax.Term:
+def _parse_star_named_expressions(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     elements = []
-    if t.validate(first := c.consume_rule(rn.STAR_EXPRESSION)):
+    if t.validate(first := c.consume_rule(rn.NAMED_EXPRESSION)):
         elements.append(first)
         k = c.clone()
-        while t.validate(_consume_punct(k, ',')) and t.validate(next_ := _expect_rule(k, rn.STAR_EXPRESSION)):
+        while t.validate(_consume_punct(k, ',')) and t.validate(next_ := _expect_rule(k, rn.NAMED_EXPRESSION)):
             c.copy_position_from(k)
             elements.append(next_)
-    return t.captured_error or BlockTerm(terms=elements)
+    return t.captured_error or syntax.TermList(terms=elements)
 
 
 def _parse_expression_no_walrus(c: Cursor) -> syntax.Term:
