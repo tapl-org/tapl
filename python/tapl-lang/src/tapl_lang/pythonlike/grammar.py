@@ -109,12 +109,12 @@ d           | lambda_def
             | invalid_factor
             | ('+' | '-' | '~') factor
             | power
-*       power:
-d           | await_primary '**' factor
-x           | await_primary
-x       await_primary:
+        power:
+            | await_primary '**' factor
+            | await_primary |> primary
+d       await_primary:
 d           | 'await' primary
-x           | primary
+d           | primary
 x       primary:
 x           | primary '.' NAME
 d           | primary genexp
@@ -371,8 +371,8 @@ def get_grammar() -> parser.Grammar:
     # --------------------
     add(rn.SUM, [_parse_invalid_arithmetic, _parse_sum__binary, rn.TERM])
     add(rn.TERM, [_parse_term__binary, rn.FACTOR])
-    add(rn.FACTOR, [_parse_invalid_factor, _parse_factor__unary, rn.PRIMARY])
-    add(rn.POWER, [])
+    add(rn.FACTOR, [_parse_invalid_factor, _parse_factor__unary, rn.POWER])
+    add(rn.POWER, [_parse_power__binary, rn.PRIMARY])
 
     # Primary elements
     # ----------------
@@ -944,6 +944,17 @@ def _parse_factor__unary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(op := _consume_punct(c, '+', '-', '~')) and t.validate(factor := _expect_rule(c, rn.FACTOR)):
         return terms.UnaryOp(t.location, cast(_TokenPunct, op).value, factor)
+    return t.fail()
+
+
+def _parse_power__binary(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(left := c.consume_rule(rn.PRIMARY))
+        and t.validate(_consume_punct(c, '**'))
+        and t.validate(right := _expect_rule(c, rn.FACTOR))
+    ):
+        return terms.BinOp(t.location, left, '**', right)
     return t.fail()
 
 
