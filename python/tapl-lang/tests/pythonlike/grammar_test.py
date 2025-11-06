@@ -333,3 +333,58 @@ def test_sum__single():
     actual = parse_expr('a', rn.SUM, mode=terms.MODE_EVALUATE)
     expected = terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE)
     assert actual == expected
+
+
+def test_term__chain():
+    actual = parse_expr('a * b / c', rn.TERM, mode=terms.MODE_EVALUATE)
+    expected = terms.BinOp(
+        location=create_loc(1, 0, 1, 9),
+        left=terms.BinOp(
+            location=create_loc(1, 0, 1, 5),
+            left=terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
+            op='*',
+            right=terms.TypedName(location=create_loc(1, 4, 1, 5), id='b', ctx='load', mode=terms.MODE_EVALUATE),
+        ),
+        op='/',
+        right=terms.TypedName(location=create_loc(1, 8, 1, 9), id='c', ctx='load', mode=terms.MODE_EVALUATE),
+    )
+    assert actual == expected
+
+
+def test_term__operators():
+    operators = [
+        '*',
+        '/',
+        '//',
+        '%',
+        '@',
+    ]
+    for op in operators:
+        expr = f'a {op} b'
+        actual = parse_expr(expr, rn.TERM, mode=terms.MODE_EVALUATE)
+        expected = terms.BinOp(
+            location=create_loc(1, 0, 1, 4 + len(op)),
+            left=terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
+            op=op,
+            right=terms.TypedName(
+                location=create_loc(1, 3 + len(op), 1, 4 + len(op)),
+                id='b',
+                ctx='load',
+                mode=terms.MODE_EVALUATE,
+            ),
+        )
+        assert actual == expected, f'Failed for operator: {expr}'
+
+
+def test_term__single():
+    actual = parse_expr('a', rn.TERM, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE)
+    assert actual == expected
+
+
+# def test_factor__invalid_factor():
+#     actual = parse_expr('a * not b', rn.FACTOR, mode=terms.MODE_EVALUATE)
+#     expected = syntax.ErrorTerm(
+#         message="'not' after an operator must be parenthesized", location=create_loc(1, 0, 1, 9)
+#     )
+#     assert actual == expected

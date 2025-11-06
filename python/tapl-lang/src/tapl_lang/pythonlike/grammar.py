@@ -102,11 +102,11 @@ d           | lambda_def
             | invalid_arithmetic
             | sum ('+' | '-') term
             | term
-x       term:
-x           | term ('*' | '/' | '//' | '%', '@') factor
-x           | invalid_factor
-x           | factor
+        term:
+            | term ('*' | '/' | '//' | '%', '@') factor
+            | factor
 x       factor:
+x           | invalid_factor
 x           | ('+' | '-' | '~') factor
 x           | power
 *       power:
@@ -370,8 +370,8 @@ def get_grammar() -> parser.Grammar:
     # Arithmetic operators
     # --------------------
     add(rn.SUM, [_parse_invalid_arithmetic, _parse_sum__binary, rn.TERM])
-    add(rn.TERM, [_parse_term__binary, _parse_invalid_factor, rn.FACTOR])
-    add(rn.FACTOR, [_parse_factor__unary, rn.PRIMARY])
+    add(rn.TERM, [_parse_term__binary, rn.FACTOR])
+    add(rn.FACTOR, [_parse_invalid_factor, _parse_factor__unary, rn.PRIMARY])
     add(rn.POWER, [])
 
     # Primary elements
@@ -962,7 +962,7 @@ def _parse_term__binary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(left := c.consume_rule(rn.TERM))
-        and t.validate(op := _consume_punct(c, '*', '/', '//', '%'))
+        and t.validate(op := _consume_punct(c, '*', '/', '//', '%', '@'))
         and t.validate(right := _expect_rule(c, rn.FACTOR))
     ):
         return terms.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
