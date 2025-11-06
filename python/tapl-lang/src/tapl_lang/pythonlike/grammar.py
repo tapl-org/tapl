@@ -81,25 +81,25 @@ d           | lambda_def
         inversion:
             | 'not' inversion
             | comparison
-x       comparison:
-x           | bitwise_or compare_op_bitwise_or_pair+
+        comparison:
+            | bitwise_or compare_op_bitwise_or_pair+
             | bitwise_or
         # compare_op_bitwise_or_pair is not implemented as a separate rule
         compare_op_bitwise_or_pair: ('==' | '!=' | '<=' | '<' | '>=' | '>' | 'not' 'in' | 'in' | 'is' 'not' | 'is') bitwise_or
-x       bitwise_or:
-x           | bitwise_or '|' bitwise_xor
-x           | bitwise_xor
-x       bitwise_xor:
-d           | bitwise_xor '^' bitwise_and
-x           | bitwise_and
-x       bitwise_and:
-x           | bitwise_and '&' shift_expr
-x           | shift_expr
-x       shift_expr:
-d           | shift_expr ('<<' | '>>') sum
-d           | invalid_arithmetic
-x           | sum
+        bitwise_or:
+            | bitwise_or '|' bitwise_xor
+            | bitwise_xor
+        bitwise_xor:
+            | bitwise_xor '^' bitwise_and
+            | bitwise_and
+        bitwise_and:
+            | bitwise_and '&' shift_expr
+            | shift_expr
+        shift_expr:
+            | shift_expr ('<<' | '>>') sum
+            | sum
 x       sum:
+d           | invalid_arithmetic
 x           | sum ('+' | '-') term
 x           | term
 x       term:
@@ -362,14 +362,14 @@ def get_grammar() -> parser.Grammar:
 
     # Bitwise operators
     # -----------------
-    add(rn.BITWISE_OR, [])
-    add(rn.BITWISE_XOR, [])
-    add(rn.BITWISE_AND, [])
-    add(rn.SHIFT_EXPR, [])
+    add(rn.BITWISE_OR, [_parse_bitwise_or__binary, rn.BITWISE_XOR])
+    add(rn.BITWISE_XOR, [_parse_bitwise_xor__binary, rn.BITWISE_AND])
+    add(rn.BITWISE_AND, [_parse_bitwise_and__binary, rn.SHIFT_EXPR])
+    add(rn.SHIFT_EXPR, [_parse_shift_expr__binary, rn.SUM])
 
     # Arithmetic operators
     # --------------------
-    add(rn.SUM, [_parse_sum__binary, rn.TERM])
+    add(rn.SUM, [_parse_invalid_arithmetic, _parse_sum__binary, rn.TERM])
     add(rn.TERM, [_parse_term__binary, _parse_invalid_factor, rn.FACTOR])
     add(rn.FACTOR, [_parse_factor__unary, rn.PRIMARY])
     add(rn.POWER, [])
@@ -966,6 +966,62 @@ def _parse_term__binary(c: Cursor) -> syntax.Term:
         and t.validate(right := _expect_rule(c, rn.FACTOR))
     ):
         return terms.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
+    return t.fail()
+
+
+def _parse_bitwise_or__binary(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(left := c.consume_rule(rn.BITWISE_OR))
+        and t.validate(op := _consume_punct(c, '|'))
+        and t.validate(right := _expect_rule(c, rn.BITWISE_XOR))
+    ):
+        return terms.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
+    return t.fail()
+
+
+def _parse_bitwise_xor__binary(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(left := c.consume_rule(rn.BITWISE_XOR))
+        and t.validate(op := _consume_punct(c, '^'))
+        and t.validate(right := _expect_rule(c, rn.BITWISE_AND))
+    ):
+        return terms.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
+    return t.fail()
+
+
+def _parse_bitwise_and__binary(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(left := c.consume_rule(rn.BITWISE_AND))
+        and t.validate(op := _consume_punct(c, '&'))
+        and t.validate(right := _expect_rule(c, rn.SHIFT_EXPR))
+    ):
+        return terms.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
+    return t.fail()
+
+
+def _parse_shift_expr__binary(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(left := c.consume_rule(rn.SHIFT_EXPR))
+        and t.validate(op := _consume_punct(c, '<<', '>>'))
+        and t.validate(right := _expect_rule(c, rn.SUM))
+    ):
+        return terms.BinOp(t.location, left, cast(_TokenPunct, op).value, right)
+    return t.fail()
+
+
+def _parse_invalid_arithmetic(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(c.consume_rule(rn.SUM))
+        and t.validate(_consume_punct(c, '+', '-', '*', '/', '%', '//', '@'))
+        and t.validate(_consume_keyword(c, 'not'))
+        and t.validate(c.consume_rule(rn.INVERSION))
+    ):
+        return syntax.ErrorTerm(message="'not' after an operator must be parenthesized", location=t.location)
     return t.fail()
 
 

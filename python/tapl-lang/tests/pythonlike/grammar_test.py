@@ -215,3 +215,99 @@ def test_comparison__operators():
             ],
         )
         assert actual == expected, f'Failed for operator: {expr}'
+
+
+def test_bitwise_or__chain():
+    actual = parse_expr('a | b | c', rn.BITWISE_OR, mode=terms.MODE_EVALUATE)
+    expected = terms.BinOp(
+        location=create_loc(1, 0, 1, 9),
+        left=terms.BinOp(
+            location=create_loc(1, 0, 1, 5),
+            left=terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
+            op='|',
+            right=terms.TypedName(location=create_loc(1, 4, 1, 5), id='b', ctx='load', mode=terms.MODE_EVALUATE),
+        ),
+        op='|',
+        right=terms.TypedName(location=create_loc(1, 8, 1, 9), id='c', ctx='load', mode=terms.MODE_EVALUATE),
+    )
+    assert actual == expected
+
+
+def test_bitwise_or__single():
+    actual = parse_expr('a', rn.BITWISE_OR, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE)
+    assert actual == expected
+
+
+def test_bitwise_xor__chain():
+    actual = parse_expr('a ^ b ^ c', rn.BITWISE_XOR, mode=terms.MODE_EVALUATE)
+    expected = terms.BinOp(
+        location=create_loc(1, 0, 1, 9),
+        left=terms.BinOp(
+            location=create_loc(1, 0, 1, 5),
+            left=terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
+            op='^',
+            right=terms.TypedName(location=create_loc(1, 4, 1, 5), id='b', ctx='load', mode=terms.MODE_EVALUATE),
+        ),
+        op='^',
+        right=terms.TypedName(location=create_loc(1, 8, 1, 9), id='c', ctx='load', mode=terms.MODE_EVALUATE),
+    )
+    assert actual == expected
+
+
+def test_bitwise_xor__single():
+    actual = parse_expr('a', rn.BITWISE_XOR, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE)
+    assert actual == expected
+
+
+def test_bitwise_and__chain():
+    actual = parse_expr('a & b & c', rn.BITWISE_AND, mode=terms.MODE_EVALUATE)
+    expected = terms.BinOp(
+        location=create_loc(1, 0, 1, 9),
+        left=terms.BinOp(
+            location=create_loc(1, 0, 1, 5),
+            left=terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
+            op='&',
+            right=terms.TypedName(location=create_loc(1, 4, 1, 5), id='b', ctx='load', mode=terms.MODE_EVALUATE),
+        ),
+        op='&',
+        right=terms.TypedName(location=create_loc(1, 8, 1, 9), id='c', ctx='load', mode=terms.MODE_EVALUATE),
+    )
+    assert actual == expected
+
+
+def test_bitwise_and__single():
+    actual = parse_expr('a', rn.BITWISE_AND, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE)
+    assert actual == expected
+
+
+def test_bitwise_shift__chain():
+    actual = parse_expr('a << b >> c', rn.SHIFT_EXPR, mode=terms.MODE_EVALUATE)
+    expected = terms.BinOp(
+        location=create_loc(1, 0, 1, 11),
+        left=terms.BinOp(
+            location=create_loc(1, 0, 1, 6),
+            left=terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
+            op='<<',
+            right=terms.TypedName(location=create_loc(1, 5, 1, 6), id='b', ctx='load', mode=terms.MODE_EVALUATE),
+        ),
+        op='>>',
+        right=terms.TypedName(location=create_loc(1, 10, 1, 11), id='c', ctx='load', mode=terms.MODE_EVALUATE),
+    )
+    assert actual == expected
+
+
+def test_bitwise_shift__single():
+    actual = parse_expr('a', rn.SHIFT_EXPR, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE)
+    assert actual == expected
+
+
+def test_invalid_arithmetic__raises_error():
+    actual = parse_expr('a + not b', rn.SHIFT_EXPR, mode=terms.MODE_EVALUATE)
+    expected = syntax.ErrorTerm(
+        message="'not' after an operator must be parenthesized", location=create_loc(1, 0, 1, 9)
+    )
+    assert actual == expected
