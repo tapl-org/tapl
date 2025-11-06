@@ -115,18 +115,18 @@ d           | lambda_def
 d       await_primary:
 d           | 'await' primary
 d           | primary
-x       primary:
-x           | primary '.' NAME
+        primary:
+            | primary '.' NAME
 d           | primary genexp
-x           | primary '(' arguments ')'
-x           | primary '[' slices ']'
-x           | atom
-x       slices:
-x           | slice !','
+            | primary '(' arguments ')'
+            | primary '[' slices |> named_expression ']'
+            | atom
+d       slices:
+d           | slice !','
 d           | ','.(slice | starred_expression)+ [',']
-x       slice:
+d       slice:
 d           | [expression] ':' [expression] [':' [expression]]
-x           | named_expression
+d           | named_expression
 x       atom:
             | NAME
             | 'True' | 'False' | 'None'
@@ -378,7 +378,7 @@ def get_grammar() -> parser.Grammar:
     # ----------------
     # Primary elements are things like "obj.something.something", "obj[something]", "obj(something)", "obj" ...
     add(rn.AWAIT_PRIMARY, [])
-    add(rn.PRIMARY, [_parse_primary__attribute, _parse_primary__call, rn.ATOM])
+    add(rn.PRIMARY, [_parse_primary__attribute, _parse_primary__call, _parse_primary__slice, rn.ATOM])
     add(rn.SLICES, [])
     add(rn.SLICE, [])
     add(
@@ -883,6 +883,18 @@ def _parse_primary__call(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, ')'))
     ):
         return terms.Call(t.location, func, cast(BlockTerm, args).terms, keywords=[])
+    return t.fail()
+
+
+def _parse_primary__slice(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(value := c.consume_rule(rn.PRIMARY))
+        and t.validate(_consume_punct(c, '['))
+        and t.validate(slices := _expect_rule(c, rn.NAMED_EXPRESSION))
+        and t.validate(_expect_punct(c, ']'))
+    ):
+        return terms.Subscript(t.location, value=value, slice=slices, ctx='load')
     return t.fail()
 
 

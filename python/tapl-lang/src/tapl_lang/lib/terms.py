@@ -464,6 +464,30 @@ class Attribute(syntax.Term):
 
 
 @dataclass
+class Subscript(syntax.Term):
+    location: syntax.Location
+    value: syntax.Term
+    slice: syntax.Term
+    ctx: str
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.value
+        yield self.slice
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: Subscript(
+                location=self.location,
+                value=layer(self.value),
+                slice=layer(self.slice),
+                ctx=self.ctx,
+            )
+        )
+
+
+@dataclass
 class Name(syntax.Term):
     location: syntax.Location
     id: Identifier

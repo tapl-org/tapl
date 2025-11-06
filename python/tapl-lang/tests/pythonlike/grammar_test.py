@@ -427,3 +427,45 @@ def test_power__single():
     actual = parse_expr('a', rn.POWER, mode=terms.MODE_EVALUATE)
     expected = terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE)
     assert actual == expected
+
+
+def test_primary__attribute():
+    actual = parse_expr('obj.attr', rn.PRIMARY, mode=terms.MODE_EVALUATE)
+    expected = terms.Attribute(
+        location=create_loc(1, 0, 1, 8),
+        value=terms.TypedName(location=create_loc(1, 0, 1, 3), id='obj', ctx='load', mode=terms.MODE_EVALUATE),
+        attr='attr',
+        ctx='load',
+    )
+    assert actual == expected
+
+
+def test_primary__call():
+    actual = parse_expr('func(arg1, arg2)', rn.PRIMARY, mode=terms.MODE_EVALUATE)
+    expected = terms.Call(
+        location=create_loc(1, 0, 1, 16),
+        func=terms.TypedName(location=create_loc(1, 0, 1, 4), id='func', ctx='load', mode=terms.MODE_EVALUATE),
+        args=[
+            terms.TypedName(location=create_loc(1, 5, 1, 9), id='arg1', ctx='load', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 11, 1, 15), id='arg2', ctx='load', mode=terms.MODE_EVALUATE),
+        ],
+        keywords=[],
+    )
+    assert actual == expected
+
+
+def test_primary__slice():
+    actual = parse_expr('arr[10]', rn.PRIMARY, mode=terms.MODE_EVALUATE)
+    expected = terms.Subscript(
+        location=create_loc(1, 0, 1, 7),
+        value=terms.TypedName(location=create_loc(1, 0, 1, 3), id='arr', ctx='load', mode=terms.MODE_EVALUATE),
+        slice=terms.IntegerLiteral(location=create_loc(1, 4, 1, 6), value=10),
+        ctx='load',
+    )
+    assert actual == expected
+
+
+def test_primary__atom():
+    actual = parse_expr('variable', rn.PRIMARY, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedName(location=create_loc(1, 0, 1, 8), id='variable', ctx='load', mode=terms.MODE_EVALUATE)
+    assert actual == expected
