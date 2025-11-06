@@ -105,10 +105,10 @@ d           | lambda_def
         term:
             | term ('*' | '/' | '//' | '%', '@') factor
             | factor
-x       factor:
-x           | invalid_factor
-x           | ('+' | '-' | '~') factor
-x           | power
+        factor:
+            | invalid_factor
+            | ('+' | '-' | '~') factor
+            | power
 *       power:
 d           | await_primary '**' factor
 x           | await_primary

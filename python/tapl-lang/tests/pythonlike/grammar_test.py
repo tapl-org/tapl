@@ -382,9 +382,32 @@ def test_term__single():
     assert actual == expected
 
 
-# def test_factor__invalid_factor():
-#     actual = parse_expr('a * not b', rn.FACTOR, mode=terms.MODE_EVALUATE)
-#     expected = syntax.ErrorTerm(
-#         message="'not' after an operator must be parenthesized", location=create_loc(1, 0, 1, 9)
-#     )
-#     assert actual == expected
+def test_factor__invalid_factor():
+    actual = parse_expr('+ not b', rn.FACTOR, mode=terms.MODE_EVALUATE)
+    expected = syntax.ErrorTerm(
+        message="'not' after an operator must be parenthesized", location=create_loc(1, 0, 1, 7)
+    )
+    assert actual == expected
+
+
+def test_factor__operators():
+    operators = [
+        '+',
+        '-',
+        '~',
+    ]
+    for op in operators:
+        expr = f'{op}b'
+        actual = parse_expr(expr, rn.FACTOR, mode=terms.MODE_EVALUATE)
+        expected = terms.UnaryOp(
+            location=create_loc(1, 0, 1, 2 + len(op) - 1),
+            op=op,
+            operand=terms.TypedName(
+                location=create_loc(1, 1 + len(op) - 1, 1, 2 + len(op) - 1),
+                id='b',
+                ctx='load',
+                mode=terms.MODE_EVALUATE,
+            ),
+        )
+        assert actual == expected, f'Failed for operator: {expr}'
+
