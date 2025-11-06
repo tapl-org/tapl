@@ -305,9 +305,31 @@ def test_bitwise_shift__single():
     assert actual == expected
 
 
-def test_invalid_arithmetic__raises_error():
-    actual = parse_expr('a + not b', rn.SHIFT_EXPR, mode=terms.MODE_EVALUATE)
+def test_sum__invalid_arithmetic():
+    actual = parse_expr('a + not b', rn.SUM, mode=terms.MODE_EVALUATE)
     expected = syntax.ErrorTerm(
         message="'not' after an operator must be parenthesized", location=create_loc(1, 0, 1, 9)
     )
+    assert actual == expected
+
+
+def test_sum__chain():
+    actual = parse_expr('a + b - c', rn.SUM, mode=terms.MODE_EVALUATE)
+    expected = terms.BinOp(
+        location=create_loc(1, 0, 1, 9),
+        left=terms.BinOp(
+            location=create_loc(1, 0, 1, 5),
+            left=terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
+            op='+',
+            right=terms.TypedName(location=create_loc(1, 4, 1, 5), id='b', ctx='load', mode=terms.MODE_EVALUATE),
+        ),
+        op='-',
+        right=terms.TypedName(location=create_loc(1, 8, 1, 9), id='c', ctx='load', mode=terms.MODE_EVALUATE),
+    )
+    assert actual == expected
+
+
+def test_sum__single():
+    actual = parse_expr('a', rn.SUM, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE)
     assert actual == expected

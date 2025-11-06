@@ -98,10 +98,10 @@ d           | lambda_def
         shift_expr:
             | shift_expr ('<<' | '>>') sum
             | sum
-x       sum:
-d           | invalid_arithmetic
-x           | sum ('+' | '-') term
-x           | term
+        sum:
+            | invalid_arithmetic
+            | sum ('+' | '-') term
+            | term
 x       term:
 x           | term ('*' | '/' | '//' | '%', '@') factor
 x           | invalid_factor
@@ -347,7 +347,7 @@ def get_grammar() -> parser.Grammar:
 
     # Comparison operators
     # --------------------
-    add(rn.COMPARISON, [_parse_comparison, rn.SUM])  # TODO: Implement using BITWISE_OR rule instead of SUM #mvp
+    add(rn.COMPARISON, [_parse_comparison, rn.BITWISE_OR])
     # add(rn.COMPARE_OP_BITWISE_OR_PAIR, [])
     # add(rn.EQ_BITWISE_OR, [])
     # add(rn.NOTEQ_BITWISE_OR, [])
