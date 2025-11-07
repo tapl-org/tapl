@@ -687,6 +687,14 @@ def test_star_named_expressions__single():
     assert actual == expected
 
 
+def test_star_named_expressions__trailing_comma():
+    actual = parse_expr('a,', rn.STAR_NAMED_EXPRESSIONS, mode=terms.MODE_EVALUATE)
+    expected = syntax.TermList(
+        terms=[terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE)],
+    )
+    assert actual == expected
+
+
 def test_star_named_expressions__multiple():
     actual = parse_expr('a, b, c', rn.STAR_NAMED_EXPRESSIONS, mode=terms.MODE_EVALUATE)
     expected = syntax.TermList(

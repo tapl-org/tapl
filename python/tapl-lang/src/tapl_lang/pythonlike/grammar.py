@@ -54,7 +54,7 @@ x           | star_expression
 x       star_expression:
 d           | '*' bitwise_or
 x           | expression
-        star_named_expressions: ','.star_named_expression+ ([','] # TODO: implement #mvp)
+        star_named_expressions: ','.star_named_expression+ [',']
         star_named_expression:
 d           | '*' bitwise_or
             | named_expression
@@ -1255,9 +1255,13 @@ def _parse_star_named_expressions(c: Cursor) -> syntax.Term:
     if t.validate(first := c.consume_rule(rn.STAR_NAMED_EXPRESSION)):
         elements.append(first)
         k = c.clone()
-        while t.validate(_consume_punct(k, ',')) and t.validate(next_ := _expect_rule(k, rn.STAR_NAMED_EXPRESSION)):
+        while t.validate(_consume_punct(k, ',')) and t.validate(next_ := k.consume_rule(rn.STAR_NAMED_EXPRESSION)):
             c.copy_position_from(k)
             elements.append(next_)
+    k = c.clone()
+    if t.validate(_consume_punct(k, ',')):
+        # Allow trailing comma
+        c.copy_position_from(k)
     return t.captured_error or syntax.TermList(terms=elements)
 
 
