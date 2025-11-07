@@ -388,12 +388,12 @@ def get_grammar() -> parser.Grammar:
             _parse_atom__bool,
             _parse_atom__string,
             _parse_atom__number,
-            # TODO: Create a new rule for each starting character of (, [, { #mvp
             rn.TUPLE,
+            rn.GROUP,
             _parse_atom__list,
         ],
     )
-    add(rn.GROUP, [])
+    add(rn.GROUP, [_parse_group__named_expression])
 
     # Lambda functions
     # ----------------
@@ -934,6 +934,17 @@ def _parse_atom__number(c: Cursor) -> syntax.Term:
             return terms.IntegerLiteral(token.location, value=token.value)
         if isinstance(token, _TokenFloat):
             return terms.FloatLiteral(token.location, value=token.value)
+    return t.fail()
+
+
+def _parse_group__named_expression(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(_consume_punct(c, '('))
+        and t.validate(expr := c.consume_rule(rn.NAMED_EXPRESSION))
+        and t.validate(_expect_punct(c, ')'))
+    ):
+        return expr
     return t.fail()
 
 

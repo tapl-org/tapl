@@ -76,6 +76,27 @@ def test_atom__number_float():
     assert actual == expected
 
 
+def test_group__expression():
+    actual = parse_expr('(x + 1)', rn.GROUP, mode=terms.MODE_EVALUATE)
+    expected = terms.BinOp(
+        location=create_loc(1, 1, 1, 6),
+        left=terms.TypedName(location=create_loc(1, 1, 1, 2), id='x', ctx='load', mode=terms.MODE_EVALUATE),
+        op='+',
+        right=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=1),
+    )
+    assert actual == expected
+
+
+def test_group__named_expression():
+    actual = parse_expr('(y := 10)', rn.GROUP, mode=terms.MODE_EVALUATE)
+    expected = terms.NamedExpr(
+        location=create_loc(1, 1, 1, 8),
+        target=terms.TypedName(location=create_loc(1, 1, 1, 2), id='y', ctx='store', mode=terms.MODE_EVALUATE),
+        value=terms.IntegerLiteral(location=create_loc(1, 6, 1, 8), value=10),
+    )
+    assert actual == expected
+
+
 def test_tuple__empty():
     actual = parse_expr('()', rn.ATOM)
     expected = terms.Tuple(
