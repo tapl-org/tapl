@@ -388,6 +388,7 @@ def get_grammar() -> parser.Grammar:
             _parse_atom__bool,
             _parse_atom__string,
             _parse_atom__number,
+            # TODO: Create a new rule for each starting character of (, [, { #mvp
             rn.TUPLE,
             _parse_atom__list,
         ],
