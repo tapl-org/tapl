@@ -76,15 +76,36 @@ def test_atom__number_float():
     assert actual == expected
 
 
-def test_atom__tuple():
-    # 1, "two", None
+def test_tuple__empty():
     actual = parse_expr('()', rn.ATOM)
     expected = terms.Tuple(
         location=create_loc(1, 0, 1, 2),
+        elements=[],
+        ctx='load',
+    )
+    assert actual == expected
+
+
+def test_tuple__single():
+    actual = parse_expr('(42,)', rn.ATOM)
+    expected = terms.Tuple(
+        location=create_loc(1, 0, 1, 5),
         elements=[
-            # terms.IntegerLiteral(location=create_loc(1, 1, 1, 2), value=1),
-            # terms.StringLiteral(location=create_loc(1, 4, 1, 9), value='two'),
-            # terms.NoneLiteral(location=create_loc(1, 11, 1, 15)),
+            terms.IntegerLiteral(location=create_loc(1, 1, 1, 3), value=42),
+        ],
+        ctx='load',
+    )
+    assert actual == expected
+
+
+def test_tuple__multi():
+    actual = parse_expr("(1, 'two', None)", rn.ATOM)
+    expected = terms.Tuple(
+        location=create_loc(1, 0, 1, 16),
+        elements=[
+            terms.IntegerLiteral(location=create_loc(1, 1, 1, 2), value=1),
+            terms.StringLiteral(location=create_loc(1, 4, 1, 9), value='two'),
+            terms.NoneLiteral(location=create_loc(1, 11, 1, 15)),
         ],
         ctx='load',
     )
@@ -468,6 +489,12 @@ def test_primary__slice():
 def test_primary__atom():
     actual = parse_expr('variable', rn.PRIMARY, mode=terms.MODE_EVALUATE)
     expected = terms.TypedName(location=create_loc(1, 0, 1, 8), id='variable', ctx='load', mode=terms.MODE_EVALUATE)
+    assert actual == expected
+
+
+def test_star_named_epxressions__empty():
+    actual = parse_expr(' ', rn.STAR_NAMED_EXPRESSIONS, mode=terms.MODE_EVALUATE)
+    expected = syntax.ErrorTerm(message='chunk[line:1] Not all text consumed: indices 0:0/1:0.')
     assert actual == expected
 
 

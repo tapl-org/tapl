@@ -54,10 +54,10 @@ x           | star_expression
 x       star_expression:
 d           | '*' bitwise_or
 x           | expression
-        star_named_expressions: ','.(star_named_expression |> named_expression)+ ([','] #dropped for mvp)
-d       star_named_expression:
+        star_named_expressions: ','.star_named_expression+ ([','] #dropped for mvp)
+        star_named_expression:
 d           | '*' bitwise_or
-d           | named_expression
+            | named_expression
         named_expression:
             | assignment_expression
 d           | invalid_named_expression
@@ -338,7 +338,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.STAR_EXPRESSIONS, [rn.STAR_EXPRESSION])  # TODO: _parse_star_expressions__multi #mvp
     add(rn.STAR_EXPRESSION, [rn.EXPRESSION])
     add(rn.STAR_NAMED_EXPRESSIONS, [_parse_star_named_expressions])
-    add(rn.STAR_NAMED_EXPRESSION, [])
+    add(rn.STAR_NAMED_EXPRESSION, [rn.NAMED_EXPRESSION])
     add(rn.ASSIGNMENT_EXPRESSION, [_parse_assignment_expression])
     add(rn.NAMED_EXPRESSION, [rn.ASSIGNMENT_EXPRESSION, _parse_expression_no_walrus])
     add(rn.DISJUNCTION, [_parse_disjunction__or, rn.CONJUNCTION])
@@ -388,7 +388,7 @@ def get_grammar() -> parser.Grammar:
             _parse_atom__bool,
             _parse_atom__string,
             _parse_atom__number,
-            _parse_atom__tuple,
+            rn.TUPLE,
             _parse_atom__list,
         ],
     )
@@ -424,7 +424,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.STRING, [])
     add(rn.STRINGS, [])
     add(rn.LIST, [])
-    add(rn.TUPLE, [])
+    add(rn.TUPLE, [_parse_tuple__empty, _parse_tuple__single, _parse_tuple__multi])
     add(rn.SET, [])
     # Dicts
     # -----
@@ -796,7 +796,9 @@ def _parse_token(c: Cursor) -> syntax.Term:
     if char in _PUNCT_SET:
         return scan_punct(char)
     # Error
-    return tracker.fail()
+    return tracker.captured_error or syntax.ErrorTerm(
+        message=f'Token Parsing: Unexpected character "{char}"', location=tracker.location
+    )
 
 
 def _consume_keyword(c: Cursor, keyword: str) -> syntax.Term:
@@ -934,10 +936,35 @@ def _parse_atom__number(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def _parse_atom__tuple(c: Cursor) -> syntax.Term:
+def _parse_tuple__empty(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(_consume_punct(c, '(')) and t.validate(_expect_punct(c, ')')):
+    if t.validate(_consume_punct(c, '(')) and t.validate(_consume_punct(c, ')')):
         return terms.Tuple(location=t.location, elements=[], ctx='load')
+    return t.fail()
+
+
+def _parse_tuple__single(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(_consume_punct(c, '('))
+        and t.validate(element := c.consume_rule(rn.STAR_NAMED_EXPRESSION))
+        and t.validate(_consume_punct(c, ','))
+        and t.validate(_consume_punct(c, ')'))
+    ):
+        return terms.Tuple(location=t.location, elements=[element], ctx='load')
+    return t.fail()
+
+
+def _parse_tuple__multi(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(_consume_punct(c, '('))
+        and t.validate(element := c.consume_rule(rn.STAR_NAMED_EXPRESSION))
+        and t.validate(_consume_punct(c, ','))
+        and t.validate(elements := _expect_rule(c, rn.STAR_NAMED_EXPRESSIONS))
+        and t.validate(_expect_punct(c, ')'))
+    ):
+        return terms.Tuple(location=t.location, elements=[element, *cast(syntax.TermList, elements).terms], ctx='load')
     return t.fail()
 
 
@@ -1132,10 +1159,10 @@ def _parse_disjunction__or(c: Cursor) -> syntax.Term:
 def _parse_star_named_expressions(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     elements = []
-    if t.validate(first := c.consume_rule(rn.NAMED_EXPRESSION)):
+    if t.validate(first := c.consume_rule(rn.STAR_NAMED_EXPRESSION)):
         elements.append(first)
         k = c.clone()
-        while t.validate(_consume_punct(k, ',')) and t.validate(next_ := _expect_rule(k, rn.NAMED_EXPRESSION)):
+        while t.validate(_consume_punct(k, ',')) and t.validate(next_ := _expect_rule(k, rn.STAR_NAMED_EXPRESSION)):
             c.copy_position_from(k)
             elements.append(next_)
     return t.captured_error or syntax.TermList(terms=elements)
