@@ -54,7 +54,7 @@ x           | star_expression
 x       star_expression:
 d           | '*' bitwise_or
 x           | expression
-        star_named_expressions: ','.star_named_expression+ ([','] #dropped for mvp)
+        star_named_expressions: ','.star_named_expression+ ([','] # TODO: implement #mvp)
         star_named_expression:
 d           | '*' bitwise_or
             | named_expression
@@ -145,7 +145,7 @@ d           | invalid_group
         set: '{' star_named_expressions '}'
 x       dict:
 x           | '{' [double_starred_kvpairs] '}'
-x           | '{' invalid_double_starred_kvpairs '}'
+d           | '{' invalid_double_starred_kvpairs '}'
 x       double_starred_kvpairs: ','.double_starred_kvpair+ [',']
 x       double_starred_kvpair:
 x           | '**' bitwise_or
@@ -433,7 +433,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.DICT, [])
     add(rn.DOUBLE_STARRED_KVPAIRS, [])
     add(rn.DOUBLE_STARRED_KVPAIR, [])
-    add(rn.KVPAIR, [])
+    add(rn.KVPAIR, [_parse_key_value_pair])
 
     # Comprehensions & Generators
     # ---------------------------
@@ -548,6 +548,8 @@ def get_grammar() -> parser.Grammar:
     return grammar
 
 
+# TODO: Make Token terms public #mvp
+# TODO: Why repr__tapl methods? is @dataclass not enough? #mvp
 @dataclass
 class _TokenKeyword(syntax.Term):
     location: syntax.Location
@@ -616,6 +618,12 @@ class BlockTerm(syntax.Term):
 
     def repr__tapl(self) -> str:
         return 'BlockTerm'
+
+
+@dataclass
+class KeyValuePair(syntax.Term):
+    key: syntax.Term
+    value: syntax.Term
 
 
 # https://github.com/python/cpython/blob/main/Parser/token.c
@@ -1007,6 +1015,17 @@ def _parse_set(c: Cursor) -> syntax.Term:
         and t.validate(_consume_punct(c, '}'))
     ):
         return terms.Set(location=t.location, elements=cast(syntax.TermList, elements).terms)
+    return t.fail()
+
+
+def _parse_key_value_pair(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(key := c.consume_rule(rn.EXPRESSION))
+        and t.validate(_consume_punct(c, ':'))
+        and t.validate(value := _expect_rule(c, rn.EXPRESSION))
+    ):
+        return KeyValuePair(key=key, value=value)
     return t.fail()
 
 

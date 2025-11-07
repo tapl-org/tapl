@@ -182,6 +182,15 @@ def test_set():
     assert actual == expected
 
 
+def test_key_value_pair():
+    actual = parse_expr("'a': 1", rn.KVPAIR, mode=terms.MODE_EVALUATE)
+    expected = grammar.KeyValuePair(
+        key=terms.StringLiteral(location=create_loc(1, 0, 1, 3), value='a'),
+        value=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=1),
+    )
+    assert actual == expected
+
+
 def test_expression__disjunction():
     actual = parse_expr('a or b', rn.EXPRESSION, mode=terms.MODE_SAFE)
     expected = terms.TypedBoolOp(

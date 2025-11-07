@@ -421,6 +421,28 @@ class Set(syntax.Term):
 
 
 @dataclass
+class Dict(syntax.Term):
+    location: syntax.Location
+    keys: list[syntax.Term]
+    values: list[syntax.Term]
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.keys
+        yield from self.values
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: Dict(
+                location=self.location,
+                keys=[layer(k) for k in self.keys],
+                values=[layer(v) for v in self.values],
+            )
+        )
+
+
+@dataclass
 class Compare(syntax.Term):
     location: syntax.Location
     left: syntax.Term
