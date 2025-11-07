@@ -247,6 +247,52 @@ def test_double_starred_kvpairs__trailing_comma():
     assert actual == expected
 
 
+def test_dict__empty():
+    actual = parse_expr('{}', rn.DICT, mode=terms.MODE_EVALUATE)
+    expected = terms.Dict(
+        location=create_loc(1, 0, 1, 2),
+        keys=[],
+        values=[],
+    )
+    assert actual == expected
+
+
+def test_dict__single():
+    actual = parse_expr("{'a': 1}", rn.DICT, mode=terms.MODE_EVALUATE)
+    expected = terms.Dict(
+        location=create_loc(1, 0, 1, 8),
+        keys=[terms.StringLiteral(location=create_loc(1, 1, 1, 4), value='a')],
+        values=[terms.IntegerLiteral(location=create_loc(1, 6, 1, 7), value=1)],
+    )
+    assert actual == expected
+
+
+def test_dict__traling_comma():
+    actual = parse_expr("{'a': 1,}", rn.DICT, mode=terms.MODE_EVALUATE)
+    expected = terms.Dict(
+        location=create_loc(1, 0, 1, 9),
+        keys=[terms.StringLiteral(location=create_loc(1, 1, 1, 4), value='a')],
+        values=[terms.IntegerLiteral(location=create_loc(1, 6, 1, 7), value=1)],
+    )
+    assert actual == expected
+
+
+def test_dict__multi():
+    actual = parse_expr("{'a': 1, 'b': 2}", rn.DICT, mode=terms.MODE_EVALUATE)
+    expected = terms.Dict(
+        location=create_loc(1, 0, 1, 16),
+        keys=[
+            terms.StringLiteral(location=create_loc(1, 1, 1, 4), value='a'),
+            terms.StringLiteral(location=create_loc(1, 9, 1, 12), value='b'),
+        ],
+        values=[
+            terms.IntegerLiteral(location=create_loc(1, 6, 1, 7), value=1),
+            terms.IntegerLiteral(location=create_loc(1, 14, 1, 15), value=2),
+        ],
+    )
+    assert actual == expected
+
+
 def test_expression__disjunction():
     actual = parse_expr('a or b', rn.EXPRESSION, mode=terms.MODE_SAFE)
     expected = terms.TypedBoolOp(

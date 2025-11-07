@@ -127,7 +127,7 @@ d           | ','.(slice | starred_expression)+ [',']
 d       slice:   # TODO: ML developers need slice #mvp
 d           | [expression] ':' [expression] [':' [expression]]
 d           | named_expression
-x       atom:
+        atom:
             | NAME
             | 'True' | 'False' | 'None'
             | STRING
@@ -135,7 +135,7 @@ d           | FSTRING_START
             | NUMBER
             | (tuple | group)       # dropped genxp
             | (list)                # dropped listcomp
-x           | (dict | set)          # dropped dictcomp and setcomp
+            | (dict | set)          # dropped dictcomp and setcomp
 d           | '...'
         tuple: '(' [star_named_expression ',' [star_named_expressions] ] ')'
         group:
@@ -143,8 +143,8 @@ d           | '...'
 d           | invalid_group
         list: '[' [star_named_expressions] ']'
         set: '{' star_named_expressions '}'
-x       dict:
-x           | '{' [double_starred_kvpairs] '}'
+        dict:
+            | '{' [double_starred_kvpairs] '}'
 d           | '{' invalid_double_starred_kvpairs '}'
         double_starred_kvpairs: ','.double_starred_kvpair+ [',']
         double_starred_kvpair:
@@ -392,6 +392,7 @@ def get_grammar() -> parser.Grammar:
             rn.GROUP,
             rn.LIST,
             rn.SET,
+            rn.DICT,
         ],
     )
     add(rn.GROUP, [_parse_group__named_expression])
@@ -430,7 +431,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.SET, [_parse_set])
     # Dicts
     # -----
-    add(rn.DICT, [])
+    add(rn.DICT, [_parse_dict__empty, _parse_dict__non_empty])
     add(rn.DOUBLE_STARRED_KVPAIRS, [_parse_double_starred_kvpairs])
     add(rn.DOUBLE_STARRED_KVPAIR, [rn.KVPAIR])
     add(rn.KVPAIR, [_parse_kvpair])
@@ -1015,6 +1016,32 @@ def _parse_set(c: Cursor) -> syntax.Term:
         and t.validate(_consume_punct(c, '}'))
     ):
         return terms.Set(location=t.location, elements=cast(syntax.TermList, elements).terms)
+    return t.fail()
+
+
+def _parse_dict__empty(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(_consume_punct(c, '{')) and t.validate(_consume_punct(c, '}')):
+        return terms.Dict(location=t.location, keys=[], values=[])
+    return t.fail()
+
+
+def _parse_dict__non_empty(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(_consume_punct(c, '{'))
+        and t.validate(kvpairs := c.consume_rule(rn.DOUBLE_STARRED_KVPAIRS))
+        and t.validate(_consume_punct(c, '}'))
+    ):
+        keys = []
+        values = []
+        for kvpair in cast(syntax.TermList, kvpairs).terms:
+            if isinstance(kvpair, KeyValuePair):
+                keys.append(kvpair.key)
+                values.append(kvpair.value)
+            else:
+                return syntax.ErrorTerm(message='Expected key-value pair in dict literal', location=t.location)
+        return terms.Dict(location=t.location, keys=keys, values=values)
     return t.fail()
 
 
