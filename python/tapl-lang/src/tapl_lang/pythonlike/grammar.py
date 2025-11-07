@@ -146,11 +146,11 @@ d           | invalid_group
 x       dict:
 x           | '{' [double_starred_kvpairs] '}'
 d           | '{' invalid_double_starred_kvpairs '}'
-x       double_starred_kvpairs: ','.double_starred_kvpair+ [',']
-x       double_starred_kvpair:
-x           | '**' bitwise_or
-x           | kvpair
-x       kvpair: expression ':' expression
+        double_starred_kvpairs: ','.double_starred_kvpair+ [',']
+        double_starred_kvpair:
+d           | '**' bitwise_or
+            | kvpair
+        kvpair: expression ':' expression
 """
 
 
@@ -431,9 +431,9 @@ def get_grammar() -> parser.Grammar:
     # Dicts
     # -----
     add(rn.DICT, [])
-    add(rn.DOUBLE_STARRED_KVPAIRS, [])
-    add(rn.DOUBLE_STARRED_KVPAIR, [])
-    add(rn.KVPAIR, [_parse_key_value_pair])
+    add(rn.DOUBLE_STARRED_KVPAIRS, [_parse_double_starred_kvpairs])
+    add(rn.DOUBLE_STARRED_KVPAIR, [rn.KVPAIR])
+    add(rn.KVPAIR, [_parse_kvpair])
 
     # Comprehensions & Generators
     # ---------------------------
@@ -1018,7 +1018,23 @@ def _parse_set(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def _parse_key_value_pair(c: Cursor) -> syntax.Term:
+def _parse_double_starred_kvpairs(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    kvpairs = []
+    if t.validate(first_kvpair := c.consume_rule(rn.DOUBLE_STARRED_KVPAIR)):
+        kvpairs.append(first_kvpair)
+        k = c.clone()
+        while t.validate(_consume_punct(k, ',')) and t.validate(kvpair := k.consume_rule(rn.DOUBLE_STARRED_KVPAIR)):
+            c.copy_position_from(k)
+            kvpairs.append(kvpair)
+    k = c.clone()
+    if t.validate(_consume_punct(k, ',')):
+        # Allow trailing comma
+        c.copy_position_from(k)
+    return t.captured_error or syntax.TermList(terms=kvpairs)
+
+
+def _parse_kvpair(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(key := c.consume_rule(rn.EXPRESSION))

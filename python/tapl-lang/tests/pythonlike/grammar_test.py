@@ -182,11 +182,67 @@ def test_set():
     assert actual == expected
 
 
-def test_key_value_pair():
+def test_kvpair():
     actual = parse_expr("'a': 1", rn.KVPAIR, mode=terms.MODE_EVALUATE)
     expected = grammar.KeyValuePair(
         key=terms.StringLiteral(location=create_loc(1, 0, 1, 3), value='a'),
         value=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=1),
+    )
+    assert actual == expected
+
+
+def test_double_starred_kvpair():
+    actual = parse_expr("'a': 1", rn.DOUBLE_STARRED_KVPAIR, mode=terms.MODE_EVALUATE)
+    expected = grammar.KeyValuePair(
+        key=terms.StringLiteral(location=create_loc(1, 0, 1, 3), value='a'),
+        value=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=1),
+    )
+    assert actual == expected
+
+
+def test_double_starred_kvpair__single():
+    actual = parse_expr("'a': 1", rn.DOUBLE_STARRED_KVPAIRS, mode=terms.MODE_EVALUATE)
+    expected = syntax.TermList(
+        terms=[
+            grammar.KeyValuePair(
+                key=terms.StringLiteral(location=create_loc(1, 0, 1, 3), value='a'),
+                value=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=1),
+            ),
+        ],
+    )
+    assert actual == expected
+
+
+def test_double_starred_kvpairs__multi():
+    actual = parse_expr("'a': 1, 'b': 2", rn.DOUBLE_STARRED_KVPAIRS, mode=terms.MODE_EVALUATE)
+    expected = syntax.TermList(
+        terms=[
+            grammar.KeyValuePair(
+                key=terms.StringLiteral(location=create_loc(1, 0, 1, 3), value='a'),
+                value=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=1),
+            ),
+            grammar.KeyValuePair(
+                key=terms.StringLiteral(location=create_loc(1, 8, 1, 11), value='b'),
+                value=terms.IntegerLiteral(location=create_loc(1, 13, 1, 14), value=2),
+            ),
+        ],
+    )
+    assert actual == expected
+
+
+def test_double_starred_kvpairs__trailing_comma():
+    actual = parse_expr("'a': 1, 'b': 2,", rn.DOUBLE_STARRED_KVPAIRS, mode=terms.MODE_EVALUATE)
+    expected = syntax.TermList(
+        terms=[
+            grammar.KeyValuePair(
+                key=terms.StringLiteral(location=create_loc(1, 0, 1, 3), value='a'),
+                value=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=1),
+            ),
+            grammar.KeyValuePair(
+                key=terms.StringLiteral(location=create_loc(1, 8, 1, 11), value='b'),
+                value=terms.IntegerLiteral(location=create_loc(1, 13, 1, 14), value=2),
+            ),
+        ],
     )
     assert actual == expected
 
