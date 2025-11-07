@@ -124,7 +124,7 @@ d           | primary genexp
 d       slices:
 d           | slice !','
 d           | ','.(slice | starred_expression)+ [',']
-d       slice:
+d       slice:   # TODO: ML developers need slice #mvp
 d           | [expression] ':' [expression] [':' [expression]]
 d           | named_expression
 x       atom:
@@ -134,15 +134,15 @@ x       atom:
 d           | FSTRING_START
             | NUMBER
             | (tuple | group)       # dropped genxp
-x           | (list)                # dropped listcomp
+            | (list)                # dropped listcomp
 x           | (dict | set)          # dropped dictcomp and setcomp
 d           | '...'
-x       tuple: '(' [star_named_expression ',' [star_named_expressions] ] ')'
-x       group:
-x           | '(' named_expression ')'
-x           | invalid_group
-x       list: '[' [star_named_expressions] ']'
-x       set: '{' star_named_expressions '}'
+        tuple: '(' [star_named_expression ',' [star_named_expressions] ] ')'
+        group:
+            | '(' named_expression ')'
+d           | invalid_group
+        list: '[' [star_named_expressions] ']'
+        set: '{' star_named_expressions '}'
 x       dict:
 x           | '{' [double_starred_kvpairs] '}'
 x           | '{' invalid_double_starred_kvpairs '}'
@@ -391,6 +391,7 @@ def get_grammar() -> parser.Grammar:
             rn.TUPLE,
             rn.GROUP,
             rn.LIST,
+            rn.SET,
         ],
     )
     add(rn.GROUP, [_parse_group__named_expression])
@@ -426,7 +427,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.STRINGS, [])
     add(rn.LIST, [_parse_list__empty, _parse_list__non_empty])
     add(rn.TUPLE, [_parse_tuple__empty, _parse_tuple__single, _parse_tuple__multi])
-    add(rn.SET, [])
+    add(rn.SET, [_parse_set])
     # Dicts
     # -----
     add(rn.DICT, [])
@@ -995,6 +996,17 @@ def _parse_list__non_empty(c: Cursor) -> syntax.Term:
         and t.validate(_consume_punct(c, ']'))
     ):
         return terms.TypedList(location=t.location, elements=cast(syntax.TermList, elements).terms, mode=c.context.mode)
+    return t.fail()
+
+
+def _parse_set(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(_consume_punct(c, '{'))
+        and t.validate(elements := c.consume_rule(rn.STAR_NAMED_EXPRESSIONS))
+        and t.validate(_consume_punct(c, '}'))
+    ):
+        return terms.Set(location=t.location, elements=cast(syntax.TermList, elements).terms)
     return t.fail()
 
 

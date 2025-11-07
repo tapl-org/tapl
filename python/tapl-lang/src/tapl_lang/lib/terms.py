@@ -407,6 +407,20 @@ class UnaryOp(syntax.Term):
 
 
 @dataclass
+class Set(syntax.Term):
+    location: syntax.Location
+    elements: list[syntax.Term]
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.elements
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda layer: Set(location=self.location, elements=[layer(v) for v in self.elements]))
+
+
+@dataclass
 class Compare(syntax.Term):
     location: syntax.Location
     left: syntax.Term
