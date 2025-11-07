@@ -133,6 +133,42 @@ def test_tuple__multi():
     assert actual == expected
 
 
+def test_list__empty():
+    actual = parse_expr('[]', rn.LIST, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedList(
+        location=create_loc(1, 0, 1, 2),
+        elements=[],
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
+
+
+def test_list__single():
+    actual = parse_expr('[item]', rn.LIST, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedList(
+        location=create_loc(1, 0, 1, 6),
+        elements=[
+            terms.TypedName(location=create_loc(1, 1, 1, 5), id='item', ctx='load', mode=terms.MODE_EVALUATE),
+        ],
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
+
+
+def test_list__multi():
+    actual = parse_expr('[a, b, c]', rn.LIST, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedList(
+        location=create_loc(1, 0, 1, 9),
+        elements=[
+            terms.TypedName(location=create_loc(1, 1, 1, 2), id='a', ctx='load', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 4, 1, 5), id='b', ctx='load', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 7, 1, 8), id='c', ctx='load', mode=terms.MODE_EVALUATE),
+        ],
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
+
+
 def test_expression__disjunction():
     actual = parse_expr('a or b', rn.EXPRESSION, mode=terms.MODE_SAFE)
     expected = terms.TypedBoolOp(

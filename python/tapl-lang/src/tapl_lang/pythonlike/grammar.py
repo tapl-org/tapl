@@ -133,7 +133,7 @@ x       atom:
             | STRING
 d           | FSTRING_START
             | NUMBER
-x           | (tuple | group)       # dropped genxp
+            | (tuple | group)       # dropped genxp
 x           | (list)                # dropped listcomp
 x           | (dict | set)          # dropped dictcomp and setcomp
 d           | '...'
@@ -390,7 +390,7 @@ def get_grammar() -> parser.Grammar:
             _parse_atom__number,
             rn.TUPLE,
             rn.GROUP,
-            _parse_atom__list,
+            rn.LIST,
         ],
     )
     add(rn.GROUP, [_parse_group__named_expression])
@@ -424,7 +424,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.TSTRING, [])
     add(rn.STRING, [])
     add(rn.STRINGS, [])
-    add(rn.LIST, [])
+    add(rn.LIST, [_parse_list__empty, _parse_list__non_empty])
     add(rn.TUPLE, [_parse_tuple__empty, _parse_tuple__single, _parse_tuple__multi])
     add(rn.SET, [])
     # Dicts
@@ -980,14 +980,21 @@ def _parse_tuple__multi(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def _parse_atom__list(c: Cursor) -> syntax.Term:
+def _parse_list__empty(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(_consume_punct(c, '[')) and t.validate(_consume_punct(c, ']')):
+        return terms.TypedList(location=t.location, elements=[], mode=c.context.mode)
+    return t.fail()
+
+
+def _parse_list__non_empty(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(_consume_punct(c, '['))
-        # TODO: star_named_expressions? #mvp
-        and t.validate(_expect_punct(c, ']'))
+        and t.validate(elements := c.consume_rule(rn.STAR_NAMED_EXPRESSIONS))
+        and t.validate(_consume_punct(c, ']'))
     ):
-        return terms.TypedList(location=t.location, elements=[], mode=c.context.mode)
+        return terms.TypedList(location=t.location, elements=cast(syntax.TermList, elements).terms, mode=c.context.mode)
     return t.fail()
 
 
