@@ -36,20 +36,41 @@ x       for_stmt: 'for' star_targets 'in' ~ star_expressions ':'
 x       while_stmt: 'while' named_expression ':' block [else_block]
 x       simple_stmt:
 x           | assignment
+d           | &"type" type_alias
 x           | star_expressions
 x           | return_stmt |> 'return' [star_expressions]
-x           | import_stmt |> import_name | import_from
+x           | (import_stmt |> import_name) | import_from
 x           | raise_stmt |> 'raise' expression?
             | pass_stmt |> 'pass'
+d           | &'del' del_stmt
+d           | &'yield' yield_stmt
+d           | &'assert' assert_stmt
+d           | 'break'
+d           | 'continue'
+d           | &'global' global_stmt
+d           | &'nonlocal' nonlocal_stmt
 x       assignment:
-x           | single_target ':' expression ['=' annotated_rhs]
-x           | single_target '=' annotated_rhs
-x       single_subscript_attribute_target:
+x           | NAME ':' expression ['=' annotated_rhs]
+d           | ('(' single_target ')' | single_subscript_attribute_target) ':' expression ['=' annotated_rhs]
+x           | (star_targets '=')+ annotated_rhs !'=' [TYPE_COMMENT]
+d           | single_target augassign ~annotated_rhs
+d           | invalid_assignment
+x       annotated_rhs:
+d           | yield_expr
+x           | star_expressions
+x       star_targets:
+x           | star_target !','
+d           | star_target ("," star_target)* [',']
+x       star_target:
+d           | '*' !'*' star_target
+x           | target_with_star_atom
+x       target_with_star_atom:
 x           | t_primary '.' NAME !t_lookahead
 x           | t_primary '[' slices ']' !t_lookahead
-x       star_targets: ...
+x           | star_atom |> NAME
 x       star_expressions:
 x           | star_expression ("," star_expression)+ [',']
+d           | star_expression ','
 x           | star_expression
 x       star_expression:
 d           | '*' bitwise_or
@@ -63,8 +84,12 @@ d           | '*' bitwise_or
 d           | invalid_named_expression
             | expression !':='
         assignment_expression: NAME ':=' ~ expression   # needed for parser rule in tapl syntax
-x       t_primary: ...
-x           | atom
+x       t_primary:
+x           | t_primary '.' NAME &t_lookahead
+x           | t_primary '[' slices ']' &t_lookahead
+d           | t_primary genexp &t_lookahead
+d           | t_primary '(' arguments ')' &t_lookahead
+x           | atom &t_lookahead
 x       t_lookahead: '(' | '[' | '.'
         expression:
 d           | invalid_expression
