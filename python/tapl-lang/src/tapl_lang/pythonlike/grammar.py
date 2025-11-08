@@ -64,10 +64,10 @@ d           | star_target ("," star_target)* [',']
 x       star_target:
 d           | '*' !'*' star_target
 x           | target_with_star_atom
-x       target_with_star_atom:
-x           | t_primary '.' NAME !t_lookahead
-x           | t_primary '[' slices ']' !t_lookahead
-x           | star_atom |> NAME
+        target_with_star_atom:
+            | t_primary '.' NAME !t_lookahead
+d           | t_primary '[' slices ']' !t_lookahead  # TODO: ML developers need subscript #mvp
+            | star_atom |> NAME
 x       star_expressions:
 x           | star_expression ("," star_expression)+ [',']
 d           | star_expression ','
@@ -84,12 +84,12 @@ d           | '*' bitwise_or
 d           | invalid_named_expression
             | expression !':='
         assignment_expression: NAME ':=' ~ expression   # needed for parser rule in tapl syntax
-x       t_primary:
-x           | t_primary '.' NAME &t_lookahead
-x           | t_primary '[' slices ']' &t_lookahead
+        t_primary:
+            | t_primary '.' NAME &t_lookahead
+d           | t_primary '[' slices ']' &t_lookahead  # TODO: ML developers need subscript #mvp
 d           | t_primary genexp &t_lookahead
 d           | t_primary '(' arguments ')' &t_lookahead
-x           | atom &t_lookahead
+            | atom &t_lookahead
         t_lookahead: '(' | '[' | '.'
         expression:
 d           | invalid_expression
@@ -1541,7 +1541,7 @@ def _parse_star_targets__single(c: Cursor) -> syntax.Term:
 def _parse_star_atom__name_store(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, TokenName):
-        return terms.TypedName(location=token.location, id=token.value, ctx='store', mode=terms.MODE_SAFE)
+        return terms.TypedName(location=token.location, id=token.value, ctx='store', mode=c.context.mode)
     return t.fail()
 
 

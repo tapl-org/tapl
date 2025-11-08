@@ -38,6 +38,57 @@ def test_t_lookahead():
         assert actual == expected
 
 
+def test_t_primary__atom_failed():
+    actual = parse_expr('variable', rn.T_PRIMARY, mode=terms.MODE_EVALUATE)
+    expected = parser.ParseFailed
+    assert actual == expected
+
+
+def test_target_with_star_atom__name():
+    actual = parse_expr('my_var', rn.TARGET_WITH_STAR_ATOM, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedName(location=create_loc(1, 0, 1, 6), id='my_var', ctx='store', mode=terms.MODE_EVALUATE)
+    assert actual == expected
+
+
+def test_target_with_star_atom__attribute():
+    actual = parse_expr('obj.attr', rn.TARGET_WITH_STAR_ATOM, mode=terms.MODE_EVALUATE)
+    expected = terms.Attribute(
+        location=create_loc(1, 0, 1, 8),
+        value=terms.TypedName(location=create_loc(1, 0, 1, 3), id='obj', ctx='load', mode=terms.MODE_EVALUATE),
+        attr='attr',
+        ctx='store',
+    )
+    assert actual == expected
+
+
+def test_target_with_star_atom__attribute_nested():
+    actual = parse_expr('obj.sub.attr', rn.TARGET_WITH_STAR_ATOM, mode=terms.MODE_EVALUATE)
+    expected = terms.Attribute(
+        location=create_loc(1, 0, 1, 12),
+        value=terms.Attribute(
+            location=create_loc(1, 0, 1, 7),
+            value=terms.TypedName(location=create_loc(1, 0, 1, 3), id='obj', ctx='load', mode=terms.MODE_EVALUATE),
+            attr='sub',
+            ctx='load',
+        ),
+        attr='attr',
+        ctx='store',
+    )
+    assert actual == expected
+
+
+# TDOO: Enable subscript parsing for target_with_star_atom #mvp
+# def test_target_with_star_atom__subscript():
+#     actual = parse_expr('data[0]', rn.TARGET_WITH_STAR_ATOM, mode=terms.MODE_EVALUATE)
+#     expected = terms.Subscript(
+#         location=create_loc(1, 0, 1, 7),
+#         value=terms.TypedName(location=create_loc(1, 0, 1, 4), id='data', ctx='load', mode=terms.MODE_EVALUATE),
+#         slice=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=0),
+#         ctx='store',
+#     )
+#     assert actual == expected
+
+
 def test_atom__name():
     actual = parse_expr('variable_name', rn.ATOM, mode=terms.MODE_EVALUATE)
     expected = terms.TypedName(
