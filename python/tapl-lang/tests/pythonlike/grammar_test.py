@@ -30,6 +30,14 @@ def test_simple_stmt__pass():
     assert actual == expected
 
 
+def test_t_lookahead():
+    punct = ['(', '[', '.']
+    for p in punct:
+        actual = parse_expr(p, rn.T_LOOKAHEAD)
+        expected = grammar.TokenPunct(location=create_loc(1, 0, 1, 1), value=p)
+        assert actual == expected
+
+
 def test_atom__name():
     actual = parse_expr('variable_name', rn.ATOM, mode=terms.MODE_EVALUATE)
     expected = terms.TypedName(
