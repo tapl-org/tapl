@@ -146,9 +146,9 @@ d           | primary genexp
             | primary '(' arguments ')'
             | primary '[' slices ']'
             | atom
-d       slices:
-d           | slice !','
-d           | ','.(slice)+ [',']
+        slices:
+            | slice !','
+            | ','.(slice)+ [',']
         slice:
             | [expression] ':' [expression] [':' [expression]]
             | named_expression
@@ -950,9 +950,13 @@ def _parse_slices__multi(c: Cursor) -> syntax.Term:
     if t.validate(first_slice := c.consume_rule(rn.SLICE)):
         slices.append(first_slice)
         k = c.clone()
-        while t.validate(_consume_punct(k, ',')) and t.validate(next_slice := _expect_rule(k, rn.SLICE)):
+        while t.validate(_consume_punct(k, ',')) and t.validate(next_slice := k.consume_rule(rn.SLICE)):
             c.copy_position_from(k)
             slices.append(next_slice)
+    k = c.clone()
+    if t.validate(_consume_punct(k, ',')):
+        # Allow trailing comma
+        c.copy_position_from(k)
     return t.captured_error or syntax.TermList(terms=slices)
 
 

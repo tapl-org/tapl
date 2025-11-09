@@ -89,7 +89,74 @@ def test_target_with_star_atom__attribute_nested():
 #     assert actual == expected
 
 
-def test_slices__named_expression():
+def test_slices__single():
+    actual = parse_expr('a:b', rn.SLICES, mode=terms.MODE_EVALUATE)
+    expected = terms.Slice(
+        location=create_loc(1, 0, 1, 3),
+        lower=terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
+        upper=terms.TypedName(location=create_loc(1, 2, 1, 3), id='b', ctx='load', mode=terms.MODE_EVALUATE),
+        step=syntax.Empty,
+    )
+    assert actual == expected
+
+
+def test_slices__single_as_tuple():
+    actual = parse_expr('a,', rn.SLICES, mode=terms.MODE_EVALUATE)
+    expected = syntax.TermList(
+        terms=[terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE)]
+    )
+    assert actual == expected
+
+
+def test_slices__multi():
+    actual = parse_expr('x:y, 1:10, ::2', rn.SLICES, mode=terms.MODE_EVALUATE)
+    expected = syntax.TermList(
+        terms=[
+            terms.Slice(
+                location=create_loc(1, 0, 1, 3),
+                lower=terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='load', mode=terms.MODE_EVALUATE),
+                upper=terms.TypedName(location=create_loc(1, 2, 1, 3), id='y', ctx='load', mode=terms.MODE_EVALUATE),
+                step=syntax.Empty,
+            ),
+            terms.Slice(
+                location=create_loc(1, 4, 1, 9),
+                lower=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=1),
+                upper=terms.IntegerLiteral(location=create_loc(1, 7, 1, 9), value=10),
+                step=syntax.Empty,
+            ),
+            terms.Slice(
+                location=create_loc(1, 10, 1, 14),
+                lower=syntax.Empty,
+                upper=syntax.Empty,
+                step=terms.IntegerLiteral(location=create_loc(1, 13, 1, 14), value=2),
+            ),
+        ],
+    )
+    assert actual == expected
+
+
+def test_slices__multi_trailing_comma():
+    actual = parse_expr('x:y, ::2,', rn.SLICES, mode=terms.MODE_EVALUATE)
+    expected = syntax.TermList(
+        terms=[
+            terms.Slice(
+                location=create_loc(1, 0, 1, 3),
+                lower=terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='load', mode=terms.MODE_EVALUATE),
+                upper=terms.TypedName(location=create_loc(1, 2, 1, 3), id='y', ctx='load', mode=terms.MODE_EVALUATE),
+                step=syntax.Empty,
+            ),
+            terms.Slice(
+                location=create_loc(1, 4, 1, 8),
+                lower=syntax.Empty,
+                upper=syntax.Empty,
+                step=terms.IntegerLiteral(location=create_loc(1, 7, 1, 8), value=2),
+            ),
+        ],
+    )
+    assert actual == expected
+
+
+def test_slice__named_expression():
     actual = parse_expr('x := 5', rn.SLICE, mode=terms.MODE_EVALUATE)
     expected = terms.NamedExpr(
         location=create_loc(1, 0, 1, 6),
@@ -99,7 +166,7 @@ def test_slices__named_expression():
     assert actual == expected
 
 
-def test_slices__single_expression():
+def test_slice__single_expression():
     actual = parse_expr('y + 2', rn.SLICE, mode=terms.MODE_EVALUATE)
     expected = terms.BinOp(
         location=create_loc(1, 0, 1, 5),
