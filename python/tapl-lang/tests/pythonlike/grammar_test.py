@@ -24,6 +24,44 @@ def create_loc(start_line: int, start_col: int, end_line: int, end_col: int) -> 
     )
 
 
+def test_assignment__annotated():
+    actual = parse_expr('x: int = 42', rn.ASSIGNMENT, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedAssign(
+        location=create_loc(1, 0, 1, 11),
+        target_name=terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='store', mode=terms.MODE_EVALUATE),
+        target_type=terms.TypedName(location=create_loc(1, 3, 1, 6), id='int', ctx='load', mode=terms.MODE_TYPECHECK),
+        value=terms.IntegerLiteral(location=create_loc(1, 9, 1, 11), value=42),
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
+
+
+def test_assignment__multi_targets():
+    actual = parse_expr('a = b = c = 1', rn.ASSIGNMENT, mode=terms.MODE_EVALUATE)
+    expected = terms.Assign(
+        location=create_loc(1, 0, 1, 13),
+        targets=[
+            terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='store', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 4, 1, 5), id='b', ctx='store', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 8, 1, 9), id='c', ctx='store', mode=terms.MODE_EVALUATE),
+        ],
+        value=terms.IntegerLiteral(location=create_loc(1, 12, 1, 13), value=1),
+    )
+    assert actual == expected
+
+
+def test_assignment__no_annotation():
+    actual = parse_expr('x = 42', rn.ASSIGNMENT, mode=terms.MODE_EVALUATE)
+    expected = terms.Assign(
+        location=create_loc(1, 0, 1, 6),
+        targets=[
+            terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='store', mode=terms.MODE_EVALUATE),
+        ],
+        value=terms.IntegerLiteral(location=create_loc(1, 4, 1, 6), value=42),
+    )
+    assert actual == expected
+
+
 def test_simple_stmt__pass():
     actual = parse_expr('pass', rn.PASS_STMT)
     expected = terms.Pass(location=create_loc(1, 0, 1, 4))

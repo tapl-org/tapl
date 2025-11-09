@@ -49,10 +49,10 @@ d           | 'break'
 d           | 'continue'
 d           | &'global' global_stmt
 d           | &'nonlocal' nonlocal_stmt
-x       assignment:
-x           | NAME ':' expression ['=' annotated_rhs]
+        assignment:
+            | NAME ':' expression ['=' annotated_rhs]
 d           | ('(' single_target ')' | single_subscript_attribute_target) ':' expression ['=' annotated_rhs]
-x           | (star_targets '=')+ annotated_rhs !'=' [TYPE_COMMENT]
+            | (star_targets '=')+ annotated_rhs !'=' [TYPE_COMMENT]
 d           | single_target augassign ~annotated_rhs
 d           | invalid_assignment
         annotated_rhs:
@@ -210,7 +210,7 @@ def get_grammar() -> parser.Grammar:
 
     # SIMPLE STATEMENTS
     # =================
-    add(rn.ASSIGNMENT, [_parse_annotated_assignment, _parse_assignment])
+    add(rn.ASSIGNMENT, [_parse_assignment__annotated, _parse_assignment__multi_targets])
     add(rn.ANNOTATED_RHS, [rn.STAR_EXPRESSIONS])
     add(rn.AUGASSIGN, [])
     add(rn.RETURN_STMT, [_parse_return])
@@ -1392,7 +1392,7 @@ def _parse_expression_no_walrus(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def _parse_annotated_assignment(c: Cursor) -> syntax.Term:
+def _parse_assignment__annotated(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(target_name := c.consume_rule(rn.STAR_TARGETS)) and t.validate(_consume_punct(c, ':')):
         k = c.clone()
@@ -1410,15 +1410,17 @@ def _parse_annotated_assignment(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def _parse_assignment(c: Cursor) -> syntax.Term:
+def _parse_assignment__multi_targets(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if (
-        t.validate(name := c.consume_rule(rn.STAR_TARGETS))
-        and t.validate(_consume_punct(c, '='))
-        and t.validate(value := _expect_rule(c, rn.ANNOTATED_RHS))
-        and not t.validate(_consume_punct(c.clone(), '='))
-    ):
-        return terms.Assign(t.location, targets=[name], value=value)
+    targets = []
+    k = c.clone()
+    while t.validate(target := k.consume_rule(rn.STAR_TARGETS)) and t.validate(_consume_punct(k, '=')):
+        c.copy_position_from(k)
+        targets.append(target)
+    if not targets:
+        return t.fail()
+    if t.validate(value := _expect_rule(c, rn.ANNOTATED_RHS)) and not t.validate(_consume_punct(c.clone(), '=')):
+        return terms.Assign(t.location, targets=targets, value=value)
     return t.fail()
 
 
