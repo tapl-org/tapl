@@ -38,7 +38,7 @@ x       simple_stmt:
             | assignment
 d           | &"type" type_alias
             | star_expressions
-x           | return_stmt |> 'return' [star_expressions]
+            | return_stmt |> 'return' [star_expressions]
 x           | (import_stmt |> import_name) | import_from
 x           | raise_stmt |> 'raise' expression?
             | pass_stmt |> 'pass'

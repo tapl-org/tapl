@@ -91,6 +91,21 @@ def test_simple_stmt__star_expressions():
     assert actual == expected
 
 
+def test_simple_stmt__return():
+    actual = parse_expr('return x + 1', rn.SIMPLE_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedReturn(
+        location=create_loc(1, 0, 1, 12),
+        value=terms.BinOp(
+            location=create_loc(1, 6, 1, 12),
+            left=terms.TypedName(location=create_loc(1, 7, 1, 8), id='x', ctx='load', mode=terms.MODE_EVALUATE),
+            op='+',
+            right=terms.IntegerLiteral(location=create_loc(1, 11, 1, 12), value=1),
+        ),
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
+
+
 def test_simple_stmt__pass():
     actual = parse_expr('pass', rn.PASS_STMT)
     expected = terms.Pass(location=create_loc(1, 0, 1, 4))
