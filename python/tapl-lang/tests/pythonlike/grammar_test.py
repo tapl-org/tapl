@@ -970,6 +970,24 @@ def test_primary__atom():
     assert actual == expected
 
 
+def test_star_expressions__single():
+    actual = parse_expr('a', rn.STAR_EXPRESSIONS, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE)
+    assert actual == expected
+
+
+def test_star_expressions__multiple():
+    actual = parse_expr('a, b, c', rn.STAR_EXPRESSIONS, mode=terms.MODE_EVALUATE)
+    expected = syntax.TermList(
+        terms=[
+            terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 3, 1, 4), id='b', ctx='load', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 6, 1, 7), id='c', ctx='load', mode=terms.MODE_EVALUATE),
+        ],
+    )
+    assert actual == expected
+
+
 def test_star_named_epxressions__empty():
     actual = parse_expr(' ', rn.STAR_NAMED_EXPRESSIONS, mode=terms.MODE_EVALUATE)
     expected = syntax.ErrorTerm(message='chunk[line:1] Not all text consumed: indices 0:0/1:0.')

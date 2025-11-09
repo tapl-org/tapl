@@ -55,9 +55,9 @@ d           | ('(' single_target ')' | single_subscript_attribute_target) ':' ex
 x           | (star_targets '=')+ annotated_rhs !'=' [TYPE_COMMENT]
 d           | single_target augassign ~annotated_rhs
 d           | invalid_assignment
-x       annotated_rhs:
+        annotated_rhs:
 d           | yield_expr
-x           | star_expressions
+            | star_expressions
 x       star_targets:
 x           | star_target !','
 d           | star_target ("," star_target)* [',']
@@ -68,13 +68,13 @@ x           | target_with_star_atom
             | t_primary '.' NAME !t_lookahead
             | t_primary '[' slices ']' !t_lookahead
             | star_atom |> NAME
-x       star_expressions:
-x           | star_expression ("," star_expression)+ [',']
+        star_expressions:
+            | star_expression ("," star_expression)+ [',']
 d           | star_expression ','
-x           | star_expression
-x       star_expression:
+            | star_expression
+        star_expression:
 d           | '*' bitwise_or
-x           | expression
+            | expression
         star_named_expressions: ','.star_named_expression+ [',']
         star_named_expression:
 d           | '*' bitwise_or
@@ -357,7 +357,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.EXPRESSIONS, [])
     add(rn.EXPRESSION, [rn.DISJUNCTION])
     add(rn.YIELD_EXPR, [])
-    add(rn.STAR_EXPRESSIONS, [rn.STAR_EXPRESSION])  # TODO: _parse_star_expressions__multi #mvp
+    add(rn.STAR_EXPRESSIONS, [_parse_star_expressions__multi, rn.STAR_EXPRESSION])
     add(rn.STAR_EXPRESSION, [rn.EXPRESSION])
     add(rn.STAR_NAMED_EXPRESSIONS, [_parse_star_named_expressions])
     add(rn.STAR_NAMED_EXPRESSION, [rn.NAMED_EXPRESSION])
@@ -1326,6 +1326,28 @@ def _parse_disjunction__or(c: Cursor) -> syntax.Term:
             values.append(right)
         if len(values) > 1:
             return terms.TypedBoolOp(location=t.location, op='or', values=values, mode=c.context.mode)
+    return t.fail()
+
+
+def _parse_star_expressions__multi(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    elements = []
+    if (
+        t.validate(first := c.consume_rule(rn.STAR_EXPRESSION))
+        and t.validate(_consume_punct(c, ','))
+        and t.validate(second := c.consume_rule(rn.STAR_EXPRESSION))
+    ):
+        elements.append(first)
+        elements.append(second)
+        k = c.clone()
+        while t.validate(_consume_punct(k, ',')) and t.validate(next_ := k.consume_rule(rn.STAR_EXPRESSION)):
+            c.copy_position_from(k)
+            elements.append(next_)
+        k = c.clone()
+        if t.validate(_consume_punct(k, ',')):
+            # Allow trailing comma
+            c.copy_position_from(k)
+        return t.captured_error or syntax.TermList(terms=elements)
     return t.fail()
 
 
