@@ -66,7 +66,7 @@ d           | '*' !'*' star_target
 x           | target_with_star_atom
         target_with_star_atom:
             | t_primary '.' NAME !t_lookahead
-d           | t_primary '[' slices ']' !t_lookahead  # TODO: ML developers need subscript #mvp
+            | t_primary '[' slices ']' !t_lookahead
             | star_atom |> NAME
 x       star_expressions:
 x           | star_expression ("," star_expression)+ [',']
@@ -135,11 +135,8 @@ d           | lambda_def
             | ('+' | '-' | '~') factor
             | power
         power:
-            | await_primary '**' factor
+            | (await_primary  |> primary) '**' factor
             | await_primary |> primary
-d       await_primary:
-d           | 'await' primary
-d           | primary
         primary:
             | primary '.' NAME
 d           | primary genexp
@@ -488,7 +485,10 @@ def get_grammar() -> parser.Grammar:
     add(rn.STAR_TARGETS_LIST_SEQ, [])
     add(rn.STAR_TARGETS_TUPLE_SEQ, [])
     add(rn.STAR_TARGET, [rn.TARGET_WITH_STAR_ATOM])
-    add(rn.TARGET_WITH_STAR_ATOM, [_parse_target_with_star_atom__attribute, rn.STAR_ATOM])
+    add(
+        rn.TARGET_WITH_STAR_ATOM,
+        [_parse_target_with_star_atom__attribute, _parse_target_with_star_atom__slices, rn.STAR_ATOM],
+    )
     add(rn.STAR_ATOM, [_parse_star_atom__name_store])
     add(rn.SINGLE_TARGET, [])
     add(rn.SINGLE_SUBSCRIPT_ATTRIBUTE_TARGET, [])
@@ -1608,6 +1608,19 @@ def _parse_target_with_star_atom__attribute(c: Cursor) -> syntax.Term:
         and not t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
     ):
         return terms.Attribute(t.location, value=target, attr=cast(TokenName, name).value, ctx='store')
+    return t.fail()
+
+
+def _parse_target_with_star_atom__slices(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(value := c.consume_rule(rn.T_PRIMARY))
+        and t.validate(_consume_punct(c, '['))
+        and t.validate(slices := c.consume_rule(rn.SLICES))
+        and t.validate(_expect_punct(c, ']'))
+        and not t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
+    ):
+        return terms.Subscript(t.location, value=value, slice=slices, ctx='load')
     return t.fail()
 
 

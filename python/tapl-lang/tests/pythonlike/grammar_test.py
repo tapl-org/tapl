@@ -78,15 +78,24 @@ def test_target_with_star_atom__attribute_nested():
 
 
 # TDOO: Enable subscript parsing for target_with_star_atom #mvp
-# def test_target_with_star_atom__subscript():
-#     actual = parse_expr('data[0]', rn.TARGET_WITH_STAR_ATOM, mode=terms.MODE_EVALUATE)
-#     expected = terms.Subscript(
-#         location=create_loc(1, 0, 1, 7),
-#         value=terms.TypedName(location=create_loc(1, 0, 1, 4), id='data', ctx='load', mode=terms.MODE_EVALUATE),
-#         slice=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=0),
-#         ctx='store',
-#     )
-#     assert actual == expected
+def test_target_with_star_atom__subscript():
+    actual = parse_expr('d[:-1]', rn.TARGET_WITH_STAR_ATOM, mode=terms.MODE_EVALUATE)
+    expected = terms.Subscript(
+        location=create_loc(1, 0, 1, 6),
+        value=terms.TypedName(location=create_loc(1, 0, 1, 1), id='d', ctx='load', mode=terms.MODE_EVALUATE),
+        slice=terms.Slice(
+            location=create_loc(1, 2, 1, 5),
+            lower=syntax.Empty,
+            upper=terms.UnaryOp(
+                location=create_loc(1, 3, 1, 5),
+                op='-',
+                operand=terms.IntegerLiteral(location=create_loc(1, 4, 1, 5), value=1),
+            ),
+            step=syntax.Empty,
+        ),
+        ctx='load',
+    )
+    assert actual == expected
 
 
 def test_slices__single():
