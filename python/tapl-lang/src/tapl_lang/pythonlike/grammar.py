@@ -35,9 +35,9 @@ x       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':'
 x       for_stmt: 'for' star_targets 'in' ~ star_expressions ':'
 x       while_stmt: 'while' named_expression ':' block [else_block]
 x       simple_stmt:
-x           | assignment
+            | assignment
 d           | &"type" type_alias
-x           | star_expressions
+            | star_expressions
 x           | return_stmt |> 'return' [star_expressions]
 x           | (import_stmt |> import_name) | import_from
 x           | raise_stmt |> 'raise' expression?
@@ -1347,7 +1347,7 @@ def _parse_star_expressions__multi(c: Cursor) -> syntax.Term:
         if t.validate(_consume_punct(k, ',')):
             # Allow trailing comma
             c.copy_position_from(k)
-        return t.captured_error or syntax.TermList(terms=elements)
+        return t.captured_error or terms.Tuple(location=t.location, elements=elements, ctx='load')
     return t.fail()
 
 

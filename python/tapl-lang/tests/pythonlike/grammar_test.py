@@ -62,6 +62,35 @@ def test_assignment__no_annotation():
     assert actual == expected
 
 
+def test_simple_stmt__assignment():
+    actual = parse_expr('x = 10', rn.SIMPLE_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.Assign(
+        location=create_loc(1, 0, 1, 6),
+        targets=[
+            terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='store', mode=terms.MODE_EVALUATE),
+        ],
+        value=terms.IntegerLiteral(location=create_loc(1, 4, 1, 6), value=10),
+    )
+    assert actual == expected
+
+
+def test_simple_stmt__star_expressions():
+    actual = parse_expr('a, b, c', rn.SIMPLE_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.Expr(
+        location=create_loc(1, 0, 1, 7),
+        value=terms.Tuple(
+            location=create_loc(1, 0, 1, 7),
+            elements=[
+                terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
+                terms.TypedName(location=create_loc(1, 3, 1, 4), id='b', ctx='load', mode=terms.MODE_EVALUATE),
+                terms.TypedName(location=create_loc(1, 6, 1, 7), id='c', ctx='load', mode=terms.MODE_EVALUATE),
+            ],
+            ctx='load',
+        ),
+    )
+    assert actual == expected
+
+
 def test_simple_stmt__pass():
     actual = parse_expr('pass', rn.PASS_STMT)
     expected = terms.Pass(location=create_loc(1, 0, 1, 4))
@@ -1040,12 +1069,14 @@ def test_star_expressions__single():
 
 def test_star_expressions__multiple():
     actual = parse_expr('a, b, c', rn.STAR_EXPRESSIONS, mode=terms.MODE_EVALUATE)
-    expected = syntax.TermList(
-        terms=[
+    expected = terms.Tuple(
+        location=create_loc(1, 0, 1, 7),
+        elements=[
             terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
             terms.TypedName(location=create_loc(1, 3, 1, 4), id='b', ctx='load', mode=terms.MODE_EVALUATE),
             terms.TypedName(location=create_loc(1, 6, 1, 7), id='c', ctx='load', mode=terms.MODE_EVALUATE),
         ],
+        ctx='load',
     )
     assert actual == expected
 
