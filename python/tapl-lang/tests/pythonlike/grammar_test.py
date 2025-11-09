@@ -30,6 +30,30 @@ def test_simple_stmt__pass():
     assert actual == expected
 
 
+def test_star_targets__single():
+    actual = parse_expr('variable', rn.STAR_TARGETS, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedName(location=create_loc(1, 0, 1, 8), id='variable', ctx='store', mode=terms.MODE_EVALUATE)
+    assert actual == expected
+
+
+def test_star_targets__multi():
+    actual = parse_expr('var1, var2, var3', rn.STAR_TARGETS, mode=terms.MODE_EVALUATE)
+    expected = syntax.TermList(
+        terms=[
+            terms.TypedName(location=create_loc(1, 0, 1, 4), id='var1', ctx='store', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 6, 1, 10), id='var2', ctx='store', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 12, 1, 16), id='var3', ctx='store', mode=terms.MODE_EVALUATE),
+        ],
+    )
+    assert actual == expected
+
+
+def tetst_star_target__targt_with_star_atom():
+    actual = parse_expr('variable', rn.STAR_TARGET, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedName(location=create_loc(1, 0, 1, 8), id='variable', ctx='store', mode=terms.MODE_EVALUATE)
+    assert actual == expected
+
+
 def test_t_lookahead():
     punct = ['(', '[', '.']
     for p in punct:

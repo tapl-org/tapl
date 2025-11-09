@@ -58,12 +58,12 @@ d           | invalid_assignment
         annotated_rhs:
 d           | yield_expr
             | star_expressions
-x       star_targets:
-x           | star_target !','
+        star_targets:
+            | star_target !','
 d           | star_target ("," star_target)* [',']
-x       star_target:
+        star_target:
 d           | '*' !'*' star_target
-x           | target_with_star_atom
+            | target_with_star_atom
         target_with_star_atom:
             | t_primary '.' NAME !t_lookahead
             | t_primary '[' slices ']' !t_lookahead
@@ -481,7 +481,7 @@ def get_grammar() -> parser.Grammar:
 
     # Generic targets
     # ---------------
-    add(rn.STAR_TARGETS, [_parse_star_targets__single])
+    add(rn.STAR_TARGETS, [_parse_star_targets__single, _parse_star_targets__multi])
     add(rn.STAR_TARGETS_LIST_SEQ, [])
     add(rn.STAR_TARGETS_TUPLE_SEQ, [])
     add(rn.STAR_TARGET, [rn.TARGET_WITH_STAR_ATOM])
@@ -1611,6 +1611,23 @@ def _parse_star_targets__single(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(target := c.consume_rule(rn.STAR_TARGET)) and not t.validate(_consume_punct(c.clone(), ',')):
         return target
+    return t.fail()
+
+
+def _parse_star_targets__multi(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    targets = []
+    if t.validate(first_target := c.consume_rule(rn.STAR_TARGET)):
+        targets.append(first_target)
+        k = c.clone()
+        while t.validate(_consume_punct(k, ',')) and t.validate(next_target := k.consume_rule(rn.STAR_TARGET)):
+            c.copy_position_from(k)
+            targets.append(next_target)
+        k = c.clone()
+        if t.validate(_consume_punct(k, ',')):
+            # Allow trailing comma
+            c.copy_position_from(k)
+        return t.captured_error or syntax.TermList(terms=targets)
     return t.fail()
 
 
