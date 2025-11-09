@@ -39,7 +39,7 @@ x       simple_stmt:
 d           | &"type" type_alias
             | star_expressions
             | return_stmt |> 'return' [star_expressions]
-x           | (import_stmt |> import_name) | import_from
+            | import_stmt
 x           | raise_stmt |> 'raise' expression?
             | pass_stmt |> 'pass'
 d           | &'del' del_stmt
@@ -49,6 +49,16 @@ d           | 'break'
 d           | 'continue'
 d           | &'global' global_stmt
 d           | &'nonlocal' nonlocal_stmt
+x       import_stmt:
+d           | invalid_import
+x           | import_name
+d           | import_from
+        import_name: 'import' dotted_as_names
+        dotted_as_names: ','.dotted_as_name+
+        dotted_as_name: dotted_name ['as' NAME]
+        dotted_name:
+            | dotted_name '.' NAME
+            | NAME
         assignment:
             | NAME ':' expression ['=' annotated_rhs]
 d           | ('(' single_target ')' | single_subscript_attribute_target) ':' expression ['=' annotated_rhs]
@@ -204,7 +214,8 @@ def get_grammar() -> parser.Grammar:
     add(rn.STATEMENT_NEWLINE, [])
     add(rn.SIMPLE_STMTS, [rn.SIMPLE_STMT])
     add(
-        rn.SIMPLE_STMT, [rn.ASSIGNMENT, _parse_statement__star_expressions, rn.RETURN_STMT, rn.PASS_STMT, rn.BREAK_STMT]
+        rn.SIMPLE_STMT,
+        [rn.ASSIGNMENT, _parse_statement__star_expressions, rn.RETURN_STMT, rn.IMPORT_STMT, rn.PASS_STMT],
     )
     add(rn.COMPOUND_STMT, [rn.FUNCTION_DEF, rn.IF_STMT, rn.CLASS_DEF, rn.FOR_STMT, rn.WHILE_STMT])
 
@@ -222,18 +233,18 @@ def get_grammar() -> parser.Grammar:
     add(rn.DEL_STMT, [])
     add(rn.YIELD_STMT, [])
     add(rn.ASSERT_STMT, [])
-    add(rn.IMPORT_STMT, [])
+    add(rn.IMPORT_STMT, [rn.IMPORT_NAME])
 
     # Import statements
     # -----------------
-    add(rn.IMPORT_NAME, [])
+    add(rn.IMPORT_NAME, [_parse_import_name])
     add(rn.IMPORT_FROM, [])
     add(rn.IMPORT_FROM_TARGETS, [])
     add(rn.IMPORT_FROM_AS_NAMES, [])
     add(rn.IMPORT_FROM_AS_NAME, [])
-    add(rn.DOTTED_AS_NAMES, [])
-    add(rn.DOTTED_AS_NAME, [])
-    add(rn.DOTTED_NAME, [])
+    add(rn.DOTTED_AS_NAMES, [_parse_dotted_as_names])
+    add(rn.DOTTED_AS_NAME, [_parse_dotted_as_name])
+    add(rn.DOTTED_NAME, [_parse_dotted_name__nested, _parse_dotted_name__single])
 
     # COMPOUND STATEMENTS
     # ===================
@@ -651,6 +662,11 @@ class BlockTerm(syntax.Term):
 class KeyValuePair(syntax.Term):
     key: syntax.Term
     value: syntax.Term
+
+
+@dataclass
+class AliasTerm(syntax.Term):
+    alias: terms.Alias
 
 
 # https://github.com/python/cpython/blob/main/Parser/token.c
@@ -1580,6 +1596,68 @@ def _parse_pass(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'pass')):
         return terms.Pass(location=t.location)
+    return t.fail()
+
+
+def _parse_import_name(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(_consume_keyword(c, 'import'))
+        and t.validate(aliases := _expect_rule(c, rn.DOTTED_AS_NAMES))
+        and isinstance(aliases, syntax.TermList)
+    ):
+        names = [cast(AliasTerm, term).alias for term in aliases.terms]
+        return terms.Import(location=t.location, names=names)
+    return t.fail()
+
+
+def _parse_dotted_as_names(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    names = []
+    if t.validate(first_name := c.consume_rule(rn.DOTTED_AS_NAME)):
+        names.append(first_name)
+        k = c.clone()
+        while t.validate(_consume_punct(k, ',')) and t.validate(next_name := k.consume_rule(rn.DOTTED_AS_NAME)):
+            c.copy_position_from(k)
+            names.append(next_name)
+        return t.captured_error or syntax.TermList(terms=names)
+    return t.fail()
+
+
+def _parse_dotted_as_name(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(dotted_name := c.consume_rule(rn.DOTTED_NAME)) and isinstance(dotted_name, TokenName):
+        k = c.clone()
+        asname = None
+        if t.validate(_consume_keyword(k, 'as')) and t.validate(alias := _expect_name(k)):
+            c.copy_position_from(k)
+            asname = cast(TokenName, alias).value
+        return AliasTerm(
+            alias=terms.Alias(
+                name=dotted_name.value,
+                asname=asname,
+            )
+        )
+    return t.fail()
+
+
+def _parse_dotted_name__single(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(name := _consume_name(c)):
+        return name
+    return t.fail()
+
+
+def _parse_dotted_name__nested(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    names = []
+    if t.validate(first_name := _consume_name(c)):
+        names.append(first_name)
+        k = c.clone()
+        while t.validate(_consume_punct(k, '.')) and t.validate(next_name := _expect_name(k)):
+            c.copy_position_from(k)
+            names.append(next_name)
+        return TokenName(location=t.location, value='.'.join(cast(TokenName, n).value for n in names))
     return t.fail()
 
 

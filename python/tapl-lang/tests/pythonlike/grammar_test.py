@@ -106,9 +106,64 @@ def test_simple_stmt__return():
     assert actual == expected
 
 
+def test_simple_stmt__import_name():
+    actual = parse_expr('import math, sys as system', rn.SIMPLE_STMT)
+    expected = terms.Import(
+        location=create_loc(1, 0, 1, 26),
+        names=[
+            terms.Alias(name='math', asname=None),
+            terms.Alias(name='sys', asname='system'),
+        ],
+    )
+    assert actual == expected
+
+
 def test_simple_stmt__pass():
     actual = parse_expr('pass', rn.PASS_STMT)
     expected = terms.Pass(location=create_loc(1, 0, 1, 4))
+    assert actual == expected
+
+
+def test_import_name__single():
+    actual = parse_expr('import module_name', rn.IMPORT_NAME)
+    expected = terms.Import(
+        location=create_loc(1, 0, 1, 18),
+        names=[terms.Alias(name='module_name', asname=None)],
+    )
+    assert actual == expected
+
+
+def test_import_name__multiple():
+    actual = parse_expr('import mod1, mod2 as m2, mod3', rn.IMPORT_NAME)
+    expected = terms.Import(
+        location=create_loc(1, 0, 1, 29),
+        names=[
+            terms.Alias(name='mod1', asname=None),
+            terms.Alias(name='mod2', asname='m2'),
+            terms.Alias(name='mod3', asname=None),
+        ],
+    )
+    assert actual == expected
+
+
+def test_import_from__path():
+    actual = parse_expr('import a.b.c', rn.IMPORT_NAME)
+    expected = terms.Import(
+        location=create_loc(1, 0, 1, 12),
+        names=[terms.Alias(name='a.b.c', asname=None)],
+    )
+    assert actual == expected
+
+
+def test_import_from__path_multiple():
+    actual = parse_expr('import a.b.c as k, d.e', rn.IMPORT_NAME)
+    expected = terms.Import(
+        location=create_loc(1, 0, 1, 22),
+        names=[
+            terms.Alias(name='a.b.c', asname='k'),
+            terms.Alias(name='d.e', asname=None),
+        ],
+    )
     assert actual == expected
 
 
