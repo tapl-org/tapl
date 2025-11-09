@@ -77,9 +77,8 @@ def test_target_with_star_atom__attribute_nested():
     assert actual == expected
 
 
-# TDOO: Enable subscript parsing for target_with_star_atom #mvp
 def test_target_with_star_atom__subscript():
-    actual = parse_expr('d[:-1]', rn.TARGET_WITH_STAR_ATOM, mode=terms.MODE_EVALUATE)
+    actual = parse_expr('d[:-1]', rn.TARGET_WITH_STAR_ATOM, mode=terms.MODE_EVALUATE, debug=True)
     expected = terms.Subscript(
         location=create_loc(1, 0, 1, 6),
         value=terms.TypedName(location=create_loc(1, 0, 1, 1), id='d', ctx='load', mode=terms.MODE_EVALUATE),
@@ -91,6 +90,27 @@ def test_target_with_star_atom__subscript():
                 op='-',
                 operand=terms.IntegerLiteral(location=create_loc(1, 4, 1, 5), value=1),
             ),
+            step=syntax.Empty,
+        ),
+        ctx='load',
+    )
+    assert actual == expected
+
+
+def test_target_with_star_atom__subscript_nested():
+    actual = parse_expr('matrix[0][1:5]', rn.TARGET_WITH_STAR_ATOM, mode=terms.MODE_EVALUATE)
+    expected = terms.Subscript(
+        location=create_loc(1, 0, 1, 14),
+        value=terms.Subscript(
+            location=create_loc(1, 0, 1, 9),
+            value=terms.TypedName(location=create_loc(1, 0, 1, 6), id='matrix', ctx='load', mode=terms.MODE_EVALUATE),
+            slice=terms.IntegerLiteral(location=create_loc(1, 7, 1, 8), value=0),
+            ctx='load',
+        ),
+        slice=terms.Slice(
+            location=create_loc(1, 10, 1, 13),
+            lower=terms.IntegerLiteral(location=create_loc(1, 10, 1, 11), value=1),
+            upper=terms.IntegerLiteral(location=create_loc(1, 12, 1, 13), value=5),
             step=syntax.Empty,
         ),
         ctx='load',

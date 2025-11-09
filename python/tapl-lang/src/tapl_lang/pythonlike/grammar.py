@@ -86,7 +86,7 @@ d           | invalid_named_expression
         assignment_expression: NAME ':=' ~ expression   # needed for parser rule in tapl syntax
         t_primary:
             | t_primary '.' NAME &t_lookahead
-d           | t_primary '[' slices ']' &t_lookahead  # TODO: ML developers need subscript #mvp
+            | t_primary '[' slices ']' &t_lookahead
 d           | t_primary genexp &t_lookahead
 d           | t_primary '(' arguments ')' &t_lookahead
             | atom &t_lookahead
@@ -492,7 +492,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.STAR_ATOM, [_parse_star_atom__name_store])
     add(rn.SINGLE_TARGET, [])
     add(rn.SINGLE_SUBSCRIPT_ATTRIBUTE_TARGET, [])
-    add(rn.T_PRIMARY, [_parse_t_primary__attribute, _parse_t_primary__atom])
+    add(rn.T_PRIMARY, [_parse_t_primary__attribute, _parse_t_primary__slices, _parse_t_primary__atom])
     add(rn.T_LOOKAHEAD, [_parse_t_lookahead])
 
     # Targets for del statements
@@ -1633,6 +1633,19 @@ def _parse_t_primary__attribute(c: Cursor) -> syntax.Term:
         and t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
     ):
         return terms.Attribute(t.location, value=value, attr=cast(TokenName, name).value, ctx='load')
+    return t.fail()
+
+
+def _parse_t_primary__slices(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(value := c.consume_rule(rn.T_PRIMARY))
+        and t.validate(_consume_punct(c, '['))
+        and t.validate(slices := c.consume_rule(rn.SLICES))
+        and t.validate(_expect_punct(c, ']'))
+        and t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
+    ):
+        return terms.Subscript(t.location, value=value, slice=slices, ctx='load')
     return t.fail()
 
 
