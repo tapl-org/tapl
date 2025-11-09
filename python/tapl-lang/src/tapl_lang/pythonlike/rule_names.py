@@ -51,6 +51,7 @@ DEL_STMT = declare('del_stmt')
 YIELD_STMT = declare('yield_stmt')
 ASSERT_STMT = declare('assert_stmt')
 IMPORT_STMT = declare('import_stmt')
+RAISE_STMT = declare('raise_stmt')
 
 # Import statements
 # -----------------

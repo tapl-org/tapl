@@ -258,6 +258,28 @@ class With(syntax.Term):
 
 
 @dataclass
+class Raise(syntax.Term):
+    location: syntax.Location
+    exception: syntax.Term
+    cause: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.exception
+        yield self.cause
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: Raise(
+                location=self.location,
+                exception=layer(self.exception),
+                cause=layer(self.cause),
+            )
+        )
+
+
+@dataclass
 class Alias:
     name: str
     asname: str | None = None

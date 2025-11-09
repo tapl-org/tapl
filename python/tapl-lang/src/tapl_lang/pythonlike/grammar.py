@@ -34,13 +34,13 @@ x       function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expres
 x       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':'
 x       for_stmt: 'for' star_targets 'in' ~ star_expressions ':'
 x       while_stmt: 'while' named_expression ':' block [else_block]
-x       simple_stmt:
+        simple_stmt:
             | assignment
 d           | &"type" type_alias
             | star_expressions
             | return_stmt |> 'return' [star_expressions]
             | import_stmt
-x           | raise_stmt |> 'raise' expression?
+            | raise_stmt
             | pass_stmt |> 'pass'
 d           | &'del' del_stmt
 d           | &'yield' yield_stmt
@@ -49,9 +49,12 @@ d           | 'break'
 d           | 'continue'
 d           | &'global' global_stmt
 d           | &'nonlocal' nonlocal_stmt
-x       import_stmt:
+        raise_stmt:
+            | 'raise' expression ['from' expression]
+            | 'raise'
+        import_stmt:
 d           | invalid_import
-x           | import_name
+            | import_name
 d           | import_from
         import_name: 'import' dotted_as_names
         dotted_as_names: ','.dotted_as_name+
@@ -215,7 +218,14 @@ def get_grammar() -> parser.Grammar:
     add(rn.SIMPLE_STMTS, [rn.SIMPLE_STMT])
     add(
         rn.SIMPLE_STMT,
-        [rn.ASSIGNMENT, _parse_statement__star_expressions, rn.RETURN_STMT, rn.IMPORT_STMT, rn.PASS_STMT],
+        [
+            rn.ASSIGNMENT,
+            _parse_statement__star_expressions,
+            rn.RETURN_STMT,
+            rn.IMPORT_STMT,
+            rn.RAISE_STMT,
+            rn.PASS_STMT,
+        ],
     )
     add(rn.COMPOUND_STMT, [rn.FUNCTION_DEF, rn.IF_STMT, rn.CLASS_DEF, rn.FOR_STMT, rn.WHILE_STMT])
 
@@ -226,6 +236,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.AUGASSIGN, [])
     add(rn.RETURN_STMT, [_parse_return])
     add(rn.PASS_STMT, [_parse_pass])
+    add(rn.RAISE_STMT, [_parse_raise__expression, _parse_raise__no_expression])
     add(rn.BREAK_STMT, [])
     add(rn.CONTINUE_STMT, [])
     add(rn.GLOBAL_STMT, [])
@@ -1596,6 +1607,25 @@ def _parse_pass(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'pass')):
         return terms.Pass(location=t.location)
+    return t.fail()
+
+
+def _parse_raise__expression(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(_consume_keyword(c, 'raise')) and t.validate(expr := c.consume_rule(rn.EXPRESSION)):
+        cause: syntax.Term = syntax.Empty
+        k = c.clone()
+        if t.validate(_consume_keyword(k, 'from')) and t.validate(cause_expr := _expect_rule(k, rn.EXPRESSION)):
+            c.copy_position_from(k)
+            cause = cause_expr
+        return terms.Raise(location=t.location, exception=expr, cause=cause)
+    return t.fail()
+
+
+def _parse_raise__no_expression(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(_consume_keyword(c, 'raise')):
+        return terms.Raise(location=t.location, exception=syntax.Empty, cause=syntax.Empty)
     return t.fail()
 
 

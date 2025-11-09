@@ -118,8 +118,27 @@ def test_simple_stmt__import_name():
     assert actual == expected
 
 
+def test_simple_stmt__raise():
+    actual = parse_expr("raise ValueError('Invalid value')", rn.SIMPLE_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.Raise(
+        location=create_loc(1, 0, 1, 33),
+        exception=terms.Call(
+            location=create_loc(1, 5, 1, 33),
+            func=terms.TypedName(
+                location=create_loc(1, 6, 1, 16), id='ValueError', ctx='load', mode=terms.MODE_EVALUATE
+            ),
+            args=[
+                terms.StringLiteral(location=create_loc(1, 17, 1, 32), value='Invalid value'),
+            ],
+            keywords=[],
+        ),
+        cause=syntax.Empty,
+    )
+    assert actual == expected
+
+
 def test_simple_stmt__pass():
-    actual = parse_expr('pass', rn.PASS_STMT)
+    actual = parse_expr('pass', rn.SIMPLE_STMT)
     expected = terms.Pass(location=create_loc(1, 0, 1, 4))
     assert actual == expected
 
@@ -163,6 +182,26 @@ def test_import_from__path_multiple():
             terms.Alias(name='a.b.c', asname='k'),
             terms.Alias(name='d.e', asname=None),
         ],
+    )
+    assert actual == expected
+
+
+def test_raise__expression():
+    actual = parse_expr('raise 42', rn.RAISE_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.Raise(
+        location=create_loc(1, 0, 1, 8),
+        exception=terms.IntegerLiteral(location=create_loc(1, 6, 1, 8), value=42),
+        cause=syntax.Empty,
+    )
+    assert actual == expected
+
+
+def test_raise__no_expression():
+    actual = parse_expr('raise', rn.RAISE_STMT)
+    expected = terms.Raise(
+        location=create_loc(1, 0, 1, 5),
+        exception=syntax.Empty,
+        cause=syntax.Empty,
     )
     assert actual == expected
 
