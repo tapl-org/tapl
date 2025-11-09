@@ -596,6 +596,31 @@ class Tuple(syntax.Term):
         )
 
 
+@dataclass
+class Slice(syntax.Term):
+    location: syntax.Location
+    lower: syntax.Term
+    upper: syntax.Term
+    step: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.lower
+        yield self.upper
+        yield self.step
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: Slice(
+                location=self.location,
+                lower=layer(self.lower),
+                upper=layer(self.upper),
+                step=layer(self.step),
+            )
+        )
+
+
 ################################################################################
 # Untyped Terms
 #

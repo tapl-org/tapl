@@ -144,14 +144,14 @@ d           | primary
             | primary '.' NAME
 d           | primary genexp
             | primary '(' arguments ')'
-            | primary '[' slices |> named_expression ']'
+            | primary '[' slices ']'
             | atom
 d       slices:
 d           | slice !','
-d           | ','.(slice | starred_expression)+ [',']
-d       slice:   # TODO: ML developers need slice #mvp
-d           | [expression] ':' [expression] [':' [expression]]
-d           | named_expression
+d           | ','.(slice)+ [',']
+        slice:
+            | [expression] ':' [expression] [':' [expression]]
+            | named_expression
         atom:
             | NAME
             | 'True' | 'False' | 'None'
@@ -403,9 +403,9 @@ def get_grammar() -> parser.Grammar:
     # ----------------
     # Primary elements are things like "obj.something.something", "obj[something]", "obj(something)", "obj" ...
     add(rn.AWAIT_PRIMARY, [])
-    add(rn.PRIMARY, [_parse_primary__attribute, _parse_primary__call, _parse_primary__slice, rn.ATOM])
-    add(rn.SLICES, [])
-    add(rn.SLICE, [])
+    add(rn.PRIMARY, [_parse_primary__attribute, _parse_primary__call, _parse_primary__slices, rn.ATOM])
+    add(rn.SLICES, [_parse_slices__single, _parse_slices__multi])
+    add(rn.SLICE, [_parse_slice__range, rn.NAMED_EXPRESSION])
     add(
         rn.ATOM,
         [
@@ -925,16 +925,66 @@ def _parse_primary__call(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-def _parse_primary__slice(c: Cursor) -> syntax.Term:
+def _parse_primary__slices(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(value := c.consume_rule(rn.PRIMARY))
         and t.validate(_consume_punct(c, '['))
-        and t.validate(slices := _expect_rule(c, rn.NAMED_EXPRESSION))
+        and t.validate(slices := _expect_rule(c, rn.SLICES))
         and t.validate(_expect_punct(c, ']'))
     ):
         return terms.Subscript(t.location, value=value, slice=slices, ctx='load')
     return t.fail()
+
+
+def _parse_slices__single(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(term := c.consume_rule(rn.SLICE)) and not t.validate(_consume_punct(c.clone(), ',')):
+        return term
+    return t.fail()
+
+
+def _parse_slices__multi(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    slices = []
+    if t.validate(first_slice := c.consume_rule(rn.SLICE)):
+        slices.append(first_slice)
+        k = c.clone()
+        while t.validate(_consume_punct(k, ',')) and t.validate(next_slice := _expect_rule(k, rn.SLICE)):
+            c.copy_position_from(k)
+            slices.append(next_slice)
+    return t.captured_error or syntax.TermList(terms=slices)
+
+
+def _parse_slice__range(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+
+    k = c.clone()
+    if t.validate(lower := k.consume_rule(rn.EXPRESSION)):
+        c.copy_position_from(k)
+    else:
+        lower = syntax.Empty
+
+    if not t.validate(_consume_punct(c, ':')):
+        return t.fail()
+
+    k = c.clone()
+    if t.validate(upper := k.consume_rule(rn.EXPRESSION)):
+        c.copy_position_from(k)
+    else:
+        upper = syntax.Empty
+
+    k = c.clone()
+    if t.validate(_consume_punct(k, ':')):
+        c.copy_position_from(k)
+        if t.validate(step := k.consume_rule(rn.EXPRESSION)):
+            c.copy_position_from(k)
+        else:
+            step = syntax.Empty
+    else:
+        step = syntax.Empty
+
+    return terms.Slice(location=t.location, lower=lower, upper=upper, step=step)
 
 
 def _parse_atom__name_load(c: Cursor) -> syntax.Term:

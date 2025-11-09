@@ -89,6 +89,148 @@ def test_target_with_star_atom__attribute_nested():
 #     assert actual == expected
 
 
+def test_slices__named_expression():
+    actual = parse_expr('x := 5', rn.SLICE, mode=terms.MODE_EVALUATE)
+    expected = terms.NamedExpr(
+        location=create_loc(1, 0, 1, 6),
+        target=terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='store', mode=terms.MODE_EVALUATE),
+        value=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=5),
+    )
+    assert actual == expected
+
+
+def test_slices__single_expression():
+    actual = parse_expr('y + 2', rn.SLICE, mode=terms.MODE_EVALUATE)
+    expected = terms.BinOp(
+        location=create_loc(1, 0, 1, 5),
+        left=terms.TypedName(location=create_loc(1, 0, 1, 1), id='y', ctx='load', mode=terms.MODE_EVALUATE),
+        op='+',
+        right=terms.IntegerLiteral(location=create_loc(1, 4, 1, 5), value=2),
+    )
+    assert actual == expected
+
+
+def test_slice__range_single():
+    actual = parse_expr('1:10', rn.SLICE, mode=terms.MODE_EVALUATE)
+    expected = terms.Slice(
+        location=create_loc(1, 0, 1, 4),
+        lower=terms.IntegerLiteral(location=create_loc(1, 0, 1, 1), value=1),
+        upper=terms.IntegerLiteral(location=create_loc(1, 2, 1, 4), value=10),
+        step=syntax.Empty,
+    )
+    assert actual == expected
+
+
+def test_slice__range_single_no_upper():
+    actual = parse_expr('1:', rn.SLICE, mode=terms.MODE_EVALUATE)
+    expected = terms.Slice(
+        location=create_loc(1, 0, 1, 2),
+        lower=terms.IntegerLiteral(location=create_loc(1, 0, 1, 1), value=1),
+        upper=syntax.Empty,
+        step=syntax.Empty,
+    )
+    assert actual == expected
+
+
+def test_slice__range_single_no_lower():
+    actual = parse_expr(':10', rn.SLICE, mode=terms.MODE_EVALUATE)
+    expected = terms.Slice(
+        location=create_loc(1, 0, 1, 3),
+        lower=syntax.Empty,
+        upper=terms.IntegerLiteral(location=create_loc(1, 1, 1, 3), value=10),
+        step=syntax.Empty,
+    )
+    assert actual == expected
+
+
+def test_slice__range_full():
+    actual = parse_expr('1:10:2', rn.SLICE, mode=terms.MODE_EVALUATE)
+    expected = terms.Slice(
+        location=create_loc(1, 0, 1, 6),
+        lower=terms.IntegerLiteral(location=create_loc(1, 0, 1, 1), value=1),
+        upper=terms.IntegerLiteral(location=create_loc(1, 2, 1, 4), value=10),
+        step=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=2),
+    )
+    assert actual == expected
+
+
+def test_slice__range_no_lower():
+    actual = parse_expr(':10:2', rn.SLICE, mode=terms.MODE_EVALUATE)
+    expected = terms.Slice(
+        location=create_loc(1, 0, 1, 5),
+        lower=syntax.Empty,
+        upper=terms.IntegerLiteral(location=create_loc(1, 1, 1, 3), value=10),
+        step=terms.IntegerLiteral(location=create_loc(1, 4, 1, 5), value=2),
+    )
+    assert actual == expected
+
+
+def test_slice__range_no_upper():
+    actual = parse_expr('1::2', rn.SLICE, mode=terms.MODE_EVALUATE)
+    expected = terms.Slice(
+        location=create_loc(1, 0, 1, 4),
+        lower=terms.IntegerLiteral(location=create_loc(1, 0, 1, 1), value=1),
+        upper=syntax.Empty,
+        step=terms.IntegerLiteral(location=create_loc(1, 3, 1, 4), value=2),
+    )
+    assert actual == expected
+
+
+def test_slice__range_no_step():
+    actual = parse_expr('1:10:', rn.SLICE, mode=terms.MODE_EVALUATE)
+    expected = terms.Slice(
+        location=create_loc(1, 0, 1, 5),
+        lower=terms.IntegerLiteral(location=create_loc(1, 0, 1, 1), value=1),
+        upper=terms.IntegerLiteral(location=create_loc(1, 2, 1, 4), value=10),
+        step=syntax.Empty,
+    )
+    assert actual == expected
+
+
+def test_slice__range_no_lower_upper_step():
+    actual = parse_expr('::', rn.SLICE, mode=terms.MODE_EVALUATE)
+    expected = terms.Slice(
+        location=create_loc(1, 0, 1, 2),
+        lower=syntax.Empty,
+        upper=syntax.Empty,
+        step=syntax.Empty,
+    )
+    assert actual == expected
+
+
+def test_slice__range_no_upper_step():
+    actual = parse_expr('1::', rn.SLICE, mode=terms.MODE_EVALUATE)
+    expected = terms.Slice(
+        location=create_loc(1, 0, 1, 3),
+        lower=terms.IntegerLiteral(location=create_loc(1, 0, 1, 1), value=1),
+        upper=syntax.Empty,
+        step=syntax.Empty,
+    )
+    assert actual == expected
+
+
+def test_slice__range_no_lower_step():
+    actual = parse_expr(':10:', rn.SLICE, mode=terms.MODE_EVALUATE)
+    expected = terms.Slice(
+        location=create_loc(1, 0, 1, 4),
+        lower=syntax.Empty,
+        upper=terms.IntegerLiteral(location=create_loc(1, 1, 1, 3), value=10),
+        step=syntax.Empty,
+    )
+    assert actual == expected
+
+
+def test_slice__range_no_lower_upper():
+    actual = parse_expr('::2', rn.SLICE, mode=terms.MODE_EVALUATE)
+    expected = terms.Slice(
+        location=create_loc(1, 0, 1, 3),
+        lower=syntax.Empty,
+        upper=syntax.Empty,
+        step=terms.IntegerLiteral(location=create_loc(1, 2, 1, 3), value=2),
+    )
+    assert actual == expected
+
+
 def test_atom__name():
     actual = parse_expr('variable_name', rn.ATOM, mode=terms.MODE_EVALUATE)
     expected = terms.TypedName(
