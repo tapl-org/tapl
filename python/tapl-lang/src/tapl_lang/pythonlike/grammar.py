@@ -30,7 +30,7 @@ x           | class_def |> class_def_raw
 x           | for_stmt
 x           | try_stmt (full depth)
 x           | while_stmt
-x       function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'
+?       function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'  # TODO: implement [type_params] #mvp
 x       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':'
 x       for_stmt: 'for' star_targets 'in' ~ star_expressions ':'
 x       while_stmt: 'while' named_expression ':' block [else_block]
@@ -199,8 +199,6 @@ def get_grammar() -> parser.Grammar:
         if ordered_parse_functions:
             rules[name] = [parser.route(fn) if isinstance(fn, str) else fn for fn in ordered_parse_functions]
 
-    add('parameter', [_rule_parameter_with_type, _rule_parameter_no_type])
-
     # STARTING RULES
     # ==============
     add(rn.START, [_parse_start])
@@ -287,7 +285,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.PARAM_NO_DEFAULT_STAR_ANNOTATION, [])
     add(rn.PARAM_WITH_DEFAULT, [])
     add(rn.PARAM_MAYBE_DEFAULT, [])
-    add(rn.PARAM, [])
+    add(rn.PARAM, [_rule_parameter_with_type, _rule_parameter_no_type])
     add(rn.PARAM_STAR_ANNOTATION, [])
     add(rn.ANNOTATION, [])
     add(rn.STAR_ANNOTATION, [])
@@ -1500,16 +1498,16 @@ def _rule_parameter_no_type(c: Cursor) -> syntax.Term:
 def _scan_parameters(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     params = []
-    if t.validate(first_param := c.consume_rule('parameter')):
+    if t.validate(first_param := c.consume_rule(rn.PARAM)):
         params.append(first_param)
         k = c.clone()
-        while t.validate(_consume_punct(k, ',')) and t.validate(param := _expect_rule(k, 'parameter')):
+        while t.validate(_consume_punct(k, ',')) and t.validate(param := _expect_rule(k, rn.PARAM)):
             c.copy_position_from(k)
             params.append(param)
     return t.captured_error or BlockTerm(terms=params)
 
 
-def _scan_return_type(c: Cursor) -> syntax.Term:
+def _scan_optional_return_type(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     k = c.clone()
     k.context = parser.Context(mode=terms.MODE_TYPECHECK)
@@ -1527,7 +1525,7 @@ def _parse_function_def(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, '('))
         and t.validate(params := _scan_parameters(c))
         and t.validate(_expect_punct(c, ')'))
-        and t.validate(return_type := _scan_return_type(c))
+        and t.validate(return_type := _scan_optional_return_type(c))
         and t.validate(_expect_punct(c, ':'))
     ):
         name = cast(TokenName, func_name).value

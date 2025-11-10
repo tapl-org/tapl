@@ -61,15 +61,11 @@ class SiblingTerm(Term):
         raise tapl_error.TaplError(f'{self.__class__.__name__}.integrate_into is not implemented.')
 
 
+@dataclass
 class Layers(Term):
-    def __init__(self, layers: list[Term]) -> None:
-        self.layers = layers
-        self._validate_layer_count()
+    layers: list[Term]
 
-    def __repr__(self) -> str:
-        return f'{self.__class__.__name__}({self.layers})'
-
-    def _validate_layer_count(self) -> None:
+    def _post_init(self) -> None:
         if len(self.layers) <= 1:
             raise tapl_error.TaplError('Number of layers must be equal or greater than 2.')
 
@@ -79,7 +75,6 @@ class Layers(Term):
 
     @override
     def separate(self, ls: LayerSeparator) -> list[Term]:
-        self._validate_layer_count()
         actual_count = len(self.layers)
         if actual_count != ls.layer_count:
             raise tapl_error.TaplError(

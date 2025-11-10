@@ -24,6 +24,46 @@ def create_loc(start_line: int, start_col: int, end_line: int, end_col: int) -> 
     )
 
 
+def test_compound_stmt__function_def():
+    actual = parse_expr('def add(x: int, y: int) -> int:', rn.COMPOUND_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedFunctionDef(
+        location=create_loc(1, 0, 1, 31),
+        name='add',
+        parameters=[
+            terms.Parameter(
+                location=create_loc(1, 8, 1, 14),
+                name='x',
+                type_=syntax.Layers(
+                    layers=[
+                        syntax.Empty,
+                        terms.TypedName(
+                            location=create_loc(1, 11, 1, 14), id='int', ctx='load', mode=terms.MODE_TYPECHECK
+                        ),
+                    ]
+                ),
+                mode=terms.MODE_EVALUATE,
+            ),
+            terms.Parameter(
+                location=create_loc(1, 15, 1, 22),
+                name='y',
+                type_=syntax.Layers(
+                    layers=[
+                        syntax.Empty,
+                        terms.TypedName(
+                            location=create_loc(1, 19, 1, 22), id='int', ctx='load', mode=terms.MODE_TYPECHECK
+                        ),
+                    ]
+                ),
+                mode=terms.MODE_EVALUATE,
+            ),
+        ],
+        return_type=terms.TypedName(location=create_loc(1, 27, 1, 30), id='int', ctx='load', mode=terms.MODE_TYPECHECK),
+        body=syntax.TermList(terms=[], is_placeholder=True),
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
+
+
 def test_assignment__annotated():
     actual = parse_expr('x: int = 42', rn.ASSIGNMENT, mode=terms.MODE_EVALUATE)
     expected = terms.TypedAssign(
