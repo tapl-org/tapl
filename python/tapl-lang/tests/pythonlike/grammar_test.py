@@ -1298,6 +1298,23 @@ def test_if_stmt__simple():
     assert actual == expected
 
 
+def test_if_stmt__named():
+    actual = parse_expr('if (a := 42):', rn.IF_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedIf(
+        location=create_loc(1, 0, 1, 13),
+        test=terms.NamedExpr(
+            location=create_loc(1, 4, 1, 11),
+            target=terms.TypedName(location=create_loc(1, 4, 1, 5), id='a', ctx='store', mode=terms.MODE_EVALUATE),
+            value=terms.IntegerLiteral(location=create_loc(1, 9, 1, 11), value=42),
+        ),
+        body=syntax.TermList(terms=[], is_placeholder=True),
+        elifs=[],
+        orelse=syntax.Empty,
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
+
+
 def test_elif_stmt__simple():
     actual = parse_expr('elif y < 10:', rn.ELIF_STMT, mode=terms.MODE_EVALUATE)
     expected = terms.ElifSibling(
