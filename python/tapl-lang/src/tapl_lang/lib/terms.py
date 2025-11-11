@@ -468,6 +468,7 @@ class Dict(syntax.Term):
 class Compare(syntax.Term):
     location: syntax.Location
     left: syntax.Term
+    # TODO: rename to operators #mvp
     ops: list[str]
     comparators: list[syntax.Term]
 
@@ -1272,6 +1273,7 @@ class TypedIf(syntax.Term):
     location: syntax.Location
     test: syntax.Term
     body: syntax.Term
+    elifs: list[tuple[syntax.Term, syntax.Term]]  # (test, body)
     orelse: syntax.Term
     mode: syntax.Term
 
@@ -1279,6 +1281,9 @@ class TypedIf(syntax.Term):
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.test
         yield self.body
+        for test, body in self.elifs:
+            yield test
+            yield body
         yield self.orelse
         yield self.mode
 
@@ -1289,6 +1294,7 @@ class TypedIf(syntax.Term):
                 location=self.location,
                 test=layer(self.test),
                 body=layer(self.body),
+                elifs=[(layer(test), layer(body)) for test, body in self.elifs],
                 orelse=layer(self.orelse),
                 mode=layer(self.mode),
             )
@@ -1308,11 +1314,35 @@ class TypedIf(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
+        # TODO: handle elifs #mvp
         if self.mode is MODE_EVALUATE:
             return self.codegen_evaluate()
         if self.mode is MODE_TYPECHECK:
             return self.codegen_typecheck()
         raise tapl_error.UnhandledError
+
+
+@dataclass
+class ElifSibling(syntax.SiblingTerm):
+    location: syntax.Location
+    test: syntax.Term
+    body: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.test
+        yield self.body
+
+    @override
+    def integrate_into(self, previous_siblings: list[syntax.Term]) -> None:
+        term = previous_siblings[-1]
+        if isinstance(term, syntax.ErrorTerm):
+            return
+        if not isinstance(term, TypedIf):
+            error = syntax.ErrorTerm('Elif can only be integrated into If.' + repr(term), location=self.location)
+            previous_siblings.append(error)
+        else:
+            term.elifs.append((self.test, self.body))
 
 
 @dataclass
@@ -1379,6 +1409,7 @@ class TypedWhile(syntax.Term):
             location=self.location,
             test=self.test,
             body=self.body,
+            elifs=[],
             orelse=self.orelse,
             mode=self.mode,
         )

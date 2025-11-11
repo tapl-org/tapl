@@ -1278,3 +1278,45 @@ def test_assignment_expression__expect_expression():
     actual = parse_expr('y := ', rn.ASSIGNMENT_EXPRESSION, mode=terms.MODE_EVALUATE)
     expected = syntax.ErrorTerm(message='Expected expression after ":="', location=create_loc(1, 0, 1, 4))
     assert actual == expected
+
+
+def test_if_stmt__simple():
+    actual = parse_expr('if x > 0:', rn.IF_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedIf(
+        location=create_loc(1, 0, 1, 9),
+        test=terms.Compare(
+            location=create_loc(1, 2, 1, 8),
+            left=terms.TypedName(location=create_loc(1, 3, 1, 4), id='x', ctx='load', mode=terms.MODE_EVALUATE),
+            ops=['>'],
+            comparators=[terms.IntegerLiteral(location=create_loc(1, 7, 1, 8), value=0)],
+        ),
+        body=syntax.TermList(terms=[], is_placeholder=True),
+        elifs=[],
+        orelse=syntax.Empty,
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
+
+
+def test_elif_stmt__simple():
+    actual = parse_expr('elif y < 10:', rn.ELIF_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.ElifSibling(
+        location=create_loc(1, 0, 1, 12),
+        test=terms.Compare(
+            location=create_loc(1, 4, 1, 11),
+            left=terms.TypedName(location=create_loc(1, 5, 1, 6), id='y', ctx='load', mode=terms.MODE_EVALUATE),
+            ops=['<'],
+            comparators=[terms.IntegerLiteral(location=create_loc(1, 9, 1, 11), value=10)],
+        ),
+        body=syntax.TermList(terms=[], is_placeholder=True),
+    )
+    assert actual == expected
+
+
+def test_else_stmt__simple():
+    actual = parse_expr('else:', rn.ELSE_BLOCK, mode=terms.MODE_EVALUATE)
+    expected = terms.ElseSibling(
+        location=create_loc(1, 0, 1, 5),
+        body=syntax.TermList(terms=[], is_placeholder=True),
+    )
+    assert actual == expected

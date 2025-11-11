@@ -12,7 +12,14 @@ logging.basicConfig(level=logging.INFO)
 
 parsed_code = ast.parse(
     """
-s0.SimplestClass = predef.Scope(label__tapl='SimplestClass')
+if a:= first:
+    return 1
+elif b:
+    return 2
+elif c:
+    return 4
+else:
+    return 3
 """,
     mode='exec',
 )

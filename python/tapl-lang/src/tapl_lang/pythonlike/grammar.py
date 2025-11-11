@@ -24,8 +24,8 @@ d=dropped for mvp
 x       start: statement EOF
 x       statement: compound_stmt | simple_stmts
 x       compound_stmt:
-x           | function_def |> function_def_raw
-x           | if_stmt (full depth, requires named_expression)
+            | function_def |> function_def_raw
+            | if_stmt
 x           | class_def |> class_def_raw
 x           | for_stmt
 x           | try_stmt (full depth)
@@ -34,6 +34,17 @@ x           | while_stmt
 x       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':'
 x       for_stmt: 'for' star_targets 'in' ~ star_expressions ':'
 x       while_stmt: 'while' named_expression ':' block [else_block]
+        if_stmt:
+d           | invalid_if_stmt
+            | 'if' named_expression ':' block elif_stmt
+            | 'if' named_expression ':' block [else_block]
+        elif_stmt:
+d           | invalid_elif_stmt
+            | 'elif' named_expression ':' block elif_stmt
+            | 'elif' named_expression ':' block [else_block]
+        else_block:
+d           | invalid_else_stmt
+            | 'else' &&':' block
         simple_stmt:
             | assignment
 d           | &"type" type_alias
@@ -293,8 +304,8 @@ def get_grammar() -> parser.Grammar:
 
     # If statement
     # ------------
-    add(rn.IF_STMT, [_parse_if_stmt, rn.ELSE_BLOCK])
-    add(rn.ELIF_STMT, [])
+    add(rn.IF_STMT, [_parse_if_stmt, rn.ELIF_STMT])
+    add(rn.ELIF_STMT, [_parse_elif_stmt, rn.ELSE_BLOCK])
     add(rn.ELSE_BLOCK, [_parse_else_stmt])
 
     # While statement
@@ -1544,15 +1555,31 @@ def _parse_if_stmt(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(_consume_keyword(c, 'if'))
-        and t.validate(test := _expect_rule(c, rn.EXPRESSION))
+        and t.validate(test := _expect_rule(c, rn.NAMED_EXPRESSION))
         and t.validate(_expect_punct(c, ':'))
     ):
         return terms.TypedIf(
             location=t.location,
             test=test,
             body=syntax.TermList(terms=[], is_placeholder=True),
+            elifs=[],
             orelse=syntax.Empty,
             mode=c.context.mode,
+        )
+    return t.fail()
+
+
+def _parse_elif_stmt(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(_consume_keyword(c, 'elif'))
+        and t.validate(test := _expect_rule(c, rn.NAMED_EXPRESSION))
+        and t.validate(_expect_punct(c, ':'))
+    ):
+        return terms.ElifSibling(
+            location=t.location,
+            test=test,
+            body=syntax.TermList(terms=[], is_placeholder=True),
         )
     return t.fail()
 
