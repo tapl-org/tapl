@@ -5,7 +5,7 @@
 from dataclasses import dataclass
 
 from tapl_lang.core import parser, syntax
-from tapl_lang.core.parser import Cursor, route
+from tapl_lang.core.parser import Cursor
 from tapl_lang.core.syntax import Location, Position, Term
 
 
@@ -163,11 +163,12 @@ def parse_none(c: Cursor):
 RULES: parser.GrammarRuleMap = {
     'token': [parse_token],
     'value': [parse_value__expr, parse_value__number, parse_value__error],
-    'product': [parse_product__binop, route('value')],
-    'sum': [parse_sum__binop, route('product')],
-    'expr': [route('sum')],
+    'product': [parse_product__binop, 'value'],
+    'sum': [parse_sum__binop, 'product'],
+    'expr': ['sum'],
     'start': [parse_start],
     'none': [parse_none],
+    'route_error': ['not_found_rule'],
 }
 
 
@@ -258,7 +259,16 @@ def test_not_all_text_consumed():
 def test_rule_function_returns_none():
     parsed_term = parser.parse_text('1', parser.Grammar(RULES, 'none'))
     assert isinstance(parsed_term, syntax.ErrorTerm)
-    assert parsed_term.message == 'PegEngine: rule=none:0 returned None.'
+    assert parsed_term.message == 'PegEngine: rule=none:@parse_none returned None.'
+
+
+def test_rule_route_returns_none():
+    parsed_term = parser.parse_text('1', parser.Grammar(RULES, 'route_error'))
+    assert isinstance(parsed_term, syntax.ErrorTerm)
+    assert (
+        parsed_term.message
+        == 'PegEngine: rule=route_error:|>not_found_rule error=Rule "not_found_rule" is not defined in the Grammar.'
+    )
 
 
 def test_error_syntax():

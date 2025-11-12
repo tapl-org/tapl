@@ -22,9 +22,7 @@ from tapl_lang.lib import terms
 
 
 ParseFunction = Callable[['Cursor'], syntax.Term]
-# TODO: change list[ParseFunction] to list[ParseFunction | str] to allow direct rule references in ordered parse functions. #mvp
-# Maybe devide between production and terminal list.
-OrderedParseFunctions = list[ParseFunction]
+OrderedParseFunctions = list[ParseFunction | str]
 GrammarRuleMap = dict[str, OrderedParseFunctions]
 
 
@@ -167,8 +165,13 @@ class PegEngine:
         # Set a call stack limit to prevent infinite recursion in rule applications
         self.rule_call_stack_limit = 1000
 
+    def parse_function_name(self, function: ParseFunction | str) -> str:
+        if isinstance(function, str):
+            return f'|>{function}'
+        return f'@{function.__name__}'
+
     def call_parse_function(
-        self, key: CellKey, function: ParseFunction, function_index: int, context: Context
+        self, key: CellKey, function: ParseFunction | str, context: Context
     ) -> tuple[syntax.Term, int, int]:
         cursor = Cursor(key.row, key.col, context=context, engine=self)
 
@@ -176,24 +179,35 @@ class PegEngine:
             start_cursor = Cursor(key.row, key.col, context=context, engine=self)
             return syntax.Location(start=start_cursor.current_position(), end=cursor.current_position())
 
+        def route(rule: str) -> ParseFunction:
+            def parse(c: Cursor) -> syntax.Term:
+                return c.consume_rule(rule)
+
+            return parse
+
         try:
-            term = function(cursor)
+            if isinstance(function, str):
+                term = route(function)(cursor)
+            else:
+                term = function(cursor)
             if term is None:
                 term = syntax.ErrorTerm(
-                    message=f'PegEngine: rule={key.rule}:{function_index} returned None.', location=create_location()
+                    message=f'PegEngine: rule={key.rule}:{self.parse_function_name(function)} returned None.',
+                    location=create_location(),
                 )
         except Exception as e:  # noqa: BLE001  The user provided function may raise any exception.
             term = syntax.ErrorTerm(
-                message=f'PegEngine: rule={key.rule}:{function_index} error={e}', location=create_location()
+                message=f'PegEngine: rule={key.rule}:{self.parse_function_name(function)} error={e}',
+                location=create_location(),
             )
         return term, cursor.row, cursor.col
 
     def call_ordered_parse_functions(self, key: CellKey, context: Context) -> tuple[syntax.Term, int, int]:
         functions = self.grammar_rule_map.get(key.rule)
         if not functions:
-            raise tapl_error.TaplError(f'PegEngine: Rule "{key.rule}" is not defined in Grammar.')
+            raise tapl_error.TaplError(f'Rule "{key.rule}" is not defined in the Grammar.')
         for i in range(len(functions)):
-            term, row, col = self.call_parse_function(key, functions[i], function_index=i, context=context)
+            term, row, col = self.call_parse_function(key, functions[i], context=context)
             if term is not ParseFailed:
                 return term, row, col
         return ParseFailed, key.row, key.col
@@ -259,7 +273,7 @@ class ParseTrace:
     end_row: int
     end_col: int
     rule: str
-    function_index: int
+    function_name: str
     term: syntax.Term
     start_call_order: int
     end_call_order: int
@@ -282,12 +296,12 @@ class PegEngineDebug(PegEngine):
 
     @override
     def call_parse_function(
-        self, key: CellKey, function: ParseFunction, function_index: int, context: Context
+        self, key: CellKey, function: ParseFunction | str, context: Context
     ) -> tuple[syntax.Term, int, int]:
         old_applied_rules = self.applied_rules
         self.applied_rules = []
         start_call_order = self.next_call_order()
-        term, row, col = super().call_parse_function(key, function, function_index, context)
+        term, row, col = super().call_parse_function(key, function, context=context)
         self.parse_traces.append(
             ParseTrace(
                 start_row=key.row,
@@ -295,7 +309,7 @@ class PegEngineDebug(PegEngine):
                 end_row=row,
                 end_col=col,
                 rule=key.rule,
-                function_index=function_index,
+                function_name=self.parse_function_name(function),
                 term=term,
                 start_call_order=start_call_order,
                 end_call_order=self.next_call_order(),
@@ -366,7 +380,7 @@ class PegEngineDebug(PegEngine):
             last_pos = pos
             table.append([f'{row}:{col}:{rule}', '', '', '', '', ''])
             for trace in group:
-                rule_key = f'   {trace.function_index}'
+                rule_key = f'   {trace.function_name}'
                 status, details = self.dump_term(trace.term)
                 if trace.growing_id:
                     status += ' G' + str(trace.growing_id)

@@ -228,8 +228,7 @@ def get_grammar() -> parser.Grammar:
     def add(name: str, ordered_parse_functions: list[parser.ParseFunction | str]) -> None:
         if name in rules:
             raise ValueError(f'Rule {name} is already defined.')
-        if ordered_parse_functions:
-            rules[name] = [parser.route(fn) if isinstance(fn, str) else fn for fn in ordered_parse_functions]
+        rules[name] = ordered_parse_functions
 
     # STARTING RULES
     # ==============
