@@ -14,22 +14,21 @@ from tapl_lang.pythonlike import rule_names as rn
 # https://docs.python.org/3/reference/grammar.html
 
 
-# TODO: Implement grammar rules for #mvp
 """
 x=not implemented
 d=dropped for mvp
  =implemented
 
 
-x       start: statement EOF
-x       statement: compound_stmt | simple_stmts
-x       compound_stmt:
+        start: statement EOF
+        statement: compound_stmt | simple_stmts
+        compound_stmt:
             | function_def |> function_def_raw
             | if_stmt
             | class_def |> class_def_raw
 d           | with_stmt
             | for_stmt
-x           | try_stmt (full depth)
+            | try_stmt
             | while_stmt
 d           | match_stmt
 ?       function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'  # TODO: implement [type_params] #mvp
@@ -52,7 +51,21 @@ d           | 'async' 'for' star_targets 'in' ~ star_expressions ':' block [else
 d           | invalid_for_target
         while_stmt:
 d           | invalid_while_stmt
-            | 'while' named_expression ':' block [else_block]        # else block not implemented
+            | 'while' named_expression ':' block [else_block]                         # else block not implemented
+x       try_stmt:                                                                     # TODO: implement full try statement #mvp
+d           | invalid_try_stmt
+x           | 'try' ':' block finally_block
+x           | 'try' ':' block except_block+ [else_block] [finally_block]              # else block not implemented
+d           | 'try' ':' block except_star_block+ [finally_block]
+d           | 'try' ':' block finally_block
+x       except_block:
+d           | invalid_except_stmt_indent
+x           | 'except' expression ['as' NAME] ':' block
+d           | 'except' ':' block
+d           | invalid_except_stmt
+x       finally_block:
+d           | invalid_finally_stmt
+x           | 'finally' ':' block
         simple_stmt:
             | assignment
 d           | &"type" type_alias
