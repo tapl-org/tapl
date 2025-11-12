@@ -1337,7 +1337,7 @@ def _parse_conjunction__and(c: Cursor) -> syntax.Term:
             c.copy_position_from(k)
             values.append(right)
         if len(values) > 1:
-            return terms.TypedBoolOp(location=t.location, op='and', values=values, mode=c.context.mode)
+            return terms.TypedBoolOp(location=t.location, operator='and', values=values, mode=c.context.mode)
     return t.fail()
 
 
@@ -1350,7 +1350,7 @@ def _parse_disjunction__or(c: Cursor) -> syntax.Term:
             c.copy_position_from(k)
             values.append(right)
         if len(values) > 1:
-            return terms.TypedBoolOp(location=t.location, op='or', values=values, mode=c.context.mode)
+            return terms.TypedBoolOp(location=t.location, operator='or', values=values, mode=c.context.mode)
     return t.fail()
 
 

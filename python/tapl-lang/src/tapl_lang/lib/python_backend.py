@@ -224,7 +224,9 @@ class AstGenerator:
 
     def try_generate_expr(self, term: syntax.Term, setting: syntax.BackendSetting) -> ast.expr | None:
         if isinstance(term, terms.BoolOp):
-            bool_op = ast.BoolOp(op=BOOL_OP_MAP[term.op], values=[self.generate_expr(v, setting) for v in term.values])
+            bool_op = ast.BoolOp(
+                op=BOOL_OP_MAP[term.operator], values=[self.generate_expr(v, setting) for v in term.values]
+            )
             locate(term.location, bool_op)
             return bool_op
 

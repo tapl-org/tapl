@@ -358,7 +358,7 @@ class Pass(syntax.Term):
 @dataclass
 class BoolOp(syntax.Term):
     location: syntax.Location
-    op: str
+    operator: str
     values: list[syntax.Term]
 
     @override
@@ -368,7 +368,7 @@ class BoolOp(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: BoolOp(location=self.location, op=self.op, values=[layer(v) for v in self.values])
+            lambda layer: BoolOp(location=self.location, operator=self.operator, values=[layer(v) for v in self.values])
         )
 
 
@@ -1012,7 +1012,7 @@ class BoolNot(syntax.Term):
 @dataclass
 class TypedBoolOp(syntax.Term):
     location: syntax.Location
-    op: str
+    operator: str
     values: list[syntax.Term]
     mode: syntax.Term
 
@@ -1025,14 +1025,17 @@ class TypedBoolOp(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedBoolOp(
-                location=self.location, op=self.op, values=[layer(v) for v in self.values], mode=layer(self.mode)
+                location=self.location,
+                operator=self.operator,
+                values=[layer(v) for v in self.values],
+                mode=layer(self.mode),
             )
         )
 
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return BoolOp(location=self.location, op=self.op, values=self.values)
+            return BoolOp(location=self.location, operator=self.operator, values=self.values)
         if self.mode is MODE_TYPECHECK:
             return Call(
                 location=self.location,

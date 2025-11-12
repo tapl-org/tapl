@@ -836,8 +836,7 @@ def test_expression__disjunction():
     actual = parse_expr('a or b', rn.EXPRESSION, mode=terms.MODE_SAFE)
     expected = terms.TypedBoolOp(
         location=create_loc(1, 0, 1, 6),
-        # TODO: rename op to operator #mvp
-        op='or',
+        operator='or',
         values=[
             terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_SAFE),
             terms.TypedName(location=create_loc(1, 5, 1, 6), id='b', ctx='load', mode=terms.MODE_SAFE),
@@ -857,7 +856,7 @@ def test_disjunction__or_chain():
     actual = parse_expr('a or b or c', rn.DISJUNCTION, mode=terms.MODE_EVALUATE)
     expected = terms.TypedBoolOp(
         location=create_loc(1, 0, 1, 11),
-        op='or',
+        operator='or',
         values=[
             terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
             terms.TypedName(location=create_loc(1, 5, 1, 6), id='b', ctx='load', mode=terms.MODE_EVALUATE),
@@ -872,7 +871,7 @@ def test_conjunction__and_chain():
     actual = parse_expr('x and y and z', rn.CONJUNCTION, mode=terms.MODE_EVALUATE)
     expected = terms.TypedBoolOp(
         location=create_loc(1, 0, 1, 13),
-        op='and',
+        operator='and',
         values=[
             terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='load', mode=terms.MODE_EVALUATE),
             terms.TypedName(location=create_loc(1, 6, 1, 7), id='y', ctx='load', mode=terms.MODE_EVALUATE),
