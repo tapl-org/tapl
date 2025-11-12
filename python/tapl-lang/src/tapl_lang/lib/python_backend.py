@@ -247,7 +247,7 @@ class AstGenerator:
         if isinstance(term, terms.Compare):
             compare = ast.Compare(
                 left=self.generate_expr(term.left, setting),
-                ops=[COMPARE_OP_MAP[op] for op in term.ops],
+                ops=[COMPARE_OP_MAP[op] for op in term.operators],
                 comparators=[self.generate_expr(v, setting) for v in term.comparators],
             )
             locate(term.location, compare)

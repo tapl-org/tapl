@@ -468,8 +468,7 @@ class Dict(syntax.Term):
 class Compare(syntax.Term):
     location: syntax.Location
     left: syntax.Term
-    # TODO: rename to operators #mvp
-    ops: list[str]
+    operators: list[str]
     comparators: list[syntax.Term]
 
     @override
@@ -483,7 +482,7 @@ class Compare(syntax.Term):
             lambda layer: Compare(
                 location=self.location,
                 left=layer(self.left),
-                ops=self.ops,
+                operators=self.operators,
                 comparators=[layer(v) for v in self.comparators],
             )
         )

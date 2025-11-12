@@ -915,7 +915,7 @@ def test_comparison__chain():
     expected = terms.Compare(
         location=create_loc(1, 0, 1, 10),
         left=terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
-        ops=['<', '<='],
+        operators=['<', '<='],
         comparators=[
             terms.TypedName(location=create_loc(1, 4, 1, 5), id='b', ctx='load', mode=terms.MODE_EVALUATE),
             terms.TypedName(location=create_loc(1, 9, 1, 10), id='c', ctx='load', mode=terms.MODE_EVALUATE),
@@ -944,7 +944,7 @@ def test_comparison__operators():
         expected = terms.Compare(
             location=create_loc(1, 0, 1, 4 + op_length),
             left=terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE),
-            ops=[op],
+            operators=[op],
             comparators=[
                 terms.TypedName(
                     location=create_loc(1, 3 + op_length, 1, 4 + op_length),
@@ -1288,7 +1288,7 @@ def test_if_stmt__simple():
         test=terms.Compare(
             location=create_loc(1, 2, 1, 8),
             left=terms.TypedName(location=create_loc(1, 3, 1, 4), id='x', ctx='load', mode=terms.MODE_EVALUATE),
-            ops=['>'],
+            operators=['>'],
             comparators=[terms.IntegerLiteral(location=create_loc(1, 7, 1, 8), value=0)],
         ),
         body=syntax.TermList(terms=[], is_placeholder=True),
@@ -1323,7 +1323,7 @@ def test_elif_stmt__simple():
         test=terms.Compare(
             location=create_loc(1, 4, 1, 11),
             left=terms.TypedName(location=create_loc(1, 5, 1, 6), id='y', ctx='load', mode=terms.MODE_EVALUATE),
-            ops=['<'],
+            operators=['<'],
             comparators=[terms.IntegerLiteral(location=create_loc(1, 9, 1, 11), value=10)],
         ),
         body=syntax.TermList(terms=[], is_placeholder=True),

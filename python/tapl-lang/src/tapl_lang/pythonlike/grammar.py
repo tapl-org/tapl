@@ -1316,7 +1316,7 @@ def _parse_comparison(c: Cursor) -> syntax.Term:
             ops.append(op)
             comparators.append(comparator)
         if ops:
-            return terms.Compare(t.location, left=left, ops=ops, comparators=comparators)
+            return terms.Compare(t.location, left=left, operators=ops, comparators=comparators)
     return t.fail()
 
 
