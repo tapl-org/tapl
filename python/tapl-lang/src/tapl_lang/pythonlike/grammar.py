@@ -26,12 +26,12 @@ x       statement: compound_stmt | simple_stmts
 x       compound_stmt:
             | function_def |> function_def_raw
             | if_stmt
-x           | class_def |> class_def_raw
-x           | for_stmt
+            | class_def |> class_def_raw
+            | for_stmt
 x           | try_stmt (full depth)
 x           | while_stmt
 ?       function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'  # TODO: implement [type_params] #mvp
-x       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':'
+?       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':' # TODO: implement [type_params] and arguments #mvp
 x       for_stmt: 'for' star_targets 'in' ~ star_expressions ':'
 x       while_stmt: 'while' named_expression ':' block [else_block]
         if_stmt:
@@ -45,6 +45,11 @@ d           | invalid_elif_stmt
         else_block:
 d           | invalid_else_stmt
             | 'else' &&':' block
+        for_stmt:
+d           | invalid_for_stmt
+            | 'for' star_targets 'in' ~ star_expressions ':' block [else_block]       # else block not implemented
+d           | 'async' 'for' star_targets 'in' ~ star_expressions ':' block [else_block]
+d           | invalid_for_target
         simple_stmt:
             | assignment
 d           | &"type" type_alias
@@ -1762,7 +1767,7 @@ def _parse_star_targets__multi(c: Cursor) -> syntax.Term:
         if t.validate(_consume_punct(k, ',')):
             # Allow trailing comma
             c.copy_position_from(k)
-        return t.captured_error or syntax.TermList(terms=targets)
+        return t.captured_error or terms.Tuple(location=t.location, elements=targets, ctx='store')
     return t.fail()
 
 

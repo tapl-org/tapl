@@ -254,12 +254,14 @@ def test_star_targets__single():
 
 def test_star_targets__multi():
     actual = parse_expr('var1, var2, var3', rn.STAR_TARGETS, mode=terms.MODE_EVALUATE)
-    expected = syntax.TermList(
-        terms=[
+    expected = terms.Tuple(
+        location=create_loc(1, 0, 1, 16),
+        elements=[
             terms.TypedName(location=create_loc(1, 0, 1, 4), id='var1', ctx='store', mode=terms.MODE_EVALUATE),
             terms.TypedName(location=create_loc(1, 6, 1, 10), id='var2', ctx='store', mode=terms.MODE_EVALUATE),
             terms.TypedName(location=create_loc(1, 12, 1, 16), id='var3', ctx='store', mode=terms.MODE_EVALUATE),
         ],
+        ctx='store',
     )
     assert actual == expected
 
@@ -1335,5 +1337,38 @@ def test_else_stmt__simple():
     expected = terms.ElseSibling(
         location=create_loc(1, 0, 1, 5),
         body=syntax.TermList(terms=[], is_placeholder=True),
+    )
+    assert actual == expected
+
+
+def test_for_stmt__simple():
+    actual = parse_expr('for item in collection:', rn.FOR_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedFor(
+        location=create_loc(1, 0, 1, 23),
+        target=terms.TypedName(location=create_loc(1, 4, 1, 8), id='item', ctx='store', mode=terms.MODE_EVALUATE),
+        iter=terms.TypedName(location=create_loc(1, 12, 1, 22), id='collection', ctx='load', mode=terms.MODE_EVALUATE),
+        body=syntax.TermList(terms=[], is_placeholder=True),
+        orelse=syntax.Empty,
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
+
+
+def test_for_stmt__tuple_target():
+    actual = parse_expr('for a, b in pairs:', rn.FOR_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedFor(
+        location=create_loc(1, 0, 1, 18),
+        target=terms.Tuple(
+            location=create_loc(1, 3, 1, 8),
+            elements=[
+                terms.TypedName(location=create_loc(1, 4, 1, 5), id='a', ctx='store', mode=terms.MODE_EVALUATE),
+                terms.TypedName(location=create_loc(1, 7, 1, 8), id='b', ctx='store', mode=terms.MODE_EVALUATE),
+            ],
+            ctx='store',
+        ),
+        iter=terms.TypedName(location=create_loc(1, 12, 1, 17), id='pairs', ctx='load', mode=terms.MODE_EVALUATE),
+        body=syntax.TermList(terms=[], is_placeholder=True),
+        orelse=syntax.Empty,
+        mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
