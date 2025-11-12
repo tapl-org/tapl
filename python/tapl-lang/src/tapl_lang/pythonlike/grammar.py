@@ -27,13 +27,13 @@ x       compound_stmt:
             | function_def |> function_def_raw
             | if_stmt
             | class_def |> class_def_raw
+d           | with_stmt
             | for_stmt
 x           | try_stmt (full depth)
-x           | while_stmt
+            | while_stmt
+d           | match_stmt
 ?       function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'  # TODO: implement [type_params] #mvp
 ?       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':' # TODO: implement [type_params] and arguments #mvp
-x       for_stmt: 'for' star_targets 'in' ~ star_expressions ':'
-x       while_stmt: 'while' named_expression ':' block [else_block]
         if_stmt:
 d           | invalid_if_stmt
             | 'if' named_expression ':' block elif_stmt
@@ -50,6 +50,9 @@ d           | invalid_for_stmt
             | 'for' star_targets 'in' ~ star_expressions ':' block [else_block]       # else block not implemented
 d           | 'async' 'for' star_targets 'in' ~ star_expressions ':' block [else_block]
 d           | invalid_for_target
+        while_stmt:
+d           | invalid_while_stmt
+            | 'while' named_expression ':' block [else_block]        # else block not implemented
         simple_stmt:
             | assignment
 d           | &"type" type_alias

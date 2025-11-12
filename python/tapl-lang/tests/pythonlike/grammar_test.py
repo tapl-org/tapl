@@ -1372,3 +1372,31 @@ def test_for_stmt__tuple_target():
         mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
+
+
+def test_while_stmt__simple():
+    actual = parse_expr('while condition:', rn.WHILE_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedWhile(
+        location=create_loc(1, 0, 1, 16),
+        test=terms.TypedName(location=create_loc(1, 6, 1, 15), id='condition', ctx='load', mode=terms.MODE_EVALUATE),
+        body=syntax.TermList(terms=[], is_placeholder=True),
+        orelse=syntax.Empty,
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
+
+
+def test_while_stmt__named():
+    actual = parse_expr('while x := 42:', rn.WHILE_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedWhile(
+        location=create_loc(1, 0, 1, 14),
+        test=terms.NamedExpr(
+            location=create_loc(1, 5, 1, 13),
+            target=terms.TypedName(location=create_loc(1, 6, 1, 7), id='x', ctx='store', mode=terms.MODE_EVALUATE),
+            value=terms.IntegerLiteral(location=create_loc(1, 11, 1, 13), value=42),
+        ),
+        body=syntax.TermList(terms=[], is_placeholder=True),
+        orelse=syntax.Empty,
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
