@@ -32,11 +32,10 @@ class Grammar:
     start_rule: str
 
 
-def route(rule: str) -> ParseFunction:
-    def parse(c: Cursor) -> syntax.Term:
-        return c.consume_rule(rule)
-
-    return parse
+def parse_function_name(function: ParseFunction | str) -> str:
+    if isinstance(function, str):
+        return f'|>{function}'
+    return f'@{function.__name__}'
 
 
 # Python backend AST has ctx attribute. Rename this class name to prevent confusion.
@@ -165,11 +164,6 @@ class PegEngine:
         # Set a call stack limit to prevent infinite recursion in rule applications
         self.rule_call_stack_limit = 1000
 
-    def parse_function_name(self, function: ParseFunction | str) -> str:
-        if isinstance(function, str):
-            return f'|>{function}'
-        return f'@{function.__name__}'
-
     def call_parse_function(
         self, key: CellKey, function: ParseFunction | str, context: Context
     ) -> tuple[syntax.Term, int, int]:
@@ -192,12 +186,12 @@ class PegEngine:
                 term = function(cursor)
             if term is None:
                 term = syntax.ErrorTerm(
-                    message=f'PegEngine: rule={key.rule}:{self.parse_function_name(function)} returned None.',
+                    message=f'PegEngine: rule={key.rule}:{parse_function_name(function)} returned None.',
                     location=create_location(),
                 )
         except Exception as e:  # noqa: BLE001  The user provided function may raise any exception.
             term = syntax.ErrorTerm(
-                message=f'PegEngine: rule={key.rule}:{self.parse_function_name(function)} error={e}',
+                message=f'PegEngine: rule={key.rule}:{parse_function_name(function)} error={e}',
                 location=create_location(),
             )
         return term, cursor.row, cursor.col
@@ -309,7 +303,7 @@ class PegEngineDebug(PegEngine):
                 end_row=row,
                 end_col=col,
                 rule=key.rule,
-                function_name=self.parse_function_name(function),
+                function_name=parse_function_name(function),
                 term=term,
                 start_call_order=start_call_order,
                 end_call_order=self.next_call_order(),
