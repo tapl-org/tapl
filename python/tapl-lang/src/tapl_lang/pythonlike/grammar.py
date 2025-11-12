@@ -690,15 +690,6 @@ class TokenEndOfText(syntax.Term):
         return f'TokenEndOfText({self.location})'
 
 
-# TODO: Remove BlockTerm #mvp
-@dataclass
-class BlockTerm(syntax.Term):
-    terms: list[syntax.Term]
-
-    def repr__tapl(self) -> str:
-        return 'BlockTerm'
-
-
 @dataclass
 class KeyValuePair(syntax.Term):
     key: syntax.Term
@@ -956,7 +947,7 @@ def _scan_arguments(c: Cursor) -> syntax.Term:
         while t.validate(_consume_punct(k, ',')) and t.validate(arg := _expect_rule(k, rn.EXPRESSION)):
             c.copy_position_from(k)
             args.append(arg)
-    return t.captured_error or BlockTerm(terms=args)
+    return t.captured_error or syntax.TermList(terms=args)
 
 
 def _parse_primary__attribute(c: Cursor) -> syntax.Term:
@@ -978,7 +969,7 @@ def _parse_primary__call(c: Cursor) -> syntax.Term:
         and t.validate(args := _scan_arguments(c))
         and t.validate(_expect_punct(c, ')'))
     ):
-        return terms.Call(t.location, func, cast(BlockTerm, args).terms, keywords=[])
+        return terms.Call(t.location, func, cast(syntax.TermList, args).terms, keywords=[])
     return t.fail()
 
 
@@ -1536,7 +1527,7 @@ def _scan_parameters(c: Cursor) -> syntax.Term:
         while t.validate(_consume_punct(k, ',')) and t.validate(param := _expect_rule(k, rn.PARAM)):
             c.copy_position_from(k)
             params.append(param)
-    return t.captured_error or BlockTerm(terms=params)
+    return t.captured_error or syntax.TermList(terms=params)
 
 
 def _scan_optional_return_type(c: Cursor) -> syntax.Term:
@@ -1564,7 +1555,7 @@ def _parse_function_def(c: Cursor) -> syntax.Term:
         return terms.TypedFunctionDef(
             location=t.location,
             name=name,
-            parameters=cast(BlockTerm, params).terms,
+            parameters=cast(syntax.TermList, params).terms,
             return_type=return_type,
             body=syntax.TermList(terms=[], is_placeholder=True),
             mode=c.context.mode,
