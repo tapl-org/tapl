@@ -626,15 +626,10 @@ def get_grammar() -> parser.Grammar:
     return grammar
 
 
-# TODO: Make Token terms public #mvp
-# TODO: Why repr__tapl methods? is @dataclass not enough? #mvp
 @dataclass
 class TokenKeyword(syntax.Term):
     location: syntax.Location
     value: str
-
-    def repr__tapl(self) -> str:
-        return f'TokenKeyword({self.location}, {self.value})'
 
 
 @dataclass
@@ -642,17 +637,11 @@ class TokenName(syntax.Term):
     location: syntax.Location
     value: str
 
-    def repr__tapl(self) -> str:
-        return f'TokenName({self.location}, {self.value})'
-
 
 @dataclass
 class TokenString(syntax.Term):
     location: syntax.Location
     value: str
-
-    def repr__tapl(self) -> str:
-        return f'TokenString({self.location}, {self.value})'
 
 
 @dataclass
@@ -660,17 +649,11 @@ class TokenInteger(syntax.Term):
     location: syntax.Location
     value: int
 
-    def repr__tapl(self) -> str:
-        return f'TokenInteger({self.location}, {self.value})'
-
 
 @dataclass
 class TokenFloat(syntax.Term):
     location: syntax.Location
     value: float
-
-    def repr__tapl(self) -> str:
-        return f'TokenFloat({self.location}, {self.value})'
 
 
 @dataclass
@@ -678,16 +661,10 @@ class TokenPunct(syntax.Term):
     location: syntax.Location
     value: str
 
-    def repr__tapl(self) -> str:
-        return f'TokenPunct({self.location}, {self.value})'
-
 
 @dataclass
 class TokenEndOfText(syntax.Term):
     location: syntax.Location
-
-    def repr__tapl(self) -> str:
-        return f'TokenEndOfText({self.location})'
 
 
 @dataclass

@@ -329,8 +329,6 @@ class PegEngineDebug(PegEngine):
             return 'Fail', ''
         if isinstance(term, syntax.ErrorTerm):
             return 'Error', term.message
-        if hasattr(term, 'repr__tapl'):
-            return 'Success', term.repr__tapl()
         return 'Success', f'term={term.__class__.__qualname__}'
 
     def dump_table(self, output: io.StringIO, table: list[list[str]]) -> None:
