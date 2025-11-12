@@ -5,14 +5,9 @@
 from tapl_lang.lib import proxy, typelib
 
 
-def _fix_type(param):
+def _validate_type(param):
     if isinstance(param, proxy.Proxy):
         return param
-    # TODO: remove str and list params if they are not needed anymore #mvp
-    if isinstance(param, str):
-        return Types[param]
-    if isinstance(param, list):
-        return typelib.create_union(*(Types[p] for p in param))
     raise TypeError(f'Unexpected parameter type: {type(param)}')
 
 
@@ -23,9 +18,9 @@ def _split_args(params):
     for p in params:
         if isinstance(p, tuple):
             tuple_found = True
-            args.append((p[0], _fix_type(p[1])))
+            args.append((p[0], _validate_type(p[1])))
         elif not tuple_found:
-            posonlyargs.append(_fix_type(p))
+            posonlyargs.append(_validate_type(p))
         else:
             raise ValueError('Positional-only arguments must come before regular arguments')
     return posonlyargs, args
@@ -39,7 +34,7 @@ def _init_methods(methods):
     fields = {}
     for name, (params, result) in methods.items():
         posonlyargs, args = _split_args(params)
-        func = typelib.Function(posonlyargs=posonlyargs, args=args, result=_fix_type(result))
+        func = typelib.Function(posonlyargs=posonlyargs, args=args, result=_validate_type(result))
         fields[name] = proxy.Proxy(func)
     return fields
 

@@ -31,7 +31,6 @@ COMPARE_OP_MAP: dict[str, ast.cmpop] = {
     'in': ast.In(),
     'not in': ast.NotIn(),
 }
-# TODO: add class with static fields for the context keys. introduce symbol type like scala #mvp
 EXPR_CONTEXT_MAP: dict[str, ast.expr_context] = {'load': ast.Load(), 'store': ast.Store(), 'delete': ast.Del()}
 
 
