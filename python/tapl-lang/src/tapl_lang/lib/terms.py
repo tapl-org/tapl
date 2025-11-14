@@ -686,7 +686,7 @@ class Select(syntax.Term):
 class Path(syntax.Term):
     location: syntax.Location
     names: list[str]
-    # TODO: change ctx to context enum. #mvp
+    # TODO: Find a better name for the ctx field. options: context, reference_mode
     ctx: str
     mode: syntax.Term
 
@@ -1080,7 +1080,7 @@ class TypedReturn(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-# TODO: Add Parameters type to represent list of parameters which support posonly and kwonly args #mvp
+# TODO: Add Parameters type to represent list of parameters which support posonly and kwonly args
 @dataclass
 class Parameter(syntax.Term):
     location: syntax.Location
@@ -1108,7 +1108,7 @@ class Parameter(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-# TODO: Implement posonly_args, regular_args, vararg, kwonly_args, kwarg, defaults if needed #mvp
+# TODO: Implement posonly_args, regular_args, vararg, kwonly_args, kwarg, defaults if needed
 @dataclass
 class TypedFunctionDef(syntax.Term):
     location: syntax.Location
@@ -1316,7 +1316,9 @@ class TypedIf(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        # TODO: handle elifs #mvp
+        # TODO: handle elifs
+        if self.elifs:
+            raise tapl_error.UnhandledError('Elif clauses are not yet supported in TypedIf unfold.')
         if self.mode is MODE_EVALUATE:
             return self.codegen_evaluate()
         if self.mode is MODE_TYPECHECK:

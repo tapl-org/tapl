@@ -103,7 +103,7 @@ def create_dynamic_variables(namespace, variables):
 
 def create_typed_list(*element_types) -> proxy.Proxy:
     if len(element_types) == 0:
-        # TODO: implement dynamic Any element type which can be specified at runtime. For example, when appending Int to an empty list. element type becomes Int. #mvp
+        # TODO: implement dynamic Any element type which can be specified at runtime. For example, when appending Int to an empty list. element type becomes Int.
         element_type = bt.Any
     elif len(element_types) == 1:
         element_type = element_types[0]

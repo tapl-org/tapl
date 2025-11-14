@@ -128,7 +128,7 @@ class AstGenerator:
                 decorator_list=[self.generate_expr(d, setting) for d in term.decorator_list],
             )
             locate(term.location, class_def)
-            # FIXME: body should be a list of term??? for improving usability #mvp
+            # FIXME: body should be a list of term??? for improving usability
             class_def.body = []
             for t in term.body:
                 class_def.body.extend(self.generate_stmt(t, setting))

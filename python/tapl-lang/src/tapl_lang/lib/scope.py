@@ -21,7 +21,7 @@ class Scope(proxy.Subject):
         if fields:
             self.store_many(fields)
         self.label = label
-        # TODO: move returns into fields. Find a better way to represent function return types #mvp
+        # TODO: move returns into fields. Find a better way to represent function return types
         self.return_type = None
         self.returns: list[Any] = []
 

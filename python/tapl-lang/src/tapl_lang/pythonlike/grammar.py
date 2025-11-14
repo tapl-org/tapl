@@ -31,8 +31,8 @@ d           | with_stmt
             | try_stmt
             | while_stmt
 d           | match_stmt
-?       function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'  # TODO: implement [type_params] #mvp
-?       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':' # TODO: implement [type_params] and arguments #mvp
+?       function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'  # TODO: implement [type_params]
+?       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':' # TODO: implement [type_params] and arguments
         if_stmt:
 d           | invalid_if_stmt
             | 'if' named_expression ':' block elif_stmt
@@ -46,16 +46,16 @@ d           | invalid_else_stmt
             | 'else' &&':' block
         for_stmt:
 d           | invalid_for_stmt
-            | 'for' star_targets 'in' ~ star_expressions ':' block [else_block]       # else block not implemented
+            | 'for' star_targets 'in' ~ star_expressions ':' block [else_block]       # else block not implemented yet
 d           | 'async' 'for' star_targets 'in' ~ star_expressions ':' block [else_block]
 d           | invalid_for_target
         while_stmt:
 d           | invalid_while_stmt
-            | 'while' named_expression ':' block [else_block]                         # else block not implemented
-x       try_stmt:                                                                     # TODO: implement full try statement #mvp
+            | 'while' named_expression ':' block [else_block]                         # else block not implemented yet
+x       try_stmt:                                                                     # TODO: implement full try statement
 d           | invalid_try_stmt
 x           | 'try' ':' block finally_block
-x           | 'try' ':' block except_block+ [else_block] [finally_block]              # else block not implemented
+x           | 'try' ':' block except_block+ [else_block] [finally_block]              # else block not implemented yet
 d           | 'try' ':' block except_star_block+ [finally_block]
 d           | 'try' ':' block finally_block
 x       except_block:

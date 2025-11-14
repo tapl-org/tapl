@@ -89,7 +89,7 @@ def check_type_equality(a, b):
 
 
 def drop_same_types(types):
-    # TODO: Build a directed graph, and keep only roots of the forests #mvp
+    # TODO: Build a directed graph, and keep only roots of the forests
     result = []
     for t in types:
         for r in result:
@@ -115,6 +115,7 @@ class Interim(proxy.Subject):
 
 
 # TODO: implement '|' operator for Union and '&' operator for Intersection #mvp
+# TODO: what happens when these operators are used for binary operation instead of type construction?
 # e.g., T1 | T2, T1 & T2
 # Exception for binary-operator methods in Python; not intended for direct use.
 # Example: alpha <: (alpha | beta) or beta <: (alpha | beta)
@@ -277,7 +278,7 @@ class Record(proxy.Subject):
 _PAIR_ELEMENT_COUNT = 2
 
 
-# TODO: Implement vararg, kwonlyargs, kw_defaults, kwarg, and defaults #mvp
+# TODO: Implement vararg, kwonlyargs, kw_defaults, kwarg, and defaults
 class Function(proxy.Subject):
     def __init__(self, posonlyargs, args, result=None, lazy_result=None):
         if not isinstance(posonlyargs, list):
