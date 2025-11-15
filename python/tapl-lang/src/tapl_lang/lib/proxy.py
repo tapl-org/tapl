@@ -47,15 +47,6 @@ OP_LABEL = {
 }
 
 
-def call_binop(op: str, left: 'Proxy', right: Any) -> Any | None:
-    try:
-        return left.subject__tapl.load__tapl(op)(right)
-    except Exception as e:
-        label = OP_LABEL.get(op, op)
-        # TODO: Show the underlying exception message? #mvp
-        raise TypeError(f'unsupported operand type(s) for {label}: {left} and {right}') from e
-
-
 # TODO: should Proxy be renamed to TypeProxy since it mainly deals with types? or it is a python specific concept? #mvp
 # ruff: noqa: N805
 class Proxy:
@@ -65,6 +56,14 @@ class Proxy:
         if not isinstance(subject__tapl, Subject):
             raise TypeError(f'Proxy can only wrap Subject instances, but found {type(subject__tapl)}')
         object.__setattr__(self__tapl, SUBJECT_FIELD_NAME, subject__tapl)
+
+    def call_binop__tapl(left, op: str, right: Any) -> Any | None:
+        try:
+            return left.subject__tapl.load__tapl(op)(right)
+        except Exception as e:
+            label = OP_LABEL.get(op, op)
+            # TODO: Show the underlying exception message? #mvp
+            raise TypeError(f'unsupported operand type(s) for {label}: {left} and {right}') from e
 
     def __getattr__(self__tapl, name):
         return self__tapl.subject__tapl.load__tapl(name)
@@ -82,46 +81,46 @@ class Proxy:
         return self__tapl.subject__tapl.__repr__()
 
     def __add__(self__tapl, other):
-        return call_binop('__add__', self__tapl, other)
+        return self__tapl.call_binop__tapl('__add__', other)
 
     def __sub__(self__tapl, other):
-        return call_binop('__sub__', self__tapl, other)
+        return self__tapl.call_binop__tapl('__sub__', other)
 
     def __mul__(self__tapl, other):
-        return call_binop('__mul__', self__tapl, other)
+        return self__tapl.call_binop__tapl('__mul__', other)
 
     def __truediv__(self__tapl, other):
-        return call_binop('__truediv__', self__tapl, other)
+        return self__tapl.call_binop__tapl('__truediv__', other)
 
     def __floordiv__(self__tapl, other):
-        return call_binop('__floordiv__', self__tapl, other)
+        return self__tapl.call_binop__tapl('__floordiv__', other)
 
     def __mod__(self__tapl, other):
-        return call_binop('__mod__', self__tapl, other)
+        return self__tapl.call_binop__tapl('__mod__', other)
 
     def __pow__(self__tapl, other):
-        return call_binop('__pow__', self__tapl, other)
+        return self__tapl.call_binop__tapl('__pow__', other)
 
     def __lshift__(self__tapl, other):
-        return call_binop('__lshift__', self__tapl, other)
+        return self__tapl.call_binop__tapl('__lshift__', other)
 
     def __rshift__(self__tapl, other):
-        return call_binop('__rshift__', self__tapl, other)
+        return self__tapl.call_binop__tapl('__rshift__', other)
 
     def __or__(self__tapl, other):
-        return call_binop('__or__', self__tapl, other)
+        return self__tapl.call_binop__tapl('__or__', other)
 
     def __xor__(self__tapl, other):
-        return call_binop('__xor__', self__tapl, other)
+        return self__tapl.call_binop__tapl('__xor__', other)
 
     def __and__(self__tapl, other):
-        return call_binop('__and__', self__tapl, other)
+        return self__tapl.call_binop__tapl('__and__', other)
 
     def __matmul__(self__tapl, other):
-        return call_binop('__matmul__', self__tapl, other)
+        return self__tapl.call_binop__tapl('__matmul__', other)
 
     def __ne__(self__tapl, other):
-        return call_binop('__ne__', self__tapl, other)
+        return self__tapl.call_binop__tapl('__ne__', other)
 
     def __lt__(self__tapl, other):
-        return call_binop('__lt__', self__tapl, other)
+        return self__tapl.call_binop__tapl('__lt__', other)
