@@ -8,7 +8,7 @@ from tapl_lang.pythonlike import builtin_functions
 
 def create_function(parameters, result):
     func = typelib.Function(parameters=parameters, result=result)
-    return proxy.Proxy(func)
+    return proxy.ProxyMixin(func)
 
 
 predef_scope = scope.Scope(label='predef_scope')
@@ -16,4 +16,4 @@ predef_scope.store__tapl('api__tapl', api)
 predef_scope.store_many(builtin_types.Types)
 predef_scope.store_many(builtin_functions.export1)
 
-predef_proxy = proxy.Proxy(predef_scope)
+predef_proxy = proxy.ProxyMixin(predef_scope)

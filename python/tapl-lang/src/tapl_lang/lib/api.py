@@ -4,7 +4,7 @@
 
 from tapl_lang.lib import proxy, typelib, utils
 
-Proxy = proxy.Proxy
+Proxy = proxy.ProxyMixin
 create_scope = utils.create_scope
 set_return_type = utils.set_return_type
 add_return_type = utils.add_return_type

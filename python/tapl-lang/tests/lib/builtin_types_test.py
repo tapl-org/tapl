@@ -32,7 +32,7 @@ def test_create_union():
     assert union_types[0] is _bool
     assert union_types[1] is _int
     # Flatten union
-    type_list = [_bool, proxy.Proxy(typelib.Union(types=[_int, _float]))]
+    type_list = [_bool, proxy.ProxyMixin(typelib.Union(types=[_int, _float]))]
     assert len(list(typelib.Union(types=type_list))) == 2
     assert len(list(typelib.create_union(*type_list).subject__tapl)) == 3
     # Trim union

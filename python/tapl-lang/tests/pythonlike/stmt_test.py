@@ -36,7 +36,7 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
 
 def run_stmt(stmts: list[ast.stmt]):
     compiled_code = compile(ast.Module(body=stmts), filename='', mode='exec')
-    daa = proxy.Proxy(scope.Scope(parent=predef1.predef_scope))
+    daa = proxy.ProxyMixin(scope.Scope(parent=predef1.predef_scope))
     globals_ = {'s0': daa}
     return eval(compiled_code, globals=globals_)
 

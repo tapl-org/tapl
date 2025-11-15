@@ -9,31 +9,31 @@ from tapl_lang.lib import builtin_types as bt
 from tapl_lang.lib import proxy, scope, typelib
 
 
-def get_scope_from_proxy(p: proxy.Proxy) -> scope.Scope:
+def get_scope_from_proxy(p: proxy.ProxyMixin) -> scope.Scope:
     return p.subject__tapl
 
 
 def create_scope(
-    parent__tapl: proxy.Proxy | None = None,
+    parent__tapl: proxy.ProxyMixin | None = None,
     label__tapl: str | None = None,
     **kwargs: Any,
-) -> proxy.Proxy:
+) -> proxy.ProxyMixin:
     parent_scope = None
     if parent__tapl:
         parent_scope = get_scope_from_proxy(parent__tapl)
     current = scope.Scope(parent=parent_scope, label=label__tapl)
     current.store_many(kwargs)
-    return proxy.Proxy(current)
+    return proxy.ProxyMixin(current)
 
 
-def set_return_type(proxy: proxy.Proxy, return_type: Any) -> None:
+def set_return_type(proxy: proxy.ProxyMixin, return_type: Any) -> None:
     s = get_scope_from_proxy(proxy)
     if s.returns or s.return_type is not None:
         raise ValueError('Return type has already been set.')
     s.return_type = return_type
 
 
-def add_return_type(proxy: proxy.Proxy, return_type: Any) -> None:
+def add_return_type(proxy: proxy.ProxyMixin, return_type: Any) -> None:
     s = get_scope_from_proxy(proxy)
     if s.return_type is None:
         s.returns.append(return_type)
@@ -41,7 +41,7 @@ def add_return_type(proxy: proxy.Proxy, return_type: Any) -> None:
         raise TypeError(f'Return type mismatch: expected {s.return_type}, got {return_type}.')
 
 
-def get_return_type(proxy: proxy.Proxy) -> Any:
+def get_return_type(proxy: proxy.ProxyMixin) -> Any:
     s = get_scope_from_proxy(proxy)
     if s.return_type is not None:
         return s.return_type
@@ -50,18 +50,18 @@ def get_return_type(proxy: proxy.Proxy) -> Any:
     return bt.NoneType
 
 
-def scope_forker(proxy: proxy.Proxy) -> scope.ScopeForker:
+def scope_forker(proxy: proxy.ProxyMixin) -> scope.ScopeForker:
     return scope.ScopeForker(get_scope_from_proxy(proxy))
 
 
-def fork_scope(forker: scope.ScopeForker) -> proxy.Proxy:
-    return proxy.Proxy(forker.new_scope())
+def fork_scope(forker: scope.ScopeForker) -> proxy.ProxyMixin:
+    return proxy.ProxyMixin(forker.new_scope())
 
 
 def create_class(
-    cls, init_args: list[proxy.Proxy], methods: list[tuple[str, list[proxy.Proxy]]]
-) -> tuple[proxy.Proxy, proxy.Proxy]:
-    class_type_proxy = proxy.Proxy(typelib.Interim())
+    cls, init_args: list[proxy.ProxyMixin], methods: list[tuple[str, list[proxy.ProxyMixin]]]
+) -> tuple[proxy.ProxyMixin, proxy.ProxyMixin]:
+    class_type_proxy = proxy.ProxyMixin(typelib.Interim())
     self_parent = scope.Scope()
     for method_name, param_types in methods:
 
@@ -71,12 +71,12 @@ def create_class(
         method = typelib.Function(
             posonlyargs=[], args=param_types, lazy_result=create_lazy_result(method_name, param_types)
         )
-        self_parent.store__tapl(method_name, proxy.Proxy(method))
+        self_parent.store__tapl(method_name, proxy.ProxyMixin(method))
     self_current = scope.Scope(parent=self_parent)
-    cls.__init__(*[proxy.Proxy(self_current), *init_args])
+    cls.__init__(*[proxy.ProxyMixin(self_current), *init_args])
     fields = {
-        '__repr__': proxy.Proxy(typelib.Function(posonlyargs=[], args=[], result=bt.Str)),
-        '__str__': proxy.Proxy(typelib.Function(posonlyargs=[], args=[], result=bt.Str)),
+        '__repr__': proxy.ProxyMixin(typelib.Function(posonlyargs=[], args=[], result=bt.Str)),
+        '__str__': proxy.ProxyMixin(typelib.Function(posonlyargs=[], args=[], result=bt.Str)),
     }
     for label in itertools.chain(self_parent.fields.keys(), self_current.fields.keys()):
         member = self_current.load__tapl(label)
@@ -93,7 +93,7 @@ def create_class(
             member.force()
 
     factory = typelib.Function(posonlyargs=init_args, args=[], result=class_type_proxy)
-    return class_type_proxy, proxy.Proxy(factory)
+    return class_type_proxy, proxy.ProxyMixin(factory)
 
 
 def create_dynamic_variables(namespace, variables):
@@ -101,7 +101,7 @@ def create_dynamic_variables(namespace, variables):
         namespace[var_name] = var_value
 
 
-def create_typed_list(*element_types) -> proxy.Proxy:
+def create_typed_list(*element_types) -> proxy.ProxyMixin:
     if len(element_types) == 0:
         # TODO: implement dynamic Any element type which can be specified at runtime. For example, when appending Int to an empty list. element type becomes Int.
         element_type = bt.Any

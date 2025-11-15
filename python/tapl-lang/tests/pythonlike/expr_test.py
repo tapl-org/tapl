@@ -41,7 +41,7 @@ def typecheck(expr: ast.expr, locals_=None):
     compiled_code = compile(ast.Expression(body=expr), filename='', mode='eval')
     scope0 = scope.Scope(parent=predef1.predef_scope)
     scope0.store_many(locals_ or {})
-    globals_ = {'s0': proxy.Proxy(scope0)}
+    globals_ = {'s0': proxy.ProxyMixin(scope0)}
     return eval(compiled_code, globals=globals_)
 
 

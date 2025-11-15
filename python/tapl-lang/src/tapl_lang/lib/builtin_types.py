@@ -6,7 +6,7 @@ from tapl_lang.lib import proxy, typelib
 
 
 def _validate_type(param):
-    if isinstance(param, proxy.Proxy):
+    if isinstance(param, proxy.ProxyMixin):
         return param
     raise TypeError(f'Unexpected parameter type: {type(param)}')
 
@@ -35,7 +35,7 @@ def _init_methods(methods):
     for name, (params, result) in methods.items():
         posonlyargs, args = _split_args(params)
         func = typelib.Function(posonlyargs=posonlyargs, args=args, result=_validate_type(result))
-        fields[name] = proxy.Proxy(func)
+        fields[name] = proxy.ProxyMixin(func)
     return fields
 
 
@@ -45,13 +45,13 @@ def _init_record(type_name, methods):
 
 
 Types = {
-    'Any': proxy.Proxy(typelib.Any()),
-    'Nothing': proxy.Proxy(typelib.Nothing()),
-    'NoneType': proxy.Proxy(typelib.NoneType()),
-    'Bool': proxy.Proxy(typelib.Interim()),
-    'Int': proxy.Proxy(typelib.Interim()),
-    'Float': proxy.Proxy(typelib.Interim()),
-    'Str': proxy.Proxy(typelib.Interim()),
+    'Any': proxy.ProxyMixin(typelib.Any()),
+    'Nothing': proxy.ProxyMixin(typelib.Nothing()),
+    'NoneType': proxy.ProxyMixin(typelib.NoneType()),
+    'Bool': proxy.ProxyMixin(typelib.Interim()),
+    'Int': proxy.ProxyMixin(typelib.Interim()),
+    'Float': proxy.ProxyMixin(typelib.Interim()),
+    'Str': proxy.ProxyMixin(typelib.Interim()),
 }
 TypeConstructors = {}
 
@@ -92,7 +92,7 @@ _init_record(
 _init_record('Str', {'isalpha': ([], Bool), 'isdigit': ([], Bool)})
 
 
-def create_list_type(element_type: proxy.Proxy) -> proxy.Proxy:
+def create_list_type(element_type: proxy.ProxyMixin) -> proxy.ProxyMixin:
     methods = {
         'append': ([element_type], NoneType),
         '__len__': ([], Int),
@@ -101,7 +101,7 @@ def create_list_type(element_type: proxy.Proxy) -> proxy.Proxy:
         fields=_init_methods(methods),
         title=f'List[{element_type}]',
     )
-    return proxy.Proxy(list_type)
+    return proxy.ProxyMixin(list_type)
 
 
 TypeConstructors['List'] = create_list_type

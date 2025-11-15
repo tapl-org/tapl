@@ -28,7 +28,7 @@ class MySubject(proxy.Subject):
 
 
 def test_define_variable():
-    a = proxy.Proxy(MySubject())
+    a = proxy.ProxyMixin(MySubject())
     a.x = 42
     assert a.x == 42
 
@@ -36,27 +36,27 @@ def test_define_variable():
 def test_undefined_variable():
     s = MySubject()
     s.store__tapl('a', 100)
-    p = proxy.Proxy(s)
+    p = proxy.ProxyMixin(s)
     del p.a
     with pytest.raises(AttributeError):
         _ = p.a
 
 
 def test_repr():
-    p = proxy.Proxy(MySubject())
+    p = proxy.ProxyMixin(MySubject())
     assert repr(p) == 'MySubject{}'
 
 
 def test_binop():
     s = MySubject()
     s.store__tapl('__add__', lambda other: f'Added {other}')
-    a = proxy.Proxy(s)
+    a = proxy.ProxyMixin(s)
     assert a + 3 == 'Added 3'
 
 
 def test_binop_error():
     s = MySubject()
-    p = proxy.Proxy(s)
+    p = proxy.ProxyMixin(s)
     with pytest.raises(TypeError):
         _ = p + 3
 
@@ -64,7 +64,7 @@ def test_binop_error():
 def test_replace_subject():
     x = MySubject()
     y = MySubject()
-    p = proxy.Proxy(x)
+    p = proxy.ProxyMixin(x)
     assert p.subject__tapl is x
     p.subject__tapl = y
     assert p.subject__tapl is not y

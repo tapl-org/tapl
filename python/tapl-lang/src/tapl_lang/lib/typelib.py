@@ -299,13 +299,13 @@ class Function(proxy.Subject):
     def __init__(self, posonlyargs, args, result=None, lazy_result=None):
         if not isinstance(posonlyargs, list):
             raise TypeError('Function posonlyargs must be a list.')
-        if any(not isinstance(arg, proxy.Proxy) for arg in posonlyargs):
+        if any(not isinstance(arg, proxy.ProxyMixin) for arg in posonlyargs):
             raise ValueError('Function posonlyargs must be a list of Proxy.')
         if not isinstance(args, list):
             raise TypeError('Function args must be a list.')
         if any(not (isinstance(arg, tuple) and len(arg) == _PAIR_ELEMENT_COUNT) for arg in args):
             raise ValueError('Function args must be a list of (name, type) pairs.')
-        if any(not (isinstance(name, str) and isinstance(arg_type, proxy.Proxy)) for name, arg_type in args):
+        if any(not (isinstance(name, str) and isinstance(arg_type, proxy.ProxyMixin)) for name, arg_type in args):
             raise ValueError('Function args must be a list of (str, Proxy) tuples.')
         if lazy_result is not None and result is not None:
             raise ValueError('Pass either the result or lazy_result argument, but not both.')
@@ -400,7 +400,7 @@ def create_union(*args):
     # Unions of a single argument vanish
     if len(result) == 1:
         return next(iter(result))
-    return proxy.Proxy(Union(types=result))
+    return proxy.ProxyMixin(Union(types=result))
 
 
 def create_function(args, result):
@@ -416,4 +416,4 @@ def create_function(args, result):
         else:
             raise ValueError('Positional-only arguments must come before regular arguments')
     func = Function(posonlyargs=posonly, args=regular, result=result)
-    return proxy.Proxy(func)
+    return proxy.ProxyMixin(func)

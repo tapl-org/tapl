@@ -30,16 +30,16 @@ class Atom(proxy.Subject):
 
 
 NoneType_ = typelib.NoneType()
-NoneType = proxy.Proxy(NoneType_)
+NoneType = proxy.ProxyMixin(NoneType_)
 Any_ = typelib.Any()
 Nothing_ = typelib.Nothing()
 
 Alpha_ = Atom('Alpha')
-Alpha = proxy.Proxy(Alpha_)
+Alpha = proxy.ProxyMixin(Alpha_)
 Beta_ = Atom('Beta')
-Beta = proxy.Proxy(Beta_)
+Beta = proxy.ProxyMixin(Beta_)
 Gamma_ = Atom('Gamma')
-Gamma = proxy.Proxy(Gamma_)
+Gamma = proxy.ProxyMixin(Gamma_)
 
 
 def test_union():

@@ -47,9 +47,8 @@ OP_LABEL = {
 }
 
 
-# TODO: should Proxy be renamed to TypeProxy since it mainly deals with types? or it is a python specific concept? #mvp
 # ruff: noqa: N805
-class Proxy:
+class ProxyMixin:
     """A proxy providing dynamic attribute access."""
 
     def __init__(self__tapl, subject__tapl: Any):
