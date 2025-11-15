@@ -37,13 +37,13 @@ class Scope(proxy.Subject):
             return self.parent.find_slot(name)
         return None
 
-    def load(self, name: str) -> Any:
+    def load__tapl(self, name: str) -> Any:
         slot = self.find_slot(name)
         if slot is not None:
             return slot.value
-        return super().load(name)
+        return super().load__tapl(name)
 
-    def store(self, name: str, value: Any) -> None:
+    def store__tapl(self, name: str, value: Any) -> None:
         slot = self.find_slot(name)
         if slot is None:
             self.fields[name] = Slot(value)
@@ -53,7 +53,7 @@ class Scope(proxy.Subject):
 
     def store_many(self, fields: dict[str, Any]) -> None:
         for name, value in fields.items():
-            self.store(name, value)
+            self.store__tapl(name, value)
 
     def __repr__(self) -> str:
         if '__repr__' in self.fields:
@@ -83,7 +83,7 @@ class ScopeForker:
                 if slot is not None:
                     values.append(slot.value)
             if len(values) == len(self.branches):
-                self.parent.store(var, typelib.create_union(*values))
+                self.parent.store__tapl(var, typelib.create_union(*values))
 
     def new_scope(self) -> Scope:
         forked = Scope(parent=self.parent, label=f'{self.parent}.fork{len(self.branches)}')

@@ -8,14 +8,14 @@ SUBJECT_FIELD_NAME = 'subject__tapl'
 
 
 class Subject:
-    def load(self, key: str) -> Any:
+    def load__tapl(self, key: str) -> Any:
         raise AttributeError(f'{self.__class__.__name__} class has no attribute "{key}"')
 
-    def store(self, key: str, value: Any) -> None:
+    def store__tapl(self, key: str, value: Any) -> None:
         del value  # unused
         raise AttributeError(f'{self.__class__.__name__} class has no attribute "{key}"')
 
-    def delete(self, key: str) -> None:
+    def delete__tapl(self, key: str) -> None:
         raise AttributeError(f'{self.__class__.__name__} class has no attribute "{key}"')
 
     def subject__tapl(self):
@@ -49,9 +49,10 @@ OP_LABEL = {
 
 def call_binop(op: str, left: 'Proxy', right: Any) -> Any | None:
     try:
-        return left.subject__tapl.load(op)(right)
+        return left.subject__tapl.load__tapl(op)(right)
     except Exception as e:
         label = OP_LABEL.get(op, op)
+        # TODO: Show the underlying exception message? #mvp
         raise TypeError(f'unsupported operand type(s) for {label}: {left} and {right}') from e
 
 
@@ -66,16 +67,16 @@ class Proxy:
         object.__setattr__(self__tapl, SUBJECT_FIELD_NAME, subject__tapl)
 
     def __getattr__(self__tapl, name):
-        return self__tapl.subject__tapl.load(name)
+        return self__tapl.subject__tapl.load__tapl(name)
 
     def __setattr__(self__tapl, name: str, value: Any):
-        self__tapl.subject__tapl.store(name, value)
+        self__tapl.subject__tapl.store__tapl(name, value)
 
     def __delattr__(self__tapl, name: str):
-        self__tapl.subject__tapl.delete(name)
+        self__tapl.subject__tapl.delete__tapl(name)
 
     def __call__(self__tapl, *args, **kwargs):
-        return self__tapl.subject__tapl.load('__call__')(*args, **kwargs)
+        return self__tapl.subject__tapl.load__tapl('__call__')(*args, **kwargs)
 
     def __repr__(self__tapl):
         return self__tapl.subject__tapl.__repr__()

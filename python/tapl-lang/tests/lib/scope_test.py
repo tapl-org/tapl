@@ -17,9 +17,9 @@ def test_variable_from_parent_scope():
 
 def test_reassign_variable():
     s = scope.Scope()
-    s.store('x', builtin_types.Int)
-    assert s.load('x') == builtin_types.Int
-    s.store('x', builtin_types.Int)
-    assert s.load('x') == builtin_types.Int
+    s.store__tapl('x', builtin_types.Int)
+    assert s.load__tapl('x') == builtin_types.Int
+    s.store__tapl('x', builtin_types.Int)
+    assert s.load__tapl('x') == builtin_types.Int
     with pytest.raises(TypeError, match='Type error in variable "x": Expected type "Int", but found "Str".'):
-        s.store('x', builtin_types.Str)
+        s.store__tapl('x', builtin_types.Str)

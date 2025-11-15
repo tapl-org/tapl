@@ -11,16 +11,16 @@ class MySubject(proxy.Subject):
     def __init__(self):
         self.vars = {}
 
-    def load(self, key):
+    def load__tapl(self, key):
         try:
             return self.vars[key]
         except KeyError:
-            super().load(key)
+            super().load__tapl(key)
 
-    def store(self, key, value):
+    def store__tapl(self, key, value):
         self.vars[key] = value
 
-    def delete(self, key):
+    def delete__tapl(self, key):
         del self.vars[key]
 
     def __repr__(self):
@@ -35,7 +35,7 @@ def test_define_variable():
 
 def test_undefined_variable():
     s = MySubject()
-    s.store('a', 100)
+    s.store__tapl('a', 100)
     p = proxy.Proxy(s)
     del p.a
     with pytest.raises(AttributeError):
@@ -49,7 +49,7 @@ def test_repr():
 
 def test_binop():
     s = MySubject()
-    s.store('__add__', lambda other: f'Added {other}')
+    s.store__tapl('__add__', lambda other: f'Added {other}')
     a = proxy.Proxy(s)
     assert a + 3 == 'Added 3'
 

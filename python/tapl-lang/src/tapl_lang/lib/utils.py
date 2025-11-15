@@ -71,7 +71,7 @@ def create_class(
         method = typelib.Function(
             posonlyargs=[], args=param_types, lazy_result=create_lazy_result(method_name, param_types)
         )
-        self_parent.store(method_name, proxy.Proxy(method))
+        self_parent.store__tapl(method_name, proxy.Proxy(method))
     self_current = scope.Scope(parent=self_parent)
     cls.__init__(*[proxy.Proxy(self_current), *init_args])
     fields = {
@@ -79,7 +79,7 @@ def create_class(
         '__str__': proxy.Proxy(typelib.Function(posonlyargs=[], args=[], result=bt.Str)),
     }
     for label in itertools.chain(self_parent.fields.keys(), self_current.fields.keys()):
-        member = self_current.load(label)
+        member = self_current.load__tapl(label)
         fields[label] = member
 
     class_type = typelib.Record(

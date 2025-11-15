@@ -123,10 +123,10 @@ class TypeMixin(proxy.Subject):
         del supertype_  # unused
         raise NotImplementedError(f'{self.__class__.__name__} does not implement is_subtype_of method.')
 
-    def load(self, key):
+    def load__tapl(self, key):
         if key == '__or__':
             return self.apply
-        return super().load(key)
+        return super().load__tapl(key)
 
 
 # TODO: implement '|' operator for Union and '&' operator for Intersection #mvp
@@ -285,10 +285,10 @@ class Record(proxy.Subject):
     def try_load(self, label):
         return self._fields.get(label)
 
-    def load(self, key):
+    def load__tapl(self, key):
         if key in self._fields:
             return self._fields[key]
-        return super().load(key)
+        return super().load__tapl(key)
 
 
 _PAIR_ELEMENT_COUNT = 2
@@ -347,10 +347,10 @@ class Function(proxy.Subject):
                 raise TypeError(f'Not equal: args={self._args} arguments={actual_args}')
         return self.result
 
-    def load(self, key):
+    def load__tapl(self, key):
         if key == '__call__':
             return self.apply
-        return super().load(key)
+        return super().load__tapl(key)
 
     @property
     def posonlyargs(self):
