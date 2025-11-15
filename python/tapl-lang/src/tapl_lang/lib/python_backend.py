@@ -17,6 +17,13 @@ BIN_OP_MAP: dict[str, ast.operator] = {
     '/': ast.Div(),
     '//': ast.FloorDiv(),
     '%': ast.Mod(),
+    '**': ast.Pow(),
+    '<<': ast.LShift(),
+    '>>': ast.RShift(),
+    '|': ast.BitOr(),
+    '^': ast.BitXor(),
+    '&': ast.BitAnd(),
+    '@': ast.MatMult(),
 }
 BOOL_OP_MAP: dict[str, ast.boolop] = {'and': ast.And(), 'or': ast.Or()}
 COMPARE_OP_MAP: dict[str, ast.cmpop] = {

@@ -90,3 +90,7 @@ def test_sum():
 
 def test_collatz_conjecture():
     run_golden_test('collatz_conjecture')
+
+
+def test_type_constructions():
+    run_golden_test('type_constructions')

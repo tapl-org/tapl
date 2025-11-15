@@ -44,3 +44,10 @@ To distinguish these two types with the same name, we can declare `print_...` fu
 def print_first(shape: Shape)
 def print_instance(shape: Shape_)
 ```
+
+### Why the '|' and '&' Operators Are Not Bitwise Operations in TAPL
+These single-symbol operators (| and &) are traditionally used as bitwise operations in many programming languages. However, in modern systems like TypeScript and Python, they have been naturally adopted to represent set-theoretic type operations, specifically Union and Intersection.
+
+Most languages, such as TypeScript and Python, can easily distinguish the operator's context—whether it's a bitwise operation at the value level or a Union/Intersection at the type level—during the parsing stage.
+
+In TAPL, this level of distinction is not made because evaluation can occur at the type level as well. Since these operators are now predominantly used for type construction and bitwise operations are less common in high-level languages, TAPL chooses to reserve | and & exclusively for type constructions (Union and Intersection).

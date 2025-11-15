@@ -31,6 +31,13 @@ OP_LABEL = {
     '__truediv__': '/',
     '__floordiv__': '//',
     '__mod__': '%',
+    '__pow__': '**',
+    '__lshift__': '<<',
+    '__rshift__': '>>',
+    '__or__': '|',
+    '__xor__': '^',
+    '__and__': '&',
+    '__matmul__': '@',
     '__lt__': '<',
     '__le__': '<=',
     '__eq__': '==',
@@ -48,6 +55,7 @@ def call_binop(op: str, left: 'Proxy', right: Any) -> Any | None:
         raise TypeError(f'unsupported operand type(s) for {label}: {left} and {right}') from e
 
 
+# TODO: should Proxy be renamed to TypeProxy since it mainly deals with types? or it is a python specific concept? #mvp
 # ruff: noqa: N805
 class Proxy:
     """A proxy providing dynamic attribute access."""
@@ -81,11 +89,35 @@ class Proxy:
     def __mul__(self__tapl, other):
         return call_binop('__mul__', self__tapl, other)
 
-    def __mod__(self__tapl, other):
-        return call_binop('__mod__', self__tapl, other)
+    def __truediv__(self__tapl, other):
+        return call_binop('__truediv__', self__tapl, other)
 
     def __floordiv__(self__tapl, other):
         return call_binop('__floordiv__', self__tapl, other)
+
+    def __mod__(self__tapl, other):
+        return call_binop('__mod__', self__tapl, other)
+
+    def __pow__(self__tapl, other):
+        return call_binop('__pow__', self__tapl, other)
+
+    def __lshift__(self__tapl, other):
+        return call_binop('__lshift__', self__tapl, other)
+
+    def __rshift__(self__tapl, other):
+        return call_binop('__rshift__', self__tapl, other)
+
+    def __or__(self__tapl, other):
+        return call_binop('__or__', self__tapl, other)
+
+    def __xor__(self__tapl, other):
+        return call_binop('__xor__', self__tapl, other)
+
+    def __and__(self__tapl, other):
+        return call_binop('__and__', self__tapl, other)
+
+    def __matmul__(self__tapl, other):
+        return call_binop('__matmul__', self__tapl, other)
 
     def __ne__(self__tapl, other):
         return call_binop('__ne__', self__tapl, other)

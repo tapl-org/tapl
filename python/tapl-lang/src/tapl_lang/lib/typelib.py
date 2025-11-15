@@ -114,6 +114,21 @@ class Interim(proxy.Subject):
         return 'InterimType'
 
 
+class TypeMixin(proxy.Subject):
+    def is_supertype_of(self, subtype_):
+        del subtype_  # unused
+        raise NotImplementedError(f'{self.__class__.__name__} does not implement is_supertype_of method.')
+
+    def is_subtype_of(self, supertype_):
+        del supertype_  # unused
+        raise NotImplementedError(f'{self.__class__.__name__} does not implement is_subtype_of method.')
+
+    def load(self, key):
+        if key == '__or__':
+            return self.apply
+        return super().load(key)
+
+
 # TODO: implement '|' operator for Union and '&' operator for Intersection #mvp
 # TODO: what happens when these operators are used for binary operation instead of type construction?
 # e.g., T1 | T2, T1 & T2
@@ -143,6 +158,7 @@ class Union(proxy.Subject):
             return self._title
         return ' | '.join([str(t) for t in self._types])
 
+    # TODO: remove default iterator from Record, Union and Intersection, it may be confusing #mvp
     def __iter__(self):
         yield from self._types
 
