@@ -13,7 +13,7 @@ def create_scope(
     parent__tapl: scope.Scope | None = None,
     label__tapl: str | None = None,
     **kwargs: Any,
-) -> dynamic_attributes.ProxyMixin:
+) -> dynamic_attributes.DynamicAttributeMixin:
     parent_scope = None
     if parent__tapl:
         parent_scope = parent__tapl
@@ -92,7 +92,7 @@ def create_dynamic_variables(namespace, variables):
         namespace[var_name] = var_value
 
 
-def create_typed_list(*element_types) -> dynamic_attributes.ProxyMixin:
+def create_typed_list(*element_types) -> dynamic_attributes.DynamicAttributeMixin:
     if len(element_types) == 0:
         # TODO: implement dynamic Any element type which can be specified at runtime. For example, when appending Int to an empty list. element type becomes Int.
         element_type = bt.Any

@@ -14,7 +14,7 @@ class Slot:
         self.value = value
 
 
-class Scope(dynamic_attributes.ProxyMixin):
+class Scope(dynamic_attributes.DynamicAttributeMixin):
     def __init__(self, parent: Scope | None = None, fields: dict[str, Any] | None = None, label: str | None = None):
         self.parent__tapl = parent
         self.fields__tapl: dict[str, Slot] = {}

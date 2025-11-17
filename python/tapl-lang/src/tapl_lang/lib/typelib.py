@@ -102,7 +102,7 @@ def drop_same_types(types):
 # e.g., T1 | T2, T1 & T2
 # Exception for binary-operator methods in Python; not intended for direct use.
 # Example: alpha <: (alpha | beta) or beta <: (alpha | beta)
-class Union(dynamic_attributes.ProxyMixin):
+class Union(dynamic_attributes.DynamicAttributeMixin):
     def __init__(self, types, title=None):
         if len(types) <= 1:
             raise ValueError('Union requires at least two types.')
@@ -132,7 +132,7 @@ class Union(dynamic_attributes.ProxyMixin):
 
 
 # Example: alpha & beta <: alpha or alpha & beta <: beta
-class Intersection(dynamic_attributes.ProxyMixin):
+class Intersection(dynamic_attributes.DynamicAttributeMixin):
     def __init__(self, types, title=None):
         if len(types) <= 1:
             raise ValueError('At least two types are required to create Intersection.')
@@ -161,7 +161,7 @@ class Intersection(dynamic_attributes.ProxyMixin):
 
 
 # Top type
-class Any(dynamic_attributes.ProxyMixin):
+class Any(dynamic_attributes.DynamicAttributeMixin):
     def is_supertype_of__tapl(self, subtype):
         if isinstance(subtype, Any):
             return True
@@ -179,7 +179,7 @@ class Any(dynamic_attributes.ProxyMixin):
 
 
 # Bottom type
-class Nothing(dynamic_attributes.ProxyMixin):
+class Nothing(dynamic_attributes.DynamicAttributeMixin):
     def is_supertype_of__tapl(self, subtype):
         if isinstance(subtype, Nothing):
             return True
@@ -199,7 +199,7 @@ class Nothing(dynamic_attributes.ProxyMixin):
 
 
 # Inspired by Kotlin type system - https://stackoverflow.com/a/54762815/22663977
-class NoneType(dynamic_attributes.ProxyMixin):
+class NoneType(dynamic_attributes.DynamicAttributeMixin):
     def is_supertype_of__tapl(self, subtype):
         if isinstance(subtype, NoneType):
             return True
@@ -217,7 +217,7 @@ class NoneType(dynamic_attributes.ProxyMixin):
 
 
 # TODO: A tuple type where labels are the characters 'a' through 'z'.
-class Record(dynamic_attributes.ProxyMixin):
+class Record(dynamic_attributes.DynamicAttributeMixin):
     def __init__(self, fields, title=None):
         self._fields__tapl = fields
         self._title__tapl = title
@@ -266,7 +266,7 @@ _PAIR_ELEMENT_COUNT = 2
 
 
 # TODO: Implement vararg, kwonlyargs, kw_defaults, kwarg, and defaults
-class Function(dynamic_attributes.ProxyMixin):
+class Function(dynamic_attributes.DynamicAttributeMixin):
     def __init__(self, posonlyargs, args, result=None, lazy_result=None):
         if not isinstance(posonlyargs, list):
             raise TypeError('Function posonlyargs must be a list.')
@@ -340,7 +340,7 @@ class Function(dynamic_attributes.ProxyMixin):
             self._lazy_result__tapl = None
 
 
-class TypeVariable(dynamic_attributes.ProxyMixin):
+class TypeVariable(dynamic_attributes.DynamicAttributeMixin):
     def __init__(self, variable_name: str):
         self.variable_name = variable_name
 

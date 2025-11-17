@@ -8,7 +8,7 @@ from tapl_lang.pythonlike import builtin_functions
 
 def create_function(parameters, result):
     func = typelib.Function(parameters=parameters, result=result)
-    return dynamic_attributes.ProxyMixin(func)
+    return dynamic_attributes.DynamicAttributeMixin(func)
 
 
 predef_scope = scope.Scope(label='predef_scope')

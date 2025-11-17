@@ -7,7 +7,7 @@ from tapl_lang.lib import dynamic_attributes, typelib
 from tapl_lang.lib.typelib import check_subtype
 
 
-class Atom(dynamic_attributes.ProxyMixin):
+class Atom(dynamic_attributes.DynamicAttributeMixin):
     def __init__(self, title: str):
         self._title__tapl = title
 

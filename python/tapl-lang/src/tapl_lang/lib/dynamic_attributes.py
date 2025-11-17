@@ -28,7 +28,7 @@ OP_LABEL = {
 
 
 # ruff: noqa: N805
-class ProxyMixin:
+class DynamicAttributeMixin:
     """Proxy mixin for dynamic attribute access."""
 
     def load__tapl(self, key: str) -> Any:

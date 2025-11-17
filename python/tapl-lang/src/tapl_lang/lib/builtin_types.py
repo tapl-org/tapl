@@ -82,7 +82,9 @@ _init_record(
 _init_record(Str, {'isalpha': ([], Bool), 'isdigit': ([], Bool)})
 
 
-def create_list_type(element_type: dynamic_attributes.ProxyMixin) -> dynamic_attributes.ProxyMixin:
+def create_list_type(
+    element_type: dynamic_attributes.DynamicAttributeMixin,
+) -> dynamic_attributes.DynamicAttributeMixin:
     methods = {
         'append': ([element_type], NoneType),
         '__len__': ([], Int),

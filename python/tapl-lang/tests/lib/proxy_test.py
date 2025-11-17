@@ -7,7 +7,7 @@ import pytest
 from tapl_lang.lib import dynamic_attributes
 
 
-class MySubject(dynamic_attributes.ProxyMixin):
+class MySubject(dynamic_attributes.DynamicAttributeMixin):
     def __init__(self):
         self.vars__tapl = {}
 
