@@ -15,13 +15,11 @@ class Slot:
 
 
 class Scope(dynamic_attributes.DynamicAttributeMixin):
-    def __init__(self, parent: Scope | None = None, fields: dict[str, Any] | None = None, label: str | None = None):
+    def __init__(self, parent: Scope | None = None, fields: dict[str, Any] | None = None):
         self.parent__sa = parent
         self.fields__sa: dict[str, Slot] = {}
         if fields:
             self.store_many__sa(fields)
-        # TODO: do we need label? #mvp
-        self.label__sa = label
         # TODO: move returns into fields. Find a better way to represent function return types
         self.return_type__sa = None
         self.returns__sa: list[Any] = []
@@ -82,6 +80,6 @@ class ScopeForker:
                 self.parent.store__sa(var, typelib.create_union(*values))
 
     def new_scope(self) -> Scope:
-        forked = Scope(parent=self.parent, label=f'{self.parent}.fork{len(self.branches)}')
+        forked = Scope(parent=self.parent)
         self.branches.append(forked)
         return forked

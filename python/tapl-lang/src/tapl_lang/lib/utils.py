@@ -11,13 +11,12 @@ from tapl_lang.lib import dynamic_attributes, scope, typelib
 
 def create_scope(
     parent__sa: scope.Scope | None = None,
-    label__sa: str | None = None,
     **kwargs: Any,
 ) -> dynamic_attributes.DynamicAttributeMixin:
     parent_scope = None
     if parent__sa:
         parent_scope = parent__sa
-    current = scope.Scope(parent=parent_scope, label=label__sa)
+    current = scope.Scope(parent=parent_scope)
     current.store_many__sa(kwargs)
     return current
 
