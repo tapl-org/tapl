@@ -2,13 +2,13 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from tapl_lang.lib import api, builtin_types, proxy, scope, typelib
+from tapl_lang.lib import api, builtin_types, dynamic_attributes, scope, typelib
 from tapl_lang.pythonlike import builtin_functions
 
 
 def create_function(parameters, result):
     func = typelib.Function(parameters=parameters, result=result)
-    return proxy.ProxyMixin(func)
+    return dynamic_attributes.ProxyMixin(func)
 
 
 predef_scope = scope.Scope(label='predef_scope')

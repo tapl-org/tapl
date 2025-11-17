@@ -6,14 +6,14 @@ import itertools
 from typing import Any
 
 from tapl_lang.lib import builtin_types as bt
-from tapl_lang.lib import proxy, scope, typelib
+from tapl_lang.lib import dynamic_attributes, scope, typelib
 
 
 def create_scope(
     parent__tapl: scope.Scope | None = None,
     label__tapl: str | None = None,
     **kwargs: Any,
-) -> proxy.ProxyMixin:
+) -> dynamic_attributes.ProxyMixin:
     parent_scope = None
     if parent__tapl:
         parent_scope = parent__tapl
@@ -92,7 +92,7 @@ def create_dynamic_variables(namespace, variables):
         namespace[var_name] = var_value
 
 
-def create_typed_list(*element_types) -> proxy.ProxyMixin:
+def create_typed_list(*element_types) -> dynamic_attributes.ProxyMixin:
     if len(element_types) == 0:
         # TODO: implement dynamic Any element type which can be specified at runtime. For example, when appending Int to an empty list. element type becomes Int.
         element_type = bt.Any

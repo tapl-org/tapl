@@ -4,10 +4,10 @@
 
 import pytest
 
-from tapl_lang.lib import proxy
+from tapl_lang.lib import dynamic_attributes
 
 
-class MySubject(proxy.ProxyMixin):
+class MySubject(dynamic_attributes.ProxyMixin):
     def __init__(self):
         self.vars__tapl = {}
 

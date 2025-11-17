@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Self
 
-from tapl_lang.lib import proxy, typelib
+from tapl_lang.lib import dynamic_attributes, typelib
 
 
 class Slot:
@@ -14,7 +14,7 @@ class Slot:
         self.value = value
 
 
-class Scope(proxy.ProxyMixin):
+class Scope(dynamic_attributes.ProxyMixin):
     def __init__(self, parent: Scope | None = None, fields: dict[str, Any] | None = None, label: str | None = None):
         self.parent__tapl = parent
         self.fields__tapl: dict[str, Slot] = {}

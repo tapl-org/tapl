@@ -2,7 +2,7 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from tapl_lang.lib import proxy, typelib
+from tapl_lang.lib import dynamic_attributes, typelib
 
 Types = {
     'Any': typelib.Any(),
@@ -82,7 +82,7 @@ _init_record(
 _init_record(Str, {'isalpha': ([], Bool), 'isdigit': ([], Bool)})
 
 
-def create_list_type(element_type: proxy.ProxyMixin) -> proxy.ProxyMixin:
+def create_list_type(element_type: dynamic_attributes.ProxyMixin) -> dynamic_attributes.ProxyMixin:
     methods = {
         'append': ([element_type], NoneType),
         '__len__': ([], Int),
