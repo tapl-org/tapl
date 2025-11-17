@@ -1,2 +1,2 @@
 from tapl_lang.pythonlike.predef import *
-print__tapl('Hello World!')
+print__sa('Hello World!')

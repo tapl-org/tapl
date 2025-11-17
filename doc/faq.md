@@ -10,7 +10,7 @@ The type of any expression (even for locks) can be universe. To prevent this $(\
 In this case, we could not separate types from terms, and could not run types fully before running terms.
 
 ### What are the TAPL-specific methods or functions?
-Methods, functions, fields, or any name that have the __tapl (double underscores followed by "tapl") suffix are specific to TAPL.
+Methods, functions, fields, or any name that have the __sa (double underscores followed by "tapl") suffix are specific to TAPL.
 
 ### What is the backend of TAPL?
 Currently, Python's AST is used as the backend. However, in the near future, Tapl will introduce its own AST/IR/Language as the backend.

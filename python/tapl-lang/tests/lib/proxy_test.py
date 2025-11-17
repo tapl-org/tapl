@@ -9,22 +9,22 @@ from tapl_lang.lib import dynamic_attributes
 
 class MySubject(dynamic_attributes.DynamicAttributeMixin):
     def __init__(self):
-        self.vars__tapl = {}
+        self.vars__sa = {}
 
-    def load__tapl(self, key):
+    def load__sa(self, key):
         try:
-            return self.vars__tapl[key]
+            return self.vars__sa[key]
         except KeyError:
-            super().load__tapl(key)
+            super().load__sa(key)
 
-    def store__tapl(self, key, value):
-        self.vars__tapl[key] = value
+    def store__sa(self, key, value):
+        self.vars__sa[key] = value
 
-    def delete__tapl(self, key):
-        del self.vars__tapl[key]
+    def delete__sa(self, key):
+        del self.vars__sa[key]
 
     def __repr__(self):
-        return f'MySubject{self.vars__tapl}'
+        return f'MySubject{self.vars__sa}'
 
 
 def test_define_variable():
@@ -35,7 +35,7 @@ def test_define_variable():
 
 def test_undefined_variable():
     s = MySubject()
-    s.store__tapl('a', 100)
+    s.store__sa('a', 100)
     del s.a
     with pytest.raises(AttributeError):
         _ = s.a
@@ -48,7 +48,7 @@ def test_repr():
 
 def test_binop():
     s = MySubject()
-    s.store__tapl('__add__', lambda other: f'Added {other}')
+    s.store__sa('__add__', lambda other: f'Added {other}')
     assert s + 3 == 'Added 3'
 
 

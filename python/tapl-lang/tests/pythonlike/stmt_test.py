@@ -116,7 +116,7 @@ def hello():
         ast.unparse(stmt2)
         == """
 def hello():
-    s1 = s0.tapl_typing.create_scope(parent__tapl=s0)
+    s1 = s0.tapl_typing.create_scope(parent__sa=s0)
     s1.tapl_typing.add_return_type(s1, s1.Int)
     return s1.tapl_typing.get_return_type(s1)
 s0.hello = s0.tapl_typing.create_function([], hello())
@@ -140,7 +140,7 @@ def hello():
         ast.unparse(stmt2)
         == """
 def hello():
-    s1 = s0.tapl_typing.create_scope(parent__tapl=s0)
+    s1 = s0.tapl_typing.create_scope(parent__sa=s0)
     s1.tapl_typing.set_return_type(s1, s1.Int)
     s1.tapl_typing.add_return_type(s1, s1.Int)
     return s1.tapl_typing.get_return_type(s1)
@@ -165,7 +165,7 @@ def area(radius):
         ast.unparse(stmt2)
         == """
 def area(radius):
-    s1 = s0.tapl_typing.create_scope(parent__tapl=s0, radius=radius)
+    s1 = s0.tapl_typing.create_scope(parent__sa=s0, radius=radius)
     s1.tapl_typing.add_return_type(s1, s1.Float * s1.radius * s1.radius)
     return s1.tapl_typing.get_return_type(s1)
 s0.area = s0.tapl_typing.create_function([s0.Int], area(s0.Int))
@@ -226,7 +226,7 @@ class Circle_:
 class Circle_:
 
     def __init__(self, radius):
-        s1 = s0.tapl_typing.create_scope(parent__tapl=s0, self=self, radius=radius)
+        s1 = s0.tapl_typing.create_scope(parent__sa=s0, self=self, radius=radius)
         s1.self.radius = s1.radius
         return s1.tapl_typing.get_return_type(s1)
 s0.Circle, s0.Circle_ = s0.tapl_typing.create_class(cls=Circle_, init_args=[s0.Float], methods=[])

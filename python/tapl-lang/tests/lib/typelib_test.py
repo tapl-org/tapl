@@ -9,16 +9,16 @@ from tapl_lang.lib.typelib import check_subtype
 
 class Atom(dynamic_attributes.DynamicAttributeMixin):
     def __init__(self, title: str):
-        self._title__tapl = title
+        self._title__sa = title
 
-    def is_supertype_of__tapl(self, subtype):
+    def is_supertype_of__sa(self, subtype):
         if self is subtype:
             return True
         if isinstance(subtype, typelib.Nothing):
             return True
         return None
 
-    def is_subtype_of__tapl(self, supertype):
+    def is_subtype_of__sa(self, supertype):
         if self is supertype:
             return True
         if isinstance(supertype, typelib.Any):
@@ -26,7 +26,7 @@ class Atom(dynamic_attributes.DynamicAttributeMixin):
         return None
 
     def __repr__(self):
-        return self._title__tapl
+        return self._title__sa
 
 
 NoneType = typelib.NoneType()

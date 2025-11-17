@@ -1170,7 +1170,7 @@ class TypedFunctionDef(syntax.Term):
         keywords: list[tuple[str, syntax.Term]] = []
         keywords.append(
             (
-                'parent__tapl',
+                'parent__sa',
                 Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
             )
         )

@@ -12,6 +12,6 @@ def create_function(parameters, result):
 
 
 predef_scope = scope.Scope(label='predef_scope')
-predef_scope.store__tapl('tapl_typing', tapl_typing)
-predef_scope.store_many__tapl(builtin_types.Types)
-predef_scope.store_many__tapl(builtin_functions.export1)
+predef_scope.store__sa('tapl_typing', tapl_typing)
+predef_scope.store_many__sa(builtin_types.Types)
+predef_scope.store_many__sa(builtin_functions.export1)

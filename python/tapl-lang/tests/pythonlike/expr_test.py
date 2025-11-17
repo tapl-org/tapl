@@ -41,7 +41,7 @@ def evaluate(expr: ast.expr, locals_=None):
 def typecheck(expr: ast.expr, locals_=None):
     compiled_code = compile(ast.Expression(body=expr), filename='', mode='eval')
     scope0 = scope.Scope(parent=predef1.predef_scope)
-    scope0.store_many__tapl(locals_ or {})
+    scope0.store_many__sa(locals_ or {})
     globals_ = {'s0': scope0}
     return eval(compiled_code, globals=globals_)
 

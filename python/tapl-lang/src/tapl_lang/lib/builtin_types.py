@@ -52,7 +52,7 @@ def _init_methods(methods):
 
 
 def _init_record(record, methods):
-    object.__setattr__(record, '_fields__tapl', _init_methods(methods))
+    object.__setattr__(record, '_fields__sa', _init_methods(methods))
 
 
 _init_record(Bool, {'__lt__': ([Bool], Bool), '__gt__': ([Bool], Bool)})

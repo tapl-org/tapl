@@ -9,7 +9,7 @@ Traceback (most recent call last):
     s1.tapl_typing.add_return_type(s1, s1.Int)
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
   File "/Users/orti/github/tapl/python/tapl-lang/src/tapl_lang/lib/utils.py", line 35, in add_return_type
-    raise TypeError(f'Return type mismatch: expected {s.return_type__tapl}, got {return_type}.')
+    raise TypeError(f'Return type mismatch: expected {s.return_type__sa}, got {return_type}.')
 TypeError: Return type mismatch: expected Str, got Int.
 
 ------ end.

@@ -1,21 +1,21 @@
 from tapl_lang.pythonlike.predef1 import predef_scope as s0
 
 def int_print(a):
-    s1 = s0.tapl_typing.create_scope(parent__tapl=s0, a=a)
+    s1 = s0.tapl_typing.create_scope(parent__sa=s0, a=a)
     s1.tapl_typing.print_log(s1.a)
     return s1.tapl_typing.get_return_type(s1)
 s0.int_print = s0.tapl_typing.create_function([s0.Int], int_print(s0.Int))
 s0.int_print(s0.Int)
 
 def zero():
-    s1 = s0.tapl_typing.create_scope(parent__tapl=s0)
+    s1 = s0.tapl_typing.create_scope(parent__sa=s0)
     s1.tapl_typing.set_return_type(s1, s1.Int)
     s1.tapl_typing.add_return_type(s1, s1.Int)
     return s1.tapl_typing.get_return_type(s1)
 s0.zero = s0.tapl_typing.create_function([], zero())
 
 def increment(a):
-    s1 = s0.tapl_typing.create_scope(parent__tapl=s0, a=a)
+    s1 = s0.tapl_typing.create_scope(parent__sa=s0, a=a)
     s1.tapl_typing.add_return_type(s1, s1.a + s1.Int)
     return s1.tapl_typing.get_return_type(s1)
 s0.increment = s0.tapl_typing.create_function([s0.Int], increment(s0.Int))

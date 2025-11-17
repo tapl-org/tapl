@@ -10,36 +10,36 @@ from tapl_lang.lib import dynamic_attributes, scope, typelib
 
 
 def create_scope(
-    parent__tapl: scope.Scope | None = None,
-    label__tapl: str | None = None,
+    parent__sa: scope.Scope | None = None,
+    label__sa: str | None = None,
     **kwargs: Any,
 ) -> dynamic_attributes.DynamicAttributeMixin:
     parent_scope = None
-    if parent__tapl:
-        parent_scope = parent__tapl
-    current = scope.Scope(parent=parent_scope, label=label__tapl)
-    current.store_many__tapl(kwargs)
+    if parent__sa:
+        parent_scope = parent__sa
+    current = scope.Scope(parent=parent_scope, label=label__sa)
+    current.store_many__sa(kwargs)
     return current
 
 
 def set_return_type(s: scope.Scope, return_type: Any) -> None:
-    if s.returns__tapl or s.return_type__tapl is not None:
+    if s.returns__sa or s.return_type__sa is not None:
         raise ValueError('Return type has already been set.')
-    s.return_type__tapl = return_type
+    s.return_type__sa = return_type
 
 
 def add_return_type(s: scope.Scope, return_type: Any) -> None:
-    if s.return_type__tapl is None:
-        s.returns__tapl.append(return_type)
-    elif not typelib.check_subtype(return_type, s.return_type__tapl):
-        raise TypeError(f'Return type mismatch: expected {s.return_type__tapl}, got {return_type}.')
+    if s.return_type__sa is None:
+        s.returns__sa.append(return_type)
+    elif not typelib.check_subtype(return_type, s.return_type__sa):
+        raise TypeError(f'Return type mismatch: expected {s.return_type__sa}, got {return_type}.')
 
 
 def get_return_type(s: scope.Scope) -> Any:
-    if s.return_type__tapl is not None:
-        return s.return_type__tapl
-    if s.returns__tapl:
-        return typelib.create_union(*s.returns__tapl)
+    if s.return_type__sa is not None:
+        return s.return_type__sa
+    if s.returns__sa:
+        return typelib.create_union(*s.returns__sa)
     return bt.NoneType
 
 
@@ -64,15 +64,15 @@ def create_class(
         method = typelib.Function(
             posonlyargs=[], args=param_types, lazy_result=create_lazy_result(method_name, param_types)
         )
-        self_parent.store__tapl(method_name, method)
+        self_parent.store__sa(method_name, method)
     self_current = scope.Scope(parent=self_parent)
     cls.__init__(*[self_current, *init_args])
     fields = {
         '__repr__': typelib.Function(posonlyargs=[], args=[], result=bt.Str),
         '__str__': typelib.Function(posonlyargs=[], args=[], result=bt.Str),
     }
-    for label in itertools.chain(self_parent.fields__tapl.keys(), self_current.fields__tapl.keys()):
-        member = self_current.load__tapl(label)
+    for label in itertools.chain(self_parent.fields__sa.keys(), self_current.fields__sa.keys()):
+        member = self_current.load__sa(label)
         fields[label] = member
 
     class_type = typelib.Record(
@@ -81,7 +81,7 @@ def create_class(
     )
     for member in fields.values():
         if isinstance(member, typelib.Function):
-            member.force__tapl()
+            member.force__sa()
 
     factory = typelib.Function(posonlyargs=init_args, args=[], result=class_type)
     return class_type, factory

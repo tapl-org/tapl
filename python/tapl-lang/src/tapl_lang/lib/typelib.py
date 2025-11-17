@@ -56,8 +56,8 @@ _TYPE_CHECKER_STATE = TypeCheckerState()
 
 
 def compute_subtype(subtype, supertype):
-    is_supertype = supertype.is_supertype_of__tapl(subtype)
-    is_subtype = subtype.is_subtype_of__tapl(supertype)
+    is_supertype = supertype.is_supertype_of__sa(subtype)
+    is_subtype = subtype.is_subtype_of__sa(supertype)
     # Return Truee if both methods agree on True, or if one is True and the other is inconclusive.
     return is_supertype and is_subtype or (is_supertype is None and is_subtype) or (is_supertype and is_subtype is None)
 
@@ -106,29 +106,29 @@ class Union(dynamic_attributes.DynamicAttributeMixin):
     def __init__(self, types, title=None):
         if len(types) <= 1:
             raise ValueError('Union requires at least two types.')
-        self._types__tapl = types
-        self._title__tapl = title
+        self._types__sa = types
+        self._title__sa = title
 
-    def is_supertype_of__tapl(self, subtype):
+    def is_supertype_of__sa(self, subtype):
         # Example: alpha <: (alpha | beta)
-        if any(check_subtype(subtype, typ) for typ in self._types__tapl):
+        if any(check_subtype(subtype, typ) for typ in self._types__sa):
             return True
         # Inconclusive when subtype_ is itself a Union.
         # Example: (alpha | beta) <: (alpha | beta | gamma)
         return None
 
-    def is_subtype_of__tapl(self, supertype):
+    def is_subtype_of__sa(self, supertype):
         # Example: (alpha | beta) <: (alpha | beta | gamma)
-        return all(check_subtype(typ, supertype) for typ in self._types__tapl)
+        return all(check_subtype(typ, supertype) for typ in self._types__sa)
 
     def __repr__(self):
-        if self._title__tapl is not None:
-            return self._title__tapl
-        return ' | '.join([str(t) for t in self._types__tapl])
+        if self._title__sa is not None:
+            return self._title__sa
+        return ' | '.join([str(t) for t in self._types__sa])
 
     # TODO: remove default iterator from Record, Union and Intersection, it may be confusing #mvp
     def __iter__(self):
-        yield from self._types__tapl
+        yield from self._types__sa
 
 
 # Example: alpha & beta <: alpha or alpha & beta <: beta
@@ -136,39 +136,39 @@ class Intersection(dynamic_attributes.DynamicAttributeMixin):
     def __init__(self, types, title=None):
         if len(types) <= 1:
             raise ValueError('At least two types are required to create Intersection.')
-        self._types__tapl = types
-        self._title__tapl = title
+        self._types__sa = types
+        self._title__sa = title
 
-    def is_supertype_of__tapl(self, subtype):
+    def is_supertype_of__sa(self, subtype):
         # Example: (alpha & beta & gamma) <: (alpha & beta)
-        return all(check_subtype(subtype, typ) for typ in self._types__tapl)
+        return all(check_subtype(subtype, typ) for typ in self._types__sa)
 
-    def is_subtype_of__tapl(self, supertype):
+    def is_subtype_of__sa(self, supertype):
         # Example: (alpha & beta) <: alpha
-        if any(check_subtype(typ, supertype) for typ in self._types__tapl):
+        if any(check_subtype(typ, supertype) for typ in self._types__sa):
             return True
         # Inconclusive when supertype_ is itself an Intersection.
         # Example: (alpha & beta & gamma) <: (alpha & beta)
         return None
 
     def __repr__(self):
-        if self._title__tapl is not None:
-            return self._title__tapl
-        return ' & '.join([str(t) for t in self._types__tapl])
+        if self._title__sa is not None:
+            return self._title__sa
+        return ' & '.join([str(t) for t in self._types__sa])
 
     def __iter__(self):
-        yield from self._types__tapl
+        yield from self._types__sa
 
 
 # Top type
 class Any(dynamic_attributes.DynamicAttributeMixin):
-    def is_supertype_of__tapl(self, subtype):
+    def is_supertype_of__sa(self, subtype):
         if isinstance(subtype, Any):
             return True
         # Inconclusive, let subtype decide
         return None
 
-    def is_subtype_of__tapl(self, supertype):
+    def is_subtype_of__sa(self, supertype):
         if isinstance(supertype, Any):
             return True
         # Inconclusive, example: Any <: (Any | NoneType)
@@ -180,13 +180,13 @@ class Any(dynamic_attributes.DynamicAttributeMixin):
 
 # Bottom type
 class Nothing(dynamic_attributes.DynamicAttributeMixin):
-    def is_supertype_of__tapl(self, subtype):
+    def is_supertype_of__sa(self, subtype):
         if isinstance(subtype, Nothing):
             return True
         # Inconclusive, (Nothing & NoneType) <: Nothing
         return None
 
-    def is_subtype_of__tapl(self, supertype):
+    def is_subtype_of__sa(self, supertype):
         if isinstance(supertype, Nothing):
             return True
         if isinstance(supertype, Any):
@@ -200,13 +200,13 @@ class Nothing(dynamic_attributes.DynamicAttributeMixin):
 
 # Inspired by Kotlin type system - https://stackoverflow.com/a/54762815/22663977
 class NoneType(dynamic_attributes.DynamicAttributeMixin):
-    def is_supertype_of__tapl(self, subtype):
+    def is_supertype_of__sa(self, subtype):
         if isinstance(subtype, NoneType):
             return True
         # Inconclusive, example: (NoneType & T) <: NoneType
         return None
 
-    def is_subtype_of__tapl(self, supertype):
+    def is_subtype_of__sa(self, supertype):
         if isinstance(supertype, NoneType):
             return True
         # Inconclusive, example: NoneType <: (T | NoneType)
@@ -219,47 +219,47 @@ class NoneType(dynamic_attributes.DynamicAttributeMixin):
 # TODO: A tuple type where labels are the characters 'a' through 'z'.
 class Record(dynamic_attributes.DynamicAttributeMixin):
     def __init__(self, fields, title=None):
-        self._fields__tapl = fields
-        self._title__tapl = title
+        self._fields__sa = fields
+        self._title__sa = title
 
-    def is_supertype_of__tapl(self, subtype):
+    def is_supertype_of__sa(self, subtype):
         if isinstance(subtype, Nothing):
             return True
         # Inconclusive, example: {a: Alpha, b: Beta} <: {a: Alpha}
         return None
 
-    def is_subtype_of__tapl(self, supertype):
+    def is_subtype_of__sa(self, supertype):
         if isinstance(supertype, Any):
             return True
         if isinstance(supertype, Record):
-            for label in supertype.labels__tapl():
-                if label not in self._fields__tapl:
+            for label in supertype.labels__sa():
+                if label not in self._fields__sa:
                     return False
-                if not check_subtype(self._fields__tapl[label], supertype.try_load(label)):
+                if not check_subtype(self._fields__sa[label], supertype.try_load(label)):
                     return False
             return True
         # Inconclusive, example: {a: Alpha, b: Beta} <: (Any | NoneType)
         return None
 
-    def labels__tapl(self):
-        yield from self._fields__tapl.keys()
+    def labels__sa(self):
+        yield from self._fields__sa.keys()
 
     def __repr__(self):
-        if self._title__tapl is not None:
-            return self._title__tapl
-        field_strs = [f'{label}: {typ}' for label, typ in self._fields__tapl.items()]
+        if self._title__sa is not None:
+            return self._title__sa
+        field_strs = [f'{label}: {typ}' for label, typ in self._fields__sa.items()]
         return '{' + ', '.join(field_strs) + '}'
 
     def __iter__(self):
-        yield from self._fields__tapl.items()
+        yield from self._fields__sa.items()
 
     def try_load(self, label):
-        return self._fields__tapl.get(label)
+        return self._fields__sa.get(label)
 
-    def load__tapl(self, key):
-        if key in self._fields__tapl:
-            return self._fields__tapl[key]
-        return super().load__tapl(key)
+    def load__sa(self, key):
+        if key in self._fields__sa:
+            return self._fields__sa[key]
+        return super().load__sa(key)
 
 
 _PAIR_ELEMENT_COUNT = 2
@@ -279,76 +279,76 @@ class Function(dynamic_attributes.DynamicAttributeMixin):
         if lazy_result is not None and result is not None:
             raise ValueError('Pass either the result or lazy_result argument, but not both.')
 
-        self._posonlyargs__tapl = posonlyargs  # list of Type Proxy
-        self._args__tapl = args  # list of (name, Type Proxy)
-        self._result__tapl = result
-        self._lazy_result__tapl = lazy_result
+        self._posonlyargs__sa = posonlyargs  # list of Type Proxy
+        self._args__sa = args  # list of (name, Type Proxy)
+        self._result__sa = result
+        self._lazy_result__sa = lazy_result
 
     # TODO: implement supertype and subtype checking for function types
-    def is_supertype_of__tapl(self, subtype):
+    def is_supertype_of__sa(self, subtype):
         del subtype  # unused
         return False
 
-    def is_subtype_of__tapl(self, supertype):
+    def is_subtype_of__sa(self, supertype):
         del supertype  # unused
         return False
 
     def __repr__(self):
-        args = [str(t) for t in self._posonlyargs__tapl]
-        args += [f'{name}: {typ}' for name, typ in self._args__tapl]
+        args = [str(t) for t in self._posonlyargs__sa]
+        args += [f'{name}: {typ}' for name, typ in self._args__sa]
         args_str = f'({", ".join(args)})'
-        if self._lazy_result__tapl:
+        if self._lazy_result__sa:
             return f'{args_str}->[uncomputed]'
-        return f'{args_str}->{self._result__tapl}'
+        return f'{args_str}->{self._result__sa}'
 
     def apply(self, *arguments):
         actual_all_args = list(arguments)
-        expected_args_count = len(self._posonlyargs__tapl) + len(self._args__tapl)
+        expected_args_count = len(self._posonlyargs__sa) + len(self._args__sa)
         if len(actual_all_args) != expected_args_count:
             raise TypeError(f'Expected {expected_args_count} arguments, got {len(actual_all_args)}')
-        actual_posonlyargs = actual_all_args[: len(self._posonlyargs__tapl)]
-        actual_args = actual_all_args[len(self._posonlyargs__tapl) :]
-        for p, a in zip(self._posonlyargs__tapl, actual_posonlyargs, strict=False):
+        actual_posonlyargs = actual_all_args[: len(self._posonlyargs__sa)]
+        actual_args = actual_all_args[len(self._posonlyargs__sa) :]
+        for p, a in zip(self._posonlyargs__sa, actual_posonlyargs, strict=False):
             if not check_subtype(a, p):
-                raise TypeError(f'Not equal: posonlyargs={self._posonlyargs__tapl} arguments={actual_posonlyargs}')
-        for p, a in zip(self._args__tapl, actual_args, strict=True):
+                raise TypeError(f'Not equal: posonlyargs={self._posonlyargs__sa} arguments={actual_posonlyargs}')
+        for p, a in zip(self._args__sa, actual_args, strict=True):
             if not check_subtype(a, p):
-                raise TypeError(f'Not equal: args={self._args__tapl} arguments={actual_args}')
-        return self.result__tapl
+                raise TypeError(f'Not equal: args={self._args__sa} arguments={actual_args}')
+        return self.result__sa
 
-    def load__tapl(self, key):
+    def load__sa(self, key):
         if key == '__call__':
             return self.apply
-        return super().load__tapl(key)
+        return super().load__sa(key)
 
     @property
-    def posonlyargs__tapl(self):
-        yield from self._posonlyargs__tapl
+    def posonlyargs__sa(self):
+        yield from self._posonlyargs__sa
 
     @property
-    def args__tapl(self):
-        yield from self._args__tapl
+    def args__sa(self):
+        yield from self._args__sa
 
     @property
-    def result__tapl(self):
-        self.force__tapl()
-        return self._result__tapl
+    def result__sa(self):
+        self.force__sa()
+        return self._result__sa
 
-    def force__tapl(self):
-        if self._lazy_result__tapl:
-            self._result__tapl = self._lazy_result__tapl()
-            self._lazy_result__tapl = None
+    def force__sa(self):
+        if self._lazy_result__sa:
+            self._result__sa = self._lazy_result__sa()
+            self._lazy_result__sa = None
 
 
 class TypeVariable(dynamic_attributes.DynamicAttributeMixin):
     def __init__(self, variable_name: str):
         self.variable_name = variable_name
 
-    def is_supertype_of__tapl(self, subtype):
+    def is_supertype_of__sa(self, subtype):
         del subtype  # unused
         # Inconclusive: (T & Alpha) <: T
 
-    def is_subtype_of__tapl(self, supertype):
+    def is_subtype_of__sa(self, supertype):
         del supertype  # unused
         # Inconclusive: T <: (T | Alpha)
 
