@@ -26,6 +26,8 @@ OP_LABEL = {
     '__ge__': '>=',
 }
 
+# The __sa suffix (static attribute) indicates fields that are skipped by the DynamicAttributeMixin
+
 
 # ruff: noqa: N805
 class DynamicAttributeMixin:

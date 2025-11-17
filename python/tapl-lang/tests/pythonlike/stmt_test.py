@@ -63,7 +63,7 @@ def test_assign_name():
 def test_assign_empty_list():
     [stmt1, stmt2] = parse_stmt('a=[]')
     assert ast.unparse(stmt1) == 'a = []'
-    assert ast.unparse(stmt2) == 's0.a = s0.api__tapl.create_typed_list()'
+    assert ast.unparse(stmt2) == 's0.a = s0.tapl_typing.create_typed_list()'
     assert run_stmt([stmt2]) is None
     assert run_stmt([stmt1]) is None
 
@@ -77,13 +77,13 @@ def test_assign_attribute():
 def test_return1():
     [stmt1, stmt2] = parse_stmt('return')
     assert ast.unparse(stmt1) == 'return None'
-    assert ast.unparse(stmt2) == 's0.api__tapl.add_return_type(s0, s0.NoneType)'
+    assert ast.unparse(stmt2) == 's0.tapl_typing.add_return_type(s0, s0.NoneType)'
 
 
 def test_return2():
     [stmt1, stmt2] = parse_stmt('return True')
     assert ast.unparse(stmt1) == 'return True'
-    assert ast.unparse(stmt2) == 's0.api__tapl.add_return_type(s0, s0.Bool)'
+    assert ast.unparse(stmt2) == 's0.tapl_typing.add_return_type(s0, s0.Bool)'
 
 
 def test_if():
@@ -92,10 +92,10 @@ def test_if():
     assert (
         ast.unparse(stmt2)
         == """
-with s0.api__tapl.scope_forker(s0) as f0:
-    s1 = s0.api__tapl.fork_scope(f0)
+with s0.tapl_typing.scope_forker(s0) as f0:
+    s1 = s0.tapl_typing.fork_scope(f0)
     s1.a == s1.Int
-    s1 = s0.api__tapl.fork_scope(f0)
+    s1 = s0.tapl_typing.fork_scope(f0)
 """.strip()
     )
 
@@ -116,10 +116,10 @@ def hello():
         ast.unparse(stmt2)
         == """
 def hello():
-    s1 = s0.api__tapl.create_scope(parent__tapl=s0)
-    s1.api__tapl.add_return_type(s1, s1.Int)
-    return s1.api__tapl.get_return_type(s1)
-s0.hello = s0.api__tapl.create_function([], hello())
+    s1 = s0.tapl_typing.create_scope(parent__tapl=s0)
+    s1.tapl_typing.add_return_type(s1, s1.Int)
+    return s1.tapl_typing.get_return_type(s1)
+s0.hello = s0.tapl_typing.create_function([], hello())
 """.strip()
     )
 
@@ -140,11 +140,11 @@ def hello():
         ast.unparse(stmt2)
         == """
 def hello():
-    s1 = s0.api__tapl.create_scope(parent__tapl=s0)
-    s1.api__tapl.set_return_type(s1, s1.Int)
-    s1.api__tapl.add_return_type(s1, s1.Int)
-    return s1.api__tapl.get_return_type(s1)
-s0.hello = s0.api__tapl.create_function([], hello())
+    s1 = s0.tapl_typing.create_scope(parent__tapl=s0)
+    s1.tapl_typing.set_return_type(s1, s1.Int)
+    s1.tapl_typing.add_return_type(s1, s1.Int)
+    return s1.tapl_typing.get_return_type(s1)
+s0.hello = s0.tapl_typing.create_function([], hello())
 """.strip()
     )
 
@@ -165,10 +165,10 @@ def area(radius):
         ast.unparse(stmt2)
         == """
 def area(radius):
-    s1 = s0.api__tapl.create_scope(parent__tapl=s0, radius=radius)
-    s1.api__tapl.add_return_type(s1, s1.Float * s1.radius * s1.radius)
-    return s1.api__tapl.get_return_type(s1)
-s0.area = s0.api__tapl.create_function([s0.Int], area(s0.Int))
+    s1 = s0.tapl_typing.create_scope(parent__tapl=s0, radius=radius)
+    s1.tapl_typing.add_return_type(s1, s1.Float * s1.radius * s1.radius)
+    return s1.tapl_typing.get_return_type(s1)
+s0.area = s0.tapl_typing.create_function([s0.Int], area(s0.Int))
 """.strip()
     )
 
@@ -194,11 +194,11 @@ print(b)
     assert (
         ast.unparse(stmt2)
         == """
-with s0.api__tapl.scope_forker(s0) as f0:
-    s1 = s0.api__tapl.fork_scope(f0)
+with s0.tapl_typing.scope_forker(s0) as f0:
+    s1 = s0.tapl_typing.fork_scope(f0)
     s1.a == s1.Int
     s1.b = s1.Int
-    s1 = s0.api__tapl.fork_scope(f0)
+    s1 = s0.tapl_typing.fork_scope(f0)
     s1.b = s1.Str
 s0.print(s0.b)
 """.strip()
@@ -226,9 +226,9 @@ class Circle_:
 class Circle_:
 
     def __init__(self, radius):
-        s1 = s0.api__tapl.create_scope(parent__tapl=s0, self=self, radius=radius)
+        s1 = s0.tapl_typing.create_scope(parent__tapl=s0, self=self, radius=radius)
         s1.self.radius = s1.radius
-        return s1.api__tapl.get_return_type(s1)
-s0.Circle, s0.Circle_ = s0.api__tapl.create_class(cls=Circle_, init_args=[s0.Float], methods=[])
+        return s1.tapl_typing.get_return_type(s1)
+s0.Circle, s0.Circle_ = s0.tapl_typing.create_class(cls=Circle_, init_args=[s0.Float], methods=[])
 """.strip()
     )

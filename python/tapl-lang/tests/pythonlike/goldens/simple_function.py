@@ -1,7 +1,7 @@
 from tapl_lang.pythonlike.predef import *
 
 def int_print(a):
-    api__tapl.print_log(a)
+    tapl_typing.print_log(a)
 int_print(123)
 
 def zero():
@@ -17,4 +17,4 @@ if a == 2:
     b = 7
 else:
     b = 'banana'
-api__tapl.print_log(b)
+tapl_typing.print_log(b)

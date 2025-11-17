@@ -2,6 +2,6 @@ language pythonlike
 
 # TODO: set a's type to "Int | Str" #mvp
 def union_print(a: Int):
-    api__tapl.print_log(a)
+    tapl_typing.print_log(a)
 
 union_print(123)
