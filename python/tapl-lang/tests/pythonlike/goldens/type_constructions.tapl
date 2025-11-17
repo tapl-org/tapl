@@ -1,7 +1,7 @@
 language pythonlike
 
-# TODO: set a's type to "Int | Str" #mvp
-def union_print(a: Int):
+def union_print(a: Int | Str):
     tapl_typing.print_log(a)
 
 union_print(123)
+union_print('hello')

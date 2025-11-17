@@ -97,12 +97,26 @@ def drop_same_types(types):
     return result
 
 
+class BaseType(dynamic_attributes.DynamicAttributeMixin):
+    def is_supertype_of__sa(self, subtype):
+        del subtype  # unused
+
+    def is_subtype_of__sa(self, supertype):
+        del supertype  # unused
+
+    def __or__(self, other):
+        return create_union(self, other)
+
+    def __repr__(self):
+        return 'BaseType'
+
+
 # TODO: implement '|' operator for Union and '&' operator for Intersection #mvp
 # TODO: what happens when these operators are used for binary operation instead of type construction?
 # e.g., T1 | T2, T1 & T2
 # Exception for binary-operator methods in Python; not intended for direct use.
 # Example: alpha <: (alpha | beta) or beta <: (alpha | beta)
-class Union(dynamic_attributes.DynamicAttributeMixin):
+class Union(BaseType):
     def __init__(self, types, title=None):
         if len(types) <= 1:
             raise ValueError('Union requires at least two types.')
@@ -131,7 +145,7 @@ class Union(dynamic_attributes.DynamicAttributeMixin):
 
 
 # Example: alpha & beta <: alpha or alpha & beta <: beta
-class Intersection(dynamic_attributes.DynamicAttributeMixin):
+class Intersection(BaseType):
     def __init__(self, types, title=None):
         if len(types) <= 1:
             raise ValueError('At least two types are required to create Intersection.')
@@ -160,7 +174,7 @@ class Intersection(dynamic_attributes.DynamicAttributeMixin):
 
 
 # Top type
-class Any(dynamic_attributes.DynamicAttributeMixin):
+class Any(BaseType):
     def is_supertype_of__sa(self, subtype):
         if isinstance(subtype, Any):
             return True
@@ -178,7 +192,7 @@ class Any(dynamic_attributes.DynamicAttributeMixin):
 
 
 # Bottom type
-class Nothing(dynamic_attributes.DynamicAttributeMixin):
+class Nothing(BaseType):
     def is_supertype_of__sa(self, subtype):
         if isinstance(subtype, Nothing):
             return True
@@ -198,7 +212,7 @@ class Nothing(dynamic_attributes.DynamicAttributeMixin):
 
 
 # Inspired by Kotlin type system - https://stackoverflow.com/a/54762815/22663977
-class NoneType(dynamic_attributes.DynamicAttributeMixin):
+class NoneType(BaseType):
     def is_supertype_of__sa(self, subtype):
         if isinstance(subtype, NoneType):
             return True
@@ -216,7 +230,7 @@ class NoneType(dynamic_attributes.DynamicAttributeMixin):
 
 
 # TODO: A tuple type where labels are the characters 'a' through 'z'.
-class Record(dynamic_attributes.DynamicAttributeMixin):
+class Record(BaseType):
     def __init__(self, fields, title=None):
         self._fields__sa = fields
         self._title__sa = title
@@ -262,7 +276,7 @@ _PAIR_ELEMENT_COUNT = 2
 
 
 # TODO: Implement vararg, kwonlyargs, kw_defaults, kwarg, and defaults
-class Function(dynamic_attributes.DynamicAttributeMixin):
+class Function(BaseType):
     def __init__(self, posonlyargs, args, result=None, lazy_result=None):
         if not isinstance(posonlyargs, list):
             raise TypeError('Function posonlyargs must be a list.')
@@ -336,7 +350,7 @@ class Function(dynamic_attributes.DynamicAttributeMixin):
             self._lazy_result__sa = None
 
 
-class TypeVariable(dynamic_attributes.DynamicAttributeMixin):
+class TypeVariable(BaseType):
     def __init__(self, variable_name: str):
         self.variable_name = variable_name
 
