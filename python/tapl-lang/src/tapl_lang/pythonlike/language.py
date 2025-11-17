@@ -29,7 +29,7 @@ class PythonlikeLanguage(Language):
                 terms.ImportFrom(
                     location,
                     'tapl_lang.pythonlike.predef1',
-                    [terms.Alias(name='predef_proxy', asname='s0')],
+                    [terms.Alias(name='predef_scope', asname='s0')],
                     IMPORT_LEVEL,
                 ),
             ]

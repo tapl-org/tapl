@@ -55,17 +55,17 @@ class TypeCheckerState:
 _TYPE_CHECKER_STATE = TypeCheckerState()
 
 
-def compute_subtype_(subtype_, supertype_):
-    is_supertype = supertype_.is_supertype_of(subtype_)
-    is_subtype = subtype_.is_subtype_of(supertype_)
+def compute_subtype(subtype, supertype):
+    is_supertype = supertype.is_supertype_of__tapl(subtype)
+    is_subtype = subtype.is_subtype_of__tapl(supertype)
     # Return Truee if both methods agree on True, or if one is True and the other is inconclusive.
     return is_supertype and is_subtype or (is_supertype is None and is_subtype) or (is_supertype and is_subtype is None)
 
 
-def check_subtype_(subtype_, supertype_):
-    if subtype_ is supertype_:
+def check_subtype(subtype, supertype):
+    if subtype is supertype:
         return True
-    pair = (subtype_, supertype_)
+    pair = (subtype, supertype)
     result = _TYPE_CHECKER_STATE.cached_subtype_pairs.get(pair)
     if result is not None:
         return result
@@ -73,21 +73,18 @@ def check_subtype_(subtype_, supertype_):
         return True
     try:
         _TYPE_CHECKER_STATE.assumed_subtype_pairs.append(pair)
-        result = compute_subtype_(subtype_, supertype_)
+        result = compute_subtype(subtype, supertype)
         _TYPE_CHECKER_STATE.cached_subtype_pairs[pair] = result
     finally:
         _TYPE_CHECKER_STATE.assumed_subtype_pairs.pop()
     return result
 
 
-def check_subtype(subtype, supertype):
-    return check_subtype_(subtype.subject__tapl, supertype.subject__tapl)
-
-
 def check_type_equality(a, b):
     return check_subtype(a, b) and check_subtype(b, a)
 
 
+# rename to keep_root_types or take_root_types or similar #mvp
 def drop_same_types(types):
     # TODO: Build a directed graph, and keep only roots of the forests
     result = []
@@ -100,108 +97,79 @@ def drop_same_types(types):
     return result
 
 
-# Used in Builtin Types to resolve circular dependency
-class Interim(proxy.Subject):
-    def is_supertype_of(self, subtype_):
-        del subtype_  # unused
-        raise NotImplementedError('Interim type does not implement is_supertype_of method.')
-
-    def is_subtype_of(self, supertype_):
-        del supertype_  # unused
-        raise NotImplementedError('Interim type does not implement is_subtype_of method.')
-
-    def __repr__(self):
-        return 'InterimType'
-
-
-class TypeMixin(proxy.Subject):
-    def is_supertype_of(self, subtype_):
-        del subtype_  # unused
-        raise NotImplementedError(f'{self.__class__.__name__} does not implement is_supertype_of method.')
-
-    def is_subtype_of(self, supertype_):
-        del supertype_  # unused
-        raise NotImplementedError(f'{self.__class__.__name__} does not implement is_subtype_of method.')
-
-    def load__tapl(self, key):
-        if key == '__or__':
-            return self.apply
-        return super().load__tapl(key)
-
-
 # TODO: implement '|' operator for Union and '&' operator for Intersection #mvp
 # TODO: what happens when these operators are used for binary operation instead of type construction?
 # e.g., T1 | T2, T1 & T2
 # Exception for binary-operator methods in Python; not intended for direct use.
 # Example: alpha <: (alpha | beta) or beta <: (alpha | beta)
-class Union(proxy.Subject):
+class Union(proxy.ProxyMixin):
     def __init__(self, types, title=None):
         if len(types) <= 1:
             raise ValueError('Union requires at least two types.')
-        self._types = types
-        self._title = title
+        self._types__tapl = types
+        self._title__tapl = title
 
-    def is_supertype_of(self, subtype_):
+    def is_supertype_of__tapl(self, subtype):
         # Example: alpha <: (alpha | beta)
-        if any(check_subtype_(subtype_, typ.subject__tapl) for typ in self._types):
+        if any(check_subtype(subtype, typ) for typ in self._types__tapl):
             return True
         # Inconclusive when subtype_ is itself a Union.
         # Example: (alpha | beta) <: (alpha | beta | gamma)
         return None
 
-    def is_subtype_of(self, supertype_):
+    def is_subtype_of__tapl(self, supertype):
         # Example: (alpha | beta) <: (alpha | beta | gamma)
-        return all(check_subtype_(typ.subject__tapl, supertype_) for typ in self._types)
+        return all(check_subtype(typ, supertype) for typ in self._types__tapl)
 
     def __repr__(self):
-        if self._title is not None:
-            return self._title
-        return ' | '.join([str(t) for t in self._types])
+        if self._title__tapl is not None:
+            return self._title__tapl
+        return ' | '.join([str(t) for t in self._types__tapl])
 
     # TODO: remove default iterator from Record, Union and Intersection, it may be confusing #mvp
     def __iter__(self):
-        yield from self._types
+        yield from self._types__tapl
 
 
 # Example: alpha & beta <: alpha or alpha & beta <: beta
-class Intersection(proxy.Subject):
+class Intersection(proxy.ProxyMixin):
     def __init__(self, types, title=None):
         if len(types) <= 1:
             raise ValueError('At least two types are required to create Intersection.')
-        self._types = types
-        self._title = title
+        self._types__tapl = types
+        self._title__tapl = title
 
-    def is_supertype_of(self, subtype_):
+    def is_supertype_of__tapl(self, subtype):
         # Example: (alpha & beta & gamma) <: (alpha & beta)
-        return all(check_subtype_(subtype_, typ.subject__tapl) for typ in self._types)
+        return all(check_subtype(subtype, typ) for typ in self._types__tapl)
 
-    def is_subtype_of(self, supertype_):
+    def is_subtype_of__tapl(self, supertype):
         # Example: (alpha & beta) <: alpha
-        if any(check_subtype_(typ.subject__tapl, supertype_) for typ in self._types):
+        if any(check_subtype(typ, supertype) for typ in self._types__tapl):
             return True
         # Inconclusive when supertype_ is itself an Intersection.
         # Example: (alpha & beta & gamma) <: (alpha & beta)
         return None
 
     def __repr__(self):
-        if self._title is not None:
-            return self._title
-        return ' & '.join([str(t) for t in self._types])
+        if self._title__tapl is not None:
+            return self._title__tapl
+        return ' & '.join([str(t) for t in self._types__tapl])
 
     def __iter__(self):
-        yield from self._types
+        yield from self._types__tapl
 
 
 # Top type
-class Any(proxy.Subject):
-    def is_supertype_of(self, subtype_):
-        if isinstance(subtype_, Any):
+class Any(proxy.ProxyMixin):
+    def is_supertype_of__tapl(self, subtype):
+        if isinstance(subtype, Any):
             return True
         # Inconclusive, let subtype decide
         return None
 
-    def is_subtype_of(self, supertype_):
-        if isinstance(supertype_, Any):
+    def is_subtype_of__tapl(self, supertype):
+        if isinstance(supertype, Any):
             return True
         # Inconclusive, example: Any <: (Any | NoneType)
         return None
@@ -211,17 +179,17 @@ class Any(proxy.Subject):
 
 
 # Bottom type
-class Nothing(proxy.Subject):
-    def is_supertype_of(self, subtype_):
-        if isinstance(subtype_, Nothing):
+class Nothing(proxy.ProxyMixin):
+    def is_supertype_of__tapl(self, subtype):
+        if isinstance(subtype, Nothing):
             return True
         # Inconclusive, (Nothing & NoneType) <: Nothing
         return None
 
-    def is_subtype_of(self, supertype_):
-        if isinstance(supertype_, Nothing):
+    def is_subtype_of__tapl(self, supertype):
+        if isinstance(supertype, Nothing):
             return True
-        if isinstance(supertype_, Any):
+        if isinstance(supertype, Any):
             return True
         # Inconclusive, let supertype decide
         return None
@@ -231,15 +199,15 @@ class Nothing(proxy.Subject):
 
 
 # Inspired by Kotlin type system - https://stackoverflow.com/a/54762815/22663977
-class NoneType(proxy.Subject):
-    def is_supertype_of(self, subtype_):
-        if isinstance(subtype_, NoneType):
+class NoneType(proxy.ProxyMixin):
+    def is_supertype_of__tapl(self, subtype):
+        if isinstance(subtype, NoneType):
             return True
         # Inconclusive, example: (NoneType & T) <: NoneType
         return None
 
-    def is_subtype_of(self, supertype_):
-        if isinstance(supertype_, NoneType):
+    def is_subtype_of__tapl(self, supertype):
+        if isinstance(supertype, NoneType):
             return True
         # Inconclusive, example: NoneType <: (T | NoneType)
         return None
@@ -249,45 +217,48 @@ class NoneType(proxy.Subject):
 
 
 # TODO: A tuple type where labels are the characters 'a' through 'z'.
-class Record(proxy.Subject):
+class Record(proxy.ProxyMixin):
     def __init__(self, fields, title=None):
-        self._fields = fields
-        self._title = title
+        self._fields__tapl = fields
+        self._title__tapl = title
 
-    def is_supertype_of(self, subtype_):
-        if isinstance(subtype_, Nothing):
+    def is_supertype_of__tapl(self, subtype):
+        if isinstance(subtype, Nothing):
             return True
         # Inconclusive, example: {a: Alpha, b: Beta} <: {a: Alpha}
         return None
 
-    def is_subtype_of(self, supertype_):
-        if isinstance(supertype_, Any):
+    def is_subtype_of__tapl(self, supertype):
+        if isinstance(supertype, Any):
             return True
-        if isinstance(supertype_, Record):
-            for label, super_field_type in supertype_._fields.items():
-                if label not in self._fields:
+        if isinstance(supertype, Record):
+            for label in supertype.labels__tapl():
+                if label not in self._fields__tapl:
                     return False
-                if not check_subtype(self._fields[label], super_field_type):
+                if not check_subtype(self._fields__tapl[label], supertype.try_load(label)):
                     return False
             return True
         # Inconclusive, example: {a: Alpha, b: Beta} <: (Any | NoneType)
         return None
 
+    def labels__tapl(self):
+        yield from self._fields__tapl.keys()
+
     def __repr__(self):
-        if self._title is not None:
-            return self._title
-        field_strs = [f'{label}: {typ}' for label, typ in self._fields.items()]
+        if self._title__tapl is not None:
+            return self._title__tapl
+        field_strs = [f'{label}: {typ}' for label, typ in self._fields__tapl.items()]
         return '{' + ', '.join(field_strs) + '}'
 
     def __iter__(self):
-        yield from self._fields.items()
+        yield from self._fields__tapl.items()
 
     def try_load(self, label):
-        return self._fields.get(label)
+        return self._fields__tapl.get(label)
 
     def load__tapl(self, key):
-        if key in self._fields:
-            return self._fields[key]
+        if key in self._fields__tapl:
+            return self._fields__tapl[key]
         return super().load__tapl(key)
 
 
@@ -295,57 +266,55 @@ _PAIR_ELEMENT_COUNT = 2
 
 
 # TODO: Implement vararg, kwonlyargs, kw_defaults, kwarg, and defaults
-class Function(proxy.Subject):
+class Function(proxy.ProxyMixin):
     def __init__(self, posonlyargs, args, result=None, lazy_result=None):
         if not isinstance(posonlyargs, list):
             raise TypeError('Function posonlyargs must be a list.')
-        if any(not isinstance(arg, proxy.ProxyMixin) for arg in posonlyargs):
-            raise ValueError('Function posonlyargs must be a list of Proxy.')
         if not isinstance(args, list):
             raise TypeError('Function args must be a list.')
         if any(not (isinstance(arg, tuple) and len(arg) == _PAIR_ELEMENT_COUNT) for arg in args):
             raise ValueError('Function args must be a list of (name, type) pairs.')
-        if any(not (isinstance(name, str) and isinstance(arg_type, proxy.ProxyMixin)) for name, arg_type in args):
-            raise ValueError('Function args must be a list of (str, Proxy) tuples.')
+        if any(not (isinstance(name, str)) for name, _ in args):
+            raise ValueError('Function args must be a list of (str, Any) tuples.')
         if lazy_result is not None and result is not None:
             raise ValueError('Pass either the result or lazy_result argument, but not both.')
 
-        self._posonlyargs = posonlyargs  # list of Type Proxy
-        self._args = args  # list of (name, Type Proxy)
-        self._result = result
-        self._lazy_result = lazy_result
+        self._posonlyargs__tapl = posonlyargs  # list of Type Proxy
+        self._args__tapl = args  # list of (name, Type Proxy)
+        self._result__tapl = result
+        self._lazy_result__tapl = lazy_result
 
     # TODO: implement supertype and subtype checking for function types
-    def is_supertype_of(self, subtype_):
-        del subtype_  # unused
+    def is_supertype_of__tapl(self, subtype):
+        del subtype  # unused
         return False
 
-    def is_subtype_of(self, supertype_):
-        del supertype_  # unused
+    def is_subtype_of__tapl(self, supertype):
+        del supertype  # unused
         return False
 
     def __repr__(self):
-        args = [str(t) for t in self._posonlyargs]
-        args += [f'{name}: {typ}' for name, typ in self._args]
+        args = [str(t) for t in self._posonlyargs__tapl]
+        args += [f'{name}: {typ}' for name, typ in self._args__tapl]
         args_str = f'({", ".join(args)})'
-        if self._lazy_result:
+        if self._lazy_result__tapl:
             return f'{args_str}->[uncomputed]'
-        return f'{args_str}->{self._result}'
+        return f'{args_str}->{self._result__tapl}'
 
     def apply(self, *arguments):
         actual_all_args = list(arguments)
-        expected_args_count = len(self._posonlyargs) + len(self._args)
+        expected_args_count = len(self._posonlyargs__tapl) + len(self._args__tapl)
         if len(actual_all_args) != expected_args_count:
             raise TypeError(f'Expected {expected_args_count} arguments, got {len(actual_all_args)}')
-        actual_posonlyargs = actual_all_args[: len(self._posonlyargs)]
-        actual_args = actual_all_args[len(self._posonlyargs) :]
-        for p, a in zip(self._posonlyargs, actual_posonlyargs, strict=False):
+        actual_posonlyargs = actual_all_args[: len(self._posonlyargs__tapl)]
+        actual_args = actual_all_args[len(self._posonlyargs__tapl) :]
+        for p, a in zip(self._posonlyargs__tapl, actual_posonlyargs, strict=False):
             if not check_subtype(a, p):
-                raise TypeError(f'Not equal: posonlyargs={self._posonlyargs} arguments={actual_posonlyargs}')
-        for p, a in zip(self._args, actual_args, strict=True):
+                raise TypeError(f'Not equal: posonlyargs={self._posonlyargs__tapl} arguments={actual_posonlyargs}')
+        for p, a in zip(self._args__tapl, actual_args, strict=True):
             if not check_subtype(a, p):
-                raise TypeError(f'Not equal: args={self._args} arguments={actual_args}')
-        return self.result
+                raise TypeError(f'Not equal: args={self._args__tapl} arguments={actual_args}')
+        return self.result__tapl
 
     def load__tapl(self, key):
         if key == '__call__':
@@ -353,34 +322,34 @@ class Function(proxy.Subject):
         return super().load__tapl(key)
 
     @property
-    def posonlyargs(self):
-        yield from self._posonlyargs
+    def posonlyargs__tapl(self):
+        yield from self._posonlyargs__tapl
 
     @property
-    def args(self):
-        yield from self._args
+    def args__tapl(self):
+        yield from self._args__tapl
 
     @property
-    def result(self):
-        self.force()
-        return self._result
+    def result__tapl(self):
+        self.force__tapl()
+        return self._result__tapl
 
-    def force(self):
-        if self._lazy_result:
-            self._result = self._lazy_result()
-            self._lazy_result = None
+    def force__tapl(self):
+        if self._lazy_result__tapl:
+            self._result__tapl = self._lazy_result__tapl()
+            self._lazy_result__tapl = None
 
 
-class TypeVariable(proxy.Subject):
+class TypeVariable(proxy.ProxyMixin):
     def __init__(self, variable_name: str):
         self.variable_name = variable_name
 
-    def is_supertype_of(self, subtype_):
-        del subtype_  # unused
+    def is_supertype_of__tapl(self, subtype):
+        del subtype  # unused
         # Inconclusive: (T & Alpha) <: T
 
-    def is_subtype_of(self, supertype_):
-        del supertype_  # unused
+    def is_subtype_of__tapl(self, supertype):
+        del supertype  # unused
         # Inconclusive: T <: (T | Alpha)
 
     def __repr__(self):
@@ -391,7 +360,7 @@ def create_union(*args):
     result = []
     for arg in args:
         # Union of unions are flattened
-        subject = arg.subject__tapl
+        subject = arg
         if isinstance(subject, Union):
             result.extend(subject)  # consume as iterable
         else:
@@ -400,7 +369,7 @@ def create_union(*args):
     # Unions of a single argument vanish
     if len(result) == 1:
         return next(iter(result))
-    return proxy.ProxyMixin(Union(types=result))
+    return Union(types=result)
 
 
 def create_function(args, result):
@@ -415,5 +384,4 @@ def create_function(args, result):
             posonly.append(arg)
         else:
             raise ValueError('Positional-only arguments must come before regular arguments')
-    func = Function(posonlyargs=posonly, args=regular, result=result)
-    return proxy.ProxyMixin(func)
+    return Function(posonlyargs=posonly, args=regular, result=result)

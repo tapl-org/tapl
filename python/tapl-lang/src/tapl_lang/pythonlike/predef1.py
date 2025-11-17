@@ -13,7 +13,5 @@ def create_function(parameters, result):
 
 predef_scope = scope.Scope(label='predef_scope')
 predef_scope.store__tapl('api__tapl', api)
-predef_scope.store_many(builtin_types.Types)
-predef_scope.store_many(builtin_functions.export1)
-
-predef_proxy = proxy.ProxyMixin(predef_scope)
+predef_scope.store_many__tapl(builtin_types.Types)
+predef_scope.store_many__tapl(builtin_functions.export1)

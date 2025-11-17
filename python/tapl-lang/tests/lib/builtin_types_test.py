@@ -4,7 +4,7 @@
 
 import pytest
 
-from tapl_lang.lib import builtin_types, proxy, typelib
+from tapl_lang.lib import builtin_types, typelib
 
 _any = builtin_types.Any
 _bool = builtin_types.Bool
@@ -26,19 +26,19 @@ def test_any_subtype_of_bool():
 
 def test_create_union():
     # Multiple types
-    union = typelib.create_union(_bool, _int).subject__tapl
+    union = typelib.create_union(_bool, _int)
     union_types = list(union)
     assert len(union_types) == 2
     assert union_types[0] is _bool
     assert union_types[1] is _int
     # Flatten union
-    type_list = [_bool, proxy.ProxyMixin(typelib.Union(types=[_int, _float]))]
+    type_list = [_bool, typelib.Union(types=[_int, _float])]
     assert len(list(typelib.Union(types=type_list))) == 2
-    assert len(list(typelib.create_union(*type_list).subject__tapl)) == 3
+    assert len(list(typelib.create_union(*type_list))) == 3
     # Trim union
     type_list = [_bool, _int, _bool]
     assert len(list(typelib.Union(types=type_list))) == 3
-    assert len(list(typelib.create_union(*type_list).subject__tapl)) == 2
+    assert len(list(typelib.create_union(*type_list))) == 2
 
 
 def test_function_parameters_invariants():
@@ -54,4 +54,4 @@ def test_function_parameters_invariants():
 
 def test_lazy_function_result():
     func = typelib.Function(posonlyargs=[_int], args=[], lazy_result=lambda: _bool)
-    assert func.result is _bool
+    assert func.result__tapl is _bool

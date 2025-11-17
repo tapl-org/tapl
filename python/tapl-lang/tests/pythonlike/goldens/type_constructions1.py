@@ -1,4 +1,4 @@
-from tapl_lang.pythonlike.predef1 import predef_proxy as s0
+from tapl_lang.pythonlike.predef1 import predef_scope as s0
 
 def union_print(a):
     s1 = s0.api__tapl.create_scope(parent__tapl=s0, a=a)

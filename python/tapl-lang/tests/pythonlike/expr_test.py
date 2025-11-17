@@ -4,12 +4,13 @@
 
 
 import ast
+import re
 
 import pytest
 
 from tapl_lang.core import syntax
 from tapl_lang.core.parser import Grammar, parse_text
-from tapl_lang.lib import compiler, proxy, python_backend, scope, terms, typelib
+from tapl_lang.lib import compiler, python_backend, scope, terms, typelib
 from tapl_lang.pythonlike import grammar, predef, predef1, rule_names
 
 
@@ -40,8 +41,8 @@ def evaluate(expr: ast.expr, locals_=None):
 def typecheck(expr: ast.expr, locals_=None):
     compiled_code = compile(ast.Expression(body=expr), filename='', mode='eval')
     scope0 = scope.Scope(parent=predef1.predef_scope)
-    scope0.store_many(locals_ or {})
-    globals_ = {'s0': proxy.ProxyMixin(scope0)}
+    scope0.store_many__tapl(locals_ or {})
+    globals_ = {'s0': scope0}
     return eval(compiled_code, globals=globals_)
 
 
@@ -58,7 +59,7 @@ def test_constant_true():
     [expr1, expr2] = parse_expr('True')
     assert ast.unparse(expr1) == 'True'
     assert ast.unparse(expr2) == 's0.Bool'
-    assert typecheck(expr2) is predef1.predef_proxy.Bool
+    assert typecheck(expr2) is predef1.predef_scope.Bool
     assert evaluate(expr1) is True
 
 
@@ -66,7 +67,7 @@ def test_constant_number7():
     [expr1, expr2] = parse_expr('7')
     assert ast.unparse(expr1) == '7'
     assert ast.unparse(expr2) == 's0.Int'
-    assert typecheck(expr2) is predef1.predef_proxy.Int
+    assert typecheck(expr2) is predef1.predef_scope.Int
     assert evaluate(expr1) == 7
 
 
@@ -74,7 +75,7 @@ def test_inversion_bool():
     [expr1, expr2] = parse_expr('not True')
     assert ast.unparse(expr1) == 'not True'
     assert ast.unparse(expr2) == 's0.Bool'
-    assert typecheck(expr2) is predef1.predef_proxy.Bool
+    assert typecheck(expr2) is predef1.predef_scope.Bool
     assert evaluate(expr1) is False
 
 
@@ -82,7 +83,7 @@ def test_inversion_number():
     [expr1, expr2] = parse_expr('not 0')
     assert ast.unparse(expr1) == 'not 0'
     assert ast.unparse(expr2) == 's0.Bool'
-    assert typecheck(expr2) is predef1.predef_proxy.Bool
+    assert typecheck(expr2) is predef1.predef_scope.Bool
     assert evaluate(expr1) is True
 
 
@@ -90,7 +91,7 @@ def test_conjuction_bool1():
     [expr1, expr2] = parse_expr('True and True')
     assert ast.unparse(expr1) == 'True and True'
     assert ast.unparse(expr2) == 's0.api__tapl.create_union(s0.Bool, s0.Bool)'
-    assert typecheck(expr2) is predef1.predef_proxy.Bool
+    assert typecheck(expr2) is predef1.predef_scope.Bool
     assert evaluate(expr1) is True
 
 
@@ -98,7 +99,7 @@ def test_conjuction_bool2():
     [expr1, expr2] = parse_expr('True and True     and    False')
     assert ast.unparse(expr1) == 'True and True and False'
     assert ast.unparse(expr2) == 's0.api__tapl.create_union(s0.Bool, s0.Bool, s0.Bool)'
-    assert typecheck(expr2) is predef1.predef_proxy.Bool
+    assert typecheck(expr2) is predef1.predef_scope.Bool
     assert evaluate(expr1) is False
 
 
@@ -106,7 +107,7 @@ def test_conjuction_number1():
     [expr1, expr2] = parse_expr('3 and 4')
     assert ast.unparse(expr1) == '3 and 4'
     assert ast.unparse(expr2) == 's0.api__tapl.create_union(s0.Int, s0.Int)'
-    assert typecheck(expr2) is predef1.predef_proxy.Int
+    assert typecheck(expr2) is predef1.predef_scope.Int
     assert evaluate(expr1) == 4
 
 
@@ -114,7 +115,7 @@ def test_conjuction_number2():
     [expr1, expr2] = parse_expr('0 and 4')
     assert ast.unparse(expr1) == '0 and 4'
     assert ast.unparse(expr2) == 's0.api__tapl.create_union(s0.Int, s0.Int)'
-    assert typecheck(expr2) is predef1.predef_proxy.Int
+    assert typecheck(expr2) is predef1.predef_scope.Int
     assert evaluate(expr1) == 0
 
 
@@ -124,7 +125,7 @@ def test_conjuction_mix():
     assert ast.unparse(expr2) == 's0.api__tapl.create_union(s0.Bool, s0.Int)'
     assert typelib.check_type_equality(
         typecheck(expr2),
-        predef1.predef_proxy.api__tapl.create_union(predef1.predef_proxy.Int, predef1.predef_proxy.Bool),
+        predef1.predef_scope.api__tapl.create_union(predef1.predef_scope.Int, predef1.predef_scope.Bool),
     )
     assert evaluate(expr1) == 4
 
@@ -135,7 +136,7 @@ def test_disjunction():
     assert (
         ast.unparse(expr2) == 's0.api__tapl.create_union(s0.api__tapl.create_union(s0.Bool, s0.Bool, s0.Bool), s0.Bool)'
     )
-    assert typelib.check_type_equality(typecheck(expr2), predef1.predef_proxy.Bool)
+    assert typelib.check_type_equality(typecheck(expr2), predef1.predef_scope.Bool)
     assert evaluate(expr1) is True
 
 
@@ -143,7 +144,7 @@ def test_term1():
     [expr1, expr2] = parse_expr('2 + 3')
     assert ast.unparse(expr1) == '2 + 3'
     assert ast.unparse(expr2) == 's0.Int + s0.Int'
-    assert typelib.check_type_equality(typecheck(expr2), predef1.predef_proxy.Int)
+    assert typelib.check_type_equality(typecheck(expr2), predef1.predef_scope.Int)
     assert evaluate(expr1) == 5
 
 
@@ -159,14 +160,17 @@ def test_term_error():
     [expr1, expr2] = parse_expr("2 + 'abc'")
     assert ast.unparse(expr1) == "2 + 'abc'"
     assert ast.unparse(expr2) == 's0.Int + s0.Str'
-    assert expect_type_error(expr2) == "TypeError('unsupported operand type(s) for +: Int and Str')"
+    assert (
+        expect_type_error(expr2)
+        == "TypeError('unsupported operand type(s) for +: Int and Str. Not equal: posonlyargs=[Int] arguments=[Str]')"
+    )
 
 
 def test_compare1():
     [expr1, expr2] = parse_expr('2 < 3')
     assert ast.unparse(expr1) == '2 < 3'
     assert ast.unparse(expr2) == 's0.Int < s0.Int'
-    assert typelib.check_type_equality(typecheck(expr2), predef1.predef_proxy.Bool)
+    assert typelib.check_type_equality(typecheck(expr2), predef1.predef_scope.Bool)
     assert evaluate(expr1) is True
 
 
@@ -174,7 +178,12 @@ def test_compare2():
     [expr1, expr2] = parse_expr('True < 0')
     assert ast.unparse(expr1) == 'True < 0'
     assert ast.unparse(expr2) == 's0.Bool < s0.Int'
-    with pytest.raises(TypeError, match=r'unsupported operand type\(s\) for <: Bool and Int'):
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            'unsupported operand type(s) for <: Bool and Int. Not equal: posonlyargs=[Bool] arguments=[Int]'
+        ),
+    ):
         typecheck(expr2)
 
 
@@ -182,7 +191,7 @@ def test_var1():
     [expr1, expr2] = parse_expr('2 + x')
     assert ast.unparse(expr1) == '2 + x'
     assert ast.unparse(expr2) == 's0.Int + s0.x'
-    assert typecheck(expr2, locals_={'x': predef1.predef_proxy.Int}) == predef1.predef_proxy.Int
+    assert typecheck(expr2, locals_={'x': predef1.predef_scope.Int}) == predef1.predef_scope.Int
     assert evaluate(expr1, locals_={'x': 7}) == 9
 
 

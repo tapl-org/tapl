@@ -7,28 +7,28 @@ import pytest
 from tapl_lang.lib import proxy
 
 
-class MySubject(proxy.Subject):
+class MySubject(proxy.ProxyMixin):
     def __init__(self):
-        self.vars = {}
+        self.vars__tapl = {}
 
     def load__tapl(self, key):
         try:
-            return self.vars[key]
+            return self.vars__tapl[key]
         except KeyError:
             super().load__tapl(key)
 
     def store__tapl(self, key, value):
-        self.vars[key] = value
+        self.vars__tapl[key] = value
 
     def delete__tapl(self, key):
-        del self.vars[key]
+        del self.vars__tapl[key]
 
     def __repr__(self):
-        return f'MySubject{self.vars}'
+        return f'MySubject{self.vars__tapl}'
 
 
 def test_define_variable():
-    a = proxy.ProxyMixin(MySubject())
+    a = MySubject()
     a.x = 42
     assert a.x == 42
 
@@ -36,39 +36,23 @@ def test_define_variable():
 def test_undefined_variable():
     s = MySubject()
     s.store__tapl('a', 100)
-    p = proxy.ProxyMixin(s)
-    del p.a
+    del s.a
     with pytest.raises(AttributeError):
-        _ = p.a
+        _ = s.a
 
 
 def test_repr():
-    p = proxy.ProxyMixin(MySubject())
+    p = MySubject()
     assert repr(p) == 'MySubject{}'
 
 
 def test_binop():
     s = MySubject()
     s.store__tapl('__add__', lambda other: f'Added {other}')
-    a = proxy.ProxyMixin(s)
-    assert a + 3 == 'Added 3'
+    assert s + 3 == 'Added 3'
 
 
 def test_binop_error():
     s = MySubject()
-    p = proxy.ProxyMixin(s)
     with pytest.raises(TypeError):
-        _ = p + 3
-
-
-def test_replace_subject():
-    x = MySubject()
-    y = MySubject()
-    p = proxy.ProxyMixin(x)
-    assert p.subject__tapl is x
-    p.subject__tapl = y
-    assert p.subject__tapl is not y
-    assert repr(vars(p)) == "{'subject__tapl': MySubject{'subject__tapl': MySubject{}}}"
-    object.__setattr__(p, proxy.SUBJECT_FIELD_NAME, y)
-    assert p.subject__tapl is y
-    assert repr(vars(p)) == "{'subject__tapl': MySubject{}}"
+        _ = s + 3

@@ -8,7 +8,7 @@ import ast
 from tapl_lang.core import syntax
 from tapl_lang.core.chunker import chunk_text
 from tapl_lang.core.parser import parse_text
-from tapl_lang.lib import compiler, proxy, python_backend, scope, terms
+from tapl_lang.lib import compiler, python_backend, scope, terms
 from tapl_lang.pythonlike import grammar, predef1
 from tapl_lang.pythonlike.language import PythonlikeLanguage
 
@@ -36,8 +36,7 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
 
 def run_stmt(stmts: list[ast.stmt]):
     compiled_code = compile(ast.Module(body=stmts), filename='', mode='exec')
-    daa = proxy.ProxyMixin(scope.Scope(parent=predef1.predef_scope))
-    globals_ = {'s0': daa}
+    globals_ = {'s0': scope.Scope(parent=predef1.predef_scope)}
     return eval(compiled_code, globals=globals_)
 
 
