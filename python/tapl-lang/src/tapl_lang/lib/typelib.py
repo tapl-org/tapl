@@ -126,8 +126,7 @@ class Union(dynamic_attributes.DynamicAttributeMixin):
             return self._title__sa
         return ' | '.join([str(t) for t in self._types__sa])
 
-    # TODO: remove default iterator from Record, Union and Intersection, it may be confusing #mvp
-    def __iter__(self):
+    def iter_types__sa(self):
         yield from self._types__sa
 
 
@@ -156,7 +155,7 @@ class Intersection(dynamic_attributes.DynamicAttributeMixin):
             return self._title__sa
         return ' & '.join([str(t) for t in self._types__sa])
 
-    def __iter__(self):
+    def iter_types__sa(self):
         yield from self._types__sa
 
 
@@ -249,9 +248,6 @@ class Record(dynamic_attributes.DynamicAttributeMixin):
             return self._title__sa
         field_strs = [f'{label}: {typ}' for label, typ in self._fields__sa.items()]
         return '{' + ', '.join(field_strs) + '}'
-
-    def __iter__(self):
-        yield from self._fields__sa.items()
 
     def try_load(self, label):
         return self._fields__sa.get(label)
@@ -362,7 +358,7 @@ def create_union(*args):
         # Union of unions are flattened
         subject = arg
         if isinstance(subject, Union):
-            result.extend(subject)  # consume as iterable
+            result.extend(subject.iter_types__sa())  # consume as iterable
         else:
             result.append(arg)
     result = drop_same_types(result)

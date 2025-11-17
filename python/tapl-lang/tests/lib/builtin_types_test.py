@@ -24,21 +24,25 @@ def test_any_subtype_of_bool():
     assert not typelib.check_subtype(_any, _bool)
 
 
+def union_len(union: typelib.Union) -> int:
+    return len(list(union.iter_types__sa()))
+
+
 def test_create_union():
     # Multiple types
     union = typelib.create_union(_bool, _int)
-    union_types = list(union)
+    union_types = list(union.iter_types__sa())
     assert len(union_types) == 2
     assert union_types[0] is _bool
     assert union_types[1] is _int
     # Flatten union
     type_list = [_bool, typelib.Union(types=[_int, _float])]
-    assert len(list(typelib.Union(types=type_list))) == 2
-    assert len(list(typelib.create_union(*type_list))) == 3
+    assert union_len(typelib.Union(types=type_list)) == 2
+    assert union_len(typelib.create_union(*type_list)) == 3
     # Trim union
     type_list = [_bool, _int, _bool]
-    assert len(list(typelib.Union(types=type_list))) == 3
-    assert len(list(typelib.create_union(*type_list))) == 2
+    assert union_len(typelib.Union(types=type_list)) == 3
+    assert union_len(typelib.create_union(*type_list)) == 2
 
 
 def test_function_parameters_invariants():
