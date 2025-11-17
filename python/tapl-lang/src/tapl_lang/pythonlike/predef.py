@@ -2,7 +2,7 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-import tapl_lang.lib.api as tapl_typing
+from tapl_lang.lib import tapl_typing
 
 tapl_typing.create_dynamic_variables(
     globals(), __import__('tapl_lang.pythonlike.builtin_functions', globals(), locals(), ['export']).export
