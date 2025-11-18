@@ -25,4 +25,5 @@ s0.collatz_sequence = s0.tapl_typing.create_function([s0.Int], collatz_sequence(
 s0.print(s0.collatz_sequence(s0.Int))
 s0.print(s0.collatz_sequence(s0.Int))
 s0.print(s0.collatz_sequence(s0.Int))
-s0.tapl_typing.print_log(s0.collatz_sequence(s0.Int))
+s0.print(s0.collatz_sequence(s0.Int))
+s0.print_type(s0.collatz_sequence(s0.Int))

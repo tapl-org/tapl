@@ -16,5 +16,6 @@ class Circle_:
         return 3.14 * self.radius * self.radius
 
 def print_area(circle):
-    tapl_typing.print_log(circle.area())
+    print(circle.area())
+    print_type(circle.area())
 print_area(Circle_(2.0))
