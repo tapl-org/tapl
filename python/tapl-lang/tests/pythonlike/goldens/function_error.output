@@ -2,10 +2,10 @@
 
 ------ stderr:
 Traceback (most recent call last):
-  File "/Users/orti/github/tapl/python/tapl-lang/tests/pythonlike/goldens/function_error1.py", line 8, in <module>
+  File "/Users/orti/github/tapl/python/tapl-lang/tests/pythonlike/goldens/function_error1.py", line 9, in <module>
     s0.one = s0.tapl_typing.create_function([], one())
                                                 ~~~^^
-  File "/Users/orti/github/tapl/python/tapl-lang/tests/pythonlike/goldens/function_error1.py", line 6, in one
+  File "/Users/orti/github/tapl/python/tapl-lang/tests/pythonlike/goldens/function_error1.py", line 7, in one
     s1.tapl_typing.add_return_type(s1, s1.Int)
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
   File "/Users/orti/github/tapl/python/tapl-lang/src/tapl_lang/lib/utils.py", line 34, in add_return_type

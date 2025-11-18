@@ -1189,8 +1189,28 @@ class TypedFunctionDef(syntax.Term):
                 keywords=keywords,
             ),
         )
+        tmp_function: syntax.Term = syntax.Empty
         set_return_type: syntax.Term = syntax.Empty
         if self.return_type is not syntax.Empty:
+            tmp_function = Assign(
+                location=self.location,
+                targets=[TypedName(location=self.location, id=self.name, ctx='store', mode=self.mode)],
+                value=Call(
+                    location=self.location,
+                    func=Path(
+                        location=self.location, names=['tapl_typing', 'create_function'], ctx='load', mode=self.mode
+                    ),
+                    args=[
+                        List(
+                            location=self.location,
+                            elements=[cast(Parameter, p).type_ for p in self.parameters],
+                            ctx='load',
+                        ),
+                        self.return_type,
+                    ],
+                    keywords=[],
+                ),
+            )
             set_return_type = Expr(
                 location=self.location,
                 value=Call(
@@ -1227,7 +1247,10 @@ class TypedFunctionDef(syntax.Term):
             kwarg=None,
             defaults=[],
             body=syntax.TermList(
-                terms=[new_scope, nested_scope(syntax.TermList(terms=[set_return_type, self.body, get_return_type]))]
+                terms=[
+                    new_scope,
+                    nested_scope(syntax.TermList(terms=[tmp_function, set_return_type, self.body, get_return_type])),
+                ]
             ),
             decorator_list=[],
         )

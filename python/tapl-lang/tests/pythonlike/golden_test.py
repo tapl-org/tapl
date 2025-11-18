@@ -94,3 +94,7 @@ def test_collatz_conjecture():
 
 def test_type_constructions():
     run_golden_test('type_constructions')
+
+
+def test_fibonacci():
+    run_golden_test('fibonacci')

@@ -55,31 +55,43 @@ def _init_record(record, methods):
     object.__setattr__(record, '_fields__sa', _init_methods(methods))
 
 
-_init_record(Bool, {'__lt__': ([Bool], Bool), '__gt__': ([Bool], Bool)})
+_init_record(
+    Bool, {'__hash__sa': ([], Int), '__eq__sa': ([Bool], Bool), '__lt__': ([Bool], Bool), '__gt__': ([Bool], Bool)}
+)
 _init_record(
     Int,
     {
+        '__hash__sa': ([], Int),
         '__add__': ([Int], Int),
         '__sub__': ([Int], Int),
         '__mul__': ([Int], Int),
         '__truediv__': ([Int], Float),
         '__mod__': ([Int], Int),
         '__floordiv__': ([Int], Int),
+        '__eq__sa': ([Int], Bool),
         '__ne__': ([Int], Bool),
         '__lt__': ([Int], Bool),
+        '__gt__': ([Int], Bool),
+        '__ge__': ([Int], Bool),
+        '__le__': ([Int], Bool),
     },
 )
 _init_record(
     Float,
     {
+        '__hash__sa': ([], Int),
         '__add__': ([Float], Float),
         '__sub__': ([Float], Float),
         '__mul__': ([Float], Float),
+        '__eq__sa': ([Float], Bool),
+        '__ne__': ([Float], Bool),
         '__lt__': ([Float], Bool),
         '__gt__': ([Float], Bool),
+        '__ge__': ([Float], Bool),
+        '__le__': ([Float], Bool),
     },
 )
-_init_record(Str, {'isalpha': ([], Bool), 'isdigit': ([], Bool)})
+_init_record(Str, {'__hash__sa': ([], Int), '__eq__sa': ([Str], Bool), 'isalpha': ([], Bool), 'isdigit': ([], Bool)})
 
 
 def create_list_type(

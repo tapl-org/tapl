@@ -18,10 +18,11 @@ OP_LABEL = {
     '__xor__': '^',
     '__and__': '&',
     '__matmul__': '@',
-    '__lt__': '<',
-    '__le__': '<=',
+    # Comparison operators
     '__eq__': '==',
     '__ne__': '!=',
+    '__lt__': '<',
+    '__le__': '<=',
     '__gt__': '>',
     '__ge__': '>=',
 }
@@ -68,8 +69,44 @@ class DynamicAttributeMixin:
     def __call__(self__sa, *args, **kwargs):
         return self__sa.load__sa('__call__')(*args, **kwargs)
 
-    def __repr__(self__sa):
-        return self__sa.load__sa('__repr__')()
+    # Numeric methods
+    def __trunc__(self__sa):
+        return self__sa.load__sa('__trunc__')()
+
+    def __floor__(self__sa):
+        return self__sa.load__sa('__floor__')()
+
+    def __ceil__(self__sa):
+        return self__sa.load__sa('__ceil__')()
+
+    def __round__(self__sa, n: int = 0):
+        return self__sa.load__sa('__round__')(n)
+
+    def __invert__(self__sa):
+        return self__sa.load__sa('__invert__')()
+
+    def __neg__(self__sa):
+        return self__sa.load__sa('__neg__')()
+
+    def __pos__(self__sa):
+        return self__sa.load__sa('__pos__')()
+
+    def __abs__(self__sa):
+        return self__sa.load__sa('__abs__')()
+
+    def __int__(self__sa):
+        return self__sa.load__sa('__int__')()
+
+    def __float__(self__sa):
+        return self__sa.load__sa('__float__')()
+
+    def __complex__(self__sa):
+        return self__sa.load__sa('__complex__')()
+
+    def __index__(self__sa):
+        return self__sa.load__sa('__index__')()
+
+    # Arithmetic operators
 
     def __add__(self__sa, other):
         return self__sa.call_binop__sa('__add__', other)
@@ -89,6 +126,9 @@ class DynamicAttributeMixin:
     def __mod__(self__sa, other):
         return self__sa.call_binop__sa('__mod__', other)
 
+    def __divmod__(self__sa, other):
+        return self__sa.load__sa('__divmod__')(other)
+
     def __pow__(self__sa, other):
         return self__sa.call_binop__sa('__pow__', other)
 
@@ -98,20 +138,64 @@ class DynamicAttributeMixin:
     def __rshift__(self__sa, other):
         return self__sa.call_binop__sa('__rshift__', other)
 
+    def __and__(self__sa, other):
+        return self__sa.call_binop__sa('__and__', other)
+
     def __or__(self__sa, other):
         return self__sa.call_binop__sa('__or__', other)
 
     def __xor__(self__sa, other):
         return self__sa.call_binop__sa('__xor__', other)
 
-    def __and__(self__sa, other):
-        return self__sa.call_binop__sa('__and__', other)
-
     def __matmul__(self__sa, other):
         return self__sa.call_binop__sa('__matmul__', other)
 
+    # String methods
+
+    # TODO: Python __str__ method has special handling
+    # def __str__(self__sa):
+    #     return self__sa.load__sa('__str__')()
+
+    def __repr__(self__sa):
+        return self__sa.load__sa('__repr__')()
+
+    def __unicode__(self__sa):
+        return self__sa.load__sa('__unicode__')()
+
+    # TODO: Python __format__ method has special handling
+    # def __format__(self__sa, format_spec):
+    #     return self__sa.load__sa('__format__')(format_spec)
+
+    # Python __hash__ and __eq__ methods have special handling, so we manually dispatch them to __hash__sa and __eq__sa methods.
+    # def __hash__(self__sa):
+    #     return self__sa.load__sa('__hash__')()
+
+    def __nonzero__(self__sa):
+        return self__sa.load__sa('__nonzero__')()
+
+    def __dir__(self__sa):
+        return self__sa.load__sa('__dir__')()
+
+    def __sizeof__(self__sa):
+        return self__sa.load__sa('__sizeof__')()
+
+    # Comparison operators
+
+    # Python __hash__ and __eq__ methods have special handling, so we manually dispatch them to __hash__sa and __eq__sa methods.
+    # def __eq__(self__sa, other):
+    #     return self__sa.call_binop__sa('__eq__', other)  # operator: ==
+
     def __ne__(self__sa, other):
-        return self__sa.call_binop__sa('__ne__', other)
+        return self__sa.call_binop__sa('__ne__', other)  # operator: !=
 
     def __lt__(self__sa, other):
-        return self__sa.call_binop__sa('__lt__', other)
+        return self__sa.call_binop__sa('__lt__', other)  # operator: <
+
+    def __le__(self__sa, other):
+        return self__sa.call_binop__sa('__le__', other)  # operator: <=
+
+    def __gt__(self__sa, other):
+        return self__sa.call_binop__sa('__gt__', other)  # operator: >
+
+    def __ge__(self__sa, other):
+        return self__sa.call_binop__sa('__ge__', other)  # operator: >=
