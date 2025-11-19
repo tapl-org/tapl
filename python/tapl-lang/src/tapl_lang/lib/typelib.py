@@ -3,41 +3,33 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """
-TODO: This module doc is outdated, update it. Maybe write a separate explanation in doc folder. #mvp
-Type system has mainly six types: Atom, Labeled, Union, Intersection, Function, and Recursive.
+Type system implementation for TAPL language.
 
-Atom type is the most basic type, most primitive type.
+Core Types:
+- BaseType: Abstract base class for all types, and types does not have to inherit from it.
+- Union: Represents a union of types (T1 | T2)
+- Intersection: Represents an intersection of types (T1 & T2)
+- Any: Top type - supertype of all types, except NoneType
+- Nothing: Bottom type - subtype of all types
+- NoneType: Singleton type for None value
+- Record: Structural record type with labeled fields
+- Function: Function type with positional and named arguments
+- TypeVariable: Type variable for generic types
 
-Labeled type unifies single labeled record and labeled variant.
+Type Checking:
+- check_subtype(subtype, supertype): Checks if 'subtype' is a subtype of 'supertype'
+- check_type_equality(a, b): Checks if two types are equivalent
+- Uses caching and assumption stack to handle recursive type definitions
 
-Atom type looks like a nominal type. Because it has only name, nothing else.
-Record type can be defined as a intersection of several labeled types.
-Sum type can be defined as a union of several labeled types.
-
-If we see from the Java class perspective then its type is intersection of record type and base type which has a name
-
-Since Atom type contains a string, we can generalize it such that it can contain any value unless it has a equal property
-
-Top or Any type is a empty Intersection type
-Bottom or Nothing type is a empty Union type
-
-Labels must be unique in Intersection and Union type.
-
-All types should be immutable.
-
-Source.can_be_used_as(Target) checks if Source can be used as Target. This returns True if Source is a subtype of Target.
-
-Variable with underscore suffix means the type is wrapped with Proxy
-
-The following does not use Python type hints intentionally.
-
-1. Types are considered immutable.
-2. Inspired by Kotlin type hierarchy:
-   - NoneType: The singleton, unit, or void type. 'None' is only instance of this type.
-   - Any: the top type, excluding NoneType
-   - Nothing: the bottom type
-3. The methods is_subtype_of and is_supertype_of return None when the type relationship can't be determined.
-4. Variables suffixed with an underscore denote a type instance not wrapped by a Proxy.
+Design Notes:
+- All types are immutable
+- Naming convention: Variables with __sa suffix indicate internal type system attributes
+- Methods is_subtype_of__sa and is_supertype_of__sa return None when inconclusive
+- Inspired by Kotlin's type hierarchy
+    - https://stackoverflow.com/a/54762815/22663977
+    - NoneType is not subtype of Any, but it is a subtype of Union that includes NoneType
+    - Any | NoneType is a top type, supertype of all types
+    - Nothing is a bottom type, subtype of all types
 """
 
 from tapl_lang.lib import dynamic_attributes
@@ -111,7 +103,7 @@ class BaseType(dynamic_attributes.DynamicAttributeMixin):
         return 'BaseType'
 
 
-# TODO: implement '|' operator for Union and '&' operator for Intersection #mvp
+# TODO: implement '|' operator for Union and '&' operator for Intersection
 # TODO: what happens when these operators are used for binary operation instead of type construction?
 # e.g., T1 | T2, T1 & T2
 # Exception for binary-operator methods in Python; not intended for direct use.
