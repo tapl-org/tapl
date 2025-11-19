@@ -3,11 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import ast
+import importlib
 import re
 
 from tapl_lang.core import chunker, syntax, tapl_error
 from tapl_lang.lib import python_backend, terms
-from tapl_lang.pythonlike import language as python_language
 
 
 def gather_errors(term: syntax.Term) -> list[syntax.ErrorTerm]:
@@ -52,10 +52,7 @@ def make_safe_term(term: syntax.Term) -> syntax.Term:
 def compile_tapl(text: str) -> list[ast.AST]:
     chunks = chunker.chunk_text(text)
     language_name = extract_language(chunks[0])
-    # TODO: "language" must be linked dynamically #mvp
-    if language_name != 'pythonlike':
-        raise tapl_error.TaplError('Only pythonlike language is supported now.')
-    language = python_language.PythonlikeLanguage()
+    language = importlib.import_module(f'tapl_language.{language_name}').get_language()
     predef_headers = language.get_predef_headers()
     predef_layers = syntax.Layers(predef_headers)
     module = terms.Module(body=[predef_layers, syntax.TermList(terms=[], is_placeholder=True)])
