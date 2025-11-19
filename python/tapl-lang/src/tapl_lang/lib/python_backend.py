@@ -283,6 +283,15 @@ class AstGenerator:
             locate(term.location, attr)
             return attr
 
+        if isinstance(term, terms.Subscript):
+            subscript = ast.Subscript(
+                value=self.generate_expr(term.value, setting),
+                slice=self.generate_expr(term.slice, setting),
+                ctx=EXPR_CONTEXT_MAP[term.ctx],
+            )
+            locate(term.location, subscript)
+            return subscript
+
         if isinstance(term, terms.Name):
             name_id = term.id(setting) if callable(term.id) else term.id
             name = ast.Name(id=name_id, ctx=EXPR_CONTEXT_MAP[term.ctx])

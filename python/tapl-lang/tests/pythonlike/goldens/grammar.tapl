@@ -1,0 +1,17 @@
+language pythonlike
+
+# TODO: import statements
+
+x: Int = 42
+print_dual(x)
+
+a = b = 'hello'
+print_dual(a)
+print_dual(b)
+
+# TODO: try, except, and finally statements
+
+c = [1,2,3]
+print_dual(c)
+# x = c[1]
+# print_dual(c[1])

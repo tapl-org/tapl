@@ -19,6 +19,10 @@ functions = {
         noop,
         print,
     ),
+    'print_dual': (
+        print,
+        print,
+    ),
     'range': (
         range,
         typelib.create_function([bt.Int], [bt.Int]),

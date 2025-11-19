@@ -25,7 +25,7 @@ def create_loc(start_line: int, start_col: int, end_line: int, end_col: int) -> 
 
 
 def test_compound_stmt__function_def():
-    actual = parse_expr('def add(x: int, y: int) -> int:', rn.COMPOUND_STMT, mode=terms.MODE_EVALUATE)
+    actual = parse_expr('def add(x: Int, y: Int) -> Int:', rn.COMPOUND_STMT, mode=terms.MODE_EVALUATE)
     expected = terms.TypedFunctionDef(
         location=create_loc(1, 0, 1, 31),
         name='add',
@@ -37,7 +37,7 @@ def test_compound_stmt__function_def():
                     layers=[
                         syntax.Empty,
                         terms.TypedName(
-                            location=create_loc(1, 11, 1, 14), id='int', ctx='load', mode=terms.MODE_TYPECHECK
+                            location=create_loc(1, 11, 1, 14), id='Int', ctx='load', mode=terms.MODE_TYPECHECK
                         ),
                     ]
                 ),
@@ -50,14 +50,14 @@ def test_compound_stmt__function_def():
                     layers=[
                         syntax.Empty,
                         terms.TypedName(
-                            location=create_loc(1, 19, 1, 22), id='int', ctx='load', mode=terms.MODE_TYPECHECK
+                            location=create_loc(1, 19, 1, 22), id='Int', ctx='load', mode=terms.MODE_TYPECHECK
                         ),
                     ]
                 ),
                 mode=terms.MODE_EVALUATE,
             ),
         ],
-        return_type=terms.TypedName(location=create_loc(1, 27, 1, 30), id='int', ctx='load', mode=terms.MODE_TYPECHECK),
+        return_type=terms.TypedName(location=create_loc(1, 27, 1, 30), id='Int', ctx='load', mode=terms.MODE_TYPECHECK),
         body=syntax.TermList(terms=[], is_placeholder=True),
         mode=terms.MODE_EVALUATE,
     )
@@ -65,11 +65,11 @@ def test_compound_stmt__function_def():
 
 
 def test_assignment__annotated():
-    actual = parse_expr('x: int = 42', rn.ASSIGNMENT, mode=terms.MODE_EVALUATE)
+    actual = parse_expr('x: Int = 42', rn.ASSIGNMENT, mode=terms.MODE_EVALUATE)
     expected = terms.TypedAssign(
         location=create_loc(1, 0, 1, 11),
         target_name=terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='store', mode=terms.MODE_EVALUATE),
-        target_type=terms.TypedName(location=create_loc(1, 3, 1, 6), id='int', ctx='load', mode=terms.MODE_TYPECHECK),
+        target_type=terms.TypedName(location=create_loc(1, 3, 1, 6), id='Int', ctx='load', mode=terms.MODE_TYPECHECK),
         value=terms.IntegerLiteral(location=create_loc(1, 9, 1, 11), value=42),
         mode=terms.MODE_EVALUATE,
     )
