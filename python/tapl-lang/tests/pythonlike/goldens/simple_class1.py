@@ -26,8 +26,7 @@ s0.Circle, s0.Circle_ = s0.tapl_typing.create_class(cls=Circle_, init_args=[s0.F
 
 def print_area(circle):
     s1 = s0.tapl_typing.create_scope(parent__sa=s0, circle=circle)
-    s1.print(s1.circle.area())
-    s1.print_type(s1.circle.area())
+    s1.tapl_dev.print(s1.circle.area())
     return s1.tapl_typing.get_return_type(s1)
 s0.print_area = s0.tapl_typing.create_function([s0.Circle], print_area(s0.Circle))
 s0.print_area(s0.Circle_(s0.Float))

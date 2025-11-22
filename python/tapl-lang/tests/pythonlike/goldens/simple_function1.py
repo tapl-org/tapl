@@ -2,8 +2,7 @@ from tapl_lang.pythonlike.predef1 import predef_scope as s0
 
 def int_print(a):
     s1 = s0.tapl_typing.create_scope(parent__sa=s0, a=a)
-    s1.print(s1.a)
-    s1.print_type(s1.a)
+    s1.tapl_dev.print(s1.a)
     return s1.tapl_typing.get_return_type(s1)
 s0.int_print = s0.tapl_typing.create_function([s0.Int], int_print(s0.Int))
 s0.int_print(s0.Int)
@@ -34,5 +33,4 @@ with s0.tapl_typing.scope_forker(s0) as f0:
     s1.b = s1.Int
     s1 = s0.tapl_typing.fork_scope(f0)
     s1.b = s1.Str
-s0.print(s0.b)
-s0.print_type(s0.b)
+s0.tapl_dev.print(s0.b)

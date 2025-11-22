@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from tapl_lang.lib import builtin_types as bt
-from tapl_lang.lib import typelib
+from tapl_lang.lib import tapl_dev, typelib
 
 
 def noop(*args, **kwargs):
@@ -15,13 +15,9 @@ functions = {
         print,
         typelib.create_function([bt.Any], bt.NoneType),
     ),
-    'print_type': (
-        noop,
-        print,
-    ),
-    'print_dual': (
-        print,
-        print,
+    'tapl_dev': (
+        tapl_dev.TaplDev(tapl_dev.EVALATE_LAYER_INDEX),
+        tapl_dev.TaplDev(tapl_dev.TYPECHECK_LAYER_INDEX),
     ),
     'range': (
         range,

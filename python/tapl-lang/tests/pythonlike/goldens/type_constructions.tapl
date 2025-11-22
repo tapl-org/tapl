@@ -1,8 +1,7 @@
 language pythonlike
 
 def union_print(a: Int | Str):
-    print(a)
-    print_type(a)
+    tapl_dev.print(a)
 
 union_print(123)
 union_print('hello')

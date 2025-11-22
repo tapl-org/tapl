@@ -1,8 +1,7 @@
 language pythonlike
 
 def int_print(a: Int):
-    print(a)
-    print_type(a)
+    tapl_dev.print(a)
 
 int_print(123)
 
@@ -24,5 +23,4 @@ if a == 2:
     b = 7
 else:
     b = 'banana'
-print(b)
-print_type(b)
+tapl_dev.print(b)

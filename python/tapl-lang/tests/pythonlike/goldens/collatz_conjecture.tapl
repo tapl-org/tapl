@@ -15,5 +15,4 @@ def collatz_sequence(n: Int):
 print(collatz_sequence(7))
 print(collatz_sequence(19))
 print(collatz_sequence(0))
-print(collatz_sequence(4))
-print_type(collatz_sequence(4))
+tapl_dev.print(collatz_sequence(4))
