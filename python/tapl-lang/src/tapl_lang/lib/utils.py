@@ -8,6 +8,8 @@ from typing import Any
 from tapl_lang.lib import builtin_types as bt
 from tapl_lang.lib import dynamic_attributes, scope, typelib
 
+# TODO: Copy definitions from typelib where appropriate.
+
 
 def create_scope(
     parent__sa: scope.Scope | None = None,
@@ -91,7 +93,7 @@ def create_dynamic_variables(namespace, variables):
         namespace[var_name] = var_value
 
 
-def create_typed_list(*element_types) -> dynamic_attributes.DynamicAttributeMixin:
+def create_typed_list(*element_types):
     if len(element_types) == 0:
         # TODO: implement dynamic Any element type which can be specified at runtime. For example, when appending Int to an empty list. element type becomes Int.
         element_type = bt.Any
@@ -100,3 +102,17 @@ def create_typed_list(*element_types) -> dynamic_attributes.DynamicAttributeMixi
     else:
         element_type = typelib.create_union(*element_types)
     return bt.create_list_type(element_type)
+
+
+def create_typed_dict(keys, values):
+    if len(keys) != len(values):
+        raise ValueError('Keys and values must have the same length.')
+    if len(keys) == 0:
+        key_type = bt.Str
+        value_type = bt.Any
+    elif len(keys) == 1:
+        key_type, value_type = keys[0], values[0]
+    else:
+        key_type = typelib.create_union(*keys)
+        value_type = typelib.create_union(*values)
+    return bt.create_dict_type(key_type, value_type)

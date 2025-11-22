@@ -3,6 +3,11 @@ Int
 Str
 Str
 List[Int]
+Int
+List[Int]
+Dict[Str, Str]
+Str
+Dict[Str, Str]
 
 ------ stderr:
 
@@ -13,6 +18,11 @@ List[Int]
 hello
 hello
 [1, 2, 3]
+2
+[2, 42]
+{'key1': 'value1', 'key2': 'value2'}
+value1
+{'key2': 'new_value2'}
 
 ------ stderr:
 

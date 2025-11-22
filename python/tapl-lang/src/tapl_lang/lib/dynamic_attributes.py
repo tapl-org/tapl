@@ -199,3 +199,13 @@ class DynamicAttributeMixin:
 
     def __ge__(self__sa, other):
         return self__sa.call_binop__sa('__ge__', other)  # operator: >=
+
+    # Subscript operators
+    def __getitem__(self__sa, key):
+        return self__sa.load__sa('__getitem__')(key)
+
+    def __setitem__(self__sa, key, value):
+        return self__sa.load__sa('__setitem__')(key, value)
+
+    def __delitem__(self__sa, key):
+        return self__sa.load__sa('__delitem__')(key)

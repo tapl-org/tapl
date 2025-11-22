@@ -74,7 +74,7 @@ d           | &"type" type_alias
             | import_stmt
             | raise_stmt
             | pass_stmt |> 'pass'
-d           | &'del' del_stmt
+            | &'del' del_stmt
 d           | &'yield' yield_stmt
 d           | &'assert' assert_stmt
 d           | 'break'
@@ -84,6 +84,15 @@ d           | &'nonlocal' nonlocal_stmt
         raise_stmt:
             | 'raise' expression ['from' expression]
             | 'raise'
+        del_stmt:
+            | 'del' del_targets
+d           | invalid_del_stmt
+        del_targets:
+            | ','.del_target+ [',']
+        del_target:
+            | t_primary '.' NAME !t_lookahead
+            | t_primary '[' slices ']' !t_lookahead
+            | del_t_atom |> NAME
         import_stmt:
 d           | invalid_import
             | import_name
@@ -254,6 +263,7 @@ def get_grammar() -> parser.Grammar:
             rn.IMPORT_STMT,
             rn.RAISE_STMT,
             rn.PASS_STMT,
+            rn.DEL_STMT,
         ],
     )
     add(rn.COMPOUND_STMT, [rn.FUNCTION_DEF, rn.IF_STMT, rn.CLASS_DEF, rn.FOR_STMT, rn.WHILE_STMT])
@@ -270,7 +280,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.CONTINUE_STMT, [])
     add(rn.GLOBAL_STMT, [])
     add(rn.NONLOCAL_STMT, [])
-    add(rn.DEL_STMT, [])
+    add(rn.DEL_STMT, [_parse_del_statement])
     add(rn.YIELD_STMT, [])
     add(rn.ASSERT_STMT, [])
     add(rn.IMPORT_STMT, [rn.IMPORT_NAME])
@@ -548,9 +558,9 @@ def get_grammar() -> parser.Grammar:
 
     # Targets for del statements
     # --------------------------
-    add(rn.DEL_TARGETS, [])
-    add(rn.DEL_TARGET, [])
-    add(rn.DEL_T_ATOM, [])
+    add(rn.DEL_TARGETS, [_parse_del_targets])
+    add(rn.DEL_TARGET, [_parse_del_target__attribute, _parse_del_target__slices, rn.DEL_T_ATOM])
+    add(rn.DEL_T_ATOM, [_parse_del_t_atom__name_delete])
 
     # TYPING ELEMENTS
     # ---------------
@@ -1126,7 +1136,7 @@ def _parse_set(c: Cursor) -> syntax.Term:
 def _parse_dict__empty(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_punct(c, '{')) and t.validate(_consume_punct(c, '}')):
-        return terms.Dict(location=t.location, keys=[], values=[])
+        return terms.TypedDict(location=t.location, keys=[], values=[], mode=c.context.mode)
     return t.fail()
 
 
@@ -1145,7 +1155,7 @@ def _parse_dict__non_empty(c: Cursor) -> syntax.Term:
                 values.append(kvpair.value)
             else:
                 return syntax.ErrorTerm(message='Expected key-value pair in dict literal', location=t.location)
-        return terms.Dict(location=t.location, keys=keys, values=values)
+        return terms.TypedDict(location=t.location, keys=keys, values=values, mode=c.context.mode)
     return t.fail()
 
 
@@ -1642,6 +1652,17 @@ def _parse_raise__no_expression(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
+def _parse_del_statement(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(_consume_keyword(c, 'del')) and t.validate(targets := c.consume_rule(rn.DEL_TARGETS)):
+        if isinstance(targets, syntax.TermList) and targets.terms:
+            return terms.Delete(location=t.location, targets=targets.terms)
+        return t.captured_error or syntax.ErrorTerm(
+            message='Expected at least one target in "del" statement', location=t.location
+        )
+    return t.fail()
+
+
 def _parse_import_name(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
@@ -1822,4 +1843,53 @@ def _parse_t_lookahead(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(term := _consume_punct(c, '(', '[', '.')):
         return term
+    return t.fail()
+
+
+def _parse_del_targets(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    targets = []
+    if t.validate(first_target := c.consume_rule(rn.DEL_TARGET)):
+        targets.append(first_target)
+        k = c.clone()
+        while t.validate(_consume_punct(k, ',')) and t.validate(next_target := k.consume_rule(rn.DEL_TARGET)):
+            c.copy_position_from(k)
+            targets.append(next_target)
+        k = c.clone()
+        if t.validate(_consume_punct(k, ',')):
+            # Allow trailing comma
+            c.copy_position_from(k)
+        return t.captured_error or syntax.TermList(terms=targets)
+    return t.fail()
+
+
+def _parse_del_target__attribute(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(target := c.consume_rule(rn.T_PRIMARY))
+        and t.validate(_consume_punct(c, '.'))
+        and t.validate(name := _expect_name(c))
+        and not t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
+    ):
+        return terms.Attribute(t.location, value=target, attr=cast(TokenName, name).value, ctx='delete')
+    return t.fail()
+
+
+def _parse_del_target__slices(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(value := c.consume_rule(rn.T_PRIMARY))
+        and t.validate(_consume_punct(c, '['))
+        and t.validate(slices := c.consume_rule(rn.SLICES))
+        and t.validate(_expect_punct(c, ']'))
+        and not t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
+    ):
+        return terms.Subscript(t.location, value=value, slice=slices, ctx='delete')
+    return t.fail()
+
+
+def _parse_del_t_atom__name_delete(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, TokenName):
+        return terms.TypedName(location=token.location, id=token.value, ctx='delete', mode=c.context.mode)
     return t.fail()

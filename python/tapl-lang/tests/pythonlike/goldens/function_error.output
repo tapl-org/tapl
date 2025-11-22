@@ -8,7 +8,7 @@ Traceback (most recent call last):
   File "/Users/orti/github/tapl/python/tapl-lang/tests/pythonlike/goldens/function_error1.py", line 7, in one
     s1.tapl_typing.add_return_type(s1, s1.Int)
     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
-  File "/Users/orti/github/tapl/python/tapl-lang/src/tapl_lang/lib/utils.py", line 34, in add_return_type
+  File "/Users/orti/github/tapl/python/tapl-lang/src/tapl_lang/lib/utils.py", line 36, in add_return_type
     raise TypeError(f'Return type mismatch: expected {s.return_type__sa}, got {return_type}.')
 TypeError: Return type mismatch: expected Str, got Int.
 

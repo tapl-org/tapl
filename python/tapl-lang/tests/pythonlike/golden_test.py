@@ -72,33 +72,12 @@ def run_golden_test(test_name: str) -> None:
     verify(output.getvalue(), namer=ApprovalNamer(f'{base_path}.output'))
 
 
-def test_grammar():
+def test_goldens():
     run_golden_test('grammar')
-
-
-def test_simple_function():
     run_golden_test('simple_function')
-
-
-def test_function_error():
     run_golden_test('function_error')
-
-
-def test_simple_class():
     run_golden_test('simple_class')
-
-
-def test_sum():
     run_golden_test('sum')
-
-
-def test_collatz_conjecture():
     run_golden_test('collatz_conjecture')
-
-
-def test_type_constructions():
     run_golden_test('type_constructions')
-
-
-def test_fibonacci():
     run_golden_test('fibonacci')

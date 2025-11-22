@@ -146,6 +146,13 @@ class AstGenerator:
             locate(term.location, return_stmt)
             return [return_stmt]
 
+        if isinstance(term, terms.Delete):
+            delete_stmt = ast.Delete(
+                targets=[self.generate_expr(t, setting) for t in term.targets],
+            )
+            locate(term.location, delete_stmt)
+            return [delete_stmt]
+
         if isinstance(term, terms.Assign):
             assign_stmt = ast.Assign(
                 targets=[self.generate_expr(t, setting) for t in term.targets],
@@ -249,6 +256,14 @@ class AstGenerator:
             op = ast.UnaryOp(op=UNARY_OP_MAP[term.op], operand=self.generate_expr(term.operand, setting))
             locate(term.location, op)
             return op
+
+        if isinstance(term, terms.Dict):
+            dict_expr = ast.Dict(
+                keys=[self.generate_expr(k, setting) for k in term.keys],
+                values=[self.generate_expr(v, setting) for v in term.values],
+            )
+            locate(term.location, dict_expr)
+            return dict_expr
 
         if isinstance(term, terms.Compare):
             compare = ast.Compare(

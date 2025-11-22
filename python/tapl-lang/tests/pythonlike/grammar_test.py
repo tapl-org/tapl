@@ -183,6 +183,17 @@ def test_simple_stmt__pass():
     assert actual == expected
 
 
+def test_simple_stmt__del():
+    actual = parse_expr('del my_var', rn.SIMPLE_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.Delete(
+        location=create_loc(1, 0, 1, 10),
+        targets=[
+            terms.TypedName(location=create_loc(1, 4, 1, 10), id='my_var', ctx='delete', mode=terms.MODE_EVALUATE)
+        ],
+    )
+    assert actual == expected
+
+
 def test_import_name__single():
     actual = parse_expr('import module_name', rn.IMPORT_NAME)
     expected = terms.Import(
@@ -242,6 +253,60 @@ def test_raise__no_expression():
         location=create_loc(1, 0, 1, 5),
         exception=syntax.Empty,
         cause=syntax.Empty,
+    )
+    assert actual == expected
+
+
+def test_del_stmt__single_target():
+    actual = parse_expr('del x', rn.DEL_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.Delete(
+        location=create_loc(1, 0, 1, 5),
+        targets=[terms.TypedName(location=create_loc(1, 4, 1, 5), id='x', ctx='delete', mode=terms.MODE_EVALUATE)],
+    )
+    assert actual == expected
+
+
+def test_del_stmt__multi_targets():
+    actual = parse_expr('del a, b, c', rn.DEL_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.Delete(
+        location=create_loc(1, 0, 1, 11),
+        targets=[
+            terms.TypedName(location=create_loc(1, 4, 1, 5), id='a', ctx='delete', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 7, 1, 8), id='b', ctx='delete', mode=terms.MODE_EVALUATE),
+            terms.TypedName(location=create_loc(1, 10, 1, 11), id='c', ctx='delete', mode=terms.MODE_EVALUATE),
+        ],
+    )
+    assert actual == expected
+
+
+def test_del_stmt__attribute():
+    actual = parse_expr('del obj.attr', rn.DEL_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.Delete(
+        location=create_loc(1, 0, 1, 12),
+        targets=[
+            terms.Attribute(
+                location=create_loc(1, 3, 1, 12),
+                value=terms.TypedName(location=create_loc(1, 4, 1, 7), id='obj', ctx='load', mode=terms.MODE_EVALUATE),
+                attr='attr',
+                ctx='delete',
+            )
+        ],
+    )
+    assert actual == expected
+
+
+def test_del_stmt__subscript():
+    actual = parse_expr('del d[1]', rn.DEL_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.Delete(
+        location=create_loc(1, 0, 1, 8),
+        targets=[
+            terms.Subscript(
+                location=create_loc(1, 3, 1, 8),
+                value=terms.TypedName(location=create_loc(1, 4, 1, 5), id='d', ctx='load', mode=terms.MODE_EVALUATE),
+                slice=terms.IntegerLiteral(location=create_loc(1, 6, 1, 7), value=1),
+                ctx='delete',
+            )
+        ],
     )
     assert actual == expected
 
@@ -788,37 +853,40 @@ def test_double_starred_kvpairs__trailing_comma():
 
 def test_dict__empty():
     actual = parse_expr('{}', rn.DICT, mode=terms.MODE_EVALUATE)
-    expected = terms.Dict(
+    expected = terms.TypedDict(
         location=create_loc(1, 0, 1, 2),
         keys=[],
         values=[],
+        mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
 
 
 def test_dict__single():
     actual = parse_expr("{'a': 1}", rn.DICT, mode=terms.MODE_EVALUATE)
-    expected = terms.Dict(
+    expected = terms.TypedDict(
         location=create_loc(1, 0, 1, 8),
         keys=[terms.StringLiteral(location=create_loc(1, 1, 1, 4), value='a')],
         values=[terms.IntegerLiteral(location=create_loc(1, 6, 1, 7), value=1)],
+        mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
 
 
 def test_dict__traling_comma():
     actual = parse_expr("{'a': 1,}", rn.DICT, mode=terms.MODE_EVALUATE)
-    expected = terms.Dict(
+    expected = terms.TypedDict(
         location=create_loc(1, 0, 1, 9),
         keys=[terms.StringLiteral(location=create_loc(1, 1, 1, 4), value='a')],
         values=[terms.IntegerLiteral(location=create_loc(1, 6, 1, 7), value=1)],
+        mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
 
 
 def test_dict__multi():
     actual = parse_expr("{'a': 1, 'b': 2}", rn.DICT, mode=terms.MODE_EVALUATE)
-    expected = terms.Dict(
+    expected = terms.TypedDict(
         location=create_loc(1, 0, 1, 16),
         keys=[
             terms.StringLiteral(location=create_loc(1, 1, 1, 4), value='a'),
@@ -828,6 +896,7 @@ def test_dict__multi():
             terms.IntegerLiteral(location=create_loc(1, 6, 1, 7), value=1),
             terms.IntegerLiteral(location=create_loc(1, 14, 1, 15), value=2),
         ],
+        mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
 

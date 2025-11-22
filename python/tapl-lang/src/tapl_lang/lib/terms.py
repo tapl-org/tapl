@@ -123,6 +123,20 @@ class Return(syntax.Term):
 
 
 @dataclass
+class Delete(syntax.Term):
+    location: syntax.Location
+    targets: list[syntax.Term]
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.targets
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(lambda layer: Delete(location=self.location, targets=[layer(t) for t in self.targets]))
+
+
+@dataclass
 class Assign(syntax.Term):
     location: syntax.Location
     targets: list[syntax.Term]
@@ -976,6 +990,64 @@ class TypedList(syntax.Term):
                     mode=self.mode,
                 ),
                 args=self.elements,
+                keywords=[],
+            )
+        raise tapl_error.UnhandledError
+
+
+@dataclass
+class TypedDict(syntax.Term):
+    location: syntax.Location
+    keys: list[syntax.Term]
+    values: list[syntax.Term]
+    mode: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.keys
+        yield from self.values
+        yield self.mode
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: TypedDict(
+                location=self.location,
+                keys=[layer(k) for k in self.keys],
+                values=[layer(v) for v in self.values],
+                mode=layer(self.mode),
+            )
+        )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is MODE_EVALUATE:
+            return Dict(
+                location=self.location,
+                keys=self.keys,
+                values=self.values,
+            )
+        if self.mode is MODE_TYPECHECK:
+            return Call(
+                location=self.location,
+                func=Path(
+                    location=self.location,
+                    names=['tapl_typing', 'create_typed_dict'],
+                    ctx='load',
+                    mode=self.mode,
+                ),
+                args=[
+                    List(
+                        location=self.location,
+                        elements=self.keys,
+                        ctx='load',
+                    ),
+                    List(
+                        location=self.location,
+                        elements=self.values,
+                        ctx='load',
+                    ),
+                ],
                 keywords=[],
             )
         raise tapl_error.UnhandledError

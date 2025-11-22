@@ -2,7 +2,7 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from tapl_lang.lib import dynamic_attributes, typelib
+from tapl_lang.lib import typelib
 
 Types = {
     'Any': typelib.Any(),
@@ -13,7 +13,6 @@ Types = {
     'Float': typelib.Record(fields={}, title='Float'),
     'Str': typelib.Record(fields={}, title='Str'),
 }
-TypeConstructors = {}
 
 Any = Types['Any']
 Nothing = Types['Nothing']
@@ -94,12 +93,13 @@ _init_record(
 _init_record(Str, {'__hash__sa': ([], Int), '__eq__sa': ([Str], Bool), 'isalpha': ([], Bool), 'isdigit': ([], Bool)})
 
 
-def create_list_type(
-    element_type: dynamic_attributes.DynamicAttributeMixin,
-) -> dynamic_attributes.DynamicAttributeMixin:
+def create_list_type(element_type):
     methods = {
         'append': ([element_type], NoneType),
         '__len__': ([], Int),
+        '__getitem__': ([Int], element_type),
+        '__setitem__': ([Int, element_type], NoneType),
+        '__delitem__': ([Int], NoneType),
     }
     return typelib.Record(
         fields=_init_methods(methods),
@@ -107,4 +107,23 @@ def create_list_type(
     )
 
 
-TypeConstructors['List'] = create_list_type
+def create_dict_type(key_type, value_type):
+    methods = {
+        'get': ([key_type], value_type),
+        'set': ([key_type, value_type], NoneType),
+        'delete': ([key_type], NoneType),
+        '__len__': ([], Int),
+        '__getitem__': ([key_type], value_type),
+        '__setitem__': ([key_type, value_type], NoneType),
+        '__delitem__': ([key_type], NoneType),
+    }
+    return typelib.Record(
+        fields=_init_methods(methods),
+        title=f'Dict[{key_type}, {value_type}]',
+    )
+
+
+# TODO: Enable type constructors when needed.
+# TypeConstructors = {}
+# TypeConstructors['List'] = create_list_type
+# TypeConstructors['Dict'] = create_dict_type

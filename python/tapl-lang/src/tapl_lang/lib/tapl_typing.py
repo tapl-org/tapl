@@ -16,3 +16,4 @@ create_function = typelib.create_function
 create_class = utils.create_class
 create_dynamic_variables = utils.create_dynamic_variables
 create_typed_list = utils.create_typed_list
+create_typed_dict = utils.create_typed_dict
