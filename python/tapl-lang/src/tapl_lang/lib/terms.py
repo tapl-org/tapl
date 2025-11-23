@@ -442,7 +442,7 @@ class BoolOp(syntax.Term):
             lambda layer: BoolOp(location=self.location, operator=self.operator, values=[layer(v) for v in self.values])
         )
 
-
+# TODO: target of ast.NamedExpr accepts only ast.Name. This prevents us to assign attributes like s0.name := s0.Int. Figure out how to support that.
 @dataclass
 class NamedExpr(syntax.Term):
     location: syntax.Location
