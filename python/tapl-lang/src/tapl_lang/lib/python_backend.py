@@ -191,14 +191,21 @@ class AstGenerator:
             return [if_stmt]
 
         if isinstance(term, terms.With):
-            with_stmt = ast.With(
-                items=[
-                    ast.withitem(
-                        context_expr=self.generate_expr(item.context_expr, setting),
-                        optional_vars=self.generate_expr(item.optional_vars, setting) if item.optional_vars else None,
+            items = []
+            for item in term.items:
+                if isinstance(item, terms.WithItem):
+                    items.append(
+                        ast.withitem(
+                            context_expr=self.generate_expr(item.context_expr, setting),
+                            optional_vars=self.generate_expr(item.optional_vars, setting),
+                        )
                     )
-                    for item in term.items
-                ],
+                else:
+                    raise tapl_error.TaplError(
+                        f'Unsupported with item type: {item.__class__.__name__} in python backend.'
+                    )
+            with_stmt = ast.With(
+                items=items,
                 body=self.generate_stmt(term.body, setting),
                 type_comment=None,
             )

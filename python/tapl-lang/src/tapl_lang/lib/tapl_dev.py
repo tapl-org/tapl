@@ -14,3 +14,14 @@ class TaplDev:
     def print_type(self, type_) -> None:
         if self.layer_index == TYPECHECK_LAYER_INDEX:
             self.print(repr(type_))
+
+    # TODO: Improve error matching.
+    def catch_error(self, func, error_layers):
+        if error_layers[self.layer_index]:
+            try:
+                func()
+            except Exception as e:
+                if repr(e) != error_layers[self.layer_index]:
+                    raise
+                return
+            raise RuntimeError('Expected an error but none was raised.')

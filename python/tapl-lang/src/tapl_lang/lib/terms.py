@@ -235,23 +235,34 @@ class If(syntax.Term):
 
 
 @dataclass
-class WithItem:
+class WithItem(syntax.Term):
     context_expr: syntax.Term
-    optional_vars: syntax.Term | None = None
+    optional_vars: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.context_expr
+        yield self.optional_vars
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: WithItem(
+                context_expr=layer(self.context_expr),
+                optional_vars=layer(self.optional_vars),
+            )
+        )
 
 
 @dataclass
 class With(syntax.Term):
     location: syntax.Location
-    items: list[WithItem]
+    items: list[syntax.Term]
     body: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
-        for item in self.items:
-            yield item.context_expr
-            if item.optional_vars is not None:
-                yield item.optional_vars
+        yield from self.items
         yield self.body
 
     @override
@@ -259,13 +270,7 @@ class With(syntax.Term):
         return ls.build(
             lambda layer: With(
                 location=self.location,
-                items=[
-                    WithItem(
-                        context_expr=layer(t.context_expr),
-                        optional_vars=layer(t.optional_vars) if t.optional_vars is not None else None,
-                    )
-                    for t in self.items
-                ],
+                items=[layer(i) for i in self.items],
                 body=layer(self.body),
             )
         )
@@ -1466,6 +1471,48 @@ class ElseSibling(syntax.SiblingTerm):
             previous_siblings.append(error)
         else:
             term.orelse = self.body
+
+
+@dataclass
+class TypedWith(syntax.Term):
+    location: syntax.Location
+    items: list[syntax.Term]
+    body: syntax.Term
+    mode: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.items
+        yield self.body
+        yield self.mode
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: TypedWith(
+                location=self.location,
+                items=[layer(i) for i in self.items],
+                body=layer(self.body),
+                mode=layer(self.mode),
+            )
+        )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        # TODO: Differentiate behavior between EVALUATE and TYPECHECK modes if needed, otherwise remove TypedWith
+        if self.mode is MODE_EVALUATE:
+            return With(
+                location=self.location,
+                items=self.items,
+                body=self.body,
+            )
+        if self.mode is MODE_TYPECHECK:
+            return With(
+                location=self.location,
+                items=self.items,
+                body=self.body,
+            )
+        raise tapl_error.UnhandledError
 
 
 @dataclass

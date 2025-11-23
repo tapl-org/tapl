@@ -26,13 +26,24 @@ d=dropped for mvp
             | function_def |> function_def_raw
             | if_stmt
             | class_def |> class_def_raw
-d           | with_stmt
+            | with_stmt
             | for_stmt
             | try_stmt
             | while_stmt
 d           | match_stmt
 ?       function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'  # TODO: implement [type_params]
 ?       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':' # TODO: implement [type_params] and arguments
+        with_stmt:
+d           | invalid_with_stmt_indent
+d           | 'with' '(','.with_item+ [','] ')' ':' block
+            | 'with' ','.with_item+ ':' block
+d           | 'async' 'with' '(','.with_item+ [','] ')' ':' block
+d           | 'async' 'with' ','.with_item+ ':' block
+d           | invalid_with_item
+        with_item:
+            | expression 'as' star_target &(',' | ')' | ':')
+d           | invalid_with_item
+            | expression
         if_stmt:
 d           | invalid_if_stmt
             | 'if' named_expression ':' block elif_stmt
@@ -266,7 +277,7 @@ def get_grammar() -> parser.Grammar:
             rn.DEL_STMT,
         ],
     )
-    add(rn.COMPOUND_STMT, [rn.FUNCTION_DEF, rn.IF_STMT, rn.CLASS_DEF, rn.FOR_STMT, rn.WHILE_STMT])
+    add(rn.COMPOUND_STMT, [rn.FUNCTION_DEF, rn.IF_STMT, rn.CLASS_DEF, rn.WITH_STMT, rn.FOR_STMT, rn.WHILE_STMT])
 
     # SIMPLE STATEMENTS
     # =================
@@ -348,8 +359,8 @@ def get_grammar() -> parser.Grammar:
 
     # With statement
     # --------------
-    add(rn.WITH_STMT, [])
-    add(rn.WITH_ITEM, [])
+    add(rn.WITH_STMT, [_parse_with_stmt__normal])
+    add(rn.WITH_ITEM, [_parse_with_item__as, _parse_with_item__expression])
 
     # Try statement
     # -------------
@@ -1623,6 +1634,52 @@ def _parse_for_stmt(c: Cursor) -> syntax.Term:
             orelse=syntax.Empty,
             mode=c.context.mode,
         )
+    return t.fail()
+
+
+def _scan_with_items(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(first_item := c.consume_rule(rn.WITH_ITEM)):
+        items = [first_item]
+        k = c.clone()
+        while t.validate(_consume_punct(k, ',')) and t.validate(next_item := k.consume_rule(rn.WITH_ITEM)):
+            c.copy_position_from(k)
+            items.append(next_item)
+        return t.captured_error or syntax.TermList(terms=items)
+    return t.fail()
+
+
+def _parse_with_stmt__normal(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(_consume_keyword(c, 'with'))
+        and t.validate(items := _scan_with_items(c))
+        and t.validate(_expect_punct(c, ':'))
+    ):
+        return terms.TypedWith(
+            location=t.location,
+            items=cast(syntax.TermList, items).terms,
+            body=syntax.TermList(terms=[], is_placeholder=True),
+            mode=c.context.mode,
+        )
+    return t.fail()
+
+
+def _parse_with_item__as(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(context_expr := c.consume_rule(rn.EXPRESSION))
+        and t.validate(_consume_keyword(c, 'as'))
+        and t.validate(optional_vars := _expect_rule(c, rn.STAR_TARGET))
+    ):
+        return terms.WithItem(context_expr=context_expr, optional_vars=optional_vars)
+    return t.fail()
+
+
+def _parse_with_item__expression(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(context_expr := c.consume_rule(rn.EXPRESSION)):
+        return terms.WithItem(context_expr=context_expr, optional_vars=syntax.Empty)
     return t.fail()
 
 

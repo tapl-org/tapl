@@ -1468,3 +1468,67 @@ def test_while_stmt__named():
         mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
+
+
+def test_with_stmt__no_as():
+    actual = parse_expr('with resource:', rn.WITH_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedWith(
+        location=create_loc(1, 0, 1, 14),
+        items=[
+            terms.WithItem(
+                context_expr=terms.TypedName(
+                    location=create_loc(1, 5, 1, 13), id='resource', ctx='load', mode=terms.MODE_EVALUATE
+                ),
+                optional_vars=syntax.Empty,
+            ),
+        ],
+        body=syntax.TermList(terms=[], is_placeholder=True),
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
+
+
+def test_with_stmt__simple():
+    actual = parse_expr('with resource as res:', rn.WITH_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedWith(
+        location=create_loc(1, 0, 1, 21),
+        items=[
+            terms.WithItem(
+                context_expr=terms.TypedName(
+                    location=create_loc(1, 5, 1, 13), id='resource', ctx='load', mode=terms.MODE_EVALUATE
+                ),
+                optional_vars=terms.TypedName(
+                    location=create_loc(1, 17, 1, 20), id='res', ctx='store', mode=terms.MODE_EVALUATE
+                ),
+            ),
+        ],
+        body=syntax.TermList(terms=[], is_placeholder=True),
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected
+
+
+def test_with_stmt__multiple_items():
+    actual = parse_expr('with res1, res2 as r2:', rn.WITH_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedWith(
+        location=create_loc(1, 0, 1, 22),
+        items=[
+            terms.WithItem(
+                context_expr=terms.TypedName(
+                    location=create_loc(1, 5, 1, 9), id='res1', ctx='load', mode=terms.MODE_EVALUATE
+                ),
+                optional_vars=syntax.Empty,
+            ),
+            terms.WithItem(
+                context_expr=terms.TypedName(
+                    location=create_loc(1, 11, 1, 15), id='res2', ctx='load', mode=terms.MODE_EVALUATE
+                ),
+                optional_vars=terms.TypedName(
+                    location=create_loc(1, 19, 1, 21), id='r2', ctx='store', mode=terms.MODE_EVALUATE
+                ),
+            ),
+        ],
+        body=syntax.TermList(terms=[], is_placeholder=True),
+        mode=terms.MODE_EVALUATE,
+    )
+    assert actual == expected

@@ -206,6 +206,27 @@ s0.print(s0.b)
     )
 
 
+def test_with_stmt():
+    [stmt1, stmt2] = parse_module("""
+with context() as b:
+    b.do_something()
+""")
+    assert (
+        ast.unparse(stmt1)
+        == """
+with context() as b:
+    b.do_something()
+""".strip()
+    )
+    assert (
+        ast.unparse(stmt2)
+        == """
+with s0.context() as s0.b:
+    s0.b.do_something()
+""".strip()
+    )
+
+
 def test_class1():
     [stmt1, stmt2] = parse_module("""
 class Circle:
