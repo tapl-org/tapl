@@ -209,3 +209,6 @@ class DynamicAttributeMixin:
 
     def __delitem__(self__sa, key):
         return self__sa.load__sa('__delitem__')(key)
+
+    def __contains__(self__sa, item):
+        return self__sa.load__sa('__contains__')(item)

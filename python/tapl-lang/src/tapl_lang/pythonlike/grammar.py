@@ -1143,7 +1143,7 @@ def _parse_set(c: Cursor) -> syntax.Term:
         and t.validate(elements := c.consume_rule(rn.STAR_NAMED_EXPRESSIONS))
         and t.validate(_consume_punct(c, '}'))
     ):
-        return terms.Set(location=t.location, elements=cast(syntax.TermList, elements).terms)
+        return terms.TypedSet(location=t.location, elements=cast(syntax.TermList, elements).terms, mode=c.context.mode)
     return t.fail()
 
 

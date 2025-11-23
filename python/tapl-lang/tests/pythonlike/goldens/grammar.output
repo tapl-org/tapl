@@ -5,6 +5,9 @@ Str
 List[Int]
 Int
 List[Int]
+Set[Int]
+Str
+Set[Int]
 Dict[Str, Str]
 Str
 Dict[Str, Str]
@@ -22,6 +25,9 @@ Finished try-except block.
 [1, 2, 3]
 2
 [2, 42]
+{1, 2, 3}
+2 is in the set
+{2, 3, 4}
 {'key1': 'value1', 'key2': 'value2'}
 value1
 {'key2': 'new_value2'}

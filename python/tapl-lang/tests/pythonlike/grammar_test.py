@@ -775,13 +775,14 @@ def test_list__multi():
 
 def test_set():
     actual = parse_expr('{x, y, z}', rn.SET, mode=terms.MODE_EVALUATE)
-    expected = terms.Set(
+    expected = terms.TypedSet(
         location=create_loc(1, 0, 1, 9),
         elements=[
             terms.TypedName(location=create_loc(1, 1, 1, 2), id='x', ctx='load', mode=terms.MODE_EVALUATE),
             terms.TypedName(location=create_loc(1, 4, 1, 5), id='y', ctx='load', mode=terms.MODE_EVALUATE),
             terms.TypedName(location=create_loc(1, 7, 1, 8), id='z', ctx='load', mode=terms.MODE_EVALUATE),
         ],
+        mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
 

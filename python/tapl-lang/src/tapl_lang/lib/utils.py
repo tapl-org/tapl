@@ -104,6 +104,16 @@ def create_typed_list(*element_types):
     return bt.create_list_type(element_type)
 
 
+def create_typed_set(*element_types):
+    if len(element_types) == 0:
+        element_type = bt.Any
+    elif len(element_types) == 1:
+        element_type = element_types[0]
+    else:
+        element_type = typelib.create_union(*element_types)
+    return bt.create_set_type(element_type)
+
+
 def create_typed_dict(keys, values):
     if len(keys) != len(values):
         raise ValueError('Keys and values must have the same length.')

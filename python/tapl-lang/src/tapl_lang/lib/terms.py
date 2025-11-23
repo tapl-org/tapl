@@ -1053,6 +1053,46 @@ class TypedList(syntax.Term):
 
 
 @dataclass
+class TypedSet(syntax.Term):
+    location: syntax.Location
+    elements: list[syntax.Term]
+    mode: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield from self.elements
+        yield self.mode
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: TypedSet(
+                location=self.location,
+                elements=[layer(e) for e in self.elements],
+                mode=layer(self.mode),
+            )
+        )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is MODE_EVALUATE:
+            return Set(location=self.location, elements=self.elements)
+        if self.mode is MODE_TYPECHECK:
+            return Call(
+                location=self.location,
+                func=Path(
+                    location=self.location,
+                    names=['tapl_typing', 'create_typed_set'],
+                    ctx='load',
+                    mode=self.mode,
+                ),
+                args=self.elements,
+                keywords=[],
+            )
+        raise tapl_error.UnhandledError
+
+
+@dataclass
 class TypedDict(syntax.Term):
     location: syntax.Location
     keys: list[syntax.Term]

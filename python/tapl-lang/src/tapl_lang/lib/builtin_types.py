@@ -107,6 +107,19 @@ def create_list_type(element_type):
     )
 
 
+def create_set_type(element_type):
+    methods = {
+        'add': ([element_type], NoneType),
+        'remove': ([element_type], NoneType),
+        '__len__': ([], Int),
+        '__contains__': ([element_type], Bool),
+    }
+    return typelib.Record(
+        fields=_init_methods(methods),
+        title=f'Set[{element_type}]',
+    )
+
+
 def create_dict_type(key_type, value_type):
     methods = {
         'get': ([key_type], value_type),

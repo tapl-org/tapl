@@ -299,6 +299,11 @@ class AstGenerator:
             locate(term.location, dict_expr)
             return dict_expr
 
+        if isinstance(term, terms.Set):
+            set_expr = ast.Set(elts=[self.generate_expr(elt, setting) for elt in term.elements])
+            locate(term.location, set_expr)
+            return set_expr
+
         if isinstance(term, terms.Compare):
             compare = ast.Compare(
                 left=self.generate_expr(term.left, setting),

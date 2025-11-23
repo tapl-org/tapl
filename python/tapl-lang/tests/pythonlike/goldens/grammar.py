@@ -18,6 +18,13 @@ tapl_dev.print(c[1])
 c[2] = 42
 del c[0]
 tapl_dev.print(c)
+s = {1, 2, 2, 3}
+tapl_dev.print(s)
+if 2 in s:
+    tapl_dev.print('2 is in the set')
+s.add(4)
+s.remove(1)
+tapl_dev.print(s)
 dict_obj = {'key1': 'value1', 'key2': 'value2'}
 tapl_dev.print(dict_obj)
 value = dict_obj['key1']
