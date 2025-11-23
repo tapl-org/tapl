@@ -32,3 +32,4 @@ tapl_dev.print(dict_obj['key1'])
 dict_obj['key2'] = 'new_value2'
 del dict_obj['key1']
 tapl_dev.print(dict_obj)
+print('Double quotes string')

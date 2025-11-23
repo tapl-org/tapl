@@ -31,3 +31,4 @@ s0.tapl_dev.print(s0.dict_obj[s0.Str])
 s0.dict_obj[s0.Str] = s0.Str
 del s0.dict_obj[s0.Str]
 s0.tapl_dev.print(s0.dict_obj)
+s0.print(s0.Str)

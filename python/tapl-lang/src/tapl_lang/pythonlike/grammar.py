@@ -819,11 +819,11 @@ def _parse_token(c: Cursor) -> syntax.Term:
             location=tracker.location,
         )
 
-    def scan_string() -> syntax.Term:
+    def scan_string(quote: str) -> syntax.Term:
         result = ''
         if c.is_end():
             return unterminated_string()
-        while (char := c.current_char()) != "'":
+        while (char := c.current_char()) != quote:
             result += char
             c.move_to_next()
             if c.is_end():
@@ -874,8 +874,8 @@ def _parse_token(c: Cursor) -> syntax.Term:
     c.move_to_next()
     if char.isalpha() or char == '_':
         return scan_name(char)
-    if char == "'":
-        return scan_string()
+    if char in ("'", '"'):
+        return scan_string(char)
     if char.isdigit():
         return scan_number(char)
     if char in _PUNCT_SET:

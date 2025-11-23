@@ -661,7 +661,6 @@ def test_atom__none():
     assert actual == expected
 
 
-# TODO: String literal should support double quotes and multi-line strings.
 def test_atom__string():
     actual = parse_expr("'hello, world!'", rn.ATOM)
     expected = terms.StringLiteral(location=create_loc(1, 0, 1, 15), value='hello, world!')

@@ -31,6 +31,7 @@ Finished try-except block.
 {'key1': 'value1', 'key2': 'value2'}
 value1
 {'key2': 'new_value2'}
+Double quotes string
 
 ------ stderr:
 
