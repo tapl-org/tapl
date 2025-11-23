@@ -1836,6 +1836,57 @@ class FinallySibling(syntax.SiblingTerm):
 
 
 @dataclass
+class TypedImport(syntax.Term):
+    location: syntax.Location
+    names: list[Alias]
+    mode: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.mode
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: TypedImport(
+                location=self.location,
+                names=self.names,
+                mode=layer(self.mode),
+            )
+        )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is MODE_EVALUATE:
+            return Import(location=self.location, names=self.names)
+        if self.mode is MODE_TYPECHECK:
+            if len(self.names) > 1:
+                raise tapl_error.TaplError(
+                    'Import does not support multiple names yet.'
+                )  # TODO: Support multiple names
+            return Assign(
+                location=self.location,
+                targets=[
+                    TypedName(
+                        location=self.location,
+                        id=self.names[0].asname or self.names[0].name,
+                        ctx='store',
+                        mode=self.mode,
+                    )
+                ],
+                value=Call(
+                    location=self.location,
+                    func=Path(
+                        location=self.location, names=['tapl_typing', 'import_module'], ctx='load', mode=self.mode
+                    ),
+                    args=[Constant(location=self.location, value=f'{self.names[0].name}1')],
+                    keywords=[],
+                ),
+            )
+        raise tapl_error.UnhandledError
+
+
+@dataclass
 class TypedClassDef(syntax.Term):
     location: syntax.Location
     name: str

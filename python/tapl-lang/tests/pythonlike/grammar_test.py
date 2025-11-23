@@ -147,13 +147,14 @@ def test_simple_stmt__return():
 
 
 def test_simple_stmt__import_name():
-    actual = parse_expr('import math, sys as system', rn.SIMPLE_STMT)
-    expected = terms.Import(
+    actual = parse_expr('import math, sys as system', rn.SIMPLE_STMT, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedImport(
         location=create_loc(1, 0, 1, 26),
         names=[
             terms.Alias(name='math', asname=None),
             terms.Alias(name='sys', asname='system'),
         ],
+        mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
 
@@ -195,44 +196,48 @@ def test_simple_stmt__del():
 
 
 def test_import_name__single():
-    actual = parse_expr('import module_name', rn.IMPORT_NAME)
-    expected = terms.Import(
+    actual = parse_expr('import module_name', rn.IMPORT_NAME, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedImport(
         location=create_loc(1, 0, 1, 18),
         names=[terms.Alias(name='module_name', asname=None)],
+        mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
 
 
 def test_import_name__multiple():
-    actual = parse_expr('import mod1, mod2 as m2, mod3', rn.IMPORT_NAME)
-    expected = terms.Import(
+    actual = parse_expr('import mod1, mod2 as m2, mod3', rn.IMPORT_NAME, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedImport(
         location=create_loc(1, 0, 1, 29),
         names=[
             terms.Alias(name='mod1', asname=None),
             terms.Alias(name='mod2', asname='m2'),
             terms.Alias(name='mod3', asname=None),
         ],
+        mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
 
 
 def test_import_from__path():
-    actual = parse_expr('import a.b.c', rn.IMPORT_NAME)
-    expected = terms.Import(
+    actual = parse_expr('import a.b.c', rn.IMPORT_NAME, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedImport(
         location=create_loc(1, 0, 1, 12),
         names=[terms.Alias(name='a.b.c', asname=None)],
+        mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
 
 
 def test_import_from__path_multiple():
-    actual = parse_expr('import a.b.c as k, d.e', rn.IMPORT_NAME)
-    expected = terms.Import(
+    actual = parse_expr('import a.b.c as k, d.e', rn.IMPORT_NAME, mode=terms.MODE_EVALUATE)
+    expected = terms.TypedImport(
         location=create_loc(1, 0, 1, 22),
         names=[
             terms.Alias(name='a.b.c', asname='k'),
             terms.Alias(name='d.e', asname=None),
         ],
+        mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
 

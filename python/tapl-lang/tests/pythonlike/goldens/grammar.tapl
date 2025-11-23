@@ -1,6 +1,8 @@
 language pythonlike
 
-# TODO: import statements
+# import math
+
+# print(math.pi)
 
 x: Int = 42
 tapl_dev.print(x)

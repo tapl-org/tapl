@@ -1769,7 +1769,7 @@ def _parse_import_name(c: Cursor) -> syntax.Term:
         and isinstance(aliases, syntax.TermList)
     ):
         names = [cast(AliasTerm, term).alias for term in aliases.terms]
-        return terms.Import(location=t.location, names=names)
+        return terms.TypedImport(location=t.location, names=names, mode=c.context.mode)
     return t.fail()
 
 

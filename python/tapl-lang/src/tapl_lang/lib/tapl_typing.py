@@ -2,6 +2,7 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import importlib
 import itertools
 from typing import Any
 
@@ -10,6 +11,12 @@ from tapl_lang.lib import dynamic_attributes, scope, typelib
 
 create_union = typelib.create_union
 create_function = typelib.create_function
+
+
+def import_module(module_names: list[str]) -> Any:
+    if len(module_names) != 1:
+        raise ValueError('Only single module import is supported.')
+    return importlib.import_module(module_names[0])
 
 
 def create_scope(
