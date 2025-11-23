@@ -254,3 +254,31 @@ class Circle_:
 s0.Circle, s0.Circle_ = s0.tapl_typing.create_class(cls=Circle_, init_args=[s0.Float], methods=[])
 """.strip()
     )
+
+
+def test_try_stmt():
+    [stmt1, stmt2] = parse_module("""
+try:
+    do_something()
+except SomeError:
+    handle_error()
+finally:
+    cleanup()
+""")
+    assert (
+        ast.unparse(stmt1)
+        == """
+try:
+    do_something()
+except SomeError:
+    handle_error()
+finally:
+    cleanup()
+""".strip()
+    )
+    assert (
+        ast.unparse(stmt2)
+        == """
+s0.do_something()
+""".strip()
+    )

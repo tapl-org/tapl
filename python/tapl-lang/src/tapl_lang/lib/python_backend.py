@@ -212,6 +212,31 @@ class AstGenerator:
             locate(term.location, with_stmt)
             return [with_stmt]
 
+        if isinstance(term, terms.Try):
+            handlers = []
+            for h in term.handlers:
+                if isinstance(h, terms.ExceptHandler):
+                    optional_name = h.name(setting) if callable(h.name) else h.name
+                    handlers.append(
+                        ast.ExceptHandler(
+                            type=self.generate_expr(h.exception_type, setting) if h.exception_type else None,
+                            name=optional_name,
+                            body=self.generate_stmt(h.body, setting),
+                        )
+                    )
+                else:
+                    raise tapl_error.TaplError(
+                        f'Unsupported except handler type: {h.__class__.__name__} in python backend.'
+                    )
+            try_stmt = ast.Try(
+                body=self.generate_stmt(term.body, setting),
+                handlers=handlers,
+                orelse=self.generate_stmt(term.orelse, setting),
+                finalbody=self.generate_stmt(term.finalbody, setting),
+            )
+            locate(term.location, try_stmt)
+            return [try_stmt]
+
         if isinstance(term, terms.Import):
             import_stmt = ast.Import(names=[ast.alias(name=n.name, asname=n.asname) for n in term.names])
             locate(term.location, import_stmt)

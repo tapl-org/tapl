@@ -299,6 +299,58 @@ class Raise(syntax.Term):
 
 
 @dataclass
+class Try(syntax.Term):
+    location: syntax.Location
+    body: syntax.Term
+    handlers: list[syntax.Term]
+    orelse: syntax.Term
+    finalbody: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.body
+        yield from self.handlers
+        yield self.orelse
+        yield self.finalbody
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: Try(
+                location=self.location,
+                body=layer(self.body),
+                handlers=[layer(h) for h in self.handlers],
+                orelse=layer(self.orelse),
+                finalbody=layer(self.finalbody),
+            )
+        )
+
+
+@dataclass
+class ExceptHandler(syntax.Term):
+    location: syntax.Location
+    exception_type: syntax.Term
+    name: Identifier | None
+    body: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.exception_type
+        yield self.body
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: ExceptHandler(
+                location=self.location,
+                exception_type=layer(self.exception_type),
+                name=self.name,
+                body=layer(self.body),
+            )
+        )
+
+
+@dataclass
 class Alias:
     name: str
     asname: str | None = None
@@ -1639,6 +1691,107 @@ class TypedFor(syntax.Term):
         if self.mode is MODE_TYPECHECK:
             return self.codegen_typecheck()
         raise tapl_error.UnhandledError
+
+
+@dataclass
+class TypedTry(syntax.Term):
+    location: syntax.Location
+    body: syntax.Term
+    handlers: list[syntax.Term]
+    finalbody: syntax.Term
+    mode: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.body
+        yield from self.handlers
+        yield self.finalbody
+        yield self.mode
+
+    @override
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: TypedTry(
+                location=self.location,
+                body=layer(self.body),
+                handlers=[layer(h) for h in self.handlers],
+                finalbody=layer(self.finalbody),
+                mode=layer(self.mode),
+            )
+        )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is MODE_EVALUATE:
+            return Try(
+                location=self.location,
+                body=self.body,
+                handlers=self.handlers,
+                orelse=syntax.Empty,
+                finalbody=self.finalbody,
+            )
+        if self.mode is MODE_TYPECHECK:
+            # TODO: Implement type checking for Try statement's except and finally clauses
+            return self.body
+        raise tapl_error.UnhandledError
+
+
+@dataclass
+class ExceptSibling(syntax.SiblingTerm):
+    location: syntax.Location
+    exception_type: syntax.Term
+    name: str | None
+    body: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.exception_type
+        yield self.body
+
+    @override
+    def integrate_into(self, previous_siblings: list[syntax.Term]) -> None:
+        term = previous_siblings[-1]
+        if isinstance(term, syntax.ErrorTerm):
+            return
+        if not isinstance(term, TypedTry):
+            error = syntax.ErrorTerm(
+                'Except can only be integrated into typed Try.' + repr(term), location=self.location
+            )
+            previous_siblings.append(error)
+        else:
+            handler = ExceptHandler(
+                location=self.location,
+                exception_type=self.exception_type,
+                name=self.name,
+                body=self.body,
+            )
+            term.handlers.append(handler)
+
+
+@dataclass
+class FinallySibling(syntax.SiblingTerm):
+    location: syntax.Location
+    body: syntax.Term
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.body
+
+    @override
+    def integrate_into(self, previous_siblings: list[syntax.Term]) -> None:
+        term = previous_siblings[-1]
+        if isinstance(term, syntax.ErrorTerm):
+            return
+        if not isinstance(term, TypedTry):
+            error = syntax.ErrorTerm(
+                'Finally can only be integrated into typed Try.' + repr(term), location=self.location
+            )
+            previous_siblings.append(error)
+        elif term.finalbody is not syntax.Empty:
+            error = syntax.ErrorTerm('A Try statement can only have one Finally clause.', location=self.location)
+            previous_siblings.append(error)
+        else:
+            term.finalbody = self.body
 
 
 @dataclass
