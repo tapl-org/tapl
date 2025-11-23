@@ -12,12 +12,6 @@ class TaplDev:
         self.layer_index = layer_index
         self.print = print
 
-    def is_evaluate_layer(self) -> bool:
-        return self.layer_index == EVALATE_LAYER_INDEX
-
-    def is_typecheck_layer(self) -> bool:
-        return self.layer_index == TYPECHECK_LAYER_INDEX
-
     def print_type(self, type_) -> None:
         if self.layer_index == TYPECHECK_LAYER_INDEX:
             self.print(repr(type_))

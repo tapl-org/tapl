@@ -197,7 +197,9 @@ class AstGenerator:
                     items.append(
                         ast.withitem(
                             context_expr=self.generate_expr(item.context_expr, setting),
-                            optional_vars=self.generate_expr(item.optional_vars, setting),
+                            optional_vars=None
+                            if item.optional_vars is syntax.Empty
+                            else self.generate_expr(item.optional_vars, setting),
                         )
                     )
                 else:
