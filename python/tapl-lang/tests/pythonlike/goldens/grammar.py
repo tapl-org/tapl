@@ -4,6 +4,13 @@ tapl_dev.print(x)
 a = b = 'hello'
 tapl_dev.print(a)
 tapl_dev.print(b)
+f = 0.1
+try:
+    f = 1 / 0
+except ZeroDivisionError:
+    tapl_dev.print('Caught division by zero!')
+finally:
+    tapl_dev.print('Finished try-except block.')
 c = [1, 2, 3]
 tapl_dev.print(c)
 x = c[1]

@@ -17,6 +17,8 @@ Dict[Str, Str]
 42
 hello
 hello
+Caught division by zero!
+Finished try-except block.
 [1, 2, 3]
 2
 [2, 42]

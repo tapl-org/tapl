@@ -5,6 +5,8 @@ s0.tapl_dev.print(s0.x)
 s0.a = s0.b = s0.Str
 s0.tapl_dev.print(s0.a)
 s0.tapl_dev.print(s0.b)
+s0.f = s0.Float
+s0.f = s0.Int / s0.Int
 s0.c = s0.tapl_typing.create_typed_list(s0.Int, s0.Int, s0.Int)
 s0.tapl_dev.print(s0.c)
 s0.x = s0.c[s0.Int]
