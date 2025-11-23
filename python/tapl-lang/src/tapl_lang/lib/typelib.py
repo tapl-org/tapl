@@ -103,7 +103,7 @@ class BaseType(dynamic_attributes.DynamicAttributeMixin):
         return 'BaseType'
 
 
-# TODO: implement '|' operator for Union and '&' operator for Intersection
+# TODO: implement '&' operator for Intersection
 # TODO: what happens when these operators are used for binary operation instead of type construction?
 # e.g., T1 | T2, T1 & T2
 # Exception for binary-operator methods in Python; not intended for direct use.
