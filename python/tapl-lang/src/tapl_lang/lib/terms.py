@@ -1327,7 +1327,7 @@ class TypedFunctionDef(syntax.Term):
             decorator_list=[],
         )
 
-    def unfold_typecheck_main(self) -> syntax.Term:
+    def unfold_typecheck_main(self, *, is_method: bool = False) -> syntax.Term:
         def nested_scope(nested_term: syntax.Term) -> syntax.Term:
             return syntax.BackendSettingTerm(
                 backend_setting_changer=syntax.BackendSettingChanger(
@@ -1363,6 +1363,9 @@ class TypedFunctionDef(syntax.Term):
         tmp_function: syntax.Term = syntax.Empty
         set_return_type: syntax.Term = syntax.Empty
         if self.return_type is not syntax.Empty:
+            params = [cast(Parameter, p).type_ for p in self.parameters]
+            if is_method:
+                params = params[1:]  # skip 'self' parameter type
             tmp_function = Assign(
                 location=self.location,
                 targets=[TypedName(location=self.location, id=self.name, ctx='store', mode=self.mode)],
@@ -1374,7 +1377,7 @@ class TypedFunctionDef(syntax.Term):
                     args=[
                         List(
                             location=self.location,
-                            elements=[cast(Parameter, p).type_ for p in self.parameters],
+                            elements=params,
                             ctx='load',
                         ),
                         self.return_type,
@@ -1943,7 +1946,7 @@ class TypedClassDef(syntax.Term):
                     constructor_args = item.parameters[1:]
                 else:
                     methods.append(item)
-                body.append(item.unfold_typecheck_main())
+                body.append(item.unfold_typecheck_main(is_method=True))
             else:
                 body.append(item)
         class_stmt = ClassDef(
