@@ -6,6 +6,8 @@ import pytest
 
 from tapl_lang.lib import dynamic_attributes
 
+# TODO: rename test file to dynamic_attributes_test.py
+
 
 class MySubject(dynamic_attributes.DynamicAttributeMixin):
     def __init__(self):

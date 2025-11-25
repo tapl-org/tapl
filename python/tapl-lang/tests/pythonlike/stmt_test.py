@@ -49,6 +49,7 @@ def parse_module(text: str) -> list[ast.AST]:
     ls = syntax.LayerSeparator(2)
     safe_module = compiler.make_safe_term(module)
     layers = ls.build(lambda layer: layer(safe_module))
+    print(layers)
     return [python_backend.AstGenerator().generate_ast(layer, syntax.BackendSetting(scope_level=0)) for layer in layers]
 
 
@@ -232,6 +233,35 @@ def test_class1():
 class Circle:
     def __init__(self, radius: Float):
         self.radius = radius
+""")
+    assert (
+        ast.unparse(stmt1)
+        == """
+class Circle_:
+
+    def __init__(self, radius):
+        self.radius = radius
+""".strip()
+    )
+    assert (
+        ast.unparse(stmt2)
+        == """
+class Circle_:
+
+    def __init__(self, radius):
+        s1 = s0.tapl_typing.create_scope(parent__sa=s0, self=self, radius=radius)
+        s1.self.radius = s1.radius
+        return s1.tapl_typing.get_return_type(s1)
+s0.Circle, s0.Circle_ = s0.tapl_typing.create_class(cls=Circle_, init_args=[s0.Float], methods=[])
+""".strip()
+    )
+
+
+def test_class2():
+    [stmt1, stmt2] = parse_module("""
+class Dog:
+    def bark(self) -> Str:
+        return 'Woof! Woof!'
 """)
     assert (
         ast.unparse(stmt1)

@@ -35,6 +35,7 @@ class Module(syntax.Term):
 # STATEMENTS
 
 # TODO: move the location to the end of the dataclass fields for readability.
+# TODO: dataclasses.field(repr=False) for location fields for readability.
 
 
 @dataclass
@@ -1879,7 +1880,13 @@ class TypedImport(syntax.Term):
                     func=Path(
                         location=self.location, names=['tapl_typing', 'import_module'], ctx='load', mode=self.mode
                     ),
-                    args=[Constant(location=self.location, value=f'{self.names[0].name}1')],
+                    args=[
+                        List(
+                            location=self.location,
+                            elements=[Constant(location=self.location, value=f'{self.names[0].name}1')],
+                            ctx='load',
+                        )
+                    ],
                     keywords=[],
                 ),
             )

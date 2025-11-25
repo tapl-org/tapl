@@ -1,0 +1,5 @@
+language pythonlike
+
+import tests.pythonlike.goldens.simple_class
+
+print(simple_class.Circle)

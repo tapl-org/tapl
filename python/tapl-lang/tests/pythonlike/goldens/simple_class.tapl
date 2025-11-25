@@ -12,7 +12,8 @@ accept(SimplestClass_())
 class Circle:
   def __init__(self, radius: Float):
     self.radius = radius
-  def area(self):
+
+  def area(self) -> Float:
     return 3.14 * self.radius * self.radius
 
 def print_area(circle: Circle):
