@@ -1,14 +1,14 @@
 language pythonlike
 
-# def factorial(n: Int) -> Int:
-#     if n == 0 or n == 1:
-#         return 1
-#     else:
-#         return n * factorial(n - 1)
+def factorial(n: Int) -> Int:
+    if n == 0 or n == 1:
+        return 1
+    else:
+        return n * factorial(n - 1)
 
 class Dog:
     def __init__(self, name: Str):
         self.name = name
 
-    def bark(self):
-        return ' says Woof! Woof!'
+    def bark(self) -> Str:
+        return self.name + ' says Woof! Woof!'

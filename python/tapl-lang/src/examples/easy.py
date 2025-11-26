@@ -1,9 +1,15 @@
 from tapl_lang.pythonlike.predef import *
 
+def factorial(n):
+    if n == 0 or n == 1:
+        return 1
+    else:
+        return n * factorial(n - 1)
+
 class Dog_:
 
     def __init__(self, name):
         self.name = name
 
     def bark(self):
-        return ' says Woof! Woof!'
+        return self.name + ' says Woof! Woof!'

@@ -90,7 +90,16 @@ _init_record(
         '__le__': ([Float], Bool),
     },
 )
-_init_record(Str, {'__hash__sa': ([], Int), '__eq__sa': ([Str], Bool), 'isalpha': ([], Bool), 'isdigit': ([], Bool)})
+_init_record(
+    Str,
+    {
+        '__hash__sa': ([], Int),
+        '__eq__sa': ([Str], Bool),
+        'isalpha': ([], Bool),
+        'isdigit': ([], Bool),
+        '__add__': ([Str], Str),
+    },
+)
 
 
 def create_list_type(element_type):
