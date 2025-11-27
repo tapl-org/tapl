@@ -1,3 +1,3 @@
-from tapl_lang.pythonlike import predef1 as predef
-s0 = predef.Scope(predef.predef_scope)
-s0.print__sa(s0.Str)
+from tapl_lang.pythonlike.predef1 import predef_scope as predef_scope__sa
+s0 = predef_scope__sa.tapl_typing.create_scope(parent__sa=predef_scope__sa)
+s0.print(s0.Str)
