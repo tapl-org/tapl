@@ -77,7 +77,7 @@ def test_goldens():
     run_golden_test('simple_function')
     # run_golden_test('function_error') # TODO: fix error handling in type check layer
     run_golden_test('simple_class')
-    # run_golden_test('importing')
+    run_golden_test('importing')
     run_golden_test('sum')
     run_golden_test('collatz_conjecture')
     run_golden_test('type_constructions')

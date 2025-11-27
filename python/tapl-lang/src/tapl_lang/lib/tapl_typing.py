@@ -21,8 +21,8 @@ def import_module(scope_: scope.Scope, module_names: list[str]) -> None:
             if not hasattr(current_scope, name):
                 setattr(current_scope, name, scope.Scope(label__sa=f'{name} module'))
             current_scope = getattr(current_scope, name)
-        setattr(current_scope, path[-1], importlib.import_module(f'{module_name}1'))
-        print(current_scope.fields__sa)
+        module = importlib.import_module(f'{module_name}1')
+        setattr(current_scope, path[-1], module.s0)
 
 
 def create_scope(
