@@ -1,4 +1,5 @@
-from tapl_lang.pythonlike.predef1 import predef_scope as s0
+from tapl_lang.pythonlike.predef1 import predef_scope as predef_scope__sa
+s0 = predef_scope__sa.tapl_typing.create_scope(parent__sa=predef_scope__sa)
 s0.i = s0.Int
 s0.i = s0.Int
 s0.sum = s0.Int

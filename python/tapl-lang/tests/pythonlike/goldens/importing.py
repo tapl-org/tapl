@@ -1,5 +1,3 @@
 from tapl_lang.pythonlike.predef import *
-import simple_class
-print(simple_class.Circle_)
-import sys
-print(sys.path)
+import examples.easy
+tapl_dev.print(examples.easy.factorial(5))

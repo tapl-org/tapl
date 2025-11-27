@@ -1,4 +1,5 @@
-from tapl_lang.pythonlike.predef1 import predef_scope as s0
+from tapl_lang.pythonlike.predef1 import predef_scope as predef_scope__sa
+s0 = predef_scope__sa.tapl_typing.create_scope(parent__sa=predef_scope__sa)
 
 class SimplestClass_:
     pass
@@ -20,6 +21,8 @@ class Circle_:
 
     def area(self):
         s1 = s0.tapl_typing.create_scope(parent__sa=s0, self=self)
+        s1.area = s1.tapl_typing.create_function([], s1.Float)
+        s1.tapl_typing.set_return_type(s1, s1.Float)
         s1.tapl_typing.add_return_type(s1, s1.Float * s1.self.radius * s1.self.radius)
         return s1.tapl_typing.get_return_type(s1)
 s0.Circle, s0.Circle_ = s0.tapl_typing.create_class(cls=Circle_, init_args=[s0.Float], methods=[('area', [])])

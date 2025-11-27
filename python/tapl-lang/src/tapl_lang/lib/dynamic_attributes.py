@@ -34,15 +34,18 @@ OP_LABEL = {
 class DynamicAttributeMixin:
     """Proxy mixin for dynamic attribute access."""
 
+    def get_label__sa(self) -> str:
+        return f'{self.__class__.__name__} class'
+
     def load__sa(self, key: str) -> Any:
-        raise AttributeError(f'{self.__class__.__name__} class has no attribute "{key}"')
+        raise AttributeError(f'{self.get_label__sa()} has no attribute "{key}"')
 
     def store__sa(self, key: str, value: Any) -> None:
         del value  # unused
-        raise AttributeError(f'{self.__class__.__name__} class has no attribute "{key}"')
+        raise AttributeError(f'{self.get_label__sa()} has no attribute "{key}"')
 
     def delete__sa(self, key: str) -> None:
-        raise AttributeError(f'{self.__class__.__name__} class has no attribute "{key}"')
+        raise AttributeError(f'{self.get_label__sa()} has no attribute "{key}"')
 
     def call_binop__sa(left, op: str, right: Any) -> Any | None:
         try:

@@ -29,8 +29,28 @@ class PythonlikeLanguage(Language):
                 terms.ImportFrom(
                     location,
                     'tapl_lang.pythonlike.predef1',
-                    [terms.Alias(name='predef_scope', asname='s0')],
+                    [terms.Alias(name='predef_scope', asname='predef_scope__sa')],
                     IMPORT_LEVEL,
+                ),
+                terms.Assign(
+                    location=location,
+                    targets=[terms.Name(location=location, id=lambda setting: setting.scope_name, ctx='store')],
+                    value=terms.Call(
+                        location=location,
+                        func=terms.Path(
+                            location=location,
+                            names=['predef_scope__sa', 'tapl_typing', 'create_scope'],
+                            ctx='load',
+                            mode=terms.MODE_EVALUATE,
+                        ),
+                        args=[],
+                        keywords=[
+                            (
+                                'parent__sa',
+                                terms.Name(location=location, id='predef_scope__sa', ctx='load'),
+                            )
+                        ],
+                    ),
                 ),
             ]
         )

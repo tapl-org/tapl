@@ -1,5 +1,5 @@
 language pythonlike
 
-import tests.pythonlike.goldens.simple_class
+import examples.easy
 
-print(simple_class.Circle)
+tapl_dev.print(examples.easy.factorial(5))

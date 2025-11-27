@@ -1868,27 +1868,20 @@ class TypedImport(syntax.Term):
                 raise tapl_error.TaplError(
                     'Import does not support multiple names yet.'
                 )  # TODO: Support multiple names
-            return Assign(
+            return Expr(
                 location=self.location,
-                targets=[
-                    TypedName(
-                        location=self.location,
-                        id=self.names[0].asname or self.names[0].name,
-                        ctx='store',
-                        mode=self.mode,
-                    )
-                ],
                 value=Call(
                     location=self.location,
                     func=Path(
                         location=self.location, names=['tapl_typing', 'import_module'], ctx='load', mode=self.mode
                     ),
                     args=[
+                        Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
                         List(
                             location=self.location,
-                            elements=[Constant(location=self.location, value=f'{self.names[0].name}1')],
+                            elements=[Constant(location=self.location, value=self.names[0].name)],
                             ctx='load',
-                        )
+                        ),
                     ],
                     keywords=[],
                 ),

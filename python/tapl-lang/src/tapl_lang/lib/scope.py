@@ -15,7 +15,7 @@ class Slot:
 
 
 class Scope(dynamic_attributes.DynamicAttributeMixin):
-    def __init__(self, parent: Scope | None = None, fields: dict[str, Any] | None = None):
+    def __init__(self, parent: Scope | None = None, fields: dict[str, Any] | None = None, label__sa: str | None = None):
         self.parent__sa = parent
         self.fields__sa: dict[str, Slot] = {}
         if fields:
@@ -23,6 +23,7 @@ class Scope(dynamic_attributes.DynamicAttributeMixin):
         # TODO: move returns into fields. Find a better way to represent function return types
         self.return_type__sa = None
         self.returns__sa: list[Any] = []
+        self.label__sa = label__sa
 
     def find_slot__sa(self, name: str) -> Slot | None:
         if name in self.fields__sa:
@@ -48,6 +49,13 @@ class Scope(dynamic_attributes.DynamicAttributeMixin):
     def store_many__sa(self, fields: dict[str, Any]) -> None:
         for name, value in fields.items():
             self.store__sa(name, value)
+
+    def get_label__sa(self) -> str:
+        if self.label__sa:
+            return self.label__sa
+        if self.parent__sa is None:
+            return 'Global Scope'
+        return f'Scope({self.parent__sa.get_label__sa()})'
 
     def __repr__(self) -> str:
         if '__repr__' in self.fields__sa:

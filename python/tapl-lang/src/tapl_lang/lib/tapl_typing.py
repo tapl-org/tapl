@@ -13,10 +13,16 @@ create_union = typelib.create_union
 create_function = typelib.create_function
 
 
-def import_module(module_names: list[str]) -> Any:
-    if len(module_names) != 1:
-        raise ValueError('Only single module import is supported.')
-    return importlib.import_module(module_names[0])
+def import_module(scope_: scope.Scope, module_names: list[str]) -> None:
+    for module_name in module_names:
+        path = module_name.split('.')
+        current_scope = scope_
+        for name in path[:-1]:
+            if not hasattr(current_scope, name):
+                setattr(current_scope, name, scope.Scope(label__sa=f'{name} module'))
+            current_scope = getattr(current_scope, name)
+        setattr(current_scope, path[-1], importlib.import_module(f'{module_name}1'))
+        print(current_scope.fields__sa)
 
 
 def create_scope(
