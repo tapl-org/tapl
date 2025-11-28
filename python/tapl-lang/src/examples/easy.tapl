@@ -18,6 +18,7 @@ def greet_dog(dog: Dog) -> Str:
 
 if __name__ == '__main__':
     print(factorial(5))
+    # TODO: unsersore suffix for factory is confusing. Maybe introduce 'new' keyword?
     my_dog = Dog_('Buddy')
     print(my_dog.bark())
     print(greet_dog(my_dog))
