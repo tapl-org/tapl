@@ -69,7 +69,7 @@ def fork_scope(forker: scope.ScopeForker) -> scope.Scope:
 def create_class(
     cls, init_args: list[Any], methods: list[tuple[str, list[Any]]]
 ) -> tuple[typelib.Record, typelib.Function]:
-    class_type = typelib.Record(fields={}, title=cls.__name__[:-1])
+    class_type = typelib.Record(fields={}, label=cls.__name__[:-1])
     self_parent = scope.Scope()
     for method_name, param_types in methods:
 
@@ -92,7 +92,7 @@ def create_class(
 
     class_type = typelib.Record(
         fields=fields,
-        title=cls.__name__[:-1],
+        label=cls.__name__[:-1],
     )
     for member in fields.values():
         if isinstance(member, typelib.Function):

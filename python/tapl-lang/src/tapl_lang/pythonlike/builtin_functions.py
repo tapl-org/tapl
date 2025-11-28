@@ -5,30 +5,27 @@
 from tapl_lang.lib import builtin_types as bt
 from tapl_lang.lib import tapl_dev, typelib
 
+# TODO: rename this file to builtins.py
+
 
 def noop(*args, **kwargs):
     del args, kwargs
 
 
-functions = {
-    'print': (
-        print,
-        typelib.create_function([bt.Any], bt.NoneType),
-    ),
+python_builtin_types = {
+    '__name__': bt.Str,
+    'print': typelib.create_function([bt.Any], bt.NoneType),
+    'range': typelib.create_function([bt.Int], [bt.Int]),
+    'str': typelib.create_function([bt.Any], bt.Str),
+}
+
+pythonlike_builtins = {
     'tapl_dev': (
         tapl_dev.TaplDev(tapl_dev.EVALATE_LAYER_INDEX),
         tapl_dev.TaplDev(tapl_dev.TYPECHECK_LAYER_INDEX),
     ),
-    'range': (
-        range,
-        typelib.create_function([bt.Int], [bt.Int]),
-    ),
-    'str': (
-        str,
-        typelib.create_function([bt.Any], bt.Str),
-    ),
 }
 
-
-export = {k: v[0] for k, v in functions.items()}
-export1 = {k: v[1] for k, v in functions.items()}
+export = {k: v[0] for k, v in pythonlike_builtins.items()}
+export1 = {k: v[1] for k, v in pythonlike_builtins.items()}
+export1.update(python_builtin_types)

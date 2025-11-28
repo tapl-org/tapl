@@ -8,10 +8,10 @@ Types = {
     'Any': typelib.Any(),
     'Nothing': typelib.Nothing(),
     'NoneType': typelib.NoneType(),
-    'Bool': typelib.Record(fields={}, title='Bool'),
-    'Int': typelib.Record(fields={}, title='Int'),
-    'Float': typelib.Record(fields={}, title='Float'),
-    'Str': typelib.Record(fields={}, title='Str'),
+    'Bool': typelib.Record(fields={}, label='Bool'),
+    'Int': typelib.Record(fields={}, label='Int'),
+    'Float': typelib.Record(fields={}, label='Float'),
+    'Str': typelib.Record(fields={}, label='Str'),
 }
 
 Any = Types['Any']
@@ -112,7 +112,7 @@ def create_list_type(element_type):
     }
     return typelib.Record(
         fields=_init_methods(methods),
-        title=f'List[{element_type}]',
+        label=f'List[{element_type}]',
     )
 
 
@@ -125,7 +125,7 @@ def create_set_type(element_type):
     }
     return typelib.Record(
         fields=_init_methods(methods),
-        title=f'Set[{element_type}]',
+        label=f'Set[{element_type}]',
     )
 
 
@@ -141,7 +141,7 @@ def create_dict_type(key_type, value_type):
     }
     return typelib.Record(
         fields=_init_methods(methods),
-        title=f'Dict[{key_type}, {value_type}]',
+        label=f'Dict[{key_type}, {value_type}]',
     )
 
 

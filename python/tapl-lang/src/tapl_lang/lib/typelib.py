@@ -223,9 +223,9 @@ class NoneType(BaseType):
 
 # TODO: A tuple type where labels are the characters 'a' through 'z'.
 class Record(BaseType):
-    def __init__(self, fields, title=None):
+    def __init__(self, fields, label=None):
         self._fields__sa = fields
-        self._title__sa = title
+        self._label__sa = label
 
     def is_supertype_of__sa(self, subtype):
         if isinstance(subtype, Nothing):
@@ -237,7 +237,7 @@ class Record(BaseType):
         if isinstance(supertype, Any):
             return True
         if isinstance(supertype, Record):
-            for label in supertype.labels__sa():
+            for label in supertype.keys__sa():
                 if label not in self._fields__sa:
                     return False
                 if not check_subtype(self._fields__sa[label], supertype.try_load(label)):
@@ -246,22 +246,27 @@ class Record(BaseType):
         # Inconclusive, example: {a: Alpha, b: Beta} <: (Any | NoneType)
         return None
 
-    def labels__sa(self):
+    def keys__sa(self):
         yield from self._fields__sa.keys()
 
     def __repr__(self):
-        if self._title__sa is not None:
-            return self._title__sa
-        field_strs = [f'{label}: {typ}' for label, typ in self._fields__sa.items()]
+        if self._label__sa is not None:
+            return self._label__sa
+        field_strs = [f'{key}: {typ}' for key, typ in self._fields__sa.items()]
         return '{' + ', '.join(field_strs) + '}'
 
-    def try_load(self, label):
-        return self._fields__sa.get(label)
+    def try_load(self, key):
+        return self._fields__sa.get(key)
 
     def load__sa(self, key):
         if key in self._fields__sa:
             return self._fields__sa[key]
         return super().load__sa(key)
+
+    def get_label__sa(self):
+        if self._label__sa is not None:
+            return self._label__sa
+        return super().get_label__sa()
 
 
 _PAIR_ELEMENT_COUNT = 2
