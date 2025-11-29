@@ -6,9 +6,13 @@ Int
 ------ end.
 
 ====== layer=0 exit-status:0 stdout:
-120
+5040
 Simba says Woof! Woof!
 Hello, Simba!
+120
+Buddy says Woof! Woof!
+Hello, Buddy!
+Max says Woof! Woof!
 
 ------ stderr:
 
