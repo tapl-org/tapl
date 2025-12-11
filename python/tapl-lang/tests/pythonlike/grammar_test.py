@@ -647,7 +647,7 @@ def test_atom__name():
     assert actual == expected
 
 
-# TODO: Literal values should take a mode to be used in type layer as a value.
+# XXX: Literal values should take a mode to be used in type layer as a value.
 def test_atom__true():
     actual = parse_expr('True', rn.ATOM)
     expected = terms.BooleanLiteral(location=create_loc(1, 0, 1, 4), value=True)

@@ -122,7 +122,7 @@ class BackendSetting:
             scope_level=scope_level or self.scope_level,
         )
 
-    # TODO: scope_name and forker_name should have __sa suffix to prevent name collisions. Or find better suffix.
+    # XXX: scope_name and forker_name should have __sa suffix to prevent name collisions. Or find better suffix.
     @property
     def scope_name(self) -> str:
         return f's{self.scope_level}'

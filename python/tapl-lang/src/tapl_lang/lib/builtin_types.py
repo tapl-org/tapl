@@ -145,7 +145,7 @@ def create_dict_type(key_type, value_type):
     )
 
 
-# TODO: Enable type constructors when needed.
+# XXX: Enable type constructors when needed.
 # TypeConstructors = {}
 # TypeConstructors['List'] = create_list_type
 # TypeConstructors['Dict'] = create_dict_type

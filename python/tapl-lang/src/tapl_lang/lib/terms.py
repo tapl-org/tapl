@@ -34,8 +34,8 @@ class Module(syntax.Term):
 ################################################################################
 # STATEMENTS
 
-# TODO: move the location to the end of the dataclass fields for readability.
-# TODO: dataclasses.field(repr=False) for location fields for readability.
+# XXX: move the location to the end of the dataclass fields for readability.
+# XXX: dataclasses.field(repr=False) for location fields for readability.
 
 
 @dataclass
@@ -444,7 +444,7 @@ class BoolOp(syntax.Term):
         )
 
 
-# TODO: target of ast.NamedExpr accepts only ast.Name. This prevents us to assign attributes like s0.name := s0.Int. Figure out how to support that.
+# XXX: target of ast.NamedExpr accepts only ast.Name. This prevents us to assign attributes like s0.name := s0.Int. Figure out how to support that.
 @dataclass
 class NamedExpr(syntax.Term):
     location: syntax.Location
@@ -759,7 +759,7 @@ class Select(syntax.Term):
 class Path(syntax.Term):
     location: syntax.Location
     names: list[str]
-    # TODO: Find a better name for the ctx field. options: context, reference_mode
+    # XXX: Find a better name for the ctx field. options: context, reference_mode
     ctx: str
     mode: syntax.Term
 
@@ -1596,7 +1596,7 @@ class TypedWith(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        # TODO: Differentiate behavior between EVALUATE and TYPECHECK modes if needed, otherwise remove TypedWith
+        # XXX: Differentiate behavior between EVALUATE and TYPECHECK modes if needed, otherwise remove TypedWith
         if self.mode is MODE_EVALUATE:
             return With(
                 location=self.location,
@@ -1776,7 +1776,7 @@ class TypedTry(syntax.Term):
                 finalbody=self.finalbody,
             )
         if self.mode is MODE_TYPECHECK:
-            # TODO: Implement type checking for Try statement's except and finally clauses
+            # XXX: Implement type checking for Try statement's except and finally clauses
             return self.body
         raise tapl_error.UnhandledError
 
@@ -1867,7 +1867,7 @@ class TypedImport(syntax.Term):
             if len(self.names) > 1:
                 raise tapl_error.TaplError(
                     'Import does not support multiple names yet.'
-                )  # TODO: Support multiple names
+                )  # XXX: Support multiple names
             return Expr(
                 location=self.location,
                 value=Call(
