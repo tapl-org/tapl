@@ -19,7 +19,7 @@ At its core, TAPL provides a strongly typed Python-like language that can be ext
 ## How TAPL works
 As a frontend framework, the core function of TAPL is to parse source code and generate IR for the backend language.
 - Currently Tapl uses Python AST as the backend IR.
-- The proc43ss involves generating two Python files: untyped version of the parsed code and a typechecker file. To ensure type safety, the typechecker file mut be run first. If it completes successfully, the untyped code is considered type-safe.
+- The process involves generating two Python files: untyped version of the parsed code and a typechecker file. To ensure type safety, the typechecker file mut be run first. If it completes successfully, the untyped code is considered type-safe.
 
 ## Project status
 
@@ -44,6 +44,7 @@ As you see it generates 2 files:
 - hello_world.py (untyped version of that code)
 - hello_world1.py (typechecker for that code)
 
+Another example - [easy.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/easy.tapl)
 
 ## Community
 
