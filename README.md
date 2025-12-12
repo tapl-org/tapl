@@ -64,6 +64,12 @@ As you see it generates 2 files:
 
 For more example, see [easy.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/easy.tapl)
 
+### Creating and Extending Languages
+
+TAPL enables you to create custom syntax from scratch or extend existing TAPL-implemented languages with new features.
+
+Coming soon: A codelab on extending pythonlike with the Pipe Operator (`|>`).
+
 ## Community
 
 join the conversation on our main community platforms:
