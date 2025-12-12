@@ -16,6 +16,8 @@ At its core, TAPL provides a strongly typed Python-like language that can be ext
 > - It is not an officially supported Google product.
 
 
+TAPL is inspired by lambda calculus and the principle that the same computational techniques apply to both type and term layers. The project is devoted to and named after Benjamin C. Pierce's book ["Types and Programming Languages"](https://www.cis.upenn.edu/~bcpierce/tapl/).
+
 ## How TAPL works
 As a compiler frontend, TAPL's primary role is to parse source code and generate an Intermediate Representation (IR) for a backend. Currently, TAPL uses Python's Abstract Syntax Tree (AST) as its backend IR.
 The compilation process is unique: for each source file, TAPL generates two Python files:
