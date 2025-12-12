@@ -12,7 +12,7 @@ At its core, TAPL provides a strongly typed Python-like language that can be ext
 
 > [!IMPORTANT]
 > - TAPL is an experimental project with no working compiler or toolchain yet.
-> - There is no stable release yet, and it improves with every commit. Please report any issues via the Tapl Issue Tracker.
+> - There is no stable release yet, and it improves with every commit. Please report any issues via the [Tapl Issue Tracker](https://github.com/tapl-org/tapl/issues).
 > - It is not an officially supported Google product.
 
 
@@ -25,8 +25,7 @@ The compilation process is unique: for each source file, TAPL generates two Pyth
 
 To ensure type safety, the *type-checker file must be run first*. If it executes successfully, the untyped code is guaranteed to be type-safe.
 
-- The process involves generating two Python files: untyped version of the parsed code and a typechecker file. To ensure type safety, the typechecker file mut be run first. If it completes successfully, the untyped code is considered type-safe.
-- For a high-level view of the compilation process, see the diagrams: [How TAPL compiles code](https://docs.google.com/presentation/d/1I4Fu7Tp_QzyHC84u0REsFZcYi2i3ZvZPXiuHzasHywg/edit?usp=sharing)
+For a high-level view of the compilation process, see the diagrams: [How TAPL compiles code](https://docs.google.com/presentation/d/1I4Fu7Tp_QzyHC84u0REsFZcYi2i3ZvZPXiuHzasHywg/edit?usp=sharing)
 
 ## Getting started
 
