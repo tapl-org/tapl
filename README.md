@@ -25,7 +25,9 @@ The compilation process is unique: for each source file, TAPL generates two Pyth
 
 To ensure type safety, the *type-checker file must be run first*. If it executes successfully, the untyped code is guaranteed to be type-safe.
 
-For a high-level view of the compilation process, see the diagrams: [How TAPL compiles code](https://docs.google.com/presentation/d/1I4Fu7Tp_QzyHC84u0REsFZcYi2i3ZvZPXiuHzasHywg/edit?usp=sharing)
+For more details on TAPL's design and architecture:
+- [Compilation process diagrams](https://docs.google.com/presentation/d/1I4Fu7Tp_QzyHC84u0REsFZcYi2i3ZvZPXiuHzasHywg/edit?usp=sharing)
+- [TAPL calculus documentation](https://github.com/tapl-org/tapl/blob/main/doc/ground-rules.md)
 
 ## Getting started
 

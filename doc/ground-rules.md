@@ -99,6 +99,6 @@ TAPL: $B\ (\lambda x.t)\ (I{:}(G_D\ T_D))$
 
 
 
-# Type System
+# Type System Hierarchy
 
-$ \text{Nothing} \to T \to \text{Any} \to \text{Any}|\text{None}$
+$\text{Nothing} \to T \to \text{Any} \to \text{Any}|\text{None}$
