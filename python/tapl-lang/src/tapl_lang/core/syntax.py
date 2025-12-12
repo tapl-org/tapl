@@ -123,6 +123,7 @@ class BackendSetting:
         )
 
     # XXX: scope_name and forker_name should have __sa suffix to prevent name collisions. Or find better suffix.
+    # Or change the function and class names to prevent collisions. (def factorial -> def factorial__da, class Dog_ -> class Dog___da, etc.)
     @property
     def scope_name(self) -> str:
         return f's{self.scope_level}'
