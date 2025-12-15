@@ -1,4 +1,4 @@
-====== layer=1 exit-status:0 stdout:
+====== simple_function1.py exit-status:0 stdout:
 Int
 Int | Str
 
@@ -6,7 +6,7 @@ Int | Str
 
 ------ end.
 
-====== layer=0 exit-status:0 stdout:
+====== simple_function.py exit-status:0 stdout:
 123
 1
 456

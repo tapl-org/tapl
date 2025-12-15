@@ -50,32 +50,43 @@ class ApprovalNamer(Namer):
         return self.filename
 
 
-def run_golden_test(test_name: str) -> None:
-    base_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'goldens')
-    base_path = os.path.join(base_directory, test_name)
-    source = pathlib.Path(os.path.join(base_directory, f'{base_path}.tapl')).read_text()
-    layers = compile_tapl(source)
+def run_python_files(base_directory: str, filenames: list[str], output_file: str) -> None:
     output = io.StringIO()
-    success = True
+    for filename in filenames:
+        filepath = os.path.join(base_directory, filename)
+        return_code, stdout, stderr = run_command(['python', filepath])
+        output.write(f'====== {filename} exit-status:{return_code} stdout:\n')
+        output.write(stdout)
+        output.write('\n------ stderr:\n')
+        output.write(stderr)
+        output.write('\n------ end.\n\n')
+        if return_code != 0:
+            break
+    filepath = os.path.join(base_directory, output_file)
+    verify(output.getvalue(), namer=ApprovalNamer(filepath))
+
+
+def run_golden_test(test_name: str, *, use_wrap: bool = False) -> None:
+    base_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'goldens')
+    source = pathlib.Path(os.path.join(base_directory, f'{test_name}.tapl')).read_text()
+    layers = compile_tapl(source)
+    filenames = []
+
     for i in reversed(range(len(layers))):
         suffix = i if i else ''
-        filename = f'{base_path}{suffix}.py'
-        verify(ast.unparse(layers[i]), namer=ApprovalNamer(filename))
-        if success:
-            return_code, stdout, stderr = run_command(['python', filename])
-            output.write(f'====== layer={i} exit-status:{return_code} stdout:\n')
-            output.write(stdout)
-            output.write('\n------ stderr:\n')
-            output.write(stderr)
-            output.write('\n------ end.\n\n')
-            success = return_code == 0
-    verify(output.getvalue(), namer=ApprovalNamer(f'{base_path}.output'))
+        filename = f'{test_name}{suffix}.py'
+        filenames.append(filename)
+        filepath = os.path.join(base_directory, filename)
+        verify(ast.unparse(layers[i]), namer=ApprovalNamer(filepath))
+    if use_wrap:
+        filenames = [f'{test_name}.wrap.py']
+    run_python_files(base_directory, filenames, f'{test_name}.output')
 
 
 def test_goldens():
     run_golden_test('grammar')
     run_golden_test('simple_function')
-    # run_golden_test('function_error') # XXX: fix error handling in type check layer
+    run_golden_test('function_error', use_wrap=True)
     run_golden_test('simple_class')
     run_golden_test('importing')
     run_golden_test('sum')

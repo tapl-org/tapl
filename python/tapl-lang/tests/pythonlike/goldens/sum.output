@@ -1,10 +1,10 @@
-====== layer=1 exit-status:0 stdout:
+====== sum1.py exit-status:0 stdout:
 
 ------ stderr:
 
 ------ end.
 
-====== layer=0 exit-status:0 stdout:
+====== sum.py exit-status:0 stdout:
 5050
 1225
 

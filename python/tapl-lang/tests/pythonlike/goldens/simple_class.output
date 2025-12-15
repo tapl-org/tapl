@@ -1,11 +1,11 @@
-====== layer=1 exit-status:0 stdout:
+====== simple_class1.py exit-status:0 stdout:
 Float
 
 ------ stderr:
 
 ------ end.
 
-====== layer=0 exit-status:0 stdout:
+====== simple_class.py exit-status:0 stdout:
 12.56
 
 ------ stderr:

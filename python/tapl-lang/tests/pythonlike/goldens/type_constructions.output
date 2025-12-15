@@ -1,11 +1,11 @@
-====== layer=1 exit-status:0 stdout:
+====== type_constructions1.py exit-status:0 stdout:
 Int | Str
 
 ------ stderr:
 
 ------ end.
 
-====== layer=0 exit-status:0 stdout:
+====== type_constructions.py exit-status:0 stdout:
 123
 hello
 

@@ -1,4 +1,6 @@
 language pythonlike
 
+# intentional type mismatch: function returns Int but declares Str
+
 def one() -> Str:
     return 0

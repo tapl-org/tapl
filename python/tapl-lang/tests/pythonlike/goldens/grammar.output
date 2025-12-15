@@ -1,4 +1,4 @@
-====== layer=1 exit-status:0 stdout:
+====== grammar1.py exit-status:0 stdout:
 Int
 Str
 Str
@@ -16,7 +16,7 @@ Dict[Str, Str]
 
 ------ end.
 
-====== layer=0 exit-status:0 stdout:
+====== grammar.py exit-status:0 stdout:
 42
 hello
 hello
