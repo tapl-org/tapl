@@ -84,14 +84,14 @@ class ClassDef(syntax.Term):
     name: Identifier
     bases: list[syntax.Term]
     keywords: list[tuple[str, syntax.Term]]
-    body: list[syntax.Term]
+    body: syntax.Term
     decorator_list: list[syntax.Term]
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.bases
         yield from (t for _, t in self.keywords)
-        yield from self.body
+        yield self.body
         yield from self.decorator_list
 
     @override
@@ -102,7 +102,7 @@ class ClassDef(syntax.Term):
                 name=self.name,
                 bases=[layer(b) for b in self.bases],
                 keywords=[(k, layer(v)) for k, v in self.keywords],
-                body=[layer(b) for b in self.body],
+                body=layer(self.body),
                 decorator_list=[layer(d) for d in self.decorator_list],
             )
         )
@@ -111,16 +111,17 @@ class ClassDef(syntax.Term):
 @dataclass
 class Return(syntax.Term):
     location: syntax.Location
-    value: syntax.Term | None
+    value: syntax.Term
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
-        if self.value is not None:
-            yield self.value
+        if self.value is None:
+            raise ValueError('Return statement must have a value')
+        yield self.value
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Return(location=self.location, value=layer(self.value) if self.value else None))
+        return ls.build(lambda layer: Return(location=self.location, value=layer(self.value)))
 
 
 @dataclass
@@ -1865,9 +1866,7 @@ class TypedImport(syntax.Term):
             return Import(location=self.location, names=self.names)
         if self.mode is MODE_TYPECHECK:
             if len(self.names) > 1:
-                raise tapl_error.TaplError(
-                    'Import does not support multiple names yet.'
-                )  # XXX: Support multiple names
+                raise tapl_error.TaplError('Import does not support multiple names yet.')  # XXX: Support multiple names
             return Expr(
                 location=self.location,
                 value=Call(
@@ -1923,7 +1922,7 @@ class TypedClassDef(syntax.Term):
             name=self._class_name(),
             bases=self.bases,
             keywords=[],
-            body=[self.body],
+            body=self.body,
             decorator_list=[],
         )
 
@@ -1947,7 +1946,7 @@ class TypedClassDef(syntax.Term):
             name=class_name,
             bases=self.bases,
             keywords=[],
-            body=body,
+            body=syntax.TermList(terms=body),
             decorator_list=[],
         )
 
