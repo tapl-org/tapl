@@ -64,7 +64,7 @@ As you see it generates 2 files:
 - hello_world.py (untyped version of that code)
 - hello_world1.py (typechecker for that code)
 
-For more example, see [easy.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/easy.tapl)
+For **more example**, see [easy.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/easy.tapl)
 
 ### Creating and Extending Languages
 
