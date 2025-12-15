@@ -2,8 +2,8 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import dataclasses
 from collections.abc import Callable, Generator
-from dataclasses import dataclass
 from typing import Any, cast, override
 
 from tapl_lang.core import syntax, tapl_error
@@ -18,7 +18,7 @@ from tapl_lang.core import syntax, tapl_error
 type Identifier = str | Callable[[syntax.BackendSetting], str]
 
 
-@dataclass
+@dataclasses.dataclass
 class Module(syntax.Term):
     body: list[syntax.Term]
 
@@ -34,10 +34,8 @@ class Module(syntax.Term):
 ################################################################################
 # STATEMENTS
 
-# XXX: dataclasses.field(repr=False) for location fields for readability.
 
-
-@dataclass
+@dataclasses.dataclass
 class FunctionDef(syntax.Term):
     name: Identifier
     posonlyargs: list[str]
@@ -49,7 +47,7 @@ class FunctionDef(syntax.Term):
     defaults: list[syntax.Term]
     body: syntax.Term
     decorator_list: list[syntax.Term]
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -77,14 +75,14 @@ class FunctionDef(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class ClassDef(syntax.Term):
     name: Identifier
     bases: list[syntax.Term]
     keywords: list[tuple[str, syntax.Term]]
     body: syntax.Term
     decorator_list: list[syntax.Term]
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -107,10 +105,10 @@ class ClassDef(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class Return(syntax.Term):
     value: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -123,10 +121,10 @@ class Return(syntax.Term):
         return ls.build(lambda layer: Return(value=layer(self.value), location=self.location))
 
 
-@dataclass
+@dataclasses.dataclass
 class Delete(syntax.Term):
     targets: list[syntax.Term]
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -137,11 +135,11 @@ class Delete(syntax.Term):
         return ls.build(lambda layer: Delete(targets=[layer(t) for t in self.targets], location=self.location))
 
 
-@dataclass
+@dataclasses.dataclass
 class Assign(syntax.Term):
     targets: list[syntax.Term]
     value: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -157,13 +155,13 @@ class Assign(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class For(syntax.Term):
     target: syntax.Term
     iter: syntax.Term
     body: syntax.Term
     orelse: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -185,12 +183,12 @@ class For(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class While(syntax.Term):
     test: syntax.Term
     body: syntax.Term
     orelse: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -210,12 +208,12 @@ class While(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class If(syntax.Term):
     test: syntax.Term
     body: syntax.Term
     orelse: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -235,7 +233,7 @@ class If(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class WithItem(syntax.Term):
     context_expr: syntax.Term
     optional_vars: syntax.Term
@@ -255,11 +253,11 @@ class WithItem(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class With(syntax.Term):
     items: list[syntax.Term]
     body: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -277,11 +275,11 @@ class With(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class Raise(syntax.Term):
     exception: syntax.Term
     cause: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -299,13 +297,13 @@ class Raise(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class Try(syntax.Term):
     body: syntax.Term
     handlers: list[syntax.Term]
     orelse: syntax.Term
     finalbody: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -327,12 +325,12 @@ class Try(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class ExceptHandler(syntax.Term):
     exception_type: syntax.Term
     name: Identifier | None
     body: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -351,16 +349,16 @@ class ExceptHandler(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class Alias:
     name: str
     asname: str | None = None
 
 
-@dataclass
+@dataclasses.dataclass
 class Import(syntax.Term):
     names: list[Alias]
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -373,12 +371,12 @@ class Import(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class ImportFrom(syntax.Term):
     module: str | None
     names: list[Alias]
     level: int
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -396,10 +394,10 @@ class ImportFrom(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class Expr(syntax.Term):
     value: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -410,9 +408,9 @@ class Expr(syntax.Term):
         return ls.build(lambda layer: Expr(value=layer(self.value), location=self.location))
 
 
-@dataclass
+@dataclasses.dataclass
 class Pass(syntax.Term):
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -427,11 +425,11 @@ class Pass(syntax.Term):
 # EXPRESSIONS
 
 
-@dataclass
+@dataclasses.dataclass
 class BoolOp(syntax.Term):
     operator: str
     values: list[syntax.Term]
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -445,11 +443,11 @@ class BoolOp(syntax.Term):
 
 
 # XXX: target of ast.NamedExpr accepts only ast.Name. This prevents us to assign attributes like s0.name := s0.Int. Figure out how to support that.
-@dataclass
+@dataclasses.dataclass
 class NamedExpr(syntax.Term):
     target: syntax.Term
     value: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -467,12 +465,12 @@ class NamedExpr(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class BinOp(syntax.Term):
     left: syntax.Term
     op: str
     right: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -486,11 +484,11 @@ class BinOp(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class UnaryOp(syntax.Term):
     op: str
     operand: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -501,10 +499,10 @@ class UnaryOp(syntax.Term):
         return ls.build(lambda layer: UnaryOp(op=self.op, operand=layer(self.operand), location=self.location))
 
 
-@dataclass
+@dataclasses.dataclass
 class Set(syntax.Term):
     elements: list[syntax.Term]
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -515,11 +513,11 @@ class Set(syntax.Term):
         return ls.build(lambda layer: Set(elements=[layer(v) for v in self.elements], location=self.location))
 
 
-@dataclass
+@dataclasses.dataclass
 class Dict(syntax.Term):
     keys: list[syntax.Term]
     values: list[syntax.Term]
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -537,12 +535,12 @@ class Dict(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class Compare(syntax.Term):
     left: syntax.Term
     operators: list[str]
     comparators: list[syntax.Term]
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -561,12 +559,12 @@ class Compare(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class Call(syntax.Term):
     func: syntax.Term
     args: list[syntax.Term]
     keywords: list[tuple[str, syntax.Term]]
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -586,10 +584,10 @@ class Call(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class Constant(syntax.Term):
     value: Any
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -600,12 +598,12 @@ class Constant(syntax.Term):
         return ls.build(lambda _: Constant(value=self.value, location=self.location))
 
 
-@dataclass
+@dataclasses.dataclass
 class Attribute(syntax.Term):
     value: syntax.Term
     attr: Identifier
     ctx: str
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -618,12 +616,12 @@ class Attribute(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class Subscript(syntax.Term):
     value: syntax.Term
     slice: syntax.Term
     ctx: str
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -642,11 +640,11 @@ class Subscript(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class Name(syntax.Term):
     id: Identifier
     ctx: str
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -657,11 +655,11 @@ class Name(syntax.Term):
         return ls.build(lambda _: Name(id=self.id, ctx=self.ctx, location=self.location))
 
 
-@dataclass
+@dataclasses.dataclass
 class List(syntax.Term):
     elements: list[syntax.Term]
     ctx: str
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -674,11 +672,11 @@ class List(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class Tuple(syntax.Term):
     elements: list[syntax.Term]
     ctx: str
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -691,12 +689,12 @@ class Tuple(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class Slice(syntax.Term):
     lower: syntax.Term
     upper: syntax.Term
     step: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -723,12 +721,12 @@ class Slice(syntax.Term):
 ################################################################################
 
 
-@dataclass
+@dataclasses.dataclass
 class Select(syntax.Term):
     value: syntax.Term
     names: list[str]
     ctx: str
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -768,13 +766,13 @@ class Select(syntax.Term):
         )
 
 
-@dataclass
+@dataclasses.dataclass
 class Path(syntax.Term):
     names: list[str]
     # XXX: Find a better name for the ctx field. options: context, reference_mode
     ctx: str
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -796,10 +794,10 @@ class Path(syntax.Term):
         return Attribute(value=value, attr=self.names[-1], ctx=self.ctx, location=self.location)
 
 
-@dataclass
+@dataclasses.dataclass
 class BranchTyping(syntax.Term):
     branches: list[syntax.Term]
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -894,7 +892,7 @@ class BranchTyping(syntax.Term):
 ################################################################################
 
 
-@dataclass
+@dataclasses.dataclass
 class ModeTerm(syntax.Term):
     name: str
 
@@ -916,12 +914,12 @@ MODE_SAFE = syntax.Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
 SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
 
 
-@dataclass
+@dataclasses.dataclass
 class TypedName(syntax.Term):
     id: Identifier
     ctx: str
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -947,13 +945,13 @@ class TypedName(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-@dataclass
+@dataclasses.dataclass
 class TypedAssign(syntax.Term):
     target_name: syntax.Term
     target_type: syntax.Term
     value: syntax.Term
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -993,9 +991,9 @@ class TypedAssign(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-@dataclass
+@dataclasses.dataclass
 class Literal(syntax.Term):
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1010,14 +1008,14 @@ class Literal(syntax.Term):
         ]
 
 
-@dataclass
+@dataclasses.dataclass
 class NoneLiteral(Literal):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return self.typeit(ls, value=None, type_id='NoneType')
 
 
-@dataclass
+@dataclasses.dataclass
 class BooleanLiteral(Literal):
     value: bool
 
@@ -1026,7 +1024,7 @@ class BooleanLiteral(Literal):
         return self.typeit(ls, value=self.value, type_id='Bool')
 
 
-@dataclass
+@dataclasses.dataclass
 class IntegerLiteral(Literal):
     value: int
 
@@ -1035,7 +1033,7 @@ class IntegerLiteral(Literal):
         return self.typeit(ls, value=self.value, type_id='Int')
 
 
-@dataclass
+@dataclasses.dataclass
 class FloatLiteral(Literal):
     value: float
 
@@ -1044,7 +1042,7 @@ class FloatLiteral(Literal):
         return self.typeit(ls, value=self.value, type_id='Float')
 
 
-@dataclass
+@dataclasses.dataclass
 class StringLiteral(Literal):
     value: str
 
@@ -1053,11 +1051,11 @@ class StringLiteral(Literal):
         return self.typeit(ls, value=self.value, type_id='Str')
 
 
-@dataclass
+@dataclasses.dataclass
 class TypedList(syntax.Term):
     elements: list[syntax.Term]
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1093,11 +1091,11 @@ class TypedList(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-@dataclass
+@dataclasses.dataclass
 class TypedSet(syntax.Term):
     elements: list[syntax.Term]
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1136,12 +1134,12 @@ class TypedSet(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-@dataclass
+@dataclasses.dataclass
 class TypedDict(syntax.Term):
     keys: list[syntax.Term]
     values: list[syntax.Term]
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1194,11 +1192,11 @@ class TypedDict(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-@dataclass
+@dataclasses.dataclass
 class BoolNot(syntax.Term):
     operand: syntax.Term
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1230,12 +1228,12 @@ class BoolNot(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-@dataclass
+@dataclasses.dataclass
 class TypedBoolOp(syntax.Term):
     operator: str
     values: list[syntax.Term]
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1272,11 +1270,11 @@ class TypedBoolOp(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-@dataclass
+@dataclasses.dataclass
 class TypedReturn(syntax.Term):
     value: syntax.Term
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1323,12 +1321,12 @@ class TypedReturn(syntax.Term):
 
 
 # TODO: Add Parameters type to represent list of parameters which support posonly and kwonly args
-@dataclass
+@dataclasses.dataclass
 class Parameter(syntax.Term):
     name: str
     type_: syntax.Term
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1351,14 +1349,14 @@ class Parameter(syntax.Term):
 
 
 # TODO: Implement posonly_args, regular_args, vararg, kwonly_args, kwarg, defaults if needed
-@dataclass
+@dataclasses.dataclass
 class TypedFunctionDef(syntax.Term):
     name: str
     parameters: list[syntax.Term]
     return_type: syntax.Term
     body: syntax.Term
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1601,14 +1599,14 @@ class TypedFunctionDef(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-@dataclass
+@dataclasses.dataclass
 class TypedIf(syntax.Term):
     test: syntax.Term
     body: syntax.Term
     elifs: list[tuple[syntax.Term, syntax.Term]]  # (test, body)
     orelse: syntax.Term
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1665,11 +1663,11 @@ class TypedIf(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-@dataclass
+@dataclasses.dataclass
 class ElifSibling(syntax.SiblingTerm):
     test: syntax.Term
     body: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1688,10 +1686,10 @@ class ElifSibling(syntax.SiblingTerm):
             term.elifs.append((self.test, self.body))
 
 
-@dataclass
+@dataclasses.dataclass
 class ElseSibling(syntax.SiblingTerm):
     body: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1712,12 +1710,12 @@ class ElseSibling(syntax.SiblingTerm):
             term.orelse = self.body
 
 
-@dataclass
+@dataclasses.dataclass
 class TypedWith(syntax.Term):
     items: list[syntax.Term]
     body: syntax.Term
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1754,13 +1752,13 @@ class TypedWith(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-@dataclass
+@dataclasses.dataclass
 class TypedWhile(syntax.Term):
     test: syntax.Term
     body: syntax.Term
     orelse: syntax.Term
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1808,14 +1806,14 @@ class TypedWhile(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-@dataclass
+@dataclasses.dataclass
 class TypedFor(syntax.Term):
-    location: syntax.Location
     target: syntax.Term
     iter: syntax.Term
     body: syntax.Term
     orelse: syntax.Term
     mode: syntax.Term
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1890,13 +1888,13 @@ class TypedFor(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-@dataclass
+@dataclasses.dataclass
 class TypedTry(syntax.Term):
     body: syntax.Term
     handlers: list[syntax.Term]
     finalbody: syntax.Term
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1933,12 +1931,12 @@ class TypedTry(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-@dataclass
+@dataclasses.dataclass
 class ExceptSibling(syntax.SiblingTerm):
     exception_type: syntax.Term
     name: str | None
     body: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1965,10 +1963,10 @@ class ExceptSibling(syntax.SiblingTerm):
             term.handlers.append(handler)
 
 
-@dataclass
+@dataclasses.dataclass
 class FinallySibling(syntax.SiblingTerm):
     body: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1991,11 +1989,11 @@ class FinallySibling(syntax.SiblingTerm):
             term.finalbody = self.body
 
 
-@dataclass
+@dataclasses.dataclass
 class TypedImport(syntax.Term):
     names: list[Alias]
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -2046,13 +2044,13 @@ class TypedImport(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-@dataclass
+@dataclasses.dataclass
 class TypedClassDef(syntax.Term):
     name: str
     bases: list[syntax.Term]
     body: syntax.Term
     mode: syntax.Term
-    location: syntax.Location
+    location: syntax.Location = dataclasses.field(repr=False)
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:

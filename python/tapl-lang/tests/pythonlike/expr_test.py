@@ -196,6 +196,14 @@ def test_var1():
     assert evaluate(expr1, locals_={'x': 7}) == 9
 
 
+def test_term_repr():
+    parsed = parse_text('2+x', Grammar(grammar.get_grammar().rule_map, rule_names.EXPRESSION))
+    assert (
+        str(parsed)
+        == "BinOp(left=IntegerLiteral(value=2), op='+', right=TypedName(id='x', ctx='load', mode=Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])))"
+    )
+
+
 def test_gather_errors():
     location = syntax.Location(start=syntax.Position(line=1, column=0))
     a = terms.IntegerLiteral(value=2, location=location)
