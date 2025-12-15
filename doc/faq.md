@@ -2,19 +2,9 @@
    Exceptions. See /LICENSE for license information.
    SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception ?>
 
-XXX: Review docs before publishing the blog.
-
-### Why type is an expression?
-because typeof operator returns expression
-### Why we need complete type check before substitution?
-The type of any expression (even for locks) can be universe. To prevent this $(\lambda x{:}\star. x\ 2{:}Nat)\ 3{:}Nat{:}*$
-### What if we design term wrapped by type, and that type plays as term. For example: \x:Nat.x:x:* == (\x. x:x):(_:Nat.*)
-In this case, we could not separate types from terms, and could not run types fully before running terms.
 
 ### What is the backend of TAPL?
-Currently, Python's AST is used as the backend. However, in the near future, Tapl will introduce its own AST/IR/Language as the backend.
-The new backend will be purely untyped and will be used solely for defining the computation. The new backend can be converted to other backends,
-such as LLVM IR, JVM bytecode, Javascript, or it can run on its own interpreter. As a result, Tapl serves solely as a type introducer.
+TAPL currently uses Python's AST as its backend. Soon, TAPL will introduce its own untyped AST/IR that focuses purely on computation. This backend can be compiled to LLVM IR, JVM bytecode, JavaScript, or executed by its own interpreter. TAPL itself will serve as the syntax and type system layer on top of this backend.
 
 ### Why does TAPL add an underscore suffix (`_`) to generated class names?
 In TAPL, a class and an instance of that class are treated as two distinct, but related, first-class types This distinction is important because 
@@ -54,10 +44,9 @@ Dog Factory
 Buddy
 ```
 
-
 ### Why the '|' and '&' Operators Are Not Bitwise Operations in TAPL
-These single-symbol operators (| and &) are traditionally used as bitwise operations in many programming languages. However, in modern systems like TypeScript and Python, they have been naturally adopted to represent set-theoretic type operations, specifically Union and Intersection.
+These single-symbol operators (`|` and `&`) are traditionally used for bitwise operations in many programming languages. However, in modern systems like TypeScript and Python, they have been naturally adopted to represent set-theoretic type operations, specifically Union and Intersection.
 
 Most languages, such as TypeScript and Python, can easily distinguish the operator's context—whether it's a bitwise operation at the value level or a Union/Intersection at the type level—during the parsing stage.
 
-In TAPL, this level of distinction is not made because evaluation can occur at the type level as well. Since these operators are now predominantly used for type construction and bitwise operations are less common in high-level languages, TAPL chooses to reserve | and & exclusively for type constructions (Union and Intersection).
+In TAPL, this level of distinction is not made because evaluation can occur at the type level as well. Since these operators are now predominantly used for type construction and bitwise operations are less common in high-level languages, TAPL reserves `|` and `&` exclusively for type constructions (Union and Intersection).
