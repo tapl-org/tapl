@@ -4,12 +4,10 @@
 
 import pytest
 
-from tapl_lang.lib import dynamic_attributes
-
-# XXX: rename test file to dynamic_attributes_test.py
+from tapl_lang.lib import dynamic_attribute
 
 
-class MySubject(dynamic_attributes.DynamicAttributeMixin):
+class MySubject(dynamic_attribute.DynamicAttributeMixin):
     def __init__(self):
         self.vars__sa = {}
 

@@ -3,11 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-from tapl_lang.lib import dynamic_attributes, typelib
+from tapl_lang.lib import dynamic_attribute, typelib
 from tapl_lang.lib.typelib import check_subtype
 
 
-class Atom(dynamic_attributes.DynamicAttributeMixin):
+class Atom(dynamic_attribute.DynamicAttributeMixin):
     def __init__(self, title: str):
         self._title__sa = title
 

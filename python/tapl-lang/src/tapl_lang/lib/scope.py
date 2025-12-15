@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Self
 
-from tapl_lang.lib import dynamic_attributes, typelib
+from tapl_lang.lib import dynamic_attribute, typelib
 
 
 class Slot:
@@ -14,7 +14,7 @@ class Slot:
         self.value = value
 
 
-class Scope(dynamic_attributes.DynamicAttributeMixin):
+class Scope(dynamic_attribute.DynamicAttributeMixin):
     def __init__(self, parent: Scope | None = None, fields: dict[str, Any] | None = None, label__sa: str | None = None):
         self.parent__sa = parent
         self.fields__sa: dict[str, Slot] = {}

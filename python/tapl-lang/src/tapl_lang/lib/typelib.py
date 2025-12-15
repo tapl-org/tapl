@@ -32,7 +32,7 @@ Design Notes:
     - Nothing is a bottom type, subtype of all types
 """
 
-from tapl_lang.lib import dynamic_attributes
+from tapl_lang.lib import dynamic_attribute
 
 
 # TODO: extend from threading.local, and write a unit test for this - https://docs.python.org/3/library/threading.html#thread-local-data
@@ -89,7 +89,7 @@ def drop_same_types(types):
     return result
 
 
-class BaseType(dynamic_attributes.DynamicAttributeMixin):
+class BaseType(dynamic_attribute.DynamicAttributeMixin):
     def is_supertype_of__sa(self, subtype):
         del subtype  # unused
 

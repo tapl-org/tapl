@@ -7,7 +7,7 @@ import itertools
 from typing import Any
 
 from tapl_lang.lib import builtin_types as bt
-from tapl_lang.lib import dynamic_attributes, scope, typelib
+from tapl_lang.lib import dynamic_attribute, scope, typelib
 
 create_union = typelib.create_union
 create_function = typelib.create_function
@@ -28,7 +28,7 @@ def import_module(scope_: scope.Scope, module_names: list[str]) -> None:
 def create_scope(
     parent__sa: scope.Scope | None = None,
     **kwargs: Any,
-) -> dynamic_attributes.DynamicAttributeMixin:
+) -> dynamic_attribute.DynamicAttributeMixin:
     parent_scope = None
     if parent__sa:
         parent_scope = parent__sa
