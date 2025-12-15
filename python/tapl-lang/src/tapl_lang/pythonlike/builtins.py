@@ -5,8 +5,6 @@
 from tapl_lang.lib import builtin_types as bt
 from tapl_lang.lib import tapl_dev, typelib
 
-# XXX: rename this file to builtins.py
-
 
 def noop(*args, **kwargs):
     del args, kwargs
