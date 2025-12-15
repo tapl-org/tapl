@@ -57,10 +57,8 @@ cd tapl/python/tapl-lang
 hatch run python ./src/tapl_lang/cli/tapl.py  ./src/examples/hello_world.tapl
 ```
 
-This run the code. Behind the scene, This will generate two files: hello_world.py (the untyped code) and hello_world1.py (the type checker).
+This run the code. Behind the scene, This will generate two files:
 
-
-As you see it generates 2 files:
 - hello_world.py (untyped version of that code)
 - hello_world1.py (typechecker for that code)
 
