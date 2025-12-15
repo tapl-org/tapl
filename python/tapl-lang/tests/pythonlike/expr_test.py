@@ -198,11 +198,11 @@ def test_var1():
 
 def test_gather_errors():
     location = syntax.Location(start=syntax.Position(line=1, column=0))
-    a = terms.IntegerLiteral(location, 2)
-    b = terms.IntegerLiteral(location, 3)
+    a = terms.IntegerLiteral(value=2, location=location)
+    b = terms.IntegerLiteral(value=3, location=location)
     c = syntax.ErrorTerm('Expected number')
-    d = terms.BinOp(location, b, '*', c)
-    e = terms.BinOp(location, a, '+', d)
+    d = terms.BinOp(b, '*', c, location=location)
+    e = terms.BinOp(a, '+', d, location=location)
     error_bucket = compiler.gather_errors(e)
     assert len(error_bucket) == 1
     assert isinstance(error_bucket[0], syntax.ErrorTerm)

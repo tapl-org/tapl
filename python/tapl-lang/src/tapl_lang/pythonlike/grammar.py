@@ -957,7 +957,7 @@ def _parse_primary__attribute(c: Cursor) -> syntax.Term:
         and t.validate(_consume_punct(c, '.'))
         and t.validate(attr := _expect_name(c))
     ):
-        return terms.Attribute(t.location, value=value, attr=cast(TokenName, attr).value, ctx='load')
+        return terms.Attribute(value=value, attr=cast(TokenName, attr).value, ctx='load', location=t.location)
     return t.fail()
 
 
@@ -969,7 +969,7 @@ def _parse_primary__call(c: Cursor) -> syntax.Term:
         and t.validate(args := _scan_arguments(c))
         and t.validate(_expect_punct(c, ')'))
     ):
-        return terms.Call(t.location, func, cast(syntax.TermList, args).terms, keywords=[])
+        return terms.Call(func, cast(syntax.TermList, args).terms, keywords=[], location=t.location)
     return t.fail()
 
 
@@ -981,7 +981,7 @@ def _parse_primary__slices(c: Cursor) -> syntax.Term:
         and t.validate(slices := _expect_rule(c, rn.SLICES))
         and t.validate(_expect_punct(c, ']'))
     ):
-        return terms.Subscript(t.location, value=value, slice=slices, ctx='load')
+        return terms.Subscript(value=value, slice=slices, ctx='load', location=t.location)
     return t.fail()
 
 
@@ -1203,7 +1203,7 @@ def _parse_kvpair(c: Cursor) -> syntax.Term:
 def _parse_factor__unary(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(op := _consume_punct(c, '+', '-', '~')) and t.validate(factor := _expect_rule(c, rn.FACTOR)):
-        return terms.UnaryOp(t.location, cast(TokenPunct, op).value, factor)
+        return terms.UnaryOp(cast(TokenPunct, op).value, factor, location=t.location)
     return t.fail()
 
 
@@ -1214,7 +1214,7 @@ def _parse_power__binary(c: Cursor) -> syntax.Term:
         and t.validate(_consume_punct(c, '**'))
         and t.validate(right := _expect_rule(c, rn.FACTOR))
     ):
-        return terms.BinOp(t.location, left, '**', right)
+        return terms.BinOp(left, '**', right, location=t.location)
     return t.fail()
 
 
@@ -1236,7 +1236,7 @@ def _parse_term__binary(c: Cursor) -> syntax.Term:
         and t.validate(op := _consume_punct(c, '*', '/', '//', '%', '@'))
         and t.validate(right := _expect_rule(c, rn.FACTOR))
     ):
-        return terms.BinOp(t.location, left, cast(TokenPunct, op).value, right)
+        return terms.BinOp(left, cast(TokenPunct, op).value, right, location=t.location)
     return t.fail()
 
 
@@ -1247,7 +1247,7 @@ def _parse_bitwise_or__binary(c: Cursor) -> syntax.Term:
         and t.validate(op := _consume_punct(c, '|'))
         and t.validate(right := _expect_rule(c, rn.BITWISE_XOR))
     ):
-        return terms.BinOp(t.location, left, cast(TokenPunct, op).value, right)
+        return terms.BinOp(left, cast(TokenPunct, op).value, right, location=t.location)
     return t.fail()
 
 
@@ -1258,7 +1258,7 @@ def _parse_bitwise_xor__binary(c: Cursor) -> syntax.Term:
         and t.validate(op := _consume_punct(c, '^'))
         and t.validate(right := _expect_rule(c, rn.BITWISE_AND))
     ):
-        return terms.BinOp(t.location, left, cast(TokenPunct, op).value, right)
+        return terms.BinOp(left, cast(TokenPunct, op).value, right, location=t.location)
     return t.fail()
 
 
@@ -1269,7 +1269,7 @@ def _parse_bitwise_and__binary(c: Cursor) -> syntax.Term:
         and t.validate(op := _consume_punct(c, '&'))
         and t.validate(right := _expect_rule(c, rn.SHIFT_EXPR))
     ):
-        return terms.BinOp(t.location, left, cast(TokenPunct, op).value, right)
+        return terms.BinOp(left, cast(TokenPunct, op).value, right, location=t.location)
     return t.fail()
 
 
@@ -1280,7 +1280,7 @@ def _parse_shift_expr__binary(c: Cursor) -> syntax.Term:
         and t.validate(op := _consume_punct(c, '<<', '>>'))
         and t.validate(right := _expect_rule(c, rn.SUM))
     ):
-        return terms.BinOp(t.location, left, cast(TokenPunct, op).value, right)
+        return terms.BinOp(left, cast(TokenPunct, op).value, right, location=t.location)
     return t.fail()
 
 
@@ -1303,7 +1303,7 @@ def _parse_sum__binary(c: Cursor) -> syntax.Term:
         and t.validate(op := _consume_punct(c, '+', '-'))
         and t.validate(right := _expect_rule(c, rn.TERM))
     ):
-        return terms.BinOp(t.location, left, cast(TokenPunct, op).value, right)
+        return terms.BinOp(left, cast(TokenPunct, op).value, right, location=t.location)
     return t.fail()
 
 
@@ -1340,14 +1340,18 @@ def _parse_comparison(c: Cursor) -> syntax.Term:
             ops.append(op)
             comparators.append(comparator)
         if ops:
-            return terms.Compare(t.location, left=left, operators=ops, comparators=comparators)
+            return terms.Compare(left=left, operators=ops, comparators=comparators, location=t.location)
     return t.fail()
 
 
 def _parse_inversion__not(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'not')) and t.validate(operand := _expect_rule(c, rn.COMPARISON)):
-        return terms.BoolNot(location=t.location, operand=operand, mode=c.context.mode)
+        return terms.BoolNot(
+            operand=operand,
+            mode=c.context.mode,
+            location=t.location,
+        )
     return t.fail()
 
 
@@ -1425,9 +1429,9 @@ def _parse_assignment_expression(c: Cursor) -> syntax.Term:
     ):
         if t.validate(value := c.consume_rule(rn.EXPRESSION)):
             return terms.NamedExpr(
-                t.location,
-                target=terms.TypedName(name_location, id=token.value, ctx='store', mode=c.context.mode),
+                target=terms.TypedName(id=token.value, ctx='store', mode=c.context.mode, location=name_location),
                 value=value,
+                location=t.location,
             )
         return t.captured_error or syntax.ErrorTerm(message='Expected expression after ":="', location=t.location)
     return t.fail()
@@ -1453,7 +1457,11 @@ def _parse_assignment__annotated(c: Cursor) -> syntax.Term:
                 and not t.validate(_consume_punct(c.clone(), '='))
             ):
                 return terms.TypedAssign(
-                    t.location, target_name=target_name, target_type=target_type, value=value, mode=c.context.mode
+                    target_name=target_name,
+                    target_type=target_type,
+                    value=value,
+                    mode=c.context.mode,
+                    location=t.location,
                 )
     return t.fail()
 
@@ -1468,7 +1476,7 @@ def _parse_assignment__multi_targets(c: Cursor) -> syntax.Term:
     if not targets:
         return t.fail()
     if t.validate(value := _expect_rule(c, rn.ANNOTATED_RHS)) and not t.validate(_consume_punct(c.clone(), '=')):
-        return terms.Assign(t.location, targets=targets, value=value)
+        return terms.Assign(targets=targets, value=value, location=t.location)
     return t.fail()
 
 
@@ -1487,9 +1495,9 @@ def _parse_return(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'return')):
         if t.validate(value := c.consume_rule(rn.EXPRESSION)):
-            return terms.TypedReturn(t.location, value=value, mode=c.context.mode)
+            return terms.TypedReturn(value=value, mode=c.context.mode, location=t.location)
         return t.captured_error or terms.TypedReturn(
-            t.location, value=terms.NoneLiteral(t.location), mode=c.context.mode
+            value=terms.NoneLiteral(t.location), mode=c.context.mode, location=t.location
         )
     return t.fail()
 
@@ -1503,7 +1511,10 @@ def _rule_parameter_with_type(c: Cursor) -> syntax.Term:
             c.copy_position_from(k)
             param_name = cast(TokenName, name).value
             return terms.Parameter(
-                t.location, name=param_name, type_=syntax.Layers([syntax.Empty, param_type]), mode=c.context.mode
+                name=param_name,
+                type_=syntax.Layers([syntax.Empty, param_type]),
+                mode=c.context.mode,
+                location=t.location,
             )
     return t.fail()
 
@@ -1513,7 +1524,7 @@ def _rule_parameter_no_type(c: Cursor) -> syntax.Term:
     if t.validate(name := _consume_name(c)):
         param_name = cast(TokenName, name).value
         return terms.Parameter(
-            t.location, name=param_name, type_=syntax.Layers([syntax.Empty, syntax.Empty]), mode=c.context.mode
+            name=param_name, type_=syntax.Layers([syntax.Empty, syntax.Empty]), mode=c.context.mode, location=t.location
         )
     return t.fail()
 
@@ -1888,7 +1899,7 @@ def _parse_target_with_star_atom__attribute(c: Cursor) -> syntax.Term:
         and t.validate(name := _expect_name(c))
         and not t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
     ):
-        return terms.Attribute(t.location, value=target, attr=cast(TokenName, name).value, ctx='store')
+        return terms.Attribute(value=target, attr=cast(TokenName, name).value, ctx='store', location=t.location)
     return t.fail()
 
 
@@ -1901,7 +1912,7 @@ def _parse_target_with_star_atom__slices(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, ']'))
         and not t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
     ):
-        return terms.Subscript(t.location, value=value, slice=slices, ctx='load')
+        return terms.Subscript(value=value, slice=slices, ctx='load', location=t.location)
     return t.fail()
 
 
@@ -1913,7 +1924,7 @@ def _parse_t_primary__attribute(c: Cursor) -> syntax.Term:
         and t.validate(name := _expect_name(c))
         and t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
     ):
-        return terms.Attribute(t.location, value=value, attr=cast(TokenName, name).value, ctx='load')
+        return terms.Attribute(value=value, attr=cast(TokenName, name).value, ctx='load', location=t.location)
     return t.fail()
 
 
@@ -1926,7 +1937,7 @@ def _parse_t_primary__slices(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, ']'))
         and t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
     ):
-        return terms.Subscript(t.location, value=value, slice=slices, ctx='load')
+        return terms.Subscript(value=value, slice=slices, ctx='load', location=t.location)
     return t.fail()
 
 
@@ -1969,7 +1980,7 @@ def _parse_del_target__attribute(c: Cursor) -> syntax.Term:
         and t.validate(name := _expect_name(c))
         and not t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
     ):
-        return terms.Attribute(t.location, value=target, attr=cast(TokenName, name).value, ctx='delete')
+        return terms.Attribute(value=target, attr=cast(TokenName, name).value, ctx='delete', location=t.location)
     return t.fail()
 
 
@@ -1982,7 +1993,7 @@ def _parse_del_target__slices(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, ']'))
         and not t.validate(c.clone().consume_rule(rn.T_LOOKAHEAD))
     ):
-        return terms.Subscript(t.location, value=value, slice=slices, ctx='delete')
+        return terms.Subscript(value=value, slice=slices, ctx='delete', location=t.location)
     return t.fail()
 
 

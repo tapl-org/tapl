@@ -20,20 +20,19 @@ class PythonlikeLanguage(Language):
 
     def create_header_for_evaluate_layer(self) -> syntax.Term:
         location = syntax.Location(start=syntax.Position(line=1, column=0))
-        return terms.ImportFrom(location, 'tapl_lang.pythonlike.predef', [terms.Alias(name='*')], IMPORT_LEVEL)
+        return terms.ImportFrom('tapl_lang.pythonlike.predef', [terms.Alias(name='*')], IMPORT_LEVEL, location=location)
 
     def create_header_for_typecheck_layer(self) -> syntax.Term:
         location = syntax.Location(start=syntax.Position(line=1, column=0))
         return syntax.TermList(
             [
                 terms.ImportFrom(
-                    location,
                     'tapl_lang.pythonlike.predef1',
                     [terms.Alias(name='predef_scope', asname='predef_scope__sa')],
                     IMPORT_LEVEL,
+                    location=location,
                 ),
                 terms.Assign(
-                    location=location,
                     targets=[terms.Name(location=location, id=lambda setting: setting.scope_name, ctx='store')],
                     value=terms.Call(
                         location=location,
@@ -51,6 +50,7 @@ class PythonlikeLanguage(Language):
                             )
                         ],
                     ),
+                    location=location,
                 ),
             ]
         )

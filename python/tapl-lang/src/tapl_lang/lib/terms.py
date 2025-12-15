@@ -34,13 +34,11 @@ class Module(syntax.Term):
 ################################################################################
 # STATEMENTS
 
-# XXX: move the location to the end of the dataclass fields for readability.
 # XXX: dataclasses.field(repr=False) for location fields for readability.
 
 
 @dataclass
 class FunctionDef(syntax.Term):
-    location: syntax.Location
     name: Identifier
     posonlyargs: list[str]
     args: list[str]
@@ -51,6 +49,7 @@ class FunctionDef(syntax.Term):
     defaults: list[syntax.Term]
     body: syntax.Term
     decorator_list: list[syntax.Term]
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -63,7 +62,6 @@ class FunctionDef(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: FunctionDef(
-                location=self.location,
                 name=self.name,
                 posonlyargs=self.posonlyargs,
                 args=self.args,
@@ -74,18 +72,19 @@ class FunctionDef(syntax.Term):
                 defaults=[layer(d) for d in self.defaults],
                 body=layer(self.body),
                 decorator_list=[layer(d) for d in self.decorator_list],
+                location=self.location,
             )
         )
 
 
 @dataclass
 class ClassDef(syntax.Term):
-    location: syntax.Location
     name: Identifier
     bases: list[syntax.Term]
     keywords: list[tuple[str, syntax.Term]]
     body: syntax.Term
     decorator_list: list[syntax.Term]
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -98,20 +97,20 @@ class ClassDef(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: ClassDef(
-                location=self.location,
                 name=self.name,
                 bases=[layer(b) for b in self.bases],
                 keywords=[(k, layer(v)) for k, v in self.keywords],
                 body=layer(self.body),
                 decorator_list=[layer(d) for d in self.decorator_list],
+                location=self.location,
             )
         )
 
 
 @dataclass
 class Return(syntax.Term):
-    location: syntax.Location
     value: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -121,13 +120,13 @@ class Return(syntax.Term):
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Return(location=self.location, value=layer(self.value)))
+        return ls.build(lambda layer: Return(value=layer(self.value), location=self.location))
 
 
 @dataclass
 class Delete(syntax.Term):
-    location: syntax.Location
     targets: list[syntax.Term]
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -135,14 +134,14 @@ class Delete(syntax.Term):
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Delete(location=self.location, targets=[layer(t) for t in self.targets]))
+        return ls.build(lambda layer: Delete(targets=[layer(t) for t in self.targets], location=self.location))
 
 
 @dataclass
 class Assign(syntax.Term):
-    location: syntax.Location
     targets: list[syntax.Term]
     value: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -153,18 +152,18 @@ class Assign(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Assign(
-                location=self.location, targets=[layer(t) for t in self.targets], value=layer(self.value)
+                targets=[layer(t) for t in self.targets], value=layer(self.value), location=self.location
             )
         )
 
 
 @dataclass
 class For(syntax.Term):
-    location: syntax.Location
     target: syntax.Term
     iter: syntax.Term
     body: syntax.Term
     orelse: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -177,21 +176,21 @@ class For(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: For(
-                location=self.location,
                 target=layer(self.target),
                 iter=layer(self.iter),
                 body=layer(self.body),
                 orelse=layer(self.orelse),
+                location=self.location,
             )
         )
 
 
 @dataclass
 class While(syntax.Term):
-    location: syntax.Location
     test: syntax.Term
     body: syntax.Term
     orelse: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -203,20 +202,20 @@ class While(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: While(
-                location=self.location,
                 test=layer(self.test),
                 body=layer(self.body),
                 orelse=layer(self.orelse),
+                location=self.location,
             )
         )
 
 
 @dataclass
 class If(syntax.Term):
-    location: syntax.Location
     test: syntax.Term
     body: syntax.Term
     orelse: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -228,10 +227,10 @@ class If(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: If(
-                location=self.location,
                 test=layer(self.test),
                 body=layer(self.body),
                 orelse=layer(self.orelse),
+                location=self.location,
             )
         )
 
@@ -258,9 +257,9 @@ class WithItem(syntax.Term):
 
 @dataclass
 class With(syntax.Term):
-    location: syntax.Location
     items: list[syntax.Term]
     body: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -271,18 +270,18 @@ class With(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: With(
-                location=self.location,
                 items=[layer(i) for i in self.items],
                 body=layer(self.body),
+                location=self.location,
             )
         )
 
 
 @dataclass
 class Raise(syntax.Term):
-    location: syntax.Location
     exception: syntax.Term
     cause: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -293,20 +292,20 @@ class Raise(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Raise(
-                location=self.location,
                 exception=layer(self.exception),
                 cause=layer(self.cause),
+                location=self.location,
             )
         )
 
 
 @dataclass
 class Try(syntax.Term):
-    location: syntax.Location
     body: syntax.Term
     handlers: list[syntax.Term]
     orelse: syntax.Term
     finalbody: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -319,21 +318,21 @@ class Try(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Try(
-                location=self.location,
                 body=layer(self.body),
                 handlers=[layer(h) for h in self.handlers],
                 orelse=layer(self.orelse),
                 finalbody=layer(self.finalbody),
+                location=self.location,
             )
         )
 
 
 @dataclass
 class ExceptHandler(syntax.Term):
-    location: syntax.Location
     exception_type: syntax.Term
     name: Identifier | None
     body: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -344,10 +343,10 @@ class ExceptHandler(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: ExceptHandler(
-                location=self.location,
                 exception_type=layer(self.exception_type),
                 name=self.name,
                 body=layer(self.body),
+                location=self.location,
             )
         )
 
@@ -360,8 +359,8 @@ class Alias:
 
 @dataclass
 class Import(syntax.Term):
-    location: syntax.Location
     names: list[Alias]
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -370,16 +369,16 @@ class Import(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda _: Import(location=self.location, names=[Alias(name=n.name, asname=n.asname) for n in self.names])
+            lambda _: Import(names=[Alias(name=n.name, asname=n.asname) for n in self.names], location=self.location)
         )
 
 
 @dataclass
 class ImportFrom(syntax.Term):
-    location: syntax.Location
     module: str | None
     names: list[Alias]
     level: int
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -389,18 +388,18 @@ class ImportFrom(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda _: ImportFrom(
-                location=self.location,
                 module=self.module,
                 names=[Alias(name=n.name, asname=n.asname) for n in self.names],
                 level=self.level,
+                location=self.location,
             )
         )
 
 
 @dataclass
 class Expr(syntax.Term):
-    location: syntax.Location
     value: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -408,7 +407,7 @@ class Expr(syntax.Term):
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Expr(location=self.location, value=layer(self.value)))
+        return ls.build(lambda layer: Expr(value=layer(self.value), location=self.location))
 
 
 @dataclass
@@ -430,9 +429,9 @@ class Pass(syntax.Term):
 
 @dataclass
 class BoolOp(syntax.Term):
-    location: syntax.Location
     operator: str
     values: list[syntax.Term]
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -441,16 +440,16 @@ class BoolOp(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: BoolOp(location=self.location, operator=self.operator, values=[layer(v) for v in self.values])
+            lambda layer: BoolOp(operator=self.operator, values=[layer(v) for v in self.values], location=self.location)
         )
 
 
 # XXX: target of ast.NamedExpr accepts only ast.Name. This prevents us to assign attributes like s0.name := s0.Int. Figure out how to support that.
 @dataclass
 class NamedExpr(syntax.Term):
-    location: syntax.Location
     target: syntax.Term
     value: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -461,19 +460,19 @@ class NamedExpr(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: NamedExpr(
-                location=self.location,
                 target=layer(self.target),
                 value=layer(self.value),
+                location=self.location,
             )
         )
 
 
 @dataclass
 class BinOp(syntax.Term):
-    location: syntax.Location
     left: syntax.Term
     op: str
     right: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -483,15 +482,15 @@ class BinOp(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: BinOp(location=self.location, left=layer(self.left), op=self.op, right=layer(self.right))
+            lambda layer: BinOp(left=layer(self.left), op=self.op, right=layer(self.right), location=self.location)
         )
 
 
 @dataclass
 class UnaryOp(syntax.Term):
-    location: syntax.Location
     op: str
     operand: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -499,13 +498,13 @@ class UnaryOp(syntax.Term):
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: UnaryOp(location=self.location, op=self.op, operand=layer(self.operand)))
+        return ls.build(lambda layer: UnaryOp(op=self.op, operand=layer(self.operand), location=self.location))
 
 
 @dataclass
 class Set(syntax.Term):
-    location: syntax.Location
     elements: list[syntax.Term]
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -513,14 +512,14 @@ class Set(syntax.Term):
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: Set(location=self.location, elements=[layer(v) for v in self.elements]))
+        return ls.build(lambda layer: Set(elements=[layer(v) for v in self.elements], location=self.location))
 
 
 @dataclass
 class Dict(syntax.Term):
-    location: syntax.Location
     keys: list[syntax.Term]
     values: list[syntax.Term]
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -531,19 +530,19 @@ class Dict(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Dict(
-                location=self.location,
                 keys=[layer(k) for k in self.keys],
                 values=[layer(v) for v in self.values],
+                location=self.location,
             )
         )
 
 
 @dataclass
 class Compare(syntax.Term):
-    location: syntax.Location
     left: syntax.Term
     operators: list[str]
     comparators: list[syntax.Term]
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -554,20 +553,20 @@ class Compare(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Compare(
-                location=self.location,
                 left=layer(self.left),
                 operators=self.operators,
                 comparators=[layer(v) for v in self.comparators],
+                location=self.location,
             )
         )
 
 
 @dataclass
 class Call(syntax.Term):
-    location: syntax.Location
     func: syntax.Term
     args: list[syntax.Term]
     keywords: list[tuple[str, syntax.Term]]
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -579,18 +578,18 @@ class Call(syntax.Term):
     def separate(self, ls) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Call(
-                location=self.location,
                 func=layer(self.func),
                 args=[layer(v) for v in self.args],
                 keywords=[(k, layer(v)) for k, v in self.keywords],
+                location=self.location,
             )
         )
 
 
 @dataclass
 class Constant(syntax.Term):
-    location: syntax.Location
     value: Any
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -598,15 +597,15 @@ class Constant(syntax.Term):
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda _: Constant(location=self.location, value=self.value))
+        return ls.build(lambda _: Constant(value=self.value, location=self.location))
 
 
 @dataclass
 class Attribute(syntax.Term):
-    location: syntax.Location
     value: syntax.Term
     attr: Identifier
     ctx: str
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -615,16 +614,16 @@ class Attribute(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: Attribute(location=self.location, value=layer(self.value), attr=self.attr, ctx=self.ctx)
+            lambda layer: Attribute(value=layer(self.value), attr=self.attr, ctx=self.ctx, location=self.location)
         )
 
 
 @dataclass
 class Subscript(syntax.Term):
-    location: syntax.Location
     value: syntax.Term
     slice: syntax.Term
     ctx: str
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -635,19 +634,19 @@ class Subscript(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Subscript(
-                location=self.location,
                 value=layer(self.value),
                 slice=layer(self.slice),
                 ctx=self.ctx,
+                location=self.location,
             )
         )
 
 
 @dataclass
 class Name(syntax.Term):
-    location: syntax.Location
     id: Identifier
     ctx: str
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -655,14 +654,14 @@ class Name(syntax.Term):
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda _: Name(location=self.location, id=self.id, ctx=self.ctx))
+        return ls.build(lambda _: Name(id=self.id, ctx=self.ctx, location=self.location))
 
 
 @dataclass
 class List(syntax.Term):
-    location: syntax.Location
     elements: list[syntax.Term]
     ctx: str
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -671,15 +670,15 @@ class List(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: List(location=self.location, elements=[layer(v) for v in self.elements], ctx=self.ctx)
+            lambda layer: List(elements=[layer(v) for v in self.elements], ctx=self.ctx, location=self.location)
         )
 
 
 @dataclass
 class Tuple(syntax.Term):
-    location: syntax.Location
     elements: list[syntax.Term]
     ctx: str
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -688,16 +687,16 @@ class Tuple(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: Tuple(location=self.location, elements=[layer(v) for v in self.elements], ctx=self.ctx)
+            lambda layer: Tuple(elements=[layer(v) for v in self.elements], ctx=self.ctx, location=self.location)
         )
 
 
 @dataclass
 class Slice(syntax.Term):
-    location: syntax.Location
     lower: syntax.Term
     upper: syntax.Term
     step: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -709,10 +708,10 @@ class Slice(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Slice(
-                location=self.location,
                 lower=layer(self.lower),
                 upper=layer(self.upper),
                 step=layer(self.step),
+                location=self.location,
             )
         )
 
@@ -726,10 +725,10 @@ class Slice(syntax.Term):
 
 @dataclass
 class Select(syntax.Term):
-    location: syntax.Location
     value: syntax.Term
     names: list[str]
     ctx: str
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -739,30 +738,43 @@ class Select(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Select(
-                location=self.location,
                 value=layer(self.value),
                 names=self.names,
                 ctx=self.ctx,
+                location=self.location,
             )
         )
 
     @override
     def unfold(self) -> syntax.Term:
         if not self.names:
-            return syntax.ErrorTerm(location=self.location, message='At least one name is required to select a path.')
+            return syntax.ErrorTerm(
+                message='At least one name is required to select a path.',
+                location=self.location,
+            )
         value = self.value
         for i in range(len(self.names) - 1):
-            value = Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
-        return Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
+            value = Attribute(
+                value=value,
+                attr=self.names[i],
+                ctx='load',
+                location=self.location,
+            )
+        return Attribute(
+            value=value,
+            attr=self.names[-1],
+            ctx=self.ctx,
+            location=self.location,
+        )
 
 
 @dataclass
 class Path(syntax.Term):
-    location: syntax.Location
     names: list[str]
     # XXX: Find a better name for the ctx field. options: context, reference_mode
     ctx: str
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -771,23 +783,23 @@ class Path(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: Path(location=self.location, names=self.names, ctx=self.ctx, mode=layer(self.mode))
+            lambda layer: Path(names=self.names, ctx=self.ctx, mode=layer(self.mode), location=self.location)
         )
 
     @override
     def unfold(self) -> syntax.Term:
         if len(self.names) <= 1:
-            return syntax.ErrorTerm(location=self.location, message='At least two names are required to create a path.')
+            return syntax.ErrorTerm(message='At least two names are required to create a path.', location=self.location)
         value: syntax.Term = TypedName(location=self.location, id=self.names[0], ctx='load', mode=self.mode)
         for i in range(1, len(self.names) - 1):
-            value = Attribute(location=self.location, value=value, attr=self.names[i], ctx='load')
-        return Attribute(location=self.location, value=value, attr=self.names[-1], ctx=self.ctx)
+            value = Attribute(value=value, attr=self.names[i], ctx='load', location=self.location)
+        return Attribute(value=value, attr=self.names[-1], ctx=self.ctx, location=self.location)
 
 
 @dataclass
 class BranchTyping(syntax.Term):
-    location: syntax.Location
     branches: list[syntax.Term]
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -795,7 +807,7 @@ class BranchTyping(syntax.Term):
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(lambda layer: BranchTyping(location=self.location, branches=[layer(b) for b in self.branches]))
+        return ls.build(lambda layer: BranchTyping(branches=[layer(b) for b in self.branches], location=self.location))
 
     @override
     def unfold(self) -> syntax.Term:
@@ -809,21 +821,33 @@ class BranchTyping(syntax.Term):
 
         def new_scope() -> syntax.Term:
             return Assign(
-                location=self.location,
                 targets=[
-                    nested_scope(Name(location=self.location, id=lambda setting: setting.scope_name, ctx='store'))
+                    nested_scope(
+                        Name(
+                            id=lambda setting: setting.scope_name,
+                            ctx='store',
+                            location=self.location,
+                        )
+                    )
                 ],
                 value=Call(
-                    location=self.location,
                     func=Path(
-                        location=self.location,
                         names=['tapl_typing', 'fork_scope'],
                         ctx='load',
                         mode=MODE_TYPECHECK,
+                        location=self.location,
                     ),
-                    args=[Name(location=self.location, id=lambda setting: setting.forker_name, ctx='load')],
+                    args=[
+                        Name(
+                            id=lambda setting: setting.forker_name,
+                            ctx='load',
+                            location=self.location,
+                        )
+                    ],
                     keywords=[],
+                    location=self.location,
                 ),
+                location=self.location,
             )
 
         body: list[syntax.Term] = []
@@ -836,17 +860,27 @@ class BranchTyping(syntax.Term):
             items=[
                 WithItem(
                     context_expr=Call(
-                        location=self.location,
                         func=Path(
-                            location=self.location,
                             names=['tapl_typing', 'scope_forker'],
                             ctx='load',
                             mode=MODE_TYPECHECK,
+                            location=self.location,
                         ),
-                        args=[Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load')],
+                        args=[
+                            Name(
+                                id=lambda setting: setting.scope_name,
+                                ctx='load',
+                                location=self.location,
+                            )
+                        ],
                         keywords=[],
+                        location=self.location,
                     ),
-                    optional_vars=Name(location=self.location, id=lambda setting: setting.forker_name, ctx='store'),
+                    optional_vars=Name(
+                        id=lambda setting: setting.forker_name,
+                        ctx='store',
+                        location=self.location,
+                    ),
                 )
             ],
             body=syntax.TermList(terms=body),
@@ -884,10 +918,10 @@ SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
 
 @dataclass
 class TypedName(syntax.Term):
-    location: syntax.Location
     id: Identifier
     ctx: str
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -896,30 +930,30 @@ class TypedName(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: TypedName(location=self.location, id=self.id, ctx=self.ctx, mode=layer(self.mode))
+            lambda layer: TypedName(id=self.id, ctx=self.ctx, mode=layer(self.mode), location=self.location)
         )
 
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return Name(location=self.location, id=self.id, ctx=self.ctx)
+            return Name(id=self.id, ctx=self.ctx, location=self.location)
         if self.mode is MODE_TYPECHECK:
             return Attribute(
-                location=self.location,
-                value=Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                value=Name(id=lambda setting: setting.scope_name, ctx='load', location=self.location),
                 attr=self.id,
                 ctx=self.ctx,
+                location=self.location,
             )
         raise tapl_error.UnhandledError
 
 
 @dataclass
 class TypedAssign(syntax.Term):
-    location: syntax.Location
     target_name: syntax.Term
     target_type: syntax.Term
     value: syntax.Term
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -932,11 +966,11 @@ class TypedAssign(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedAssign(
-                location=self.location,
                 target_name=layer(self.target_name),
                 target_type=layer(self.target_type),
                 value=layer(self.value),
                 mode=layer(self.mode),
+                location=self.location,
             )
         )
 
@@ -944,13 +978,17 @@ class TypedAssign(syntax.Term):
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return Assign(
-                location=self.location,
                 targets=[self.target_name],
                 value=self.value,
+                location=self.location,
             )
         if self.mode is MODE_TYPECHECK:
-            expected = Assign(location=self.location, targets=[self.target_name], value=self.target_type)
-            assigned = Assign(location=self.location, targets=[self.target_name], value=self.value)
+            expected = Assign(
+                targets=[self.target_name],
+                value=self.target_type,
+                location=self.location,
+            )
+            assigned = Assign(targets=[self.target_name], value=self.value, location=self.location)
             return syntax.TermList(terms=[expected, assigned])
         raise tapl_error.UnhandledError
 
@@ -967,8 +1005,8 @@ class Literal(syntax.Term):
         if ls.layer_count != SAFE_LAYER_COUNT:
             raise ValueError('NoneLiteral must be separated in 2 layers')
         return [
-            Constant(location=self.location, value=value),
-            TypedName(location=self.location, id=type_id, ctx='load', mode=MODE_TYPECHECK),
+            Constant(value=value, location=self.location),
+            TypedName(id=type_id, ctx='load', mode=MODE_TYPECHECK, location=self.location),
         ]
 
 
@@ -1017,9 +1055,9 @@ class StringLiteral(Literal):
 
 @dataclass
 class TypedList(syntax.Term):
-    location: syntax.Location
     elements: list[syntax.Term]
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1030,36 +1068,36 @@ class TypedList(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedList(
-                location=self.location,
                 elements=[layer(e) for e in self.elements],
                 mode=layer(self.mode),
+                location=self.location,
             )
         )
 
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return List(location=self.location, elements=self.elements, ctx='load')
+            return List(elements=self.elements, ctx='load', location=self.location)
         if self.mode is MODE_TYPECHECK:
             return Call(
-                location=self.location,
                 func=Path(
-                    location=self.location,
                     names=['tapl_typing', 'create_typed_list'],
                     ctx='load',
                     mode=self.mode,
+                    location=self.location,
                 ),
                 args=self.elements,
                 keywords=[],
+                location=self.location,
             )
         raise tapl_error.UnhandledError
 
 
 @dataclass
 class TypedSet(syntax.Term):
-    location: syntax.Location
     elements: list[syntax.Term]
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1070,37 +1108,40 @@ class TypedSet(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedSet(
-                location=self.location,
                 elements=[layer(e) for e in self.elements],
                 mode=layer(self.mode),
+                location=self.location,
             )
         )
 
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return Set(location=self.location, elements=self.elements)
+            return Set(
+                elements=self.elements,
+                location=self.location,
+            )
         if self.mode is MODE_TYPECHECK:
             return Call(
-                location=self.location,
                 func=Path(
-                    location=self.location,
                     names=['tapl_typing', 'create_typed_set'],
                     ctx='load',
                     mode=self.mode,
+                    location=self.location,
                 ),
                 args=self.elements,
                 keywords=[],
+                location=self.location,
             )
         raise tapl_error.UnhandledError
 
 
 @dataclass
 class TypedDict(syntax.Term):
-    location: syntax.Location
     keys: list[syntax.Term]
     values: list[syntax.Term]
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1112,10 +1153,10 @@ class TypedDict(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedDict(
-                location=self.location,
                 keys=[layer(k) for k in self.keys],
                 values=[layer(v) for v in self.values],
                 mode=layer(self.mode),
+                location=self.location,
             )
         )
 
@@ -1123,41 +1164,41 @@ class TypedDict(syntax.Term):
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return Dict(
-                location=self.location,
                 keys=self.keys,
                 values=self.values,
+                location=self.location,
             )
         if self.mode is MODE_TYPECHECK:
             return Call(
-                location=self.location,
                 func=Path(
-                    location=self.location,
                     names=['tapl_typing', 'create_typed_dict'],
                     ctx='load',
                     mode=self.mode,
+                    location=self.location,
                 ),
                 args=[
                     List(
-                        location=self.location,
                         elements=self.keys,
                         ctx='load',
+                        location=self.location,
                     ),
                     List(
-                        location=self.location,
                         elements=self.values,
                         ctx='load',
+                        location=self.location,
                     ),
                 ],
                 keywords=[],
+                location=self.location,
             )
         raise tapl_error.UnhandledError
 
 
 @dataclass
 class BoolNot(syntax.Term):
-    location: syntax.Location
     operand: syntax.Term
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1167,25 +1208,34 @@ class BoolNot(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: BoolNot(location=self.location, operand=layer(self.operand), mode=layer(self.mode))
+            lambda layer: BoolNot(operand=layer(self.operand), mode=layer(self.mode), location=self.location)
         )
 
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return UnaryOp(location=self.location, op='not', operand=self.operand)
+            return UnaryOp(
+                op='not',
+                operand=self.operand,
+                location=self.location,
+            )
         if self.mode is MODE_TYPECHECK:
             # unary not operator always returns Bool type
-            return TypedName(location=self.location, id='Bool', ctx='load', mode=MODE_TYPECHECK)
+            return TypedName(
+                id='Bool',
+                ctx='load',
+                mode=MODE_TYPECHECK,
+                location=self.location,
+            )
         raise tapl_error.UnhandledError
 
 
 @dataclass
 class TypedBoolOp(syntax.Term):
-    location: syntax.Location
     operator: str
     values: list[syntax.Term]
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1196,32 +1246,37 @@ class TypedBoolOp(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedBoolOp(
-                location=self.location,
                 operator=self.operator,
                 values=[layer(v) for v in self.values],
                 mode=layer(self.mode),
+                location=self.location,
             )
         )
 
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return BoolOp(location=self.location, operator=self.operator, values=self.values)
+            return BoolOp(operator=self.operator, values=self.values, location=self.location)
         if self.mode is MODE_TYPECHECK:
             return Call(
-                location=self.location,
-                func=Path(location=self.location, names=['tapl_typing', 'create_union'], ctx='load', mode=self.mode),
+                func=Path(
+                    names=['tapl_typing', 'create_union'],
+                    ctx='load',
+                    mode=self.mode,
+                    location=self.location,
+                ),
                 args=self.values,
                 keywords=[],
+                location=self.location,
             )
         raise tapl_error.UnhandledError
 
 
 @dataclass
 class TypedReturn(syntax.Term):
-    location: syntax.Location
     value: syntax.Term
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1231,34 +1286,49 @@ class TypedReturn(syntax.Term):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
-            lambda layer: TypedReturn(location=self.location, value=layer(self.value), mode=layer(self.mode))
+            lambda layer: TypedReturn(value=layer(self.value), mode=layer(self.mode), location=self.location)
         )
 
     @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
-            return Return(location=self.location, value=self.value)
+            return Return(
+                value=self.value,
+                location=self.location,
+            )
         if self.mode is MODE_TYPECHECK:
             call = Call(
-                location=self.location,
-                func=Path(location=self.location, names=['tapl_typing', 'add_return_type'], ctx='load', mode=self.mode),
+                func=Path(
+                    names=['tapl_typing', 'add_return_type'],
+                    ctx='load',
+                    mode=self.mode,
+                    location=self.location,
+                ),
                 args=[
-                    Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                    Name(
+                        id=lambda setting: setting.scope_name,
+                        ctx='load',
+                        location=self.location,
+                    ),
                     self.value,
                 ],
                 keywords=[],
+                location=self.location,
             )
-            return Expr(location=self.location, value=call)
+            return Expr(
+                value=call,
+                location=self.location,
+            )
         raise tapl_error.UnhandledError
 
 
 # TODO: Add Parameters type to represent list of parameters which support posonly and kwonly args
 @dataclass
 class Parameter(syntax.Term):
-    location: syntax.Location
     name: str
     type_: syntax.Term
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1269,7 +1339,7 @@ class Parameter(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Parameter(
-                location=self.location, name=self.name, type_=layer(self.type_), mode=layer(self.mode)
+                name=self.name, type_=layer(self.type_), mode=layer(self.mode), location=self.location
             )
         )
 
@@ -1283,12 +1353,12 @@ class Parameter(syntax.Term):
 # TODO: Implement posonly_args, regular_args, vararg, kwonly_args, kwarg, defaults if needed
 @dataclass
 class TypedFunctionDef(syntax.Term):
-    location: syntax.Location
     name: str
     parameters: list[syntax.Term]
     return_type: syntax.Term
     body: syntax.Term
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1301,12 +1371,12 @@ class TypedFunctionDef(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedFunctionDef(
-                location=self.location,
                 name=self.name,
                 return_type=layer(self.return_type),
                 parameters=[layer(p) for p in self.parameters],
                 body=layer(self.body),
                 mode=layer(self.mode),
+                location=self.location,
             )
         )
 
@@ -1315,7 +1385,6 @@ class TypedFunctionDef(syntax.Term):
             raise tapl_error.TaplError('All parameter type must be Empty when generating function in evaluate mode.')
 
         return FunctionDef(
-            location=self.location,
             name=self.name,
             posonlyargs=[],
             args=[cast(Parameter, p).name for p in self.parameters],
@@ -1326,6 +1395,7 @@ class TypedFunctionDef(syntax.Term):
             defaults=[],
             body=self.body,
             decorator_list=[],
+            location=self.location,
         )
 
     def unfold_typecheck_main(self, *, is_method: bool = False) -> syntax.Term:
@@ -1343,23 +1413,42 @@ class TypedFunctionDef(syntax.Term):
         keywords.append(
             (
                 'parent__sa',
-                Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                Name(
+                    id=lambda setting: setting.scope_name,
+                    ctx='load',
+                    location=self.location,
+                ),
             )
         )
-        keywords.extend((name, Name(location=self.location, id=name, ctx='load')) for name in param_names)
+        keywords.extend(
+            (
+                name,
+                Name(
+                    id=name,
+                    ctx='load',
+                    location=self.location,
+                ),
+            )
+            for name in param_names
+        )
         new_scope = Assign(
-            location=self.location,
             targets=[
                 nested_scope(
                     Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
                 )
             ],
             value=Call(
-                location=self.location,
-                func=Path(location=self.location, names=['tapl_typing', 'create_scope'], ctx='load', mode=self.mode),
+                func=Path(
+                    names=['tapl_typing', 'create_scope'],
+                    ctx='load',
+                    mode=self.mode,
+                    location=self.location,
+                ),
                 args=[],
                 keywords=keywords,
+                location=self.location,
             ),
+            location=self.location,
         )
         tmp_function: syntax.Term = syntax.Empty
         set_return_type: syntax.Term = syntax.Empty
@@ -1369,50 +1458,77 @@ class TypedFunctionDef(syntax.Term):
                 params = params[1:]  # skip 'self' parameter type
             tmp_function = Assign(
                 location=self.location,
-                targets=[TypedName(location=self.location, id=self.name, ctx='store', mode=self.mode)],
+                targets=[
+                    TypedName(
+                        id=self.name,
+                        ctx='store',
+                        mode=self.mode,
+                        location=self.location,
+                    )
+                ],
                 value=Call(
-                    location=self.location,
                     func=Path(
-                        location=self.location, names=['tapl_typing', 'create_function'], ctx='load', mode=self.mode
+                        names=['tapl_typing', 'create_function'],
+                        ctx='load',
+                        mode=self.mode,
+                        location=self.location,
                     ),
                     args=[
                         List(
-                            location=self.location,
                             elements=params,
                             ctx='load',
+                            location=self.location,
                         ),
                         self.return_type,
                     ],
                     keywords=[],
+                    location=self.location,
                 ),
             )
             set_return_type = Expr(
-                location=self.location,
                 value=Call(
-                    location=self.location,
                     func=Path(
-                        location=self.location, names=['tapl_typing', 'set_return_type'], ctx='load', mode=self.mode
+                        names=['tapl_typing', 'set_return_type'],
+                        ctx='load',
+                        mode=self.mode,
+                        location=self.location,
                     ),
                     args=[
-                        Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
+                        Name(
+                            id=lambda setting: setting.scope_name,
+                            ctx='load',
+                            location=self.location,
+                        ),
                         self.return_type,
                     ],
                     keywords=[],
+                    location=self.location,
                 ),
+                location=self.location,
             )
 
         get_return_type = Return(
-            location=self.location,
             value=Call(
-                location=self.location,
-                func=Path(location=self.location, names=['tapl_typing', 'get_return_type'], ctx='load', mode=self.mode),
-                args=[Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load')],
+                func=Path(
+                    names=['tapl_typing', 'get_return_type'],
+                    ctx='load',
+                    mode=self.mode,
+                    location=self.location,
+                ),
+                args=[
+                    Name(
+                        id=lambda setting: setting.scope_name,
+                        ctx='load',
+                        location=self.location,
+                    )
+                ],
                 keywords=[],
+                location=self.location,
             ),
+            location=self.location,
         )
 
         return FunctionDef(
-            location=self.location,
             name=self.name,
             posonlyargs=[],
             args=param_names,
@@ -1428,6 +1544,7 @@ class TypedFunctionDef(syntax.Term):
                 ]
             ),
             decorator_list=[],
+            location=self.location,
         )
 
     def unfold_typecheck_type(self) -> syntax.Term:
@@ -1437,26 +1554,42 @@ class TypedFunctionDef(syntax.Term):
             )
 
         return Assign(
-            location=self.location,
-            targets=[TypedName(location=self.location, id=self.name, ctx='store', mode=self.mode)],
+            targets=[
+                TypedName(
+                    id=self.name,
+                    ctx='store',
+                    mode=self.mode,
+                    location=self.location,
+                )
+            ],
             value=Call(
-                location=self.location,
-                func=Path(location=self.location, names=['tapl_typing', 'create_function'], ctx='load', mode=self.mode),
+                func=Path(
+                    names=['tapl_typing', 'create_function'],
+                    ctx='load',
+                    mode=self.mode,
+                    location=self.location,
+                ),
                 args=[
                     List(
-                        location=self.location,
                         elements=[cast(Parameter, p).type_ for p in self.parameters],
                         ctx='load',
+                        location=self.location,
                     ),
                     Call(
-                        location=self.location,
-                        func=Name(location=self.location, id=self.name, ctx='load'),
+                        func=Name(
+                            id=self.name,
+                            ctx='load',
+                            location=self.location,
+                        ),
                         args=[cast(Parameter, p).type_ for p in self.parameters],
                         keywords=[],
+                        location=self.location,
                     ),
                 ],
                 keywords=[],
+                location=self.location,
             ),
+            location=self.location,
         )
 
     @override
@@ -1470,12 +1603,12 @@ class TypedFunctionDef(syntax.Term):
 
 @dataclass
 class TypedIf(syntax.Term):
-    location: syntax.Location
     test: syntax.Term
     body: syntax.Term
     elifs: list[tuple[syntax.Term, syntax.Term]]  # (test, body)
     orelse: syntax.Term
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1491,26 +1624,34 @@ class TypedIf(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedIf(
-                location=self.location,
                 test=layer(self.test),
                 body=layer(self.body),
                 elifs=[(layer(test), layer(body)) for test, body in self.elifs],
                 orelse=layer(self.orelse),
                 mode=layer(self.mode),
+                location=self.location,
             )
         )
 
     def codegen_evaluate(self) -> syntax.Term:
         return If(
-            location=self.location,
             test=self.test,
             body=self.body,
             orelse=self.orelse,
+            location=self.location,
         )
 
     def codegen_typecheck(self) -> syntax.Term:
-        true_side = syntax.TermList(terms=[Expr(location=self.location, value=self.test), self.body])
-        return BranchTyping(location=self.location, branches=[true_side, self.orelse])
+        true_side = syntax.TermList(
+            terms=[
+                Expr(
+                    value=self.test,
+                    location=self.location,
+                ),
+                self.body,
+            ]
+        )
+        return BranchTyping(branches=[true_side, self.orelse], location=self.location)
 
     @override
     def unfold(self) -> syntax.Term:
@@ -1526,9 +1667,9 @@ class TypedIf(syntax.Term):
 
 @dataclass
 class ElifSibling(syntax.SiblingTerm):
-    location: syntax.Location
     test: syntax.Term
     body: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1549,8 +1690,8 @@ class ElifSibling(syntax.SiblingTerm):
 
 @dataclass
 class ElseSibling(syntax.SiblingTerm):
-    location: syntax.Location
     body: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1573,10 +1714,10 @@ class ElseSibling(syntax.SiblingTerm):
 
 @dataclass
 class TypedWith(syntax.Term):
-    location: syntax.Location
     items: list[syntax.Term]
     body: syntax.Term
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1588,10 +1729,10 @@ class TypedWith(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedWith(
-                location=self.location,
                 items=[layer(i) for i in self.items],
                 body=layer(self.body),
                 mode=layer(self.mode),
+                location=self.location,
             )
         )
 
@@ -1600,26 +1741,26 @@ class TypedWith(syntax.Term):
         # XXX: Differentiate behavior between EVALUATE and TYPECHECK modes if needed, otherwise remove TypedWith
         if self.mode is MODE_EVALUATE:
             return With(
-                location=self.location,
                 items=self.items,
                 body=self.body,
+                location=self.location,
             )
         if self.mode is MODE_TYPECHECK:
             return With(
-                location=self.location,
                 items=self.items,
                 body=self.body,
+                location=self.location,
             )
         raise tapl_error.UnhandledError
 
 
 @dataclass
 class TypedWhile(syntax.Term):
-    location: syntax.Location
     test: syntax.Term
     body: syntax.Term
     orelse: syntax.Term
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1632,30 +1773,30 @@ class TypedWhile(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedWhile(
-                location=self.location,
                 test=layer(self.test),
                 body=layer(self.body),
                 orelse=layer(self.orelse),
                 mode=layer(self.mode),
+                location=self.location,
             )
         )
 
     def codegen_evaluate(self) -> syntax.Term:
         return While(
-            location=self.location,
             test=self.test,
             body=self.body,
             orelse=self.orelse,
+            location=self.location,
         )
 
     def codegen_typecheck(self) -> syntax.Term:
         return TypedIf(
-            location=self.location,
             test=self.test,
             body=self.body,
             elifs=[],
             orelse=self.orelse,
             mode=self.mode,
+            location=self.location,
         )
 
     @override
@@ -1688,46 +1829,56 @@ class TypedFor(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedFor(
-                location=self.location,
                 target=layer(self.target),
                 iter=layer(self.iter),
                 body=layer(self.body),
                 orelse=layer(self.orelse),
                 mode=layer(self.mode),
+                location=self.location,
             )
         )
 
     def codegen_evaluate(self) -> syntax.Term:
         return For(
-            location=self.location,
             target=self.target,
             iter=self.iter,
             body=self.body,
             orelse=self.orelse,
+            location=self.location,
         )
 
     def codegen_typecheck(self) -> syntax.Term:
         iterator_type = Call(
-            location=self.location,
-            func=Attribute(location=self.location, value=self.iter, attr='__iter__', ctx='load'),
+            func=Attribute(
+                value=self.iter,
+                attr='__iter__',
+                ctx='load',
+                location=self.location,
+            ),
             args=[],
             keywords=[],
+            location=self.location,
         )
         item_type = Call(
             location=self.location,
-            func=Attribute(location=self.location, value=iterator_type, attr='__next__', ctx='load'),
+            func=Attribute(
+                value=iterator_type,
+                attr='__next__',
+                ctx='load',
+                location=self.location,
+            ),
             args=[],
             keywords=[],
         )
         assign_target = Assign(
-            location=self.location,
             targets=[self.target],
             value=item_type,
+            location=self.location,
         )
         for_branch = syntax.TermList(terms=[assign_target, self.body])
         return BranchTyping(
-            location=self.location,
             branches=[for_branch, self.orelse],
+            location=self.location,
         )
 
     @override
@@ -1741,11 +1892,11 @@ class TypedFor(syntax.Term):
 
 @dataclass
 class TypedTry(syntax.Term):
-    location: syntax.Location
     body: syntax.Term
     handlers: list[syntax.Term]
     finalbody: syntax.Term
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1758,11 +1909,11 @@ class TypedTry(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedTry(
-                location=self.location,
                 body=layer(self.body),
                 handlers=[layer(h) for h in self.handlers],
                 finalbody=layer(self.finalbody),
                 mode=layer(self.mode),
+                location=self.location,
             )
         )
 
@@ -1770,11 +1921,11 @@ class TypedTry(syntax.Term):
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return Try(
-                location=self.location,
                 body=self.body,
                 handlers=self.handlers,
                 orelse=syntax.Empty,
                 finalbody=self.finalbody,
+                location=self.location,
             )
         if self.mode is MODE_TYPECHECK:
             # XXX: Implement type checking for Try statement's except and finally clauses
@@ -1784,10 +1935,10 @@ class TypedTry(syntax.Term):
 
 @dataclass
 class ExceptSibling(syntax.SiblingTerm):
-    location: syntax.Location
     exception_type: syntax.Term
     name: str | None
     body: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1806,18 +1957,18 @@ class ExceptSibling(syntax.SiblingTerm):
             previous_siblings.append(error)
         else:
             handler = ExceptHandler(
-                location=self.location,
                 exception_type=self.exception_type,
                 name=self.name,
                 body=self.body,
+                location=self.location,
             )
             term.handlers.append(handler)
 
 
 @dataclass
 class FinallySibling(syntax.SiblingTerm):
-    location: syntax.Location
     body: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1842,9 +1993,9 @@ class FinallySibling(syntax.SiblingTerm):
 
 @dataclass
 class TypedImport(syntax.Term):
-    location: syntax.Location
     names: list[Alias]
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1854,9 +2005,9 @@ class TypedImport(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedImport(
-                location=self.location,
                 names=self.names,
                 mode=layer(self.mode),
+                location=self.location,
             )
         )
 
@@ -1868,33 +2019,40 @@ class TypedImport(syntax.Term):
             if len(self.names) > 1:
                 raise tapl_error.TaplError('Import does not support multiple names yet.')  # XXX: Support multiple names
             return Expr(
-                location=self.location,
                 value=Call(
                     location=self.location,
                     func=Path(
-                        location=self.location, names=['tapl_typing', 'import_module'], ctx='load', mode=self.mode
+                        names=['tapl_typing', 'import_module'],
+                        ctx='load',
+                        mode=self.mode,
+                        location=self.location,
                     ),
                     args=[
-                        Name(location=self.location, id=lambda setting: setting.scope_name, ctx='load'),
-                        List(
+                        Name(
+                            id=lambda setting: setting.scope_name,
+                            ctx='load',
                             location=self.location,
+                        ),
+                        List(
                             elements=[Constant(location=self.location, value=self.names[0].name)],
                             ctx='load',
+                            location=self.location,
                         ),
                     ],
                     keywords=[],
                 ),
+                location=self.location,
             )
         raise tapl_error.UnhandledError
 
 
 @dataclass
 class TypedClassDef(syntax.Term):
-    location: syntax.Location
     name: str
     bases: list[syntax.Term]
     body: syntax.Term
     mode: syntax.Term
+    location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -1905,11 +2063,11 @@ class TypedClassDef(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedClassDef(
-                location=self.location,
                 name=self.name,
                 bases=[layer(b) for b in self.bases],
                 body=layer(self.body),
                 mode=layer(self.mode),
+                location=self.location,
             )
         )
 
@@ -1918,12 +2076,12 @@ class TypedClassDef(syntax.Term):
 
     def codegen_evaluate(self) -> syntax.Term:
         return ClassDef(
-            location=self.location,
             name=self._class_name(),
             bases=self.bases,
             keywords=[],
             body=self.body,
             decorator_list=[],
+            location=self.location,
         )
 
     def codegen_typecheck(self) -> syntax.Term:
@@ -1942,12 +2100,12 @@ class TypedClassDef(syntax.Term):
             else:
                 body.append(item)
         class_stmt = ClassDef(
-            location=self.location,
             name=class_name,
             bases=self.bases,
             keywords=[],
             body=syntax.TermList(terms=body),
             decorator_list=[],
+            location=self.location,
         )
 
         method_types: list[syntax.Term] = []
@@ -1964,37 +2122,80 @@ class TypedClassDef(syntax.Term):
             tail_args = method.parameters[1:]
             method_types.append(
                 Tuple(
-                    location=self.location,
                     elements=[
-                        Constant(location=self.location, value=method.name),
-                        List(location=self.location, elements=tail_args, ctx='load'),
+                        Constant(
+                            value=method.name,
+                            location=self.location,
+                        ),
+                        List(
+                            elements=tail_args,
+                            ctx='load',
+                            location=self.location,
+                        ),
                     ],
                     ctx='load',
+                    location=self.location,
                 )
             )
 
         create_class = Assign(
-            location=self.location,
             targets=[
                 Tuple(
-                    location=self.location,
                     elements=[
-                        TypedName(location=self.location, id=instance_name, ctx='store', mode=self.mode),
-                        TypedName(location=self.location, id=class_name, ctx='store', mode=self.mode),
+                        TypedName(
+                            id=instance_name,
+                            ctx='store',
+                            mode=self.mode,
+                            location=self.location,
+                        ),
+                        TypedName(
+                            id=class_name,
+                            ctx='store',
+                            mode=self.mode,
+                            location=self.location,
+                        ),
                     ],
                     ctx='store',
+                    location=self.location,
                 )
             ],
             value=Call(
-                location=self.location,
-                func=Path(location=self.location, names=['tapl_typing', 'create_class'], ctx='load', mode=self.mode),
+                func=Path(
+                    names=['tapl_typing', 'create_class'],
+                    ctx='load',
+                    mode=self.mode,
+                    location=self.location,
+                ),
                 args=[],
                 keywords=[
-                    ('cls', Name(location=self.location, id=class_name, ctx='load')),
-                    ('init_args', List(location=self.location, elements=constructor_args, ctx='load')),
-                    ('methods', List(location=self.location, elements=method_types, ctx='load')),
+                    (
+                        'cls',
+                        Name(
+                            id=class_name,
+                            ctx='load',
+                            location=self.location,
+                        ),
+                    ),
+                    (
+                        'init_args',
+                        List(
+                            elements=constructor_args,
+                            ctx='load',
+                            location=self.location,
+                        ),
+                    ),
+                    (
+                        'methods',
+                        List(
+                            elements=method_types,
+                            ctx='load',
+                            location=self.location,
+                        ),
+                    ),
                 ],
+                location=self.location,
             ),
+            location=self.location,
         )
 
         return syntax.TermList(terms=[class_stmt, create_class])
