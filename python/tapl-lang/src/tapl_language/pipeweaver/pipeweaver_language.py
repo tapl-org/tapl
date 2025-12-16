@@ -12,23 +12,14 @@ from tapl_lang.pythonlike import language, rule_names
 
 @dataclasses.dataclass
 class PipeToken(syntax.Term):
-    location: syntax.Location
+    pass
 
 
 def _parse_pipe_token(c: parser.Cursor) -> syntax.Term:
     c.skip_whitespace()
-    t = c.start_tracker()
-    if c.is_end():
-        return t.fail()
-    char1 = c.current_char()
-    c.move_to_next()
-    if not c.is_end():
-        char2 = c.current_char()
-        c.move_to_next()
-        if char1 == '|' and char2 == '>':
-            c.copy_position_from(c)
-            return PipeToken(location=t.location)
-    return t.fail()
+    if c.consume_text('|>'):
+        return PipeToken()
+    return parser.ParseFailed
 
 
 def _parse_pipe_call(c: parser.Cursor) -> syntax.Term:

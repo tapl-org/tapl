@@ -108,6 +108,13 @@ class Cursor:
         while not self.is_end() and self.current_char().isspace():
             self.move_to_next()
 
+    def consume_text(self, text: str) -> bool:
+        for char in text:
+            if self.is_end() or self.current_char() != char:
+                return False
+            self.move_to_next()
+        return True
+
 
 ParseFailed = syntax.ErrorTerm(message='Parsing failed: Unable to match any rule.')
 
