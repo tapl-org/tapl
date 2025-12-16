@@ -64,11 +64,37 @@ This run the code. Behind the scene, This will generate two files:
 
 For **more example**, see [easy.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/easy.tapl)
 
-### Creating and Extending Languages
+### Creating and Extending Languages (tutorial)
 
-TAPL enables you to create custom syntax from scratch or extend existing TAPL-implemented languages with new features.
+Goal: add a Pipe operator (|>) to a Python-like TAPL language.
 
-Coming soon: A codelab on extending pythonlike with the Pipe Operator (`|>`).
+1. Implement the extension
+- Create a language module (example name: pipeweaver_language.py) that registers a language named "pipeweaver" and implements parsing for the |> operator.
+
+2. Example TAPL program using new pipeweaver language:
+```
+language pipeweaver
+
+-2.5 |> abs |> round |> print
+```
+
+3. Compile and type-check
+- Run the TAPL CLI:
+```
+hatch run python ./src/tapl_lang/cli/tapl.py ./src/examples/pipe.tapl
+```
+This generates two files:
+- pipe1.py — type-checker
+- pipe.py  — untyped/executable code
+
+
+Notes
+- See the repository file [pipeweaver_language.py](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/tapl_language/pipeweaver/pipeweaver_language.py) for the implementation details and how the parser/transformer registers the operator and type rules.
+- Inspect the generated pipe1.py to understand how TAPL emits type-checking code and pipe.py for the runtime translation.
+
+### Implementing Dependent Types
+
+Coming soon: a codelab demonstrating how to implement `concat` — a function that concatenates two fixed-length arrays and returns an array whose type reflects the sum of their lengths.
 
 ## Community
 
