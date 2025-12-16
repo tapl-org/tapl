@@ -15,6 +15,8 @@ python_builtin_types = {
     'print': typelib.create_function([bt.Any], bt.NoneType),
     'range': typelib.create_function([bt.Int], [bt.Int]),
     'str': typelib.create_function([bt.Any], bt.Str),
+    'abs': typelib.create_function([bt.Float], bt.Float),
+    'round': typelib.create_function([bt.Float], bt.Float),
 }
 
 pythonlike_builtins = {

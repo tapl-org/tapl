@@ -11,12 +11,14 @@ from tapl_lang.pythonlike import grammar as pythonlike_grammar
 
 IMPORT_LEVEL = 0
 
+GRAMMAR = pythonlike_grammar.get_grammar()
+
 
 class PythonlikeLanguage(Language):
     @override
     def get_grammar(self, parent_stack: list[syntax.Term]) -> parser.Grammar:
         del parent_stack
-        return pythonlike_grammar.get_grammar()
+        return GRAMMAR
 
     def create_header_for_evaluate_layer(self) -> syntax.Term:
         location = syntax.Location(start=syntax.Position(line=1, column=0))

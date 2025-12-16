@@ -73,6 +73,7 @@ _init_record(
         '__gt__': ([Int], Bool),
         '__ge__': ([Int], Bool),
         '__le__': ([Int], Bool),
+        '__neg__': ([], Int),
     },
 )
 _init_record(
@@ -88,6 +89,7 @@ _init_record(
         '__gt__': ([Float], Bool),
         '__ge__': ([Float], Bool),
         '__le__': ([Float], Bool),
+        '__neg__': ([], Float),
     },
 )
 _init_record(

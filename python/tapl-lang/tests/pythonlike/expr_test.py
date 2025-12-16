@@ -87,6 +87,22 @@ def test_inversion_number():
     assert evaluate(expr1) is True
 
 
+def test_negation_int():
+    [expr1, expr2] = parse_expr('-7')
+    assert ast.unparse(expr1) == '-7'
+    assert ast.unparse(expr2) == '-s0.Int'
+    assert typecheck(expr2) is predef1.predef_scope.Int
+    assert evaluate(expr1) == -7
+
+
+def test_negation_float():
+    [expr1, expr2] = parse_expr('-7.3')
+    assert ast.unparse(expr1) == '-7.3'
+    assert ast.unparse(expr2) == '-s0.Float'
+    assert typecheck(expr2) is predef1.predef_scope.Float
+    assert evaluate(expr1) == -7.3
+
+
 def test_conjuction_bool1():
     [expr1, expr2] = parse_expr('True and True')
     assert ast.unparse(expr1) == 'True and True'

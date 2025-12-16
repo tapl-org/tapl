@@ -243,7 +243,6 @@ d           | '**' bitwise_or
 
 def get_grammar() -> parser.Grammar:
     rules: parser.GrammarRuleMap = {}
-    grammar: parser.Grammar = parser.Grammar(rule_map=rules, start_rule=rn.START)
 
     def add(name: str, ordered_parse_functions: list[parser.ParseFunction | str]) -> None:
         if name in rules:
@@ -646,7 +645,8 @@ def get_grammar() -> parser.Grammar:
     add(rn.INVALID_FACTOR, [])
     add(rn.INVALID_TYPE_PARAMS, [])
 
-    return grammar
+    # XXX: Make the grammar frozen
+    return parser.Grammar(rule_map=rules, start_rule=rn.START)
 
 
 @dataclass
