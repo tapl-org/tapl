@@ -31,6 +31,9 @@ class Grammar:
     rule_map: GrammarRuleMap
     start_rule: str
 
+    def clone(self) -> Grammar:
+        return Grammar(self.rule_map.copy(), self.start_rule)
+
 
 def parse_function_name(function: ParseFunction | str) -> str:
     if isinstance(function, str):

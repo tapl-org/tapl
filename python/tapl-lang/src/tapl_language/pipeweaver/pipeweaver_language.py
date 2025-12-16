@@ -34,24 +34,19 @@ def _parse_pipe_token(c: parser.Cursor) -> syntax.Term:
 def _parse_pipe_call(c: parser.Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
-        t.validate(arg := c.consume_rule(rule_names.EXPRESSION))
-        and t.validate(op := c.consume_rule(rule_names.TOKEN))
-        and isinstance(op, PipeToken)
-        and t.validate(func := c.consume_rule(rule_names.DISJUNCTION))
+        t.validate(argument := c.consume_rule(rule_names.EXPRESSION))
+        and t.validate(operator := c.consume_rule(rule_names.TOKEN))
+        and isinstance(operator, PipeToken)
+        and t.validate(function := c.consume_rule(rule_names.DISJUNCTION))
     ):
-        return terms.Call(func=func, args=[arg], keywords=[], location=t.location)
+        return terms.Call(func=function, args=[argument], keywords=[], location=t.location)
     return t.fail()
 
 
 class PipeweaverLanguage(language.PythonlikeLanguage):
     @override
     def get_grammar(self, parent_stack: list[syntax.Term]) -> parser.Grammar:
-        pythonlike_grammar = super().get_grammar(parent_stack)
-        # Add additional rules or modifications to the grammar here
-        rule_map = pythonlike_grammar.rule_map.copy()
-        rule_map[rule_names.TOKEN] = [_parse_pipe_token] + rule_map[rule_names.TOKEN]
-        rule_map[rule_names.EXPRESSION] = [_parse_pipe_call] + rule_map[rule_names.EXPRESSION]
-        return parser.Grammar(
-            rule_map=rule_map,
-            start_rule=pythonlike_grammar.start_rule,
-        )
+        grammar = super().get_grammar(parent_stack).clone()
+        grammar.rule_map[rule_names.TOKEN] = [_parse_pipe_token] + grammar.rule_map[rule_names.TOKEN]
+        grammar.rule_map[rule_names.EXPRESSION] = [_parse_pipe_call] + grammar.rule_map[rule_names.EXPRESSION]
+        return grammar
