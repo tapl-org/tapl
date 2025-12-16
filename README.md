@@ -85,7 +85,7 @@ hatch run python ./src/tapl_lang/cli/tapl.py ./src/examples/pipe.tapl
 ```
 This generates two files:
 - [`pipe1.py`](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/pipe1.py) — type-checker
-- []`pipe.py`](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/pipe.py)  — untyped/executable code
+- [`pipe.py`](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/pipe.py)  — untyped/executable code
 
 
 Notes
