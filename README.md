@@ -71,7 +71,7 @@ Goal: add a Pipe operator `|>` to a Python-like TAPL language.
 1. Implement the extension
 - Create a language module (example name: pipeweaver_language.py) that registers a language named "pipeweaver" and implements parsing for the |> operator.
 
-2. Example TAPL program using new pipeweaver language:
+2. Example TAPL program using new `pipeweaver` language:
 ```
 language pipeweaver
 
