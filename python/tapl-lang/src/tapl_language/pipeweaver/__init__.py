@@ -16,9 +16,7 @@ class PipeToken(syntax.Term):
 
 
 def _parse_pipe_token(c: parser.Cursor) -> syntax.Term:
-    # skip whitespaces
-    while not c.is_end() and c.current_char().isspace():
-        c.move_to_next()
+    c.skip_whitespace()
     t = c.start_tracker()
     if c.is_end():
         return t.fail()

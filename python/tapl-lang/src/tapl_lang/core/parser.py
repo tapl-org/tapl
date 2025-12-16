@@ -101,6 +101,10 @@ class Cursor:
     def start_tracker(self) -> Tracker:
         return Tracker(self)
 
+    def skip_whitespace(self) -> None:
+        while not self.is_end() and self.current_char().isspace():
+            self.move_to_next()
+
 
 ParseFailed = syntax.ErrorTerm(message='Parsing failed: Unable to match any rule.')
 

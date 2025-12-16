@@ -793,13 +793,8 @@ _KEYWORDS = {
 }
 
 
-def _skip_whitespaces(c: Cursor) -> None:
-    while not c.is_end() and c.current_char().isspace():
-        c.move_to_next()
-
-
 def _parse_token(c: Cursor) -> syntax.Term:
-    _skip_whitespaces(c)
+    c.skip_whitespace()
     tracker = c.start_tracker()
     if c.is_end():
         return TokenEndOfText(tracker.location)
@@ -1855,7 +1850,7 @@ def _parse_class_def(c: Cursor) -> syntax.Term:
 def _parse_start(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(statement := _expect_rule(c, rn.STATEMENT)):
-        _skip_whitespaces(c)
+        c.skip_whitespace()
         return statement
     return t.fail()
 
