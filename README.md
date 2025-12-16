@@ -66,7 +66,7 @@ For **more example**, see [easy.tapl](https://github.com/tapl-org/tapl/blob/main
 
 ### Creating and Extending Languages (tutorial)
 
-Goal: add a Pipe operator (|>) to a Python-like TAPL language.
+Goal: add a Pipe operator `|>` to a Python-like TAPL language.
 
 1. Implement the extension
 - Create a language module (example name: pipeweaver_language.py) that registers a language named "pipeweaver" and implements parsing for the |> operator.
@@ -84,8 +84,8 @@ language pipeweaver
 hatch run python ./src/tapl_lang/cli/tapl.py ./src/examples/pipe.tapl
 ```
 This generates two files:
-- pipe1.py — type-checker
-- pipe.py  — untyped/executable code
+- [`pipe1.py`](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/pipe1.py) — type-checker
+- []`pipe.py`](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/pipe.py)  — untyped/executable code
 
 
 Notes
