@@ -41,21 +41,20 @@ def parse_function_name(function: ParseFunction | str) -> str:
     return f'@{function.__name__}'
 
 
-# Python backend AST has ctx attribute. Rename this class name to prevent confusion.
 @dataclass
-class Context:
+class Config:
     mode: syntax.Term
 
 
 class Cursor:
-    def __init__(self, row: int, col: int, context: Context, engine: PegEngine) -> None:
+    def __init__(self, row: int, col: int, config: Config, engine: PegEngine) -> None:
         self.row = row
         self.col = col
-        self.context = context
+        self.config = config
         self.engine = engine
 
     def clone(self) -> Cursor:
-        return Cursor(self.row, self.col, self.context, self.engine)
+        return Cursor(self.row, self.col, self.config, self.engine)
 
     def copy_position_from(self, other: Cursor) -> None:
         if self.engine is not other.engine:
@@ -98,7 +97,7 @@ class Cursor:
         return syntax.Position(self.engine.line_records[self.row].line_number, self.col)
 
     def consume_rule(self, rule) -> syntax.Term:
-        term, self.row, self.col = self.engine.apply_rule(self.row, self.col, rule, self.context)
+        term, self.row, self.col = self.engine.apply_rule(self.row, self.col, rule, self.config)
         return term
 
     def start_tracker(self) -> Tracker:
@@ -179,12 +178,12 @@ class PegEngine:
         self.rule_call_stack_limit = 1000
 
     def call_parse_function(
-        self, key: CellKey, function: ParseFunction | str, context: Context
+        self, key: CellKey, function: ParseFunction | str, config: Config
     ) -> tuple[syntax.Term, int, int]:
-        cursor = Cursor(key.row, key.col, context=context, engine=self)
+        cursor = Cursor(key.row, key.col, config=config, engine=self)
 
         def create_location() -> syntax.Location:
-            start_cursor = Cursor(key.row, key.col, context=context, engine=self)
+            start_cursor = Cursor(key.row, key.col, config=config, engine=self)
             return syntax.Location(start=start_cursor.current_position(), end=cursor.current_position())
 
         def route(rule: str) -> ParseFunction:
@@ -210,22 +209,22 @@ class PegEngine:
             )
         return term, cursor.row, cursor.col
 
-    def call_ordered_parse_functions(self, key: CellKey, context: Context) -> tuple[syntax.Term, int, int]:
+    def call_ordered_parse_functions(self, key: CellKey, config: Config) -> tuple[syntax.Term, int, int]:
         functions = self.grammar_rule_map.get(key.rule)
         if not functions:
             raise tapl_error.TaplError(f'Rule "{key.rule}" is not defined in the Grammar.')
         for fn in functions:
-            term, row, col = self.call_parse_function(key, fn, context=context)
+            term, row, col = self.call_parse_function(key, fn, config=config)
             if term is not ParseFailed:
                 return term, row, col
         return ParseFailed, key.row, key.col
 
-    def grow_seed(self, key: CellKey, cell: Cell, context: Context) -> None:
+    def grow_seed(self, key: CellKey, cell: Cell, config: Config) -> None:
         seed_next_row, seed_next_col = cell.next_row, cell.next_col
         iteration_count = 10  # Prevent infinite loop by limiting iterations
         while iteration_count > 0:
             iteration_count -= 1
-            term, next_row, next_col = self.call_ordered_parse_functions(key, context)
+            term, next_row, next_col = self.call_ordered_parse_functions(key, config)
             if term is ParseFailed:
                 cell.term = syntax.ErrorTerm(
                     message='PegEngine: Once ordered_parse_functions was successful, but it failed afterward. This indicates an inconsistency between ordered parse functions.'
@@ -240,7 +239,7 @@ class PegEngine:
             cell.term, cell.next_row, cell.next_col = term, next_row, next_col
         cell.term = syntax.ErrorTerm(message='PegEngine: Growing failed due to too many iterations.')
 
-    def apply_rule(self, row: int, col: int, rule: str, context: Context) -> tuple[syntax.Term, int, int]:
+    def apply_rule(self, row: int, col: int, rule: str, config: Config) -> tuple[syntax.Term, int, int]:
         self.rule_call_stack_limit -= 1
         if self.rule_call_stack_limit < 0:
             error = syntax.ErrorTerm(message='PEG Parser: Rule application limit exceeded.')
@@ -255,10 +254,10 @@ class PegEngine:
         match cell.state:
             case CellState.BLANK:
                 cell.state = CellState.START
-                cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(cell_key, context)
+                cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(cell_key, config)
                 cell.state = CellState.DONE
                 if cell.growable and not isinstance(cell.term, syntax.ErrorTerm):
-                    self.grow_seed(cell_key, cell, context)
+                    self.grow_seed(cell_key, cell, config)
             case CellState.START:
                 # Left recursion detected. Delaying expansion of this rule.
                 cell.growable = True
@@ -304,12 +303,12 @@ class PegEngineDebug(PegEngine):
 
     @override
     def call_parse_function(
-        self, key: CellKey, function: ParseFunction | str, context: Context
+        self, key: CellKey, function: ParseFunction | str, config: Config
     ) -> tuple[syntax.Term, int, int]:
         old_applied_rules = self.applied_rules
         self.applied_rules = []
         start_call_order = self.next_call_order()
-        term, row, col = super().call_parse_function(key, function, context=context)
+        term, row, col = super().call_parse_function(key, function, config=config)
         self.parse_traces.append(
             ParseTrace(
                 start_row=key.row,
@@ -329,17 +328,17 @@ class PegEngineDebug(PegEngine):
         return term, row, col
 
     @override
-    def grow_seed(self, key: CellKey, cell: Cell, context: Context) -> None:
+    def grow_seed(self, key: CellKey, cell: Cell, config: Config) -> None:
         old_growing_id = self.growing_id
         self.next_growing_id += 1
         self.growing_id = self.next_growing_id
-        super().grow_seed(key, cell, context)
+        super().grow_seed(key, cell, config)
         self.growing_id = old_growing_id
 
     @override
-    def apply_rule(self, row: int, col: int, rule: str, context: Context) -> tuple[syntax.Term, int, int]:
+    def apply_rule(self, row: int, col: int, rule: str, config: Config) -> tuple[syntax.Term, int, int]:
         self.applied_rules.append(f'{row}:{col}:{rule}')
-        term, next_row, next_col = super().apply_rule(row, col, rule, context)
+        term, next_row, next_col = super().apply_rule(row, col, rule, config)
         if self.cell_memo[CellKey(row, col, rule)].state == CellState.START:
             self.applied_rules[-1] += ' (left recursion)'
         return term, next_row, next_col
@@ -434,14 +433,14 @@ def find_first_position(line_records: list[line_record.LineRecord]) -> tuple[int
 
 
 def parse_line_records(
-    line_records: list[line_record.LineRecord], grammar: Grammar, *, debug: bool = False, context: Context | None = None
+    line_records: list[line_record.LineRecord], grammar: Grammar, *, debug: bool = False, config: Config | None = None
 ) -> syntax.Term:
-    context = context or Context(mode=terms.MODE_SAFE)
+    config = config or Config(mode=terms.MODE_SAFE)
     engine = PegEngineDebug(line_records, grammar.rule_map) if debug else PegEngine(line_records, grammar.rule_map)
     row, col = find_first_position(line_records)
     if row == len(line_records) and col == 0:
         return syntax.ErrorTerm(message='Empty text.')
-    term, next_row, next_col = engine.apply_rule(row, col, grammar.start_rule, context=context)
+    term, next_row, next_col = engine.apply_rule(row, col, grammar.start_rule, config=config)
     if debug:
         logging.warning(engine.dump())
     if not isinstance(term, syntax.ErrorTerm) and not (next_row == len(line_records) and next_col == 0):
@@ -452,5 +451,5 @@ def parse_line_records(
     return term
 
 
-def parse_text(text: str, grammar: Grammar, *, debug: bool = False, context: Context | None = None) -> syntax.Term:
-    return parse_line_records(line_record.split_text_to_lines(text), grammar, debug=debug, context=context)
+def parse_text(text: str, grammar: Grammar, *, debug: bool = False, config: Config | None = None) -> syntax.Term:
+    return parse_line_records(line_record.split_text_to_lines(text), grammar, debug=debug, config=config)

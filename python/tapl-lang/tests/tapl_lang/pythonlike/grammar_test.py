@@ -14,7 +14,7 @@ def parse_expr(text: str, start_rule: str, *, mode: syntax.Term = terms.MODE_SAF
         text,
         grammar=parser.Grammar(grammar.get_grammar().rule_map, start_rule),
         debug=debug,
-        context=parser.Context(mode=mode),
+        config=parser.Config(mode=mode),
     )
 
 

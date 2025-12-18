@@ -1055,7 +1055,7 @@ def _parse_slice__range(c: Cursor) -> syntax.Term:
 def _parse_atom__name_load(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, TokenName):
-        return terms.TypedName(location=token.location, id=token.value, ctx='load', mode=c.context.mode)
+        return terms.TypedName(location=token.location, id=token.value, ctx='load', mode=c.config.mode)
     return t.fail()
 
 
@@ -1134,7 +1134,7 @@ def _parse_tuple__multi(c: Cursor) -> syntax.Term:
 def _parse_list__empty(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_punct(c, '[')) and t.validate(_consume_punct(c, ']')):
-        return terms.TypedList(location=t.location, elements=[], mode=c.context.mode)
+        return terms.TypedList(location=t.location, elements=[], mode=c.config.mode)
     return t.fail()
 
 
@@ -1145,7 +1145,7 @@ def _parse_list__non_empty(c: Cursor) -> syntax.Term:
         and t.validate(elements := c.consume_rule(rn.STAR_NAMED_EXPRESSIONS))
         and t.validate(_consume_punct(c, ']'))
     ):
-        return terms.TypedList(location=t.location, elements=cast(syntax.TermList, elements).terms, mode=c.context.mode)
+        return terms.TypedList(location=t.location, elements=cast(syntax.TermList, elements).terms, mode=c.config.mode)
     return t.fail()
 
 
@@ -1156,14 +1156,14 @@ def _parse_set(c: Cursor) -> syntax.Term:
         and t.validate(elements := c.consume_rule(rn.STAR_NAMED_EXPRESSIONS))
         and t.validate(_consume_punct(c, '}'))
     ):
-        return terms.TypedSet(location=t.location, elements=cast(syntax.TermList, elements).terms, mode=c.context.mode)
+        return terms.TypedSet(location=t.location, elements=cast(syntax.TermList, elements).terms, mode=c.config.mode)
     return t.fail()
 
 
 def _parse_dict__empty(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_punct(c, '{')) and t.validate(_consume_punct(c, '}')):
-        return terms.TypedDict(location=t.location, keys=[], values=[], mode=c.context.mode)
+        return terms.TypedDict(location=t.location, keys=[], values=[], mode=c.config.mode)
     return t.fail()
 
 
@@ -1182,7 +1182,7 @@ def _parse_dict__non_empty(c: Cursor) -> syntax.Term:
                 values.append(kvpair.value)
             else:
                 return syntax.ErrorTerm(message='Expected key-value pair in dict literal', location=t.location)
-        return terms.TypedDict(location=t.location, keys=keys, values=values, mode=c.context.mode)
+        return terms.TypedDict(location=t.location, keys=keys, values=values, mode=c.config.mode)
     return t.fail()
 
 
@@ -1362,7 +1362,7 @@ def _parse_inversion__not(c: Cursor) -> syntax.Term:
     if t.validate(_consume_keyword(c, 'not')) and t.validate(operand := _expect_rule(c, rn.COMPARISON)):
         return terms.BoolNot(
             operand=operand,
-            mode=c.context.mode,
+            mode=c.config.mode,
             location=t.location,
         )
     return t.fail()
@@ -1377,7 +1377,7 @@ def _parse_conjunction__and(c: Cursor) -> syntax.Term:
             c.copy_position_from(k)
             values.append(right)
         if len(values) > 1:
-            return terms.TypedBoolOp(location=t.location, operator='and', values=values, mode=c.context.mode)
+            return terms.TypedBoolOp(location=t.location, operator='and', values=values, mode=c.config.mode)
     return t.fail()
 
 
@@ -1390,7 +1390,7 @@ def _parse_disjunction__or(c: Cursor) -> syntax.Term:
             c.copy_position_from(k)
             values.append(right)
         if len(values) > 1:
-            return terms.TypedBoolOp(location=t.location, operator='or', values=values, mode=c.context.mode)
+            return terms.TypedBoolOp(location=t.location, operator='or', values=values, mode=c.config.mode)
     return t.fail()
 
 
@@ -1442,7 +1442,7 @@ def _parse_assignment_expression(c: Cursor) -> syntax.Term:
     ):
         if t.validate(value := c.consume_rule(rn.EXPRESSION)):
             return terms.NamedExpr(
-                target=terms.TypedName(id=token.value, ctx='store', mode=c.context.mode, location=name_location),
+                target=terms.TypedName(id=token.value, ctx='store', mode=c.config.mode, location=name_location),
                 value=value,
                 location=t.location,
             )
@@ -1461,7 +1461,7 @@ def _parse_assignment__annotated(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(target_name := c.consume_rule(rn.STAR_TARGETS)) and t.validate(_consume_punct(c, ':')):
         k = c.clone()
-        k.context = parser.Context(mode=terms.MODE_TYPECHECK)
+        k.config = parser.Config(mode=terms.MODE_TYPECHECK)
         if t.validate(target_type := _expect_rule(k, rn.EXPRESSION)):
             c.copy_position_from(k)
             if (
@@ -1473,7 +1473,7 @@ def _parse_assignment__annotated(c: Cursor) -> syntax.Term:
                     target_name=target_name,
                     target_type=target_type,
                     value=value,
-                    mode=c.context.mode,
+                    mode=c.config.mode,
                     location=t.location,
                 )
     return t.fail()
@@ -1508,9 +1508,9 @@ def _parse_return(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_keyword(c, 'return')):
         if t.validate(value := c.consume_rule(rn.EXPRESSION)):
-            return terms.TypedReturn(value=value, mode=c.context.mode, location=t.location)
+            return terms.TypedReturn(value=value, mode=c.config.mode, location=t.location)
         return t.captured_error or terms.TypedReturn(
-            value=terms.NoneLiteral(t.location), mode=c.context.mode, location=t.location
+            value=terms.NoneLiteral(t.location), mode=c.config.mode, location=t.location
         )
     return t.fail()
 
@@ -1519,14 +1519,14 @@ def _rule_parameter_with_type(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(name := _consume_name(c)) and t.validate(_consume_punct(c, ':')):
         k = c.clone()
-        k.context = parser.Context(mode=terms.MODE_TYPECHECK)
+        k.config = parser.Config(mode=terms.MODE_TYPECHECK)
         if t.validate(param_type := _expect_rule(k, rn.EXPRESSION)):
             c.copy_position_from(k)
             param_name = cast(TokenName, name).value
             return terms.Parameter(
                 name=param_name,
                 type_=syntax.Layers([syntax.Empty, param_type]),
-                mode=c.context.mode,
+                mode=c.config.mode,
                 location=t.location,
             )
     return t.fail()
@@ -1537,7 +1537,7 @@ def _rule_parameter_no_type(c: Cursor) -> syntax.Term:
     if t.validate(name := _consume_name(c)):
         param_name = cast(TokenName, name).value
         return terms.Parameter(
-            name=param_name, type_=syntax.Layers([syntax.Empty, syntax.Empty]), mode=c.context.mode, location=t.location
+            name=param_name, type_=syntax.Layers([syntax.Empty, syntax.Empty]), mode=c.config.mode, location=t.location
         )
     return t.fail()
 
@@ -1557,7 +1557,7 @@ def _scan_parameters(c: Cursor) -> syntax.Term:
 def _scan_optional_return_type(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     k = c.clone()
-    k.context = parser.Context(mode=terms.MODE_TYPECHECK)
+    k.config = parser.Config(mode=terms.MODE_TYPECHECK)
     if t.validate(_consume_punct(k, '->')) and t.validate(return_type := _expect_rule(k, rn.EXPRESSION)):
         c.copy_position_from(k)
         return return_type
@@ -1582,7 +1582,7 @@ def _parse_function_def(c: Cursor) -> syntax.Term:
             parameters=cast(syntax.TermList, params).terms,
             return_type=return_type,
             body=syntax.TermList(terms=[], is_placeholder=True),
-            mode=c.context.mode,
+            mode=c.config.mode,
         )
     return t.fail()
 
@@ -1600,7 +1600,7 @@ def _parse_if_stmt(c: Cursor) -> syntax.Term:
             body=syntax.TermList(terms=[], is_placeholder=True),
             elifs=[],
             orelse=syntax.Empty,
-            mode=c.context.mode,
+            mode=c.config.mode,
         )
     return t.fail()
 
@@ -1639,7 +1639,7 @@ def _parse_while_stmt(c: Cursor) -> syntax.Term:
             test=test,
             body=syntax.TermList(terms=[], is_placeholder=True),
             orelse=syntax.Empty,
-            mode=c.context.mode,
+            mode=c.config.mode,
         )
     return t.fail()
 
@@ -1659,7 +1659,7 @@ def _parse_for_stmt(c: Cursor) -> syntax.Term:
             iter=iter_,
             body=syntax.TermList(terms=[], is_placeholder=True),
             orelse=syntax.Empty,
-            mode=c.context.mode,
+            mode=c.config.mode,
         )
     return t.fail()
 
@@ -1687,7 +1687,7 @@ def _parse_with_stmt__normal(c: Cursor) -> syntax.Term:
             location=t.location,
             items=cast(syntax.TermList, items).terms,
             body=syntax.TermList(terms=[], is_placeholder=True),
-            mode=c.context.mode,
+            mode=c.config.mode,
         )
     return t.fail()
 
@@ -1718,7 +1718,7 @@ def _parse_try_stmt(c: Cursor) -> syntax.Term:
             body=syntax.TermList(terms=[], is_placeholder=True),
             handlers=[],
             finalbody=syntax.Empty,
-            mode=c.context.mode,
+            mode=c.config.mode,
         )
     return t.fail()
 
@@ -1793,7 +1793,7 @@ def _parse_import_name(c: Cursor) -> syntax.Term:
         and isinstance(aliases, syntax.TermList)
     ):
         names = [cast(AliasTerm, term).alias for term in aliases.terms]
-        return terms.TypedImport(location=t.location, names=names, mode=c.context.mode)
+        return terms.TypedImport(location=t.location, names=names, mode=c.config.mode)
     return t.fail()
 
 
@@ -1860,7 +1860,7 @@ def _parse_class_def(c: Cursor) -> syntax.Term:
             name=name,
             bases=[],
             body=syntax.TermList(terms=[], is_placeholder=True),
-            mode=c.context.mode,
+            mode=c.config.mode,
         )
     return t.fail()
 
@@ -1900,7 +1900,7 @@ def _parse_star_targets__multi(c: Cursor) -> syntax.Term:
 def _parse_star_atom__name_store(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, TokenName):
-        return terms.TypedName(location=token.location, id=token.value, ctx='store', mode=c.context.mode)
+        return terms.TypedName(location=token.location, id=token.value, ctx='store', mode=c.config.mode)
     return t.fail()
 
 
@@ -2013,5 +2013,5 @@ def _parse_del_target__slices(c: Cursor) -> syntax.Term:
 def _parse_del_t_atom__name_delete(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, TokenName):
-        return terms.TypedName(location=token.location, id=token.value, ctx='delete', mode=c.context.mode)
+        return terms.TypedName(location=token.location, id=token.value, ctx='delete', mode=c.config.mode)
     return t.fail()
