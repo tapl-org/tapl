@@ -2,6 +2,7 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import cast
 
@@ -241,13 +242,31 @@ d           | '**' bitwise_or
 """
 
 
+class ImmutableIterable(Iterable):
+    def __init__(self, iterable):
+        # Store data in a private tuple to ensure internal immutability
+        self._data = tuple(iterable)
+
+    def __getitem__(self, index):
+        return self._data[index]
+
+    def __len__(self):
+        return len(self._data)
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __repr__(self):
+        return repr(self._data)
+
+
 def get_grammar() -> parser.Grammar:
     rules: parser.GrammarRuleMap = {}
 
-    def add(name: str, ordered_parse_functions: list[parser.ParseFunction | str]) -> None:
+    def add(name: str, ordered_parse_functions: Iterable[parser.ParseFunction | str]) -> None:
         if name in rules:
             raise ValueError(f'Rule {name} is already defined.')
-        rules[name] = ordered_parse_functions
+        rules[name] = ImmutableIterable(ordered_parse_functions)
 
     # STARTING RULES
     # ==============
@@ -645,7 +664,6 @@ def get_grammar() -> parser.Grammar:
     add(rn.INVALID_FACTOR, [])
     add(rn.INVALID_TYPE_PARAMS, [])
 
-    # XXX: Make the grammar frozen
     return parser.Grammar(rule_map=rules, start_rule=rn.START)
 
 

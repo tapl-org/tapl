@@ -8,7 +8,7 @@ import enum
 import io
 import itertools
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import override
 
@@ -22,11 +22,11 @@ from tapl_lang.lib import terms
 
 
 ParseFunction = Callable[['Cursor'], syntax.Term]
-OrderedParseFunctions = list[ParseFunction | str]
+OrderedParseFunctions = Iterable[ParseFunction | str]
 GrammarRuleMap = dict[str, OrderedParseFunctions]
 
 
-@dataclass
+@dataclass(frozen=True)
 class Grammar:
     rule_map: GrammarRuleMap
     start_rule: str
@@ -214,8 +214,8 @@ class PegEngine:
         functions = self.grammar_rule_map.get(key.rule)
         if not functions:
             raise tapl_error.TaplError(f'Rule "{key.rule}" is not defined in the Grammar.')
-        for i in range(len(functions)):
-            term, row, col = self.call_parse_function(key, functions[i], context=context)
+        for fn in functions:
+            term, row, col = self.call_parse_function(key, fn, context=context)
             if term is not ParseFailed:
                 return term, row, col
         return ParseFailed, key.row, key.col

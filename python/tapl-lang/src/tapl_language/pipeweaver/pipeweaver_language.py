@@ -38,6 +38,6 @@ class PipeweaverLanguage(language.PythonlikeLanguage):
     @override
     def get_grammar(self, parent_stack: list[syntax.Term]) -> parser.Grammar:
         grammar = super().get_grammar(parent_stack).clone()
-        grammar.rule_map[rule_names.TOKEN] = [_parse_pipe_token] + grammar.rule_map[rule_names.TOKEN]
-        grammar.rule_map[rule_names.EXPRESSION] = [_parse_pipe_call] + grammar.rule_map[rule_names.EXPRESSION]
+        grammar.rule_map[rule_names.TOKEN] = [_parse_pipe_token, *grammar.rule_map[rule_names.TOKEN]]
+        grammar.rule_map[rule_names.EXPRESSION] = [_parse_pipe_call, *grammar.rule_map[rule_names.EXPRESSION]]
         return grammar
