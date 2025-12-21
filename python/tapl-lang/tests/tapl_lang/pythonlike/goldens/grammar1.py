@@ -7,7 +7,13 @@ s0.a = s0.b = s0.Str
 s0.tapl_dev.print(s0.a)
 s0.tapl_dev.print(s0.b)
 s0.f = s0.Float
-s0.f = s0.Int / s0.Int
+with s0.tapl_typing.scope_forker(s0) as f0:
+    s1 = s0.tapl_typing.fork_scope(f0)
+    s1.f = s1.Int / s1.Int
+    s1 = s0.tapl_typing.fork_scope(f0)
+    s1.tapl_dev.print(s1.Str)
+    s1 = s0.tapl_typing.fork_scope(f0)
+    s1.tapl_dev.print(s1.Str)
 s0.c = s0.tapl_typing.create_typed_list(s0.Int, s0.Int, s0.Int)
 s0.tapl_dev.print(s0.c)
 s0.x = s0.c[s0.Int]

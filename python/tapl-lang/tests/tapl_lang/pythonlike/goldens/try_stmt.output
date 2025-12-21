@@ -1,0 +1,14 @@
+====== try_stmt1.py exit-status:0 stdout:
+
+------ stderr:
+
+------ end.
+
+====== try_stmt.py exit-status:0 stdout:
+Cannot divide by zero
+Execution completed
+
+------ stderr:
+
+------ end.
+

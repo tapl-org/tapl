@@ -769,7 +769,7 @@ class Select(syntax.Term):
 @dataclasses.dataclass
 class Path(syntax.Term):
     names: list[str]
-    # XXX: Find a better name for the ctx field. options: context, reference_mode
+    # TODO: Find a better name for the ctx field. options: context, reference_mode
     ctx: str
     mode: syntax.Term
     location: syntax.Location = dataclasses.field(repr=False)
@@ -1926,8 +1926,21 @@ class TypedTry(syntax.Term):
                 location=self.location,
             )
         if self.mode is MODE_TYPECHECK:
-            # XXX: Implement type checking for Try statement's except and finally clauses
-            return self.body
+            # XXX: Implement scope forker to preserve parent scope in try, except, and finally blocks except return type
+            handlers: list[syntax.Term] = [self.body]
+            for handler in self.handlers:
+                if not isinstance(handler, ExceptHandler):
+                    raise tapl_error.TaplError('TypedTry handlers must be ExceptHandler in type-check mode.')
+                exception_name: syntax.Term = syntax.Empty
+                if handler.name is not None:
+                    exception_name = Assign(
+                        targets=[Name(id=handler.name, ctx='store', location=self.location)],
+                        value=handler.exception_type,
+                        location=self.location,
+                    )
+                handlers.append(syntax.TermList(terms=[exception_name, handler.body]))
+            handlers.append(self.finalbody)
+            return BranchTyping(branches=handlers, location=self.location)
         raise tapl_error.UnhandledError
 
 

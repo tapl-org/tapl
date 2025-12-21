@@ -77,7 +77,7 @@ class ScopeForker:
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         if not self.branches:
-            return
+            raise RuntimeError('No branches were created in the scope forker.')
         for var in self.branches[0].fields__sa:
             values = []
             for record in self.branches:

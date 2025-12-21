@@ -310,6 +310,12 @@ finally:
     assert (
         ast.unparse(stmt2)
         == """
-s0.do_something()
+with s0.tapl_typing.scope_forker(s0) as f0:
+    s1 = s0.tapl_typing.fork_scope(f0)
+    s1.do_something()
+    s1 = s0.tapl_typing.fork_scope(f0)
+    s1.handle_error()
+    s1 = s0.tapl_typing.fork_scope(f0)
+    s1.cleanup()
 """.strip()
     )
