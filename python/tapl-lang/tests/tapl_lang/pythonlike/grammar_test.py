@@ -70,7 +70,7 @@ def test_assignment__annotated():
         location=create_loc(1, 0, 1, 11),
         target_name=terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='store', mode=terms.MODE_EVALUATE),
         target_type=terms.TypedName(location=create_loc(1, 3, 1, 6), id='Int', ctx='load', mode=terms.MODE_TYPECHECK),
-        value=terms.IntegerLiteral(location=create_loc(1, 9, 1, 11), value=42),
+        value=terms.IntegerLiteral(value=42, mode=terms.MODE_EVALUATE, location=create_loc(1, 9, 1, 11)),
         mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
@@ -85,7 +85,7 @@ def test_assignment__multi_targets():
             terms.TypedName(location=create_loc(1, 4, 1, 5), id='b', ctx='store', mode=terms.MODE_EVALUATE),
             terms.TypedName(location=create_loc(1, 8, 1, 9), id='c', ctx='store', mode=terms.MODE_EVALUATE),
         ],
-        value=terms.IntegerLiteral(location=create_loc(1, 12, 1, 13), value=1),
+        value=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 12, 1, 13)),
     )
     assert actual == expected
 
@@ -97,7 +97,7 @@ def test_assignment__no_annotation():
         targets=[
             terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='store', mode=terms.MODE_EVALUATE),
         ],
-        value=terms.IntegerLiteral(location=create_loc(1, 4, 1, 6), value=42),
+        value=terms.IntegerLiteral(value=42, mode=terms.MODE_EVALUATE, location=create_loc(1, 4, 1, 6)),
     )
     assert actual == expected
 
@@ -109,7 +109,7 @@ def test_simple_stmt__assignment():
         targets=[
             terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='store', mode=terms.MODE_EVALUATE),
         ],
-        value=terms.IntegerLiteral(location=create_loc(1, 4, 1, 6), value=10),
+        value=terms.IntegerLiteral(value=10, mode=terms.MODE_EVALUATE, location=create_loc(1, 4, 1, 6)),
     )
     assert actual == expected
 
@@ -139,7 +139,7 @@ def test_simple_stmt__return():
             location=create_loc(1, 6, 1, 12),
             left=terms.TypedName(location=create_loc(1, 7, 1, 8), id='x', ctx='load', mode=terms.MODE_EVALUATE),
             op='+',
-            right=terms.IntegerLiteral(location=create_loc(1, 11, 1, 12), value=1),
+            right=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 11, 1, 12)),
         ),
         mode=terms.MODE_EVALUATE,
     )
@@ -169,7 +169,7 @@ def test_simple_stmt__raise():
                 location=create_loc(1, 6, 1, 16), id='ValueError', ctx='load', mode=terms.MODE_EVALUATE
             ),
             args=[
-                terms.StringLiteral(location=create_loc(1, 17, 1, 32), value='Invalid value'),
+                terms.StringLiteral(value='Invalid value', mode=terms.MODE_EVALUATE, location=create_loc(1, 17, 1, 32)),
             ],
             keywords=[],
         ),
@@ -246,7 +246,7 @@ def test_raise__expression():
     actual = parse_expr('raise 42', rn.RAISE_STMT, mode=terms.MODE_EVALUATE)
     expected = terms.Raise(
         location=create_loc(1, 0, 1, 8),
-        exception=terms.IntegerLiteral(location=create_loc(1, 6, 1, 8), value=42),
+        exception=terms.IntegerLiteral(value=42, mode=terms.MODE_EVALUATE, location=create_loc(1, 6, 1, 8)),
         cause=syntax.Empty,
     )
     assert actual == expected
@@ -308,7 +308,7 @@ def test_del_stmt__subscript():
             terms.Subscript(
                 location=create_loc(1, 3, 1, 8),
                 value=terms.TypedName(location=create_loc(1, 4, 1, 5), id='d', ctx='load', mode=terms.MODE_EVALUATE),
-                slice=terms.IntegerLiteral(location=create_loc(1, 6, 1, 7), value=1),
+                slice=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 6, 1, 7)),
                 ctx='delete',
             )
         ],
@@ -400,7 +400,7 @@ def test_target_with_star_atom__subscript():
             upper=terms.UnaryOp(
                 location=create_loc(1, 3, 1, 5),
                 op='-',
-                operand=terms.IntegerLiteral(location=create_loc(1, 4, 1, 5), value=1),
+                operand=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 4, 1, 5)),
             ),
             step=syntax.Empty,
         ),
@@ -416,13 +416,13 @@ def test_target_with_star_atom__subscript_nested():
         value=terms.Subscript(
             location=create_loc(1, 0, 1, 9),
             value=terms.TypedName(location=create_loc(1, 0, 1, 6), id='matrix', ctx='load', mode=terms.MODE_EVALUATE),
-            slice=terms.IntegerLiteral(location=create_loc(1, 7, 1, 8), value=0),
+            slice=terms.IntegerLiteral(value=0, mode=terms.MODE_EVALUATE, location=create_loc(1, 7, 1, 8)),
             ctx='load',
         ),
         slice=terms.Slice(
             location=create_loc(1, 10, 1, 13),
-            lower=terms.IntegerLiteral(location=create_loc(1, 10, 1, 11), value=1),
-            upper=terms.IntegerLiteral(location=create_loc(1, 12, 1, 13), value=5),
+            lower=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 10, 1, 11)),
+            upper=terms.IntegerLiteral(value=5, mode=terms.MODE_EVALUATE, location=create_loc(1, 12, 1, 13)),
             step=syntax.Empty,
         ),
         ctx='load',
@@ -461,15 +461,15 @@ def test_slices__multi():
             ),
             terms.Slice(
                 location=create_loc(1, 4, 1, 9),
-                lower=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=1),
-                upper=terms.IntegerLiteral(location=create_loc(1, 7, 1, 9), value=10),
+                lower=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 5, 1, 6)),
+                upper=terms.IntegerLiteral(value=10, mode=terms.MODE_EVALUATE, location=create_loc(1, 7, 1, 9)),
                 step=syntax.Empty,
             ),
             terms.Slice(
                 location=create_loc(1, 10, 1, 14),
                 lower=syntax.Empty,
                 upper=syntax.Empty,
-                step=terms.IntegerLiteral(location=create_loc(1, 13, 1, 14), value=2),
+                step=terms.IntegerLiteral(value=2, mode=terms.MODE_EVALUATE, location=create_loc(1, 13, 1, 14)),
             ),
         ],
     )
@@ -490,7 +490,7 @@ def test_slices__multi_trailing_comma():
                 location=create_loc(1, 4, 1, 8),
                 lower=syntax.Empty,
                 upper=syntax.Empty,
-                step=terms.IntegerLiteral(location=create_loc(1, 7, 1, 8), value=2),
+                step=terms.IntegerLiteral(value=2, mode=terms.MODE_EVALUATE, location=create_loc(1, 7, 1, 8)),
             ),
         ],
     )
@@ -502,7 +502,7 @@ def test_slice__named_expression():
     expected = terms.NamedExpr(
         location=create_loc(1, 0, 1, 6),
         target=terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='store', mode=terms.MODE_EVALUATE),
-        value=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=5),
+        value=terms.IntegerLiteral(value=5, mode=terms.MODE_EVALUATE, location=create_loc(1, 5, 1, 6)),
     )
     assert actual == expected
 
@@ -513,7 +513,7 @@ def test_slice__single_expression():
         location=create_loc(1, 0, 1, 5),
         left=terms.TypedName(location=create_loc(1, 0, 1, 1), id='y', ctx='load', mode=terms.MODE_EVALUATE),
         op='+',
-        right=terms.IntegerLiteral(location=create_loc(1, 4, 1, 5), value=2),
+        right=terms.IntegerLiteral(value=2, mode=terms.MODE_EVALUATE, location=create_loc(1, 4, 1, 5)),
     )
     assert actual == expected
 
@@ -522,8 +522,8 @@ def test_slice__range_single():
     actual = parse_expr('1:10', rn.SLICE, mode=terms.MODE_EVALUATE)
     expected = terms.Slice(
         location=create_loc(1, 0, 1, 4),
-        lower=terms.IntegerLiteral(location=create_loc(1, 0, 1, 1), value=1),
-        upper=terms.IntegerLiteral(location=create_loc(1, 2, 1, 4), value=10),
+        lower=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 0, 1, 1)),
+        upper=terms.IntegerLiteral(value=10, mode=terms.MODE_EVALUATE, location=create_loc(1, 2, 1, 4)),
         step=syntax.Empty,
     )
     assert actual == expected
@@ -533,7 +533,7 @@ def test_slice__range_single_no_upper():
     actual = parse_expr('1:', rn.SLICE, mode=terms.MODE_EVALUATE)
     expected = terms.Slice(
         location=create_loc(1, 0, 1, 2),
-        lower=terms.IntegerLiteral(location=create_loc(1, 0, 1, 1), value=1),
+        lower=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 0, 1, 1)),
         upper=syntax.Empty,
         step=syntax.Empty,
     )
@@ -545,7 +545,7 @@ def test_slice__range_single_no_lower():
     expected = terms.Slice(
         location=create_loc(1, 0, 1, 3),
         lower=syntax.Empty,
-        upper=terms.IntegerLiteral(location=create_loc(1, 1, 1, 3), value=10),
+        upper=terms.IntegerLiteral(value=10, mode=terms.MODE_EVALUATE, location=create_loc(1, 1, 1, 3)),
         step=syntax.Empty,
     )
     assert actual == expected
@@ -555,9 +555,9 @@ def test_slice__range_full():
     actual = parse_expr('1:10:2', rn.SLICE, mode=terms.MODE_EVALUATE)
     expected = terms.Slice(
         location=create_loc(1, 0, 1, 6),
-        lower=terms.IntegerLiteral(location=create_loc(1, 0, 1, 1), value=1),
-        upper=terms.IntegerLiteral(location=create_loc(1, 2, 1, 4), value=10),
-        step=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=2),
+        lower=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 0, 1, 1)),
+        upper=terms.IntegerLiteral(value=10, mode=terms.MODE_EVALUATE, location=create_loc(1, 2, 1, 4)),
+        step=terms.IntegerLiteral(value=2, mode=terms.MODE_EVALUATE, location=create_loc(1, 5, 1, 6)),
     )
     assert actual == expected
 
@@ -567,8 +567,8 @@ def test_slice__range_no_lower():
     expected = terms.Slice(
         location=create_loc(1, 0, 1, 5),
         lower=syntax.Empty,
-        upper=terms.IntegerLiteral(location=create_loc(1, 1, 1, 3), value=10),
-        step=terms.IntegerLiteral(location=create_loc(1, 4, 1, 5), value=2),
+        upper=terms.IntegerLiteral(value=10, mode=terms.MODE_EVALUATE, location=create_loc(1, 1, 1, 3)),
+        step=terms.IntegerLiteral(value=2, mode=terms.MODE_EVALUATE, location=create_loc(1, 4, 1, 5)),
     )
     assert actual == expected
 
@@ -577,9 +577,9 @@ def test_slice__range_no_upper():
     actual = parse_expr('1::2', rn.SLICE, mode=terms.MODE_EVALUATE)
     expected = terms.Slice(
         location=create_loc(1, 0, 1, 4),
-        lower=terms.IntegerLiteral(location=create_loc(1, 0, 1, 1), value=1),
+        lower=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 0, 1, 1)),
         upper=syntax.Empty,
-        step=terms.IntegerLiteral(location=create_loc(1, 3, 1, 4), value=2),
+        step=terms.IntegerLiteral(value=2, mode=terms.MODE_EVALUATE, location=create_loc(1, 3, 1, 4)),
     )
     assert actual == expected
 
@@ -588,8 +588,8 @@ def test_slice__range_no_step():
     actual = parse_expr('1:10:', rn.SLICE, mode=terms.MODE_EVALUATE)
     expected = terms.Slice(
         location=create_loc(1, 0, 1, 5),
-        lower=terms.IntegerLiteral(location=create_loc(1, 0, 1, 1), value=1),
-        upper=terms.IntegerLiteral(location=create_loc(1, 2, 1, 4), value=10),
+        lower=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 0, 1, 1)),
+        upper=terms.IntegerLiteral(value=10, mode=terms.MODE_EVALUATE, location=create_loc(1, 2, 1, 4)),
         step=syntax.Empty,
     )
     assert actual == expected
@@ -610,7 +610,7 @@ def test_slice__range_no_upper_step():
     actual = parse_expr('1::', rn.SLICE, mode=terms.MODE_EVALUATE)
     expected = terms.Slice(
         location=create_loc(1, 0, 1, 3),
-        lower=terms.IntegerLiteral(location=create_loc(1, 0, 1, 1), value=1),
+        lower=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 0, 1, 1)),
         upper=syntax.Empty,
         step=syntax.Empty,
     )
@@ -622,7 +622,7 @@ def test_slice__range_no_lower_step():
     expected = terms.Slice(
         location=create_loc(1, 0, 1, 4),
         lower=syntax.Empty,
-        upper=terms.IntegerLiteral(location=create_loc(1, 1, 1, 3), value=10),
+        upper=terms.IntegerLiteral(value=10, mode=terms.MODE_EVALUATE, location=create_loc(1, 1, 1, 3)),
         step=syntax.Empty,
     )
     assert actual == expected
@@ -634,7 +634,7 @@ def test_slice__range_no_lower_upper():
         location=create_loc(1, 0, 1, 3),
         lower=syntax.Empty,
         upper=syntax.Empty,
-        step=terms.IntegerLiteral(location=create_loc(1, 2, 1, 3), value=2),
+        step=terms.IntegerLiteral(value=2, mode=terms.MODE_EVALUATE, location=create_loc(1, 2, 1, 3)),
     )
     assert actual == expected
 
@@ -650,37 +650,37 @@ def test_atom__name():
 # XXX: Literal values should take a mode to be used in type layer as a value.
 def test_atom__true():
     actual = parse_expr('True', rn.ATOM)
-    expected = terms.BooleanLiteral(location=create_loc(1, 0, 1, 4), value=True)
+    expected = terms.BooleanLiteral(value=True, mode=terms.MODE_SAFE, location=create_loc(1, 0, 1, 4))
     assert actual == expected
 
 
 def test_atom__false():
     actual = parse_expr('False', rn.ATOM)
-    expected = terms.BooleanLiteral(location=create_loc(1, 0, 1, 5), value=False)
+    expected = terms.BooleanLiteral(value=False, mode=terms.MODE_SAFE, location=create_loc(1, 0, 1, 5))
     assert actual == expected
 
 
 def test_atom__none():
     actual = parse_expr('None', rn.ATOM)
-    expected = terms.NoneLiteral(location=create_loc(1, 0, 1, 4))
+    expected = terms.NoneLiteral(mode=terms.MODE_SAFE, location=create_loc(1, 0, 1, 4))
     assert actual == expected
 
 
 def test_atom__string():
     actual = parse_expr("'hello, world!'", rn.ATOM)
-    expected = terms.StringLiteral(location=create_loc(1, 0, 1, 15), value='hello, world!')
+    expected = terms.StringLiteral(value='hello, world!', mode=terms.MODE_SAFE, location=create_loc(1, 0, 1, 15))
     assert actual == expected
 
 
 def test_atom__number_integer():
     actual = parse_expr('42', rn.ATOM)
-    expected = terms.IntegerLiteral(location=create_loc(1, 0, 1, 2), value=42)
+    expected = terms.IntegerLiteral(value=42, mode=terms.MODE_SAFE, location=create_loc(1, 0, 1, 2))
     assert actual == expected
 
 
 def test_atom__number_float():
     actual = parse_expr('3.14', rn.ATOM)
-    expected = terms.FloatLiteral(location=create_loc(1, 0, 1, 4), value=3.14)
+    expected = terms.FloatLiteral(value=3.14, mode=terms.MODE_SAFE, location=create_loc(1, 0, 1, 4))
     assert actual == expected
 
 
@@ -690,7 +690,7 @@ def test_group__expression():
         location=create_loc(1, 1, 1, 6),
         left=terms.TypedName(location=create_loc(1, 1, 1, 2), id='x', ctx='load', mode=terms.MODE_EVALUATE),
         op='+',
-        right=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=1),
+        right=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 5, 1, 6)),
     )
     assert actual == expected
 
@@ -700,7 +700,7 @@ def test_group__named_expression():
     expected = terms.NamedExpr(
         location=create_loc(1, 1, 1, 8),
         target=terms.TypedName(location=create_loc(1, 1, 1, 2), id='y', ctx='store', mode=terms.MODE_EVALUATE),
-        value=terms.IntegerLiteral(location=create_loc(1, 6, 1, 8), value=10),
+        value=terms.IntegerLiteral(value=10, mode=terms.MODE_EVALUATE, location=create_loc(1, 6, 1, 8)),
     )
     assert actual == expected
 
@@ -720,7 +720,7 @@ def test_tuple__single():
     expected = terms.Tuple(
         location=create_loc(1, 0, 1, 5),
         elements=[
-            terms.IntegerLiteral(location=create_loc(1, 1, 1, 3), value=42),
+            terms.IntegerLiteral(value=42, mode=terms.MODE_SAFE, location=create_loc(1, 1, 1, 3)),
         ],
         ctx='load',
     )
@@ -732,9 +732,9 @@ def test_tuple__multi():
     expected = terms.Tuple(
         location=create_loc(1, 0, 1, 16),
         elements=[
-            terms.IntegerLiteral(location=create_loc(1, 1, 1, 2), value=1),
-            terms.StringLiteral(location=create_loc(1, 4, 1, 9), value='two'),
-            terms.NoneLiteral(location=create_loc(1, 11, 1, 15)),
+            terms.IntegerLiteral(value=1, mode=terms.MODE_SAFE, location=create_loc(1, 1, 1, 2)),
+            terms.StringLiteral(value='two', mode=terms.MODE_SAFE, location=create_loc(1, 4, 1, 9)),
+            terms.NoneLiteral(mode=terms.MODE_SAFE, location=create_loc(1, 11, 1, 15)),
         ],
         ctx='load',
     )
@@ -794,8 +794,8 @@ def test_set():
 def test_kvpair():
     actual = parse_expr("'a': 1", rn.KVPAIR, mode=terms.MODE_EVALUATE)
     expected = grammar.KeyValuePair(
-        key=terms.StringLiteral(location=create_loc(1, 0, 1, 3), value='a'),
-        value=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=1),
+        key=terms.StringLiteral(value='a', mode=terms.MODE_EVALUATE, location=create_loc(1, 0, 1, 3)),
+        value=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 5, 1, 6)),
     )
     assert actual == expected
 
@@ -803,8 +803,8 @@ def test_kvpair():
 def test_double_starred_kvpair():
     actual = parse_expr("'a': 1", rn.DOUBLE_STARRED_KVPAIR, mode=terms.MODE_EVALUATE)
     expected = grammar.KeyValuePair(
-        key=terms.StringLiteral(location=create_loc(1, 0, 1, 3), value='a'),
-        value=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=1),
+        key=terms.StringLiteral(value='a', mode=terms.MODE_EVALUATE, location=create_loc(1, 0, 1, 3)),
+        value=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 5, 1, 6)),
     )
     assert actual == expected
 
@@ -814,8 +814,8 @@ def test_double_starred_kvpair__single():
     expected = syntax.TermList(
         terms=[
             grammar.KeyValuePair(
-                key=terms.StringLiteral(location=create_loc(1, 0, 1, 3), value='a'),
-                value=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=1),
+                key=terms.StringLiteral(value='a', mode=terms.MODE_EVALUATE, location=create_loc(1, 0, 1, 3)),
+                value=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 5, 1, 6)),
             ),
         ],
     )
@@ -827,12 +827,12 @@ def test_double_starred_kvpairs__multi():
     expected = syntax.TermList(
         terms=[
             grammar.KeyValuePair(
-                key=terms.StringLiteral(location=create_loc(1, 0, 1, 3), value='a'),
-                value=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=1),
+                key=terms.StringLiteral(value='a', mode=terms.MODE_EVALUATE, location=create_loc(1, 0, 1, 3)),
+                value=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 5, 1, 6)),
             ),
             grammar.KeyValuePair(
-                key=terms.StringLiteral(location=create_loc(1, 8, 1, 11), value='b'),
-                value=terms.IntegerLiteral(location=create_loc(1, 13, 1, 14), value=2),
+                key=terms.StringLiteral(value='b', mode=terms.MODE_EVALUATE, location=create_loc(1, 8, 1, 11)),
+                value=terms.IntegerLiteral(value=2, mode=terms.MODE_EVALUATE, location=create_loc(1, 13, 1, 14)),
             ),
         ],
     )
@@ -844,12 +844,12 @@ def test_double_starred_kvpairs__trailing_comma():
     expected = syntax.TermList(
         terms=[
             grammar.KeyValuePair(
-                key=terms.StringLiteral(location=create_loc(1, 0, 1, 3), value='a'),
-                value=terms.IntegerLiteral(location=create_loc(1, 5, 1, 6), value=1),
+                key=terms.StringLiteral(value='a', mode=terms.MODE_EVALUATE, location=create_loc(1, 0, 1, 3)),
+                value=terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 5, 1, 6)),
             ),
             grammar.KeyValuePair(
-                key=terms.StringLiteral(location=create_loc(1, 8, 1, 11), value='b'),
-                value=terms.IntegerLiteral(location=create_loc(1, 13, 1, 14), value=2),
+                key=terms.StringLiteral(value='b', mode=terms.MODE_EVALUATE, location=create_loc(1, 8, 1, 11)),
+                value=terms.IntegerLiteral(value=2, mode=terms.MODE_EVALUATE, location=create_loc(1, 13, 1, 14)),
             ),
         ],
     )
@@ -871,8 +871,8 @@ def test_dict__single():
     actual = parse_expr("{'a': 1}", rn.DICT, mode=terms.MODE_EVALUATE)
     expected = terms.TypedDict(
         location=create_loc(1, 0, 1, 8),
-        keys=[terms.StringLiteral(location=create_loc(1, 1, 1, 4), value='a')],
-        values=[terms.IntegerLiteral(location=create_loc(1, 6, 1, 7), value=1)],
+        keys=[terms.StringLiteral(value='a', mode=terms.MODE_EVALUATE, location=create_loc(1, 1, 1, 4))],
+        values=[terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 6, 1, 7))],
         mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
@@ -882,8 +882,8 @@ def test_dict__traling_comma():
     actual = parse_expr("{'a': 1,}", rn.DICT, mode=terms.MODE_EVALUATE)
     expected = terms.TypedDict(
         location=create_loc(1, 0, 1, 9),
-        keys=[terms.StringLiteral(location=create_loc(1, 1, 1, 4), value='a')],
-        values=[terms.IntegerLiteral(location=create_loc(1, 6, 1, 7), value=1)],
+        keys=[terms.StringLiteral(value='a', mode=terms.MODE_EVALUATE, location=create_loc(1, 1, 1, 4))],
+        values=[terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 6, 1, 7))],
         mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
@@ -894,12 +894,12 @@ def test_dict__multi():
     expected = terms.TypedDict(
         location=create_loc(1, 0, 1, 16),
         keys=[
-            terms.StringLiteral(location=create_loc(1, 1, 1, 4), value='a'),
-            terms.StringLiteral(location=create_loc(1, 9, 1, 12), value='b'),
+            terms.StringLiteral(value='a', mode=terms.MODE_EVALUATE, location=create_loc(1, 1, 1, 4)),
+            terms.StringLiteral(value='b', mode=terms.MODE_EVALUATE, location=create_loc(1, 9, 1, 12)),
         ],
         values=[
-            terms.IntegerLiteral(location=create_loc(1, 6, 1, 7), value=1),
-            terms.IntegerLiteral(location=create_loc(1, 14, 1, 15), value=2),
+            terms.IntegerLiteral(value=1, mode=terms.MODE_EVALUATE, location=create_loc(1, 6, 1, 7)),
+            terms.IntegerLiteral(value=2, mode=terms.MODE_EVALUATE, location=create_loc(1, 14, 1, 15)),
         ],
         mode=terms.MODE_EVALUATE,
     )
@@ -1273,7 +1273,7 @@ def test_primary__slice():
     expected = terms.Subscript(
         location=create_loc(1, 0, 1, 7),
         value=terms.TypedName(location=create_loc(1, 0, 1, 3), id='arr', ctx='load', mode=terms.MODE_EVALUATE),
-        slice=terms.IntegerLiteral(location=create_loc(1, 4, 1, 6), value=10),
+        slice=terms.IntegerLiteral(value=10, mode=terms.MODE_EVALUATE, location=create_loc(1, 4, 1, 6)),
         ctx='load',
     )
     assert actual == expected
@@ -1344,7 +1344,7 @@ def test_assignment_expression__simple():
     expected = terms.NamedExpr(
         location=create_loc(1, 0, 1, 7),
         target=terms.TypedName(location=create_loc(1, 0, 1, 1), id='x', ctx='store', mode=terms.MODE_EVALUATE),
-        value=terms.IntegerLiteral(location=create_loc(1, 5, 1, 7), value=42),
+        value=terms.IntegerLiteral(value=42, mode=terms.MODE_EVALUATE, location=create_loc(1, 5, 1, 7)),
     )
     assert actual == expected
 
@@ -1363,7 +1363,7 @@ def test_if_stmt__simple():
             location=create_loc(1, 2, 1, 8),
             left=terms.TypedName(location=create_loc(1, 3, 1, 4), id='x', ctx='load', mode=terms.MODE_EVALUATE),
             operators=['>'],
-            comparators=[terms.IntegerLiteral(location=create_loc(1, 7, 1, 8), value=0)],
+            comparators=[terms.IntegerLiteral(value=0, mode=terms.MODE_EVALUATE, location=create_loc(1, 7, 1, 8))],
         ),
         body=syntax.TermList(terms=[], is_placeholder=True),
         elifs=[],
@@ -1380,7 +1380,7 @@ def test_if_stmt__named():
         test=terms.NamedExpr(
             location=create_loc(1, 4, 1, 11),
             target=terms.TypedName(location=create_loc(1, 4, 1, 5), id='a', ctx='store', mode=terms.MODE_EVALUATE),
-            value=terms.IntegerLiteral(location=create_loc(1, 9, 1, 11), value=42),
+            value=terms.IntegerLiteral(value=42, mode=terms.MODE_EVALUATE, location=create_loc(1, 9, 1, 11)),
         ),
         body=syntax.TermList(terms=[], is_placeholder=True),
         elifs=[],
@@ -1398,7 +1398,7 @@ def test_elif_stmt__simple():
             location=create_loc(1, 4, 1, 11),
             left=terms.TypedName(location=create_loc(1, 5, 1, 6), id='y', ctx='load', mode=terms.MODE_EVALUATE),
             operators=['<'],
-            comparators=[terms.IntegerLiteral(location=create_loc(1, 9, 1, 11), value=10)],
+            comparators=[terms.IntegerLiteral(value=10, mode=terms.MODE_EVALUATE, location=create_loc(1, 9, 1, 11))],
         ),
         body=syntax.TermList(terms=[], is_placeholder=True),
     )
@@ -1466,7 +1466,7 @@ def test_while_stmt__named():
         test=terms.NamedExpr(
             location=create_loc(1, 5, 1, 13),
             target=terms.TypedName(location=create_loc(1, 6, 1, 7), id='x', ctx='store', mode=terms.MODE_EVALUATE),
-            value=terms.IntegerLiteral(location=create_loc(1, 11, 1, 13), value=42),
+            value=terms.IntegerLiteral(value=42, mode=terms.MODE_EVALUATE, location=create_loc(1, 11, 1, 13)),
         ),
         body=syntax.TermList(terms=[], is_placeholder=True),
         orelse=syntax.Empty,
@@ -1543,7 +1543,7 @@ def test_expression__double_layer():
     actual = parse_expr('<3:A>', rn.EXPRESSION)
     expected = syntax.Layers(
         layers=[
-            terms.IntegerLiteral(value=3, location=create_loc(1, 1, 1, 2)),
+            terms.IntegerLiteral(value=3, mode=terms.MODE_EVALUATE, location=create_loc(1, 1, 1, 2)),
             terms.TypedName(id='A', ctx='load', mode=terms.MODE_TYPECHECK, location=create_loc(1, 3, 1, 4)),
         ],
     )

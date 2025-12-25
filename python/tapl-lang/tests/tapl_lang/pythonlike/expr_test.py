@@ -216,7 +216,7 @@ def test_term_repr():
     parsed = parse_text('2+x', Grammar(grammar.get_grammar().rule_map, rule_names.EXPRESSION))
     assert (
         str(parsed)
-        == "BinOp(left=IntegerLiteral(location=(1:0,1:1), value=2), op='+', right=TypedName(id='x', ctx='load', mode=Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK]), location=(1:2,1:3)), location=(1:0,1:3))"
+        == "BinOp(left=IntegerLiteral(value=2, mode=Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK]), location=(1:0,1:1)), op='+', right=TypedName(id='x', ctx='load', mode=Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK]), location=(1:2,1:3)), location=(1:0,1:3))"
     )
 
 
@@ -229,8 +229,8 @@ def skip_test_multi_layer_call():
 
 def test_gather_errors():
     location = syntax.Location(start=syntax.Position(line=1, column=0))
-    a = terms.IntegerLiteral(value=2, location=location)
-    b = terms.IntegerLiteral(value=3, location=location)
+    a = terms.IntegerLiteral(value=2, mode=terms.MODE_SAFE, location=location)
+    b = terms.IntegerLiteral(value=3, mode=terms.MODE_SAFE, location=location)
     c = syntax.ErrorTerm('Expected number')
     d = terms.BinOp(b, '*', c, location=location)
     e = terms.BinOp(a, '+', d, location=location)

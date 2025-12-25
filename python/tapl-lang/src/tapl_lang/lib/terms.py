@@ -992,63 +992,141 @@ class TypedAssign(syntax.Term):
 
 
 @dataclasses.dataclass
-class Literal(syntax.Term):
+class NoneLiteral(syntax.Term):
+    mode: syntax.Term
     location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
-        yield from ()
+        yield self.mode
 
-    def typeit(self, ls: syntax.LayerSeparator, value: Any, type_id: str) -> list[syntax.Term]:
-        if ls.layer_count != SAFE_LAYER_COUNT:
-            raise ValueError('NoneLiteral must be separated in 2 layers')
-        return [
-            Constant(value=value, location=self.location),
-            TypedName(id=type_id, ctx='load', mode=MODE_TYPECHECK, location=self.location),
-        ]
-
-
-@dataclasses.dataclass
-class NoneLiteral(Literal):
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return self.typeit(ls, value=None, type_id='NoneType')
+        return ls.build(lambda layer: NoneLiteral(mode=layer(self.mode), location=self.location))
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is MODE_EVALUATE:
+            return Constant(value=None, location=self.location)
+        if self.mode is MODE_TYPECHECK:
+            return TypedName(id='NoneType', ctx='load', mode=self.mode, location=self.location)
+        raise tapl_error.UnhandledError
 
 
 @dataclasses.dataclass
-class BooleanLiteral(Literal):
+class BooleanLiteral(syntax.Term):
     value: bool
+    mode: syntax.Term
+    location: syntax.Location
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.mode
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return self.typeit(ls, value=self.value, type_id='Bool')
+        return ls.build(
+            lambda layer: BooleanLiteral(
+                value=self.value,
+                mode=layer(self.mode),
+                location=self.location,
+            )
+        )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is MODE_EVALUATE:
+            return Constant(value=self.value, location=self.location)
+        if self.mode is MODE_TYPECHECK:
+            return TypedName(id='Bool', ctx='load', mode=self.mode, location=self.location)
+        raise tapl_error.UnhandledError
 
 
 @dataclasses.dataclass
-class IntegerLiteral(Literal):
+class IntegerLiteral(syntax.Term):
     value: int
+    mode: syntax.Term
+    location: syntax.Location
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.mode
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return self.typeit(ls, value=self.value, type_id='Int')
+        return ls.build(
+            lambda layer: IntegerLiteral(
+                value=self.value,
+                mode=layer(self.mode),
+                location=self.location,
+            )
+        )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is MODE_EVALUATE:
+            return Constant(value=self.value, location=self.location)
+        if self.mode is MODE_TYPECHECK:
+            return TypedName(id='Int', ctx='load', mode=self.mode, location=self.location)
+        raise tapl_error.UnhandledError
 
 
 @dataclasses.dataclass
-class FloatLiteral(Literal):
+class FloatLiteral(syntax.Term):
     value: float
+    mode: syntax.Term
+    location: syntax.Location
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.mode
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return self.typeit(ls, value=self.value, type_id='Float')
+        return ls.build(
+            lambda layer: FloatLiteral(
+                value=self.value,
+                mode=layer(self.mode),
+                location=self.location,
+            )
+        )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is MODE_EVALUATE:
+            return Constant(value=self.value, location=self.location)
+        if self.mode is MODE_TYPECHECK:
+            return TypedName(id='Float', ctx='load', mode=self.mode, location=self.location)
+        raise tapl_error.UnhandledError
 
 
 @dataclasses.dataclass
-class StringLiteral(Literal):
+class StringLiteral(syntax.Term):
     value: str
+    mode: syntax.Term
+    location: syntax.Location
+
+    @override
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.mode
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return self.typeit(ls, value=self.value, type_id='Str')
+        return ls.build(
+            lambda layer: StringLiteral(
+                value=self.value,
+                mode=layer(self.mode),
+                location=self.location,
+            )
+        )
+
+    @override
+    def unfold(self) -> syntax.Term:
+        if self.mode is MODE_EVALUATE:
+            return Constant(value=self.value, location=self.location)
+        if self.mode is MODE_TYPECHECK:
+            return TypedName(id='Str', ctx='load', mode=self.mode, location=self.location)
+        raise tapl_error.UnhandledError
 
 
 @dataclasses.dataclass

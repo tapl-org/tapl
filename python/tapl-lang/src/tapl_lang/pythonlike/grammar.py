@@ -1066,16 +1066,16 @@ def _parse_atom__bool(c: Cursor) -> syntax.Term:
         location = token.location
         if token.value in ('True', 'False'):
             value = token.value == 'True'
-            return terms.BooleanLiteral(location, value=value)
+            return terms.BooleanLiteral(value=value, mode=c.config.mode, location=location)
         if token.value == 'None':
-            return terms.NoneLiteral(location)
+            return terms.NoneLiteral(mode=c.config.mode, location=location)
     return t.fail()
 
 
 def _parse_atom__string(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, TokenString):
-        return terms.StringLiteral(token.location, value=token.value)
+        return terms.StringLiteral(value=token.value, mode=c.config.mode, location=token.location)
     return t.fail()
 
 
@@ -1083,9 +1083,9 @@ def _parse_atom__number(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)):
         if isinstance(token, TokenInteger):
-            return terms.IntegerLiteral(token.location, value=token.value)
+            return terms.IntegerLiteral(value=token.value, mode=c.config.mode, location=token.location)
         if isinstance(token, TokenFloat):
-            return terms.FloatLiteral(token.location, value=token.value)
+            return terms.FloatLiteral(value=token.value, mode=c.config.mode, location=token.location)
     return t.fail()
 
 
@@ -1528,7 +1528,7 @@ def _parse_return(c: Cursor) -> syntax.Term:
         if t.validate(value := c.consume_rule(rn.EXPRESSION)):
             return terms.TypedReturn(value=value, mode=c.config.mode, location=t.location)
         return t.captured_error or terms.TypedReturn(
-            value=terms.NoneLiteral(t.location), mode=c.config.mode, location=t.location
+            value=terms.NoneLiteral(mode=c.config.mode, location=t.location), mode=c.config.mode, location=t.location
         )
     return t.fail()
 
