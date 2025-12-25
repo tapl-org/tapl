@@ -1537,3 +1537,14 @@ def test_with_stmt__multiple_items():
         mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
+
+
+def test_expression__double_layer():
+    actual = parse_expr('<3:A>', rn.EXPRESSION)
+    expected = syntax.Layers(
+        layers=[
+            terms.IntegerLiteral(value=3, location=create_loc(1, 1, 1, 2)),
+            terms.TypedName(id='A', ctx='load', mode=terms.MODE_TYPECHECK, location=create_loc(1, 3, 1, 4)),
+        ],
+    )
+    assert actual == expected

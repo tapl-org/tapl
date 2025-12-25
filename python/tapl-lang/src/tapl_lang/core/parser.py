@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
+import dataclasses
 import enum
 import io
 import itertools
 import logging
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
 from typing import override
 
 from tapl_lang.core import line_record, syntax, tapl_error
@@ -26,7 +26,7 @@ OrderedParseFunctions = Iterable[ParseFunction | str]
 GrammarRuleMap = dict[str, OrderedParseFunctions]
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class Grammar:
     rule_map: GrammarRuleMap
     start_rule: str
@@ -41,7 +41,7 @@ def parse_function_name(function: ParseFunction | str) -> str:
     return f'@{function.__name__}'
 
 
-@dataclass
+@dataclasses.dataclass
 class Config:
     mode: syntax.Term
 
@@ -96,8 +96,8 @@ class Cursor:
         self.assert_position()
         return syntax.Position(self.engine.line_records[self.row].line_number, self.col)
 
-    def consume_rule(self, rule) -> syntax.Term:
-        term, self.row, self.col = self.engine.apply_rule(self.row, self.col, rule, self.config)
+    def consume_rule(self, rule: str, config: Config | None = None) -> syntax.Term:
+        term, self.row, self.col = self.engine.apply_rule(self.row, self.col, rule, config or self.config)
         return term
 
     def start_tracker(self) -> Tracker:
@@ -150,14 +150,14 @@ class CellState(enum.IntEnum):
     DONE = 3
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class CellKey:
     row: int
     col: int
     rule: str
 
 
-@dataclass
+@dataclasses.dataclass
 class Cell:
     next_row: int
     next_col: int
@@ -273,7 +273,7 @@ class PegEngine:
         return 'Use PegEngineDebug to get the engine dump.'
 
 
-@dataclass
+@dataclasses.dataclass
 class ParseTrace:
     start_row: int
     start_col: int

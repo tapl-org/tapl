@@ -174,6 +174,30 @@ s0.area = s0.tapl_typing.create_function([s0.Int], area(s0.Int))
     )
 
 
+def test_untyped_function():
+    [stmt1, stmt2] = parse_module("""
+def greet(name):
+    print('Hello, ' + name)
+""")
+    assert (
+        ast.unparse(stmt1)
+        == """
+def greet(name):
+    print('Hello, ' + name)
+""".strip()
+    )
+    assert (
+        ast.unparse(stmt2)
+        == """
+def greet(name):
+    s1 = s0.tapl_typing.create_scope(parent__sa=s0, name=name)
+    s1.print(s1.Str + s1.name)
+    return s1.tapl_typing.get_return_type(s1)
+s0.greet = greet
+""".strip()
+    )
+
+
 def test_if_else_stmt():
     [stmt1, stmt2] = parse_module("""
 if a == 2:

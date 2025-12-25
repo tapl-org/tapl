@@ -2,8 +2,8 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import dataclasses
 from collections.abc import Iterable
-from dataclasses import dataclass
 from typing import cast
 
 from tapl_lang.core import parser, syntax
@@ -161,6 +161,7 @@ d           | t_primary '(' arguments ')' &t_lookahead
 d           | invalid_expression
 d           | invalid_legacy_expression
 d           | disjunction 'if' disjunction 'else' expression
+            | '<' expression ':' expression '>'  # double-layer expression
             | disjunction
 d           | lambda_def
         disjunction:
@@ -448,7 +449,7 @@ def get_grammar() -> parser.Grammar:
     # EXPRESSIONS
     # -----------
     add(rn.EXPRESSIONS, [])
-    add(rn.EXPRESSION, [rn.DISJUNCTION])
+    add(rn.EXPRESSION, [_parse_expression__double_layer, rn.DISJUNCTION])
     add(rn.YIELD_EXPR, [])
     add(rn.STAR_EXPRESSIONS, [_parse_star_expressions__multi, rn.STAR_EXPRESSION])
     add(rn.STAR_EXPRESSION, [rn.EXPRESSION])
@@ -667,54 +668,54 @@ def get_grammar() -> parser.Grammar:
     return parser.Grammar(rule_map=rules, start_rule=rn.START)
 
 
-@dataclass
+@dataclasses.dataclass
 class TokenKeyword(syntax.Term):
     location: syntax.Location
     value: str
 
 
-@dataclass
+@dataclasses.dataclass
 class TokenName(syntax.Term):
     location: syntax.Location
     value: str
 
 
-@dataclass
+@dataclasses.dataclass
 class TokenString(syntax.Term):
     location: syntax.Location
     value: str
 
 
-@dataclass
+@dataclasses.dataclass
 class TokenInteger(syntax.Term):
     location: syntax.Location
     value: int
 
 
-@dataclass
+@dataclasses.dataclass
 class TokenFloat(syntax.Term):
     location: syntax.Location
     value: float
 
 
-@dataclass
+@dataclasses.dataclass
 class TokenPunct(syntax.Term):
     location: syntax.Location
     value: str
 
 
-@dataclass
+@dataclasses.dataclass
 class TokenEndOfText(syntax.Term):
     location: syntax.Location
 
 
-@dataclass
+@dataclasses.dataclass
 class KeyValuePair(syntax.Term):
     key: syntax.Term
     value: syntax.Term
 
 
-@dataclass
+@dataclasses.dataclass
 class AliasTerm(syntax.Term):
     alias: terms.Alias
 
@@ -1093,7 +1094,7 @@ def _parse_group__named_expression(c: Cursor) -> syntax.Term:
     if (
         t.validate(_consume_punct(c, '('))
         and t.validate(expr := c.consume_rule(rn.NAMED_EXPRESSION))
-        and t.validate(_expect_punct(c, ')'))
+        and t.validate(_consume_punct(c, ')'))
     ):
         return expr
     return t.fail()
@@ -1348,7 +1349,7 @@ def _parse_comparison(c: Cursor) -> syntax.Term:
         ops = []
         comparators = []
         k = c.clone()
-        while (op := _scan_operator(k)) and t.validate(comparator := _expect_rule(k, rn.SUM)):
+        while (op := _scan_operator(k)) and t.validate(comparator := k.consume_rule(rn.SUM)):
             c.copy_position_from(k)
             ops.append(op)
             comparators.append(comparator)
@@ -1430,6 +1431,23 @@ def _parse_star_named_expressions(c: Cursor) -> syntax.Term:
         # Allow trailing comma
         c.copy_position_from(k)
     return t.captured_error or syntax.TermList(terms=elements)
+
+
+def _parse_expression__double_layer(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(_consume_punct(c, '<'))
+        and t.validate(
+            low := c.consume_rule(rn.EXPRESSION, config=dataclasses.replace(c.config, mode=terms.MODE_EVALUATE))
+        )
+        and t.validate(_consume_punct(c, ':'))
+        and t.validate(
+            high := c.consume_rule(rn.EXPRESSION, config=dataclasses.replace(c.config, mode=terms.MODE_TYPECHECK))
+        )
+        and t.validate(_consume_punct(c, '>'))
+    ):
+        return syntax.Layers(layers=[low, high])
+    return t.fail()
 
 
 def _parse_assignment_expression(c: Cursor) -> syntax.Term:

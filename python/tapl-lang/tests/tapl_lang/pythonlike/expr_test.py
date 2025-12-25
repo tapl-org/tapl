@@ -216,8 +216,15 @@ def test_term_repr():
     parsed = parse_text('2+x', Grammar(grammar.get_grammar().rule_map, rule_names.EXPRESSION))
     assert (
         str(parsed)
-        == "BinOp(left=IntegerLiteral(value=2), op='+', right=TypedName(id='x', ctx='load', mode=Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])))"
+        == "BinOp(left=IntegerLiteral(location=(1:0,1:1), value=2), op='+', right=TypedName(id='x', ctx='load', mode=Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK]), location=(1:2,1:3)), location=(1:0,1:3))"
     )
+
+
+# XXX: Currently disabled test cases for double-layer parsing of function calls.
+def skip_test_multi_layer_call():
+    [expr1, expr2] = parse_expr('f(<3:Str>)')
+    assert ast.unparse(expr1) == 'f(3)'
+    assert ast.unparse(expr2) == 's0.f(s0.Str)'
 
 
 def test_gather_errors():
