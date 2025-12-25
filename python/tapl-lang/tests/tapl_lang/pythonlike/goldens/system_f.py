@@ -1,16 +1,16 @@
 from tapl_lang.pythonlike.predef import *
 
-def id1(a):
+def simple_id(a):
     return a
-tapl_dev.print(id1(3))
+tapl_dev.print(simple_id(3))
 
-def id2(A):
+def poly_id(A):
 
-    def id3(a):
+    def typed_id(a):
         return a
-    return id3
-idInt = id2(Int)
-idStr = id2(Str)
+    return typed_id
+idInt = poly_id(None)
+idStr = poly_id(None)
 tapl_dev.print(idInt(3))
-tapl_dev.print(idStr)
+tapl_dev.print(tapl_dev.to_string(idStr))
 tapl_dev.print(idStr('abc'))

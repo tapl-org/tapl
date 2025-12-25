@@ -2,6 +2,7 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import types
 
 EVALATE_LAYER_INDEX = 0
 TYPECHECK_LAYER_INDEX = 1
@@ -15,3 +16,8 @@ class TaplDev:
     def print_type(self, type_) -> None:
         if self.layer_index == TYPECHECK_LAYER_INDEX:
             self.print(repr(type_))
+
+    def to_string(self, value) -> str:
+        if isinstance(value, types.FunctionType):
+            return f'<function {value.__name__}>'
+        return str(value)

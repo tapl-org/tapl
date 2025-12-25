@@ -1,0 +1,20 @@
+====== system_f1.py exit-status:0 stdout:
+Int
+Int
+(Str)->Str
+Str
+
+------ stderr:
+
+------ end.
+
+====== system_f.py exit-status:0 stdout:
+3
+3
+<function typed_id>
+abc
+
+------ stderr:
+
+------ end.
+

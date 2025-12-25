@@ -220,8 +220,7 @@ def test_term_repr():
     )
 
 
-# XXX: Currently disabled test cases for double-layer parsing of function calls.
-def skip_test_multi_layer_call():
+def test_multi_layer_call():
     [expr1, expr2] = parse_expr('f(<3:Str>)')
     assert ast.unparse(expr1) == 'f(3)'
     assert ast.unparse(expr2) == 's0.f(s0.Str)'
