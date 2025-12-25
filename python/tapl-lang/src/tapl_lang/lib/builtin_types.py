@@ -114,7 +114,7 @@ def create_list_type(element_type):
     }
     return typelib.Record(
         fields=_init_methods(methods),
-        label=f'List[{element_type}]',
+        label=f'List({element_type})',
     )
 
 
@@ -127,7 +127,7 @@ def create_set_type(element_type):
     }
     return typelib.Record(
         fields=_init_methods(methods),
-        label=f'Set[{element_type}]',
+        label=f'Set({element_type})',
     )
 
 
@@ -143,7 +143,7 @@ def create_dict_type(key_type, value_type):
     }
     return typelib.Record(
         fields=_init_methods(methods),
-        label=f'Dict[{key_type}, {value_type}]',
+        label=f'Dict({key_type}, {value_type})',
     )
 
 

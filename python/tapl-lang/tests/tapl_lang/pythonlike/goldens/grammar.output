@@ -4,15 +4,15 @@ Str
 Str
 Str
 Str
-List[Int]
+List(Int)
 Int
-List[Int]
-Set[Int]
+List(Int)
+Set(Int)
 Str
-Set[Int]
-Dict[Str, Str]
+Set(Int)
+Dict(Str, Str)
 Str
-Dict[Str, Str]
+Dict(Str, Str)
 
 ------ stderr:
 

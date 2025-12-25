@@ -1,5 +1,5 @@
 ====== collatz_conjecture1.py exit-status:0 stdout:
-List[Any]
+List(Any)
 
 ------ stderr:
 
