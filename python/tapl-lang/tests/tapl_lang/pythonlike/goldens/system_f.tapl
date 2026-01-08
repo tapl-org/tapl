@@ -9,9 +9,13 @@ def poly_id(A):
     def typed_id(a: A):
         return a
     return typed_id
-idInt = poly_id(<None:Int>)
-idStr = poly_id(<None:Str>)
+# Since A is not used in term layer of ploy_id, I just passed a None as a dummy value. 
+id_int = poly_id(<None:Int>)
+id_str = poly_id(<None:Str>)
 
-tapl_dev.print(idInt(3))
-tapl_dev.print(tapl_dev.to_string(idStr))
-tapl_dev.print(idStr('abc'))
+tapl_dev.print(id_int(3))
+tapl_dev.print(tapl_dev.to_string(id_str))
+tapl_dev.print(id_str('abc'))
+
+# TODO: How to implement auto inferred typed id. Example: id_auto_infer: X->X. id_auto_infer(Int) returns Int
+# id_auto_infer = poly_id(<None:TypeVar('X')>)

@@ -19,8 +19,8 @@ def poly_id(A):
     s1.tapl_typing.add_return_type(s1, s1.typed_id)
     return s1.tapl_typing.get_return_type(s1)
 s0.poly_id = poly_id
-s0.idInt = s0.poly_id(s0.Int)
-s0.idStr = s0.poly_id(s0.Str)
-s0.tapl_dev.print(s0.idInt(s0.Int))
-s0.tapl_dev.print(s0.tapl_dev.to_string(s0.idStr))
-s0.tapl_dev.print(s0.idStr(s0.Str))
+s0.id_int = s0.poly_id(s0.Int)
+s0.id_str = s0.poly_id(s0.Str)
+s0.tapl_dev.print(s0.id_int(s0.Int))
+s0.tapl_dev.print(s0.tapl_dev.to_string(s0.id_str))
+s0.tapl_dev.print(s0.id_str(s0.Str))

@@ -9,8 +9,8 @@ def poly_id(A):
     def typed_id(a):
         return a
     return typed_id
-idInt = poly_id(None)
-idStr = poly_id(None)
-tapl_dev.print(idInt(3))
-tapl_dev.print(tapl_dev.to_string(idStr))
-tapl_dev.print(idStr('abc'))
+id_int = poly_id(None)
+id_str = poly_id(None)
+tapl_dev.print(id_int(3))
+tapl_dev.print(tapl_dev.to_string(id_str))
+tapl_dev.print(id_str('abc'))
