@@ -3,6 +3,7 @@ Int
 Int
 (Str)->Str
 Str
+Str
 
 ------ stderr:
 
@@ -13,6 +14,7 @@ Str
 3
 <function typed_id>
 abc
+hello
 
 ------ stderr:
 

@@ -24,3 +24,16 @@ s0.id_str = s0.poly_id(s0.Str)
 s0.tapl_dev.print(s0.id_int(s0.Int))
 s0.tapl_dev.print(s0.tapl_dev.to_string(s0.id_str))
 s0.tapl_dev.print(s0.id_str(s0.Str))
+
+def auto_id(a):
+    s1 = s0.tapl_typing.create_scope(parent__sa=s0, a=a)
+
+    def typed_id(b):
+        s2 = s1.tapl_typing.create_scope(parent__sa=s1, b=b)
+        s2.tapl_typing.add_return_type(s2, s2.b)
+        return s2.tapl_typing.get_return_type(s2)
+    s1.typed_id = s1.tapl_typing.create_function([s1.a], typed_id(s1.a))
+    s1.tapl_typing.add_return_type(s1, s1.typed_id(s1.a))
+    return s1.tapl_typing.get_return_type(s1)
+s0.auto_id = auto_id
+s0.tapl_dev.print(s0.auto_id(s0.Str))

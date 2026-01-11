@@ -14,3 +14,10 @@ id_str = poly_id(None)
 tapl_dev.print(id_int(3))
 tapl_dev.print(tapl_dev.to_string(id_str))
 tapl_dev.print(id_str('abc'))
+
+def auto_id(a):
+
+    def typed_id(b):
+        return b
+    return typed_id(a)
+tapl_dev.print(auto_id('hello'))

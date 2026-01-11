@@ -17,5 +17,10 @@ tapl_dev.print(id_int(3))
 tapl_dev.print(tapl_dev.to_string(id_str))
 tapl_dev.print(id_str('abc'))
 
-# TODO: How to implement auto inferred typed id. Example: id_auto_infer: X->X. id_auto_infer(Int) returns Int
-# id_auto_infer = poly_id(<None:TypeVar('X')>)
+# This is another way to write an auto-inferred identity function, but `simple_id` is more concise.
+def auto_id(a):
+    def typed_id(b: a):
+        return b
+    return typed_id(a)
+
+tapl_dev.print(auto_id('hello'))

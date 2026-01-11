@@ -1,0 +1,12 @@
+language pythonlike
+
+def create_empty() -> 'Array-0':
+    return <[]:'Array0'>
+
+def append(n: Int):
+    def inner(array: 'Array-n', element: Int):
+        return <array + [element]:'Array-(n+1)'
+    def inner
+
+def concat(a: 'Array-n', b: 'Array-m'):
+    return 
