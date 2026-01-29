@@ -31,6 +31,9 @@ class LineRecord:
         if not self.empty:
             self.indent = count_indentation(text)
 
+    def __repr__(self) -> str:
+        return f'LineRecord(line_number={self.line_number}, indent={self.indent}, empty={self.empty}, ends_with_colon={self.ends_with_colon}, text={self.text!r})'
+
 
 def is_comment_line(text: str) -> bool:
     for char in text:

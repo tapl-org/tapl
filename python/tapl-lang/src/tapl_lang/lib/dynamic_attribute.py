@@ -38,14 +38,20 @@ class DynamicAttributeMixin:
         return f'{self.__class__.__name__} class'
 
     def load__sa(self, key: str) -> Any:
-        raise AttributeError(f'{self.get_label__sa()} has no attribute "{key}"')
+        raise NotImplementedError(
+            f'{self.__class__.__name__} class does not support loading attribute: {self.get_label__sa()}.{key}'
+        )
 
     def store__sa(self, key: str, value: Any) -> None:
         del value  # unused
-        raise AttributeError(f'{self.get_label__sa()} has no attribute "{key}"')
+        raise NotImplementedError(
+            f'{self.__class__.__name__} class does not support storing attribute: {self.get_label__sa()}.{key}'
+        )
 
     def delete__sa(self, key: str) -> None:
-        raise AttributeError(f'{self.get_label__sa()} has no attribute "{key}"')
+        raise NotImplementedError(
+            f'{self.__class__.__name__} class does not support deleting attribute: {self.get_label__sa()}.{key}'
+        )
 
     def call_binop__sa(left, op: str, right: Any) -> Any | None:
         try:

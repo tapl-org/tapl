@@ -12,19 +12,15 @@ logging.basicConfig(level=logging.INFO)
 
 parsed_code = ast.parse(
     """
-if a:= first:
-    return 1
-elif b:
-    return 2
-elif c:
-    return 4
-else:
-    return 3
+def id[T](x: T) -> T:
+    return x
+id[int](42)
 """,
     mode='exec',
 )
 logging.info(ast.dump(parsed_code, include_attributes=False, indent=4))
 compiled_code = compile(parsed_code, filename='', mode='exec')
+logging.info(ast.unparse(parsed_code))
 # ruff: noqa: S307
 # result = eval(compiled_code)
 # logging.info(result)

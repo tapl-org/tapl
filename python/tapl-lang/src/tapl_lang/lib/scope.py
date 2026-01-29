@@ -36,7 +36,7 @@ class Scope(dynamic_attribute.DynamicAttributeMixin):
         slot = self.find_slot__sa(name)
         if slot is not None:
             return slot.value
-        return super().load__sa(name)
+        raise AttributeError(f'{self.get_label__sa()} scope has no attribute "{name}"')
 
     def store__sa(self, name: str, value: Any) -> None:
         slot = self.find_slot__sa(name)
@@ -54,8 +54,8 @@ class Scope(dynamic_attribute.DynamicAttributeMixin):
         if self.label__sa:
             return self.label__sa
         if self.parent__sa is None:
-            return 'Global Scope'
-        return f'Scope({self.parent__sa.get_label__sa()})'
+            return 'Global'
+        return f'Scope(parent={self.parent__sa.get_label__sa()})'
 
     def __repr__(self) -> str:
         if '__repr__' in self.fields__sa:

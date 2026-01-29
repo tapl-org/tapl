@@ -1,5 +1,6 @@
 ====== simple_class1.py exit-status:0 stdout:
 Float
+Bool
 
 ------ stderr:
 
@@ -7,6 +8,7 @@ Float
 
 ====== simple_class.py exit-status:0 stdout:
 12.56
+True
 
 ------ stderr:
 

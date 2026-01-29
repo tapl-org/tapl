@@ -15,7 +15,7 @@ class MySubject(dynamic_attribute.DynamicAttributeMixin):
         try:
             return self.vars__sa[key]
         except KeyError:
-            super().load__sa(key)
+            raise AttributeError(f'{self.__class__.__name__} has no attribute "{key}"') from None
 
     def store__sa(self, key, value):
         self.vars__sa[key] = value

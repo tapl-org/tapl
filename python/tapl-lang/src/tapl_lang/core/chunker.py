@@ -25,7 +25,8 @@ def min_indentation(line_records: list[line_record.LineRecord]) -> int | None:
 
 def get_same_indent_indexes(line_records: list[line_record.LineRecord], indent: int) -> list[int]:
     result = [i for i in range(len(line_records)) if line_records[i].indent == indent]
-    if len(result) > 0 and result[0] != 0:
+    first_non_empty = next((i for i in range(len(line_records)) if not line_records[i].empty), None)
+    if len(result) > 0 and result[0] != first_non_empty:
         raise tapl_error.TaplError('First line should have the same indent as the given indent.')
     return result
 

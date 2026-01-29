@@ -24,3 +24,20 @@ def auto_id(a):
     return typed_id(a)
 
 tapl_dev.print(auto_id('hello'))
+
+def create_slot(T):
+    class Slot:
+
+        def __init__(self, value: T):
+            self._value = value
+
+        def set(self, value: T):
+            self._value = value
+
+        def get(self):
+            return self._value
+    return Slot
+
+# TODO: create a Int variable in the value level
+# TODO: uncomment below code
+# tapl_dev.print(create_slot(<None:Int>))

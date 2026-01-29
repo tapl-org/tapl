@@ -21,6 +21,7 @@ def import_module(scope_: scope.Scope, module_names: list[str]) -> None:
             if not hasattr(current_scope, name):
                 setattr(current_scope, name, scope.Scope(label__sa=f'{name} module'))
             current_scope = getattr(current_scope, name)
+        # adding '1' suffix to module name to import the type level module
         module = importlib.import_module(f'{module_name}1')
         setattr(current_scope, path[-1], module.s0)
 
@@ -69,37 +70,34 @@ def fork_scope(forker: scope.ScopeForker) -> scope.Scope:
 def create_class(
     cls, init_args: list[Any], methods: list[tuple[str, list[Any]]]
 ) -> tuple[typelib.Record, typelib.Function]:
-    class_type = typelib.Record(fields={}, label=cls.__name__[:-1])
+    fields: dict[str, Any] = {}
+    obj_type = typelib.Record(fields=fields, label=cls.__name__[:-1])
     self_parent = scope.Scope()
     for method_name, param_types in methods:
 
         def create_lazy_result(name, types):
-            return lambda: getattr(cls, name)(*(class_type, *types))
+            return lambda: getattr(cls, name)(*(obj_type, *types))
 
-        method = typelib.Function(
-            posonlyargs=[], args=param_types, lazy_result=create_lazy_result(method_name, param_types)
-        )
+        method = typelib.create_function(args=param_types, lazy_result=create_lazy_result(method_name, param_types))
         self_parent.store__sa(method_name, method)
     self_current = scope.Scope(parent=self_parent)
     cls.__init__(*[self_current, *init_args])
-    fields = {
-        '__repr__': typelib.Function(posonlyargs=[], args=[], result=bt.Str),
-        '__str__': typelib.Function(posonlyargs=[], args=[], result=bt.Str),
-    }
+    fields.update(
+        {
+            '__repr__': typelib.Function(posonlyargs=[], args=[], result=bt.Str),
+            '__str__': typelib.Function(posonlyargs=[], args=[], result=bt.Str),
+        }
+    )
     for label in itertools.chain(self_parent.fields__sa.keys(), self_current.fields__sa.keys()):
         member = self_current.load__sa(label)
         fields[label] = member
 
-    class_type = typelib.Record(
-        fields=fields,
-        label=cls.__name__[:-1],
-    )
     for member in fields.values():
         if isinstance(member, typelib.Function):
             member.force__sa()
 
-    factory = typelib.Function(posonlyargs=init_args, args=[], result=class_type)
-    return class_type, factory
+    factory = typelib.Function(posonlyargs=init_args, args=[], result=obj_type)
+    return obj_type, factory
 
 
 def create_typed_list(*element_types):

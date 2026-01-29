@@ -21,3 +21,17 @@ def auto_id(a):
         return b
     return typed_id(a)
 tapl_dev.print(auto_id('hello'))
+
+def create_slot(T):
+
+    class Slot_:
+
+        def __init__(self, value):
+            self._value = value
+
+        def set(self, value):
+            self._value = value
+
+        def get(self):
+            return self._value
+    return Slot

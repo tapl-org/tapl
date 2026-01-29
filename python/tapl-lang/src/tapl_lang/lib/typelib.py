@@ -221,7 +221,6 @@ class NoneType(BaseType):
         return 'None'
 
 
-# TODO: A tuple type where labels are the characters 'a' through 'z'.
 class Record(BaseType):
     def __init__(self, fields, label=None):
         self._fields__sa = fields
@@ -261,12 +260,17 @@ class Record(BaseType):
     def load__sa(self, key):
         if key in self._fields__sa:
             return self._fields__sa[key]
-        return super().load__sa(key)
+        raise AttributeError(f'{self.get_label__sa()} record has no attribute "{key}"')
+
+    def store__sa(self, name: str, value: Any) -> None:
+        stored_value = self.load__sa(name)
+        if not check_subtype(value, stored_value):
+            raise TypeError(f'Type error in variable "{name}": Expected type "{stored_value}", but found "{value}".')
 
     def get_label__sa(self):
         if self._label__sa is not None:
             return self._label__sa
-        return super().get_label__sa()
+        return 'Unlabeled record class'
 
 
 _PAIR_ELEMENT_COUNT = 2
@@ -280,7 +284,7 @@ class Function(BaseType):
         if not isinstance(args, list):
             raise TypeError('Function args must be a list.')
         if any(not (isinstance(arg, tuple) and len(arg) == _PAIR_ELEMENT_COUNT) for arg in args):
-            raise ValueError('Function args must be a list of (name, type) pairs.')
+            raise ValueError(f'Function args must be a list of (name, type) pairs. args={args}')
         if any(not (isinstance(name, str)) for name, _ in args):
             raise ValueError('Function args must be a list of (str, Any) tuples.')
         if lazy_result is not None and result is not None:
@@ -326,7 +330,7 @@ class Function(BaseType):
     def load__sa(self, key):
         if key == '__call__':
             return self.apply
-        return super().load__sa(key)
+        raise AttributeError(f'{self.get_label__sa()} function has no attribute "{key}"')
 
     @property
     def posonlyargs__sa(self):
@@ -379,7 +383,7 @@ def create_union(*args):
     return Union(types=result)
 
 
-def create_function(args, result):
+def create_function(args, result=None, lazy_result=None):
     posonly = []
     regular = []
     tuple_found = False
@@ -391,4 +395,4 @@ def create_function(args, result):
             posonly.append(arg)
         else:
             raise ValueError('Positional-only arguments must come before regular arguments')
-    return Function(posonlyargs=posonly, args=regular, result=result)
+    return Function(posonlyargs=posonly, args=regular, result=result, lazy_result=lazy_result)

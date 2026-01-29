@@ -15,8 +15,15 @@ class Circle:
 
   def area(self) -> Float:
     return 3.14 * self.radius * self.radius
+  
+  def set_radius(self, radius: Float):
+    self.radius = radius
+  
+  def is_bigger_than(self, radius: Float):
+    return self.radius > radius
 
 def print_area(circle: Circle):
   tapl_dev.print(circle.area())
+  tapl_dev.print(circle.is_bigger_than(1.0))
 
 print_area(Circle_(2.0))
