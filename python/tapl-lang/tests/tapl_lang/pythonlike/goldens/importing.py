@@ -1,7 +1,7 @@
 from tapl_lang.pythonlike.predef import *
 import examples.easy
 tapl_dev.print(examples.easy.factorial(7))
-my_dog = examples.easy.Dog_('Simba')
+my_dog = examples.easy.Dog('Simba')
 print(my_dog.bark())
 print(examples.easy.greet_dog(my_dog))
 examples.easy.main()

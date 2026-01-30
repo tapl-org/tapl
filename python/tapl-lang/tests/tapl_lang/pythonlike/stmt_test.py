@@ -260,7 +260,7 @@ class Circle:
     assert (
         ast.unparse(stmt1)
         == """
-class Circle_:
+class Circle:
 
     def __init__(self, radius):
         self.radius = radius
@@ -269,13 +269,13 @@ class Circle_:
     assert (
         ast.unparse(stmt2)
         == """
-class Circle_:
+class Circle:
 
     def __init__(self, radius):
         s1 = s0.tapl_typing.create_scope(parent__sa=s0, self=self, radius=radius)
         s1.self.radius = s1.radius
         return s1.tapl_typing.get_return_type(s1)
-s0.Circle, s0.Circle_ = s0.tapl_typing.create_class(cls=Circle_, init_args=[s0.Float], methods=[])
+s0.Circle = s0.tapl_typing.create_class(cls=Circle, init_args=[s0.Float], methods=[])
 """.strip()
     )
 
@@ -289,7 +289,7 @@ class Dog:
     assert (
         ast.unparse(stmt1)
         == """
-class Dog_:
+class Dog:
 
     def bark(self):
         return 'Woof! Woof!'
@@ -298,7 +298,7 @@ class Dog_:
     assert (
         ast.unparse(stmt2)
         == """
-class Dog_:
+class Dog:
 
     def bark(self):
         s1 = s0.tapl_typing.create_scope(parent__sa=s0, self=self)
@@ -306,7 +306,7 @@ class Dog_:
         s1.tapl_typing.set_return_type(s1, s1.Str)
         s1.tapl_typing.add_return_type(s1, s1.Str)
         return s1.tapl_typing.get_return_type(s1)
-s0.Dog, s0.Dog_ = s0.tapl_typing.create_class(cls=Dog_, init_args=[], methods=[('bark', [])])
+s0.Dog = s0.tapl_typing.create_class(cls=Dog, init_args=[], methods=[('bark', [])])
 """.strip()
     )
 

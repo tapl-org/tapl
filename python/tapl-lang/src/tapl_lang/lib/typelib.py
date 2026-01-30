@@ -321,16 +321,18 @@ class Function(BaseType):
         actual_args = actual_all_args[len(self._posonlyargs__sa) :]
         for p, a in zip(self._posonlyargs__sa, actual_posonlyargs, strict=False):
             if not check_subtype(a, p):
-                raise TypeError(f'Not equal: posonlyargs={self._posonlyargs__sa} arguments={actual_posonlyargs}')
+                raise TypeError(
+                    f'Function arguments are not equal: expected={self._posonlyargs__sa} actual={actual_posonlyargs}'
+                )
         for p, a in zip(self._args__sa, actual_args, strict=True):
             if not check_subtype(a, p):
-                raise TypeError(f'Not equal: args={self._args__sa} arguments={actual_args}')
+                raise TypeError(f'Function arguments are not equal: expected={self._args__sa} actual={actual_args}')
         return self.result__sa
 
     def load__sa(self, key):
         if key == '__call__':
             return self.apply
-        raise AttributeError(f'{self.get_label__sa()} function has no attribute "{key}"')
+        raise AttributeError(f'{self.get_label__sa()} has no attribute "{key}"')
 
     @property
     def posonlyargs__sa(self):

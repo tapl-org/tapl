@@ -3,10 +3,10 @@ language pythonlike
 class SimplestClass:
   pass
 
-def accept(param: SimplestClass):
+def accept(param: SimplestClass!):
   pass
 
-accept(SimplestClass_())
+accept(SimplestClass())
 
 
 class Circle:
@@ -22,8 +22,8 @@ class Circle:
   def is_bigger_than(self, radius: Float):
     return self.radius > radius
 
-def print_area(circle: Circle):
+def print_area(circle: Circle!):
   tapl_dev.print(circle.area())
   tapl_dev.print(circle.is_bigger_than(1.0))
 
-print_area(Circle_(2.0))
+print_area(Circle(2.0))

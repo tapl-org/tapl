@@ -2178,12 +2178,9 @@ class TypedClassDef(syntax.Term):
             )
         )
 
-    def _class_name(self) -> str:
-        return f'{self.name}_'
-
     def codegen_evaluate(self) -> syntax.Term:
         return ClassDef(
-            name=self._class_name(),
+            name=self.name,
             bases=self.bases,
             keywords=[],
             body=self.body,
@@ -2192,8 +2189,6 @@ class TypedClassDef(syntax.Term):
         )
 
     def codegen_typecheck(self) -> syntax.Term:
-        instance_name = self.name
-        class_name = self._class_name()
         body = []
         methods: list[TypedFunctionDef] = []
         constructor_args = []
@@ -2207,7 +2202,7 @@ class TypedClassDef(syntax.Term):
             else:
                 body.append(item)
         class_stmt = ClassDef(
-            name=class_name,
+            name=self.name,
             bases=self.bases,
             keywords=[],
             body=syntax.TermList(terms=body),
@@ -2224,7 +2219,7 @@ class TypedClassDef(syntax.Term):
                 and method.parameters[0].type_ is syntax.Empty
             ):
                 raise tapl_error.TaplError(
-                    f'First parameter of method {method.name} in class {class_name} must be self with no type annotation.'
+                    f'First parameter of method {method.name} in class {self.name} must be self with no type annotation.'
                 )
             tail_args = method.parameters[1:]
             method_types.append(
@@ -2247,24 +2242,12 @@ class TypedClassDef(syntax.Term):
 
         create_class = Assign(
             targets=[
-                Tuple(
-                    elements=[
-                        TypedName(
-                            id=instance_name,
-                            ctx='store',
-                            mode=self.mode,
-                            location=self.location,
-                        ),
-                        TypedName(
-                            id=class_name,
-                            ctx='store',
-                            mode=self.mode,
-                            location=self.location,
-                        ),
-                    ],
+                TypedName(
+                    id=self.name,
                     ctx='store',
+                    mode=self.mode,
                     location=self.location,
-                )
+                ),
             ],
             value=Call(
                 func=Path(
@@ -2278,7 +2261,7 @@ class TypedClassDef(syntax.Term):
                     (
                         'cls',
                         Name(
-                            id=class_name,
+                            id=self.name,
                             ctx='load',
                             location=self.location,
                         ),

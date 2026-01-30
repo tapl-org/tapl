@@ -11,22 +11,20 @@ class Dog:
         self.name = name
 
     def bark(self) -> Str:
-        if self:
-            return self.name + ' says Woof! Woof!'
-        return 'You called the Dog factory.'
+        return self.name + ' says Woof! Woof!'
 
-def greet_dog(dog: Dog) -> Str:
+def greet_dog(dog: Dog!) -> Str:
     return 'Hello, ' + dog.name + '!'
 
-def make_dog(factory: Dog_, name: Str) -> Dog:
+def make_dog(factory: Dog, name: Str) -> Dog!:
     return factory(name)
 
 def main():
     print(factorial(5))
-    my_dog = Dog_('Buddy')
+    my_dog = Dog('Buddy')
     print(my_dog.bark())
     print(greet_dog(my_dog))
-    new_dog = make_dog(Dog_, 'Max')
+    new_dog = make_dog(Dog, 'Max')
     print(new_dog.bark())
 
 if __name__ == '__main__':

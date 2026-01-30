@@ -1547,3 +1547,11 @@ def test_expression__double_layer():
         ],
     )
     assert actual == expected
+
+
+def test_expression__name_bang():
+    actual = parse_expr('Dog!', rn.EXPRESSION, mode=terms.MODE_EVALUATE)
+    expected = terms.Path(
+        names=['Dog', 'result__sa'], ctx='load', mode=terms.MODE_EVALUATE, location=create_loc(1, 0, 1, 4)
+    )
+    assert actual == expected

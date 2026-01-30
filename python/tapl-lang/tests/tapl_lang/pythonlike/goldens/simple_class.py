@@ -1,13 +1,13 @@
 from tapl_lang.pythonlike.predef import *
 
-class SimplestClass_:
+class SimplestClass:
     pass
 
 def accept(param):
     pass
-accept(SimplestClass_())
+accept(SimplestClass())
 
-class Circle_:
+class Circle:
 
     def __init__(self, radius):
         self.radius = radius
@@ -24,4 +24,4 @@ class Circle_:
 def print_area(circle):
     tapl_dev.print(circle.area())
     tapl_dev.print(circle.is_bigger_than(1.0))
-print_area(Circle_(2.0))
+print_area(Circle(2.0))

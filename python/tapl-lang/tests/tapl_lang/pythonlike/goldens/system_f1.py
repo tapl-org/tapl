@@ -41,7 +41,7 @@ s0.tapl_dev.print(s0.auto_id(s0.Str))
 def create_slot(T):
     s1 = s0.tapl_typing.create_scope(parent__sa=s0, T=T)
 
-    class Slot_:
+    class Slot:
 
         def __init__(self, value):
             s2 = s1.tapl_typing.create_scope(parent__sa=s1, self=self, value=value)
@@ -57,7 +57,7 @@ def create_slot(T):
             s2 = s1.tapl_typing.create_scope(parent__sa=s1, self=self)
             s2.tapl_typing.add_return_type(s2, s2.self._value)
             return s2.tapl_typing.get_return_type(s2)
-    s1.Slot, s1.Slot_ = s1.tapl_typing.create_class(cls=Slot_, init_args=[s1.T], methods=[('set', [s1.T]), ('get', [])])
+    s1.Slot = s1.tapl_typing.create_class(cls=Slot, init_args=[s1.T], methods=[('set', [s1.T]), ('get', [])])
     s1.tapl_typing.add_return_type(s1, s1.Slot)
     return s1.tapl_typing.get_return_type(s1)
 s0.create_slot = create_slot

@@ -24,7 +24,7 @@ tapl_dev.print(auto_id('hello'))
 
 def create_slot(T):
 
-    class Slot_:
+    class Slot:
 
         def __init__(self, value):
             self._value = value

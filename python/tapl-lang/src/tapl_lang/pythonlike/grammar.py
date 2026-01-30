@@ -18,6 +18,7 @@ from tapl_lang.pythonlike import rule_names as rn
 """
 x=not implemented
 d=dropped for mvp
+n=new syntax introduced by Tapl
  =implemented
 
 
@@ -217,6 +218,7 @@ d           | primary genexp
             | [expression] ':' [expression] [':' [expression]]
             | named_expression
         atom:
+n           | NAME '!'
             | NAME
             | 'True' | 'False' | 'None'
             | STRING
@@ -500,6 +502,7 @@ def get_grammar() -> parser.Grammar:
     add(
         rn.ATOM,
         [
+            _parse_atom__name_load_bang,
             _parse_atom__name_load,
             _parse_atom__bool,
             _parse_atom__string,
@@ -1057,6 +1060,17 @@ def _parse_atom__name_load(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, TokenName):
         return terms.TypedName(location=token.location, id=token.value, ctx='load', mode=c.config.mode)
+    return t.fail()
+
+
+def _parse_atom__name_load_bang(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(token := c.consume_rule(rn.TOKEN))
+        and isinstance(token, TokenName)
+        and t.validate(_consume_punct(c, '!'))
+    ):
+        return terms.Path(names=[token.value, 'result__sa'], ctx='load', mode=c.config.mode, location=t.location)
     return t.fail()
 
 
