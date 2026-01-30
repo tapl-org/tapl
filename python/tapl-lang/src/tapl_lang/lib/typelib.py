@@ -248,11 +248,14 @@ class Record(BaseType):
     def keys__sa(self):
         yield from self._fields__sa.keys()
 
+    def fields_repr__sa(self):
+        field_strs = [f'{key}: {typ}' for key, typ in self._fields__sa.items()]
+        return '{' + ', '.join(field_strs) + '}'
+
     def __repr__(self):
         if self._label__sa is not None:
             return self._label__sa
-        field_strs = [f'{key}: {typ}' for key, typ in self._fields__sa.items()]
-        return '{' + ', '.join(field_strs) + '}'
+        return self.fields_repr__sa()
 
     def try_load(self, key):
         return self._fields__sa.get(key)

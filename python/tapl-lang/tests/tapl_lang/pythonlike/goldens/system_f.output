@@ -4,6 +4,8 @@ Int
 (Str)->Str
 Str
 Str
+Slot!
+(Int)->None
 
 ------ stderr:
 
@@ -15,6 +17,8 @@ Str
 <function typed_id>
 abc
 hello
+Slot(5)
+<bound method create_slot_class.<locals>.Slot.set of Slot(5)>
 
 ------ stderr:
 
