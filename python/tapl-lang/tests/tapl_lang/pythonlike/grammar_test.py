@@ -1543,7 +1543,7 @@ def test_expression__double_layer():
     expected = syntax.Layers(
         layers=[
             terms.IntegerLiteral(value=3, mode=terms.MODE_EVALUATE, location=create_loc(1, 1, 1, 2)),
-            terms.TypedName(id='A', ctx='load', mode=terms.MODE_TYPECHECK, location=create_loc(1, 3, 1, 4)),
+            terms.TypedName(id='A', ctx='load', mode=terms.MODE_EVALUATE_WITH_SCOPE, location=create_loc(1, 3, 1, 4)),
         ],
     )
     assert actual == expected

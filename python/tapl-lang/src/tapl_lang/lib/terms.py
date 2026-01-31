@@ -932,15 +932,15 @@ class TypedName(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        if self.mode is MODE_EVALUATE:
+        if isinstance(self.mode, ModeTerm):
+            if self.mode.use_scope:
+                return Attribute(
+                    value=Name(id=lambda setting: setting.scope_name, ctx='load', location=self.location),
+                    attr=self.id,
+                    ctx=self.ctx,
+                    location=self.location,
+                )
             return Name(id=self.id, ctx=self.ctx, location=self.location)
-        if self.mode is MODE_TYPECHECK:
-            return Attribute(
-                value=Name(id=lambda setting: setting.scope_name, ctx='load', location=self.location),
-                attr=self.id,
-                ctx=self.ctx,
-                location=self.location,
-            )
         raise tapl_error.UnhandledError
 
 

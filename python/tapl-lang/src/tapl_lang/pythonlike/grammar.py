@@ -1456,7 +1456,9 @@ def _parse_expression__double_layer(c: Cursor) -> syntax.Term:
         )
         and t.validate(_consume_punct(c, ':'))
         and t.validate(
-            high := c.consume_rule(rn.EXPRESSION, config=dataclasses.replace(c.config, mode=terms.MODE_TYPECHECK))
+            high := c.consume_rule(
+                rn.EXPRESSION, config=dataclasses.replace(c.config, mode=terms.MODE_EVALUATE_WITH_SCOPE)
+            )
         )
         and t.validate(_consume_punct(c, '>'))
     ):
