@@ -7,10 +7,10 @@ import itertools
 from typing import Any
 
 from tapl_lang.lib import builtin_types as bt
-from tapl_lang.lib import dynamic_attribute, scope, typelib
+from tapl_lang.lib import dynamic_attribute, kinds, scope
 
-create_union = typelib.create_union
-create_function = typelib.create_function
+create_union = kinds.create_union
+create_function = kinds.create_function
 
 
 def import_module(scope_: scope.Scope, module_names: list[str]) -> None:
@@ -47,7 +47,7 @@ def set_return_type(s: scope.Scope, return_type: Any) -> None:
 def add_return_type(s: scope.Scope, return_type: Any) -> None:
     if s.return_type__sa is None:
         s.returns__sa.append(return_type)
-    elif not typelib.check_subtype(return_type, s.return_type__sa):
+    elif not kinds.check_subtype(return_type, s.return_type__sa):
         raise TypeError(f'Return type mismatch: expected {s.return_type__sa}, got {return_type}.')
 
 
@@ -55,7 +55,7 @@ def get_return_type(s: scope.Scope) -> Any:
     if s.return_type__sa is not None:
         return s.return_type__sa
     if s.returns__sa:
-        return typelib.create_union(*s.returns__sa)
+        return kinds.create_union(*s.returns__sa)
     return bt.NoneType
 
 
@@ -67,23 +67,23 @@ def fork_scope(forker: scope.ScopeForker) -> scope.Scope:
     return forker.new_scope()
 
 
-def create_class(cls, init_args: list[Any], methods: list[tuple[str, list[Any]]]) -> typelib.Function:
+def create_class(cls, init_args: list[Any], methods: list[tuple[str, list[Any]]]) -> kinds.Function:
     fields: dict[str, Any] = {}
-    obj_type = typelib.Record(fields=fields, label=f'{cls.__name__}!')
+    obj_type = kinds.Record(fields=fields, label=f'{cls.__name__}!')
     self_methods_scope = scope.Scope()
     for method_name, param_types in methods:
 
         def create_lazy_result(name, types):
             return lambda: getattr(cls, name)(*(obj_type, *types))
 
-        method = typelib.create_function(args=param_types, lazy_result=create_lazy_result(method_name, param_types))
+        method = kinds.create_function(args=param_types, lazy_result=create_lazy_result(method_name, param_types))
         self_methods_scope.store__sa(method_name, method)
     self_scope = scope.Scope(parent=self_methods_scope)
     cls.__init__(*[self_scope, *init_args])
     fields.update(
         {
-            '__repr__': typelib.Function(posonlyargs=[], args=[], result=bt.Str),
-            '__str__': typelib.Function(posonlyargs=[], args=[], result=bt.Str),
+            '__repr__': kinds.Function(posonlyargs=[], args=[], result=bt.Str),
+            '__str__': kinds.Function(posonlyargs=[], args=[], result=bt.Str),
         }
     )
     for label in itertools.chain(self_methods_scope.fields__sa.keys(), self_scope.fields__sa.keys()):
@@ -91,10 +91,10 @@ def create_class(cls, init_args: list[Any], methods: list[tuple[str, list[Any]]]
         fields[label] = member
 
     for member in fields.values():
-        if isinstance(member, typelib.Function):
+        if isinstance(member, kinds.Function):
             member.force__sa()
 
-    return typelib.Function(posonlyargs=init_args, args=[], result=obj_type)
+    return kinds.Function(posonlyargs=init_args, args=[], result=obj_type)
 
 
 def create_typed_list(*element_types):
@@ -104,7 +104,7 @@ def create_typed_list(*element_types):
     elif len(element_types) == 1:
         element_type = element_types[0]
     else:
-        element_type = typelib.create_union(*element_types)
+        element_type = kinds.create_union(*element_types)
     return bt.create_list_type(element_type)
 
 
@@ -114,7 +114,7 @@ def create_typed_set(*element_types):
     elif len(element_types) == 1:
         element_type = element_types[0]
     else:
-        element_type = typelib.create_union(*element_types)
+        element_type = kinds.create_union(*element_types)
     return bt.create_set_type(element_type)
 
 
@@ -127,6 +127,6 @@ def create_typed_dict(keys, values):
     elif len(keys) == 1:
         key_type, value_type = keys[0], values[0]
     else:
-        key_type = typelib.create_union(*keys)
-        value_type = typelib.create_union(*values)
+        key_type = kinds.create_union(*keys)
+        value_type = kinds.create_union(*values)
     return bt.create_dict_type(key_type, value_type)

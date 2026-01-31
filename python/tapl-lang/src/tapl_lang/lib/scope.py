@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Self
 
-from tapl_lang.lib import dynamic_attribute, typelib
+from tapl_lang.lib import dynamic_attribute, kinds
 
 
 class Slot:
@@ -43,7 +43,7 @@ class Scope(dynamic_attribute.DynamicAttributeMixin):
         if slot is None:
             self.fields__sa[name] = Slot(value)
             return
-        if not typelib.check_subtype(value, slot.value):
+        if not kinds.check_subtype(value, slot.value):
             raise TypeError(f'Type error in variable "{name}": Expected type "{slot.value}", but found "{value}".')
 
     def store_many__sa(self, fields: dict[str, Any]) -> None:
@@ -85,7 +85,7 @@ class ScopeForker:
                 if slot is not None:
                     values.append(slot.value)
             if len(values) == len(self.branches):
-                self.parent.store__sa(var, typelib.create_union(*values))
+                self.parent.store__sa(var, kinds.create_union(*values))
 
     def new_scope(self) -> Scope:
         forked = Scope(parent=self.parent)

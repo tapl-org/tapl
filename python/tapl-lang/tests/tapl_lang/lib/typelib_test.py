@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-from tapl_lang.lib import dynamic_attribute, typelib
-from tapl_lang.lib.typelib import check_subtype
+from tapl_lang.lib import dynamic_attribute, kinds
+from tapl_lang.lib.kinds import check_subtype
 
 
 class Atom(dynamic_attribute.DynamicAttributeMixin):
@@ -14,14 +14,14 @@ class Atom(dynamic_attribute.DynamicAttributeMixin):
     def is_supertype_of__sa(self, subtype):
         if self is subtype:
             return True
-        if isinstance(subtype, typelib.Nothing):
+        if isinstance(subtype, kinds.Nothing):
             return True
         return None
 
     def is_subtype_of__sa(self, supertype):
         if self is supertype:
             return True
-        if isinstance(supertype, typelib.Any):
+        if isinstance(supertype, kinds.Any):
             return True
         return None
 
@@ -29,9 +29,9 @@ class Atom(dynamic_attribute.DynamicAttributeMixin):
         return self._title__sa
 
 
-NoneType = typelib.NoneType()
-Any = typelib.Any()
-Nothing = typelib.Nothing()
+NoneType = kinds.NoneType()
+Any = kinds.Any()
+Nothing = kinds.Nothing()
 
 Alpha = Atom('Alpha')
 Beta = Atom('Beta')
@@ -39,7 +39,7 @@ Gamma = Atom('Gamma')
 
 
 def test_union():
-    alpha_or_beta = typelib.Union([Alpha, Beta])
+    alpha_or_beta = kinds.Union([Alpha, Beta])
     assert str(alpha_or_beta) == 'Alpha | Beta'
     assert check_subtype(Alpha, alpha_or_beta)
     assert check_subtype(Beta, alpha_or_beta)
@@ -48,7 +48,7 @@ def test_union():
 
 
 def test_union_optional():
-    alpha_or_none = typelib.Union([Alpha, NoneType])
+    alpha_or_none = kinds.Union([Alpha, NoneType])
     assert str(alpha_or_none) == 'Alpha | None'
     assert check_subtype(Alpha, alpha_or_none)
     assert check_subtype(NoneType, alpha_or_none)
@@ -57,15 +57,15 @@ def test_union_optional():
 
 
 def test_union_to_union():
-    alpha_or_beta = typelib.Union([Alpha, Beta])
-    beta_or_gamma = typelib.Union([Beta, Gamma])
-    alpha_beta_gamma = typelib.Union([Alpha, Beta, Gamma])
+    alpha_or_beta = kinds.Union([Alpha, Beta])
+    beta_or_gamma = kinds.Union([Beta, Gamma])
+    alpha_beta_gamma = kinds.Union([Alpha, Beta, Gamma])
     assert check_subtype(alpha_or_beta, alpha_beta_gamma)
     assert not check_subtype(beta_or_gamma, alpha_or_beta)
 
 
 def test_intersection():
-    alpha_and_beta = typelib.Intersection([Alpha, Beta])
+    alpha_and_beta = kinds.Intersection([Alpha, Beta])
     assert str(alpha_and_beta) == 'Alpha & Beta'
     assert check_subtype(alpha_and_beta, Alpha)
     assert check_subtype(alpha_and_beta, Beta)
@@ -75,7 +75,7 @@ def test_intersection():
 
 
 def test_intersection_with_none():
-    alpha_and_none = typelib.Intersection([Alpha, NoneType])
+    alpha_and_none = kinds.Intersection([Alpha, NoneType])
     assert str(alpha_and_none) == 'Alpha & None'
     assert check_subtype(alpha_and_none, Alpha)
     assert check_subtype(alpha_and_none, NoneType)
@@ -84,16 +84,16 @@ def test_intersection_with_none():
 
 
 def test_intersection_to_intersection():
-    alpha_and_beta = typelib.Intersection([Alpha, Beta])
-    beta_and_gamma = typelib.Intersection([Beta, Gamma])
-    alpha_beta_gamma = typelib.Intersection([Alpha, Beta, Gamma])
+    alpha_and_beta = kinds.Intersection([Alpha, Beta])
+    beta_and_gamma = kinds.Intersection([Beta, Gamma])
+    alpha_beta_gamma = kinds.Intersection([Alpha, Beta, Gamma])
     assert check_subtype(alpha_beta_gamma, alpha_and_beta)
     assert not check_subtype(alpha_and_beta, beta_and_gamma)
 
 
 def test_any():
-    assert check_subtype(Any, typelib.Any())
-    assert check_subtype(typelib.Any(), Any)
+    assert check_subtype(Any, kinds.Any())
+    assert check_subtype(kinds.Any(), Any)
     assert check_subtype(Nothing, Any)
     assert not check_subtype(Any, Nothing)
     assert check_subtype(Alpha, Any)
@@ -101,15 +101,15 @@ def test_any():
 
 
 def test_nothing():
-    assert check_subtype(Nothing, typelib.Nothing())
-    assert check_subtype(typelib.Nothing(), Nothing)
+    assert check_subtype(Nothing, kinds.Nothing())
+    assert check_subtype(kinds.Nothing(), Nothing)
     assert check_subtype(Nothing, Alpha)
     assert not check_subtype(Alpha, Nothing)
 
 
 def test_none_type():
-    assert check_subtype(NoneType, typelib.NoneType())
-    assert check_subtype(typelib.NoneType(), NoneType)
+    assert check_subtype(NoneType, kinds.NoneType())
+    assert check_subtype(kinds.NoneType(), NoneType)
     assert not check_subtype(NoneType, Any)
     assert not check_subtype(Any, NoneType)
     assert not check_subtype(Nothing, NoneType)
@@ -119,9 +119,9 @@ def test_none_type():
 
 
 def test_record():
-    ab = typelib.Record(fields={'a': Alpha, 'b': Beta})
-    g = typelib.Record(fields={'g': Gamma})
-    abg = typelib.Record(fields={'a': Alpha, 'b': Beta, 'g': Gamma})
+    ab = kinds.Record(fields={'a': Alpha, 'b': Beta})
+    g = kinds.Record(fields={'g': Gamma})
+    abg = kinds.Record(fields={'a': Alpha, 'b': Beta, 'g': Gamma})
 
     assert check_subtype(ab, Any)
     assert check_subtype(Nothing, ab)

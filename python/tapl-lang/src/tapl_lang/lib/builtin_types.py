@@ -2,16 +2,16 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from tapl_lang.lib import typelib
+from tapl_lang.lib import kinds
 
 Types = {
-    'Any': typelib.Any(),
-    'Nothing': typelib.Nothing(),
-    'NoneType': typelib.NoneType(),
-    'Bool': typelib.Record(fields={}, label='Bool'),
-    'Int': typelib.Record(fields={}, label='Int'),
-    'Float': typelib.Record(fields={}, label='Float'),
-    'Str': typelib.Record(fields={}, label='Str'),
+    'Any': kinds.Any(),
+    'Nothing': kinds.Nothing(),
+    'NoneType': kinds.NoneType(),
+    'Bool': kinds.Record(fields={}, label='Bool'),
+    'Int': kinds.Record(fields={}, label='Int'),
+    'Float': kinds.Record(fields={}, label='Float'),
+    'Str': kinds.Record(fields={}, label='Str'),
 }
 
 Any = Types['Any']
@@ -46,7 +46,7 @@ def _init_methods(methods):
     fields = {}
     for name, (params, result) in methods.items():
         posonlyargs, args = _split_args(params)
-        fields[name] = typelib.Function(posonlyargs=posonlyargs, args=args, result=result)
+        fields[name] = kinds.Function(posonlyargs=posonlyargs, args=args, result=result)
     return fields
 
 
@@ -112,7 +112,7 @@ def create_list_type(element_type):
         '__setitem__': ([Int, element_type], NoneType),
         '__delitem__': ([Int], NoneType),
     }
-    return typelib.Record(
+    return kinds.Record(
         fields=_init_methods(methods),
         label=f'List({element_type})',
     )
@@ -125,7 +125,7 @@ def create_set_type(element_type):
         '__len__': ([], Int),
         '__contains__': ([element_type], Bool),
     }
-    return typelib.Record(
+    return kinds.Record(
         fields=_init_methods(methods),
         label=f'Set({element_type})',
     )
@@ -141,7 +141,7 @@ def create_dict_type(key_type, value_type):
         '__setitem__': ([key_type, value_type], NoneType),
         '__delitem__': ([key_type], NoneType),
     }
-    return typelib.Record(
+    return kinds.Record(
         fields=_init_methods(methods),
         label=f'Dict({key_type}, {value_type})',
     )

@@ -10,7 +10,7 @@ import pytest
 
 from tapl_lang.core import syntax
 from tapl_lang.core.parser import Grammar, parse_text
-from tapl_lang.lib import compiler, python_backend, scope, terms, typelib
+from tapl_lang.lib import compiler, kinds, python_backend, scope, terms
 from tapl_lang.pythonlike import grammar, predef, predef1, rule_names
 
 
@@ -139,7 +139,7 @@ def test_conjuction_mix():
     [expr1, expr2] = parse_expr('True and 4')
     assert ast.unparse(expr1) == 'True and 4'
     assert ast.unparse(expr2) == 's0.tapl_typing.create_union(s0.Bool, s0.Int)'
-    assert typelib.check_type_equality(
+    assert kinds.check_type_equality(
         typecheck(expr2),
         predef1.predef_scope.tapl_typing.create_union(predef1.predef_scope.Int, predef1.predef_scope.Bool),
     )
@@ -153,7 +153,7 @@ def test_disjunction():
         ast.unparse(expr2)
         == 's0.tapl_typing.create_union(s0.tapl_typing.create_union(s0.Bool, s0.Bool, s0.Bool), s0.Bool)'
     )
-    assert typelib.check_type_equality(typecheck(expr2), predef1.predef_scope.Bool)
+    assert kinds.check_type_equality(typecheck(expr2), predef1.predef_scope.Bool)
     assert evaluate(expr1) is True
 
 
@@ -161,7 +161,7 @@ def test_term1():
     [expr1, expr2] = parse_expr('2 + 3')
     assert ast.unparse(expr1) == '2 + 3'
     assert ast.unparse(expr2) == 's0.Int + s0.Int'
-    assert typelib.check_type_equality(typecheck(expr2), predef1.predef_scope.Int)
+    assert kinds.check_type_equality(typecheck(expr2), predef1.predef_scope.Int)
     assert evaluate(expr1) == 5
 
 
@@ -187,7 +187,7 @@ def test_compare1():
     [expr1, expr2] = parse_expr('2 < 3')
     assert ast.unparse(expr1) == '2 < 3'
     assert ast.unparse(expr2) == 's0.Int < s0.Int'
-    assert typelib.check_type_equality(typecheck(expr2), predef1.predef_scope.Bool)
+    assert kinds.check_type_equality(typecheck(expr2), predef1.predef_scope.Bool)
     assert evaluate(expr1) is True
 
 

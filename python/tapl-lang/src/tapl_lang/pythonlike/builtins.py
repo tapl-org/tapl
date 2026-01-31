@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from tapl_lang.lib import builtin_types as bt
-from tapl_lang.lib import tapl_dev, tapl_typing, typelib
+from tapl_lang.lib import kinds, tapl_dev, tapl_typing
 
 
 def noop(*args, **kwargs):
@@ -12,11 +12,11 @@ def noop(*args, **kwargs):
 
 python_builtin_types = {
     '__name__': bt.Str,
-    'print': typelib.create_function([bt.Any], bt.NoneType),
-    'range': typelib.create_function([bt.Int], [bt.Int]),
-    'str': typelib.create_function([bt.Any], bt.Str),
-    'abs': typelib.create_function([bt.Float], bt.Float),
-    'round': typelib.create_function([bt.Float], bt.Float),
+    'print': kinds.create_function([bt.Any], bt.NoneType),
+    'range': kinds.create_function([bt.Int], [bt.Int]),
+    'str': kinds.create_function([bt.Any], bt.Str),
+    'abs': kinds.create_function([bt.Float], bt.Float),
+    'round': kinds.create_function([bt.Float], bt.Float),
 }
 
 pythonlike_builtins = {
