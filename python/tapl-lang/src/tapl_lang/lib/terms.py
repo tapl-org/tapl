@@ -909,8 +909,15 @@ class ModeTerm(syntax.Term):
 MODE_EVALUATE = ModeTerm(typecheck=False, use_scope=False)
 MODE_EVALUATE_WITH_SCOPE = ModeTerm(typecheck=False, use_scope=True)
 MODE_TYPECHECK = ModeTerm(typecheck=True, use_scope=True)
+MODE_TYPECHECK_NO_SCOPE = ModeTerm(typecheck=True, use_scope=False)
 MODE_SAFE = syntax.Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
 SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
+
+
+def get_mode(*, typecheck: bool, use_scope: bool) -> ModeTerm:
+    if typecheck:
+        return MODE_TYPECHECK if use_scope else MODE_TYPECHECK_NO_SCOPE
+    return MODE_EVALUATE_WITH_SCOPE if use_scope else MODE_EVALUATE
 
 
 @dataclasses.dataclass
