@@ -88,7 +88,7 @@ def drop_same_types(types):
     return result
 
 
-class BaseType(dynamic_attribute.DynamicAttributeMixin):
+class BaseKind(dynamic_attribute.DynamicAttributeMixin):
     def is_supertype_of__sa(self, subtype):
         del subtype  # unused
 
@@ -99,7 +99,7 @@ class BaseType(dynamic_attribute.DynamicAttributeMixin):
         return create_union(self, other)
 
     def __repr__(self):
-        return 'BaseType'
+        return 'BaseKind!'
 
 
 # TODO: implement '&' operator for Intersection
@@ -107,7 +107,7 @@ class BaseType(dynamic_attribute.DynamicAttributeMixin):
 # e.g., T1 | T2, T1 & T2
 # Exception for binary-operator methods in Python; not intended for direct use.
 # Example: alpha <: (alpha | beta) or beta <: (alpha | beta)
-class Union(BaseType):
+class Union(BaseKind):
     def __init__(self, types, title=None):
         if len(types) <= 1:
             raise ValueError('Union requires at least two types.')
@@ -136,7 +136,7 @@ class Union(BaseType):
 
 
 # Example: alpha & beta <: alpha or alpha & beta <: beta
-class Intersection(BaseType):
+class Intersection(BaseKind):
     def __init__(self, types, title=None):
         if len(types) <= 1:
             raise ValueError('At least two types are required to create Intersection.')
@@ -165,7 +165,7 @@ class Intersection(BaseType):
 
 
 # Top type
-class Any(BaseType):
+class Any(BaseKind):
     def is_supertype_of__sa(self, subtype):
         if isinstance(subtype, Any):
             return True
@@ -183,7 +183,7 @@ class Any(BaseType):
 
 
 # Bottom type
-class Nothing(BaseType):
+class Nothing(BaseKind):
     def is_supertype_of__sa(self, subtype):
         if isinstance(subtype, Nothing):
             return True
@@ -203,7 +203,7 @@ class Nothing(BaseType):
 
 
 # Inspired by Kotlin type system - https://stackoverflow.com/a/54762815/22663977
-class NoneType(BaseType):
+class NoneType(BaseKind):
     def is_supertype_of__sa(self, subtype):
         if isinstance(subtype, NoneType):
             return True
@@ -220,7 +220,7 @@ class NoneType(BaseType):
         return 'None'
 
 
-class Record(BaseType):
+class Record(BaseKind):
     def __init__(self, fields, label=None):
         self._fields__sa = fields
         self._label__sa = label
@@ -279,7 +279,7 @@ _PAIR_ELEMENT_COUNT = 2
 
 
 # TODO: Implement vararg, kwonlyargs, kw_defaults, kwarg, and defaults
-class Function(BaseType):
+class Function(BaseKind):
     def __init__(self, posonlyargs, args, result=None, lazy_result=None):
         if not isinstance(posonlyargs, list):
             raise TypeError('Function posonlyargs must be a list.')

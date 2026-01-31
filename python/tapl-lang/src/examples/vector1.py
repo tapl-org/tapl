@@ -2,7 +2,7 @@ from tapl_lang.lib import kinds
 from tapl_lang.pythonlike.predef1 import predef_scope as predef_scope__sa
 s0 = predef_scope__sa.tapl_typing.create_scope(parent__sa=predef_scope__sa)
 
-class Vector(kinds.BaseType):
+class Vector(kinds.BaseKind):
     def __init__(self, len, element_type):
         self._len = len
         self._element_type = element_type
