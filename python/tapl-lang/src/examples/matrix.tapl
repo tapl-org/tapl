@@ -1,0 +1,13 @@
+language pythonlike
+
+def create_matrix(rows, cols):
+    class Matrix:
+        def __init__(self):
+            self.rows = rows
+            self.cols = cols
+            self.values = 0
+        def text(self):
+            return <'dd':self.rows>
+    return Matrix
+
+tapl_dev.print(create_matrix(<3:3>, <2:2>)().text())

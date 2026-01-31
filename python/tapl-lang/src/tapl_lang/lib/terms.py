@@ -894,7 +894,8 @@ class BranchTyping(syntax.Term):
 
 @dataclasses.dataclass
 class ModeTerm(syntax.Term):
-    name: str
+    typecheck: bool = False
+    use_scope: bool = False
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
@@ -904,12 +905,10 @@ class ModeTerm(syntax.Term):
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda _: self)
 
-    def __repr__(self) -> str:
-        return self.name
 
-
-MODE_EVALUATE = ModeTerm(name='MODE_EVALUATE')
-MODE_TYPECHECK = ModeTerm(name='MODE_TYPECHECK')
+MODE_EVALUATE = ModeTerm(typecheck=False, use_scope=False)
+MODE_EVALUATE_WITH_SCOPE = ModeTerm(typecheck=False, use_scope=True)
+MODE_TYPECHECK = ModeTerm(typecheck=True, use_scope=True)
 MODE_SAFE = syntax.Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
 SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
 

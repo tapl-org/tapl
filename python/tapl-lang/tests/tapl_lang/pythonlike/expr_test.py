@@ -216,7 +216,7 @@ def test_term_repr():
     parsed = parse_text('2+x', Grammar(grammar.get_grammar().rule_map, rule_names.EXPRESSION))
     assert (
         str(parsed)
-        == "BinOp(left=IntegerLiteral(value=2, mode=Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK]), location=(1:0,1:1)), op='+', right=TypedName(id='x', ctx='load', mode=Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK]), location=(1:2,1:3)), location=(1:0,1:3))"
+        == "BinOp(left=IntegerLiteral(value=2, mode=Layers(layers=[ModeTerm(typecheck=False, use_scope=False), ModeTerm(typecheck=True, use_scope=True)]), location=(1:0,1:1)), op='+', right=TypedName(id='x', ctx='load', mode=Layers(layers=[ModeTerm(typecheck=False, use_scope=False), ModeTerm(typecheck=True, use_scope=True)]), location=(1:2,1:3)), location=(1:0,1:3))"
     )
 
 

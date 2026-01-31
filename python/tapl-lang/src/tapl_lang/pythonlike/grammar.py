@@ -162,7 +162,7 @@ d           | t_primary '(' arguments ')' &t_lookahead
 d           | invalid_expression
 d           | invalid_legacy_expression
 d           | disjunction 'if' disjunction 'else' expression
-            | '<' expression ':' expression '>'  # double-layer expression
+n           | '<' expression ':' expression '>'  # double-layer expression
             | disjunction
 d           | lambda_def
         disjunction:
