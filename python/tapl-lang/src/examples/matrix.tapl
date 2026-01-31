@@ -7,7 +7,7 @@ def create_matrix(rows, cols):
             self.cols = cols
             self.values = 0
         def text(self):
-            return <'dd':self.rows>
+            return <'dd':'Matrix(rows={}, cols={})'.format(self.rows, self.cols)>
     return Matrix
 
 tapl_dev.print(create_matrix(<3:3>, <2:2>)().text())

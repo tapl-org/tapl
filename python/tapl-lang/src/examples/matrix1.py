@@ -15,7 +15,7 @@ def create_matrix(rows, cols):
 
         def text(self):
             s2 = s1.tapl_typing.create_scope(parent__sa=s1, self=self)
-            s2.tapl_typing.add_return_type(s2, self.rows)
+            s2.tapl_typing.add_return_type(s2, 'Matrix(rows={}, cols={})'.format(s2.self.rows, s2.self.cols))
             return s2.tapl_typing.get_return_type(s2)
     s1.Matrix = s1.tapl_typing.create_class(cls=Matrix, init_args=[], methods=[('text', [])])
     s1.tapl_typing.add_return_type(s1, s1.Matrix)

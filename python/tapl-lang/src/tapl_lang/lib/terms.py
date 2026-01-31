@@ -1005,10 +1005,10 @@ class NoneLiteral(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        if self.mode is MODE_EVALUATE:
+        if isinstance(self.mode, ModeTerm):
+            if self.mode.typecheck:
+                return TypedName(id='NoneType', ctx='load', mode=self.mode, location=self.location)
             return Constant(value=None, location=self.location)
-        if self.mode is MODE_TYPECHECK:
-            return TypedName(id='NoneType', ctx='load', mode=self.mode, location=self.location)
         raise tapl_error.UnhandledError
 
 
@@ -1034,10 +1034,10 @@ class BooleanLiteral(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        if self.mode is MODE_EVALUATE:
+        if isinstance(self.mode, ModeTerm):
+            if self.mode.typecheck:
+                return TypedName(id='Bool', ctx='load', mode=self.mode, location=self.location)
             return Constant(value=self.value, location=self.location)
-        if self.mode is MODE_TYPECHECK:
-            return TypedName(id='Bool', ctx='load', mode=self.mode, location=self.location)
         raise tapl_error.UnhandledError
 
 
@@ -1063,10 +1063,10 @@ class IntegerLiteral(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        if self.mode is MODE_EVALUATE:
+        if isinstance(self.mode, ModeTerm):
+            if self.mode.typecheck:
+                return TypedName(id='Int', ctx='load', mode=self.mode, location=self.location)
             return Constant(value=self.value, location=self.location)
-        if self.mode is MODE_TYPECHECK:
-            return TypedName(id='Int', ctx='load', mode=self.mode, location=self.location)
         raise tapl_error.UnhandledError
 
 
@@ -1092,10 +1092,10 @@ class FloatLiteral(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        if self.mode is MODE_EVALUATE:
+        if isinstance(self.mode, ModeTerm):
+            if self.mode.typecheck:
+                return TypedName(id='Float', ctx='load', mode=self.mode, location=self.location)
             return Constant(value=self.value, location=self.location)
-        if self.mode is MODE_TYPECHECK:
-            return TypedName(id='Float', ctx='load', mode=self.mode, location=self.location)
         raise tapl_error.UnhandledError
 
 
@@ -1121,10 +1121,10 @@ class StringLiteral(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        if self.mode is MODE_EVALUATE:
+        if isinstance(self.mode, ModeTerm):
+            if self.mode.typecheck:
+                return TypedName(id='Str', ctx='load', mode=self.mode, location=self.location)
             return Constant(value=self.value, location=self.location)
-        if self.mode is MODE_TYPECHECK:
-            return TypedName(id='Str', ctx='load', mode=self.mode, location=self.location)
         raise tapl_error.UnhandledError
 
 
