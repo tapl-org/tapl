@@ -19,3 +19,6 @@ class Vector_:
         new_vector = Vector_()
         new_vector._elements = self._elements + other._elements
         return new_vector
+    
+# TODO: create a variable by specifying the value and type layer separately. This helps to lift the function to type layer.
+# TODO: keep a journal of type operations subtype checks so any one can add extra rules if needed. Especially if earlier checks returns None.

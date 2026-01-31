@@ -145,9 +145,3 @@ def create_dict_type(key_type, value_type):
         fields=_init_methods(methods),
         label=f'Dict({key_type}, {value_type})',
     )
-
-
-# XXX: Enable type constructors when needed.
-# TypeConstructors = {}
-# TypeConstructors['List'] = create_list_type
-# TypeConstructors['Dict'] = create_dict_type

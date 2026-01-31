@@ -14,7 +14,6 @@ Core Types:
 - NoneType: Singleton type for None value
 - Record: Structural record type with labeled fields
 - Function: Function type with positional and named arguments
-- TypeVariable: Type variable for generic types
 
 Type Checking:
 - check_subtype(subtype, supertype): Checks if 'subtype' is a subtype of 'supertype'
@@ -22,7 +21,7 @@ Type Checking:
 - Uses caching and assumption stack to handle recursive type definitions
 
 Design Notes:
-- All types are immutable
+- All types are considered as immutable
 - Naming convention: Variables with __sa suffix indicate internal type system attributes
 - Methods is_subtype_of__sa and is_supertype_of__sa return None when inconclusive
 - Inspired by Kotlin's type hierarchy
@@ -354,22 +353,6 @@ class Function(BaseType):
         if self._lazy_result__sa:
             self._result__sa = self._lazy_result__sa()
             self._lazy_result__sa = None
-
-
-class TypeVariable(BaseType):
-    def __init__(self, variable_name: str):
-        self.variable_name = variable_name
-
-    def is_supertype_of__sa(self, subtype):
-        del subtype  # unused
-        # Inconclusive: (T & Alpha) <: T
-
-    def is_subtype_of__sa(self, supertype):
-        del supertype  # unused
-        # Inconclusive: T <: (T | Alpha)
-
-    def __repr__(self):
-        return self.variable_name
 
 
 def create_union(*args):
