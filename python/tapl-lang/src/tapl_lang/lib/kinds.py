@@ -5,8 +5,8 @@
 """
 Type system implementation for TAPL language.
 
-Core Types:
-- BaseType: Abstract base class for all types, and types does not have to inherit from it.
+Core Kinds:
+- BaseKind: Abstract base class for all types, and types does not have to inherit from it.
 - Union: Represents a union of types (T1 | T2)
 - Intersection: Represents an intersection of types (T1 & T2)
 - Any: Top type - supertype of all types, except NoneType
