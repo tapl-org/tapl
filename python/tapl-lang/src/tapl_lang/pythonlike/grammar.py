@@ -727,6 +727,7 @@ class AliasTerm(syntax.Term):
 
 
 # https://github.com/python/cpython/blob/main/Parser/token.c
+# all multi-character punctuations must be started with a character that can also be a single-character punctuation
 _PUNCT_SET = {
     '!',
     '%',
