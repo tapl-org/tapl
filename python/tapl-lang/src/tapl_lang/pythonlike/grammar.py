@@ -210,6 +210,7 @@ d           | lambda_def
 d           | primary genexp
             | primary '(' arguments ')'
             | primary '[' slices ']'
+n           | primary '!'
             | atom
         slices:
             | slice !','
@@ -218,15 +219,15 @@ d           | primary genexp
             | [expression] ':' [expression] [':' [expression]]
             | named_expression
         atom:
-n           | NAME '!'
             | NAME
             | 'True' | 'False' | 'None'
             | STRING
-d           | FSTRING_START
+d           | FSTRING_START         # use 'a {} b'.format('+') for now
             | NUMBER
             | (tuple | group)       # dropped genxp
             | (list)                # dropped listcomp
             | (dict | set)          # dropped dictcomp and setcomp
+n           | ^atom                 # no whitespace between ^ and atom
 d           | '...'
         tuple: '(' [star_named_expression ',' [star_named_expressions] ] ')'
         group:
@@ -496,13 +497,15 @@ def get_grammar() -> parser.Grammar:
     # ----------------
     # Primary elements are things like "obj.something.something", "obj[something]", "obj(something)", "obj" ...
     add(rn.AWAIT_PRIMARY, [])
-    add(rn.PRIMARY, [_parse_primary__attribute, _parse_primary__call, _parse_primary__slices, rn.ATOM])
+    add(
+        rn.PRIMARY,
+        [_parse_primary__attribute, _parse_primary__call, _parse_primary__slices, _parse_primary__bang, rn.ATOM],
+    )
     add(rn.SLICES, [_parse_slices__single, _parse_slices__multi])
     add(rn.SLICE, [_parse_slice__range, rn.NAMED_EXPRESSION])
     add(
         rn.ATOM,
         [
-            _parse_atom__name_load_bang,
             _parse_atom__name_load,
             _parse_atom__bool,
             _parse_atom__string,
@@ -1002,6 +1005,13 @@ def _parse_primary__slices(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
+def _parse_primary__bang(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(value := c.consume_rule(rn.PRIMARY)) and t.validate(_consume_punct(c, '!')):
+        return terms.Attribute(value=value, attr='result__sa', ctx='load', location=t.location)
+    return t.fail()
+
+
 def _parse_slices__single(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(term := c.consume_rule(rn.SLICE)) and not t.validate(_consume_punct(c.clone(), ',')):
@@ -1060,17 +1070,6 @@ def _parse_atom__name_load(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(token := c.consume_rule(rn.TOKEN)) and isinstance(token, TokenName):
         return terms.TypedName(location=token.location, id=token.value, ctx='load', mode=c.config.mode)
-    return t.fail()
-
-
-def _parse_atom__name_load_bang(c: Cursor) -> syntax.Term:
-    t = c.start_tracker()
-    if (
-        t.validate(token := c.consume_rule(rn.TOKEN))
-        and isinstance(token, TokenName)
-        and t.validate(_consume_punct(c, '!'))
-    ):
-        return terms.Path(names=[token.value, 'result__sa'], ctx='load', mode=c.config.mode, location=t.location)
     return t.fail()
 
 

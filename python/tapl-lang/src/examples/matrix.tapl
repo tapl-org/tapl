@@ -1,13 +1,28 @@
 language pythonlike
 
-def create_matrix(rows, cols):
-    class Matrix:
+# for the sake of simpliciyt, the matrix element type is Int
+
+def Matrix(rows, cols):
+
+    class Class:
         def __init__(self):
             self.rows = rows
             self.cols = cols
             self.values = 0
+        
         def text(self):
-            return <'dd':'Matrix(rows={}, cols={})'.format(self.rows, self.cols)>
-    return Matrix
+            return <self.values:'Matrix({},{})!'.format(self.rows, self.cols)>
+    
+    return Class
 
-tapl_dev.print(create_matrix(<3:3>, <2:2>)().text())
+def accept_matrix_3_5(matrix: Matrix(^3,^5)!):
+    tapl_dev.print(matrix.text())
+
+def accept_matrix_3_5(matrix: Matrix(~3,~5)!):
+    tapl_dev.print(matrix.text())
+
+tapl_dev.print(accept_matrix_3_5)
+# accept_matrix_3_5(Matrix(3,5)())
+
+tapl_dev.print('Done')
+

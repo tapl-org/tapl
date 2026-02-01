@@ -1551,7 +1551,29 @@ def test_expression__double_layer():
 
 def test_expression__name_bang():
     actual = parse_expr('Dog!', rn.EXPRESSION, mode=terms.MODE_EVALUATE)
-    expected = terms.Path(
-        names=['Dog', 'result__sa'], ctx='load', mode=terms.MODE_EVALUATE, location=create_loc(1, 0, 1, 4)
+    expected = terms.Attribute(
+        value=terms.TypedName(id='Dog', ctx='load', mode=terms.MODE_EVALUATE, location=create_loc(1, 0, 1, 3)),
+        attr='result__sa',
+        ctx='load',
+        location=create_loc(1, 0, 1, 4),
+    )
+    assert actual == expected
+
+
+def test_expression__bang():
+    actual = parse_expr('Matrix(3,5)!', rn.EXPRESSION, mode=terms.MODE_EVALUATE)
+    expected = terms.Attribute(
+        value=terms.Call(
+            func=terms.TypedName(id='Matrix', ctx='load', mode=terms.MODE_EVALUATE, location=create_loc(1, 0, 1, 6)),
+            args=[
+                terms.IntegerLiteral(value=3, mode=terms.MODE_EVALUATE, location=create_loc(1, 7, 1, 8)),
+                terms.IntegerLiteral(value=5, mode=terms.MODE_EVALUATE, location=create_loc(1, 9, 1, 10)),
+            ],
+            keywords=[],
+            location=create_loc(1, 0, 1, 11),
+        ),
+        attr='result__sa',
+        ctx='load',
+        location=create_loc(1, 0, 1, 12),
     )
     assert actual == expected
