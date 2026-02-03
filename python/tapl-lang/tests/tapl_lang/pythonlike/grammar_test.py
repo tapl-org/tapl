@@ -653,6 +653,12 @@ def test_atom__true():
     assert actual == expected
 
 
+def test_atom__lifted_true():
+    actual = parse_expr('^True', rn.ATOM)
+    expected = terms.BooleanLiteral(value=True, mode=terms.MODE_LIFT, location=create_loc(1, 1, 1, 5))
+    assert actual == expected
+
+
 def test_atom__false():
     actual = parse_expr('False', rn.ATOM)
     expected = terms.BooleanLiteral(value=False, mode=terms.MODE_SAFE, location=create_loc(1, 0, 1, 5))
@@ -674,6 +680,12 @@ def test_atom__string():
 def test_atom__number_integer():
     actual = parse_expr('42', rn.ATOM)
     expected = terms.IntegerLiteral(value=42, mode=terms.MODE_SAFE, location=create_loc(1, 0, 1, 2))
+    assert actual == expected
+
+
+def test_atom__number_integer_lifted():
+    actual = parse_expr('^42', rn.ATOM)
+    expected = terms.IntegerLiteral(value=42, mode=terms.MODE_LIFT, location=create_loc(1, 1, 1, 3))
     assert actual == expected
 
 
@@ -1050,6 +1062,11 @@ def test_bitwise_or__single():
     actual = parse_expr('a', rn.BITWISE_OR, mode=terms.MODE_EVALUATE)
     expected = terms.TypedName(location=create_loc(1, 0, 1, 1), id='a', ctx='load', mode=terms.MODE_EVALUATE)
     assert actual == expected
+
+
+def test_bitwise_xor__whitespace_required():
+    actual = parse_expr('a ^b', rn.BITWISE_XOR, mode=terms.MODE_EVALUATE)
+    assert isinstance(actual, syntax.ErrorTerm)
 
 
 def test_bitwise_xor__chain():

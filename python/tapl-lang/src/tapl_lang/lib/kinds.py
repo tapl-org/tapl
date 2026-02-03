@@ -47,10 +47,18 @@ _TYPE_CHECKER_STATE = TypeCheckerState()
 
 
 def compute_subtype(subtype, supertype):
-    is_supertype = supertype.is_supertype_of__sa(subtype)
-    is_subtype = subtype.is_subtype_of__sa(supertype)
-    # Return Truee if both methods agree on True, or if one is True and the other is inconclusive.
-    return is_supertype and is_subtype or (is_supertype is None and is_subtype) or (is_supertype and is_subtype is None)
+    if hasattr(supertype, 'is_supertype_of__sa') and hasattr(subtype, 'is_subtype_of__sa'):
+        is_supertype = supertype.is_supertype_of__sa(subtype)
+        is_subtype = subtype.is_subtype_of__sa(supertype)
+        # Return Truee if both methods agree on True, or if one is True and the other is inconclusive.
+        return (
+            is_supertype
+            and is_subtype
+            or (is_supertype is None and is_subtype)
+            or (is_supertype and is_subtype is None)
+        )
+    # Fallback: treat them as literals and check for equality.
+    return subtype == supertype
 
 
 def check_subtype(subtype, supertype):
@@ -292,23 +300,43 @@ class Function(BaseKind):
         if lazy_result is not None and result is not None:
             raise ValueError('Pass either the result or lazy_result argument, but not both.')
 
-        self._posonlyargs__sa = posonlyargs  # list of Type Proxy
-        self._args__sa = args  # list of (name, Type Proxy)
+        self.posonlyargs__sa = posonlyargs  # list of Type Proxy
+        self.args__sa = args  # list of (name, Type Proxy)
         self._result__sa = result
         self._lazy_result__sa = lazy_result
 
     # TODO: implement supertype and subtype checking for function types
     def is_supertype_of__sa(self, subtype):
-        del subtype  # unused
-        return False
+        if isinstance(subtype, Nothing):
+            return True
+        # Inconclusive, example: ???
+        return None
 
     def is_subtype_of__sa(self, supertype):
-        del supertype  # unused
-        return False
+        if isinstance(supertype, Any):
+            return True
+        if isinstance(supertype, Function):
+            if len(self.posonlyargs__sa) != len(supertype.posonlyargs__sa):
+                return False
+            for p_self, p_super in zip(self.posonlyargs__sa, supertype.posonlyargs__sa, strict=False):
+                if not check_subtype(p_super, p_self):
+                    return False
+            if len(self.args__sa) != len(supertype.args__sa):
+                return False
+            for (n_self, a_self), (n_super, a_super) in zip(self.args__sa, supertype.args__sa, strict=True):
+                if n_self != n_super:
+                    return False
+                if not check_subtype(a_super, a_self):
+                    return False
+            if not check_subtype(self.result__sa, supertype.result__sa):
+                return False
+            return True
+        # Inconclusive, example: ???
+        return None
 
     def __repr__(self):
-        args = [str(t) for t in self._posonlyargs__sa]
-        args += [f'{name}: {typ}' for name, typ in self._args__sa]
+        args = [str(t) for t in self.posonlyargs__sa]
+        args += [f'{name}: {typ}' for name, typ in self.args__sa]
         args_str = f'({", ".join(args)})'
         if self._lazy_result__sa:
             return f'{args_str}->[uncomputed]'
@@ -316,19 +344,19 @@ class Function(BaseKind):
 
     def apply(self, *arguments):
         actual_all_args = list(arguments)
-        expected_args_count = len(self._posonlyargs__sa) + len(self._args__sa)
+        expected_args_count = len(self.posonlyargs__sa) + len(self.args__sa)
         if len(actual_all_args) != expected_args_count:
             raise TypeError(f'Expected {expected_args_count} arguments, got {len(actual_all_args)}')
-        actual_posonlyargs = actual_all_args[: len(self._posonlyargs__sa)]
-        actual_args = actual_all_args[len(self._posonlyargs__sa) :]
-        for p, a in zip(self._posonlyargs__sa, actual_posonlyargs, strict=False):
+        actual_posonlyargs = actual_all_args[: len(self.posonlyargs__sa)]
+        actual_args = actual_all_args[len(self.posonlyargs__sa) :]
+        for p, a in zip(self.posonlyargs__sa, actual_posonlyargs, strict=False):
             if not check_subtype(a, p):
                 raise TypeError(
-                    f'Function arguments are not equal: expected={self._posonlyargs__sa} actual={actual_posonlyargs}'
+                    f'Function positional arguments are not equal: expected={self.posonlyargs__sa} actual={actual_posonlyargs}'
                 )
-        for p, a in zip(self._args__sa, actual_args, strict=True):
+        for p, a in zip(self.args__sa, actual_args, strict=True):
             if not check_subtype(a, p):
-                raise TypeError(f'Function arguments are not equal: expected={self._args__sa} actual={actual_args}')
+                raise TypeError(f'Function arguments are not equal: expected={self.args__sa} actual={actual_args}')
         return self.result__sa
 
     def load__sa(self, key):
@@ -337,18 +365,11 @@ class Function(BaseKind):
         raise AttributeError(f'{self.get_label__sa()} has no attribute "{key}"')
 
     @property
-    def posonlyargs__sa(self):
-        yield from self._posonlyargs__sa
-
-    @property
-    def args__sa(self):
-        yield from self._args__sa
-
-    @property
     def result__sa(self):
         self.force__sa()
         return self._result__sa
 
+    # TODO: rename to evaluate_lazy_result or similar
     def force__sa(self):
         if self._lazy_result__sa:
             self._result__sa = self._lazy_result__sa()

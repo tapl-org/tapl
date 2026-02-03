@@ -911,6 +911,7 @@ MODE_EVALUATE_WITH_SCOPE = ModeTerm(typecheck=False, use_scope=True)
 MODE_TYPECHECK = ModeTerm(typecheck=True, use_scope=True)
 MODE_TYPECHECK_NO_SCOPE = ModeTerm(typecheck=True, use_scope=False)
 MODE_SAFE = syntax.Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
+MODE_LIFT = syntax.Layers(layers=[MODE_EVALUATE, MODE_EVALUATE_WITH_SCOPE])
 SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
 
 
@@ -2205,6 +2206,22 @@ class TypedClassDef(syntax.Term):
                 else:
                     methods.append(item)
                 body.append(item.unfold_typecheck_main(is_method=True))
+            elif isinstance(item, Assign):
+                targets: list[syntax.Term] = []
+                for target in item.targets:
+                    if not isinstance(target, TypedName):
+                        raise tapl_error.TaplError(
+                            'Class variable assignments must use TypedName as target in type-check mode.'
+                        )
+                    targets.append(
+                        TypedName(
+                            id=target.id,
+                            ctx='store',
+                            mode=MODE_TYPECHECK_NO_SCOPE,
+                            location=target.location,
+                        )
+                    )
+                body.append(Assign(targets=targets, value=item.value, location=item.location))
             else:
                 body.append(item)
         class_stmt = ClassDef(

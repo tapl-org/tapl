@@ -179,7 +179,7 @@ def test_term_error():
     assert ast.unparse(expr2) == 's0.Int + s0.Str'
     assert (
         expect_type_error(expr2)
-        == "TypeError('unsupported operand type(s) for +: Int and Str. Function arguments are not equal: expected=[Int] actual=[Str]')"
+        == "TypeError('unsupported operand type(s) for +: Int and Str. Function positional arguments are not equal: expected=[Int] actual=[Str]')"
     )
 
 
@@ -198,7 +198,7 @@ def test_compare2():
     with pytest.raises(
         TypeError,
         match=re.escape(
-            'unsupported operand type(s) for <: Bool and Int. Function arguments are not equal: expected=[Bool] actual=[Int]'
+            'unsupported operand type(s) for <: Bool and Int. Function positional arguments are not equal: expected=[Bool] actual=[Int]'
         ),
     ):
         typecheck(expr2)

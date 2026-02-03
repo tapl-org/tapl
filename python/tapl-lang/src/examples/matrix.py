@@ -2,7 +2,8 @@ from tapl_lang.pythonlike.predef import *
 
 def Matrix(rows, cols):
 
-    class Class:
+    class Matrix_:
+        class_name = 'Matrix({},{})'.format(rows, cols)
 
         def __init__(self):
             self.rows = rows
@@ -11,9 +12,10 @@ def Matrix(rows, cols):
 
         def text(self):
             return self.values
-    return Class
+    return Matrix_
 
 def accept_matrix_3_5(matrix):
-    tapl_dev.print(matrix.text())
-tapl_dev.print(accept_matrix_3_5)
+    pass
+tapl_dev.print(tapl_dev.to_string(accept_matrix_3_5))
+accept_matrix_3_5(Matrix(3, 5)())
 tapl_dev.print('Done')

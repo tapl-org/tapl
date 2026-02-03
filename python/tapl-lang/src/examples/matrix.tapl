@@ -1,28 +1,27 @@
 language pythonlike
 
-# for the sake of simpliciyt, the matrix element type is Int
+# For simplicity, the matrix element type is Int.
 
 def Matrix(rows, cols):
 
-    class Class:
+    class Matrix_:
+        class_name = ^'Matrix({},{})'.format(rows, cols)
+
         def __init__(self):
             self.rows = rows
             self.cols = cols
             self.values = 0
-        
+
         def text(self):
             return <self.values:'Matrix({},{})!'.format(self.rows, self.cols)>
-    
-    return Class
+
+    return Matrix_
 
 def accept_matrix_3_5(matrix: Matrix(^3,^5)!):
-    tapl_dev.print(matrix.text())
+    pass
 
-def accept_matrix_3_5(matrix: Matrix(~3,~5)!):
-    tapl_dev.print(matrix.text())
+tapl_dev.print(tapl_dev.to_string(accept_matrix_3_5))
+accept_matrix_3_5(Matrix(^3,^5)())
 
-tapl_dev.print(accept_matrix_3_5)
-# accept_matrix_3_5(Matrix(3,5)())
-
-tapl_dev.print('Done')
+tapl_dev.print(^'Done')
 

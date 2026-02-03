@@ -67,9 +67,13 @@ def fork_scope(forker: scope.ScopeForker) -> scope.Scope:
     return forker.new_scope()
 
 
+TO_STRING_FUNCTION = kinds.Function(posonlyargs=[], args=[], result=bt.Str)
+
+
 def create_class(cls, init_args: list[Any], methods: list[tuple[str, list[Any]]]) -> kinds.Function:
     fields: dict[str, Any] = {}
-    obj_type = kinds.Record(fields=fields, label=f'{cls.__name__}!')
+    class_name = getattr(cls, 'class_name', cls.__name__)
+    obj_type = kinds.Record(fields=fields, label=f'{class_name}!')
     self_methods_scope = scope.Scope()
     for method_name, param_types in methods:
 
@@ -82,8 +86,8 @@ def create_class(cls, init_args: list[Any], methods: list[tuple[str, list[Any]]]
     cls.__init__(*[self_scope, *init_args])
     fields.update(
         {
-            '__repr__': kinds.Function(posonlyargs=[], args=[], result=bt.Str),
-            '__str__': kinds.Function(posonlyargs=[], args=[], result=bt.Str),
+            '__repr__': TO_STRING_FUNCTION,
+            '__str__': TO_STRING_FUNCTION,
         }
     )
     for label in itertools.chain(self_methods_scope.fields__sa.keys(), self_scope.fields__sa.keys()):

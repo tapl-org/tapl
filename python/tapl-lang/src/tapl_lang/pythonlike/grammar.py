@@ -499,7 +499,13 @@ def get_grammar() -> parser.Grammar:
     add(rn.AWAIT_PRIMARY, [])
     add(
         rn.PRIMARY,
-        [_parse_primary__attribute, _parse_primary__call, _parse_primary__slices, _parse_primary__bang, rn.ATOM],
+        [
+            _parse_primary__attribute,
+            _parse_primary__call,
+            _parse_primary__slices,
+            _parse_primary__bang,
+            rn.ATOM,
+        ],
     )
     add(rn.SLICES, [_parse_slices__single, _parse_slices__multi])
     add(rn.SLICE, [_parse_slice__range, rn.NAMED_EXPRESSION])
@@ -515,6 +521,7 @@ def get_grammar() -> parser.Grammar:
             rn.LIST,
             rn.SET,
             rn.DICT,
+            _parse_atom__literal_lifting,
         ],
     )
     add(rn.GROUP, [_parse_group__named_expression])
@@ -1201,6 +1208,24 @@ def _parse_dict__non_empty(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
+def _parse_atom__literal_lifting(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    mode = c.config.mode
+    if mode is terms.MODE_SAFE:
+        mode = terms.MODE_LIFT
+    elif mode is terms.MODE_TYPECHECK:
+        mode = terms.MODE_EVALUATE_WITH_SCOPE
+    config = dataclasses.replace(c.config, mode=mode)
+    if (
+        t.validate(_consume_punct(c, '^'))
+        and not c.is_end()
+        and not c.current_char().isspace()  # no space allowed to distinguish from bitwise xor
+        and t.validate(atom := c.consume_rule(rn.ATOM, config=config))
+    ):
+        return atom
+    return t.fail()
+
+
 def _parse_double_starred_kvpairs(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     kvpairs = []
@@ -1284,6 +1309,8 @@ def _parse_bitwise_xor__binary(c: Cursor) -> syntax.Term:
     if (
         t.validate(left := c.consume_rule(rn.BITWISE_XOR))
         and t.validate(op := _consume_punct(c, '^'))
+        and not c.is_end()
+        and c.current_char().isspace()  # space required to distinguish from literal lifting syntax `^atom`
         and t.validate(right := _expect_rule(c, rn.BITWISE_AND))
     ):
         return terms.BinOp(left, cast(TokenPunct, op).value, right, location=t.location)
