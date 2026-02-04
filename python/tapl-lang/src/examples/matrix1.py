@@ -13,18 +13,15 @@ def Matrix(rows, cols):
             s2.self.cols = s2.cols
             s2.self.num_rows = s2.Int
             s2.self.num_cols = s2.Int
-            s2.self.values = s2.List(s2.Int)
-            s2.self.values = s2.tapl_typing.create_typed_list()
-            s2.v = s2.Int
+            s2.self.values = s2.List(s2.List(s2.Int))
             with s2.tapl_typing.scope_forker(s2) as f2:
                 s3 = s2.tapl_typing.fork_scope(f2)
                 s3.i = s3.range(s3.self.num_rows).__iter__().__next__()
-                s3.columns = s3.tapl_typing.create_typed_list()
+                s3.columns = s3.List(s3.Int)
                 with s3.tapl_typing.scope_forker(s3) as f3:
                     s4 = s3.tapl_typing.fork_scope(f3)
                     s4.j = s4.range(s4.self.num_cols).__iter__().__next__()
-                    s4.columns.append(s4.v)
-                    s4.v = s4.v + s4.Int
+                    s4.columns.append(s4.Int)
                     s4 = s3.tapl_typing.fork_scope(f3)
                 s3.self.values.append(s3.columns)
                 s3 = s2.tapl_typing.fork_scope(f2)
@@ -47,4 +44,59 @@ def accept_matrix_3_2(matrix):
 s0.accept_matrix_3_2 = s0.tapl_typing.create_function([s0.Matrix(3, 2).result__sa], accept_matrix_3_2(s0.Matrix(3, 2).result__sa))
 s0.accept_matrix_3_2(s0.Matrix(3, 2)())
 s0.tapl_dev.print(s0.tapl_dev.to_string(s0.accept_matrix_3_2))
+
+def sum(rows, cols):
+    s1 = s0.tapl_typing.create_scope(parent__sa=s0, rows=rows, cols=cols)
+
+    def sum_(a, b):
+        s2 = s1.tapl_typing.create_scope(parent__sa=s1, a=a, b=b)
+        s2.result = s2.Matrix(s2.rows, s2.cols)()
+        with s2.tapl_typing.scope_forker(s2) as f2:
+            s3 = s2.tapl_typing.fork_scope(f2)
+            s3.i = s3.range(s3.result.num_rows).__iter__().__next__()
+            with s3.tapl_typing.scope_forker(s3) as f3:
+                s4 = s3.tapl_typing.fork_scope(f3)
+                s4.j = s4.range(s4.result.num_cols).__iter__().__next__()
+                s4.result.values[s4.i][s4.j] = s4.a.values[s4.i][s4.j] + s4.b.values[s4.i][s4.j]
+                s4 = s3.tapl_typing.fork_scope(f3)
+            s3 = s2.tapl_typing.fork_scope(f2)
+        s2.tapl_typing.add_return_type(s2, s2.result)
+        return s2.tapl_typing.get_return_type(s2)
+    s1.sum_ = s1.tapl_typing.create_function([s1.Matrix(s1.rows, s1.cols).result__sa, s1.Matrix(s1.rows, s1.cols).result__sa], sum_(s1.Matrix(s1.rows, s1.cols).result__sa, s1.Matrix(s1.rows, s1.cols).result__sa))
+    s1.tapl_typing.add_return_type(s1, s1.sum_)
+    return s1.tapl_typing.get_return_type(s1)
+s0.sum = sum
+s0.tapl_dev.print(s0.tapl_dev.to_string(s0.sum(2, 2)))
+
+def multiply(m, n, p):
+    s1 = s0.tapl_typing.create_scope(parent__sa=s0, m=m, n=n, p=p)
+
+    def multiply_(a, b):
+        s2 = s1.tapl_typing.create_scope(parent__sa=s1, a=a, b=b)
+        s2.result = s2.Matrix(s2.m, s2.p)()
+        with s2.tapl_typing.scope_forker(s2) as f2:
+            s3 = s2.tapl_typing.fork_scope(f2)
+            s3.i = s3.range(s3.a.num_rows).__iter__().__next__()
+            with s3.tapl_typing.scope_forker(s3) as f3:
+                s4 = s3.tapl_typing.fork_scope(f3)
+                s4.j = s4.range(s4.b.num_cols).__iter__().__next__()
+                with s4.tapl_typing.scope_forker(s4) as f4:
+                    s5 = s4.tapl_typing.fork_scope(f4)
+                    s5.k = s5.range(s5.a.num_cols).__iter__().__next__()
+                    s5.result.values[s5.i][s5.j] = s5.result.values[s5.i][s5.j] + s5.a.values[s5.i][s5.k] * s5.b.values[s5.k][s5.j]
+                    s5 = s4.tapl_typing.fork_scope(f4)
+                s4 = s3.tapl_typing.fork_scope(f3)
+            s3 = s2.tapl_typing.fork_scope(f2)
+        s2.tapl_typing.add_return_type(s2, s2.result)
+        return s2.tapl_typing.get_return_type(s2)
+    s1.multiply_ = s1.tapl_typing.create_function([s1.Matrix(s1.m, s1.n).result__sa, s1.Matrix(s1.n, s1.p).result__sa], multiply_(s1.Matrix(s1.m, s1.n).result__sa, s1.Matrix(s1.n, s1.p).result__sa))
+    s1.tapl_typing.add_return_type(s1, s1.multiply_)
+    return s1.tapl_typing.get_return_type(s1)
+s0.multiply = multiply
+s0.matrix_2_2 = s0.Matrix(2, 2)()
+s0.matrix_2_2.values = s0.tapl_typing.create_typed_list(s0.tapl_typing.create_typed_list(s0.Int, s0.Int), s0.tapl_typing.create_typed_list(s0.Int, s0.Int))
+s0.matrix_2_3 = s0.Matrix(2, 3)()
+s0.matrix_2_3.values = s0.tapl_typing.create_typed_list(s0.tapl_typing.create_typed_list(s0.Int, s0.Int, s0.Int), s0.tapl_typing.create_typed_list(s0.Int, s0.Int, s0.Int))
+s0.tapl_dev.print(s0.sum(2, 2)(s0.matrix_2_2, s0.matrix_2_2))
+s0.tapl_dev.print(s0.multiply(2, 2, 3)(s0.matrix_2_2, s0.matrix_2_3))
 s0.tapl_dev.print('Done')

@@ -753,6 +753,7 @@ def test_tuple__multi():
 
 
 def test_list__empty():
+    # TODO: convert to MODE_TYPECHECK with unknow type
     actual = parse_expr('[]', rn.LIST, mode=terms.MODE_EVALUATE)
     expected = terms.TypedList(
         location=create_loc(1, 0, 1, 2),

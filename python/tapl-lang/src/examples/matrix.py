@@ -11,12 +11,10 @@ def Matrix(rows, cols):
             self.num_rows = rows
             self.num_cols = cols
             self.values = []
-            v = 1
             for i in range(self.num_rows):
                 columns = []
                 for j in range(self.num_cols):
-                    columns.append(v)
-                    v = v + 1
+                    columns.append(0)
                 self.values.append(columns)
 
         def __repr__(self):
@@ -28,4 +26,32 @@ def accept_matrix_3_2(matrix):
     tapl_dev.print(matrix.values)
 accept_matrix_3_2(Matrix(3, 2)())
 tapl_dev.print(tapl_dev.to_string(accept_matrix_3_2))
+
+def sum(rows, cols):
+
+    def sum_(a, b):
+        result = Matrix(rows, cols)()
+        for i in range(result.num_rows):
+            for j in range(result.num_cols):
+                result.values[i][j] = a.values[i][j] + b.values[i][j]
+        return result
+    return sum_
+tapl_dev.print(tapl_dev.to_string(sum(2, 2)))
+
+def multiply(m, n, p):
+
+    def multiply_(a, b):
+        result = Matrix(m, p)()
+        for i in range(a.num_rows):
+            for j in range(b.num_cols):
+                for k in range(a.num_cols):
+                    result.values[i][j] = result.values[i][j] + a.values[i][k] * b.values[k][j]
+        return result
+    return multiply_
+matrix_2_2 = Matrix(2, 2)()
+matrix_2_2.values = [[1, 2], [3, 4]]
+matrix_2_3 = Matrix(2, 3)()
+matrix_2_3.values = [[1, 2, 3], [4, 5, 6]]
+tapl_dev.print(sum(2, 2)(matrix_2_2, matrix_2_2))
+tapl_dev.print(multiply(2, 2, 3)(matrix_2_2, matrix_2_3))
 tapl_dev.print('Done')

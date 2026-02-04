@@ -286,7 +286,7 @@ class Record(BaseKind):
 _PAIR_ELEMENT_COUNT = 2
 
 
-# TODO: Implement vararg, kwonlyargs, kw_defaults, kwarg, and defaults
+# TODO: Implement vararg, kwonlyargs, kw_defaults, kwarg, and defaults. For example string.format function.
 class Function(BaseKind):
     def __init__(self, posonlyargs, args, result=None, lazy_result=None):
         if not isinstance(posonlyargs, list):
@@ -362,7 +362,7 @@ class Function(BaseKind):
     def load__sa(self, key):
         if key == '__call__':
             return self.apply
-        raise AttributeError(f'{self.get_label__sa()} has no attribute "{key}"')
+        raise AttributeError(f'{self} function has no attribute "{key}"')
 
     @property
     def result__sa(self):

@@ -12,18 +12,15 @@ def Matrix(rows, cols):
             self.cols = cols
             self.num_rows = <rows:Int>
             self.num_cols = <cols:Int>
-            self.values: List(Int) = []
-            v = 1
+            self.values = <[]:List(List(Int))>
             for i in range(self.num_rows):
-                columns = []
+                columns = <[]:List(Int)>
                 for j in range(self.num_cols):
-                    columns.append(v)
-                    v = v + 1
+                    columns.append(0)
                 self.values.append(columns)
 
         def __repr__(self):
             return str(self.values)
-            # TODO: Implement function *args and **kwargs 
             # return '{}({})'.format(self.class_name, self.values)
 
     return Matrix_
@@ -34,6 +31,37 @@ def accept_matrix_3_2(matrix: Matrix(^3,^2)!):
 
 accept_matrix_3_2(Matrix(^3,^2)())
 tapl_dev.print(tapl_dev.to_string(accept_matrix_3_2))
+
+def sum(rows, cols):
+    def sum_(a: Matrix(rows, cols)!, b: Matrix(rows, cols)!):
+        result = Matrix(rows, cols)()
+        for i in range(result.num_rows):
+            for j in range(result.num_cols):
+                result.values[i][j] = a.values[i][j] + b.values[i][j]
+        return result
+    return sum_
+
+tapl_dev.print(tapl_dev.to_string(sum(^2,^2)))
+
+def multiply(m, n, p):
+    def multiply_(a:Matrix(m, n)!, b: Matrix(n, p)!):
+        result = Matrix(m, p)()
+        for i in range(a.num_rows):
+            for j in range(b.num_cols):
+                for k in range(a.num_cols):
+                    result.values[i][j] =  result.values[i][j] + a.values[i][k] * b.values[k][j]
+        return result
+    return multiply_
+
+
+matrix_2_2 = Matrix(^2,^2)()
+matrix_2_2.values = [[1, 2], [3, 4]]
+matrix_2_3 = Matrix(^2, ^3)()
+matrix_2_3.values = [[1, 2, 3], [4, 5, 6]]
+
+tapl_dev.print(sum(^2,^2)(matrix_2_2, matrix_2_2))
+tapl_dev.print(multiply(^2, ^2, ^3)(matrix_2_2, matrix_2_3))
+
 
 tapl_dev.print(^'Done')
 
