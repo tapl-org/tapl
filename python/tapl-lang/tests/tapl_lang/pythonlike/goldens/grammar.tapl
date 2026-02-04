@@ -2,6 +2,7 @@ language pythonlike
 
 # import math
 
+# TODO: initialize python builtins library
 # print(math.pi)
 
 x: Int = 42

@@ -104,7 +104,7 @@ _init_record(
 )
 
 
-def create_list_type(element_type):
+def List(element_type):  # noqa: N802
     methods = {
         'append': ([element_type], NoneType),
         '__len__': ([], Int),
@@ -118,7 +118,7 @@ def create_list_type(element_type):
     )
 
 
-def create_set_type(element_type):
+def Set(element_type):  # noqa: N802
     methods = {
         'add': ([element_type], NoneType),
         'remove': ([element_type], NoneType),
@@ -131,7 +131,7 @@ def create_set_type(element_type):
     )
 
 
-def create_dict_type(key_type, value_type):
+def Dict(key_type, value_type):  # noqa: N802
     methods = {
         'get': ([key_type], value_type),
         'set': ([key_type, value_type], NoneType),
@@ -145,3 +145,10 @@ def create_dict_type(key_type, value_type):
         fields=_init_methods(methods),
         label=f'Dict({key_type}, {value_type})',
     )
+
+
+TYPE_CONSTRUCTORS = {
+    'List': List,
+    'Set': Set,
+    'Dict': Dict,
+}

@@ -109,7 +109,7 @@ def create_typed_list(*element_types):
         element_type = element_types[0]
     else:
         element_type = kinds.create_union(*element_types)
-    return bt.create_list_type(element_type)
+    return bt.List(element_type)
 
 
 def create_typed_set(*element_types):
@@ -119,7 +119,7 @@ def create_typed_set(*element_types):
         element_type = element_types[0]
     else:
         element_type = kinds.create_union(*element_types)
-    return bt.create_set_type(element_type)
+    return bt.Set(element_type)
 
 
 def create_typed_dict(keys, values):
@@ -133,4 +133,4 @@ def create_typed_dict(keys, values):
     else:
         key_type = kinds.create_union(*keys)
         value_type = kinds.create_union(*values)
-    return bt.create_dict_type(key_type, value_type)
+    return bt.Dict(key_type, value_type)

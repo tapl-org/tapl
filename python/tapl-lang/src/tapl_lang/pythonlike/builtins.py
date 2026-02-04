@@ -35,3 +35,7 @@ export1.update(python_builtin_types)
 # Export all builtin types as well for both layers
 export.update(bt.Types)
 export1.update(bt.Types)
+
+# Export type constructors for type level layer
+export.update(bt.TYPE_CONSTRUCTORS)
+export1.update(bt.TYPE_CONSTRUCTORS)

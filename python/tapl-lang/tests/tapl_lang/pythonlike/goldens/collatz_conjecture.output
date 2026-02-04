@@ -1,6 +1,6 @@
 ====== collatz_conjecture1.py exit-status:0 stdout:
-(Int)->List(Any)
-List(Any)
+(Int)->List(Int)
+List(Int)
 
 ------ stderr:
 

@@ -3,7 +3,7 @@ s0 = predef_scope__sa.tapl_typing.create_scope(parent__sa=predef_scope__sa)
 
 def collatz_sequence(n):
     s1 = s0.tapl_typing.create_scope(parent__sa=s0, n=n)
-    s1.sequence = s1.tapl_typing.create_typed_list()
+    s1.sequence = s1.List(s1.Int)
     with s1.tapl_typing.scope_forker(s1) as f1:
         s2 = s1.tapl_typing.fork_scope(f1)
         s2.n < s2.Int
