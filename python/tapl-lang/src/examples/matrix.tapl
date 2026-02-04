@@ -21,16 +21,13 @@ def Matrix(rows, cols):
 
         def __repr__(self):
             return str(self.values)
-            # return '{}({})'.format(self.class_name, self.values)
 
     return Matrix_
 
-def accept_matrix_3_2(matrix: Matrix(^3,^2)!):
-    tapl_dev.print(matrix)
-    tapl_dev.print(matrix.values)
 
-accept_matrix_3_2(Matrix(^3,^2)())
-tapl_dev.print(tapl_dev.to_string(accept_matrix_3_2))
+def accept_matrix_2_3(matrix: Matrix(^2,^3)!):
+    pass
+
 
 def sum(rows, cols):
     def sum_(a: Matrix(rows, cols)!, b: Matrix(rows, cols)!):
@@ -41,7 +38,6 @@ def sum(rows, cols):
         return result
     return sum_
 
-tapl_dev.print(tapl_dev.to_string(sum(^2,^2)))
 
 def multiply(m, n, p):
     def multiply_(a:Matrix(m, n)!, b: Matrix(n, p)!):
@@ -54,14 +50,17 @@ def multiply(m, n, p):
     return multiply_
 
 
-matrix_2_2 = Matrix(^2,^2)()
-matrix_2_2.values = [[1, 2], [3, 4]]
-matrix_2_3 = Matrix(^2, ^3)()
-matrix_2_3.values = [[1, 2, 3], [4, 5, 6]]
+def main():
+    matrix_2_2 = Matrix(^2, ^2)()
+    matrix_2_2.values = [[1, 2], [3, 4]]
+    matrix_2_3 = Matrix(^2, ^3)()
+    matrix_2_3.values = [[1, 2, 3], [4, 5, 6]]
 
-tapl_dev.print(sum(^2,^2)(matrix_2_2, matrix_2_2))
-tapl_dev.print(multiply(^2, ^2, ^3)(matrix_2_2, matrix_2_3))
+    accept_matrix_2_3(matrix_2_3)
+
+    print(sum(^2, ^2)(matrix_2_2, matrix_2_2))
+    print(multiply(^2, ^2, ^3)(matrix_2_2, matrix_2_3))
 
 
-tapl_dev.print(^'Done')
-
+if __name__ == '__main__':
+    main()

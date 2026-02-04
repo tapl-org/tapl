@@ -1,0 +1,22 @@
+====== matrix1.py exit-status:0 stdout:
+(Matrix(2,3)!)->None
+(Matrix(2,2)!, Matrix(2,2)!)->Matrix(2,2)!
+Matrix(2,2)!
+Matrix(2,3)!
+Str
+
+------ stderr:
+
+------ end.
+
+====== matrix.py exit-status:0 stdout:
+<function accept_matrix_2_3>
+<function sum_>
+[[2, 4], [6, 8]]
+[[9, 12, 15], [19, 26, 33]]
+Done
+
+------ stderr:
+
+------ end.
+
