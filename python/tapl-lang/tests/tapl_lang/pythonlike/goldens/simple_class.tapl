@@ -8,6 +8,7 @@ def accept(param: SimplestClass!):
 
 accept(SimplestClass())
 
+# TODO: Implement methods that does not have arg type in the class, should be considered as an evalulate. or introduce new keyword. like a caret for lifting.
 
 class Circle:
   def __init__(self, radius: Float):

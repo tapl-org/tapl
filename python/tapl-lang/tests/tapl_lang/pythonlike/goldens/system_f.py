@@ -22,9 +22,10 @@ def auto_id(a):
     return typed_id(a)
 tapl_dev.print(auto_id('hello'))
 
-def create_slot_class(T):
+def Slot(T):
 
-    class Slot:
+    class Slot_:
+        class_name = 'Slot({})'.format(T)
 
         def __init__(self, value):
             self._value = value
@@ -37,7 +38,7 @@ def create_slot_class(T):
 
         def __repr__(self):
             return 'Slot(' + str(self._value) + ')'
-    return Slot
-slot = create_slot_class(Int)(5)
+    return Slot_
+slot = Slot(Int)(5)
 tapl_dev.print(slot)
 tapl_dev.print(slot.set)

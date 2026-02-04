@@ -4,7 +4,7 @@ Int
 (Str)->Str
 Str
 Str
-Slot!
+Slot(Int)!
 (Int)->None
 
 ------ stderr:
@@ -18,7 +18,7 @@ Slot!
 abc
 hello
 Slot(5)
-<bound method create_slot_class.<locals>.Slot.set of Slot(5)>
+<bound method Slot.<locals>.Slot_.set of Slot(5)>
 
 ------ stderr:
 

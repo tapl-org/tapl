@@ -10,18 +10,30 @@ def Matrix(rows, cols):
         def __init__(self):
             self.rows = rows
             self.cols = cols
-            self.values = 0
+            self.num_rows = <rows:Int>
+            self.num_cols = <cols:Int>
+            self.values: List(Int) = []
+            v = 1
+            for i in range(self.num_rows):
+                columns = []
+                for j in range(self.num_cols):
+                    columns.append(v)
+                    v = v + 1
+                self.values.append(columns)
 
-        def text(self):
-            return <self.values:'Matrix({},{})!'.format(self.rows, self.cols)>
+        def __repr__(self):
+            return str(self.values)
+            # TODO: Implement function *args and **kwargs 
+            # return '{}({})'.format(self.class_name, self.values)
 
     return Matrix_
 
-def accept_matrix_3_5(matrix: Matrix(^3,^5)!):
-    pass
+def accept_matrix_3_2(matrix: Matrix(^3,^2)!):
+    tapl_dev.print(matrix)
+    tapl_dev.print(matrix.values)
 
-tapl_dev.print(tapl_dev.to_string(accept_matrix_3_5))
-accept_matrix_3_5(Matrix(^3,^5)())
+accept_matrix_3_2(Matrix(^3,^2)())
+tapl_dev.print(tapl_dev.to_string(accept_matrix_3_2))
 
 tapl_dev.print(^'Done')
 
