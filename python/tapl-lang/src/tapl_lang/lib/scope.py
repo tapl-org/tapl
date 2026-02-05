@@ -20,7 +20,6 @@ class Scope(dynamic_attribute.DynamicAttributeMixin):
         self.fields__sa: dict[str, Slot] = {}
         if fields:
             self.store_many__sa(fields)
-        # TODO: move returns into fields. Find a better way to represent function return types
         self.return_type__sa = None
         self.returns__sa: list[Any] = []
         self.label__sa = label__sa

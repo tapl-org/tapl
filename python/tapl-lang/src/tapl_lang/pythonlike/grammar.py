@@ -33,8 +33,9 @@ n=new syntax introduced by Tapl
             | try_stmt
             | while_stmt
 d           | match_stmt
-?       function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'  # TODO: implement [type_params]
-?       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':' # TODO: implement [type_params] and arguments
+        # While [type_params] lack native syntactic support, they can be implemented by wrapping them in a function that accepts and forwards the parameters.
+?       function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'
+?       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':'
         with_stmt:
 d           | invalid_with_stmt_indent
 d           | 'with' '(','.with_item+ [','] ')' ':' block
@@ -1742,11 +1743,10 @@ def _parse_with_stmt__normal(c: Cursor) -> syntax.Term:
         and t.validate(items := _scan_with_items(c))
         and t.validate(_expect_punct(c, ':'))
     ):
-        return terms.TypedWith(
+        return terms.With(
             location=t.location,
             items=cast(syntax.TermList, items).terms,
             body=syntax.TermList(terms=[], is_placeholder=True),
-            mode=c.config.mode,
         )
     return t.fail()
 

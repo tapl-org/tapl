@@ -161,7 +161,7 @@ class DynamicAttributeMixin:
 
     # String methods
 
-    # TODO: Python __str__ method has special handling
+    # FIXME: Python __str__ method has special handling
     # def __str__(self__sa):
     #     return self__sa.load__sa('__str__')()
 
@@ -171,7 +171,7 @@ class DynamicAttributeMixin:
     def __unicode__(self__sa):
         return self__sa.load__sa('__unicode__')()
 
-    # TODO: Python __format__ method has special handling
+    # FIXME: Python __format__ method has special handling
     # def __format__(self__sa, format_spec):
     #     return self__sa.load__sa('__format__')(format_spec)
 

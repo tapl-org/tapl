@@ -111,7 +111,7 @@ class BaseKind(dynamic_attribute.DynamicAttributeMixin):
 
 
 # TODO: implement '&' operator for Intersection
-# TODO: what happens when these operators are used for binary operation instead of type construction?
+# FIXME: what happens when these operators are used for binary operation instead of type construction?
 # e.g., T1 | T2, T1 & T2
 # Exception for binary-operator methods in Python; not intended for direct use.
 # Example: alpha <: (alpha | beta) or beta <: (alpha | beta)
@@ -366,11 +366,10 @@ class Function(BaseKind):
 
     @property
     def result__sa(self):
-        self.force__sa()
+        self.evaluate_lazy_result__sa()
         return self._result__sa
 
-    # TODO: rename to evaluate_lazy_result or similar
-    def force__sa(self):
+    def evaluate_lazy_result__sa(self):
         if self._lazy_result__sa:
             self._result__sa = self._lazy_result__sa()
             self._lazy_result__sa = None

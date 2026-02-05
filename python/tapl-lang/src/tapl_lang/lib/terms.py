@@ -442,7 +442,7 @@ class BoolOp(syntax.Term):
         )
 
 
-# XXX: target of ast.NamedExpr accepts only ast.Name. This prevents us to assign attributes like s0.name := s0.Int. Figure out how to support that.
+# FIXME: target of ast.NamedExpr accepts only ast.Name. This prevents us to assign attributes like s0.name := s0.Int. Figure out how to support that.
 @dataclasses.dataclass
 class NamedExpr(syntax.Term):
     target: syntax.Term
@@ -769,7 +769,7 @@ class Select(syntax.Term):
 @dataclasses.dataclass
 class Path(syntax.Term):
     names: list[str]
-    # TODO: Find a better name for the ctx field. options: context, reference_mode
+    # FIXME: Find a better name for the ctx field. options: context, reference_mode. Or keep it as it is since it's already used in the Python AST and has a clear meaning.
     ctx: str
     mode: syntax.Term
     location: syntax.Location
@@ -1814,48 +1814,6 @@ class ElseSibling(syntax.SiblingTerm):
 
 
 @dataclasses.dataclass
-class TypedWith(syntax.Term):
-    items: list[syntax.Term]
-    body: syntax.Term
-    mode: syntax.Term
-    location: syntax.Location
-
-    @override
-    def children(self) -> Generator[syntax.Term, None, None]:
-        yield from self.items
-        yield self.body
-        yield self.mode
-
-    @override
-    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
-        return ls.build(
-            lambda layer: TypedWith(
-                items=[layer(i) for i in self.items],
-                body=layer(self.body),
-                mode=layer(self.mode),
-                location=self.location,
-            )
-        )
-
-    @override
-    def unfold(self) -> syntax.Term:
-        # XXX: Differentiate behavior between EVALUATE and TYPECHECK modes if needed, otherwise remove TypedWith
-        if self.mode is MODE_EVALUATE:
-            return With(
-                items=self.items,
-                body=self.body,
-                location=self.location,
-            )
-        if self.mode is MODE_TYPECHECK:
-            return With(
-                items=self.items,
-                body=self.body,
-                location=self.location,
-            )
-        raise tapl_error.UnhandledError
-
-
-@dataclasses.dataclass
 class TypedWhile(syntax.Term):
     test: syntax.Term
     body: syntax.Term
@@ -2029,7 +1987,7 @@ class TypedTry(syntax.Term):
                 location=self.location,
             )
         if self.mode is MODE_TYPECHECK:
-            # XXX: Implement scope forker to preserve parent scope in try, except, and finally blocks except return type
+            # TODO: Implement scope forker to preserve parent scope in try, except, and finally blocks except return type
             handlers: list[syntax.Term] = [self.body]
             for handler in self.handlers:
                 if not isinstance(handler, ExceptHandler):
@@ -2131,7 +2089,9 @@ class TypedImport(syntax.Term):
             return Import(location=self.location, names=self.names)
         if self.mode is MODE_TYPECHECK:
             if len(self.names) > 1:
-                raise tapl_error.TaplError('Import does not support multiple names yet.')  # XXX: Support multiple names
+                raise tapl_error.TaplError(
+                    'Import does not support multiple names yet.'
+                )  # TODO: Support multiple import names
             return Expr(
                 value=Call(
                     location=self.location,

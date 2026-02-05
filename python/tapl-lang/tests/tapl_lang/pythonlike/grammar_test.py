@@ -753,7 +753,7 @@ def test_tuple__multi():
 
 
 def test_list__empty():
-    # TODO: convert to MODE_TYPECHECK with unknow type
+    # FIXME: convert to MODE_TYPECHECK with unknow type
     actual = parse_expr('[]', rn.LIST, mode=terms.MODE_EVALUATE)
     expected = terms.TypedList(
         location=create_loc(1, 0, 1, 2),
@@ -1494,7 +1494,7 @@ def test_while_stmt__named():
 
 def test_with_stmt__no_as():
     actual = parse_expr('with resource:', rn.WITH_STMT, mode=terms.MODE_EVALUATE)
-    expected = terms.TypedWith(
+    expected = terms.With(
         location=create_loc(1, 0, 1, 14),
         items=[
             terms.WithItem(
@@ -1505,14 +1505,13 @@ def test_with_stmt__no_as():
             ),
         ],
         body=syntax.TermList(terms=[], is_placeholder=True),
-        mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
 
 
 def test_with_stmt__simple():
     actual = parse_expr('with resource as res:', rn.WITH_STMT, mode=terms.MODE_EVALUATE)
-    expected = terms.TypedWith(
+    expected = terms.With(
         location=create_loc(1, 0, 1, 21),
         items=[
             terms.WithItem(
@@ -1525,14 +1524,13 @@ def test_with_stmt__simple():
             ),
         ],
         body=syntax.TermList(terms=[], is_placeholder=True),
-        mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
 
 
 def test_with_stmt__multiple_items():
     actual = parse_expr('with res1, res2 as r2:', rn.WITH_STMT, mode=terms.MODE_EVALUATE)
-    expected = terms.TypedWith(
+    expected = terms.With(
         location=create_loc(1, 0, 1, 22),
         items=[
             terms.WithItem(
@@ -1551,7 +1549,6 @@ def test_with_stmt__multiple_items():
             ),
         ],
         body=syntax.TermList(terms=[], is_placeholder=True),
-        mode=terms.MODE_EVALUATE,
     )
     assert actual == expected
 
