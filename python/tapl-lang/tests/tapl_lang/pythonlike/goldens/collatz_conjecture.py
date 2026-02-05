@@ -11,8 +11,8 @@ def collatz_sequence(n):
             n = 3 * n + 1
         sequence.append(n)
     return sequence
-tapl_dev.print(tapl_dev.to_string(collatz_sequence))
+tapl.print(tapl.to_string(collatz_sequence))
 print(collatz_sequence(7))
 print(collatz_sequence(19))
 print(collatz_sequence(0))
-tapl_dev.print(collatz_sequence(4))
+tapl.print(collatz_sequence(4))

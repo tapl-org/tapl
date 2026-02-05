@@ -22,6 +22,6 @@ class Circle:
         return self.radius > radius
 
 def print_area(circle):
-    tapl_dev.print(circle.area())
-    tapl_dev.print(circle.is_bigger_than(1.0))
+    tapl.print(circle.area())
+    tapl.print(circle.is_bigger_than(1.0))
 print_area(Circle(2.0))

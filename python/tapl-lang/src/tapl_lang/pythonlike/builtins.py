@@ -19,9 +19,8 @@ python_builtin_types = {
     'round': kinds.create_function([bt.Float], bt.Float),
 }
 
-# XXX: introduce just a "tapl", and add tapl.dev and tapl.typing as submodules
 pythonlike_builtins = {
-    'tapl_dev': (
+    'tapl': (
         tapl_dev.TaplDev(tapl_dev.EVALATE_LAYER_INDEX),
         tapl_dev.TaplDev(tapl_dev.TYPECHECK_LAYER_INDEX),
     ),

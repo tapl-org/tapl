@@ -13,6 +13,6 @@ def fibonacci(n):
         s2.tapl_typing.add_return_type(s2, s2.fibonacci(s2.n - s2.Int) + s2.fibonacci(s2.n - s2.Int))
     return s1.tapl_typing.get_return_type(s1)
 s0.fibonacci = s0.tapl_typing.create_function([s0.Int], fibonacci(s0.Int))
-s0.tapl_dev.print_type(s0.fibonacci)
+s0.tapl.print_type(s0.fibonacci)
 s0.print(s0.fibonacci(s0.Int))
 s0.print(s0.fibonacci(s0.Int))
