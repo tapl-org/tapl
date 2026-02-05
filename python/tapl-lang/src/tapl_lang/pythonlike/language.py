@@ -40,7 +40,7 @@ class PythonlikeLanguage(Language):
                         location=location,
                         func=terms.Path(
                             location=location,
-                            names=['predef_scope__sa', 'tapl_typing', 'create_scope'],
+                            names=['predef_scope__sa', 'tapl', 'typing', 'create_scope'],
                             ctx='load',
                             mode=terms.MODE_EVALUATE,
                         ),

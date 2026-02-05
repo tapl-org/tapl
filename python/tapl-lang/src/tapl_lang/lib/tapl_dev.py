@@ -14,7 +14,7 @@ class TaplDev:
     def __init__(self, layer_index: int) -> None:
         self.layer_index = layer_index
         self.print = print
-        self.tapl_typing = tapl_typing
+        self.typing = tapl_typing
 
     def print_type(self, type_) -> None:
         if self.layer_index == TYPECHECK_LAYER_INDEX:

@@ -106,7 +106,7 @@ def test_negation_float():
 def test_conjuction_bool1():
     [expr1, expr2] = parse_expr('True and True')
     assert ast.unparse(expr1) == 'True and True'
-    assert ast.unparse(expr2) == 's0.tapl_typing.create_union(s0.Bool, s0.Bool)'
+    assert ast.unparse(expr2) == 's0.tapl.typing.create_union(s0.Bool, s0.Bool)'
     assert typecheck(expr2) is predef1.predef_scope.Bool
     assert evaluate(expr1) is True
 
@@ -114,7 +114,7 @@ def test_conjuction_bool1():
 def test_conjuction_bool2():
     [expr1, expr2] = parse_expr('True and True     and    False')
     assert ast.unparse(expr1) == 'True and True and False'
-    assert ast.unparse(expr2) == 's0.tapl_typing.create_union(s0.Bool, s0.Bool, s0.Bool)'
+    assert ast.unparse(expr2) == 's0.tapl.typing.create_union(s0.Bool, s0.Bool, s0.Bool)'
     assert typecheck(expr2) is predef1.predef_scope.Bool
     assert evaluate(expr1) is False
 
@@ -122,7 +122,7 @@ def test_conjuction_bool2():
 def test_conjuction_number1():
     [expr1, expr2] = parse_expr('3 and 4')
     assert ast.unparse(expr1) == '3 and 4'
-    assert ast.unparse(expr2) == 's0.tapl_typing.create_union(s0.Int, s0.Int)'
+    assert ast.unparse(expr2) == 's0.tapl.typing.create_union(s0.Int, s0.Int)'
     assert typecheck(expr2) is predef1.predef_scope.Int
     assert evaluate(expr1) == 4
 
@@ -130,7 +130,7 @@ def test_conjuction_number1():
 def test_conjuction_number2():
     [expr1, expr2] = parse_expr('0 and 4')
     assert ast.unparse(expr1) == '0 and 4'
-    assert ast.unparse(expr2) == 's0.tapl_typing.create_union(s0.Int, s0.Int)'
+    assert ast.unparse(expr2) == 's0.tapl.typing.create_union(s0.Int, s0.Int)'
     assert typecheck(expr2) is predef1.predef_scope.Int
     assert evaluate(expr1) == 0
 
@@ -138,10 +138,10 @@ def test_conjuction_number2():
 def test_conjuction_mix():
     [expr1, expr2] = parse_expr('True and 4')
     assert ast.unparse(expr1) == 'True and 4'
-    assert ast.unparse(expr2) == 's0.tapl_typing.create_union(s0.Bool, s0.Int)'
+    assert ast.unparse(expr2) == 's0.tapl.typing.create_union(s0.Bool, s0.Int)'
     assert kinds.check_type_equality(
         typecheck(expr2),
-        predef1.predef_scope.tapl_typing.create_union(predef1.predef_scope.Int, predef1.predef_scope.Bool),
+        predef1.predef_scope.tapl.typing.create_union(predef1.predef_scope.Int, predef1.predef_scope.Bool),
     )
     assert evaluate(expr1) == 4
 
@@ -151,7 +151,7 @@ def test_disjunction():
     assert ast.unparse(expr1) == 'True and True and False or True'
     assert (
         ast.unparse(expr2)
-        == 's0.tapl_typing.create_union(s0.tapl_typing.create_union(s0.Bool, s0.Bool, s0.Bool), s0.Bool)'
+        == 's0.tapl.typing.create_union(s0.tapl.typing.create_union(s0.Bool, s0.Bool, s0.Bool), s0.Bool)'
     )
     assert kinds.check_type_equality(typecheck(expr2), predef1.predef_scope.Bool)
     assert evaluate(expr1) is True
