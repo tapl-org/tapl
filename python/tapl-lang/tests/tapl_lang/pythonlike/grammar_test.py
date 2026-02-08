@@ -753,7 +753,7 @@ def test_tuple__multi():
 
 
 def test_list__empty():
-    # FIXME: convert to MODE_TYPECHECK with unknow type
+    # FIXME: convert to MODE_TYPECHECK with unknow type, or No AUTO type inference.
     actual = parse_expr('[]', rn.LIST, mode=terms.MODE_EVALUATE)
     expected = terms.TypedList(
         location=create_loc(1, 0, 1, 2),

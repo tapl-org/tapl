@@ -110,10 +110,8 @@ class BaseKind(dynamic_attribute.DynamicAttributeMixin):
         return 'BaseKind!'
 
 
-# TODO: implement '&' operator for Intersection
-# FIXME: what happens when these operators are used for binary operation instead of type construction?
-# e.g., T1 | T2, T1 & T2
-# Exception for binary-operator methods in Python; not intended for direct use.
+# FIXME: what happens when '|' and '&' operators are used for binary operation instead of type construction?
+
 # Example: alpha <: (alpha | beta) or beta <: (alpha | beta)
 class Union(BaseKind):
     def __init__(self, types, title=None):
@@ -143,6 +141,7 @@ class Union(BaseKind):
         yield from self._types__sa
 
 
+# TODO: implement '&' operator for Intersection
 # Example: alpha & beta <: alpha or alpha & beta <: beta
 class Intersection(BaseKind):
     def __init__(self, types, title=None):
