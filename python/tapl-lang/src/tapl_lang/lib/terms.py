@@ -1405,7 +1405,7 @@ class TypedReturn(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-# TODO: Add Parameters type to represent list of parameters which support posonly and kwonly args
+# XXX: Add Parameters type to represent list of parameters which support posonly and kwonly args
 @dataclasses.dataclass
 class Parameter(syntax.Term):
     name: str
@@ -1433,7 +1433,7 @@ class Parameter(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-# TODO: Implement posonly_args, regular_args, vararg, kwonly_args, kwarg, defaults if needed
+# XXX: Implement posonly_args, regular_args, vararg, kwonly_args, kwarg, defaults if needed
 @dataclasses.dataclass
 class TypedFunctionDef(syntax.Term):
     name: str

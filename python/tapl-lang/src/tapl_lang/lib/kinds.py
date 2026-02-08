@@ -34,7 +34,7 @@ Design Notes:
 from tapl_lang.lib import dynamic_attribute
 
 
-# TODO: extend from threading.local, and write a unit test for this - https://docs.python.org/3/library/threading.html#thread-local-data
+# FIXME: extend from threading.local, and write a unit test for this - https://docs.python.org/3/library/threading.html#thread-local-data
 class TypeCheckerState:
     """Holds transient state for subtype checks (cache + assumption stack)."""
 
@@ -85,7 +85,7 @@ def check_type_equality(a, b):
 
 # rename to keep_root_types or take_root_types or similar #mvp
 def drop_same_types(types):
-    # TODO: Build a directed graph, and keep only roots of the forests
+    # FIXME: Build a directed graph, and keep only roots of the forests
     result = []
     for t in types:
         for r in result:
@@ -111,6 +111,7 @@ class BaseKind(dynamic_attribute.DynamicAttributeMixin):
 
 
 # FIXME: what happens when '|' and '&' operators are used for binary operation instead of type construction?
+
 
 # Example: alpha <: (alpha | beta) or beta <: (alpha | beta)
 class Union(BaseKind):
@@ -285,7 +286,7 @@ class Record(BaseKind):
 _PAIR_ELEMENT_COUNT = 2
 
 
-# TODO: Implement vararg, kwonlyargs, kw_defaults, kwarg, and defaults. For example string.format function.
+# XXX: Implement vararg, kwonlyargs, kw_defaults, kwarg, and defaults. For example string.format function.
 class Function(BaseKind):
     def __init__(self, posonlyargs, args, result=None, lazy_result=None):
         if not isinstance(posonlyargs, list):
