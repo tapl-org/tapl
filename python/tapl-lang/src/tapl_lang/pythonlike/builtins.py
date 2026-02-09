@@ -31,7 +31,9 @@ export = {k: v[0] for k, v in pythonlike_builtins.items()}
 export1 = {k: v[1] for k, v in pythonlike_builtins.items()}
 export1.update(python_builtin_types)
 
-# Export all builtin types as well for both layers
+# Export all builtin types for both layers.
+# `type` on the Type layer is used for type checking.
+# `type` on the Value layer is used for operations on type instances.
 export.update(bt.Types)
 export1.update(bt.Types)
 

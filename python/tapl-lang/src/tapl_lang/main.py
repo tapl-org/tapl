@@ -12,9 +12,8 @@ logging.basicConfig(level=logging.INFO)
 
 parsed_code = ast.parse(
     """
-def id[T](x: T) -> T:
-    return x
-id[int](42)
+def a(b=1, /, c=3, d=4, *e, f, **g):
+    pass
 """,
     mode='exec',
 )

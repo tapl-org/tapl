@@ -1586,7 +1586,9 @@ def _rule_parameter_with_type(c: Cursor) -> syntax.Term:
             return terms.Parameter(
                 name=param_name,
                 type_=syntax.Layers([syntax.Empty, param_type]),
+                default=syntax.Empty,
                 mode=c.config.mode,
+                category=terms.ParamCategory.REGULAR,
                 location=t.location,
             )
     return t.fail()
@@ -1597,7 +1599,12 @@ def _rule_parameter_no_type(c: Cursor) -> syntax.Term:
     if t.validate(name := _consume_name(c)):
         param_name = cast(TokenName, name).value
         return terms.Parameter(
-            name=param_name, type_=syntax.Layers([syntax.Empty, syntax.Empty]), mode=c.config.mode, location=t.location
+            name=param_name,
+            type_=syntax.Layers([syntax.Empty, syntax.Empty]),
+            default=syntax.Empty,
+            mode=c.config.mode,
+            category=terms.ParamCategory.REGULAR,
+            location=t.location,
         )
     return t.fail()
 

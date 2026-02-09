@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import dataclasses
+import enum
 from collections.abc import Callable, Generator
 from typing import Any, cast, override
 
@@ -1405,24 +1406,39 @@ class TypedReturn(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-# XXX: Add Parameters type to represent list of parameters which support posonly and kwonly args
+class ParamCategory(enum.Enum):
+    POSITIONAL_ONLY = 'positional_only'
+    REGULAR = 'regular'
+    VAR_POSITIONAL = 'var_positional'
+    KEYWORD_ONLY = 'keyword_only'
+    VAR_KEYWORD = 'var_keyword'
+
+
 @dataclasses.dataclass
 class Parameter(syntax.Term):
     name: str
     type_: syntax.Term
+    default: syntax.Term
     mode: syntax.Term
+    category: ParamCategory
     location: syntax.Location
 
     @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.type_
+        yield self.default
         yield self.mode
 
     @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Parameter(
-                name=self.name, type_=layer(self.type_), mode=layer(self.mode), location=self.location
+                name=self.name,
+                type_=layer(self.type_),
+                default=layer(self.default),
+                mode=layer(self.mode),
+                category=self.category,
+                location=self.location,
             )
         )
 
@@ -1433,7 +1449,6 @@ class Parameter(syntax.Term):
         raise tapl_error.UnhandledError
 
 
-# XXX: Implement posonly_args, regular_args, vararg, kwonly_args, kwarg, defaults if needed
 @dataclasses.dataclass
 class TypedFunctionDef(syntax.Term):
     name: str

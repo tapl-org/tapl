@@ -41,7 +41,9 @@ def test_compound_stmt__function_def():
                         ),
                     ]
                 ),
+                default=syntax.Empty,
                 mode=terms.MODE_EVALUATE,
+                category=terms.ParamCategory.REGULAR,
             ),
             terms.Parameter(
                 location=create_loc(1, 15, 1, 22),
@@ -54,7 +56,9 @@ def test_compound_stmt__function_def():
                         ),
                     ]
                 ),
+                default=syntax.Empty,
                 mode=terms.MODE_EVALUATE,
+                category=terms.ParamCategory.REGULAR,
             ),
         ],
         return_type=terms.TypedName(location=create_loc(1, 27, 1, 30), id='Int', ctx='load', mode=terms.MODE_TYPECHECK),
