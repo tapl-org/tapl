@@ -34,8 +34,8 @@ n=new syntax introduced by Tapl
             | while_stmt
 d           | match_stmt
         # While [type_params] lack native syntactic support, they can be implemented by wrapping them in a function that accepts and forwards the parameters.
-?       function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'
-?       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':'
+        function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'    # type_params not implemented yet
+?       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':'                  # type_params not implemented yet  FIXME: inheritence
         with_stmt:
 d           | invalid_with_stmt_indent
 d           | 'with' '(','.with_item+ [','] ')' ':' block
