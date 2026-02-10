@@ -1,7 +1,7 @@
 language pythonlike
 
 def collatz_sequence(n: Int):
-    # TODO: Find a better syntax, or write in the doc about this double layer technique for list or dict literals
+    # FIXME: Find a better syntax, or write in the doc about this double layer technique for list or dict literals
     sequence = <[]:List(Int)>
     if n < 1:
         return sequence

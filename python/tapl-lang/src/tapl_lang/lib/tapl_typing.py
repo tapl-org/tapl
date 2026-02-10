@@ -103,7 +103,7 @@ def create_class(cls, init_args: list[Any], methods: list[tuple[str, list[Any]]]
 
 def create_typed_list(*element_types):
     if len(element_types) == 0:
-        # TODO: Implement dynamic Any element type that can be specified at runtime (e.g., when appending Int to an empty list, element type becomes Int).
+        # FIXME: Implement dynamic Any element type that can be specified at runtime (e.g., when appending Int to an empty list, element type becomes Int).
         # Maybe consider introducing an Unknown type for such cases.
         element_type = bt.Any
     elif len(element_types) == 1:

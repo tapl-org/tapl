@@ -1771,7 +1771,7 @@ class TypedIf(syntax.Term):
 
     @override
     def unfold(self) -> syntax.Term:
-        # TODO: handle elifs
+        # FIXME: handle elifs
         if self.elifs:
             raise tapl_error.UnhandledError('Elif clauses are not yet supported in TypedIf unfold.')
         if self.mode is MODE_EVALUATE:
@@ -2002,7 +2002,7 @@ class TypedTry(syntax.Term):
                 location=self.location,
             )
         if self.mode is MODE_TYPECHECK:
-            # TODO: Implement scope forker to preserve parent scope in try, except, and finally blocks except return type
+            # FIXME: Implement scope forker to preserve parent scope in try, except, and finally blocks except return type
             handlers: list[syntax.Term] = [self.body]
             for handler in self.handlers:
                 if not isinstance(handler, ExceptHandler):
@@ -2106,7 +2106,7 @@ class TypedImport(syntax.Term):
             if len(self.names) > 1:
                 raise tapl_error.TaplError(
                     'Import does not support multiple names yet.'
-                )  # TODO: Support multiple import names
+                )  # FIXME: Support multiple import names
             return Expr(
                 value=Call(
                     location=self.location,

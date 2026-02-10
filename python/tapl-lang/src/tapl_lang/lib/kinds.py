@@ -142,7 +142,7 @@ class Union(BaseKind):
         yield from self._types__sa
 
 
-# TODO: implement '&' operator for Intersection
+# FIXME: implement '&' operator for Intersection
 # Example: alpha & beta <: alpha or alpha & beta <: beta
 class Intersection(BaseKind):
     def __init__(self, types, title=None):
@@ -305,7 +305,7 @@ class Function(BaseKind):
         self._result__sa = result
         self._lazy_result__sa = lazy_result
 
-    # TODO: implement supertype and subtype checking for function types
+    # FIXME: implement supertype and subtype checking for function types
     def is_supertype_of__sa(self, subtype):
         if isinstance(subtype, Nothing):
             return True
