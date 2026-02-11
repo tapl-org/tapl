@@ -47,6 +47,9 @@ ignore = [
 [tool.ruff.format]
 quote-style = "single"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/tapl_lang", "src/tapl_language"]
+
 [tool.hatch.version]
 path = "src/tapl_lang/__about__.py"
 
