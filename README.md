@@ -92,9 +92,84 @@ Notes
 - See the repository file [pipeweaver_language.py](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/tapl_language/pipeweaver/pipeweaver_language.py) for the implementation details and how the parser/transformer registers the operator and type rules.
 - Inspect the generated pipe1.py to understand how TAPL emits type-checking code and pipe.py for the runtime translation.
 
-### Implementing Dependent Types
+### Dependent Types with Matrices
 
-Coming soon: a codelab demonstrating how to implement `concat` — a function that concatenates two fixed-length arrays and returns an array whose type reflects the sum of their lengths.
+TAPL supports dependent types -- types that depend on values. This means `Matrix(2, 3)` is a different type from `Matrix(3, 3)`, and the compiler enforces this at the type level.
+
+The `Matrix(rows, cols)` function returns a class whose type is parameterized by its dimensions:
+
+```
+language pythonlike
+
+def Matrix(rows, cols):
+
+    class Matrix_:
+        class_name = ^'Matrix({},{})'.format(rows, cols)
+
+        def __init__(self):
+            self.rows = rows
+            self.cols = cols
+            self.num_rows = <rows:Int>
+            self.num_cols = <cols:Int>
+            self.values = <[]:List(List(Int))>
+            for i in range(self.num_rows):
+                columns = <[]:List(Int)>
+                for j in range(self.num_cols):
+                    columns.append(0)
+                self.values.append(columns)
+
+        def __repr__(self):
+            return str(self.values)
+
+    return Matrix_
+```
+
+The `^` operator (literal lifting) promotes a runtime value into the type layer. The `<expr:Type>` syntax (double-layer expression) separates the term layer from the type layer -- for instance, `<rows:Int>` means the runtime value is `rows` and the type is `Int`.
+
+With dimension-parameterized types, functions can enforce constraints at the type level. For example, `sum` ensures both matrices have the same dimensions, and `multiply` enforces that the inner dimensions match:
+
+```
+def sum(rows, cols):
+    def sum_(a: Matrix(rows, cols)!, b: Matrix(rows, cols)!):
+        result = Matrix(rows, cols)()
+        for i in range(result.num_rows):
+            for j in range(result.num_cols):
+                result.values[i][j] = a.values[i][j] + b.values[i][j]
+        return result
+    return sum_
+
+def multiply(m, n, p):
+    def multiply_(a: Matrix(m, n)!, b: Matrix(n, p)!):
+        result = Matrix(m, p)()
+        for i in range(a.num_rows):
+            for j in range(b.num_cols):
+                for k in range(a.num_cols):
+                    result.values[i][j] = result.values[i][j] + a.values[i][k] * b.values[k][j]
+        return result
+    return multiply_
+```
+
+The `multiply` signature `Matrix(m, n)` times `Matrix(n, p)` produces `Matrix(m, p)` -- the shared dimension `n` must match, and the result dimensions are derived from the inputs.
+
+Usage:
+
+```
+def main():
+    matrix_2_2 = Matrix(^2, ^2)()
+    matrix_2_2.values = [[1, 2], [3, 4]]
+    matrix_2_3 = Matrix(^2, ^3)()
+    matrix_2_3.values = [[1, 2, 3], [4, 5, 6]]
+
+    print(sum(^2, ^2)(matrix_2_2, matrix_2_2))
+    print(multiply(^2, ^2, ^3)(matrix_2_2, matrix_2_3))
+```
+
+Compile and run:
+```
+hatch run python ./src/tapl_lang/cli/tapl.py ./src/examples/matrix.tapl
+```
+
+See the full example at [matrix.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/matrix.tapl).
 
 ## Community
 
