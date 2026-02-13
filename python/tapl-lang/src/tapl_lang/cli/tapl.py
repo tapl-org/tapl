@@ -7,6 +7,7 @@ import ast
 import os
 import pathlib
 
+from tapl_lang.__about__ import __version__
 from tapl_lang.lib.compiler import compile_tapl
 
 # If you want to install it in editable mode for development,
@@ -36,8 +37,17 @@ def main():
     """
     Main function for the CLI application.
     """
-    parser = argparse.ArgumentParser(description='A simple TAPL CLI.')
-    parser.add_argument('file', type=str, help='programm read from script file.')
+    parser = argparse.ArgumentParser(
+        prog='tapl',
+        description='TAPL compiler CLI — compiles and runs .tapl source files.',
+    )
+    parser.add_argument(
+        '-v',
+        '--version',
+        action='version',
+        version=f'%(prog)s {__version__}',
+    )
+    parser.add_argument('file', type=str, help='path to a .tapl source file')
     args = parser.parse_args()
 
     compile_and_run(args.file)
