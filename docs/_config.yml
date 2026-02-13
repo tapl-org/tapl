@@ -3,4 +3,4 @@ plugins:
   - jekyll-remote-theme
 
 title: TAPL
-description: Types and Programming Languages — A modern compiler frontend framework for creating strongly typed programming languages.
+description: Extensible, strongly typed, Python-powered language.
