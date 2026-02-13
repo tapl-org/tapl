@@ -2,32 +2,29 @@
 layout: default
 ---
 
-TAPL is a modern compiler frontend framework designed to help users create their own strongly typed programming languages. It simplifies the process of creating and extending programming languages with strong typing capabilities.
+TAPL is a strongly typed Python-like language and compiler frontend framework. It lets you create and extend programming languages with strong typing capabilities, including dependent types.
 
-At its core, TAPL provides a strongly typed Python-like language that can be extended with custom parsers and type-checker rules.
+> **Important:** TAPL is an experimental project with no stable release yet. It improves with every commit. Please report any issues via the [Tapl Issue Tracker](https://github.com/tapl-org/tapl/issues). It is not an officially supported Google product.
 
-> **Important:** TAPL is an experimental project with no working compiler or toolchain yet. There is no stable release yet, and it improves with every commit. Please report any issues via the [Tapl Issue Tracker](https://github.com/tapl-org/tapl/issues). It is not an officially supported Google product.
+TAPL is inspired by lambda calculus and named after Benjamin C. Pierce's book [*Types and Programming Languages*](https://www.cis.upenn.edu/~bcpierce/tapl/).
 
-TAPL is inspired by lambda calculus and the principle that the same computational techniques apply to both type and term layers. The project is devoted to and named after Benjamin C. Pierce's book [*Types and Programming Languages*](https://www.cis.upenn.edu/~bcpierce/tapl/).
+## Installation
 
-## How TAPL Works
+TAPL requires **Python 3.12** or higher.
 
-As a compiler frontend, TAPL's primary role is to parse source code and generate an Intermediate Representation (IR) for a backend. Currently, TAPL uses Python's Abstract Syntax Tree (AST) as its backend IR.
+```bash
+pip install tapl-lang
+```
 
-The compilation process is unique: for each source file, TAPL generates two Python files:
+Verify the installation:
 
-- **An untyped code file** (e.g., `hello_world.py`): Contains the direct, executable logic from your TAPL code.
-- **A type-checker file** (e.g., `hello_world1.py`): Contains all the type-checking logic.
+```bash
+tapl --help
+```
 
-To ensure type safety, the type-checker file must be run first. If it executes successfully, the untyped code is guaranteed to be type-safe.
+## Hello World
 
-For more details on TAPL's design and architecture:
-- [Compilation process diagrams](https://docs.google.com/presentation/d/1I4Fu7Tp_QzyHC84u0REsFZcYi2i3ZvZPXiuHzasHywg/edit?usp=sharing)
-- [TAPL calculus documentation](https://github.com/tapl-org/tapl/blob/main/doc/ground-rules.md)
-
-## Getting Started
-
-Here is a simple "Hello World!" program in TAPL:
+Create a file called `hello_world.tapl`:
 
 ```
 language pythonlike
@@ -35,40 +32,90 @@ language pythonlike
 print('Hello World!')
 ```
 
-To run this code:
+Every TAPL file starts with a `language` directive that tells the compiler which language grammar to use. The built-in `pythonlike` language provides a strongly typed, Python-like syntax.
 
-1. Clone the repository:
+Run it:
 
-```
-git clone https://github.com/tapl-org/tapl.git
-```
-
-2. Navigate to the Python package directory:
-
-```
-cd tapl/python/tapl-lang
+```bash
+tapl hello_world.tapl
 ```
 
-3. Run the TAPL CLI using Hatch:
+Behind the scenes, TAPL compiles your source into two Python files and executes them:
+
+- `hello_world.py` -- the executable code:
+
+```python
+from tapl_lang.pythonlike.predef import *
+print('Hello World!')
+```
+
+- `hello_world1.py` -- the type-checker:
+
+```python
+from tapl_lang.pythonlike.predef1 import predef_scope as predef_scope__sa
+s0 = predef_scope__sa.tapl.typing.create_scope(parent__sa=predef_scope__sa)
+s0.print(s0.Str)
+```
+
+The type-checker runs first. If it succeeds, the executable code is guaranteed to be type-safe.
+
+## Language Basics
+
+TAPL's `pythonlike` language looks like Python but with a strong type system enforced at compile time.
+
+### Typed Functions
+
+Functions use type annotations for parameters and return types. Built-in types include `Int`, `Str`, and `Bool`.
 
 ```
-hatch run python ./src/tapl_lang/cli/tapl.py ./src/examples/hello_world.tapl
+language pythonlike
+
+def factorial(n: Int) -> Int:
+    if n == 0 or n == 1:
+        return 1
+    else:
+        return n * factorial(n - 1)
 ```
 
-This runs the code. Behind the scenes, it generates two files:
+### Classes
 
-- `hello_world.py` (untyped version of that code)
-- `hello_world1.py` (typechecker for that code)
+Classes work like Python classes, with typed constructors and methods:
 
-For **more examples**, see [easy.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/easy.tapl).
+```
+class Dog:
+    def __init__(self, name: Str):
+        self.name = name
 
-## Creating and Extending Languages
+    def bark(self) -> Str:
+        return self.name + ' says Woof! Woof!'
+```
 
-**Goal:** Add a Pipe operator `|>` to a Python-like TAPL language.
+### Class Types vs Instance Types
 
-1. **Implement the extension** — Create a language module (e.g., `pipeweaver_language.py`) that registers a language named "pipeweaver" and implements parsing for the `|>` operator.
+TAPL distinguishes between a **class** and its **instances** at the type level:
 
-2. **Example TAPL program** using the new `pipeweaver` language:
+- `Dog` refers to the class itself (the constructor).
+- `Dog!` refers to an instance of `Dog`.
+
+This lets you write functions that accept the class as a factory or an instance as a value:
+
+```
+def greet_dog(dog: Dog!) -> Str:
+    return 'Hello, ' + dog.name + '!'
+
+def make_dog(factory: Dog, name: Str) -> Dog!:
+    return factory(name)
+```
+
+Here `greet_dog` takes an instance (`Dog!`) and returns a `Str`. Meanwhile `make_dog` takes the class itself (`Dog`) as a factory parameter and returns a new instance (`Dog!`).
+
+See the full example at [easy.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/easy.tapl).
+
+## Extending the Language
+
+TAPL is designed to be extensible. You can create new language grammars by extending the base `pythonlike` language with custom parsing rules.
+
+As an example, the built-in `pipeweaver` language adds a pipe operator (`|>`):
 
 ```
 language pipeweaver
@@ -76,35 +123,124 @@ language pipeweaver
 -2.5 |> abs |> round |> print
 ```
 
-3. **Compile and type-check** — Run the TAPL CLI:
+Run it:
+
+```bash
+tapl pipe.tapl
+```
+
+This outputs `2`. The pipe operator passes the result of each expression as the argument to the next function: `-2.5` is piped to `abs`, then to `round`, then to `print`.
+
+The `pipeweaver` language is implemented by subclassing the base grammar and adding two new parsing rules -- one for the `|>` token and one for the pipe call expression. See the [pipeweaver source](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/tapl_language/pipeweaver/pipeweaver_language.py) for the full implementation.
+
+## Dependent Types with Matrices
+
+One of TAPL's most distinctive features is support for dependent types -- types that depend on values. This section walks through a matrix example where the compiler enforces dimension constraints at the type level.
+
+### Defining a Dimension-Parameterized Matrix
+
+The `Matrix(rows, cols)` function returns a class whose type is parameterized by its dimensions:
 
 ```
-hatch run python ./src/tapl_lang/cli/tapl.py ./src/examples/pipe.tapl
+language pythonlike
+
+def Matrix(rows, cols):
+
+    class Matrix_:
+        class_name = ^'Matrix({},{})'.format(rows, cols)
+
+        def __init__(self):
+            self.rows = rows
+            self.cols = cols
+            self.num_rows = <rows:Int>
+            self.num_cols = <cols:Int>
+            self.values = <[]:List(List(Int))>
+            for i in range(self.num_rows):
+                columns = <[]:List(Int)>
+                for j in range(self.num_cols):
+                    columns.append(0)
+                self.values.append(columns)
+
+        def __repr__(self):
+            return str(self.values)
+
+    return Matrix_
 ```
 
-This generates two files:
-- [`pipe1.py`](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/pipe1.py) — type-checker
-- [`pipe.py`](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/pipe.py) — untyped/executable code
+The `^` operator (literal lifting) promotes a runtime value into the type layer. For example, `^'Matrix({},{})'.format(rows, cols)` lifts the formatted string into the type layer to give the class a unique type name based on its dimensions.
 
-See [pipeweaver_language.py](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/tapl_language/pipeweaver/pipeweaver_language.py) for the implementation details.
+The `<expr:Type>` syntax (double-layer expression) separates the term layer from the type layer. For instance, `<rows:Int>` means the runtime value is `rows` and the type is `Int`.
 
-## Implementing Dependent Types
+### Type-Safe Function Signatures
 
-Coming soon: a codelab demonstrating how to implement `concat` — a function that concatenates two fixed-length arrays and returns an array whose type reflects the sum of their lengths.
+With dimension-parameterized types, you can write functions that enforce constraints at the type level:
 
-## Community
+```
+def accept_matrix_2_3(matrix: Matrix(^2,^3)!):
+    pass
+```
 
-Join the conversation on our main community platforms:
+Here `Matrix(^2, ^3)!` is the type of a 2x3 matrix instance. The `^2` and `^3` lift the literals into the type layer, so the compiler knows the exact dimensions.
 
+Functions can also be generic over dimensions:
+
+```
+def sum(rows, cols):
+    def sum_(a: Matrix(rows, cols)!, b: Matrix(rows, cols)!):
+        result = Matrix(rows, cols)()
+        for i in range(result.num_rows):
+            for j in range(result.num_cols):
+                result.values[i][j] = a.values[i][j] + b.values[i][j]
+        return result
+    return sum_
+```
+
+The `sum` function enforces that both input matrices have the same dimensions. Passing a `Matrix(2, 3)` and a `Matrix(3, 3)` would be a type error.
+
+Matrix multiplication enforces that the inner dimensions match:
+
+```
+def multiply(m, n, p):
+    def multiply_(a: Matrix(m, n)!, b: Matrix(n, p)!):
+        result = Matrix(m, p)()
+        for i in range(a.num_rows):
+            for j in range(b.num_cols):
+                for k in range(a.num_cols):
+                    result.values[i][j] = result.values[i][j] + a.values[i][k] * b.values[k][j]
+        return result
+    return multiply_
+```
+
+The type signature `Matrix(m, n)` times `Matrix(n, p)` produces `Matrix(m, p)` -- the shared dimension `n` must match, and the result dimensions are derived from the inputs.
+
+### Using Matrices
+
+```
+def main():
+    matrix_2_2 = Matrix(^2, ^2)()
+    matrix_2_2.values = [[1, 2], [3, 4]]
+    matrix_2_3 = Matrix(^2, ^3)()
+    matrix_2_3.values = [[1, 2, 3], [4, 5, 6]]
+
+    accept_matrix_2_3(matrix_2_3)
+
+    print(sum(^2, ^2)(matrix_2_2, matrix_2_2))
+    print(multiply(^2, ^2, ^3)(matrix_2_2, matrix_2_3))
+```
+
+Run it:
+
+```bash
+tapl matrix.tapl
+```
+
+See the full example at [matrix.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/matrix.tapl).
+
+## What's Next
+
+- [More examples (easy.tapl)](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/easy.tapl)
+- [Matrix example](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/matrix.tapl)
+- [TAPL calculus documentation](https://github.com/tapl-org/tapl/blob/main/doc/ground-rules.md)
 - [Official Discord Server](https://discord.gg/7N5Gp85hAy)
 - [GitHub Discussions](https://github.com/tapl-org/tapl/discussions)
-
-## Contributing
-
-We welcome and encourage contributions from everyone! Whether it's a small typo fix, a new compiler feature, or a bug report, your help is valued. TAPL is committed to maintaining a welcoming and inclusive environment where all contributors can participate.
-
-## Future Project Goals
-
-- Transpile to C language
-- Use a lightweight, Lua-like interpreter as a backend
-- Use LLVM/WASM as a backend
+- [Issue Tracker](https://github.com/tapl-org/tapl/issues)
