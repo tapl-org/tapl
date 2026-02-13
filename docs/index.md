@@ -26,7 +26,7 @@ tapl --help
 
 Create a file called `hello_world.tapl`:
 
-```
+```python
 language pythonlike
 
 print('Hello World!')
@@ -67,7 +67,7 @@ TAPL's `pythonlike` language looks like Python but with a strong type system enf
 
 Functions use type annotations for parameters and return types. Built-in types include `Int`, `Str`, and `Bool`.
 
-```
+```python
 language pythonlike
 
 def factorial(n: Int) -> Int:
@@ -81,7 +81,7 @@ def factorial(n: Int) -> Int:
 
 Classes work like Python classes, with typed constructors and methods:
 
-```
+```python
 class Dog:
     def __init__(self, name: Str):
         self.name = name
@@ -99,7 +99,7 @@ TAPL distinguishes between a **class** and its **instances** at the type level:
 
 This lets you write functions that accept the class as a factory or an instance as a value:
 
-```
+```python
 def greet_dog(dog: Dog!) -> Str:
     return 'Hello, ' + dog.name + '!'
 
@@ -117,7 +117,7 @@ TAPL is designed to be extensible. You can create new language grammars by exten
 
 As an example, the built-in `pipeweaver` language adds a pipe operator (`|>`):
 
-```
+```python
 language pipeweaver
 
 -2.5 |> abs |> round |> print
@@ -141,7 +141,7 @@ One of TAPL's most distinctive features is support for dependent types -- types 
 
 The `Matrix(rows, cols)` function returns a class whose type is parameterized by its dimensions:
 
-```
+```python
 language pythonlike
 
 def Matrix(rows, cols):
@@ -175,7 +175,7 @@ The `<expr:Type>` syntax (double-layer expression) separates the term layer from
 
 With dimension-parameterized types, you can write functions that enforce constraints at the type level:
 
-```
+```python
 def accept_matrix_2_3(matrix: Matrix(^2,^3)!):
     pass
 ```
@@ -184,7 +184,7 @@ Here `Matrix(^2, ^3)!` is the type of a 2x3 matrix instance. The `^2` and `^3` l
 
 Functions can also be generic over dimensions:
 
-```
+```python
 def sum(rows, cols):
     def sum_(a: Matrix(rows, cols)!, b: Matrix(rows, cols)!):
         result = Matrix(rows, cols)()
@@ -199,7 +199,7 @@ The `sum` function enforces that both input matrices have the same dimensions. P
 
 Matrix multiplication enforces that the inner dimensions match:
 
-```
+```python
 def multiply(m, n, p):
     def multiply_(a: Matrix(m, n)!, b: Matrix(n, p)!):
         result = Matrix(m, p)()
@@ -215,7 +215,7 @@ The type signature `Matrix(m, n)` times `Matrix(n, p)` produces `Matrix(m, p)` -
 
 ### Using Matrices
 
-```
+```python
 def main():
     matrix_2_2 = Matrix(^2, ^2)()
     matrix_2_2.values = [[1, 2], [3, 4]]
