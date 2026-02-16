@@ -111,28 +111,6 @@ Here `greet_dog` takes an instance (`Dog!`) and returns a `Str`. Meanwhile `make
 
 See the full example at [easy.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/easy.tapl).
 
-## Extending the Language
-
-TAPL is designed to be extensible. You can create new language grammars by extending the base `pythonlike` language with custom parsing rules.
-
-As an example, the built-in `pipeweaver` language adds a pipe operator (`|>`):
-
-```python
-language pipeweaver
-
--2.5 |> abs |> round |> print
-```
-
-Run it:
-
-```bash
-tapl pipe.tapl
-```
-
-This outputs `2`. The pipe operator passes the result of each expression as the argument to the next function: `-2.5` is piped to `abs`, then to `round`, then to `print`.
-
-The `pipeweaver` language is implemented by subclassing the base grammar and adding two new parsing rules -- one for the `|>` token and one for the pipe call expression. See the [pipeweaver source](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/tapl_language/pipeweaver/pipeweaver_language.py) for the full implementation.
-
 ## The Two Layers: Values and Types
 
 TAPL separates every program into two layers:
@@ -251,6 +229,28 @@ tapl matrix.tapl
 ```
 
 See the full example at [matrix.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/matrix.tapl).
+
+## Extending the Language
+
+You may have noticed that dependent types introduce some boilerplate. Operators like `^` and `<expr:Type>` are powerful but can make code verbose. TAPL is designed to be extensible -- you can create new language grammars that simplify these patterns by adding custom syntax.
+
+As an example, the built-in `pipeweaver` language extends `pythonlike` with a pipe operator (`|>`):
+
+```python
+language pipeweaver
+
+-2.5 |> abs |> round |> print
+```
+
+Run it:
+
+```bash
+tapl pipe.tapl
+```
+
+This outputs `2`. The pipe operator passes the result of each expression as the argument to the next function: `-2.5` is piped to `abs`, then to `round`, then to `print`.
+
+The `pipeweaver` language is implemented by subclassing the base grammar and adding two new parsing rules -- one for the `|>` token and one for the pipe call expression. See the [pipeweaver source](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/tapl_language/pipeweaver/pipeweaver_language.py) for the full implementation.
 
 ## What's Next
 
