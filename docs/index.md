@@ -133,6 +133,22 @@ This outputs `2`. The pipe operator passes the result of each expression as the 
 
 The `pipeweaver` language is implemented by subclassing the base grammar and adding two new parsing rules -- one for the `|>` token and one for the pipe call expression. See the [pipeweaver source](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/tapl_language/pipeweaver/pipeweaver_language.py) for the full implementation.
 
+## The Two Layers: Values and Types
+
+TAPL separates every program into two layers:
+
+- The **value layer** -- the code that runs at runtime (values, computation, side effects).
+- The **type layer** -- the code that runs at compile time to check correctness (types, constraints).
+
+The two `.py` files you saw in Hello World correspond to these layers: `hello_world.py` is the value layer, `hello_world1.py` is the type layer.
+
+Most of the time you write normal code and the compiler figures out both layers. But TAPL gives you two special operators to manually move things between layers:
+
+- `^expr` (literal lifting) -- promotes a runtime value into the type layer.
+- `<expr:Type>` (double-layer expression) -- lets you specify both layers explicitly.
+
+These operators are what make dependent types possible.
+
 ## Dependent Types with Matrices
 
 One of TAPL's most distinctive features is support for dependent types -- types that depend on values. This section walks through a matrix example where the compiler enforces dimension constraints at the type level.
