@@ -5,7 +5,7 @@ layout: default
 TAPL is a typed programming language that looks like Python and compiles to Python. What makes it different:
 
 - **Type checks you write as code.** Not just annotations -- actual logic that runs at compile time. For example, you can make the compiler reject a matrix multiplication where the dimensions don't match, something most type systems can't express.
-- **Syntax you can extend.** Add custom operators and expressions to build your own DSL on top of the base language. For example, adding a pipe operator (`|>`) to chain function calls.
+- **Syntax you can extend.** Add custom operators and expressions to build your own DSL on top of the Python-like language. For example, adding a pipe operator (`|>`) to chain function calls.
 - **Compiles to Python.** Produces `.py` files you can inspect, run, and debug.
 
 This doc walks you through how both the matrix type checks and the pipe operator are implemented.
