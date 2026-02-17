@@ -3,4 +3,4 @@ plugins:
   - jekyll-remote-theme
 
 title: TAPL
-description: Extensible, strongly typed, Python-powered language.
+description: Extend a Python-like Language into Your Own Type-Safe DSL.

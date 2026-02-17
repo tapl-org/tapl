@@ -2,8 +2,6 @@
 layout: default
 ---
 
-Extend a Python-like Language into Your Own Type-Safe DSL.
-
 TAPL is a compiler frontend framework with Python-like syntax. No need to build a language from scratch.
 
 - Extend the grammar with your own syntax rules.
