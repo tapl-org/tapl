@@ -1358,7 +1358,7 @@ class TypedFunctionDef(syntax.Term):
         )
 
     def unfold_evaluate(self) -> syntax.Term:
-        if not all(cast(Parameter, p).type_ is syntax.Empty for p in self.parameters):
+        if not all(cast('Parameter', p).type_ is syntax.Empty for p in self.parameters):
             raise tapl_error.TaplError(
                 'All parameter types must be a syntax.Empty when generating a function in evaluate mode.'
             )
@@ -1366,7 +1366,7 @@ class TypedFunctionDef(syntax.Term):
         return FunctionDef(
             name=self.name,
             posonlyargs=[],
-            args=[cast(Parameter, p).name for p in self.parameters],
+            args=[cast('Parameter', p).name for p in self.parameters],
             vararg=None,
             kwonlyargs=[],
             kw_defaults=[],
@@ -1386,7 +1386,7 @@ class TypedFunctionDef(syntax.Term):
                 term=nested_term,
             )
 
-        param_names = [cast(Parameter, p).name for p in self.parameters]
+        param_names = [cast('Parameter', p).name for p in self.parameters]
 
         keywords: list[tuple[str, syntax.Term]] = []
         keywords.append(
@@ -1432,7 +1432,7 @@ class TypedFunctionDef(syntax.Term):
         tmp_function: syntax.Term = syntax.Empty
         set_return_type: syntax.Term = syntax.Empty
         if self.return_type is not syntax.Empty:
-            params = [cast(Parameter, p).type_ for p in self.parameters]
+            params = [cast('Parameter', p).type_ for p in self.parameters]
             if is_method:
                 params = params[1:]  # skip 'self' parameter type
             tmp_function = Assign(
@@ -1527,7 +1527,7 @@ class TypedFunctionDef(syntax.Term):
         )
 
     def unfold_typecheck_type(self) -> syntax.Term:
-        if self.parameters and all(cast(Parameter, p).type_ is syntax.Empty for p in self.parameters):
+        if self.parameters and all(cast('Parameter', p).type_ is syntax.Empty for p in self.parameters):
             return Assign(
                 targets=[
                     TypedName(
@@ -1544,7 +1544,7 @@ class TypedFunctionDef(syntax.Term):
                 ),
                 location=self.location,
             )
-        if any(cast(Parameter, p).type_ is syntax.Empty for p in self.parameters):
+        if any(cast('Parameter', p).type_ is syntax.Empty for p in self.parameters):
             raise tapl_error.TaplError(
                 'Parameter types must be either all specified or all omitted when generating a function type in typecheck mode.'
             )
@@ -1566,7 +1566,7 @@ class TypedFunctionDef(syntax.Term):
                 ),
                 args=[
                     List(
-                        elements=[cast(Parameter, p).type_ for p in self.parameters],
+                        elements=[cast('Parameter', p).type_ for p in self.parameters],
                         ctx='load',
                         location=self.location,
                     ),
@@ -1576,7 +1576,7 @@ class TypedFunctionDef(syntax.Term):
                             ctx='load',
                             location=self.location,
                         ),
-                        args=[cast(Parameter, p).type_ for p in self.parameters],
+                        args=[cast('Parameter', p).type_ for p in self.parameters],
                         keywords=[],
                         location=self.location,
                     ),

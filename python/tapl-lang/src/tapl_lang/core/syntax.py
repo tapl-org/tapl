@@ -160,7 +160,7 @@ class BackendSettingTerm(Term):
             raise tapl_error.TaplError(
                 f'Expected setting to be an instance of {BackendSettingChanger.__name__}, got {type(self.backend_setting_changer).__name__}'
             )
-        return cast(BackendSettingChanger, self.backend_setting_changer).changer(setting)
+        return cast('BackendSettingChanger', self.backend_setting_changer).changer(setting)
 
 
 @dataclass

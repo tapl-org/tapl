@@ -20,5 +20,5 @@ def test_reassign_variable():
     assert s.load__sa('x') == builtin_types.Int
     s.store__sa('x', builtin_types.Int)
     assert s.load__sa('x') == builtin_types.Int
-    with pytest.raises(TypeError, match='Type error in variable "x": Expected type "Int", but found "Str".'):
+    with pytest.raises(TypeError, match=r'Type error in variable "x": Expected type "Int", but found "Str"\.'):
         s.store__sa('x', builtin_types.Str)

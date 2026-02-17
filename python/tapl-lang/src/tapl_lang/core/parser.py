@@ -352,9 +352,8 @@ class PegEngineDebug(PegEngine):
 
     def dump_table(self, output: io.StringIO, table: list[list[str]]) -> None:
         col_widths = [max(len(str(item)) for item in col) for col in zip(*table, strict=True)]
-        row_format = ' '.join(f'{{:<{width+2}}}' for width in col_widths[:-1]) + ' {}'
-        for row in table:
-            output.write(row_format.format(*row) + '\n')
+        row_format = ' '.join(f'{{:<{width + 2}}}' for width in col_widths[:-1]) + ' {}'
+        output.writelines(row_format.format(*row) + '\n' for row in table)
 
     def dump_cell_memo(self) -> list[list[str]]:
         table = [['Start/Rule', 'End', 'Status', 'Details']]
@@ -411,7 +410,7 @@ class PegEngineDebug(PegEngine):
             output.write(str(i % 10))
         output.write('\n')
         for i, line in enumerate(self.line_records):
-            output.write(f'{i%10}|')
+            output.write(f'{i % 10}|')
             output.write(line.text)
 
         output.write('\n\n')

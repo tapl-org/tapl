@@ -46,9 +46,9 @@ def test_create_union():
 
 
 def test_function_parameters_invariants():
-    with pytest.raises(TypeError, match='Function posonlyargs must be a list.'):
+    with pytest.raises(TypeError, match=r'Function posonlyargs must be a list\.'):
         kinds.Function(posonlyargs=_any, args=[], result=_bool)
-    with pytest.raises(ValueError, match='Function args must be a list of \\(name, type\\) pairs.'):
+    with pytest.raises(ValueError, match=r'Function args must be a list of \(name, type\) pairs\.'):
         kinds.Function(
             posonlyargs=[],
             args=[('x', _any), _bool],
