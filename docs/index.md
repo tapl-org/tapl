@@ -119,21 +119,21 @@ Here, `greet_dog` accepts an instance of `Dog` (`Dog!`) as an argument, while `m
 In Python, by contrast, `Dog` is typically used for instances, and `type[Dog]` refers to the class type.
 
 
-## The Two Layers: Values and Types
+### New Syntax for Working with the Two Layers: Values and Types
 
-TAPL separates every program into two layers:
+TAPL splits every program into two distinct layers:
 
-- The **value layer** -- the code that runs at runtime (values, computation, side effects).
-- The **type layer** -- the code that runs at compile time to check correctness (types, constraints).
+- The **value layer** – code that executes at runtime (handling values, computation, and effects).
+- The **type layer** – code that runs during compilation to check correctness (handling types and constraints).
 
-The two `.py` files you saw in Hello World correspond to these layers: `hello_world.py` is the value layer, `hello_world1.py` is the type layer.
+If you looked at Hello World's example, there are two `.py` files for these layers: `hello_world.py` for the value layer and `hello_world1.py` for the type layer.
 
-Most of the time you write normal code and the compiler figures out both layers. But TAPL gives you two special operators to manually move things between layers:
+Normally, you just write regular code and the compiler determines the layers automatically. But TAPL provides two special operators to let you explicitly move information between the layers:
 
-- `^expr` (literal lifting) -- promotes a runtime value into the type layer.
-- `<expr:Type>` (double-layer expression) -- lets you specify both layers explicitly.
+- `^expr` (“literal lifting”) – takes a value from the runtime/value layer and moves it to the type layer, making it available for type-level checks.
+- `<expr:Type>` (“double-layer expression”) – lets you specify the value layer and type layer components directly.
 
-These operators are what make dependent types possible.
+These operators are what allow TAPL to support dependent types in a natural way.
 
 ## Dependent Types with Matrices
 
