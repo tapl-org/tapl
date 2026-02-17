@@ -137,11 +137,11 @@ These operators are what allow TAPL to support dependent types in a natural way.
 
 ## Dependent Types with Matrices
 
-One of TAPL's most distinctive features is support for dependent types -- types that depend on values. This section walks through a matrix example where the compiler enforces dimension constraints at the type level.
+TAPL's support for dependent types—types that depend on values—is one of its most distinctive features. This section presents a matrix example, demonstrating how the compiler enforces dimension constraints directly at the type level.
 
 ### Defining a Dimension-Parameterized Matrix
 
-The `Matrix(rows, cols)` function returns a class whose type is parameterized by its dimensions:
+The `Matrix(rows, cols)` function creates a class whose type is parameterized by its dimensions:
 
 ```python
 language pythonlike
@@ -169,22 +169,22 @@ def Matrix(rows, cols):
     return Matrix_
 ```
 
-The `^` operator (literal lifting) promotes a runtime value into the type layer. For example, `^'Matrix({},{})'.format(rows, cols)` lifts the formatted string into the type layer to give the class a unique type name based on its dimensions.
+Here, the `^` operator (literal lifting) lifts a runtime value to the type layer. For instance, `^'Matrix({},{})'.format(rows, cols)` produces a class with a unique type name reflecting its dimensions.
 
-The `<expr:Type>` syntax (double-layer expression) separates the term layer from the type layer. For instance, `<rows:Int>` means the runtime value is `rows` and the type is `Int`.
+The `<expr:Type>` ("double-layer expression") lets you assign both a runtime value and an explicit type. For example, `<rows:Int>` ensures `rows` is available in both the value and type layers as an integer.
 
 ### Type-Safe Function Signatures
 
-With dimension-parameterized types, you can write functions that enforce constraints at the type level:
+With dimension-parameterized types, you can write functions that are checked for correct dimensions at compile time:
 
 ```python
-def accept_matrix_2_3(matrix: Matrix(^2,^3)!):
+def accept_matrix_2_3(matrix: Matrix(^2, ^3)!):
     pass
 ```
 
-Here `Matrix(^2, ^3)!` is the type of a 2x3 matrix instance. The `^2` and `^3` lift the literals into the type layer, so the compiler knows the exact dimensions.
+Here `Matrix(^2, ^3)!` is the type of a 2x3 matrix instance. The `^2` and `^3` lift the numbers to the type layer, so the compiler knows the matrix dimensions statically.
 
-Functions can also be generic over dimensions:
+You can also write generic functions over dimensions:
 
 ```python
 def sum(rows, cols):
@@ -197,9 +197,9 @@ def sum(rows, cols):
     return sum_
 ```
 
-The `sum` function enforces that both input matrices have the same dimensions. Passing a `Matrix(2, 3)` and a `Matrix(3, 3)` would be a type error.
+This `sum` function requires both input matrices to have the same dimensions. If you try to add matrices with different sizes, the compiler will raise a type error.
 
-Matrix multiplication enforces that the inner dimensions match:
+Matrix multiplication similarly enforces that the inner dimensions match:
 
 ```python
 def multiply(m, n, p):
@@ -213,7 +213,7 @@ def multiply(m, n, p):
     return multiply_
 ```
 
-The type signature `Matrix(m, n)` times `Matrix(n, p)` produces `Matrix(m, p)` -- the shared dimension `n` must match, and the result dimensions are derived from the inputs.
+The type signature here requires that the first matrix has dimensions `m` by `n`, the second `n` by `p`, and the result is `m` by `p`. The shared dimension `n` is enforced at the type level.
 
 ### Using Matrices
 
@@ -230,13 +230,13 @@ def main():
     print(multiply(^2, ^2, ^3)(matrix_2_2, matrix_2_3))
 ```
 
-Run it:
+To run this example:
 
 ```bash
 tapl matrix.tapl
 ```
 
-See the full example at [matrix.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/matrix.tapl).
+See the full working code in [matrix.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/matrix.tapl).
 
 ## Extending the Language
 
