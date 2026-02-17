@@ -240,9 +240,17 @@ See the full working code in [matrix.tapl](https://github.com/tapl-org/tapl/blob
 
 ## Extending the Language
 
-You may have noticed that dependent types introduce some boilerplate. Operators like `^` and `<expr:Type>` are powerful but can make code verbose. TAPL is designed to be extensible -- you can create new language grammars that simplify these patterns by adding custom syntax.
+TAPL is built for extensibility—you can design your own language grammars and introduce custom syntax to make your code clearer and less verbose.
 
-As an example, the built-in `pipeweaver` language extends `pythonlike` with a pipe operator (`|>`):
+Writing code with deeply nested function calls can often become hard to read. For example:
+
+```python
+print(round(abs(-2.5)))
+```
+
+To improve readability, you might want a "pipe" operator, so you can write this more clearly. TAPL lets you create such syntax extensions by defining new languages.
+
+For example, the `pipeweaver` language extends `pythonlike` by adding a pipe operator (`|>`) that feeds the output of one expression as input to the next:
 
 ```python
 language pipeweaver
@@ -250,21 +258,25 @@ language pipeweaver
 -2.5 |> abs |> round |> print
 ```
 
-Run it:
+You can run this code with:
 
 ```bash
 tapl pipe.tapl
 ```
 
-This outputs `2`. The pipe operator passes the result of each expression as the argument to the next function: `-2.5` is piped to `abs`, then to `round`, then to `print`.
+This will output `2`. The pipe operator `|>` works by passing the result of each expression as the argument to the next function: `-2.5` is piped to `abs`, the result to `round`, and finally to `print`.
 
-The `pipeweaver` language is implemented by subclassing the base grammar and adding two new parsing rules -- one for the `|>` token and one for the pipe call expression. See the [pipeweaver source](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/tapl_language/pipeweaver/pipeweaver_language.py) for the full implementation.
+The `pipeweaver` language implementation demonstrates how you can subclass the base grammar and add custom parsing rules—one for handling the `|>` token and another for parsing pipe call expressions. You can see the full implementation in the [pipeweaver source code](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/tapl_language/pipeweaver/pipeweaver_language.py).
 
-## What's Next
+## What's Next?
 
-- [More examples (easy.tapl)](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/easy.tapl)
-- [Matrix example](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/matrix.tapl)
-- [TAPL calculus documentation](https://github.com/tapl-org/tapl/blob/main/doc/ground-rules.md)
-- [Official Discord Server](https://discord.gg/7N5Gp85hAy)
-- [GitHub Discussions](https://github.com/tapl-org/tapl/discussions)
-- [Issue Tracker](https://github.com/tapl-org/tapl/issues)
+Explore TAPL further with the following resources:
+
+- Browse [more examples, like easy.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/easy.tapl) to see TAPL in action.
+- Delve into the [TAPL calculus documentation](https://github.com/tapl-org/tapl/blob/main/doc/ground-rules.md) for an in-depth look at the language design and theory.
+- View [compilation process diagrams](https://docs.google.com/presentation/d/1I4Fu7Tp_QzyHC84u0REsFZcYi2i3ZvZPXiuHzasHywg/edit?usp=sharing) to understand how TAPL translates code.
+- Join the [Official Discord Server](https://discord.gg/7N5Gp85hAy) to connect with other developers and the TAPL community.
+- Participate in [GitHub Discussions](https://github.com/tapl-org/tapl/discussions) to ask questions and share ideas.
+- Report bugs or request features via the [Issue Tracker](https://github.com/tapl-org/tapl/issues).
+
+These links will help you deepen your understanding of TAPL, contribute to the project, or get support from the community.
