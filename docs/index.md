@@ -9,13 +9,14 @@ TAPL is a compiler frontend framework with Python-like syntax. No need to build 
 
 Types in TAPL are programmable, not declarative. You get full control over compile-time verification, including dependent types and substructural types.
 
+TAPL stands for "Types and Programming Languages" and is named after Benjamin C. Pierce's [book](https://www.cis.upenn.edu/~bcpierce/tapl/) that inspired the project.
 
 > **Important:**
 > - TAPL is experimental with no stable release yet.
 > - It improves with every commit. Please report issues via the [Issue Tracker](https://github.com/tapl-org/tapl/issues).
 > - It is not an officially supported Google product yet.
 
-> **Note:** TAPL stands for *Types and Programming Languages* and is named after Benjamin C. Pierce's [book](https://www.cis.upenn.edu/~bcpierce/tapl/) that inspired the project.
+
 
 ## Installation
 
