@@ -53,7 +53,7 @@ tapl hello_world.tapl
 
 Behind the scenes, TAPL compiles your source into two Python files and executes them:
 
-- `hello_world.py` -- the executable code:
+- `hello_world.py` -- the runtime code:
 
 ```python
 from tapl_lang.pythonlike.predef import *
@@ -68,15 +68,17 @@ s0 = predef_scope__sa.tapl.typing.create_scope(parent__sa=predef_scope__sa)
 s0.print(s0.Str)
 ```
 
-The type-checker runs first. If it succeeds, the executable code is guaranteed to be type-safe.
+The type-checker always runs before the runtime code. If type-checking fails, TAPL stops the compilation process and the runtime code will not execute. If type-checking succeeds, TAPL ensures your code is type-safe and then runs the runtime code.
 
 ## Language Basics
 
-TAPL's `pythonlike` language looks like Python but with a strong type system enforced at compile time.
+TAPL's `pythonlike` language looks like Python, but with only some negligible syntax differences.
 
-### Typed Functions
+### Functions and Classes
 
-Functions use type annotations for parameters and return types. Built-in types include `Int`, `Str`, and `Bool`.
+TAPL functions and classes look like Python and use the same syntax for defining them, except that type names are written in CamelCase (e.g., `Int`, `Str`, `Bool`) instead of lowercase (like Python's `int`, `str`, `bool`).
+
+Here's an example showing both a typed function and a class definition:
 
 ```python
 language pythonlike
@@ -86,13 +88,7 @@ def factorial(n: Int) -> Int:
         return 1
     else:
         return n * factorial(n - 1)
-```
 
-### Classes
-
-Classes work like Python classes, with typed constructors and methods:
-
-```python
 class Dog:
     def __init__(self, name: Str):
         self.name = name
