@@ -2,12 +2,13 @@
 layout: default
 ---
 
-TAPL is a compiler frontend framework with Python-like syntax. No need to build a language from scratch.
+TAPL is a typed programming language that looks like Python and compiles to Python. What makes it different:
 
-- Extend the grammar with your own syntax rules.
-- Program your own type-checking logic.
+- **Type checks you write as code.** Not just annotations -- actual logic that runs at compile time. For example, you can make the compiler reject a matrix multiplication where the dimensions don't match, something most type systems can't express.
+- **Syntax you can extend.** Add custom operators and expressions to build your own DSL on top of the base language. For example, adding a pipe operator (`|>`) to chain function calls.
+- **Compiles to Python.** Produces `.py` files you can inspect, run, and debug.
 
-Types in TAPL are programmable, not declarative. You get full control over compile-time verification, including dependent types and substructural types.
+This doc walks you through how both the matrix type checks and the pipe operator are implemented.
 
 TAPL stands for "Types and Programming Languages" and is named after Benjamin C. Pierce's [book](https://www.cis.upenn.edu/~bcpierce/tapl/) that inspired the project.
 
