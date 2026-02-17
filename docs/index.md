@@ -97,14 +97,14 @@ class Dog:
         return self.name + ' says Woof! Woof!'
 ```
 
-### Class Types vs Instance Types
+### The `!` Operator: Distinguishing Classes vs. Instances in Type-Checking
 
-TAPL distinguishes between a **class** and its **instances** at the type level:
+In TAPL, the `!` symbol is used to distinguish a class from its instances in type annotations. This differs from Python, where the distinction between a class and an instance type is made differently.
 
-- `Dog` refers to the class itself (the constructor).
-- `Dog!` refers to an instance of `Dog`.
+- In TAPL, `Dog` refers to the class (the constructor).
+- `Dog!` refers to an instance of that class.
 
-This lets you write functions that accept the class as a factory or an instance as a value:
+For example, you can define functions as follows:
 
 ```python
 def greet_dog(dog: Dog!) -> Str:
@@ -114,9 +114,10 @@ def make_dog(factory: Dog, name: Str) -> Dog!:
     return factory(name)
 ```
 
-Here `greet_dog` takes an instance (`Dog!`) and returns a `Str`. Meanwhile `make_dog` takes the class itself (`Dog`) as a factory parameter and returns a new instance (`Dog!`).
+Here, `greet_dog` accepts an instance of `Dog` (`Dog!`) as an argument, while `make_dog` takes the class itself (`Dog`) and uses it to create and return an instance (`Dog!`).
 
-See the full example at [easy.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/easy.tapl).
+In Python, by contrast, `Dog` is typically used for instances, and `type[Dog]` refers to the class type.
+
 
 ## The Two Layers: Values and Types
 
