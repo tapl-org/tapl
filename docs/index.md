@@ -2,11 +2,22 @@
 layout: default
 ---
 
-TAPL is a strongly typed Python-like language and compiler frontend framework. It lets you create and extend programming languages with strong typing capabilities, including dependent types.
+Extend a Python-like Language into Your Own Type-Safe DSL.
 
-> **Important:** TAPL is an experimental project with no stable release yet. It improves with every commit. Please report any issues via the [Tapl Issue Tracker](https://github.com/tapl-org/tapl/issues). It is not an officially supported Google product.
+TAPL is a compiler frontend framework with Python-like syntax. No need to build a language from scratch.
 
-TAPL is inspired by lambda calculus and named after Benjamin C. Pierce's book [*Types and Programming Languages*](https://www.cis.upenn.edu/~bcpierce/tapl/).
+- Extend the grammar with your own syntax rules.
+- Program your own type-checking logic.
+
+Types in TAPL are programmable, not declarative. You get full control over compile-time verification, including dependent types and substructural types.
+
+
+> **Important:**
+> - TAPL is experimental with no stable release yet.
+> - It improves with every commit. Please report issues via the [Issue Tracker](https://github.com/tapl-org/tapl/issues).
+> - It is not an officially supported Google product yet.
+
+> **Note:** TAPL stands for *Types and Programming Languages* and is named after Benjamin C. Pierce's [book](https://www.cis.upenn.edu/~bcpierce/tapl/) that inspired the project.
 
 ## Installation
 
