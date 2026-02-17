@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast, override
+from typing import TYPE_CHECKING, cast
 
 from tapl_lang.core import tapl_error
 
@@ -34,15 +34,12 @@ class Term:
 
 
 class _EmptyTerm(Term):
-    @override
     def children(self) -> Generator[Term, None, None]:
         yield from ()
 
-    @override
     def separate(self, ls):
         return ls.build(lambda _: self)
 
-    @override
     def __repr__(self) -> str:
         return 'Empty'
 
@@ -69,11 +66,9 @@ class Layers(Term):
         if len(self.layers) <= 1:
             raise tapl_error.TaplError('Number of layers must be equal or greater than 2.')
 
-    @override
     def children(self) -> Generator[Term, None, None]:
         yield from self.layers
 
-    @override
     def separate(self, ls: LayerSeparator) -> list[Term]:
         actual_count = len(self.layers)
         if actual_count != ls.layer_count:
@@ -137,11 +132,9 @@ class BackendSetting:
 class BackendSettingChanger(Term):
     changer: Callable[[BackendSetting], BackendSetting]
 
-    @override
     def children(self) -> Generator[Term, None, None]:
         yield from ()
 
-    @override
     def separate(self, ls: LayerSeparator) -> list[Term]:
         return ls.build(lambda _: BackendSettingChanger(changer=self.changer))
 
@@ -151,12 +144,10 @@ class BackendSettingTerm(Term):
     backend_setting_changer: Term
     term: Term
 
-    @override
     def children(self) -> Generator[Term, None, None]:
         yield self.backend_setting_changer
         yield self.term
 
-    @override
     def separate(self, ls: LayerSeparator) -> list[Term]:
         return ls.build(
             lambda layer: BackendSettingTerm(
@@ -199,7 +190,6 @@ class ErrorTerm(Term):
     guess: Term | None = None
     location: Location | None = None
 
-    @override
     def children(self) -> Generator[Term, None, None]:
         yield from ()
 
@@ -210,7 +200,6 @@ class TermList(Term):
     # True if the statement is a placeholder requiring resolution (e.g., waiting for child chunk parsing).
     is_placeholder: bool = False
 
-    @override
     def children(self) -> Generator[Term, None, None]:
         yield from self.terms
 
@@ -221,7 +210,6 @@ class TermList(Term):
             else:
                 yield term
 
-    @override
     def separate(self, ls: LayerSeparator) -> list[Term]:
         if self.is_placeholder:
             raise tapl_error.TaplError('The placeholder list must be resolved before separation.')

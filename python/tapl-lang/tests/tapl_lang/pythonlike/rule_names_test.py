@@ -13,6 +13,6 @@ def test_rule_name_consistency():
         assert len(names) == 2, f'Rule name {full_rule_name} does not have exactly two parts.'
         assert names[0] == 'pythonlike', f'Rule name {full_rule_name} does not start with "pythonlike".'
         constant_name = names[1].upper()
-        assert (
-            constant_name in rule_names.__dict__
-        ), f'Rule name {constant_name} is not found as a constant in the grammar module.'
+        assert constant_name in rule_names.__dict__, (
+            f'Rule name {constant_name} is not found as a constant in the grammar module.'
+        )

@@ -5,7 +5,7 @@
 import dataclasses
 import enum
 from collections.abc import Callable, Generator
-from typing import Any, cast, override
+from typing import Any, cast
 
 from tapl_lang.core import syntax, tapl_error
 
@@ -16,18 +16,16 @@ from tapl_lang.core import syntax, tapl_error
 # Keep them sorted as in https://docs.python.org/3/library/ast.html
 ################################################################################
 
-type Identifier = str | Callable[[syntax.BackendSetting], str]
+Identifier = str | Callable[[syntax.BackendSetting], str]
 
 
 @dataclasses.dataclass
 class Module(syntax.Term):
     body: list[syntax.Term]
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.body
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: Module(body=[layer(b) for b in self.body]))
 
@@ -50,14 +48,12 @@ class FunctionDef(syntax.Term):
     decorator_list: list[syntax.Term]
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.kw_defaults
         yield from self.defaults
         yield self.body
         yield from self.decorator_list
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: FunctionDef(
@@ -85,14 +81,12 @@ class ClassDef(syntax.Term):
     decorator_list: list[syntax.Term]
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.bases
         yield from (t for _, t in self.keywords)
         yield self.body
         yield from self.decorator_list
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: ClassDef(
@@ -111,13 +105,11 @@ class Return(syntax.Term):
     value: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         if self.value is None:
             raise ValueError('Return statement must have a value')
         yield self.value
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: Return(value=layer(self.value), location=self.location))
 
@@ -127,11 +119,9 @@ class Delete(syntax.Term):
     targets: list[syntax.Term]
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.targets
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: Delete(targets=[layer(t) for t in self.targets], location=self.location))
 
@@ -142,12 +132,10 @@ class Assign(syntax.Term):
     value: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.targets
         yield self.value
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Assign(
@@ -164,14 +152,12 @@ class For(syntax.Term):
     orelse: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.target
         yield self.iter
         yield self.body
         yield self.orelse
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: For(
@@ -191,13 +177,11 @@ class While(syntax.Term):
     orelse: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.test
         yield self.body
         yield self.orelse
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: While(
@@ -216,13 +200,11 @@ class If(syntax.Term):
     orelse: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.test
         yield self.body
         yield self.orelse
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: If(
@@ -239,12 +221,10 @@ class WithItem(syntax.Term):
     context_expr: syntax.Term
     optional_vars: syntax.Term
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.context_expr
         yield self.optional_vars
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: WithItem(
@@ -260,12 +240,10 @@ class With(syntax.Term):
     body: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.items
         yield self.body
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: With(
@@ -282,12 +260,10 @@ class Raise(syntax.Term):
     cause: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.exception
         yield self.cause
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Raise(
@@ -306,14 +282,12 @@ class Try(syntax.Term):
     finalbody: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.body
         yield from self.handlers
         yield self.orelse
         yield self.finalbody
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Try(
@@ -333,12 +307,10 @@ class ExceptHandler(syntax.Term):
     body: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.exception_type
         yield self.body
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: ExceptHandler(
@@ -361,11 +333,9 @@ class Import(syntax.Term):
     names: list[Alias]
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from ()
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda _: Import(names=[Alias(name=n.name, asname=n.asname) for n in self.names], location=self.location)
@@ -379,11 +349,9 @@ class ImportFrom(syntax.Term):
     level: int
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from ()
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda _: ImportFrom(
@@ -400,11 +368,9 @@ class Expr(syntax.Term):
     value: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.value
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: Expr(value=layer(self.value), location=self.location))
 
@@ -413,11 +379,9 @@ class Expr(syntax.Term):
 class Pass(syntax.Term):
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from ()
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda _: Pass(location=self.location))
 
@@ -432,11 +396,9 @@ class BoolOp(syntax.Term):
     values: list[syntax.Term]
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.values
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: BoolOp(operator=self.operator, values=[layer(v) for v in self.values], location=self.location)
@@ -450,12 +412,10 @@ class NamedExpr(syntax.Term):
     value: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.target
         yield self.value
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: NamedExpr(
@@ -473,12 +433,10 @@ class BinOp(syntax.Term):
     right: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.left
         yield self.right
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: BinOp(left=layer(self.left), op=self.op, right=layer(self.right), location=self.location)
@@ -491,11 +449,9 @@ class UnaryOp(syntax.Term):
     operand: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.operand
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: UnaryOp(op=self.op, operand=layer(self.operand), location=self.location))
 
@@ -505,11 +461,9 @@ class Set(syntax.Term):
     elements: list[syntax.Term]
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.elements
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: Set(elements=[layer(v) for v in self.elements], location=self.location))
 
@@ -520,12 +474,10 @@ class Dict(syntax.Term):
     values: list[syntax.Term]
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.keys
         yield from self.values
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Dict(
@@ -543,12 +495,10 @@ class Compare(syntax.Term):
     comparators: list[syntax.Term]
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.left
         yield from self.comparators
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Compare(
@@ -567,13 +517,11 @@ class Call(syntax.Term):
     keywords: list[tuple[str, syntax.Term]]
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.func
         yield from self.args
         yield from (v for _, v in self.keywords)
 
-    @override
     def separate(self, ls) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Call(
@@ -590,11 +538,9 @@ class Constant(syntax.Term):
     value: Any
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from ()
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda _: Constant(value=self.value, location=self.location))
 
@@ -606,11 +552,9 @@ class Attribute(syntax.Term):
     ctx: str
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.value
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Attribute(value=layer(self.value), attr=self.attr, ctx=self.ctx, location=self.location)
@@ -624,12 +568,10 @@ class Subscript(syntax.Term):
     ctx: str
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.value
         yield self.slice
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Subscript(
@@ -647,11 +589,9 @@ class Name(syntax.Term):
     ctx: str
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from ()
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda _: Name(id=self.id, ctx=self.ctx, location=self.location))
 
@@ -662,11 +602,9 @@ class List(syntax.Term):
     ctx: str
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.elements
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: List(elements=[layer(v) for v in self.elements], ctx=self.ctx, location=self.location)
@@ -679,11 +617,9 @@ class Tuple(syntax.Term):
     ctx: str
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.elements
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Tuple(elements=[layer(v) for v in self.elements], ctx=self.ctx, location=self.location)
@@ -697,13 +633,11 @@ class Slice(syntax.Term):
     step: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.lower
         yield self.upper
         yield self.step
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Slice(
@@ -729,11 +663,9 @@ class Select(syntax.Term):
     ctx: str
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.value
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Select(
@@ -744,7 +676,6 @@ class Select(syntax.Term):
             )
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if not self.names:
             return syntax.ErrorTerm(
@@ -775,17 +706,14 @@ class Path(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Path(names=self.names, ctx=self.ctx, mode=layer(self.mode), location=self.location)
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if len(self.names) <= 1:
             return syntax.ErrorTerm(message='At least two names are required to create a path.', location=self.location)
@@ -800,15 +728,12 @@ class BranchTyping(syntax.Term):
     branches: list[syntax.Term]
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.branches
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: BranchTyping(branches=[layer(b) for b in self.branches], location=self.location))
 
-    @override
     def unfold(self) -> syntax.Term:
         def nested_scope(inner_term: syntax.Term) -> syntax.Term:
             return syntax.BackendSettingTerm(
@@ -898,11 +823,9 @@ class ModeTerm(syntax.Term):
     typecheck: bool = False
     use_scope: bool = False
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from ()
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda _: self)
 
@@ -929,17 +852,14 @@ class TypedName(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedName(id=self.id, ctx=self.ctx, mode=layer(self.mode), location=self.location)
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if isinstance(self.mode, ModeTerm):
             if self.mode.use_scope:
@@ -961,14 +881,12 @@ class TypedAssign(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.target_name
         yield self.target_type
         yield self.value
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedAssign(
@@ -980,7 +898,6 @@ class TypedAssign(syntax.Term):
             )
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return Assign(
@@ -1004,15 +921,12 @@ class NoneLiteral(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(lambda layer: NoneLiteral(mode=layer(self.mode), location=self.location))
 
-    @override
     def unfold(self) -> syntax.Term:
         if isinstance(self.mode, ModeTerm):
             if self.mode.typecheck:
@@ -1027,11 +941,9 @@ class BooleanLiteral(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: BooleanLiteral(
@@ -1041,7 +953,6 @@ class BooleanLiteral(syntax.Term):
             )
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if isinstance(self.mode, ModeTerm):
             if self.mode.typecheck:
@@ -1056,11 +967,9 @@ class IntegerLiteral(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: IntegerLiteral(
@@ -1070,7 +979,6 @@ class IntegerLiteral(syntax.Term):
             )
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if isinstance(self.mode, ModeTerm):
             if self.mode.typecheck:
@@ -1085,11 +993,9 @@ class FloatLiteral(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: FloatLiteral(
@@ -1099,7 +1005,6 @@ class FloatLiteral(syntax.Term):
             )
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if isinstance(self.mode, ModeTerm):
             if self.mode.typecheck:
@@ -1114,11 +1019,9 @@ class StringLiteral(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: StringLiteral(
@@ -1128,7 +1031,6 @@ class StringLiteral(syntax.Term):
             )
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if isinstance(self.mode, ModeTerm):
             if self.mode.typecheck:
@@ -1143,12 +1045,10 @@ class TypedList(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.elements
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedList(
@@ -1158,7 +1058,6 @@ class TypedList(syntax.Term):
             )
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return List(elements=self.elements, ctx='load', location=self.location)
@@ -1183,12 +1082,10 @@ class TypedSet(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.elements
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedSet(
@@ -1198,7 +1095,6 @@ class TypedSet(syntax.Term):
             )
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return Set(
@@ -1227,13 +1123,11 @@ class TypedDict(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.keys
         yield from self.values
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedDict(
@@ -1244,7 +1138,6 @@ class TypedDict(syntax.Term):
             )
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return Dict(
@@ -1284,18 +1177,15 @@ class BoolNot(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.operand
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: BoolNot(operand=layer(self.operand), mode=layer(self.mode), location=self.location)
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return UnaryOp(
@@ -1321,12 +1211,10 @@ class TypedBoolOp(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.values
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedBoolOp(
@@ -1337,7 +1225,6 @@ class TypedBoolOp(syntax.Term):
             )
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return BoolOp(operator=self.operator, values=self.values, location=self.location)
@@ -1362,18 +1249,15 @@ class TypedReturn(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.value
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedReturn(value=layer(self.value), mode=layer(self.mode), location=self.location)
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return Return(
@@ -1423,13 +1307,11 @@ class Parameter(syntax.Term):
     category: ParamCategory
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.type_
         yield self.default
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: Parameter(
@@ -1442,7 +1324,6 @@ class Parameter(syntax.Term):
             )
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_TYPECHECK:
             return self.type_
@@ -1458,14 +1339,12 @@ class TypedFunctionDef(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.parameters
         yield self.return_type
         yield self.body
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedFunctionDef(
@@ -1708,7 +1587,6 @@ class TypedFunctionDef(syntax.Term):
             location=self.location,
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return self.unfold_evaluate()
@@ -1726,7 +1604,6 @@ class TypedIf(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.test
         yield self.body
@@ -1736,7 +1613,6 @@ class TypedIf(syntax.Term):
         yield self.orelse
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedIf(
@@ -1769,7 +1645,6 @@ class TypedIf(syntax.Term):
         )
         return BranchTyping(branches=[true_side, self.orelse], location=self.location)
 
-    @override
     def unfold(self) -> syntax.Term:
         # FIXME: handle elifs
         if self.elifs:
@@ -1787,12 +1662,10 @@ class ElifSibling(syntax.SiblingTerm):
     body: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.test
         yield self.body
 
-    @override
     def integrate_into(self, previous_siblings: list[syntax.Term]) -> None:
         term = previous_siblings[-1]
         if isinstance(term, syntax.ErrorTerm):
@@ -1809,11 +1682,9 @@ class ElseSibling(syntax.SiblingTerm):
     body: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.body
 
-    @override
     def integrate_into(self, previous_siblings: list[syntax.Term]) -> None:
         term = previous_siblings[-1]
         if isinstance(term, syntax.ErrorTerm):
@@ -1836,14 +1707,12 @@ class TypedWhile(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.test
         yield self.body
         yield self.orelse
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedWhile(
@@ -1873,7 +1742,6 @@ class TypedWhile(syntax.Term):
             location=self.location,
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return self.codegen_evaluate()
@@ -1891,7 +1759,6 @@ class TypedFor(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.target
         yield self.iter
@@ -1899,7 +1766,6 @@ class TypedFor(syntax.Term):
         yield self.orelse
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedFor(
@@ -1955,7 +1821,6 @@ class TypedFor(syntax.Term):
             location=self.location,
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return self.codegen_evaluate()
@@ -1972,14 +1837,12 @@ class TypedTry(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.body
         yield from self.handlers
         yield self.finalbody
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedTry(
@@ -1991,7 +1854,6 @@ class TypedTry(syntax.Term):
             )
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return Try(
@@ -2027,12 +1889,10 @@ class ExceptSibling(syntax.SiblingTerm):
     body: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.exception_type
         yield self.body
 
-    @override
     def integrate_into(self, previous_siblings: list[syntax.Term]) -> None:
         term = previous_siblings[-1]
         if isinstance(term, syntax.ErrorTerm):
@@ -2057,11 +1917,9 @@ class FinallySibling(syntax.SiblingTerm):
     body: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.body
 
-    @override
     def integrate_into(self, previous_siblings: list[syntax.Term]) -> None:
         term = previous_siblings[-1]
         if isinstance(term, syntax.ErrorTerm):
@@ -2084,11 +1942,9 @@ class TypedImport(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield self.mode
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedImport(
@@ -2098,7 +1954,6 @@ class TypedImport(syntax.Term):
             )
         )
 
-    @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return Import(location=self.location, names=self.names)
@@ -2143,12 +1998,10 @@ class TypedClassDef(syntax.Term):
     mode: syntax.Term
     location: syntax.Location
 
-    @override
     def children(self) -> Generator[syntax.Term, None, None]:
         yield from self.bases
         yield self.body
 
-    @override
     def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
         return ls.build(
             lambda layer: TypedClassDef(
@@ -2288,7 +2141,6 @@ class TypedClassDef(syntax.Term):
 
         return syntax.TermList(terms=[class_stmt, create_class])
 
-    @override
     def unfold(self) -> syntax.Term:
         if self.mode is MODE_EVALUATE:
             return self.codegen_evaluate()

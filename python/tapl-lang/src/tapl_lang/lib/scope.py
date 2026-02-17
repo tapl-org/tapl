@@ -4,7 +4,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Self
+from typing import Any
+
+from typing_extensions import Self
 
 from tapl_lang.lib import dynamic_attribute, kinds
 

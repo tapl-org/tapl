@@ -104,7 +104,7 @@ _init_record(
 )
 
 
-def List(element_type):  # noqa: N802
+def List(element_type):
     methods = {
         'append': ([element_type], NoneType),
         '__len__': ([], Int),
@@ -118,7 +118,7 @@ def List(element_type):  # noqa: N802
     )
 
 
-def Set(element_type):  # noqa: N802
+def Set(element_type):
     methods = {
         'add': ([element_type], NoneType),
         'remove': ([element_type], NoneType),
@@ -131,7 +131,7 @@ def Set(element_type):  # noqa: N802
     )
 
 
-def Dict(key_type, value_type):  # noqa: N802
+def Dict(key_type, value_type):
     methods = {
         'get': ([key_type], value_type),
         'set': ([key_type, value_type], NoneType),

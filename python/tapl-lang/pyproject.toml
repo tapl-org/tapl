@@ -7,7 +7,7 @@ name = "tapl-lang"
 dynamic = ["version"]
 description = 'Tapl Language'
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 license = {text = "Apache-2.0 WITH LLVM-exception"}
 keywords = []
 authors = [
@@ -16,12 +16,15 @@ authors = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
   "approvaltests",
+  "typing_extensions>=4.0; python_version < '3.11'",
 ]
 
 [project.urls]
@@ -42,6 +45,9 @@ ignore = [
   "EM101",  # Exception must not use a string literal, assign to variable first.
   "EM102",  # Exception must not use an f-string literal, assign to variable first.
   "SIM108", # Use a ternary operator instead of an if statement.
+  "F405", # may be undefined, or defined from star imports
+  "N802", # function name should be lowercase
+  "N803", # argument name should be lowercase
 ]  # Temporarily ignore these lints
 
 [tool.ruff.format]
@@ -66,6 +72,9 @@ extra-dependencies = [
 ]
 [tool.hatch.envs.types.scripts]
 check = "mypy --install-types --non-interactive {args:src/tapl_lang tests --exclude 'goldens/'}"
+
+[[tool.hatch.envs.hatch-test.matrix]]
+python = ["3.10", "3.11", "3.12"]
 
 [tool.coverage.run]
 source_pkgs = ["tapl_lang", "tests"]

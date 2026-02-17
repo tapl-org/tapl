@@ -2,7 +2,6 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from typing import override
 
 from tapl_lang.core import parser, syntax
 from tapl_lang.core.language import Language
@@ -15,7 +14,6 @@ GRAMMAR = pythonlike_grammar.get_grammar()
 
 
 class PythonlikeLanguage(Language):
-    @override
     def get_grammar(self, parent_stack: list[syntax.Term]) -> parser.Grammar:
         del parent_stack
         return GRAMMAR
@@ -57,7 +55,6 @@ class PythonlikeLanguage(Language):
             ]
         )
 
-    @override
     def get_predef_headers(self) -> list[syntax.Term]:
         headers: list[syntax.Term] = [
             self.create_header_for_evaluate_layer(),

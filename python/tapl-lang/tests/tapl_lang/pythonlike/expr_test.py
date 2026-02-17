@@ -35,7 +35,7 @@ def parse_expr(text: str, *, debug=False) -> list[ast.expr]:
 
 def evaluate(expr: ast.expr, locals_=None):
     compiled_code = compile(ast.Expression(body=expr), filename='', mode='eval')
-    return eval(compiled_code, predef.__dict__, locals=locals_ or {})
+    return eval(compiled_code, predef.__dict__, locals_ or {})
 
 
 def typecheck(expr: ast.expr, locals_=None):
@@ -43,7 +43,7 @@ def typecheck(expr: ast.expr, locals_=None):
     scope0 = scope.Scope(parent=predef1.predef_scope)
     scope0.store_many__sa(locals_ or {})
     globals_ = {'s0': scope0}
-    return eval(compiled_code, globals=globals_)
+    return eval(compiled_code, globals_)
 
 
 def expect_type_error(expr: ast.expr) -> str:

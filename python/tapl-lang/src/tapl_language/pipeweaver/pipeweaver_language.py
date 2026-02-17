@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import dataclasses
-from typing import override
 
 from tapl_lang.core import parser, syntax
 from tapl_lang.lib import terms
@@ -35,7 +34,6 @@ def _parse_pipe_call(c: parser.Cursor) -> syntax.Term:
 
 
 class PipeweaverLanguage(language.PythonlikeLanguage):
-    @override
     def get_grammar(self, parent_stack: list[syntax.Term]) -> parser.Grammar:
         grammar = super().get_grammar(parent_stack).clone()
         grammar.rule_map[rule_names.TOKEN] = [_parse_pipe_token, *grammar.rule_map[rule_names.TOKEN]]

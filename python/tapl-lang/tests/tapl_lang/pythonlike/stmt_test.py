@@ -35,9 +35,9 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
 
 
 def run_stmt(stmts: list[ast.stmt]):
-    compiled_code = compile(ast.Module(body=stmts), filename='', mode='exec')
+    compiled_code = compile(ast.Module(body=stmts, type_ignores=[]), filename='', mode='exec')
     globals_ = {'s0': scope.Scope(parent=predef1.predef_scope)}
-    return eval(compiled_code, globals=globals_)
+    return eval(compiled_code, globals_)
 
 
 def parse_module(text: str) -> list[ast.AST]:

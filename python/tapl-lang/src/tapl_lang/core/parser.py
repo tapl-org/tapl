@@ -10,10 +10,11 @@ import io
 import itertools
 import logging
 from collections.abc import Callable, Iterable
-from typing import override
 
 from tapl_lang.core import line_record, syntax, tapl_error
 from tapl_lang.lib import terms
+
+logger = logging.getLogger(__name__)
 
 # Implemented PEG parser - https://en.wikipedia.org/wiki/Parsing_expression_grammar,
 # https://pdos.csail.mit.edu/~baford/packrat/thesis/
@@ -301,7 +302,6 @@ class PegEngineDebug(PegEngine):
         self._next_call_order += 1
         return self._next_call_order
 
-    @override
     def call_parse_function(
         self, key: CellKey, function: ParseFunction | str, config: Config
     ) -> tuple[syntax.Term, int, int]:
@@ -327,7 +327,6 @@ class PegEngineDebug(PegEngine):
         self.applied_rules = old_applied_rules
         return term, row, col
 
-    @override
     def grow_seed(self, key: CellKey, cell: Cell, config: Config) -> None:
         old_growing_id = self.growing_id
         self.next_growing_id += 1
@@ -335,7 +334,6 @@ class PegEngineDebug(PegEngine):
         super().grow_seed(key, cell, config)
         self.growing_id = old_growing_id
 
-    @override
     def apply_rule(self, row: int, col: int, rule: str, config: Config) -> tuple[syntax.Term, int, int]:
         self.applied_rules.append(f'{row}:{col}:{rule}')
         term, next_row, next_col = super().apply_rule(row, col, rule, config)
@@ -403,7 +401,6 @@ class PegEngineDebug(PegEngine):
                 )
         return table
 
-    @override
     def dump(self) -> str:
         output = io.StringIO()
         output.write('\n------PEG Engine Dump (Rows sorted by row,col,rule,call_order)--------')
@@ -442,7 +439,7 @@ def parse_line_records(
         return syntax.ErrorTerm(message='Empty text.')
     term, next_row, next_col = engine.apply_rule(row, col, grammar.start_rule, config=config)
     if debug:
-        logging.warning(engine.dump())
+        logger.warning(engine.dump())
     if not isinstance(term, syntax.ErrorTerm) and not (next_row == len(line_records) and next_col == 0):
         lineno = line_records[0].line_number if line_records else -1
         return syntax.ErrorTerm(

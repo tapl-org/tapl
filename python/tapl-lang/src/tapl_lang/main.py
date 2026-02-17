@@ -5,8 +5,7 @@
 import ast
 import logging
 
-# ruff: noqa: T201
-
+logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
@@ -17,10 +16,9 @@ def a(b=1, /, c=3, d=4, *e, f, **g):
 """,
     mode='exec',
 )
-logging.info(ast.dump(parsed_code, include_attributes=False, indent=4))
+logger.info(ast.dump(parsed_code, include_attributes=False, indent=4))
 compiled_code = compile(parsed_code, filename='', mode='exec')
-logging.info(ast.unparse(parsed_code))
-# ruff: noqa: S307
+logger.info(ast.unparse(parsed_code))
 # result = eval(compiled_code)
 # logging.info(result)
 

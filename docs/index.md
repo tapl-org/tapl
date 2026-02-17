@@ -21,7 +21,7 @@ TAPL stands for "Types and Programming Languages" and is named after Benjamin C.
 
 ## Installation
 
-TAPL requires **Python 3.12** or higher.
+TAPL requires **Python 3.10** or higher.
 
 ```bash
 pip install tapl-lang

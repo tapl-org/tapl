@@ -52,8 +52,7 @@ def compute_subtype(subtype, supertype):
         is_subtype = subtype.is_subtype_of__sa(supertype)
         # Return Truee if both methods agree on True, or if one is True and the other is inconclusive.
         return (
-            is_supertype
-            and is_subtype
+            (is_supertype and is_subtype)
             or (is_supertype is None and is_subtype)
             or (is_supertype and is_subtype is None)
         )
@@ -328,9 +327,7 @@ class Function(BaseKind):
                     return False
                 if not check_subtype(a_super, a_self):
                     return False
-            if not check_subtype(self.result__sa, supertype.result__sa):
-                return False
-            return True
+            return check_subtype(self.result__sa, supertype.result__sa)
         # Inconclusive, example: ???
         return None
 
