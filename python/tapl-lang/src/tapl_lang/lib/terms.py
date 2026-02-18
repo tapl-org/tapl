@@ -756,7 +756,7 @@ class BranchTyping(syntax.Term):
                 ],
                 value=Call(
                     func=Path(
-                        names=['tapl', 'typing', 'fork_scope'],
+                        names=['tapl_typing', 'fork_scope'],
                         ctx='load',
                         mode=MODE_TYPECHECK,
                         location=self.location,
@@ -785,7 +785,7 @@ class BranchTyping(syntax.Term):
                 WithItem(
                     context_expr=Call(
                         func=Path(
-                            names=['tapl', 'typing', 'scope_forker'],
+                            names=['tapl_typing', 'scope_forker'],
                             ctx='load',
                             mode=MODE_TYPECHECK,
                             location=self.location,
@@ -1080,7 +1080,7 @@ class TypedList(syntax.Term):
         if self.mode is MODE_TYPECHECK:
             return Call(
                 func=Path(
-                    names=['tapl', 'typing', 'create_typed_list'],
+                    names=['tapl_typing', 'create_typed_list'],
                     ctx='load',
                     mode=self.mode,
                     location=self.location,
@@ -1120,7 +1120,7 @@ class TypedSet(syntax.Term):
         if self.mode is MODE_TYPECHECK:
             return Call(
                 func=Path(
-                    names=['tapl', 'typing', 'create_typed_set'],
+                    names=['tapl_typing', 'create_typed_set'],
                     ctx='load',
                     mode=self.mode,
                     location=self.location,
@@ -1164,7 +1164,7 @@ class TypedDict(syntax.Term):
         if self.mode is MODE_TYPECHECK:
             return Call(
                 func=Path(
-                    names=['tapl', 'typing', 'create_typed_dict'],
+                    names=['tapl_typing', 'create_typed_dict'],
                     ctx='load',
                     mode=self.mode,
                     location=self.location,
@@ -1247,7 +1247,7 @@ class TypedBoolOp(syntax.Term):
         if self.mode is MODE_TYPECHECK:
             return Call(
                 func=Path(
-                    names=['tapl', 'typing', 'create_union'],
+                    names=['tapl_typing', 'create_union'],
                     ctx='load',
                     mode=self.mode,
                     location=self.location,
@@ -1283,7 +1283,7 @@ class TypedReturn(syntax.Term):
         if self.mode is MODE_TYPECHECK:
             call = Call(
                 func=Path(
-                    names=['tapl', 'typing', 'add_return_type'],
+                    names=['tapl_typing', 'add_return_type'],
                     ctx='load',
                     mode=self.mode,
                     location=self.location,
@@ -1434,7 +1434,7 @@ class TypedFunctionDef(syntax.Term):
             ],
             value=Call(
                 func=Path(
-                    names=['tapl', 'typing', 'create_scope'],
+                    names=['tapl_typing', 'create_scope'],
                     ctx='load',
                     mode=self.mode,
                     location=self.location,
@@ -1463,7 +1463,7 @@ class TypedFunctionDef(syntax.Term):
                 ],
                 value=Call(
                     func=Path(
-                        names=['tapl', 'typing', 'create_function'],
+                        names=['tapl_typing', 'create_function'],
                         ctx='load',
                         mode=self.mode,
                         location=self.location,
@@ -1483,7 +1483,7 @@ class TypedFunctionDef(syntax.Term):
             set_return_type = Expr(
                 value=Call(
                     func=Path(
-                        names=['tapl', 'typing', 'set_return_type'],
+                        names=['tapl_typing', 'set_return_type'],
                         ctx='load',
                         mode=self.mode,
                         location=self.location,
@@ -1505,7 +1505,7 @@ class TypedFunctionDef(syntax.Term):
         get_return_type = Return(
             value=Call(
                 func=Path(
-                    names=['tapl', 'typing', 'get_return_type'],
+                    names=['tapl_typing', 'get_return_type'],
                     ctx='load',
                     mode=self.mode,
                     location=self.location,
@@ -1575,7 +1575,7 @@ class TypedFunctionDef(syntax.Term):
             ],
             value=Call(
                 func=Path(
-                    names=['tapl', 'typing', 'create_function'],
+                    names=['tapl_typing', 'create_function'],
                     ctx='load',
                     mode=self.mode,
                     location=self.location,
@@ -1982,7 +1982,7 @@ class TypedImport(syntax.Term):
                 value=Call(
                     location=self.location,
                     func=Path(
-                        names=['tapl', 'typing', 'import_module'],
+                        names=['tapl_typing', 'import_module'],
                         ctx='load',
                         mode=self.mode,
                         location=self.location,
@@ -2118,7 +2118,7 @@ class TypedClassDef(syntax.Term):
             ],
             value=Call(
                 func=Path(
-                    names=['tapl', 'typing', 'create_class'],
+                    names=['tapl_typing', 'create_class'],
                     ctx='load',
                     mode=self.mode,
                     location=self.location,

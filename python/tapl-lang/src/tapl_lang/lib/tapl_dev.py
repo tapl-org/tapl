@@ -4,13 +4,10 @@
 
 import types
 
-from tapl_lang.lib import tapl_typing
-
 
 class TaplDev:
     def __init__(self) -> None:
         self.print = print
-        self.typing = tapl_typing
 
     def to_string(self, value) -> str:
         if isinstance(value, types.FunctionType):

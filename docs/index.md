@@ -64,7 +64,7 @@ print('Hello World!')
 
 ```python
 from tapl_lang.pythonlike.predef1 import predef_scope as predef_scope__sa
-s0 = predef_scope__sa.tapl.typing.create_scope(parent__sa=predef_scope__sa)
+s0 = predef_scope__sa.tapl_typing.create_scope(parent__sa=predef_scope__sa)
 s0.print(s0.Str)
 ```
 
