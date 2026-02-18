@@ -33,6 +33,7 @@ n=new syntax introduced by Tapl
             | try_stmt
             | while_stmt
 d           | match_stmt
+n           | (EVALUATE_ONLY | TYPECHECK_ONLY) ':'
         # While [type_params] lack native syntactic support, they can be implemented by wrapping them in a function that accepts and forwards the parameters.
         function_def_raw: 'def' NAME [type_params] '(' [params] ')' ['->' expression ] ':'    # type_params not implemented yet
 ?       class_def_raw: 'class' NAME [type_params] ['(' [arguments] ')' ] ':'                  # type_params not implemented yet  FIXME: inheritence
@@ -302,7 +303,16 @@ def get_grammar() -> parser.Grammar:
     )
     add(
         rn.COMPOUND_STMT,
-        [rn.FUNCTION_DEF, rn.IF_STMT, rn.CLASS_DEF, rn.WITH_STMT, rn.FOR_STMT, rn.TRY_STMT, rn.WHILE_STMT],
+        [
+            rn.FUNCTION_DEF,
+            rn.IF_STMT,
+            rn.CLASS_DEF,
+            rn.WITH_STMT,
+            rn.FOR_STMT,
+            rn.TRY_STMT,
+            rn.WHILE_STMT,
+            _parse_compound_stmt__layer_only,
+        ],
     )
 
     # SIMPLE STATEMENTS
@@ -1633,6 +1643,20 @@ def _scan_optional_return_type(c: Cursor) -> syntax.Term:
         c.copy_position_from(k)
         return return_type
     return t.captured_error or syntax.Empty
+
+
+def _parse_compound_stmt__layer_only(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(layer_name := _consume_name(c)) and t.validate(_consume_punct(c, ':')):
+        name = cast('TokenName', layer_name).value
+        if name == 'EVALUATE_ONLY':
+            layer_index = 0
+        elif name == 'TYPECHECK_ONLY':
+            layer_index = 1
+        else:
+            return t.fail()
+        return terms.LayerOnly(layer_index=layer_index, term=syntax.TermList(terms=[], is_placeholder=True))
+    return t.fail()
 
 
 def _parse_function_def(c: Cursor) -> syntax.Term:

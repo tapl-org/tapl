@@ -6,19 +6,11 @@ import types
 
 from tapl_lang.lib import tapl_typing
 
-EVALATE_LAYER_INDEX = 0
-TYPECHECK_LAYER_INDEX = 1
-
 
 class TaplDev:
-    def __init__(self, layer_index: int) -> None:
-        self.layer_index = layer_index
+    def __init__(self) -> None:
         self.print = print
         self.typing = tapl_typing
-
-    def print_type(self, type_) -> None:
-        if self.layer_index == TYPECHECK_LAYER_INDEX:
-            self.print(repr(type_))
 
     def to_string(self, value) -> str:
         if isinstance(value, types.FunctionType):

@@ -23,8 +23,8 @@ python_builtin_types = {
 
 pythonlike_builtins = {
     'tapl': (
-        tapl_dev.TaplDev(tapl_dev.EVALATE_LAYER_INDEX),
-        tapl_dev.TaplDev(tapl_dev.TYPECHECK_LAYER_INDEX),
+        tapl_dev.TaplDev(),
+        tapl_dev.TaplDev(),
     ),
 }
 

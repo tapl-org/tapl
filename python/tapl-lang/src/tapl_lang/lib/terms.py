@@ -839,6 +839,22 @@ MODE_LIFT = syntax.Layers(layers=[MODE_EVALUATE, MODE_EVALUATE_WITH_SCOPE])
 SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
 
 
+@dataclasses.dataclass
+class LayerOnly(syntax.Term):
+    layer_index: int
+    term: syntax.Term
+
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.term
+
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        separated = ls.build(lambda layer: layer(self.term))
+        return [separated[i] if i == self.layer_index else syntax.Empty for i in range(ls.layer_count)]
+
+    def unfold(self) -> syntax.Term:
+        return self.term
+
+
 def get_mode(*, typecheck: bool, use_scope: bool) -> ModeTerm:
     if typecheck:
         return MODE_TYPECHECK if use_scope else MODE_TYPECHECK_NO_SCOPE

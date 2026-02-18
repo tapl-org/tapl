@@ -6,6 +6,7 @@ def fibonacci(n: Int) -> Int:
     else:
         return fibonacci(n - 1) + fibonacci(n - 2)
 
-tapl.print_type(fibonacci)
+TYPECHECK_ONLY:
+    tapl.print(fibonacci)
 print(fibonacci(3))
 print(fibonacci(4))

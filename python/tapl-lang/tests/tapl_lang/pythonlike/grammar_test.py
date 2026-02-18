@@ -24,6 +24,18 @@ def create_loc(start_line: int, start_col: int, end_line: int, end_col: int) -> 
     )
 
 
+def test_compound_stmt__evaluate_only():
+    actual = parse_expr('EVALUATE_ONLY:', rn.COMPOUND_STMT)
+    expected = terms.LayerOnly(layer_index=0, term=syntax.TermList(terms=[], is_placeholder=True))
+    assert actual == expected
+
+
+def test_compound_stmt__typecheck_only():
+    actual = parse_expr('TYPECHECK_ONLY:', rn.COMPOUND_STMT)
+    expected = terms.LayerOnly(layer_index=1, term=syntax.TermList(terms=[], is_placeholder=True))
+    assert actual == expected
+
+
 def test_compound_stmt__function_def():
     actual = parse_expr('def add(x: Int, y: Int) -> Int:', rn.COMPOUND_STMT, mode=terms.MODE_EVALUATE)
     expected = terms.TypedFunctionDef(
