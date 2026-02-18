@@ -2,8 +2,10 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from typing import Any
+
 from tapl_lang.lib import builtin_types as bt
-from tapl_lang.lib import kinds, tapl_dev, tapl_typing
+from tapl_lang.lib import kinds, tapl_dev
 
 
 def noop(*args, **kwargs):
@@ -24,11 +26,10 @@ pythonlike_builtins = {
         tapl_dev.TaplDev(tapl_dev.EVALATE_LAYER_INDEX),
         tapl_dev.TaplDev(tapl_dev.TYPECHECK_LAYER_INDEX),
     ),
-    'tapl_typing': (tapl_typing, tapl_typing),
 }
 
-export = {k: v[0] for k, v in pythonlike_builtins.items()}
-export1 = {k: v[1] for k, v in pythonlike_builtins.items()}
+export: dict[str, Any] = {k: v[0] for k, v in pythonlike_builtins.items()}
+export1: dict[str, Any] = {k: v[1] for k, v in pythonlike_builtins.items()}
 export1.update(python_builtin_types)
 
 # Export all builtin types for both layers.
@@ -38,5 +39,5 @@ export.update(bt.Types)
 export1.update(bt.Types)
 
 # Export type constructors for type level layer
-export.update(bt.TYPE_CONSTRUCTORS)
+# export.update(bt.TYPE_CONSTRUCTORS)
 export1.update(bt.TYPE_CONSTRUCTORS)
