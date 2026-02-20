@@ -758,7 +758,7 @@ class BranchTyping(syntax.Term):
                     func=Path(
                         names=['tapl_typing', 'fork_scope'],
                         ctx='load',
-                        mode=MODE_TYPECHECK,
+                        mode=MODE_TYPECHECK_NO_SCOPE,
                         location=self.location,
                     ),
                     args=[
@@ -787,7 +787,7 @@ class BranchTyping(syntax.Term):
                         func=Path(
                             names=['tapl_typing', 'scope_forker'],
                             ctx='load',
-                            mode=MODE_TYPECHECK,
+                            mode=MODE_TYPECHECK_NO_SCOPE,
                             location=self.location,
                         ),
                         args=[
@@ -1082,7 +1082,7 @@ class TypedList(syntax.Term):
                 func=Path(
                     names=['tapl_typing', 'create_typed_list'],
                     ctx='load',
-                    mode=self.mode,
+                    mode=MODE_TYPECHECK_NO_SCOPE,
                     location=self.location,
                 ),
                 args=self.elements,
@@ -1122,7 +1122,7 @@ class TypedSet(syntax.Term):
                 func=Path(
                     names=['tapl_typing', 'create_typed_set'],
                     ctx='load',
-                    mode=self.mode,
+                    mode=MODE_TYPECHECK_NO_SCOPE,
                     location=self.location,
                 ),
                 args=self.elements,
@@ -1166,7 +1166,7 @@ class TypedDict(syntax.Term):
                 func=Path(
                     names=['tapl_typing', 'create_typed_dict'],
                     ctx='load',
-                    mode=self.mode,
+                    mode=MODE_TYPECHECK_NO_SCOPE,
                     location=self.location,
                 ),
                 args=[
@@ -1249,7 +1249,7 @@ class TypedBoolOp(syntax.Term):
                 func=Path(
                     names=['tapl_typing', 'create_union'],
                     ctx='load',
-                    mode=self.mode,
+                    mode=MODE_TYPECHECK_NO_SCOPE,
                     location=self.location,
                 ),
                 args=self.values,
@@ -1285,7 +1285,7 @@ class TypedReturn(syntax.Term):
                 func=Path(
                     names=['tapl_typing', 'add_return_type'],
                     ctx='load',
-                    mode=self.mode,
+                    mode=MODE_TYPECHECK_NO_SCOPE,
                     location=self.location,
                 ),
                 args=[
@@ -1436,7 +1436,7 @@ class TypedFunctionDef(syntax.Term):
                 func=Path(
                     names=['tapl_typing', 'create_scope'],
                     ctx='load',
-                    mode=self.mode,
+                    mode=MODE_TYPECHECK_NO_SCOPE,
                     location=self.location,
                 ),
                 args=[],
@@ -1465,7 +1465,7 @@ class TypedFunctionDef(syntax.Term):
                     func=Path(
                         names=['tapl_typing', 'create_function'],
                         ctx='load',
-                        mode=self.mode,
+                        mode=MODE_TYPECHECK_NO_SCOPE,
                         location=self.location,
                     ),
                     args=[
@@ -1485,7 +1485,7 @@ class TypedFunctionDef(syntax.Term):
                     func=Path(
                         names=['tapl_typing', 'set_return_type'],
                         ctx='load',
-                        mode=self.mode,
+                        mode=MODE_TYPECHECK_NO_SCOPE,
                         location=self.location,
                     ),
                     args=[
@@ -1507,7 +1507,7 @@ class TypedFunctionDef(syntax.Term):
                 func=Path(
                     names=['tapl_typing', 'get_return_type'],
                     ctx='load',
-                    mode=self.mode,
+                    mode=MODE_TYPECHECK_NO_SCOPE,
                     location=self.location,
                 ),
                 args=[
@@ -1577,7 +1577,7 @@ class TypedFunctionDef(syntax.Term):
                 func=Path(
                     names=['tapl_typing', 'create_function'],
                     ctx='load',
-                    mode=self.mode,
+                    mode=MODE_TYPECHECK_NO_SCOPE,
                     location=self.location,
                 ),
                 args=[
@@ -1984,7 +1984,7 @@ class TypedImport(syntax.Term):
                     func=Path(
                         names=['tapl_typing', 'import_module'],
                         ctx='load',
-                        mode=self.mode,
+                        mode=MODE_TYPECHECK_NO_SCOPE,
                         location=self.location,
                     ),
                     args=[
@@ -2042,7 +2042,7 @@ class TypedImportFrom(syntax.Term):
                     func=Path(
                         names=['tapl_typing', 'import_module'],
                         ctx='load',
-                        mode=self.mode,
+                        mode=MODE_TYPECHECK_NO_SCOPE,
                         location=self.location,
                     ),
                     args=[
@@ -2180,7 +2180,7 @@ class TypedClassDef(syntax.Term):
                 func=Path(
                     names=['tapl_typing', 'create_class'],
                     ctx='load',
-                    mode=self.mode,
+                    mode=MODE_TYPECHECK_NO_SCOPE,
                     location=self.location,
                 ),
                 args=[],

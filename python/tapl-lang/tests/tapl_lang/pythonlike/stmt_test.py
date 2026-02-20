@@ -8,7 +8,7 @@ import ast
 from tapl_lang.core import syntax
 from tapl_lang.core.chunker import chunk_text
 from tapl_lang.core.parser import parse_text
-from tapl_lang.lib import compiler, python_backend, scope, terms
+from tapl_lang.lib import compiler, python_backend, scope, tapl_typing, terms
 from tapl_lang.pythonlike import grammar, predef1
 from tapl_lang.pythonlike.language import PythonlikeLanguage
 
@@ -36,7 +36,7 @@ def parse_stmt(text: str, *, debug=False) -> list[ast.stmt]:
 
 def run_stmt(stmts: list[ast.stmt]):
     compiled_code = compile(ast.Module(body=stmts, type_ignores=[]), filename='', mode='exec')
-    globals_ = {'s0': scope.Scope(parent=predef1.predef_scope)}
+    globals_ = {'s0': scope.Scope(parent=predef1.predef_scope), 'tapl_typing': tapl_typing}
     return eval(compiled_code, globals_)
 
 
@@ -63,7 +63,7 @@ def test_assign_name():
 def test_assign_empty_list():
     [stmt1, stmt2] = parse_stmt('a=[]')
     assert ast.unparse(stmt1) == 'a = []'
-    assert ast.unparse(stmt2) == 's0.a = s0.tapl_typing.create_typed_list()'
+    assert ast.unparse(stmt2) == 's0.a = tapl_typing.create_typed_list()'
     assert run_stmt([stmt2]) is None
     assert run_stmt([stmt1]) is None
 
@@ -77,13 +77,13 @@ def test_assign_attribute():
 def test_return1():
     [stmt1, stmt2] = parse_stmt('return')
     assert ast.unparse(stmt1) == 'return None'
-    assert ast.unparse(stmt2) == 's0.tapl_typing.add_return_type(s0, s0.NoneType)'
+    assert ast.unparse(stmt2) == 'tapl_typing.add_return_type(s0, s0.NoneType)'
 
 
 def test_return2():
     [stmt1, stmt2] = parse_stmt('return True')
     assert ast.unparse(stmt1) == 'return True'
-    assert ast.unparse(stmt2) == 's0.tapl_typing.add_return_type(s0, s0.Bool)'
+    assert ast.unparse(stmt2) == 'tapl_typing.add_return_type(s0, s0.Bool)'
 
 
 def test_if():
@@ -92,10 +92,10 @@ def test_if():
     assert (
         ast.unparse(stmt2)
         == """
-with s0.tapl_typing.scope_forker(s0) as f0:
-    s1 = s0.tapl_typing.fork_scope(f0)
+with tapl_typing.scope_forker(s0) as f0:
+    s1 = tapl_typing.fork_scope(f0)
     s1.a == s1.Int
-    s1 = s0.tapl_typing.fork_scope(f0)
+    s1 = tapl_typing.fork_scope(f0)
 """.strip()
     )
 
@@ -116,10 +116,10 @@ def hello():
         ast.unparse(stmt2)
         == """
 def hello():
-    s1 = s0.tapl_typing.create_scope(parent__sa=s0)
-    s1.tapl_typing.add_return_type(s1, s1.Int)
-    return s1.tapl_typing.get_return_type(s1)
-s0.hello = s0.tapl_typing.create_function([], hello())
+    s1 = tapl_typing.create_scope(parent__sa=s0)
+    tapl_typing.add_return_type(s1, s1.Int)
+    return tapl_typing.get_return_type(s1)
+s0.hello = tapl_typing.create_function([], hello())
 """.strip()
     )
 
@@ -140,12 +140,12 @@ def hello():
         ast.unparse(stmt2)
         == """
 def hello():
-    s1 = s0.tapl_typing.create_scope(parent__sa=s0)
-    s1.hello = s1.tapl_typing.create_function([], s1.Int)
-    s1.tapl_typing.set_return_type(s1, s1.Int)
-    s1.tapl_typing.add_return_type(s1, s1.Int)
-    return s1.tapl_typing.get_return_type(s1)
-s0.hello = s0.tapl_typing.create_function([], hello())
+    s1 = tapl_typing.create_scope(parent__sa=s0)
+    s1.hello = tapl_typing.create_function([], s1.Int)
+    tapl_typing.set_return_type(s1, s1.Int)
+    tapl_typing.add_return_type(s1, s1.Int)
+    return tapl_typing.get_return_type(s1)
+s0.hello = tapl_typing.create_function([], hello())
 """.strip()
     )
 
@@ -166,10 +166,10 @@ def area(radius):
         ast.unparse(stmt2)
         == """
 def area(radius):
-    s1 = s0.tapl_typing.create_scope(parent__sa=s0, radius=radius)
-    s1.tapl_typing.add_return_type(s1, s1.Float * s1.radius * s1.radius)
-    return s1.tapl_typing.get_return_type(s1)
-s0.area = s0.tapl_typing.create_function([s0.Int], area(s0.Int))
+    s1 = tapl_typing.create_scope(parent__sa=s0, radius=radius)
+    tapl_typing.add_return_type(s1, s1.Float * s1.radius * s1.radius)
+    return tapl_typing.get_return_type(s1)
+s0.area = tapl_typing.create_function([s0.Int], area(s0.Int))
 """.strip()
     )
 
@@ -190,9 +190,9 @@ def greet(name):
         ast.unparse(stmt2)
         == """
 def greet(name):
-    s1 = s0.tapl_typing.create_scope(parent__sa=s0, name=name)
+    s1 = tapl_typing.create_scope(parent__sa=s0, name=name)
     s1.print(s1.Str + s1.name)
-    return s1.tapl_typing.get_return_type(s1)
+    return tapl_typing.get_return_type(s1)
 s0.greet = greet
 """.strip()
     )
@@ -219,11 +219,11 @@ print(b)
     assert (
         ast.unparse(stmt2)
         == """
-with s0.tapl_typing.scope_forker(s0) as f0:
-    s1 = s0.tapl_typing.fork_scope(f0)
+with tapl_typing.scope_forker(s0) as f0:
+    s1 = tapl_typing.fork_scope(f0)
     s1.a == s1.Int
     s1.b = s1.Int
-    s1 = s0.tapl_typing.fork_scope(f0)
+    s1 = tapl_typing.fork_scope(f0)
     s1.b = s1.Str
 s0.print(s0.b)
 """.strip()
@@ -272,10 +272,10 @@ class Circle:
 class Circle:
 
     def __init__(self, radius):
-        s1 = s0.tapl_typing.create_scope(parent__sa=s0, self=self, radius=radius)
+        s1 = tapl_typing.create_scope(parent__sa=s0, self=self, radius=radius)
         s1.self.radius = s1.radius
-        return s1.tapl_typing.get_return_type(s1)
-s0.Circle = s0.tapl_typing.create_class(cls=Circle, init_args=[s0.Float], methods=[])
+        return tapl_typing.get_return_type(s1)
+s0.Circle = tapl_typing.create_class(cls=Circle, init_args=[s0.Float], methods=[])
 """.strip()
     )
 
@@ -301,12 +301,12 @@ class Dog:
 class Dog:
 
     def bark(self):
-        s1 = s0.tapl_typing.create_scope(parent__sa=s0, self=self)
-        s1.bark = s1.tapl_typing.create_function([], s1.Str)
-        s1.tapl_typing.set_return_type(s1, s1.Str)
-        s1.tapl_typing.add_return_type(s1, s1.Str)
-        return s1.tapl_typing.get_return_type(s1)
-s0.Dog = s0.tapl_typing.create_class(cls=Dog, init_args=[], methods=[('bark', [])])
+        s1 = tapl_typing.create_scope(parent__sa=s0, self=self)
+        s1.bark = tapl_typing.create_function([], s1.Str)
+        tapl_typing.set_return_type(s1, s1.Str)
+        tapl_typing.add_return_type(s1, s1.Str)
+        return tapl_typing.get_return_type(s1)
+s0.Dog = tapl_typing.create_class(cls=Dog, init_args=[], methods=[('bark', [])])
 """.strip()
     )
 
@@ -334,12 +334,12 @@ finally:
     assert (
         ast.unparse(stmt2)
         == """
-with s0.tapl_typing.scope_forker(s0) as f0:
-    s1 = s0.tapl_typing.fork_scope(f0)
+with tapl_typing.scope_forker(s0) as f0:
+    s1 = tapl_typing.fork_scope(f0)
     s1.do_something()
-    s1 = s0.tapl_typing.fork_scope(f0)
+    s1 = tapl_typing.fork_scope(f0)
     s1.handle_error()
-    s1 = s0.tapl_typing.fork_scope(f0)
+    s1 = tapl_typing.fork_scope(f0)
     s1.cleanup()
 """.strip()
     )

@@ -35,6 +35,9 @@ Source = "https://github.com/tapl-org/tapl"
 [project.scripts]
 tapl = "tapl_lang.cli.tapl:main"
 
+[tool.pyright]
+exclude = ["**/goldens/*.py", "**/examples/*"]
+
 [tool.ruff]
 extend-exclude = ["**/goldens/*.py", "**/examples/*"]
 

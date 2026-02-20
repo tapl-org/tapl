@@ -5,7 +5,7 @@
 from typing import Any
 
 from tapl_lang.lib import builtin_types as bt
-from tapl_lang.lib import kinds, tapl_typing
+from tapl_lang.lib import kinds
 
 
 def noop(*args, **kwargs):
@@ -21,12 +21,8 @@ python_builtin_types = {
     'round': kinds.create_function([bt.Float], bt.Float),
 }
 
-pythonlike_builtins = {
-    'tapl_typing': (tapl_typing, tapl_typing),
-}
-
-export: dict[str, Any] = {k: v[0] for k, v in pythonlike_builtins.items()}
-export1: dict[str, Any] = {k: v[1] for k, v in pythonlike_builtins.items()}
+export: dict[str, Any] = {}
+export1: dict[str, Any] = {}
 export1.update(python_builtin_types)
 
 # Export all builtin types for both layers.

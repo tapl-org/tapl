@@ -27,6 +27,12 @@ class PythonlikeLanguage(Language):
         return syntax.TermList(
             [
                 terms.ImportFrom(
+                    'tapl_lang.lib',
+                    [terms.Alias(name='tapl_typing')],
+                    IMPORT_LEVEL,
+                    location=location,
+                ),
+                terms.ImportFrom(
                     'tapl_lang.pythonlike.predef1',
                     [terms.Alias(name='predef_scope', asname='predef_scope__sa')],
                     IMPORT_LEVEL,
@@ -38,7 +44,7 @@ class PythonlikeLanguage(Language):
                         location=location,
                         func=terms.Path(
                             location=location,
-                            names=['predef_scope__sa', 'tapl_typing', 'create_scope'],
+                            names=['tapl_typing', 'create_scope'],
                             ctx='load',
                             mode=terms.MODE_EVALUATE,
                         ),
