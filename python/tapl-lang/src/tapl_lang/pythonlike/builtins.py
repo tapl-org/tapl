@@ -5,7 +5,7 @@
 from typing import Any
 
 from tapl_lang.lib import builtin_types as bt
-from tapl_lang.lib import kinds, tapl_dev, tapl_typing
+from tapl_lang.lib import kinds, tapl_typing
 
 
 def noop(*args, **kwargs):
@@ -22,10 +22,6 @@ python_builtin_types = {
 }
 
 pythonlike_builtins = {
-    'tapl': (
-        tapl_dev.TaplDev(),
-        tapl_dev.TaplDev(),
-    ),
     'tapl_typing': (tapl_typing, tapl_typing),
 }
 

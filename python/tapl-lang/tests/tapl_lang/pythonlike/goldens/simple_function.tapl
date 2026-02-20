@@ -1,7 +1,9 @@
 language pythonlike
 
+from tapl_lang.lib import tapl_dev
+
 def int_print(a: Int):
-    tapl.print(a)
+    tapl_dev.log(a)
 
 int_print(123)
 
@@ -23,4 +25,4 @@ if a == 2:
     b = 7
 else:
     b = 'banana'
-tapl.print(b)
+tapl_dev.log(b)

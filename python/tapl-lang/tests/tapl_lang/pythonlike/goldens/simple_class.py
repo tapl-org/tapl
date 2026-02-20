@@ -1,4 +1,5 @@
 from tapl_lang.pythonlike.predef import *
+from tapl_lang.lib import tapl_dev
 
 class SimplestClass:
     pass
@@ -22,6 +23,6 @@ class Circle:
         return self.radius > radius
 
 def print_area(circle):
-    tapl.print(circle.area())
-    tapl.print(circle.is_bigger_than(1.0))
+    tapl_dev.log(circle.area())
+    tapl_dev.log(circle.is_bigger_than(1.0))
 print_area(Circle(2.0))

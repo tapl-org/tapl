@@ -1,7 +1,9 @@
 language pythonlike
 
+from tapl_lang.lib import tapl_dev
+
 def union_print(a: Int | Str):
-    tapl.print(a)
+    tapl_dev.log(a)
 
 union_print(123)
 union_print('hello')

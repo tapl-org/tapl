@@ -1,35 +1,36 @@
 from tapl_lang.pythonlike.predef import *
+from tapl_lang.lib import tapl_dev
 x = 42
-tapl.print(x)
+tapl_dev.log(x)
 a = b = 'hello'
-tapl.print(a)
-tapl.print(b)
+tapl_dev.log(a)
+tapl_dev.log(b)
 f = 0.1
 try:
     f = 1 / 0
 except ZeroDivisionError:
-    tapl.print('Caught division by zero!')
+    tapl_dev.log('Caught division by zero!')
 finally:
-    tapl.print('Finished try-except block.')
+    tapl_dev.log('Finished try-except block.')
 c = [1, 2, 3]
-tapl.print(c)
+tapl_dev.log(c)
 x = c[1]
-tapl.print(c[1])
+tapl_dev.log(c[1])
 c[2] = 42
 del c[0]
-tapl.print(c)
+tapl_dev.log(c)
 s = {1, 2, 2, 3}
-tapl.print(s)
+tapl_dev.log(s)
 if 2 in s:
-    tapl.print('2 is in the set')
+    tapl_dev.log('2 is in the set')
 s.add(4)
 s.remove(1)
-tapl.print(s)
+tapl_dev.log(s)
 dict_obj = {'key1': 'value1', 'key2': 'value2'}
-tapl.print(dict_obj)
+tapl_dev.log(dict_obj)
 value = dict_obj['key1']
-tapl.print(dict_obj['key1'])
+tapl_dev.log(dict_obj['key1'])
 dict_obj['key2'] = 'new_value2'
 del dict_obj['key1']
-tapl.print(dict_obj)
+tapl_dev.log(dict_obj)
 print('Double quotes string')

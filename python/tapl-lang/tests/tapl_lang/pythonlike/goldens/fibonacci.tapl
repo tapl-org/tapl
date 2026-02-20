@@ -1,5 +1,7 @@
 language pythonlike
 
+from tapl_lang.lib import tapl_dev
+
 def fibonacci(n: Int) -> Int:
     if n <= 1:
         return n
@@ -7,6 +9,6 @@ def fibonacci(n: Int) -> Int:
         return fibonacci(n - 1) + fibonacci(n - 2)
 
 TYPECHECK_ONLY:
-    tapl.print(fibonacci)
+    tapl_dev.log(fibonacci)
 print(fibonacci(3))
 print(fibonacci(4))

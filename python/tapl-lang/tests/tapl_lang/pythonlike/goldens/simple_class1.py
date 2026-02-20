@@ -1,5 +1,6 @@
 from tapl_lang.pythonlike.predef1 import predef_scope as predef_scope__sa
 s0 = predef_scope__sa.tapl_typing.create_scope(parent__sa=predef_scope__sa)
+s0.tapl_typing.import_module(s0, ['tapl_dev'], 'tapl_lang.lib', 0)
 
 class SimplestClass:
     pass
@@ -39,8 +40,8 @@ s0.Circle = s0.tapl_typing.create_class(cls=Circle, init_args=[s0.Float], method
 
 def print_area(circle):
     s1 = s0.tapl_typing.create_scope(parent__sa=s0, circle=circle)
-    s1.tapl.print(s1.circle.area())
-    s1.tapl.print(s1.circle.is_bigger_than(s1.Float))
+    s1.tapl_dev.log(s1.circle.area())
+    s1.tapl_dev.log(s1.circle.is_bigger_than(s1.Float))
     return s1.tapl_typing.get_return_type(s1)
 s0.print_area = s0.tapl_typing.create_function([s0.Circle.result__sa], print_area(s0.Circle.result__sa))
 s0.print_area(s0.Circle(s0.Float))

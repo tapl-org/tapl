@@ -1,4 +1,5 @@
 from tapl_lang.pythonlike.predef import *
+from tapl_lang.lib import tapl_dev
 
 def fibonacci(n):
     if n <= 1:

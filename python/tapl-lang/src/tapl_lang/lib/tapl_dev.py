@@ -11,13 +11,3 @@ def describe(value):
     if isinstance(value, types.FunctionType):
         return f'<function {value.__name__}>'
     return str(value)
-
-
-class TaplDev:
-    def __init__(self) -> None:
-        self.print = print
-
-    def to_string(self, value) -> str:
-        if isinstance(value, types.FunctionType):
-            return f'<function {value.__name__}>'
-        return str(value)
