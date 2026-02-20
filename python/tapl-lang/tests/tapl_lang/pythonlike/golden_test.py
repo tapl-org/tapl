@@ -94,5 +94,5 @@ def test_goldens():
     run_golden_test('type_constructions')
     run_golden_test('fibonacci')
     run_golden_test('try_stmt')
-    # run_golden_test('system_f')
+    run_golden_test('system_f')
     run_golden_test('matrix')

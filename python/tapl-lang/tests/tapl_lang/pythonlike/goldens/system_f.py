@@ -1,4 +1,6 @@
 from tapl_lang.lib import tapl_dev
+from tapl_lang.lib import builtin_types
+Int = builtin_types.Int
 
 def simple_id(a):
     return a

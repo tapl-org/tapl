@@ -2032,10 +2032,6 @@ class TypedImportFrom(syntax.Term):
         if self.mode is MODE_EVALUATE:
             return ImportFrom(module=self.module, names=self.names, level=self.level, location=self.location)
         if self.mode is MODE_TYPECHECK:
-            if len(self.names) > 1:
-                raise tapl_error.TaplError(
-                    'ImportFrom does not support multiple names yet.'
-                )  # FIXME: Support multiple import names
             return Expr(
                 value=Call(
                     location=self.location,
@@ -2052,7 +2048,7 @@ class TypedImportFrom(syntax.Term):
                             location=self.location,
                         ),
                         List(
-                            elements=[Constant(location=self.location, value=self.names[0].name)],
+                            elements=[Constant(location=self.location, value=name.name) for name in self.names],
                             ctx='load',
                             location=self.location,
                         ),
