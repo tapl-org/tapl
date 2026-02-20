@@ -1,3 +1,11 @@
 language pipeweaver
 
--2.5 |> abs |> round |> print
+def double(i: Int) -> Int:
+    return i * 2
+
+def square(i: Int) -> Int:
+    return i * i
+
+
+3 |> double |> square |> print
+3 |> square |> double |> print

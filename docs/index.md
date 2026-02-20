@@ -56,15 +56,15 @@ Behind the scenes, TAPL compiles your source into two Python files and executes 
 - `hello_world.py` -- the runtime code:
 
 ```python
-from tapl_lang.pythonlike.predef import *
 print('Hello World!')
 ```
 
 - `hello_world1.py` -- the type-checker:
 
 ```python
+from tapl_lang.lib import tapl_typing
 from tapl_lang.pythonlike.predef1 import predef_scope as predef_scope__sa
-s0 = predef_scope__sa.tapl_typing.create_scope(parent__sa=predef_scope__sa)
+s0 = tapl_typing.create_scope(parent__sa=predef_scope__sa)
 s0.print(s0.Str)
 ```
 
@@ -255,7 +255,15 @@ For example, the `pipeweaver` language extends `pythonlike` by adding a pipe ope
 ```python
 language pipeweaver
 
--2.5 |> abs |> round |> print
+def double(i: Int) -> Int:
+    return i * 2
+
+def square(i: Int) -> Int:
+    return i * i
+
+3 |> double |> square |> print
+3 |> square |> double |> print
+
 ```
 
 You can run this code with:
@@ -263,8 +271,20 @@ You can run this code with:
 ```bash
 tapl pipe.tapl
 ```
+Behind the scenes, TAPL compiles the pipeweaver code into standard Python with nested function calls:
 
-This will output `2`. The pipe operator `|>` works by passing the result of each expression as the argument to the next function: `-2.5` is piped to `abs`, the result to `round`, and finally to `print`.
+```python
+def double(i):
+    return i * 2
+
+def square(i):
+    return i * i
+
+print(square(double(3)))
+print(double(square(3)))
+```
+
+
 
 The `pipeweaver` language implementation demonstrates how you can subclass the base grammar and add custom parsing rules—one for handling the `|>` token and another for parsing pipe call expressions. You can see the full implementation in the [pipeweaver source code](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/tapl_language/pipeweaver/pipeweaver_language.py).
 
