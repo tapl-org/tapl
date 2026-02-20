@@ -19,8 +19,7 @@ class PythonlikeLanguage(Language):
         return GRAMMAR
 
     def create_header_for_evaluate_layer(self) -> syntax.Term:
-        location = syntax.Location(start=syntax.Position(line=1, column=0))
-        return terms.ImportFrom('tapl_lang.pythonlike.predef', [terms.Alias(name='*')], IMPORT_LEVEL, location=location)
+        return syntax.TermList([])
 
     def create_header_for_typecheck_layer(self) -> syntax.Term:
         location = syntax.Location(start=syntax.Position(line=1, column=0))

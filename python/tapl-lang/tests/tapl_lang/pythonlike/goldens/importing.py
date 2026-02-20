@@ -1,4 +1,3 @@
-from tapl_lang.pythonlike.predef import *
 from tapl_lang.lib import tapl_dev
 import examples.easy
 tapl_dev.log(examples.easy.factorial(7))

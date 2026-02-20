@@ -11,11 +11,7 @@ def test_simple_pipe():
     [ast1, ast2] = compiler.compile_tapl("""language pipeweaver
 -7.3 |> print
 """)
-    assert (
-        ast.unparse(ast1)
-        == """from tapl_lang.pythonlike.predef import *
-print(-7.3)"""
-    )
+    assert ast.unparse(ast1) == """print(-7.3)"""
     assert (
         ast.unparse(ast2)
         == """from tapl_lang.lib import tapl_typing
@@ -29,11 +25,7 @@ def test_complex_pipe():
     [ast1, ast2] = compiler.compile_tapl("""language pipeweaver
 -7.3 |> round |> abs |> print
 """)
-    assert (
-        ast.unparse(ast1)
-        == """from tapl_lang.pythonlike.predef import *
-print(abs(round(-7.3)))"""
-    )
+    assert ast.unparse(ast1) == """print(abs(round(-7.3)))"""
     assert (
         ast.unparse(ast2)
         == """from tapl_lang.lib import tapl_typing

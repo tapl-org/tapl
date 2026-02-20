@@ -1,4 +1,3 @@
-from tapl_lang.pythonlike.predef import *
 try:
     result = 10 / 0
 except ZeroDivisionError:

@@ -11,7 +11,7 @@ import pytest
 from tapl_lang.core import syntax
 from tapl_lang.core.parser import Grammar, parse_text
 from tapl_lang.lib import compiler, kinds, python_backend, scope, tapl_typing, terms
-from tapl_lang.pythonlike import grammar, predef, predef1, rule_names
+from tapl_lang.pythonlike import grammar, predef1, rule_names
 
 
 def check_parsed_term(parsed: syntax.Term) -> None:
@@ -35,7 +35,7 @@ def parse_expr(text: str, *, debug=False) -> list[ast.expr]:
 
 def evaluate(expr: ast.expr, locals_=None):
     compiled_code = compile(ast.Expression(body=expr), filename='', mode='eval')
-    return eval(compiled_code, predef.__dict__, locals_ or {})
+    return eval(compiled_code, {}, locals_ or {})
 
 
 def typecheck(expr: ast.expr, locals_=None):

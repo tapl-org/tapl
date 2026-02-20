@@ -1,4 +1,3 @@
-from tapl_lang.pythonlike.predef import *
 from tapl_lang.lib import tapl_dev
 x = 42
 tapl_dev.log(x)

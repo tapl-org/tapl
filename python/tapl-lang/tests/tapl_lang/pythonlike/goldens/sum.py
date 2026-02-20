@@ -1,4 +1,3 @@
-from tapl_lang.pythonlike.predef import *
 i = 100
 sum = 0
 while i > 0:

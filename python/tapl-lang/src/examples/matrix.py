@@ -1,5 +1,3 @@
-from tapl_lang.pythonlike.predef import *
-
 def Matrix(rows, cols):
 
     class Matrix_:
