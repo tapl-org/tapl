@@ -4,6 +4,14 @@
 
 import types
 
+log = print
+
+
+def describe(value):
+    if isinstance(value, types.FunctionType):
+        return f'<function {value.__name__}>'
+    return str(value)
+
 
 class TaplDev:
     def __init__(self) -> None:

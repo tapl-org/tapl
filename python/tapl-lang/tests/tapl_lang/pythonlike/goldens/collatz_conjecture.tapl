@@ -1,5 +1,7 @@
 language pythonlike
 
+from tapl_lang.lib import tapl_dev
+
 def collatz_sequence(n: Int):
     # FIXME: Find a better syntax, or write in the doc about this double layer technique for list or dict literals
     sequence = <[]:List(Int)>
@@ -13,9 +15,9 @@ def collatz_sequence(n: Int):
         sequence.append(n)
     return sequence
 
-tapl.print(tapl.to_string(collatz_sequence))
+tapl_dev.log(tapl_dev.describe(collatz_sequence))
 
 print(collatz_sequence(7))
 print(collatz_sequence(19))
 print(collatz_sequence(0))
-tapl.print(collatz_sequence(4))
+tapl_dev.log(collatz_sequence(4))

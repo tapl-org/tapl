@@ -258,6 +258,135 @@ def test_import_from__path_multiple():
     assert actual == expected
 
 
+def test_import_from__simple():
+    actual = parse_expr('from os import path', rn.IMPORT_FROM)
+    expected = terms.TypedImportFrom(
+        location=create_loc(1, 0, 1, 19),
+        module='os',
+        names=[terms.Alias(name='path', asname=None)],
+        level=0,
+        mode=terms.MODE_SAFE,
+    )
+    assert actual == expected
+
+
+def test_import_from__multiple_names():
+    actual = parse_expr('from os import path, getcwd as cwd', rn.IMPORT_FROM)
+    expected = terms.TypedImportFrom(
+        location=create_loc(1, 0, 1, 34),
+        module='os',
+        names=[
+            terms.Alias(name='path', asname=None),
+            terms.Alias(name='getcwd', asname='cwd'),
+        ],
+        level=0,
+        mode=terms.MODE_SAFE,
+    )
+    assert actual == expected
+
+
+def test_import_from__dotted_module():
+    actual = parse_expr('from os.path import join', rn.IMPORT_FROM)
+    expected = terms.TypedImportFrom(
+        location=create_loc(1, 0, 1, 24),
+        module='os.path',
+        names=[terms.Alias(name='join', asname=None)],
+        level=0,
+        mode=terms.MODE_SAFE,
+    )
+    assert actual == expected
+
+
+def test_import_from__relative_single_dot():
+    actual = parse_expr('from . import utils', rn.IMPORT_FROM)
+    expected = terms.TypedImportFrom(
+        location=create_loc(1, 0, 1, 19),
+        module=None,
+        names=[terms.Alias(name='utils', asname=None)],
+        level=1,
+        mode=terms.MODE_SAFE,
+    )
+    assert actual == expected
+
+
+def test_import_from__relative_double_dot():
+    actual = parse_expr('from .. import helpers', rn.IMPORT_FROM)
+    expected = terms.TypedImportFrom(
+        location=create_loc(1, 0, 1, 22),
+        module=None,
+        names=[terms.Alias(name='helpers', asname=None)],
+        level=2,
+        mode=terms.MODE_SAFE,
+    )
+    assert actual == expected
+
+
+def test_import_from__relative_ellipsis():
+    actual = parse_expr('from ... import base', rn.IMPORT_FROM)
+    expected = terms.TypedImportFrom(
+        location=create_loc(1, 0, 1, 20),
+        module=None,
+        names=[terms.Alias(name='base', asname=None)],
+        level=3,
+        mode=terms.MODE_SAFE,
+    )
+    assert actual == expected
+
+
+def test_import_from__relative_with_module():
+    actual = parse_expr('from .models import User', rn.IMPORT_FROM)
+    expected = terms.TypedImportFrom(
+        location=create_loc(1, 0, 1, 24),
+        module='models',
+        names=[terms.Alias(name='User', asname=None)],
+        level=1,
+        mode=terms.MODE_SAFE,
+    )
+    assert actual == expected
+
+
+def test_import_from__parenthesized():
+    actual = parse_expr('from os import (path, getcwd)', rn.IMPORT_FROM)
+    expected = terms.TypedImportFrom(
+        location=create_loc(1, 0, 1, 29),
+        module='os',
+        names=[
+            terms.Alias(name='path', asname=None),
+            terms.Alias(name='getcwd', asname=None),
+        ],
+        level=0,
+        mode=terms.MODE_SAFE,
+    )
+    assert actual == expected
+
+
+def test_import_from__parenthesized_trailing_comma():
+    actual = parse_expr('from os import (path, getcwd,)', rn.IMPORT_FROM)
+    expected = terms.TypedImportFrom(
+        location=create_loc(1, 0, 1, 30),
+        module='os',
+        names=[
+            terms.Alias(name='path', asname=None),
+            terms.Alias(name='getcwd', asname=None),
+        ],
+        level=0,
+        mode=terms.MODE_SAFE,
+    )
+    assert actual == expected
+
+
+def test_import_from__via_import_stmt():
+    actual = parse_expr('from sys import argv', rn.IMPORT_STMT)
+    expected = terms.TypedImportFrom(
+        location=create_loc(1, 0, 1, 20),
+        module='sys',
+        names=[terms.Alias(name='argv', asname=None)],
+        level=0,
+        mode=terms.MODE_SAFE,
+    )
+    assert actual == expected
+
+
 def test_raise__expression():
     actual = parse_expr('raise 42', rn.RAISE_STMT, mode=terms.MODE_EVALUATE)
     expected = terms.Raise(

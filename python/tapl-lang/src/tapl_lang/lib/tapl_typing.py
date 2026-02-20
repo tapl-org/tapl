@@ -13,17 +13,21 @@ create_union = kinds.create_union
 create_function = kinds.create_function
 
 
-def import_module(scope_: scope.Scope, module_names: list[str]) -> None:
-    for module_name in module_names:
-        path = module_name.split('.')
+def import_module(
+    scope_: scope.Scope, names: list[str], module: str | None = None, level: int = 0, package: str | None = None
+) -> None:
+    for name in names:
+        path = name.split('.')
         current_scope = scope_
-        for name in path[:-1]:
-            if not hasattr(current_scope, name):
-                setattr(current_scope, name, scope.Scope(label__sa=f'{name} module'))
-            current_scope = getattr(current_scope, name)
-        # adding '1' suffix to module name to import the type level module
-        module = importlib.import_module(f'{module_name}1')
-        setattr(current_scope, path[-1], module.s0)
+        for p in path[:-1]:
+            if not hasattr(current_scope, p):
+                setattr(current_scope, p, scope.Scope(label__sa=f'{p} module'))
+            current_scope = getattr(current_scope, p)
+        # adding '1' suffix to module name to import the type layer
+        module_name = f'{module}.{name}' if module else name
+        module_name = '.' * level + module_name
+        imported_module = importlib.import_module(f'{module_name}1', package=package)
+        setattr(current_scope, path[-1], imported_module.s0)
 
 
 def create_scope(

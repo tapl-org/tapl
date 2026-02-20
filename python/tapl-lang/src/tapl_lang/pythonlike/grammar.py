@@ -111,8 +111,18 @@ d           | invalid_del_stmt
         import_stmt:
 d           | invalid_import
             | import_name
-d           | import_from
+            | import_from
         import_name: 'import' dotted_as_names
+        import_from:
+            | 'from' ('.' | '...')* dotted_name 'import' import_from_targets
+            | 'from' ('.' | '...')+ 'import' import_from_targets
+        import_from_targets:
+            | '(' import_from_as_names [','] ')'
+            | import_from_as_names !','
+d           | '*'
+d           | invalid_import_from_targets
+        import_from_as_names: ','.import_from_as_name+
+        import_from_as_name: NAME ['as' NAME]
         dotted_as_names: ','.dotted_as_name+
         dotted_as_name: dotted_name ['as' NAME]
         dotted_name:
@@ -330,15 +340,15 @@ def get_grammar() -> parser.Grammar:
     add(rn.DEL_STMT, [_parse_del_statement])
     add(rn.YIELD_STMT, [])
     add(rn.ASSERT_STMT, [])
-    add(rn.IMPORT_STMT, [rn.IMPORT_NAME])
+    add(rn.IMPORT_STMT, [rn.IMPORT_NAME, rn.IMPORT_FROM])
 
     # Import statements
     # -----------------
     add(rn.IMPORT_NAME, [_parse_import_name])
-    add(rn.IMPORT_FROM, [])
-    add(rn.IMPORT_FROM_TARGETS, [])
-    add(rn.IMPORT_FROM_AS_NAMES, [])
-    add(rn.IMPORT_FROM_AS_NAME, [])
+    add(rn.IMPORT_FROM, [_parse_import_from])
+    add(rn.IMPORT_FROM_TARGETS, [_parse_import_from_targets__parens, _parse_import_from_targets__plain])
+    add(rn.IMPORT_FROM_AS_NAMES, [_parse_import_from_as_names])
+    add(rn.IMPORT_FROM_AS_NAME, [_parse_import_from_as_name])
     add(rn.DOTTED_AS_NAMES, [_parse_dotted_as_names])
     add(rn.DOTTED_AS_NAME, [_parse_dotted_as_name])
     add(rn.DOTTED_NAME, [_parse_dotted_name__nested, _parse_dotted_name__single])
@@ -1888,6 +1898,98 @@ def _parse_import_name(c: Cursor) -> syntax.Term:
     ):
         names = [cast('AliasTerm', term).alias for term in aliases.terms]
         return terms.TypedImport(location=t.location, names=names, mode=c.config.mode)
+    return t.fail()
+
+
+def _count_dots(c: Cursor) -> int:
+    level = 0
+    while True:
+        k = c.clone()
+        if isinstance(_consume_punct(k, '...'), TokenPunct):
+            c.copy_position_from(k)
+            level += 3
+            continue
+        k = c.clone()
+        if isinstance(_consume_punct(k, '.'), TokenPunct):
+            c.copy_position_from(k)
+            level += 1
+            continue
+        break
+    return level
+
+
+def _parse_import_from(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(_consume_keyword(c, 'from')):
+        level = _count_dots(c)
+        module: str | None = None
+        dotted = c.consume_rule(rn.DOTTED_NAME)
+        if isinstance(dotted, TokenName):
+            module = dotted.value
+        elif level == 0:
+            return t.fail()
+        if (
+            t.validate(_consume_keyword(c, 'import'))
+            and t.validate(targets := _expect_rule(c, rn.IMPORT_FROM_TARGETS))
+            and isinstance(targets, syntax.TermList)
+        ):
+            names = [cast('AliasTerm', term).alias for term in targets.terms]
+            return terms.TypedImportFrom(
+                location=t.location, module=module, names=names, level=level, mode=c.config.mode
+            )
+    return t.fail()
+
+
+def _parse_import_from_targets__parens(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(_consume_punct(c, '(')) and t.validate(names := _expect_rule(c, rn.IMPORT_FROM_AS_NAMES)):
+        k = c.clone()
+        if t.validate(_consume_punct(k, ',')):
+            # Allow trailing comma
+            c.copy_position_from(k)
+        if t.validate(_expect_punct(c, ')')):
+            return names
+    return t.fail()
+
+
+def _parse_import_from_targets__plain(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(names := c.consume_rule(rn.IMPORT_FROM_AS_NAMES)):
+        k = c.clone()
+        if t.validate(_consume_punct(k, ',')):
+            # Allow trailing comma
+            c.copy_position_from(k)
+        return names
+    return t.fail()
+
+
+def _parse_import_from_as_names(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    names = []
+    if t.validate(first := c.consume_rule(rn.IMPORT_FROM_AS_NAME)):
+        names.append(first)
+        k = c.clone()
+        while t.validate(_consume_punct(k, ',')) and t.validate(next_name := k.consume_rule(rn.IMPORT_FROM_AS_NAME)):
+            c.copy_position_from(k)
+            names.append(next_name)
+        return t.captured_error or syntax.TermList(terms=names)
+    return t.fail()
+
+
+def _parse_import_from_as_name(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(name := _consume_name(c)):
+        k = c.clone()
+        asname = None
+        if t.validate(_consume_keyword(k, 'as')) and t.validate(alias := _expect_name(k)):
+            c.copy_position_from(k)
+            asname = cast('TokenName', alias).value
+        return AliasTerm(
+            alias=terms.Alias(
+                name=cast('TokenName', name).value,
+                asname=asname,
+            )
+        )
     return t.fail()
 
 

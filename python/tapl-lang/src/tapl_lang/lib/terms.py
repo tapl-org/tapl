@@ -2007,6 +2007,66 @@ class TypedImport(syntax.Term):
 
 
 @dataclasses.dataclass
+class TypedImportFrom(syntax.Term):
+    module: str | None
+    names: list[Alias]
+    level: int
+    mode: syntax.Term
+    location: syntax.Location
+
+    def children(self) -> Generator[syntax.Term, None, None]:
+        yield self.mode
+
+    def separate(self, ls: syntax.LayerSeparator) -> list[syntax.Term]:
+        return ls.build(
+            lambda layer: TypedImportFrom(
+                module=self.module,
+                names=self.names,
+                level=self.level,
+                mode=layer(self.mode),
+                location=self.location,
+            )
+        )
+
+    def unfold(self) -> syntax.Term:
+        if self.mode is MODE_EVALUATE:
+            return ImportFrom(module=self.module, names=self.names, level=self.level, location=self.location)
+        if self.mode is MODE_TYPECHECK:
+            if len(self.names) > 1:
+                raise tapl_error.TaplError(
+                    'ImportFrom does not support multiple names yet.'
+                )  # FIXME: Support multiple import names
+            return Expr(
+                value=Call(
+                    location=self.location,
+                    func=Path(
+                        names=['tapl_typing', 'import_module'],
+                        ctx='load',
+                        mode=self.mode,
+                        location=self.location,
+                    ),
+                    args=[
+                        Name(
+                            id=lambda setting: setting.scope_name,
+                            ctx='load',
+                            location=self.location,
+                        ),
+                        List(
+                            elements=[Constant(location=self.location, value=self.names[0].name)],
+                            ctx='load',
+                            location=self.location,
+                        ),
+                        Constant(location=self.location, value=self.module),
+                        Constant(location=self.location, value=self.level),
+                    ],
+                    keywords=[],
+                ),
+                location=self.location,
+            )
+        raise tapl_error.UnhandledError
+
+
+@dataclasses.dataclass
 class TypedClassDef(syntax.Term):
     name: str
     bases: list[syntax.Term]

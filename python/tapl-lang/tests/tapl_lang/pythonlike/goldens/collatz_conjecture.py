@@ -1,4 +1,5 @@
 from tapl_lang.pythonlike.predef import *
+from tapl_lang.lib import tapl_dev
 
 def collatz_sequence(n):
     sequence = []
@@ -11,8 +12,8 @@ def collatz_sequence(n):
             n = 3 * n + 1
         sequence.append(n)
     return sequence
-tapl.print(tapl.to_string(collatz_sequence))
+tapl_dev.log(tapl_dev.describe(collatz_sequence))
 print(collatz_sequence(7))
 print(collatz_sequence(19))
 print(collatz_sequence(0))
-tapl.print(collatz_sequence(4))
+tapl_dev.log(collatz_sequence(4))
