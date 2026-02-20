@@ -29,14 +29,14 @@ def accept_matrix_2_3(matrix: Matrix(^2,^3)!):
     pass
 
 
-def sum(rows, cols):
-    def sum_(a: Matrix(rows, cols)!, b: Matrix(rows, cols)!):
+def add(rows, cols):
+    def add_(a: Matrix(rows, cols)!, b: Matrix(rows, cols)!):
         result = Matrix(rows, cols)()
         for i in range(result.num_rows):
             for j in range(result.num_cols):
                 result.values[i][j] = a.values[i][j] + b.values[i][j]
         return result
-    return sum_
+    return add_
 
 
 def multiply(m, n, p):
@@ -58,7 +58,7 @@ def main():
 
     accept_matrix_2_3(matrix_2_3)
 
-    print(sum(^2, ^2)(matrix_2_2, matrix_2_2))
+    print(add(^2, ^2)(matrix_2_2, matrix_2_2))
     print(multiply(^2, ^2, ^3)(matrix_2_2, matrix_2_3))
 
 

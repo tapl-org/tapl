@@ -22,15 +22,15 @@ def Matrix(rows, cols):
 def accept_matrix_2_3(matrix):
     pass
 
-def sum(rows, cols):
+def add(rows, cols):
 
-    def sum_(a, b):
+    def add_(a, b):
         result = Matrix(rows, cols)()
         for i in range(result.num_rows):
             for j in range(result.num_cols):
                 result.values[i][j] = a.values[i][j] + b.values[i][j]
         return result
-    return sum_
+    return add_
 
 def multiply(m, n, p):
 
@@ -49,7 +49,7 @@ def main():
     matrix_2_3 = Matrix(2, 3)()
     matrix_2_3.values = [[1, 2, 3], [4, 5, 6]]
     accept_matrix_2_3(matrix_2_3)
-    print(sum(2, 2)(matrix_2_2, matrix_2_2))
+    print(add(2, 2)(matrix_2_2, matrix_2_2))
     print(multiply(2, 2, 3)(matrix_2_2, matrix_2_3))
 if __name__ == '__main__':
     main()

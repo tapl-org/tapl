@@ -51,7 +51,7 @@ Run it:
 tapl hello_world.tapl
 ```
 
-Behind the scenes, TAPL compiles your source into two Python files and executes them:
+Behind the scenes, TAPL generates two Python files from your source:
 
 - `hello_world.py` -- the runtime code:
 
@@ -68,15 +68,15 @@ s0 = tapl_typing.create_scope(parent__sa=predef_scope__sa)
 s0.print(s0.Str)
 ```
 
-The type-checker always runs before the runtime code. If type-checking fails, TAPL stops the compilation process and the runtime code will not execute. If type-checking succeeds, TAPL ensures your code is type-safe and then runs the runtime code.
+TAPL runs the type-checker first. If type-checking fails, TAPL reports the errors and the runtime code never executes. If type-checking succeeds, TAPL then executes the runtime code.
 
 ## Language Basics
 
-TAPL's `pythonlike` language looks like Python, but with only some negligible syntax differences.
+TAPL's `pythonlike` language looks like Python, with a few targeted syntax differences for its type system.
 
 ### Functions and Classes
 
-TAPL functions and classes look like Python and use the same syntax for defining them, except that type names are written in CamelCase (e.g., `Int`, `Str`, `Bool`) instead of lowercase (like Python's `int`, `str`, `bool`).
+TAPL functions and classes look like Python and use the same syntax for defining them, except that type names are written in CamelCase (e.g., `Int`, `Str`, `Bool`) instead of lowercase (like Python's `int`, `str`, `bool`). Parameterized types use function-call syntax, such as `List(Int)` for a list of integers or `List(List(Int))` for a nested list.
 
 Here's an example showing both a typed function and a class definition:
 
@@ -104,7 +104,7 @@ In TAPL, the `!` symbol is used to distinguish a class from its instances in typ
 - In TAPL, `Dog` refers to the class (the constructor).
 - `Dog!` refers to an instance of that class.
 
-For example, you can define functions as follows:
+Using the `Dog` class defined above, you can define functions as follows:
 
 ```python
 def greet_dog(dog: Dog!) -> Str:
@@ -126,14 +126,14 @@ TAPL splits every program into two distinct layers:
 - The **value layer** – code that executes at runtime (handling values, computation, and effects).
 - The **type layer** – code that runs during compilation to check correctness (handling types and constraints).
 
-If you looked at Hello World's example, there are two `.py` files for these layers: `hello_world.py` for the value layer and `hello_world1.py` for the type layer.
+As shown in the Hello World example, there are two `.py` files for these layers: `hello_world.py` for the value layer and `hello_world1.py` for the type layer.
 
 Normally, you just write regular code and the compiler determines the layers automatically. But TAPL provides two special operators to let you explicitly move information between the layers:
 
-- `^expr` (“literal lifting”) – takes a value from the runtime/value layer and moves it to the type layer, making it available for type-level checks.
-- `<expr:Type>` (“double-layer expression”) – lets you specify the value layer and type layer components directly.
+- `^expr` (“literal lifting”) – takes a value from the runtime/value layer and moves it to the type layer, making it available for type-level checks. For example, `^2` makes the number `2` available at the type level, so the compiler can reason about it statically.
+- `<expr:Type>` (“double-layer expression”) – lets you specify the value layer and type layer components directly. For example, `<rows:Int>` gives the runtime value `rows` an explicit type of `Int` in the type layer.
 
-These operators are what allow TAPL to support dependent types in a natural way.
+These operators are what allow TAPL to support dependent types in a natural way. The [Dependent Types with Matrices](#dependent-types-with-matrices) section below shows both operators in action.
 
 ## Dependent Types with Matrices
 
@@ -169,7 +169,7 @@ def Matrix(rows, cols):
     return Matrix_
 ```
 
-Here, the `^` operator (literal lifting) lifts a runtime value to the type layer. For instance, `^'Matrix({},{})'.format(rows, cols)` produces a class with a unique type name reflecting its dimensions.
+The optional `class_name` attribute sets the type name that appears in error messages for this dynamically created class. It aids in debugging but is not used for type checking. In this example, the `^` operator (literal lifting) brings a runtime value to the type layer, so `^'Matrix({},{})'.format(rows, cols)` results in a class with a unique name that reflects its dimensions (e.g., `Matrix(2,3)`), helping users easily identify types in error messages.
 
 The `<expr:Type>` ("double-layer expression") lets you assign both a runtime value and an explicit type. For example, `<rows:Int>` ensures `rows` is available in both the value and type layers as an integer.
 
@@ -187,17 +187,17 @@ Here `Matrix(^2, ^3)!` is the type of a 2x3 matrix instance. The `^2` and `^3` l
 You can also write generic functions over dimensions:
 
 ```python
-def sum(rows, cols):
-    def sum_(a: Matrix(rows, cols)!, b: Matrix(rows, cols)!):
+def add(rows, cols):
+    def add_(a: Matrix(rows, cols)!, b: Matrix(rows, cols)!):
         result = Matrix(rows, cols)()
         for i in range(result.num_rows):
             for j in range(result.num_cols):
                 result.values[i][j] = a.values[i][j] + b.values[i][j]
         return result
-    return sum_
+    return add_
 ```
 
-This `sum` function requires both input matrices to have the same dimensions. If you try to add matrices with different sizes, the compiler will raise a type error.
+This `add` function requires both input matrices to have the same dimensions. If you try to add matrices with different sizes, the compiler will raise a type error.
 
 Matrix multiplication similarly enforces that the inner dimensions match:
 
@@ -226,7 +226,7 @@ def main():
 
     accept_matrix_2_3(matrix_2_3)
 
-    print(sum(^2, ^2)(matrix_2_2, matrix_2_2))
+    print(add(^2, ^2)(matrix_2_2, matrix_2_2))
     print(multiply(^2, ^2, ^3)(matrix_2_2, matrix_2_3))
 ```
 
@@ -250,7 +250,7 @@ print(round(abs(-2.5)))
 
 To improve readability, you might want a "pipe" operator, so you can write this more clearly. TAPL lets you create such syntax extensions by defining new languages.
 
-For example, the `pipeweaver` language extends `pythonlike` by adding a pipe operator (`|>`) that feeds the output of one expression as input to the next:
+For example, `pipeweaver` is a custom language that extends `pythonlike` by adding a pipe operator (`|>`). It is included with the `tapl-lang` package as an example of language extensibility. Here's what it looks like in practice:
 
 ```python
 language pipeweaver
@@ -271,7 +271,7 @@ You can run this code with:
 ```bash
 tapl pipe.tapl
 ```
-Behind the scenes, TAPL compiles the pipeweaver code into standard Python with nested function calls:
+Behind the scenes, TAPL generates standard Python with nested function calls:
 
 ```python
 def double(i):
@@ -283,8 +283,6 @@ def square(i):
 print(square(double(3)))
 print(double(square(3)))
 ```
-
-
 
 The `pipeweaver` language implementation demonstrates how you can subclass the base grammar and add custom parsing rules—one for handling the `|>` token and another for parsing pipe call expressions. You can see the full implementation in the [pipeweaver source code](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/tapl_language/pipeweaver/pipeweaver_language.py).
 
