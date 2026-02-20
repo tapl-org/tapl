@@ -288,6 +288,8 @@ print(double(square(3)))
 
 The `pipeweaver` language implementation demonstrates how you can subclass the base grammar and add custom parsing rules—one for handling the `|>` token and another for parsing pipe call expressions. You can see the full implementation in the [pipeweaver source code](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/tapl_language/pipeweaver/pipeweaver_language.py).
 
+As you can see, you can create your own domain-specific language (DSL) simply by extending existing TAPL languages. Your custom language will also integrate seamlessly with standard Python code.
+
 ## What's Next?
 
 Explore TAPL further with the following resources:
