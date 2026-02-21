@@ -6,6 +6,8 @@ import argparse
 import ast
 import os
 import pathlib
+import subprocess
+import sys
 
 from tapl_lang.__about__ import __version__
 from tapl_lang.lib.compiler import compile_tapl
@@ -30,7 +32,7 @@ def compile_and_run(path: str) -> None:
         python_code = ast.unparse(layers[i])
         with open(filename, 'w') as f:
             f.write(python_code)
-        exec(python_code, globals())  # noqa: S102 # Find safe way to execute
+        subprocess.run([sys.executable, filename], check=True)
 
 
 def main():
