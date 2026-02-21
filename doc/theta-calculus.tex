@@ -60,31 +60,31 @@ $s ::=$ & $\lambda x.\,h \mid g\ h \mid h\ g \mid h\ h$ & \textit{separable}
   & \textbf{Evaluation} & $\epsilon[t] \to t$ \\[4pt]
 $x$
   & $\dfrac{\epsilon[x]}{x}$
-  & \textit{open term} \\[4pt]
+  & \textsc{E-Var} \\[4pt]
 $\lambda x.\,g$
   & $\dfrac{\epsilon[\lambda x.\,g]}{\lambda x.\,g}$
-  & \textit{abstraction} \\[4pt]
+  & \textsc{E-Abs} \\[4pt]
 $g\ g$
   & $r\ g \mid v\ r \mid v\ v$
   & \textit{application} \\[4pt]
   & $\dfrac{\epsilon[r\ g]}{\epsilon[r]\ g}$
-  & \textit{function} \\[4pt]
+  & \textsc{E-App1} \\[4pt]
   & $\dfrac{\epsilon[v\ r]}{v\ \epsilon[r]}$
-  & \textit{argument} \\[4pt]
+  & \textsc{E-App2} \\[4pt]
   & $\dfrac{\epsilon[(\lambda x.\,g)\ v]}{[x \mapsto v]g}$
-  & \textit{substitution} \\[4pt]
+  & \textsc{E-AppAbs} \\[4pt]
 $\theta.\,t$
   & $\theta.\,g \mid \theta.\,s \mid \theta.\,t{:}t$
   & \textit{unlayering} \\[4pt]
   & $\dfrac{\epsilon[\theta.\,g]}{\lambda x.\ x\ (\lambda y.\,y)\ g}$
-  & \textit{base} \\[4pt]
+  & \textsc{E-Ground} \\[4pt]
   & $\dfrac{\epsilon[\theta.\,s]}{\theta.\,\sigma[s]}$
-  & \textit{separate} \\[4pt]
+  & \textsc{E-Separate} \\[4pt]
   & $\dfrac{\epsilon[\theta.\,t_1{:}t_2]}{\lambda x.\ x\ (\theta.\,t_2)\ (\theta.\,t_1)}$
-  & \textit{squash} \\[4pt]
+  & \textsc{E-Squash} \\[4pt]
 $h$
   & $\dfrac{\epsilon[h]}{h}$
-  & \textit{stuck}
+  & \textsc{E-MultiLayer}
 \end{tabular*}
 \end{minipage}}%
 \hfill
@@ -97,24 +97,24 @@ $\lambda x.\,h$
   & $\lambda x.\,s \mid \lambda x.\,p$
   & \textit{abstraction} \\[4pt]
   & $\dfrac{\sigma[\lambda x.\,s]}{\lambda x.\,\sigma[s]}$
-  & \textit{separate body} \\[4pt]
+  & \textsc{S-Abs} \\[4pt]
   & $\dfrac{\sigma[\lambda x.\,t_1{:}t_2]}{(\lambda x.\,t_1){:}(\lambda x.\,t_2)}$
-  & \textit{distribute} \\[4pt]
+  & \textsc{S-AbsDist} \\[4pt]
 $g\ h$
   & $\dfrac{\sigma[g\ h]}{g{:}g\ h}$
-  & \textit{clone function} \\[4pt]
+  & \textsc{S-Clone1} \\[4pt]
 $h\ g$
   & $\dfrac{\sigma[h\ g]}{h\ g{:}g}$
-  & \textit{clone argument} \\[4pt]
+  & \textsc{S-Clone2} \\[4pt]
 $h\ h$
   & $s\ h \mid p\ s \mid p\ p$
   & \textit{application} \\[4pt]
   & $\dfrac{\sigma[s\ h]}{\sigma[s]\ h}$
-  & \textit{function} \\[4pt]
+  & \textsc{S-App1} \\[4pt]
   & $\dfrac{\sigma[p\ s]}{p\ \sigma[s]}$
-  & \textit{argument} \\[4pt]
+  & \textsc{S-App2} \\[4pt]
   & $\dfrac{\sigma[t_1{:}t_2\ t_3{:}t_4]}{(t_1\ t_3){:}(t_2\ t_4)}$
-  & \textit{distribute}
+  & \textsc{S-AppDist}
 \end{tabular*}
 \end{minipage}}
 
@@ -167,7 +167,7 @@ By $B\ f\ g\ x = f\ (g\ x)$:
 
 = $(\lambda x.x + (1{:}Int))\ ((I{:}(G_a\ Int))\ (2{:}Int))$
 
-Distribute application over layers ($p\ p$, \textit{distribute}):
+Distribute application over layers ($p\ p$, \textsc{S-AppDist}):
 
 = $(\lambda x.x + (1{:}Int))\ ((I\ 2){:}((G_a\ Int)\ Int))$
 
@@ -175,11 +175,11 @@ $I\ 2 = 2$, and $(G_a\ Int)\ Int = (\lambda b.\ \text{if}\ b<:Int\ \text{then}\ 
 
 = $(\lambda x.x + (1{:}Int))\ (2{:}Int)$
 
-Separate $(\lambda x.x + (1{:}Int))$ (\textit{distribute} through abstraction):
+Separate $(\lambda x.x + (1{:}Int))$ (\textsc{S-AbsDist}):
 
 = $((\lambda x.x + 1){:}(\lambda x.x + Int))\ (2{:}Int)$
 
-Distribute application over layers ($p\ p$, \textit{distribute}):
+Distribute application over layers ($p\ p$, \textsc{S-AppDist}):
 
 = $((\lambda x.x + 1)\ 2){:}((\lambda x.x + Int)\ Int)$
 
