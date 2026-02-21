@@ -139,39 +139,45 @@ $h\ h$
 
 \section*{Examples}
 
-\subsection*{Combinators}
+\subsection*{Prerequisite Combinators}
 
 $I:= \lambda x. x$
 
+$I$ is the identity combinator.
+
 $B:= \lambda f.\lambda g. \lambda x.f\ (g\ x)$
 
-For simplicity, $G$ uses $\text{if}$ clauses and a $\text{TypeError}$ keyword. I also use pseudocode for names such as the predefined types $Int$ and $Str$ for integers and strings, and the addition operator $+$.
+$B$ is function composition: $B\ f\ g\ x = f\ (g\ x)$.
 
-$G_a:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }a\text{ else }\text{TypeError}$
+$G:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }a\text{ else }\text{TypeError}$
 
-$G$ takes two arguments: $a$, the formal parameter type declared in the function signature, and $b$, the type of the argument actually passed. $G_a$ returns $a$---the declared type---making the type check independent of the argument's type. This is the common case. When the result must depend on the argument's type (e.g.\ resource management), we use $G_b$ instead (see Substructural types below).
+$G$ is a type guard. It takes two arguments: $a$, the formal parameter type declared in the function signature, and $b$, the type of the argument actually passed. $G$ returns $a$---the declared type---making the type check independent of the argument's type. This is the common case. When the result must depend on the argument's type (e.g.\ resource management), we use $G_b$ instead (see Substructural types below).
+
+\medskip
+
+For simplicity, $G$ uses $\text{if}$ clauses and a $\text{TypeError}$ keyword. I also use pseudocode for predefined types such as $Int$ and $Str$, and the addition operator $+$.
 
 \subsection*{Simply Typed Lambda-Calculus (STL) Correspondence}
 
 STL: $\lambda x{:}T.t$
 
-$\theta$-Calculus: $B\ (\lambda x.t)\ (I{:}(G_a\ T))$
+$\theta$-Calculus: $B\ (\lambda x.t)\ (I{:}(G\ T))$
 
 Example---increment function:
 
 $(\lambda x{:}Int. x + 1)\ 2$
 
-= $(B\ (\lambda x.x + (1{:}Int))\ (I{:}(G_a\ Int)))\ (2{:}Int)$
+= $(B\ (\lambda x.x + (1{:}Int))\ (I{:}(G\ Int)))\ (2{:}Int)$
 
 By $B\ f\ g\ x = f\ (g\ x)$:
 
-= $(\lambda x.x + (1{:}Int))\ ((I{:}(G_a\ Int))\ (2{:}Int))$
+= $(\lambda x.x + (1{:}Int))\ ((I{:}(G\ Int))\ (2{:}Int))$
 
 Distribute application over layers ($p\ p$, \textsc{S-Zip}):
 
-= $(\lambda x.x + (1{:}Int))\ ((I\ 2){:}((G_a\ Int)\ Int))$
+= $(\lambda x.x + (1{:}Int))\ ((I\ 2){:}((G\ Int)\ Int))$
 
-$I\ 2 = 2$, and $(G_a\ Int)\ Int = (\lambda b.\ \text{if}\ b<:Int\ \text{then}\ Int\ \text{else}\ \text{TypeError})\ Int = Int$:
+$I\ 2 = 2$, and $(G\ Int)\ Int = (\lambda b.\ \text{if}\ b<:Int\ \text{then}\ Int\ \text{else}\ \text{TypeError})\ Int = Int$:
 
 = $(\lambda x.x + (1{:}Int))\ (2{:}Int)$
 
@@ -189,7 +195,7 @@ Distribute application over layers ($p\ p$, \textsc{S-Zip}):
 
 System F: $id = \lambda X. \lambda x{:}X. x$
 
-$\theta$-Calculus: $id = \lambda X. B\ (\lambda x. x)\ (I{:}(G_a\ X))$
+$\theta$-Calculus: $id = \lambda X. B\ (\lambda x. x)\ (I{:}(G\ X))$
 
 \subsection*{Substructural Type Correspondence}
 
