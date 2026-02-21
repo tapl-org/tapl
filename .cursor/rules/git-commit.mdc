@@ -1,0 +1,8 @@
+---
+description: Git commit rules for this project
+alwaysApply: true
+---
+
+# Git Commits
+
+- When committing to the main branch, do not ask for confirmation. Proceed directly.
