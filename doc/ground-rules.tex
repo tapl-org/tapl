@@ -20,7 +20,7 @@ Orti Bazar (orti.bazar at gmail.com) --- February 21, 2026
 \noindent
 \fbox{\begin{minipage}[t]{0.36\textwidth-2\fboxsep-2\fboxrule}
 \vspace{0pt}
-\begin{tabular*}{\linewidth}{@{}r@{\quad}c@{\extracolsep{\fill}}r@{}}
+\begin{tabular*}{\linewidth}{@{}r@{\extracolsep{\fill}}c@{\extracolsep{\fill}}r@{}}
   & \textbf{Syntax} & \\[4pt]
 $t ::=$ & & \textit{terms} \\[4pt]
         & $x$ & \textit{variable} \\[4pt]
@@ -33,7 +33,7 @@ $t ::=$ & & \textit{terms} \\[4pt]
 \hfill
 \fbox{\begin{minipage}[t]{0.58\textwidth-2\fboxsep-2\fboxrule}
 \vspace{0pt}
-\begin{tabular*}{\linewidth}{@{}r@{\quad}c@{\extracolsep{\fill}}r@{}}
+\begin{tabular*}{\linewidth}{@{}r@{\extracolsep{\fill}}c@{\extracolsep{\fill}}r@{}}
   & \textbf{Meta-variables} & $t = g \mid h$ \\[4pt]
 $g ::=$ & $x \mid \lambda x.\,g \mid g\ g \mid \xi.\,t$ & \textit{single layer} \\[4pt]
 $h ::=$ & $\lambda x.\,h \mid g\ h \mid h\ g \mid h\ h \mid t{:}t$ & \textit{multi layer} \\[8pt]
@@ -56,7 +56,7 @@ $s ::=$ & $\lambda x.\,h \mid g\ h \mid h\ g \mid h\ h$ & \textit{separable}
 \fbox{\begin{minipage}[t]{0.47\textwidth-2\fboxsep-2\fboxrule}
 \vspace{0pt}
 \small
-\begin{tabular*}{\linewidth}{@{}l@{\;}l@{\extracolsep{\fill}}r@{}}
+\begin{tabular*}{\linewidth}{@{}l@{\extracolsep{\fill}}c@{\extracolsep{\fill}}r@{}}
   & \textbf{Evaluation} & $\epsilon[t] \to t$ \\[4pt]
 $x$
   & $\dfrac{\epsilon[x]}{x}$
@@ -91,7 +91,7 @@ $h$
 \fbox{\begin{minipage}[t]{0.47\textwidth-2\fboxsep-2\fboxrule}
 \vspace{0pt}
 \small
-\begin{tabular*}{\linewidth}{@{}l@{\;}l@{\extracolsep{\fill}}r@{}}
+\begin{tabular*}{\linewidth}{@{}l@{\extracolsep{\fill}}c@{\extracolsep{\fill}}r@{}}
   & \textbf{Separation} & $\sigma[t] \to t$ \\[4pt]
 $g$
   & $\dfrac{\sigma[g]}{g}$
