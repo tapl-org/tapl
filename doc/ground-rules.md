@@ -2,7 +2,7 @@
    Exceptions. See /LICENSE for license information.
    SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception ?>
 
-# $\xi - calculus$
+# $\xi$-calculus
 
 &nbsp;           | **Syntax**                                                                   | &nbsp;
 ---              | :-:                                                                          | ---:
@@ -51,8 +51,8 @@ $h\ h$           | $\ s\ h\ \mid\ p\ s\ \mid\ p\ p$                             
 
 
 ## Notes
-* The Xi-Calculus ($\xi$-calculus) is an extended version of the Lambda-Calculus ($\lambda$-calculus)
-* $\dfrac{a}{a'} \coloneqq a$ evaluates to $a'$ in one step, or forward the evaluation.
+* The Xi-Calculus ($\xi$-calculus) is an extended version of the Lambda-Calculus ($\lambda$-calculus).
+* $\dfrac{a}{a'} \coloneqq a$ evaluates to $a'$, either directly or by forwarding evaluation to a sub-term.
 * Terms are either open or closed (cf. Pierce, TAPL 5.1.Scope). A closed term that evaluates to itself is either a value ($v$) or stuck. A closed term is stuck if it is in normal form but not a value (cf. Pierce, TAPL 3.5.15). Multi-layer terms ($h$) are stuck under evaluation; they require explicit unlayering via $\xi$ to make progress.
 * When separation returns the same term, it is either single-layer ($g$) or already separated ($p$)---both are base cases.
 * Unlayering ($\xi$) is total: every sub-case produces a new term. There are no stuck cases in unlayering.
@@ -64,38 +64,69 @@ $I:= \lambda x. x$
 
 $B:= \lambda f.\lambda g. \lambda x.f\ (g\ x)$
 
-$G_a:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }a\text{ else }error$
+For simplicity, $G$ uses $\text{if}$ clauses and a $TypeError$ keyword. I also use pseudocode for names such as the predefined types $Int$ and $Str$ for integers and strings, and the addition operator $+$.
 
-$G_b:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }b\text{ else }error$
+$G_a:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }a\text{ else }TypeError$
+
+$G$ takes two arguments: $a$, the formal parameter type declared in the function signature, and $b$, the type of the argument actually passed. $G_a$ returns $a$---the declared type---making the type check independent of the argument's type. This is the common case. When the result must depend on the argument's type (e.g. resource management), we use $G_b$ instead (see Substructural types below).
 
 #### Simply Typed Lambda-Calculus (STL) Correspondence
 STL: $\lambda x{:}T.t$
 
-TAPL: $B\ (\lambda x.t)\ (I{:}(G_a\ T))$
+$\xi$-Calculus: $B\ (\lambda x.t)\ (I{:}(G_a\ T))$
 
-#### Polymorphic lambda-calculus (System F) Correspondence
+Example---increment function:
+
+$(\lambda x{:}Int. x + 1)\ 2$
+
+= $(B\ (\lambda x.x + (1{:}Int))\ (I{:}(G_a\ Int)))\ (2{:}Int)$
+
+By $B\ f\ g\ x = f\ (g\ x)$:
+
+= $(\lambda x.x + (1{:}Int))\ ((I{:}(G_a\ Int))\ (2{:}Int))$
+
+Distribute application over layers ($p\ p$, *distribute*):
+
+= $(\lambda x.x + (1{:}Int))\ ((I\ 2){:}((G_a\ Int)\ Int))$
+
+$I\ 2 = 2$, and $(G_a\ Int)\ Int = (\lambda b.\ \text{if}\ b<:Int\ \text{then}\ Int\ \text{else}\ TypeError)\ Int = Int$:
+
+= $(\lambda x.x + (1{:}Int))\ (2{:}Int)$
+
+Separate $(\lambda x.x + (1{:}Int))$ (*distribute* through abstraction):
+
+= $((\lambda x.x + 1){:}(\lambda x.x + Int))\ (2{:}Int)$
+
+Distribute application over layers ($p\ p$, *distribute*):
+
+= $((\lambda x.x + 1)\ 2){:}((\lambda x.x + Int)\ Int)$
+
+= $(2 + 1){:}(Int + Int) = 3{:}Int$
+
+#### Polymorphic Lambda-Calculus (System F) Correspondence
 System F: $id = \lambda X. \lambda x{:}X. x$
 
-TAPL: $id = \lambda X. B\ (\lambda x. x)\ (I{:}(G_a\ X))$
+$\xi$-Calculus: $id = \lambda X. B\ (\lambda x. x)\ (I{:}(G_a\ X))$
 
-#### Substructural type Correspondence
+#### Substructural Type Correspondence
+
+$G_b:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }b\text{ else }TypeError$
+
+Here the argument type may carry state---for example, whether a file is open or closed.
 
 STL: $\lambda x{:}T.t$
 
-TAPL: $B\ (\lambda x.t)\ (I{:}(G_b\ T))$
+$\xi$-Calculus: $B\ (\lambda x.t)\ (I{:}(G_b\ T))$
 
-#### Dependent type Correspondence
+#### Dependent Type Correspondence
 
 $T_D:= \lambda x. t_d$
 
 $G_D:= \lambda a.\lambda b. \lambda x. G_{a\mid b\mid D}\ (a\ x)\ (b\ x)$
 
+$G_D$ is a delayed dependent type guard. When type checking depends on a value that is not yet available, we wrap the type check in an abstraction ($\lambda x$). The check is then executed later, once the value is supplied.
+
 Dependent type: $\lambda x{:}T_D.t$
 
-TAPL: $B\ (\lambda x.t)\ (I{:}(G_D\ T_D))$
+$\xi$-Calculus: $B\ (\lambda x.t)\ (I{:}(G_D\ T_D))$
 
-
-
-# Type System Hierarchy
-
-$\text{Nothing} \to T \to \text{Any} \to \text{Any}|\text{None}$
