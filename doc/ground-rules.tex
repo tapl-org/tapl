@@ -92,13 +92,7 @@ $h$
 \vspace{0pt}
 \small
 \begin{tabular*}{\linewidth}{@{}l@{\extracolsep{\fill}}c@{\extracolsep{\fill}}r@{}}
-  & \textbf{Separation} & $\sigma[t] \to t$ \\[4pt]
-$g$
-  & $\dfrac{\sigma[g]}{g}$
-  & \textit{single layer} \\[4pt]
-$p$
-  & $\dfrac{\sigma[p]}{p}$
-  & \textit{already separated} \\[4pt]
+  & \textbf{Separation} & $\sigma[s] \to t$ \\[4pt]
 $\lambda x.\,h$
   & $\lambda x.\,s \mid \lambda x.\,p$
   & \textit{abstraction} \\[4pt]
@@ -136,7 +130,7 @@ $h\ h$
 \item The Xi-Calculus ($\xi$-calculus) is an extended version of the Lambda-Calculus ($\lambda$-calculus).
 \item $\dfrac{a}{a'} \coloneqq a$ evaluates to $a'$, either directly or by forwarding evaluation to a sub-term.
 \item Terms are either open or closed (cf.\ Pierce, TAPL 5.1.Scope). A closed term that evaluates to itself is either a value ($v$) or stuck. A closed term is stuck if it is in normal form but not a value (cf.\ Pierce, TAPL 3.5.15). Multi-layer terms ($h$) are stuck under evaluation; they require explicit unlayering via $\xi$ to make progress.
-\item When separation returns the same term, it is either single-layer ($g$) or already separated ($p$)---both are base cases.
+\item Separation is defined only on separable terms ($s$). Single-layer terms ($g$) and already-separated terms ($p$) need no separation, so they are excluded from $\sigma$'s domain.
 \item Unlayering ($\xi$) is total: every sub-case produces a new term. There are no stuck cases in unlayering.
 \end{itemize}
 
