@@ -5,16 +5,661 @@
 \documentclass[11pt,letterpaper]{article}
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath,amssymb,mathtools}
+\usepackage{amsthm}
+\usepackage[hidelinks]{hyperref}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+
+\title{The $\theta$-Calculus:\\Unifying Type Systems through Layered Computation}
+\author{Orti Bazar\\\texttt{orti.bazar@gmail.com}}
+\date{February 2026}
 
 \begin{document}
 
-\begin{center}
-{\Large\bfseries $\theta$-Calculus: An Extension of the $\lambda$-Calculus}\\[4pt]
-Orti Bazar (orti.bazar at gmail.com) --- February 21, 2026
-\end{center}
-\smallskip
+\maketitle
 
-%% ── Syntax & Meta-variables ──────────────────────────────────────────────
+\begin{abstract}
+We present the $\theta$-calculus, an extension of the untyped lambda calculus
+with two operations---layering ($t{:}t$) and unlayering ($\theta.\,t$)---that
+provides a unified mechanism for expressing the full spectrum of type system
+features. We define the syntax, term classification, evaluation semantics, and
+separation operation, then show that Simply Typed Lambda Calculus, System~F
+polymorphism, substructural types, and dependent types all arise as
+configurations of the same mechanism, differing only in the choice of guard
+combinator.
+\end{abstract}
+
+\newpage
+
+%% ── Introduction ────────────────────────────────────────────────────────
+
+\section{Introduction}
+
+Most language ecosystems treat the type system as a fundamentally different
+mechanism from the term language. TypeScript adds types to JavaScript. Mypy
+adds types to Python. Rust's borrow checker is a separate phase from
+evaluation. In each case, the type system requires its own distinct formalism,
+its own rules, its own machinery.
+
+The $\theta$-calculus rejects that dichotomy. It extends the untyped lambda
+calculus with just two operations---\emph{layering} ($t{:}t$) and
+\emph{unlayering} ($\theta.\,t$)---and shows that type checking, polymorphism,
+substructural types, and dependent types all emerge from the same computational
+substrate. The layering operation says ``this term exists simultaneously at
+multiple levels,'' and the \emph{separation} operation decomposes a multi-layer
+program into its individual layers.
+
+This yields two key results:
+
+\begin{itemize}
+\item \textbf{Unified type system hierarchy.} Simply Typed Lambda Calculus,
+  System~F, substructural types, and dependent types are all encoded using the
+  same mechanism. They are not different type systems---they are different
+  configurations of the same system, differing only in the choice of guard
+  combinator.
+
+\item \textbf{Dependent types become natural.} When types are terms in another
+  layer, dependent types---where types depend on values---are not a special
+  feature requiring a proof assistant. They are terms that reference values
+  across layers.
+\end{itemize}
+
+The $\theta$-calculus is named in the tradition of the $\lambda$-calculus.
+Where $\lambda$ denotes abstraction, $\theta$ denotes unlayering---the
+operation that inspects and decomposes the layered structure of a term.
+
+The remainder of this paper is organized as follows.
+Section~\ref{sec:syntax} defines the syntax.
+Section~\ref{sec:classification} introduces the term classification that
+drives both evaluation and separation.
+Sections~\ref{sec:evaluation} and~\ref{sec:separation} present the evaluation
+and separation semantics.
+Section~\ref{sec:encodings} demonstrates that STLC, System~F, substructural
+types, and dependent types are all encodable in the calculus.
+Section~\ref{sec:discussion} discusses properties of the system.
+Section~\ref{sec:conclusion} concludes.
+Appendix~\ref{sec:appendix} provides a compact one-page reference of all
+formal rules.
+
+%% ── Syntax ──────────────────────────────────────────────────────────────
+
+\section{Syntax}\label{sec:syntax}
+
+The $\theta$-calculus extends the untyped lambda calculus with two constructs:
+layering and unlayering.
+
+\begin{definition}[Terms]
+The set of terms is defined by the following grammar:
+$$
+\begin{array}{rcll}
+t \  ::= & & & \textit{terms:} \\[4pt]
+  & x & & \textit{variable} \\
+  & \lambda x.\, t & & \textit{abstraction} \\
+  & t \ t & & \textit{application} \\
+  & t {:} t & & \textit{layering} \\
+  & \theta.\, t & & \textit{unlayering}
+\end{array}
+$$
+\end{definition}
+
+The first three forms are standard lambda calculus. The two new forms are:
+
+\begin{itemize}
+\item \textbf{Layering} ($t_1{:}t_2$) constructs a term that exists
+  simultaneously in multiple computational layers. The term $t_1$ belongs to
+  the first layer and $t_2$ to the second.
+
+\item \textbf{Unlayering} ($\theta.\,t$) inspects and decomposes the layers
+  of a term, producing a selector that provides access to each layer
+  independently.
+\end{itemize}
+
+%% ── Term Classification ─────────────────────────────────────────────────
+
+\section{Term Classification}\label{sec:classification}
+
+Every term is either \emph{single-layer} or \emph{multi-layer}. This
+distinction is the engine of the entire system---it drives both evaluation
+and separation.
+
+\begin{definition}[Single-layer and multi-layer terms]
+\label{def:layers}
+$$
+\begin{array}{rcll}
+  & & & t = g \mid h \\[4pt]
+g \ ::= & x \mid \lambda x.\,g \mid g\ g \mid \theta.\,t
+  & & \textit{single-layer term} \\
+h \ ::= & \lambda x.\,h \mid g\ h \mid h\ g \mid h\ h \mid t{:}t
+  & & \textit{multi-layer term}
+\end{array}
+$$
+\end{definition}
+
+A single-layer term ($g$) is a conventional lambda calculus term---it lives
+in one layer. A multi-layer term ($h$) involves layering or has at least one
+multi-layer sub-term. Multi-layer terms are compact representations of code
+that \emph{means different things at different layers}.
+
+Note that unlayering ($\theta.\,t$) is classified as a single-layer term even
+when its body $t$ is multi-layer. This is because $\theta$ is an operator that
+\emph{decomposes} layers; it does not itself inhabit multiple layers.
+
+\subsection{Single-Layer Sub-classification}
+
+Single-layer terms are further classified into values and non-values:
+
+$$
+\begin{array}{rcll}
+  & & & g = v \mid r \\[4pt]
+v \ ::= & \lambda x.\,g & & \textit{value} \\
+r \ ::= & x \mid g\ g \mid \theta.\,t & & \textit{non-value}
+\end{array}
+$$
+
+Values ($v$) are abstractions over single-layer bodies---they are fully
+evaluated. Non-values ($r$) are variables, applications, or unlayering
+forms that may reduce further.
+
+\subsection{Multi-Layer Sub-classification}
+
+Multi-layer terms are classified into \emph{separated} and \emph{separable}
+terms:
+
+$$
+\begin{array}{rcll}
+  & & & h = p \mid s \\[4pt]
+p \ ::= & t{:}t & & \textit{separated} \\
+s \ ::= & \lambda x.\,h \mid g\ h \mid h\ g \mid h\ h
+  & & \textit{separable}
+\end{array}
+$$
+
+A separated term ($p$) is already decomposed into its layers---it is a
+layering node $t_1{:}t_2$. A separable term ($s$) still needs the separation
+operation to decompose it. The distinction between $p$ and $s$ determines
+which separation rules apply.
+
+%% ── Evaluation ──────────────────────────────────────────────────────────
+
+\section{Evaluation}\label{sec:evaluation}
+
+The evaluation function $\epsilon[t] \to t$ reduces a term by one step.
+We adopt the convention:
+
+$$
+\dfrac{a}{a'} \coloneqq \text{``}a \text{ evaluates to } a'\text{''}
+$$
+
+When evaluation returns the same term, the term is either a value or
+stuck~\cite{pierce2002}. A closed term is stuck if it is in normal form but
+not a value. Multi-layer terms ($h$) are stuck under evaluation; they require
+explicit unlayering via $\theta$ to make progress.
+
+\subsection{Variable and Abstraction}
+
+Variables and abstractions are already in normal form:
+
+$$
+\dfrac{\epsilon[x]}{x}
+\quad (\textsc{E-Var})
+\qquad\qquad
+\dfrac{\epsilon[\lambda x.\,g]}{\lambda x.\,g}
+\quad (\textsc{E-Abs})
+$$
+
+\subsection{Application}
+
+Application of two single-layer terms ($g\ g$) decomposes into three
+sub-cases: $r\ g \mid v\ r \mid v\ v$.
+
+When the function is a non-value, evaluate it first:
+
+$$
+\dfrac{\epsilon[r\ g]}{\epsilon[r]\ g}
+\quad (\textsc{E-App1})
+$$
+
+When the function is a value but the argument is not, evaluate the argument:
+
+$$
+\dfrac{\epsilon[v\ r]}{v\ \epsilon[r]}
+\quad (\textsc{E-App2})
+$$
+
+When both are values, perform $\beta$-reduction:
+
+$$
+\dfrac{\epsilon[(\lambda x.\,g)\ v]}{[x \mapsto v]\,g}
+\quad (\textsc{E-Subst})
+$$
+
+\subsection{Unlayering}
+
+Unlayering ($\theta.\,t$) decomposes into three sub-cases:
+$\theta.\,g \mid \theta.\,s \mid \theta.\,(t_1{:}t_2)$.
+
+If the body is single-layer, produce a terminal selector with the identity
+function as a sentinel:
+
+$$
+\dfrac{\epsilon[\theta.\,g]}{\lambda x.\, x\ (\lambda y.\,y)\ g}
+\quad (\textsc{E-Ground})
+$$
+
+The selector provides the term $g$ in one position and the identity
+$\lambda y.\,y$ in the other. The identity signals ``there are no further
+layers''---it is the base case of unlayering.
+
+If the body is separable, apply the separation operation:
+
+$$
+\dfrac{\epsilon[\theta.\,s]}{\theta.\,\sigma[s]}
+\quad (\textsc{E-Separate})
+$$
+
+If the body is a layered term, \emph{squash} it into a selector that
+recursively unlayers each component:
+
+$$
+\dfrac{\epsilon[\theta.\,(t_1{:}t_2)]}{\lambda x.\, x\ (\theta.\,t_2)\ (\theta.\,t_1)}
+\quad (\textsc{E-Squash})
+$$
+
+The recursive $\theta$ in the squash result ensures that each sub-term is
+itself unlayered when the selector is applied. This is necessary because
+$\theta.\,t$ is classified as a single-layer term ($g$); returning raw $t_1$
+or $t_2$ without $\theta$ could yield multi-layer terms ($h$), violating the
+syntactic category. For single-layer sub-terms, the recursion bottoms out at
+\textsc{E-Ground}, producing a terminal selector. For multi-layer sub-terms,
+squash is applied again, peeling off one level of layering at a time. All
+paths terminate with no stuck cases.
+
+\subsection{Multi-Layer Terms}
+
+Multi-layer terms do not reduce under evaluation---they must be explicitly
+unlayered:
+
+$$
+\dfrac{\epsilon[h]}{h}
+\quad (\textsc{E-Layered})
+$$
+
+A multi-layer term represents code that means different things at different
+layers, and it makes no sense to evaluate it as a single computation. The only
+way to make progress is to wrap it in $\theta$, which triggers separation and
+decomposition.
+
+%% ── Separation ──────────────────────────────────────────────────────────
+
+\section{Separation}\label{sec:separation}
+
+The separation function $\sigma[s] \to t$ transforms a separable term into a
+layered term $t_1{:}t_2$ where each component belongs to a single layer.
+Separation is the key operation of the $\theta$-calculus: it is the formal
+mechanism by which a multi-layer program is decomposed into independent
+single-layer computations.
+
+Separation is defined only on separable terms ($s$). Single-layer terms ($g$)
+need no separation because they already belong to a single layer.
+Already-separated terms ($p$) need no separation because they are already
+decomposed. This restricted domain ensures that each application of $\sigma$
+moves a term closer to a fully separated form.
+
+\subsection{Abstraction}
+
+Abstraction over a multi-layer body ($\lambda x.\,h$) has two sub-cases:
+$\lambda x.\,s \mid \lambda x.\,p$.
+
+If the body is separable, recurse into the body:
+
+$$
+\dfrac{\sigma[\lambda x.\,s]}{\lambda x.\,\sigma[s]}
+\quad (\textsc{S-Abs})
+$$
+
+If the body is already separated, distribute the abstraction over the layers:
+
+$$
+\dfrac{\sigma[\lambda x.\,(t_1{:}t_2)]}{(\lambda x.\,t_1){:}(\lambda x.\,t_2)}
+\quad (\textsc{S-Split})
+$$
+
+A function whose body spans two layers becomes two functions, one per layer.
+This is the distribution rule: it pushes abstraction through layering.
+
+\subsection{Cloning}
+
+When a single-layer term interacts with a multi-layer term in an application,
+the single-layer term is \textbf{cloned} into both layers:
+
+$$
+\dfrac{\sigma[g\ h]}{(g{:}g)\ h}
+\quad (\textsc{S-Clone1})
+\qquad\qquad
+\dfrac{\sigma[h\ g]}{h\ (g{:}g)}
+\quad (\textsc{S-Clone2})
+$$
+
+This is how ordinary code participates in multiple layers simultaneously. A
+single-layer term that appears in one layer of the source is duplicated so
+that it appears in every layer of the separated output.
+
+\subsection{Application of Multi-Layer Terms}
+
+Application of two multi-layer terms ($h\ h$) decomposes into:
+$s\ h \mid p\ s \mid p\ p$.
+
+If the function is separable, separate it first:
+
+$$
+\dfrac{\sigma[s\ h]}{\sigma[s]\ h}
+\quad (\textsc{S-App1})
+$$
+
+If the function is separated but the argument is separable, separate the
+argument:
+
+$$
+\dfrac{\sigma[p\ s]}{p\ \sigma[s]}
+\quad (\textsc{S-App2})
+$$
+
+If both are separated, distribute the application over the layers:
+
+$$
+\dfrac{\sigma[(t_1{:}t_2)\ (t_3{:}t_4)]}{(t_1\ t_3){:}(t_2\ t_4)}
+\quad (\textsc{S-Zip})
+$$
+
+Applying a layered function to a layered argument produces a layered result,
+where each layer's function is applied to that layer's argument.
+
+%% ── Encoding Type System Features ───────────────────────────────────────
+
+\section{Encoding Type System Features}\label{sec:encodings}
+
+One of the most significant results of the $\theta$-calculus is that multiple
+type system features emerge from the same layering mechanism. This section
+defines the combinators used in the encodings and demonstrates each
+correspondence.
+
+\subsection{Combinators}
+
+$$
+\begin{array}{rcl}
+I &\coloneqq& \lambda x.\, x \\[4pt]
+B &\coloneqq& \lambda f.\,\lambda g.\,\lambda x.\, f\ (g\ x) \\[4pt]
+G &\coloneqq& \lambda a.\,\lambda b.\
+  \text{if } b <: a \text{ then } a \text{ else } \mathit{TypeError}
+\end{array}
+$$
+
+$I$ is the identity combinator. $B$ is the composition combinator:
+$B\ f\ g\ x = f\ (g\ x)$. $G$ is a type guard that takes two arguments:
+$a$, the formal parameter type declared in the function signature, and $b$,
+the type of the argument actually passed. $G$ returns $a$---the declared
+type---making the type check independent of the argument's type.
+
+For simplicity, $G$ uses $\text{if}$ clauses and a $\mathit{TypeError}$
+keyword. We also use pseudocode for predefined types such as $\mathit{Int}$
+and $\mathit{Str}$, and the addition operator $+$.
+
+\subsection{Simply Typed Lambda Calculus}\label{sec:stlc}
+
+In the standard Simply Typed Lambda Calculus (STLC), a typed abstraction is
+written $\lambda x{:}T.\, t$. In the $\theta$-calculus, this is encoded as:
+
+$$
+\lambda x{:}T.\, t \quad\Longleftrightarrow\quad B\ (\lambda x.\,t)\ (I{:}(G\ T))
+$$
+
+The layering $I{:}(G\ T)$ creates a two-layer term: the identity function at
+the evaluation layer (pass the argument through unchanged) and a type guard
+at the type-checking layer (check that the argument is a subtype of $T$ and
+return $T$). The composition combinator $B$ threads the argument through both
+layers.
+
+\subsubsection*{Worked example}
+
+Consider the STLC term $(\lambda x{:}\mathit{Int}.\, x + 1)\ 2$.
+In the $\theta$-calculus:
+
+$$
+(\lambda x{:}\mathit{Int}.\, x + 1)\ 2
+= (B\ (\lambda x.\,x + (1{:}\mathit{Int}))\ (I{:}(G\ \mathit{Int})))
+  \ (2{:}\mathit{Int})
+$$
+
+By $B\ f\ g\ x = f\ (g\ x)$:
+
+$$
+= (\lambda x.\,x + (1{:}\mathit{Int}))
+  \ ((I{:}(G\ \mathit{Int}))\ (2{:}\mathit{Int}))
+$$
+
+Distribute application over layers ($p\ p$, \textsc{S-Zip}):
+
+$$
+= (\lambda x.\,x + (1{:}\mathit{Int}))
+  \ ((I\ 2){:}((G\ \mathit{Int})\ \mathit{Int}))
+$$
+
+$I\ 2 = 2$, and $(G\ \mathit{Int})\ \mathit{Int} = \mathit{Int}$
+(since $\mathit{Int} <: \mathit{Int}$):
+
+$$
+= (\lambda x.\,x + (1{:}\mathit{Int}))\ (2{:}\mathit{Int})
+$$
+
+Separate $(\lambda x.\,x + (1{:}\mathit{Int}))$ via \textsc{S-Split}:
+
+$$
+= ((\lambda x.\,x + 1){:}(\lambda x.\,x + \mathit{Int}))\ (2{:}\mathit{Int})
+$$
+
+Distribute application over layers ($p\ p$, \textsc{S-Zip}):
+
+$$
+= ((\lambda x.\,x + 1)\ 2){:}((\lambda x.\,x + \mathit{Int})\ \mathit{Int})
+$$
+
+$$
+= (2 + 1){:}(\mathit{Int} + \mathit{Int}) = 3{:}\mathit{Int}
+$$
+
+The evaluation layer computes $3$ and the type-checking layer computes
+$\mathit{Int}$, confirming that the result is an integer.
+
+\subsection{System F (Polymorphism)}
+
+In System~F, the polymorphic identity is
+$\mathit{id} = \lambda X.\, \lambda x{:}X.\, x$.
+In the $\theta$-calculus:
+
+$$
+\mathit{id} = \lambda X.\, B\ (\lambda x.\, x)\ (I{:}(G\ X))
+$$
+
+Polymorphism is not a separate feature. It arises because $X$ is a variable
+that can be bound to any type. The same abstraction mechanism that works for
+terms works for types, because in the $\theta$-calculus types \emph{are} terms
+in another layer.
+
+\subsection{Substructural Types}
+
+When the result of type checking must depend on the argument's type---for
+example, to track whether a file handle is open or closed---we use a different
+guard combinator:
+
+$$
+G_b \coloneqq \lambda a.\,\lambda b.\
+  \text{if } b <: a \text{ then } b \text{ else } \mathit{TypeError}
+$$
+
+$G_b$ returns the \emph{input} type $b$ rather than the annotation type $a$,
+preserving precise type information through the computation. The encoding is
+otherwise identical:
+
+$$
+\lambda x{:}T.\, t \quad\Longleftrightarrow\quad B\ (\lambda x.\,t)\ (I{:}(G_b\ T))
+$$
+
+The only difference between STLC and substructural typing is the guard
+combinator. $G$ discards the precise input type (returning the annotation),
+while $G_b$ preserves it. This distinction controls how type information flows
+through the system, which is the essence of substructural typing.
+
+\subsection{Dependent Types}
+
+For dependent types, we introduce a type function $T_D = \lambda x.\, t_d$
+(a type that depends on a value) and a dependent guard combinator:
+
+$$
+G_D \coloneqq \lambda a.\,\lambda b.\,\lambda x.\,
+  G_{a \mid b \mid D}\ (a\ x)\ (b\ x)
+$$
+
+$G_D$ is a delayed guard: when type checking depends on a value that is not
+yet available, we wrap the type check in an abstraction ($\lambda x$). The
+check is then executed later, once the value is supplied.
+
+A dependent typed abstraction $\lambda x{:}T_D.\, t$ is encoded as:
+
+$$
+B\ (\lambda x.\,t)\ (I{:}(G_D\ T_D))
+$$
+
+Since types are terms, a type that depends on a value is simply a function
+from values to types---no special machinery is required.
+
+\subsection{Summary}
+
+All four type system features share the same structure:
+
+$$
+B\ (\lambda x.\,t)\ (I{:}(\mathcal{G}\ T))
+$$
+
+\noindent where $\mathcal{G} \in \{G,\, G_b,\, G_D\}$. The layering
+mechanism is identical; only the guard combinator varies:
+
+\medskip
+\begin{center}
+\begin{tabular}{lll}
+\textbf{Feature} & \textbf{Guard} & \textbf{Returns} \\
+\hline
+STLC & $G$ & annotation type $a$ \\
+System~F & $G$ (with type variable) & annotation type $a$ \\
+Substructural & $G_b$ & input type $b$ \\
+Dependent & $G_D$ & delayed check \\
+\end{tabular}
+\end{center}
+
+%% ── Discussion ──────────────────────────────────────────────────────────
+
+\section{Discussion}\label{sec:discussion}
+
+\subsection{Conservative Extension}
+
+The $\theta$-calculus is a conservative extension of the untyped lambda
+calculus. Any lambda calculus term is a valid $\theta$-calculus term
+(classified as single-layer, $g$), and the evaluation rules for variables,
+abstractions, and applications are identical. The new
+constructs---layering and unlayering---provide additional expressive power
+without altering the behavior of existing terms.
+
+\subsection{Totality of Unlayering}
+
+Unlayering ($\theta$) is total: every sub-case of the \textsc{E-Ground},
+\textsc{E-Separate}, and \textsc{E-Squash} rules produces a new term. There
+are no stuck cases in unlayering. For single-layer bodies,
+\textsc{E-Ground} produces a terminal selector. For separable bodies,
+\textsc{E-Separate} delegates to $\sigma$ and recurs. For layered bodies,
+\textsc{E-Squash} produces a selector with recursive $\theta$ applications
+that bottom out at \textsc{E-Ground}. This guarantees that any term can be
+decomposed into its individual layers.
+
+\subsection{The Role of the Guard Combinator}
+
+The encodings in Section~\ref{sec:encodings} reveal that the guard combinator
+is the single point of variation across type system features. The layering
+$I{:}(\mathcal{G}\ T)$ is the uniform mechanism; $\mathcal{G}$ alone
+determines whether the system behaves as STLC ($G$), supports substructural
+tracking ($G_b$), or handles dependent types ($G_D$). This suggests that the
+space of type systems is not a taxonomy of distinct formalisms but a
+parameter space over a single architecture.
+
+\subsection{Separation Domain}
+
+Separation ($\sigma$) is defined only on separable terms ($s$), excluding
+single-layer terms ($g$) and already-separated terms ($p$). This restricted
+domain is not a limitation but a design choice: $g$ and $p$ are already in
+their final separated form, so applying $\sigma$ to them would be a no-op.
+The restricted domain ensures that each application of $\sigma$ makes
+meaningful progress toward full separation.
+
+%% ── Conclusion ──────────────────────────────────────────────────────────
+
+\section{Conclusion}\label{sec:conclusion}
+
+The $\theta$-calculus demonstrates that a single mechanism---layered
+computation with separation---is sufficient to express the full spectrum of
+type system features. Simply Typed Lambda Calculus, System~F, substructural
+types, and dependent types are not distinct formalisms; they are
+configurations of the same system, differing only in the choice of guard
+combinator ($G$, $G_b$, or $G_D$).
+
+The separation rules provide a formal mechanism for decomposing a multi-layer
+program into independent single-layer computations. The cloning rules ensure
+that ordinary code participates in every layer, while the distribution rules
+ensure that layered structures are correctly projected. Together, these rules
+define a complete and deterministic procedure for deriving separate
+computations---one per layer---from a single source program.
+
+\bigskip
+\noindent\textit{Named in the tradition of the $\lambda$-calculus. Inspired by
+Benjamin C. Pierce's \textbf{Types and Programming Languages}~\cite{pierce2002}.}
+
+%% ── References ──────────────────────────────────────────────────────────
+
+\begin{thebibliography}{9}
+
+\bibitem{pierce2002}
+B.~C. Pierce.
+\textit{Types and Programming Languages}.
+MIT Press, 2002.
+
+\bibitem{church1936}
+A.~Church.
+An unsolvable problem of elementary number theory.
+\textit{American Journal of Mathematics}, 58(2):345--363, 1936.
+
+\bibitem{barendregt1992}
+H.~P. Barendregt.
+Lambda calculi with types.
+In \textit{Handbook of Logic in Computer Science}, volume~2,
+pages 117--309. Oxford University Press, 1992.
+
+\bibitem{girard1972}
+J.-Y. Girard.
+\textit{Interpr\'{e}tation fonctionnelle et \'{e}limination des coupures de
+l'arithm\'{e}tique d'ordre sup\'{e}rieur}.
+PhD thesis, Universit\'{e} Paris VII, 1972.
+
+\bibitem{walker2005}
+D.~Walker.
+Substructural type systems.
+In \textit{Advanced Topics in Types and Programming Languages},
+chapter~1, pages 3--43. MIT Press, 2005.
+
+\end{thebibliography}
+
+%% ── Appendix: Formal Rules ─────────────────────────────────────────────
+
+\appendix
+
+\section{Formal Rules}\label{sec:appendix}
 
 \setlength{\fboxsep}{6pt}
 \noindent
@@ -47,8 +692,6 @@ $s ::=$ & $\lambda x.\,h \mid g\ h \mid h\ g \mid h\ h$ & \textit{separable}
 \end{minipage}}
 
 \medskip
-
-%% ── Evaluation & Separation ─────────────────────────────────────────────
 
 \renewcommand{\arraystretch}{2.0}
 
@@ -119,104 +762,5 @@ $h\ h$
 \end{minipage}}
 
 \renewcommand{\arraystretch}{1}
-
-\newpage
-
-%% ── Notes ────────────────────────────────────────────────────────────────
-
-\section*{Notes}
-
-\begin{itemize}
-\item The Theta-Calculus ($\theta$-calculus) is an extended version of the Lambda-Calculus ($\lambda$-calculus).
-\item $\dfrac{a}{a'} \coloneqq a$ evaluates to $a'$, either directly or by forwarding evaluation to a sub-term.
-\item Terms are either open or closed (cf.\ Pierce, TAPL 5.1.Scope). A closed term that evaluates to itself is either a value ($v$) or stuck. A closed term is stuck if it is in normal form but not a value (cf.\ Pierce, TAPL 3.5.15). Multi-layer terms ($h$) are stuck under evaluation; they require explicit unlayering via $\theta$ to make progress.
-\item Separation is defined only on separable terms ($s$). Single-layer terms ($g$) and already-separated terms ($p$) need no separation, so they are excluded from $\sigma$'s domain.
-\item Unlayering ($\theta$) is total: every sub-case produces a new term. There are no stuck cases in unlayering.
-\item The squash rule applies $\theta$ recursively to both sub-terms: $\theta.\,t_1{:}t_2 \to \lambda x.\ x\ (\theta.\,t_2)\ (\theta.\,t_1)$. This is necessary because $\theta.\,t$ is classified as a single-layer term ($g$); returning raw $t_1$ or $t_2$ without $\theta$ could yield multi-layer terms ($h$), violating the syntactic category.
-\end{itemize}
-
-%% ── Examples ─────────────────────────────────────────────────────────────
-
-\section*{Examples}
-
-\subsection*{Prerequisite Combinators}
-
-$I:= \lambda x. x$
-
-$I$ is the identity combinator.
-
-$B:= \lambda f.\lambda g. \lambda x.f\ (g\ x)$
-
-$B$ is function composition: $B\ f\ g\ x = f\ (g\ x)$.
-
-$G:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }a\text{ else }\text{TypeError}$
-
-$G$ is a type guard. It takes two arguments: $a$, the formal parameter type declared in the function signature, and $b$, the type of the argument actually passed. $G$ returns $a$---the declared type---making the type check independent of the argument's type. This is the common case. When the result must depend on the argument's type (e.g.\ resource management), we use $G_b$ instead (see Substructural types below).
-
-\medskip
-
-For simplicity, $G$ uses $\text{if}$ clauses and a $\text{TypeError}$ keyword. I also use pseudocode for predefined types such as $Int$ and $Str$, and the addition operator $+$.
-
-\subsection*{Simply Typed Lambda-Calculus (STL) Correspondence}
-
-STL: $\lambda x{:}T.t$
-
-$\theta$-Calculus: $B\ (\lambda x.t)\ (I{:}(G\ T))$
-
-Example---increment function:
-
-$(\lambda x{:}Int. x + 1)\ 2$
-
-= $(B\ (\lambda x.x + (1{:}Int))\ (I{:}(G\ Int)))\ (2{:}Int)$
-
-By $B\ f\ g\ x = f\ (g\ x)$:
-
-= $(\lambda x.x + (1{:}Int))\ ((I{:}(G\ Int))\ (2{:}Int))$
-
-Distribute application over layers ($p\ p$, \textsc{S-Zip}):
-
-= $(\lambda x.x + (1{:}Int))\ ((I\ 2){:}((G\ Int)\ Int))$
-
-$I\ 2 = 2$, and $(G\ Int)\ Int = (\lambda b.\ \text{if}\ b<:Int\ \text{then}\ Int\ \text{else}\ \text{TypeError})\ Int = Int$:
-
-= $(\lambda x.x + (1{:}Int))\ (2{:}Int)$
-
-Separate $(\lambda x.x + (1{:}Int))$ (\textsc{S-Split}):
-
-= $((\lambda x.x + 1){:}(\lambda x.x + Int))\ (2{:}Int)$
-
-Distribute application over layers ($p\ p$, \textsc{S-Zip}):
-
-= $((\lambda x.x + 1)\ 2){:}((\lambda x.x + Int)\ Int)$
-
-= $(2 + 1){:}(Int + Int) = 3{:}Int$
-
-\subsection*{Polymorphic Lambda-Calculus (System F) Correspondence}
-
-System F: $id = \lambda X. \lambda x{:}X. x$
-
-$\theta$-Calculus: $id = \lambda X. B\ (\lambda x. x)\ (I{:}(G\ X))$
-
-\subsection*{Substructural Type Correspondence}
-
-$G_b:= \lambda a.\lambda b. \text{if}\  b<:a\text{ then }b\text{ else }\text{TypeError}$
-
-Here the argument type may carry state---for example, whether a file is open or closed.
-
-STL: $\lambda x{:}T.t$
-
-$\theta$-Calculus: $B\ (\lambda x.t)\ (I{:}(G_b\ T))$
-
-\subsection*{Dependent Type Correspondence}
-
-$T_D:= \lambda x. t_d$
-
-$G_D:= \lambda a.\lambda b. \lambda x. G_{a\mid b\mid D}\ (a\ x)\ (b\ x)$
-
-$G_D$ is a delayed dependent type guard. When type checking depends on a value that is not yet available, we wrap the type check in an abstraction ($\lambda x$). The check is then executed later, once the value is supplied.
-
-Dependent type: $\lambda x{:}T_D.t$
-
-$\theta$-Calculus: $B\ (\lambda x.t)\ (I{:}(G_D\ T_D))$
 
 \end{document}
