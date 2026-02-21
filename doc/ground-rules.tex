@@ -36,7 +36,7 @@ $t ::=$ & & \textit{terms} \\[4pt]
 \begin{tabular*}{\linewidth}{@{}r@{\quad}c@{\extracolsep{\fill}}r@{}}
   & \textbf{Meta-variables} & $t = g \mid h$ \\[4pt]
 $g ::=$ & $x \mid \lambda x.\,g \mid g\ g \mid \xi.\,t$ & \textit{single layer} \\[4pt]
-$h ::=$ & $x \mid \lambda x.\,h \mid g\ h \mid h\ g \mid h\ h \mid t{:}t$ & \textit{multi layer} \\[8pt]
+$h ::=$ & $\lambda x.\,h \mid g\ h \mid h\ g \mid h\ h \mid t{:}t$ & \textit{multi layer} \\[8pt]
   & \textbf{Single Layer} & $g = v \mid r$ \\[4pt]
 $v ::=$ & $\lambda x.\,g$ & \textit{value} \\[4pt]
 $r ::=$ & $x \mid g\ g \mid \xi.\,t$ & \textit{non-value} \\[8pt]
@@ -46,12 +46,16 @@ $s ::=$ & $\lambda x.\,h \mid g\ h \mid h\ g \mid h\ h$ & \textit{separable}
 \end{tabular*}
 \end{minipage}}
 
-\bigskip
+\medskip
 
-%% ── Evaluation ───────────────────────────────────────────────────────────
+%% ── Evaluation & Separation ─────────────────────────────────────────────
 
-\renewcommand{\arraystretch}{2.5}
+\renewcommand{\arraystretch}{2.0}
 
+\noindent
+\fbox{\begin{minipage}[t]{0.47\textwidth-2\fboxsep-2\fboxrule}
+\vspace{0pt}
+\small
 \begin{tabular*}{\linewidth}{@{}l@{\;}l@{\extracolsep{\fill}}r@{}}
   & \textbf{Evaluation} & $\epsilon[t] \to t$ \\[4pt]
 $x$
@@ -82,11 +86,11 @@ $h$
   & $\dfrac{\epsilon[h]}{h}$
   & \textit{stuck}
 \end{tabular*}
-
-\bigskip
-
-%% ── Separation ───────────────────────────────────────────────────────────
-
+\end{minipage}}%
+\hfill
+\fbox{\begin{minipage}[t]{0.47\textwidth-2\fboxsep-2\fboxrule}
+\vspace{0pt}
+\small
 \begin{tabular*}{\linewidth}{@{}l@{\;}l@{\extracolsep{\fill}}r@{}}
   & \textbf{Separation} & $\sigma[t] \to t$ \\[4pt]
 $g$
@@ -118,8 +122,11 @@ $h\ h$
   & $\dfrac{\sigma[t_1{:}t_2\ t_3{:}t_4]}{(t_1\ t_3){:}(t_2\ t_4)}$
   & \textit{distribute}
 \end{tabular*}
+\end{minipage}}
 
 \renewcommand{\arraystretch}{1}
+
+\newpage
 
 %% ── Notes ────────────────────────────────────────────────────────────────
 
