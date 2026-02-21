@@ -8,7 +8,7 @@ TAPL is a typed programming language that looks like Python and compiles to Pyth
 - **Syntax you can extend.** Add custom operators and expressions to build your own DSL on top of the Python-like language. For example, adding a pipe operator (`|>`) to chain function calls.
 - **Compiles to Python.** Produces `.py` files you can inspect, run, and debug.
 
-This doc walks you through how both the matrix type checks and the pipe operator are implemented.
+This doc walks you through two examples: matrix dimension checking with dependent types, and adding a pipe operator via language extensibility.
 
 TAPL stands for "Types and Programming Languages" and is named after Benjamin C. Pierce's [book](https://www.cis.upenn.edu/~bcpierce/tapl/) that inspired the project.
 
@@ -99,7 +99,7 @@ class Dog:
 
 ### The `!` Operator: Distinguishing Classes vs. Instances in Type-Checking
 
-In TAPL, the `!` symbol is used to distinguish a class from its instances in type annotations. This differs from Python, where the distinction between a class and an instance type is made differently.
+In TAPL, the `!` symbol distinguishes a class from its instances in type annotations. In Python, by contrast, `Dog` typically refers to an instance and `type[Dog]` refers to the class -- but TAPL uses the opposite convention.
 
 - In TAPL, `Dog` refers to the class (the constructor).
 - `Dog!` refers to an instance of that class.
@@ -116,28 +116,25 @@ def make_dog(factory: Dog, name: Str) -> Dog!:
 
 Here, `greet_dog` accepts an instance of `Dog` (`Dog!`) as an argument, while `make_dog` takes the class itself (`Dog`) and uses it to create and return an instance (`Dog!`).
 
-In Python, by contrast, `Dog` is typically used for instances, and `type[Dog]` refers to the class type.
-
-
 ### New Syntax for Working with the Two Layers: Values and Types
 
 TAPL splits every program into two distinct layers:
 
-- The **value layer** – code that executes at runtime (handling values, computation, and effects).
-- The **type layer** – code that runs during compilation to check correctness (handling types and constraints).
+- The **value layer** -- code that executes at runtime (handling values, computation, and effects).
+- The **type layer** -- code that runs during compilation to check correctness (handling types and constraints).
 
 As shown in the Hello World example, there are two `.py` files for these layers: `hello_world.py` for the value layer and `hello_world1.py` for the type layer.
 
 Normally, you just write regular code and the compiler determines the layers automatically. But TAPL provides two special operators to let you explicitly move information between the layers:
 
-- `^expr` (“literal lifting”) – takes a value from the runtime/value layer and moves it to the type layer, making it available for type-level checks. For example, `^2` makes the number `2` available at the type level, so the compiler can reason about it statically.
-- `<expr:Type>` (“double-layer expression”) – lets you specify the value layer and type layer components directly. For example, `<rows:Int>` gives the runtime value `rows` an explicit type of `Int` in the type layer.
+- `^expr` (“literal lifting”) -- takes a value from the runtime/value layer and moves it to the type layer, making it available for type-level checks. For example, `^2` makes the number `2` available at the type level, so the compiler can reason about it statically.
+- `<expr:Type>` (“double-layer expression”) -- lets you specify both the value layer and type layer components directly. For example, `<rowCount:Int>` pairs the runtime value `rowCount` with the explicit type `Int` in the type layer. This is similar to a type cast.
 
 These operators are what allow TAPL to support dependent types in a natural way. The [Dependent Types with Matrices](#dependent-types-with-matrices) section below shows both operators in action.
 
 ## Dependent Types with Matrices
 
-TAPL's support for dependent types—types that depend on values—is one of its most distinctive features. This section presents a matrix example, demonstrating how the compiler enforces dimension constraints directly at the type level.
+TAPL's support for dependent types -- types that depend on values -- is one of its most distinctive features. This section presents a matrix example, demonstrating how the compiler enforces dimension constraints directly at the type level.
 
 ### Defining a Dimension-Parameterized Matrix
 
@@ -169,7 +166,7 @@ def Matrix(rows, cols):
     return Matrix_
 ```
 
-The optional `class_name` attribute sets the type name that appears in error messages for this dynamically created class. It aids in debugging but is not used for type checking. In this example, the `^` operator (literal lifting) brings a runtime value to the type layer, so `^'Matrix({},{})'.format(rows, cols)` results in a class with a unique name that reflects its dimensions (e.g., `Matrix(2,3)`), helping users easily identify types in error messages.
+The optional `class_name` attribute sets the type name that appears in error messages for this dynamically created class. It aids in debugging but is not used for type checking. Here, the `^` operator (literal lifting) brings the formatted string to the type layer, giving the class a readable name like `Matrix(2,3)` that makes error messages easier to understand.
 
 The `<expr:Type>` ("double-layer expression") lets you assign both a runtime value and an explicit type. For example, `<rows:Int>` ensures `rows` is available in both the value and type layers as an integer.
 
@@ -240,7 +237,7 @@ See the full working code in [matrix.tapl](https://github.com/tapl-org/tapl/blob
 
 ## Extending the Language
 
-TAPL is built for extensibility—you can design your own language grammars and introduce custom syntax to make your code clearer and less verbose.
+TAPL is built for extensibility -- you can design your own language grammars and introduce custom syntax to make your code clearer and less verbose.
 
 Writing code with deeply nested function calls can often become hard to read. For example:
 
@@ -248,7 +245,7 @@ Writing code with deeply nested function calls can often become hard to read. Fo
 print(round(abs(-2.5)))
 ```
 
-To improve readability, you might want a "pipe" operator, so you can write this more clearly. TAPL lets you create such syntax extensions by defining new languages.
+A "pipe" operator would let you express this as a left-to-right chain instead. TAPL lets you create exactly this kind of syntax extension by defining new languages.
 
 For example, `pipeweaver` is a custom language that extends `pythonlike` by adding a pipe operator (`|>`). It is included with the `tapl-lang` package as an example of language extensibility. Here's what it looks like in practice:
 
@@ -284,7 +281,7 @@ print(square(double(3)))
 print(double(square(3)))
 ```
 
-The `pipeweaver` language implementation demonstrates how you can subclass the base grammar and add custom parsing rules—one for handling the `|>` token and another for parsing pipe call expressions. You can see the full implementation in the [pipeweaver source code](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/tapl_language/pipeweaver/pipeweaver_language.py).
+The `pipeweaver` language implementation demonstrates how you can subclass the base grammar and add custom parsing rules -- one for handling the `|>` token and another for parsing pipe call expressions. You can see the full implementation in the [pipeweaver source code](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/tapl_language/pipeweaver/pipeweaver_language.py).
 
 As you can see, you can create your own domain-specific language (DSL) simply by extending existing TAPL languages. Your custom language will also integrate seamlessly with standard Python code.
 

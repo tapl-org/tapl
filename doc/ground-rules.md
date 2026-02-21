@@ -2,7 +2,7 @@
    Exceptions. See /LICENSE for license information.
    SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception ?>
 
-# TAPL Calculus
+# $\xi - calculus$
 
 &nbsp;           | **Syntax**                                                                   | &nbsp;
 ---              | :-:                                                                          | ---:
@@ -24,19 +24,17 @@ $p ::=$          | $t{:}t$                                                      
 $s ::=$          | $\lambda{x}.h\mid\ g{\ }h\ \mid\ h{\ }g\mid\ h{\ }h$                         | *separable*
 &nbsp;
 &nbsp;           | **Evaluation**                                                               | $\epsilon[t] \to t$
-$x$              | $\dfrac{\epsilon[x]}{x}$                                                     | *variable*
+$x$              | $\dfrac{\epsilon[x]}{x}$                                                     | *open term*
 $\lambda{x}.g$   | $\dfrac{\epsilon[\lambda{x}.g]}{\lambda{x}.g}$                               | *abstraction*
 $g\ g$           | $r{\ }g\ \mid\ v{\ }r\ \mid\ v{\ }v$                                         | *application*
 &nbsp;           | $\dfrac{\epsilon[r{\ }g]}{\epsilon[r]{\ }g}$                                 | *function*
 &nbsp;           | $\dfrac{\epsilon[v{\ }r]}{v{\ }\epsilon[r]}$                                 | *argument*
 &nbsp;           | $\dfrac{\epsilon[(\lambda{x}.g){\ }v]}{[x{\mapsto}{v}]g}$                    | *substitution*
-$\xi.t$          | $\xi.g\ \mid\ \xi.s\ \mid\ \xi.g{:}g\ \mid\ \xi.g{:}h\ \mid\ \xi.h{:}t$      | *unlayering*
-&nbsp;           | $\dfrac{\epsilon[\xi.g]}{\xi.g}$                                             | *stuck*
+$\xi.t$          | $\xi.g\ \mid\ \xi.s\ \mid\ \xi.t{:}t$                                        | *unlayering*
+&nbsp;           | $\dfrac{\epsilon[\xi.g]}{\lambda{x}.\ x\ (\lambda{y}.y)\ g}$                 | *base*
 &nbsp;           | $\dfrac{\epsilon[\xi.s]}{\xi.\sigma[s]}$                                     | *separate*
-&nbsp;           | $\dfrac{\epsilon[\xi.g_1{:}g_2]}{\lambda{x}.x\ g_2\ g_1}$                    | *squash*
-&nbsp;           | $\dfrac{\epsilon[\xi.g{:}h]}{\xi.g{:}h}$                                     | *stuck*
-&nbsp;           | $\dfrac{\epsilon[\xi.h{:}t]}{\xi.h{:}t}$                                     | *stuck*
-$h$              | $\dfrac{\epsilon[h]}{h}$                                                     | *multi layer*
+&nbsp;           | $\dfrac{\epsilon[\xi.t_1{:}t_2]}{\lambda{x}.\ x\ (\xi.t_2)\ (\xi.t_1)}$      | *squash*
+$h$              | $\dfrac{\epsilon[h]}{h}$                                                     | *stuck*
 &nbsp;
 &nbsp;           | **Separation**                                                               | $\sigma[t] \to t$
 $g$              | $\dfrac{\sigma[g]}{g}$                                                       | *single layer*
@@ -53,12 +51,11 @@ $h\ h$           | $\ s\ h\ \mid\ p\ s\ \mid\ p\ p$                             
 
 
 ## Notes
-* The Tapl-Calculus ($\xi$-calculus) is an extended version of the Lambda-Calculus ($\lambda$-calculus)
-* Tapl doesn't have a type system; it's a multi-layered codebase. Parts of each layer may type-check, evaluate, or perform other operations.
+* The Xi-Calculus ($\xi$-calculus) is an extended version of the Lambda-Calculus ($\lambda$-calculus)
 * $\dfrac{a}{a'} \coloneqq a$ evaluates to $a'$ in one step, or forward the evaluation.
-* VS Code shows the formulas in a pretty format
-* When the evaluation or the seperation operator returns the same term, it indicates that the term is either a value or has become stuck.
-  * A closed term is stuck if it is in normal form but not a value ~ TAPL Book 3.5.15
+* Terms are either open or closed (cf. Pierce, TAPL 5.1.Scope). A closed term that evaluates to itself is either a value ($v$) or stuck. A closed term is stuck if it is in normal form but not a value (cf. Pierce, TAPL 3.5.15). Multi-layer terms ($h$) are stuck under evaluation; they require explicit unlayering via $\xi$ to make progress.
+* When separation returns the same term, it is either single-layer ($g$) or already separated ($p$)---both are base cases.
+* Unlayering ($\xi$) is total: every sub-case produces a new term. There are no stuck cases in unlayering.
 
 ## Examples
 #### Combinators
