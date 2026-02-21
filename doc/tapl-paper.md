@@ -18,12 +18,14 @@ abstract: |
 documentclass: article
 classoption:
   - 11pt
-  - a4paper
+  - letterpaper
 geometry: margin=1in
 numbersections: true
 toc: true
 header-includes:
   - \usepackage{amsmath,amssymb,mathtools}
+  - \usepackage{xcolor,eso-pic}
+  - \AddToShipoutPictureFG{\AtTextCenter{\makebox(0,0){\rotatebox{45}{\scalebox{8}{\textcolor{gray!30}{DRAFT}}}}}}
 ---
 
 \newpage
