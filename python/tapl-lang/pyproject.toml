@@ -23,10 +23,7 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = [
-  "approvaltests",
-  "typing_extensions>=4.0; python_version < '3.11'",
-]
+dependencies = []
 
 [project.urls]
 Documentation = "https://github.com/tapl-org/tapl#readme"
@@ -79,6 +76,7 @@ check = "mypy --install-types --non-interactive {args:src/tapl_lang tests --excl
 
 [tool.hatch.envs.hatch-test]
 dependencies = [
+  "approvaltests",
   "coverage[toml]>=7.4",
   "pytest",
   "pytest-mock",

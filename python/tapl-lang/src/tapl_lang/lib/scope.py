@@ -4,9 +4,10 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from typing_extensions import Self
+if TYPE_CHECKING:
+    from typing import Self
 
 from tapl_lang.lib import dynamic_attribute, kinds
 

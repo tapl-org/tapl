@@ -2,4 +2,4 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-__version__ = '0.2.0-dev'
+__version__ = '0.2.1'
