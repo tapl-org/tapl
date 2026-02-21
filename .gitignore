@@ -41,6 +41,7 @@ doc/*.pdf
 # LaTeX auxiliary files
 doc/*.aux
 doc/*.log
+doc/*.out
 
 # Generated golden test files
 *.received
