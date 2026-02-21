@@ -1,5 +1,5 @@
 MD_PAPERS = tapl-paper
-TEX_PAPERS = ground-rules theta-calculus
+TEX_PAPERS = theta-calculus
 PDF_ENGINE = pdflatex
 
 # macOS basictex installs here; add to PATH if present

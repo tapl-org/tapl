@@ -29,7 +29,7 @@ To ensure type safety, the *type-checker file must be run first*. If it executes
 
 For more details on TAPL's design and architecture:
 - [Compilation process diagrams](https://docs.google.com/presentation/d/1I4Fu7Tp_QzyHC84u0REsFZcYi2i3ZvZPXiuHzasHywg/edit?usp=sharing)
-- [TAPL calculus documentation](https://github.com/tapl-org/tapl/blob/main/doc/ground-rules.md)
+- [TAPL calculus documentation](https://github.com/tapl-org/tapl/blob/main/doc/theta-calculus.tex)
 
 ## Getting started
 
