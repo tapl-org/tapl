@@ -72,7 +72,7 @@ $g\ g$
   & $\dfrac{\epsilon[v\ r]}{v\ \epsilon[r]}$
   & \textsc{E-App2} \\[4pt]
   & $\dfrac{\epsilon[(\lambda x.\,g)\ v]}{[x \mapsto v]g}$
-  & \textsc{E-AppAbs} \\[4pt]
+  & \textsc{E-Subst} \\[4pt]
 $\theta.\,t$
   & $\theta.\,g \mid \theta.\,s \mid \theta.\,t{:}t$
   & \\[4pt]
@@ -84,7 +84,7 @@ $\theta.\,t$
   & \textsc{E-Squash} \\[4pt]
 $h$
   & $\dfrac{\epsilon[h]}{h}$
-  & \textsc{E-MultiLayer}
+  & \textsc{E-Layered}
 \end{tabular*}
 \end{minipage}}%
 \hfill
@@ -99,7 +99,7 @@ $\lambda x.\,h$
   & $\dfrac{\sigma[\lambda x.\,s]}{\lambda x.\,\sigma[s]}$
   & \textsc{S-Abs} \\[4pt]
   & $\dfrac{\sigma[\lambda x.\,t_1{:}t_2]}{(\lambda x.\,t_1){:}(\lambda x.\,t_2)}$
-  & \textsc{S-AbsDist} \\[4pt]
+  & \textsc{S-Split} \\[4pt]
 $g\ h$
   & $\dfrac{\sigma[g\ h]}{g{:}g\ h}$
   & \textsc{S-Clone1} \\[4pt]
@@ -114,7 +114,7 @@ $h\ h$
   & $\dfrac{\sigma[p\ s]}{p\ \sigma[s]}$
   & \textsc{S-App2} \\[4pt]
   & $\dfrac{\sigma[t_1{:}t_2\ t_3{:}t_4]}{(t_1\ t_3){:}(t_2\ t_4)}$
-  & \textsc{S-AppDist}
+  & \textsc{S-Zip}
 \end{tabular*}
 \end{minipage}}
 
@@ -167,7 +167,7 @@ By $B\ f\ g\ x = f\ (g\ x)$:
 
 = $(\lambda x.x + (1{:}Int))\ ((I{:}(G_a\ Int))\ (2{:}Int))$
 
-Distribute application over layers ($p\ p$, \textsc{S-AppDist}):
+Distribute application over layers ($p\ p$, \textsc{S-Zip}):
 
 = $(\lambda x.x + (1{:}Int))\ ((I\ 2){:}((G_a\ Int)\ Int))$
 
@@ -175,11 +175,11 @@ $I\ 2 = 2$, and $(G_a\ Int)\ Int = (\lambda b.\ \text{if}\ b<:Int\ \text{then}\ 
 
 = $(\lambda x.x + (1{:}Int))\ (2{:}Int)$
 
-Separate $(\lambda x.x + (1{:}Int))$ (\textsc{S-AbsDist}):
+Separate $(\lambda x.x + (1{:}Int))$ (\textsc{S-Split}):
 
 = $((\lambda x.x + 1){:}(\lambda x.x + Int))\ (2{:}Int)$
 
-Distribute application over layers ($p\ p$, \textsc{S-AppDist}):
+Distribute application over layers ($p\ p$, \textsc{S-Zip}):
 
 = $((\lambda x.x + 1)\ 2){:}((\lambda x.x + Int)\ Int)$
 
