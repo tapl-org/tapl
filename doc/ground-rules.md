@@ -1,7 +1,7 @@
 ---
 title: $\xi$-Calculus Ground Rules
 author: Orti Bazar (orti.bazar@gmail.com)
-date: \today
+date: February 21, 2026
 documentclass: article
 classoption:
   - 11pt
@@ -9,8 +9,6 @@ classoption:
 geometry: margin=1in
 header-includes:
   - \usepackage{amsmath,amssymb,mathtools}
-  - \usepackage{xcolor,eso-pic}
-  - \AddToShipoutPictureFG{\AtTextCenter{\makebox(0,0){\rotatebox{45}{\scalebox{8}{\textcolor{gray!30}{DRAFT}}}}}}
 ---
 
 <!-- Part of the TAPL project, under the Apache License v2.0 with LLVM
