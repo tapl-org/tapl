@@ -2,7 +2,7 @@
 title: |
   The $\xi$-Calculus: Unifying Type Systems \
   through Layered Computation
-author: Orti Bazar (orti.bazar@gmail.com)
+author: Orti Bazar (orti.bazar at gmail.com)
 date: \today
 abstract: |
   We present the $\xi$-calculus, an extension of the untyped lambda calculus
