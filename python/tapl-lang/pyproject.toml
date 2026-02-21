@@ -26,7 +26,7 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Documentation = "https://github.com/tapl-org/tapl#readme"
+Documentation = "https://tapl-lang.org"
 Issues = "https://github.com/tapl-org/tapl/issues"
 Source = "https://github.com/tapl-org/tapl"
 
