@@ -66,7 +66,7 @@ $\lambda x.\,g$
   & \textsc{E-Abs} \\[4pt]
 $g\ g$
   & $r\ g \mid v\ r \mid v\ v$
-  & \textit{application} \\[4pt]
+  & \\[4pt]
   & $\dfrac{\epsilon[r\ g]}{\epsilon[r]\ g}$
   & \textsc{E-App1} \\[4pt]
   & $\dfrac{\epsilon[v\ r]}{v\ \epsilon[r]}$
@@ -75,7 +75,7 @@ $g\ g$
   & \textsc{E-AppAbs} \\[4pt]
 $\theta.\,t$
   & $\theta.\,g \mid \theta.\,s \mid \theta.\,t{:}t$
-  & \textit{unlayering} \\[4pt]
+  & \\[4pt]
   & $\dfrac{\epsilon[\theta.\,g]}{\lambda x.\ x\ (\lambda y.\,y)\ g}$
   & \textsc{E-Ground} \\[4pt]
   & $\dfrac{\epsilon[\theta.\,s]}{\theta.\,\sigma[s]}$
@@ -95,7 +95,7 @@ $h$
   & \textbf{Separation} & $\sigma[s] \to t$ \\[4pt]
 $\lambda x.\,h$
   & $\lambda x.\,s \mid \lambda x.\,p$
-  & \textit{abstraction} \\[4pt]
+  & \\[4pt]
   & $\dfrac{\sigma[\lambda x.\,s]}{\lambda x.\,\sigma[s]}$
   & \textsc{S-Abs} \\[4pt]
   & $\dfrac{\sigma[\lambda x.\,t_1{:}t_2]}{(\lambda x.\,t_1){:}(\lambda x.\,t_2)}$
@@ -108,7 +108,7 @@ $h\ g$
   & \textsc{S-Clone2} \\[4pt]
 $h\ h$
   & $s\ h \mid p\ s \mid p\ p$
-  & \textit{application} \\[4pt]
+  & \\[4pt]
   & $\dfrac{\sigma[s\ h]}{\sigma[s]\ h}$
   & \textsc{S-App1} \\[4pt]
   & $\dfrac{\sigma[p\ s]}{p\ \sigma[s]}$
