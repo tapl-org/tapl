@@ -1,4 +1,4 @@
-PAPERS = xi-calculus tapl-paper
+PAPERS = xi-calculus tapl-paper ground-rules
 PDF_ENGINE = pdflatex
 
 # macOS basictex installs here; add to PATH if present
