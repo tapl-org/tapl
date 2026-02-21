@@ -38,6 +38,10 @@ __pycache__/
 # Generated PDFs
 doc/*.pdf
 
+# LaTeX auxiliary files
+doc/*.aux
+doc/*.log
+
 # Generated golden test files
 *.received
 .approved_files.log
