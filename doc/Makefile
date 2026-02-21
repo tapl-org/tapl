@@ -1,4 +1,4 @@
-MD_PAPERS = xi-calculus tapl-paper
+MD_PAPERS = tapl-paper
 TEX_PAPERS = ground-rules theta-calculus
 PDF_ENGINE = pdflatex
 

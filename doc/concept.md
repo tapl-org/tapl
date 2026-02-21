@@ -8,7 +8,7 @@ The fundamental insight is that types and terms are the same thing, just operati
 
 Most language ecosystems treat the type system as a fundamentally different mechanism bolted onto the term language. TypeScript adds types to JavaScript. Mypy adds types to Python. Rust's type system is a separate phase from evaluation. Each requires its own distinct formalism, its own rules, its own machinery.
 
-TAPL rejects that dichotomy. The $\xi$-calculus (as described in `doc/ground-rules.md`) extends lambda calculus with just two operations -- **layering** ($t{:}t$) and **unlayering** ($\xi.t$) -- and then shows that type checking, polymorphism, substructural types, and dependent types all emerge naturally from the same computational substrate. The $t{:}t$ layering operation literally says "this term exists simultaneously at multiple levels," and the **separation** operation decomposes a multi-layer program into its individual layers (one executable, one type-checker). That's why TAPL compiles a single `.tapl` file into two `.py` files -- it's the separation operation made concrete.
+TAPL rejects that dichotomy. The $\theta$-calculus (as described in `doc/ground-rules.md`) extends lambda calculus with just two operations -- **layering** ($t{:}t$) and **unlayering** ($\theta.t$) -- and then shows that type checking, polymorphism, substructural types, and dependent types all emerge naturally from the same computational substrate. The $t{:}t$ layering operation literally says "this term exists simultaneously at multiple levels," and the **separation** operation decomposes a multi-layer program into its individual layers (one executable, one type-checker). That's why TAPL compiles a single `.tapl` file into two `.py` files -- it's the separation operation made concrete.
 
 This has several profound consequences:
 
@@ -22,9 +22,9 @@ This has several profound consequences:
 
 In short: TAPL's value is that it provides a **theoretically grounded, practically extensible framework** where the full spectrum of type system features -- from simple types to dependent types -- arise from a single, elegant mechanism rather than being bolted on piecemeal. It makes the ideas from Pierce's book not just theory, but a usable compiler framework.
 
-## The TAPL Calculus (Xi-Calculus)
+## The TAPL Calculus (Theta-Calculus)
 
-TAPL is grounded in the **xi-calculus** ($\xi$-calculus), an extension of the untyped lambda calculus with two additional operations:
+TAPL is grounded in the **theta-calculus** ($\theta$-calculus), an extension of the untyped lambda calculus with two additional operations:
 
 | Syntax | Name | Description |
 |---|---|---|
@@ -32,7 +32,7 @@ TAPL is grounded in the **xi-calculus** ($\xi$-calculus), an extension of the un
 | $\lambda x.t$ | Abstraction | Standard lambda abstraction |
 | $t\ t$ | Application | Standard function application |
 | $t{:}t$ | Layering | A term that exists simultaneously in multiple layers |
-| $\xi.t$ | Unlayering | Extract and process the layers of a term |
+| $\theta.t$ | Unlayering | Extract and process the layers of a term |
 
 ### Single-Layer vs Multi-Layer Terms
 
@@ -141,7 +141,7 @@ This is the separation operation from the calculus, implemented as a tree transf
 
 ## TAPL-Specific Syntax
 
-TAPL introduces several syntactic constructs that directly correspond to operations in the xi-calculus. Understanding these is essential for designing languages on top of TAPL.
+TAPL introduces several syntactic constructs that directly correspond to operations in the theta-calculus. Understanding these is essential for designing languages on top of TAPL.
 
 ### Literal Lifting: `^`
 
@@ -266,7 +266,7 @@ The checker calls both methods and reconciles the results. This protocol handles
 
 ## Encoding Type System Features
 
-One of TAPL's most significant contributions is showing that multiple type system features emerge from the same mechanism. The xi-calculus can encode:
+One of TAPL's most significant contributions is showing that multiple type system features emerge from the same mechanism. The theta-calculus can encode:
 
 ### Simply Typed Lambda Calculus
 
@@ -389,7 +389,7 @@ A name should refer to the same kind of entity in both the value layer and the t
 
 ### Same Techniques at Every Layer
 
-The same computational mechanisms -- abstraction, application, substitution -- work at the term level and the type level. This is not an accident; it is a consequence of the xi-calculus, where types are terms.
+The same computational mechanisms -- abstraction, application, substitution -- work at the term level and the type level. This is not an accident; it is a consequence of the theta-calculus, where types are terms.
 
 ### Separation Over Erasure
 
@@ -421,6 +421,6 @@ If you are designing a language on TAPL, here is what matters:
 
 4. **Dependent types are free** -- because types are terms, a type that depends on a value is just a function. Use `^` to lift values into the type layer.
 
-5. **The xi-calculus is your foundation** -- layering and separation give you a formal basis for reasoning about your language's semantics. Every type system feature (simple types, polymorphism, substructural types, dependent types) is an instantiation of the same mechanism.
+5. **The theta-calculus is your foundation** -- layering and separation give you a formal basis for reasoning about your language's semantics. Every type system feature (simple types, polymorphism, substructural types, dependent types) is an instantiation of the same mechanism.
 
 TAPL's bet is that one mechanism -- layered computation with separation -- is sufficient to express the full spectrum of type system features. The matrix example, the pipeweaver extension, and the formal correspondence results in the calculus all support this bet. As a language designer, your job is to decide what each layer computes and how your syntax maps to multi-layer terms. The framework handles the rest.
