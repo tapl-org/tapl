@@ -2,13 +2,17 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from __future__ import annotations
+
 import dataclasses
 from collections.abc import Iterable
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from tapl_lang.core import parser, syntax
-from tapl_lang.core.parser import Cursor
 from tapl_lang.lib import terms
+
+if TYPE_CHECKING:
+    from tapl_lang.core.parser import Cursor
 from tapl_lang.pythonlike import rule_names as rn
 
 # Below rules are going to be exactly as per Python 3 grammar

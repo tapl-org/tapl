@@ -2,10 +2,12 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from __future__ import annotations
+
 import dataclasses
 import enum
 from collections.abc import Callable, Generator
-from typing import Any, cast
+from typing import Any, Union, cast
 
 from tapl_lang.core import syntax, tapl_error
 
@@ -16,7 +18,7 @@ from tapl_lang.core import syntax, tapl_error
 # Keep them sorted as in https://docs.python.org/3/library/ast.html
 ################################################################################
 
-Identifier = str | Callable[[syntax.BackendSetting], str]
+Identifier = Union[str, Callable[[syntax.BackendSetting], str]]
 
 
 @dataclasses.dataclass

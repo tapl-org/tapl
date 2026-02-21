@@ -2,11 +2,16 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from tapl_lang.core import parser, syntax
-from tapl_lang.core.parser import Cursor
 from tapl_lang.core.syntax import Location, Position, Term
+
+if TYPE_CHECKING:
+    from tapl_lang.core.parser import Cursor
 
 
 @dataclass

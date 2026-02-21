@@ -7,7 +7,7 @@ name = "tapl-lang"
 dynamic = ["version"]
 description = 'Tapl Language'
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 license = {text = "Apache-2.0 WITH LLVM-exception"}
 keywords = []
 authors = [
@@ -16,6 +16,7 @@ authors = [
 classifiers = [
   "Development Status :: 4 - Beta",
   "Programming Language :: Python",
+  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -76,8 +77,18 @@ extra-dependencies = [
 [tool.hatch.envs.types.scripts]
 check = "mypy --install-types --non-interactive {args:src/tapl_lang tests --exclude 'goldens/'}"
 
+[tool.hatch.envs.hatch-test]
+dependencies = [
+  "coverage[toml]>=7.4",
+  "pytest",
+  "pytest-mock",
+  "pytest-randomly",
+  "pytest-rerunfailures",
+  "pytest-xdist[psutil]",
+]
+
 [[tool.hatch.envs.hatch-test.matrix]]
-python = ["3.10", "3.11", "3.12"]
+python = ["3.9", "3.10", "3.11", "3.12"]
 
 [tool.coverage.run]
 source_pkgs = ["tapl_lang", "tests"]

@@ -10,6 +10,7 @@ import io
 import itertools
 import logging
 from collections.abc import Callable, Iterable
+from typing import Union
 
 from tapl_lang.core import line_record, syntax, tapl_error
 from tapl_lang.lib import terms
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 ParseFunction = Callable[['Cursor'], syntax.Term]
-OrderedParseFunctions = Iterable[ParseFunction | str]
+OrderedParseFunctions = Iterable[Union[ParseFunction, str]]
 GrammarRuleMap = dict[str, OrderedParseFunctions]
 
 
@@ -252,21 +253,20 @@ class PegEngine:
                 next_row=cell_key.row, next_col=cell_key.col, growable=False, state=CellState.BLANK, term=ParseFailed
             )
             self.cell_memo[cell_key] = cell
-        match cell.state:
-            case CellState.BLANK:
-                cell.state = CellState.START
-                cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(cell_key, config)
-                cell.state = CellState.DONE
-                if cell.growable and not isinstance(cell.term, syntax.ErrorTerm):
-                    self.grow_seed(cell_key, cell, config)
-            case CellState.START:
-                # Left recursion detected. Delaying expansion of this rule.
-                cell.growable = True
-            case CellState.DONE:
-                # Rule already parsed at this position, so no further action is required.
-                pass
-            case _:
-                cell.term = syntax.ErrorTerm(f'PEG Parser Engine: Unknown cell state [{cell.state}] at {cell_key}.')
+        if cell.state == CellState.BLANK:
+            cell.state = CellState.START
+            cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(cell_key, config)
+            cell.state = CellState.DONE
+            if cell.growable and not isinstance(cell.term, syntax.ErrorTerm):
+                self.grow_seed(cell_key, cell, config)
+        elif cell.state == CellState.START:
+            # Left recursion detected. Delaying expansion of this rule.
+            cell.growable = True
+        elif cell.state == CellState.DONE:
+            # Rule already parsed at this position, so no further action is required.
+            pass
+        else:
+            cell.term = syntax.ErrorTerm(f'PEG Parser Engine: Unknown cell state [{cell.state}] at {cell_key}.')
         self.rule_call_stack_limit += 1
         return cell.term, cell.next_row, cell.next_col
 
@@ -351,7 +351,7 @@ class PegEngineDebug(PegEngine):
         return 'Success', f'term={term.__class__.__qualname__}'
 
     def dump_table(self, output: io.StringIO, table: list[list[str]]) -> None:
-        col_widths = [max(len(str(item)) for item in col) for col in zip(*table, strict=True)]
+        col_widths = [max(len(str(item)) for item in col) for col in zip(*table)]
         row_format = ' '.join(f'{{:<{width + 2}}}' for width in col_widths[:-1]) + ' {}'
         output.writelines(row_format.format(*row) + '\n' for row in table)
 

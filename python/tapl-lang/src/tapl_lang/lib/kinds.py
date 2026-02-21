@@ -24,12 +24,14 @@ Design Notes:
 - All types are considered as immutable
 - Naming convention: Variables with __sa suffix indicate internal type system attributes
 - Methods is_subtype_of__sa and is_supertype_of__sa return None when inconclusive
-- Inspired by Kotlin's type hierarchy
+    - Inspired by Kotlin's type hierarchy
     - https://stackoverflow.com/a/54762815/22663977
     - NoneType is not subtype of Any, but it is a subtype of Union that includes NoneType
     - Any | NoneType is a top type, supertype of all types
     - Nothing is a bottom type, subtype of all types
 """
+
+from __future__ import annotations
 
 from tapl_lang.lib import dynamic_attribute
 
@@ -317,12 +319,12 @@ class Function(BaseKind):
         if isinstance(supertype, Function):
             if len(self.posonlyargs__sa) != len(supertype.posonlyargs__sa):
                 return False
-            for p_self, p_super in zip(self.posonlyargs__sa, supertype.posonlyargs__sa, strict=False):
+            for p_self, p_super in zip(self.posonlyargs__sa, supertype.posonlyargs__sa):
                 if not check_subtype(p_super, p_self):
                     return False
             if len(self.args__sa) != len(supertype.args__sa):
                 return False
-            for (n_self, a_self), (n_super, a_super) in zip(self.args__sa, supertype.args__sa, strict=True):
+            for (n_self, a_self), (n_super, a_super) in zip(self.args__sa, supertype.args__sa):
                 if n_self != n_super:
                     return False
                 if not check_subtype(a_super, a_self):
@@ -346,12 +348,12 @@ class Function(BaseKind):
             raise TypeError(f'Expected {expected_args_count} arguments, got {len(actual_all_args)}')
         actual_posonlyargs = actual_all_args[: len(self.posonlyargs__sa)]
         actual_args = actual_all_args[len(self.posonlyargs__sa) :]
-        for p, a in zip(self.posonlyargs__sa, actual_posonlyargs, strict=False):
+        for p, a in zip(self.posonlyargs__sa, actual_posonlyargs):
             if not check_subtype(a, p):
                 raise TypeError(
                     f'Function positional arguments are not equal: expected={self.posonlyargs__sa} actual={actual_posonlyargs}'
                 )
-        for p, a in zip(self.args__sa, actual_args, strict=True):
+        for p, a in zip(self.args__sa, actual_args):
             if not check_subtype(a, p):
                 raise TypeError(f'Function arguments are not equal: expected={self.args__sa} actual={actual_args}')
         return self.result__sa

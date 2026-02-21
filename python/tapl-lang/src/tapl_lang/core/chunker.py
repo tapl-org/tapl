@@ -2,11 +2,13 @@
 # Exceptions. See /LICENSE for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from __future__ import annotations
+
 from tapl_lang.core import line_record, tapl_error
 
 
 class Chunk:
-    def __init__(self, line_records: list[line_record.LineRecord], children: list['Chunk']) -> None:
+    def __init__(self, line_records: list[line_record.LineRecord], children: list[Chunk]) -> None:
         self.line_records = line_records
         self.children = children
 
