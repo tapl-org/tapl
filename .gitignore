@@ -35,6 +35,9 @@ dist/
 *.pyc
 __pycache__/
 
+# Generated PDFs
+doc/*.pdf
+
 # Generated golden test files
 *.received
 .approved_files.log
