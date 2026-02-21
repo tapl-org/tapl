@@ -9,7 +9,7 @@
 \begin{document}
 
 \begin{center}
-{\Large\bfseries $\xi$-Calculus Ground Rules}\\[4pt]
+{\Large\bfseries $\theta$-Calculus Ground Rules}\\[4pt]
 Orti Bazar (orti.bazar at gmail.com) --- February 21, 2026
 \end{center}
 \smallskip
@@ -27,7 +27,7 @@ $t ::=$ & & \textit{terms} \\[4pt]
         & $\lambda x.\,t$ & \textit{abstraction} \\[4pt]
         & $t\ t$ & \textit{application} \\[4pt]
         & $t{:}t$ & \textit{layering} \\[4pt]
-        & $\xi.\,t$ & \textit{unlayering}
+        & $\theta.\,t$ & \textit{unlayering}
 \end{tabular*}
 \end{minipage}}%
 \hfill
@@ -35,11 +35,11 @@ $t ::=$ & & \textit{terms} \\[4pt]
 \vspace{0pt}
 \begin{tabular*}{\linewidth}{@{}r@{\extracolsep{\fill}}c@{\extracolsep{\fill}}r@{}}
   & \textbf{Meta-variables} & $t = g \mid h$ \\[4pt]
-$g ::=$ & $x \mid \lambda x.\,g \mid g\ g \mid \xi.\,t$ & \textit{single layer} \\[4pt]
+$g ::=$ & $x \mid \lambda x.\,g \mid g\ g \mid \theta.\,t$ & \textit{single layer} \\[4pt]
 $h ::=$ & $\lambda x.\,h \mid g\ h \mid h\ g \mid h\ h \mid t{:}t$ & \textit{multi layer} \\[8pt]
   & \textbf{Single Layer} & $g = v \mid r$ \\[4pt]
 $v ::=$ & $\lambda x.\,g$ & \textit{value} \\[4pt]
-$r ::=$ & $x \mid g\ g \mid \xi.\,t$ & \textit{non-value} \\[8pt]
+$r ::=$ & $x \mid g\ g \mid \theta.\,t$ & \textit{non-value} \\[8pt]
   & \textbf{Multi Layer} & $h = p \mid s$ \\[4pt]
 $p ::=$ & $t{:}t$ & \textit{separated} \\[4pt]
 $s ::=$ & $\lambda x.\,h \mid g\ h \mid h\ g \mid h\ h$ & \textit{separable}
@@ -73,14 +73,14 @@ $g\ g$
   & \textit{argument} \\[4pt]
   & $\dfrac{\epsilon[(\lambda x.\,g)\ v]}{[x \mapsto v]g}$
   & \textit{substitution} \\[4pt]
-$\xi.\,t$
-  & $\xi.\,g \mid \xi.\,s \mid \xi.\,t{:}t$
+$\theta.\,t$
+  & $\theta.\,g \mid \theta.\,s \mid \theta.\,t{:}t$
   & \textit{unlayering} \\[4pt]
-  & $\dfrac{\epsilon[\xi.\,g]}{\lambda x.\ x\ (\lambda y.\,y)\ g}$
+  & $\dfrac{\epsilon[\theta.\,g]}{\lambda x.\ x\ (\lambda y.\,y)\ g}$
   & \textit{base} \\[4pt]
-  & $\dfrac{\epsilon[\xi.\,s]}{\xi.\,\sigma[s]}$
+  & $\dfrac{\epsilon[\theta.\,s]}{\theta.\,\sigma[s]}$
   & \textit{separate} \\[4pt]
-  & $\dfrac{\epsilon[\xi.\,t_1{:}t_2]}{\lambda x.\ x\ (\xi.\,t_2)\ (\xi.\,t_1)}$
+  & $\dfrac{\epsilon[\theta.\,t_1{:}t_2]}{\lambda x.\ x\ (\theta.\,t_2)\ (\theta.\,t_1)}$
   & \textit{squash} \\[4pt]
 $h$
   & $\dfrac{\epsilon[h]}{h}$
@@ -127,11 +127,11 @@ $h\ h$
 \section*{Notes}
 
 \begin{itemize}
-\item The Xi-Calculus ($\xi$-calculus) is an extended version of the Lambda-Calculus ($\lambda$-calculus).
+\item The Theta-Calculus ($\theta$-calculus) is an extended version of the Lambda-Calculus ($\lambda$-calculus).
 \item $\dfrac{a}{a'} \coloneqq a$ evaluates to $a'$, either directly or by forwarding evaluation to a sub-term.
-\item Terms are either open or closed (cf.\ Pierce, TAPL 5.1.Scope). A closed term that evaluates to itself is either a value ($v$) or stuck. A closed term is stuck if it is in normal form but not a value (cf.\ Pierce, TAPL 3.5.15). Multi-layer terms ($h$) are stuck under evaluation; they require explicit unlayering via $\xi$ to make progress.
+\item Terms are either open or closed (cf.\ Pierce, TAPL 5.1.Scope). A closed term that evaluates to itself is either a value ($v$) or stuck. A closed term is stuck if it is in normal form but not a value (cf.\ Pierce, TAPL 3.5.15). Multi-layer terms ($h$) are stuck under evaluation; they require explicit unlayering via $\theta$ to make progress.
 \item Separation is defined only on separable terms ($s$). Single-layer terms ($g$) and already-separated terms ($p$) need no separation, so they are excluded from $\sigma$'s domain.
-\item Unlayering ($\xi$) is total: every sub-case produces a new term. There are no stuck cases in unlayering.
+\item Unlayering ($\theta$) is total: every sub-case produces a new term. There are no stuck cases in unlayering.
 \end{itemize}
 
 %% ── Examples ─────────────────────────────────────────────────────────────
@@ -154,7 +154,7 @@ $G$ takes two arguments: $a$, the formal parameter type declared in the function
 
 STL: $\lambda x{:}T.t$
 
-$\xi$-Calculus: $B\ (\lambda x.t)\ (I{:}(G_a\ T))$
+$\theta$-Calculus: $B\ (\lambda x.t)\ (I{:}(G_a\ T))$
 
 Example---increment function:
 
@@ -188,7 +188,7 @@ Distribute application over layers ($p\ p$, \textit{distribute}):
 
 System F: $id = \lambda X. \lambda x{:}X. x$
 
-$\xi$-Calculus: $id = \lambda X. B\ (\lambda x. x)\ (I{:}(G_a\ X))$
+$\theta$-Calculus: $id = \lambda X. B\ (\lambda x. x)\ (I{:}(G_a\ X))$
 
 \subsection*{Substructural Type Correspondence}
 
@@ -198,7 +198,7 @@ Here the argument type may carry state---for example, whether a file is open or 
 
 STL: $\lambda x{:}T.t$
 
-$\xi$-Calculus: $B\ (\lambda x.t)\ (I{:}(G_b\ T))$
+$\theta$-Calculus: $B\ (\lambda x.t)\ (I{:}(G_b\ T))$
 
 \subsection*{Dependent Type Correspondence}
 
@@ -210,6 +210,6 @@ $G_D$ is a delayed dependent type guard. When type checking depends on a value t
 
 Dependent type: $\lambda x{:}T_D.t$
 
-$\xi$-Calculus: $B\ (\lambda x.t)\ (I{:}(G_D\ T_D))$
+$\theta$-Calculus: $B\ (\lambda x.t)\ (I{:}(G_D\ T_D))$
 
 \end{document}
