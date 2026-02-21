@@ -132,6 +132,7 @@ $h\ h$
 \item Terms are either open or closed (cf.\ Pierce, TAPL 5.1.Scope). A closed term that evaluates to itself is either a value ($v$) or stuck. A closed term is stuck if it is in normal form but not a value (cf.\ Pierce, TAPL 3.5.15). Multi-layer terms ($h$) are stuck under evaluation; they require explicit unlayering via $\theta$ to make progress.
 \item Separation is defined only on separable terms ($s$). Single-layer terms ($g$) and already-separated terms ($p$) need no separation, so they are excluded from $\sigma$'s domain.
 \item Unlayering ($\theta$) is total: every sub-case produces a new term. There are no stuck cases in unlayering.
+\item The squash rule applies $\theta$ recursively to both sub-terms: $\theta.\,t_1{:}t_2 \to \lambda x.\ x\ (\theta.\,t_2)\ (\theta.\,t_1)$. This is necessary because $\theta.\,t$ is classified as a single-layer term ($g$); returning raw $t_1$ or $t_2$ without $\theta$ could yield multi-layer terms ($h$), violating the syntactic category.
 \end{itemize}
 
 %% ── Examples ─────────────────────────────────────────────────────────────
