@@ -410,16 +410,15 @@ We all need to raise a type error when the type check fails. so we use the keywo
 we will use literal values for integer and string. Example: 1, 2, `hello', `Int'. Types are actually a data behind the scene, so we will use strings as types.
 
 all camelcase symbols are predefined functions. You can imagine them as closed term, like this:
-$$ (\lambda Add. \lambda Print. Print\ (Add\ 1\ 2))\ AddImpl\ PrintImpl $$
+$$ (\lambda Print. Print\ \text{`Hello World!'})\ NativePrintImplementation $$
 
-is same as $$ Print\ (Add\ 1\ 2) $$
+is same as in the follwing examples $$ Print\ \text{`Hello World!'} $$
 
 here are list of predefined functions:
 $$
 \begin{array}{rcl}
 I &\coloneqq& \lambda x.\, x \\[4pt]
 B &\coloneqq& \lambda f.\,\lambda g.\,\lambda x.\, f\ (g\ x) \\[4pt]
-UnsafeAdd &\coloneqq& \lambda a.\,\lambda b.\, \{a + b\} \\[4pt]
 \end{array}
 $$
 
@@ -432,6 +431,65 @@ G &\coloneqq& \lambda a.\,\lambda b.\
 \end{array}
 $$
 
+
+Let's create a  Add function.
+$$
+\begin{array}{rcl}
+  AddImpl &\coloneqq& \lambda a.\,\lambda b.\, \{a + b\} \\[4pt]
+AddGuard &\coloneqq& \lambda a.\,\lambda b.\, {G\ \text{`Int'}\ a; G\ \text{`Int'}\ b} \\[4pt]
+Add &\coloneqq& AddImpl{:} AddGuard \\[4pt]
+\end{array}
+$$
+
+$;$ is a sequence operator. see TAPL book's sequence operator section.
+
+
+$$
+Add\ 1\ 2
+$$
+
+this will be parsed as:
+$$ Add\ 1{:}\text{`Int'}\ 2{:}\text{`Int'} $$
+
+Expanding $Add$:
+
+$$
+= (AddImpl{:}(\lambda a.\,\lambda b.\, G\ \text{`Int'}\ a;\ G\ \text{`Int'}\ b))
+  \ (1{:}\text{`Int'})\ (2{:}\text{`Int'})
+$$
+
+
+Distribute application over layers ($p\ p$, \textsc{S-Zip}) for the first application:
+
+$$
+= (AddImpl\ 1){:}((\lambda a.\,\lambda b.\, G\ \text{`Int'}\ a;\ G\ \text{`Int'}\ b)\ \text{`Int'})
+  \ (2{:}\text{`Int'})
+$$
+
+Distribute application over layers ($p\ p$, \textsc{S-Zip}) for the second application:
+
+$$
+= ((AddImpl\ 1)\ 2){:}(((\lambda a.\,\lambda b.\, G\ \text{`Int'}\ a;\ G\ \text{`Int'}\ b)\ \text{`Int'})\ \text{`Int'})
+$$
+
+The term is now fully separated into two layers. $\beta$-reduce the type layer;
+$G\ \text{`Int'}\ \text{`Int'} = \text{`Int'}$ at each step (both type checks pass):
+
+$$
+= ((AddImpl\ 1)\ 2){:}\text{`Int'}
+$$
+
+Type layer is a value. $\beta$-reduce the evaluation layer;
+$AddImpl\ 1\ 2 = \{1 + 2\} = 3$:
+
+$$
+= 3{:}\text{`Int'}
+$$
+
+The term is first fully separated into an evaluation layer and a type-checking
+layer. The type-checking layer reduces to $\text{`Int'}$, confirming both
+arguments are integers. Only then does the evaluation layer compute
+$AddImpl\ 1\ 2 = 3$.
 
 \subsection{Simply Typed Lambda Calculus}\label{sec:stlc}
 
@@ -450,60 +508,11 @@ layers.
 
 \subsubsection*{Worked example}
 
-Let's create a type safe version of Add function.
-$$
-\begin{array}{rcl}
-Add &\coloneqq& UnsafeAdd{:} (\lambda a.\,\lambda b.\, {G\ \text{`Int'}\ a; G\ \text{`Int'}\ b}) \\[4pt]
-\end{array}
-$$
 
-$$
-Add\ 1\ 2
-$$
+Consider the STLC term 
 
-this will be parsed as:
-$$ Add\ 1{:}\text{`Int'}\ 2{:}\text{`Int'} $$
 
-Expanding $Add$:
-
-$$
-= (UnsafeAdd{:}(\lambda a.\,\lambda b.\, G\ \text{`Int'}\ a;\ G\ \text{`Int'}\ b))
-  \ (1{:}\text{`Int'})\ (2{:}\text{`Int'})
-$$
-
-Distribute application over layers ($p\ p$, \textsc{S-Zip}) for the first application:
-
-$$
-= (UnsafeAdd\ 1){:}((\lambda a.\,\lambda b.\, G\ \text{`Int'}\ a;\ G\ \text{`Int'}\ b)\ \text{`Int'})
-  \ (2{:}\text{`Int'})
-$$
-
-Distribute application over layers ($p\ p$, \textsc{S-Zip}) for the second application:
-
-$$
-= ((UnsafeAdd\ 1)\ 2){:}(((\lambda a.\,\lambda b.\, G\ \text{`Int'}\ a;\ G\ \text{`Int'}\ b)\ \text{`Int'})\ \text{`Int'})
-$$
-
-The term is now fully separated into two layers. $\beta$-reduce the type layer;
-$G\ \text{`Int'}\ \text{`Int'} = \text{`Int'}$ at each step (both type checks pass):
-
-$$
-= ((UnsafeAdd\ 1)\ 2){:}\text{`Int'}
-$$
-
-Type layer is a value. $\beta$-reduce the evaluation layer;
-$UnsafeAdd\ 1\ 2 = \{1 + 2\} = 3$:
-
-$$
-= 3{:}\text{`Int'}
-$$
-
-The term is first fully separated into an evaluation layer and a type-checking
-layer. The type-checking layer reduces to $\text{`Int'}$, confirming both
-arguments are integers. Only then does the evaluation layer compute
-$UnsafeAdd\ 1\ 2 = 3$.
-
-Consider the STLC term $(\lambda x{:}\mathit{Int}.\, x + 1)\ 2$.
+$(\lambda x{:}\mathit{Int}.\, x + 1)\ 2$.
 In the $\theta$-calculus:
 
 $$
