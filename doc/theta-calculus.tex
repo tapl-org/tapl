@@ -464,6 +464,45 @@ $$
 this will be parsed as:
 $$ Add\ 1{:}\text{`Int'}\ 2{:}\text{`Int'} $$
 
+Expanding $Add$:
+
+$$
+= (UnsafeAdd{:}(\lambda a.\,\lambda b.\, G\ \text{`Int'}\ a;\ G\ \text{`Int'}\ b))
+  \ (1{:}\text{`Int'})\ (2{:}\text{`Int'})
+$$
+
+Distribute application over layers ($p\ p$, \textsc{S-Zip}) for the first application:
+
+$$
+= (UnsafeAdd\ 1){:}((\lambda a.\,\lambda b.\, G\ \text{`Int'}\ a;\ G\ \text{`Int'}\ b)\ \text{`Int'})
+  \ (2{:}\text{`Int'})
+$$
+
+Distribute application over layers ($p\ p$, \textsc{S-Zip}) for the second application:
+
+$$
+= ((UnsafeAdd\ 1)\ 2){:}(((\lambda a.\,\lambda b.\, G\ \text{`Int'}\ a;\ G\ \text{`Int'}\ b)\ \text{`Int'})\ \text{`Int'})
+$$
+
+The term is now fully separated into two layers. $\beta$-reduce the type layer;
+$G\ \text{`Int'}\ \text{`Int'} = \text{`Int'}$ at each step (both type checks pass):
+
+$$
+= ((UnsafeAdd\ 1)\ 2){:}\text{`Int'}
+$$
+
+Type layer is a value. $\beta$-reduce the evaluation layer;
+$UnsafeAdd\ 1\ 2 = \{1 + 2\} = 3$:
+
+$$
+= 3{:}\text{`Int'}
+$$
+
+The term is first fully separated into an evaluation layer and a type-checking
+layer. The type-checking layer reduces to $\text{`Int'}$, confirming both
+arguments are integers. Only then does the evaluation layer compute
+$UnsafeAdd\ 1\ 2 = 3$.
+
 Consider the STLC term $(\lambda x{:}\mathit{Int}.\, x + 1)\ 2$.
 In the $\theta$-calculus:
 
