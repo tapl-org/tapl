@@ -8,14 +8,23 @@
 \usepackage{amsthm}
 \usepackage[hidelinks]{hyperref}
 
+%% ── Dev toggle: set to false to skip heavy sections during compilation ──
+\newif\iffull
+\fullfalse
+
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}[section]
+
+
+
 
 \title{The $\theta$-Calculus:\\Unifying Type Systems through Layered Computation\\[8pt]\normalsize\textsc{Draft --- Work in Progress}}
 \author{Orti Bazar\\\texttt{orti.bazar@gmail.com}}
 \date{February 2026}
 
 \begin{document}
+
+\iffull
 
 \maketitle
 
@@ -375,14 +384,27 @@ $$
 Applying a layered function to a layered argument produces a layered result,
 where each layer's function is applied to that layer's argument.
 
+\fi
+
 %% ── Encoding Type System Features ───────────────────────────────────────
 
 \section{Encoding Type System Features}\label{sec:encodings}
 
 One of the most significant results of the $\theta$-calculus is that multiple
 type system features emerge from the same layering mechanism. This section
-defines the combinators used in the encodings and demonstrates each
-correspondence.
+defines the combinators or psuedocodes used in the encodings and demonstrates
+each correspondence. Since lambda calculus is turing complete, it can simulate memory operations, 
+conditional expressions, and error-signalling keywords. 
+For the sake of simplicity, we introduce this definitions to show how type system encodings are constructed.
+
+Predefined functions:
+we use camel case for predefined functions.
+for completeness, predifined functions are introduces as followings:
+$(\lambda Add. \lambda Sub. \text{"pseudo code uses Add or Sub"}) AddImpl SubImpl$
+
+
+
+
 
 \subsection{Combinators}
 
@@ -401,9 +423,16 @@ $a$, the formal parameter type declared in the function signature, and $b$,
 the type of the argument actually passed. $G$ returns $a$---the declared
 type---making the type check independent of the argument's type.
 
-For simplicity, $G$ uses $\text{if}$ clauses and a $\mathit{TypeError}$
-keyword. We also use pseudocode for predefined types such as $\mathit{Int}$
-and $\mathit{Str}$, and the addition operator $+$.
+For simplicity, the encodings in this section use pseudocode conventions
+that are not part of the formal $\theta$-calculus rules defined in
+Sections~\ref{sec:evaluation} and~\ref{sec:separation}. In particular, we
+freely use conditional expressions ($\text{if}/\text{then}/\text{else}$),
+error-signalling keywords ($\mathit{TypeError}$), a subtyping relation
+($<:$), predefined base types ($\mathit{Int}$, $\mathit{Str}$), literal
+values ($1$, $2$, \ldots), and native arithmetic operators ($+$). These are
+meta-level devices used to state the \emph{intent} of each guard combinator
+concisely; a full formalization would encode them as $\theta$-calculus terms
+or treat them as an ambient theory.
 
 \subsection{Simply Typed Lambda Calculus}\label{sec:stlc}
 
@@ -659,7 +688,7 @@ chapter~1, pages 3--43. MIT Press, 2005.
 
 \appendix
 
-\section{Formal Rules}\label{sec:appendix}
+\section{$\theta$-Calculus\ Formal\ Rules}\label{sec:appendix}
 
 \setlength{\fboxsep}{6pt}
 \noindent
