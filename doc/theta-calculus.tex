@@ -29,7 +29,7 @@
 \maketitle
 
 \begin{abstract}
-We present the $\theta$-calculus, an extension of the untyped lambda calculus
+We present the $\theta$-calculus, an extension of the $\lambda$-calculus
 with two operations---layering ($t{:}t$) and unlayering ($\theta.\,t$)---that
 provides a unified mechanism for expressing the full spectrum of type system
 features. We define the syntax, term classification, evaluation semantics, and
@@ -417,9 +417,19 @@ For the sake of simplicity, we use pseudocode to show how type system encodings 
 
 here are some definitions that are used in the encodings:
 
+here are list of predefined combinators:
+$$
+\begin{array}{rcl}
+I &\coloneqq& \lambda x.\, x \\[4pt]
+B &\coloneqq& \lambda f.\,\lambda g.\,\lambda x.\, f\ (g\ x) \\[4pt]
+\end{array}
+$$
+
+
 All psuedocode that is not a lambda calculus term are inside curly braces.
 
 Note that the evaluation order in the appendix is call-by-value.
+Note: Below examples we work on only one or two layers. In reality, you can build a multiple nested layer system.
 
 We all need to raise a type error when the type check fails. so we use the keyword $\mathit{TypeError}$ to signal a type error.
 
@@ -428,15 +438,13 @@ we will use literal values for integer and string. Example: 1, 2, `hello', `Int'
 all camelcase symbols are predefined functions. You can imagine them as closed term, like this:
 $$ (\lambda Print. Print\ \text{`Hello World!'})\ NativePrintImplementation $$
 
-is same as in the follwing examples $$ Print\ \text{`Hello World!'} $$
+is for simplicity we will use open term notation like this (both are same) $$ Print\ \text{`Hello World!'} $$
 
-here are list of predefined functions:
-$$
-\begin{array}{rcl}
-I &\coloneqq& \lambda x.\, x \\[4pt]
-B &\coloneqq& \lambda f.\,\lambda g.\,\lambda x.\, f\ (g\ x) \\[4pt]
-\end{array}
-$$
+Let's see how theta expansion works. we want first run the high layer, then the low layer.
+
+$$(\theta.(\ Print\ \text{`Evaluate'}){:}(\ Print\ \text{`Typecheck'})) (\lambda a.\lambda b. a) $$
+
+
 
 
 $G$ is a type guard that takes two arguments: $a$, the formal parameter type declared in the function signature, and $b$, the type of the argument actually passed. $G$ returns $a$---the declared type---making the type check independent of the argument's type.
@@ -457,7 +465,9 @@ Add &\coloneqq& AddImpl{:} AddGuard \\[4pt]
 \end{array}
 $$
 
+
 $;$ is a sequence operator. see TAPL book's sequence operator section.
+
 
 
 $$
@@ -576,6 +586,8 @@ $$
 
 The evaluation layer computes $3$ and the type-checking layer computes
 $\mathit{Int}$, confirming that the result is an integer.
+
+\iffull
 
 \subsection{System F (Polymorphism)}
 
@@ -705,6 +717,44 @@ their final separated form, so applying $\sigma$ to them would be a no-op.
 The restricted domain ensures that each application of $\sigma$ makes
 meaningful progress toward full separation.
 
+%% ── Related Work ────────────────────────────────────────────────────────
+
+\section{Related Work}\label{sec:related}
+
+The goal of unifying type systems within a single framework has a long
+history. Barendregt's \emph{lambda cube}~\cite{barendregt1992} organises
+eight typed lambda calculi along three axes---polymorphism, type operators,
+and dependent types---and \emph{Pure Type Systems}
+(PTS)~\cite{barendregt1992} generalise the cube by parameterising over an
+arbitrary set of sorts and axioms. The $\theta$-calculus shares the
+unification goal but differs in mechanism: PTS varies the sort structure,
+whereas the $\theta$-calculus keeps a single layering primitive and varies
+only the guard combinator.
+
+The \emph{Calculus of Constructions}~\cite{coquand1988}, at the corner of
+the lambda cube, also treats types as terms. In CoC, types and terms inhabit
+a shared universe governed by sort rules; in the $\theta$-calculus, types are
+literally terms in another layer of the same program, separated by a
+first-class operation ($\sigma$) rather than by universe hierarchies.
+
+\emph{Multi-stage programming}~\cite{davies2001} and \emph{two-level type
+theory}~\cite{kovacs2022} separate computation into stages or levels. Davies
+and Pfenning use modal operators ($\Box$, $\Diamond$) to distinguish code
+that is closed from code that may contain free variables, enabling safe
+cross-stage evaluation. Kov\'{a}cs's two-level type theory cleanly separates
+a meta-level from an object-level for staged compilation. The
+$\theta$-calculus is related in that a single term can mean different things
+at different layers, but it does not use modal operators; instead, layering
+and unlayering are symmetric structural operations that apply uniformly.
+
+\emph{Layered Modal Type Theory}~\cite{jang2024} is perhaps the closest in
+terminology: it defines a two-layer system where Layer~0 captures syntactic
+code and Layer~1 extends it with contextual modal types for intensional
+analysis. The $\theta$-calculus differs in that layers are not fixed at two,
+the layering construct is a general term former rather than a modal operator,
+and the separation operation decomposes an arbitrary number of layers
+mechanically.
+
 %% ── Conclusion ──────────────────────────────────────────────────────────
 
 \section{Conclusion}\label{sec:conclusion}
@@ -759,8 +809,30 @@ Substructural type systems.
 In \textit{Advanced Topics in Types and Programming Languages},
 chapter~1, pages 3--43. MIT Press, 2005.
 
-\end{thebibliography}
+\bibitem{coquand1988}
+T.~Coquand and G.~Huet.
+The calculus of constructions.
+\textit{Information and Computation}, 76(2--3):95--120, 1988.
 
+\bibitem{davies2001}
+R.~Davies and F.~Pfenning.
+A modal analysis of staged computation.
+\textit{Journal of the ACM}, 48(3):555--604, 2001.
+
+\bibitem{kovacs2022}
+A.~Kov\'{a}cs.
+Staged compilation with two-level type theory.
+\textit{Proceedings of the ACM on Programming Languages},
+6(ICFP):1--30, 2022.
+
+\bibitem{jang2024}
+J.~Jang, S.~Pickard, and B.~Pientka.
+Layered modal type theory.
+In \textit{European Symposium on Programming (ESOP)},
+pages 60--89. Springer, 2024.
+
+\end{thebibliography}
+\fi
 %% ── Appendix: Formal Rules ─────────────────────────────────────────────
 
 \appendix
