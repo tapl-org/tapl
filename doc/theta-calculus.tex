@@ -8,14 +8,23 @@
 \usepackage{amsthm}
 \usepackage[hidelinks]{hyperref}
 
+%% ── Dev toggle: set to false to skip heavy sections during compilation ──
+\newif\iffull
+\fulltrue
+
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}[section]
+
+
+
 
 \title{The $\theta$-Calculus:\\Unifying Type Systems through Layered Computation\\[8pt]\normalsize\textsc{Draft --- Work in Progress}}
 \author{Orti Bazar\\\texttt{orti.bazar@gmail.com}}
 \date{February 2026}
 
 \begin{document}
+
+\iffull
 
 \maketitle
 
@@ -67,7 +76,7 @@ This yields two key results:
 
 The $\theta$-calculus is named in the tradition of the $\lambda$-calculus.
 Where $\lambda$ denotes abstraction, $\theta$ denotes unlayering---the
-operation that inspects and decomposes the layered structure of a term.
+operation that inspects and decomposes the layered structure of a term. Note: this unlayering operation is useful for dependent types. You will see in the later sections how it is used for solving dependent types.
 
 The remainder of this paper is organized as follows.
 Section~\ref{sec:syntax} defines the syntax.
@@ -102,6 +111,23 @@ t \  ::= & & & \textit{terms:} \\[4pt]
 \end{array}
 $$
 \end{definition}
+
+We adopt the following precedence conventions, from tightest to loosest
+binding:
+
+\begin{enumerate}
+\item \textbf{Layering} ($t{:}t$) binds tightest:
+  $a\ b{:}c\ d = a\ (b{:}c)\ d$.
+\item \textbf{Abstraction and unlayering} ($\lambda x.\,t$, $\theta.\,t$)
+  extend as far right as possible:
+  $\lambda x.\,a\ b{:}c = \lambda x.\,(a\ (b{:}c))$.
+\item \textbf{Application} ($t\ t$) binds loosest and is left-associative:
+  $a\ b\ c = (a\ b)\ c$.
+\end{enumerate}
+
+\noindent Parentheses are used only when overriding the default precedence,
+e.g.\ $(\lambda x.\,t)\ v$ to limit the scope of $\lambda$, or
+$(t_1\ t_2){:}(t_3\ t_4)$ to layer two applications.
 
 The first three forms are standard lambda calculus. The two new forms are:
 
@@ -237,19 +263,18 @@ $$
 \subsection{Unlayering}
 
 Unlayering ($\theta.\,t$) decomposes into three sub-cases:
-$\theta.\,g \mid \theta.\,s \mid \theta.\,(t_1{:}t_2)$.
+$\theta.\,g \mid \theta.\,s \mid \theta.\,t_1{:}t_2$.
 
-If the body is single-layer, produce a terminal selector with the identity
-function as a sentinel:
+
+If the body is single-layer, return it directly:
 
 $$
-\dfrac{\epsilon[\theta.\,g]}{\lambda x.\, x\ (\lambda y.\,y)\ g}
+\dfrac{\epsilon[\theta.\,g]}{g}
 \quad (\textsc{E-Ground})
 $$
 
-The selector provides the term $g$ in one position and the identity
-$\lambda y.\,y$ in the other. The identity signals ``there are no further
-layers''---it is the base case of unlayering.
+A single-layer term has no layered structure to decompose, so unlayering
+simply returns the term itself.
 
 If the body is separable, apply the separation operation:
 
@@ -262,7 +287,7 @@ If the body is a layered term, \emph{squash} it into a selector that
 recursively unlayers each component:
 
 $$
-\dfrac{\epsilon[\theta.\,(t_1{:}t_2)]}{\lambda x.\, x\ (\theta.\,t_2)\ (\theta.\,t_1)}
+\dfrac{\epsilon[\theta.\,t_1{:}t_2]}{\lambda x.\, x\ (\theta.\,t_2)\ (\theta.\,t_1)}
 \quad (\textsc{E-Squash})
 $$
 
@@ -271,7 +296,7 @@ itself unlayered when the selector is applied. This is necessary because
 $\theta.\,t$ is classified as a single-layer term ($g$); returning raw $t_1$
 or $t_2$ without $\theta$ could yield multi-layer terms ($h$), violating the
 syntactic category. For single-layer sub-terms, the recursion bottoms out at
-\textsc{E-Ground}, producing a terminal selector. For multi-layer sub-terms,
+\textsc{E-Ground}, returning the term directly. For multi-layer sub-terms,
 squash is applied again, peeling off one level of layering at a time. All
 paths terminate with no stuck cases.
 
@@ -321,7 +346,7 @@ $$
 If the body is already separated, distribute the abstraction over the layers:
 
 $$
-\dfrac{\sigma[\lambda x.\,(t_1{:}t_2)]}{(\lambda x.\,t_1){:}(\lambda x.\,t_2)}
+\dfrac{\sigma[\lambda x.\,t_1{:}t_2]}{(\lambda x.\,t_1){:}(\lambda x.\,t_2)}
 \quad (\textsc{S-Split})
 $$
 
@@ -334,10 +359,10 @@ When a single-layer term interacts with a multi-layer term in an application,
 the single-layer term is \textbf{cloned} into both layers:
 
 $$
-\dfrac{\sigma[g\ h]}{(g{:}g)\ h}
+\dfrac{\sigma[g\ h]}{g{:}g\ h}
 \quad (\textsc{S-Clone1})
 \qquad\qquad
-\dfrac{\sigma[h\ g]}{h\ (g{:}g)}
+\dfrac{\sigma[h\ g]}{h\ g{:}g}
 \quad (\textsc{S-Clone2})
 $$
 
@@ -368,12 +393,14 @@ $$
 If both are separated, distribute the application over the layers:
 
 $$
-\dfrac{\sigma[(t_1{:}t_2)\ (t_3{:}t_4)]}{(t_1\ t_3){:}(t_2\ t_4)}
+\dfrac{\sigma[t_1{:}t_2\ t_3{:}t_4]}{(t_1\ t_3){:}(t_2\ t_4)}
 \quad (\textsc{S-Zip})
 $$
 
 Applying a layered function to a layered argument produces a layered result,
 where each layer's function is applied to that layer's argument.
+
+\fi
 
 %% ── Encoding Type System Features ───────────────────────────────────────
 
@@ -381,29 +408,104 @@ where each layer's function is applied to that layer's argument.
 
 One of the most significant results of the $\theta$-calculus is that multiple
 type system features emerge from the same layering mechanism. This section
-defines the combinators used in the encodings and demonstrates each
-correspondence.
+defines the combinators or psuedocodes used in the encodings and demonstrates
+each correspondence. 
 
-\subsection{Combinators}
+Since lambda calculus is turing complete, it can simulate memory operations, 
+conditional expressions, and error-signalling keywords. 
+For the sake of simplicity, we use pseudocode to show how type system encodings are constructed.
 
+here are some definitions that are used in the encodings:
+
+All psuedocode that is not a lambda calculus term are inside curly braces.
+
+Note that the evaluation order in the appendix is call-by-value.
+
+We all need to raise a type error when the type check fails. so we use the keyword $\mathit{TypeError}$ to signal a type error.
+
+we will use literal values for integer and string. Example: 1, 2, `hello', `Int'. Types are actually a data behind the scene, so we will use strings as types.
+
+all camelcase symbols are predefined functions. You can imagine them as closed term, like this:
+$$ (\lambda Print. Print\ \text{`Hello World!'})\ NativePrintImplementation $$
+
+is same as in the follwing examples $$ Print\ \text{`Hello World!'} $$
+
+here are list of predefined functions:
 $$
 \begin{array}{rcl}
 I &\coloneqq& \lambda x.\, x \\[4pt]
 B &\coloneqq& \lambda f.\,\lambda g.\,\lambda x.\, f\ (g\ x) \\[4pt]
-G &\coloneqq& \lambda a.\,\lambda b.\
-  \text{if } b <: a \text{ then } a \text{ else } \mathit{TypeError}
 \end{array}
 $$
 
-$I$ is the identity combinator. $B$ is the composition combinator:
-$B\ f\ g\ x = f\ (g\ x)$. $G$ is a type guard that takes two arguments:
-$a$, the formal parameter type declared in the function signature, and $b$,
-the type of the argument actually passed. $G$ returns $a$---the declared
-type---making the type check independent of the argument's type.
 
-For simplicity, $G$ uses $\text{if}$ clauses and a $\mathit{TypeError}$
-keyword. We also use pseudocode for predefined types such as $\mathit{Int}$
-and $\mathit{Str}$, and the addition operator $+$.
+$G$ is a type guard that takes two arguments: $a$, the formal parameter type declared in the function signature, and $b$, the type of the argument actually passed. $G$ returns $a$---the declared type---making the type check independent of the argument's type.
+$$
+\begin{array}{rcl}
+G &\coloneqq& \lambda a.\,\lambda b.\
+  \text{if } Equal(a, b) \text{ then } a \text{ else } \mathit{TypeError}
+\end{array}
+$$
+
+
+Let's create a  Add function.
+$$
+\begin{array}{rcl}
+  AddImpl &\coloneqq& \lambda a.\,\lambda b.\, \{a + b\} \\[4pt]
+AddGuard &\coloneqq& \lambda a.\,\lambda b.\, {G\ \text{`Int'}\ a; G\ \text{`Int'}\ b} \\[4pt]
+Add &\coloneqq& AddImpl{:} AddGuard \\[4pt]
+\end{array}
+$$
+
+$;$ is a sequence operator. see TAPL book's sequence operator section.
+
+
+$$
+Add\ 1\ 2
+$$
+
+this will be parsed as:
+$$ Add\ 1{:}\text{`Int'}\ 2{:}\text{`Int'} $$
+
+Expanding $Add$:
+
+$$
+= (AddImpl{:}(\lambda a.\,\lambda b.\, G\ \text{`Int'}\ a;\ G\ \text{`Int'}\ b))
+  \ (1{:}\text{`Int'})\ (2{:}\text{`Int'})
+$$
+
+
+Distribute application over layers ($p\ p$, \textsc{S-Zip}) for the first application:
+
+$$
+= (AddImpl\ 1){:}((\lambda a.\,\lambda b.\, G\ \text{`Int'}\ a;\ G\ \text{`Int'}\ b)\ \text{`Int'})
+  \ (2{:}\text{`Int'})
+$$
+
+Distribute application over layers ($p\ p$, \textsc{S-Zip}) for the second application:
+
+$$
+= ((AddImpl\ 1)\ 2){:}(((\lambda a.\,\lambda b.\, G\ \text{`Int'}\ a;\ G\ \text{`Int'}\ b)\ \text{`Int'})\ \text{`Int'})
+$$
+
+The term is now fully separated into two layers. $\beta$-reduce the type layer;
+$G\ \text{`Int'}\ \text{`Int'} = \text{`Int'}$ at each step (both type checks pass):
+
+$$
+= ((AddImpl\ 1)\ 2){:}\text{`Int'}
+$$
+
+Type layer is a value. $\beta$-reduce the evaluation layer;
+$AddImpl\ 1\ 2 = \{1 + 2\} = 3$:
+
+$$
+= 3{:}\text{`Int'}
+$$
+
+The term is first fully separated into an evaluation layer and a type-checking
+layer. The type-checking layer reduces to $\text{`Int'}$, confirming both
+arguments are integers. Only then does the evaluation layer compute
+$AddImpl\ 1\ 2 = 3$.
 
 \subsection{Simply Typed Lambda Calculus}\label{sec:stlc}
 
@@ -416,13 +518,17 @@ $$
 
 The layering $I{:}(G\ T)$ creates a two-layer term: the identity function at
 the evaluation layer (pass the argument through unchanged) and a type guard
-at the type-checking layer (check that the argument is a subtype of $T$ and
+at the type-checking layer (check that the argument type is equal to $T$ and
 return $T$). The composition combinator $B$ threads the argument through both
 layers.
 
 \subsubsection*{Worked example}
 
-Consider the STLC term $(\lambda x{:}\mathit{Int}.\, x + 1)\ 2$.
+
+Consider the STLC term 
+
+
+$(\lambda x{:}\mathit{Int}.\, x + 1)\ 2$.
 In the $\theta$-calculus:
 
 $$
@@ -574,7 +680,7 @@ without altering the behavior of existing terms.
 Unlayering ($\theta$) is total: every sub-case of the \textsc{E-Ground},
 \textsc{E-Separate}, and \textsc{E-Squash} rules produces a new term. There
 are no stuck cases in unlayering. For single-layer bodies,
-\textsc{E-Ground} produces a terminal selector. For separable bodies,
+\textsc{E-Ground} returns the term directly. For separable bodies,
 \textsc{E-Separate} delegates to $\sigma$ and recurs. For layered bodies,
 \textsc{E-Squash} produces a selector with recursive $\theta$ applications
 that bottom out at \textsc{E-Ground}. This guarantees that any term can be
@@ -659,7 +765,9 @@ chapter~1, pages 3--43. MIT Press, 2005.
 
 \appendix
 
-\section{Formal Rules}\label{sec:appendix}
+\newpage
+
+\section{$\theta$-Calculus\ Formal\ Rules}\label{sec:appendix}
 
 \setlength{\fboxsep}{6pt}
 \noindent
@@ -719,7 +827,7 @@ $g\ g$
 $\theta.\,t$
   & $\theta.\,g \mid \theta.\,s \mid \theta.\,t{:}t$
   & \\[4pt]
-  & $\dfrac{\epsilon[\theta.\,g]}{\lambda x.\ x\ (\lambda y.\,y)\ g}$
+  & $\dfrac{\epsilon[\theta.\,g]}{g}$
   & \textsc{E-Ground} \\[4pt]
   & $\dfrac{\epsilon[\theta.\,s]}{\theta.\,\sigma[s]}$
   & \textsc{E-Separate} \\[4pt]
