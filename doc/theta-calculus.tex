@@ -10,7 +10,7 @@
 
 %% ── Dev toggle: set to false to skip heavy sections during compilation ──
 \newif\iffull
-\fullfalse
+\fulltrue
 
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}[section]
@@ -76,7 +76,7 @@ This yields two key results:
 
 The $\theta$-calculus is named in the tradition of the $\lambda$-calculus.
 Where $\lambda$ denotes abstraction, $\theta$ denotes unlayering---the
-operation that inspects and decomposes the layered structure of a term.
+operation that inspects and decomposes the layered structure of a term. Note: this unlayering operation is useful for dependent types. You will see in the later sections how it is used for solving dependent types.
 
 The remainder of this paper is organized as follows.
 Section~\ref{sec:syntax} defines the syntax.
@@ -111,6 +111,23 @@ t \  ::= & & & \textit{terms:} \\[4pt]
 \end{array}
 $$
 \end{definition}
+
+We adopt the following precedence conventions, from tightest to loosest
+binding:
+
+\begin{enumerate}
+\item \textbf{Layering} ($t{:}t$) binds tightest:
+  $a\ b{:}c\ d = a\ (b{:}c)\ d$.
+\item \textbf{Abstraction and unlayering} ($\lambda x.\,t$, $\theta.\,t$)
+  extend as far right as possible:
+  $\lambda x.\,a\ b{:}c = \lambda x.\,(a\ (b{:}c))$.
+\item \textbf{Application} ($t\ t$) binds loosest and is left-associative:
+  $a\ b\ c = (a\ b)\ c$.
+\end{enumerate}
+
+\noindent Parentheses are used only when overriding the default precedence,
+e.g.\ $(\lambda x.\,t)\ v$ to limit the scope of $\lambda$, or
+$(t_1\ t_2){:}(t_3\ t_4)$ to layer two applications.
 
 The first three forms are standard lambda calculus. The two new forms are:
 
@@ -246,19 +263,18 @@ $$
 \subsection{Unlayering}
 
 Unlayering ($\theta.\,t$) decomposes into three sub-cases:
-$\theta.\,g \mid \theta.\,s \mid \theta.\,(t_1{:}t_2)$.
+$\theta.\,g \mid \theta.\,s \mid \theta.\,t_1{:}t_2$.
 
-If the body is single-layer, produce a terminal selector with the identity
-function as a sentinel:
+
+If the body is single-layer, return it directly:
 
 $$
-\dfrac{\epsilon[\theta.\,g]}{\lambda x.\, x\ (\lambda y.\,y)\ g}
+\dfrac{\epsilon[\theta.\,g]}{g}
 \quad (\textsc{E-Ground})
 $$
 
-The selector provides the term $g$ in one position and the identity
-$\lambda y.\,y$ in the other. The identity signals ``there are no further
-layers''---it is the base case of unlayering.
+A single-layer term has no layered structure to decompose, so unlayering
+simply returns the term itself.
 
 If the body is separable, apply the separation operation:
 
@@ -271,7 +287,7 @@ If the body is a layered term, \emph{squash} it into a selector that
 recursively unlayers each component:
 
 $$
-\dfrac{\epsilon[\theta.\,(t_1{:}t_2)]}{\lambda x.\, x\ (\theta.\,t_2)\ (\theta.\,t_1)}
+\dfrac{\epsilon[\theta.\,t_1{:}t_2]}{\lambda x.\, x\ (\theta.\,t_2)\ (\theta.\,t_1)}
 \quad (\textsc{E-Squash})
 $$
 
@@ -280,7 +296,7 @@ itself unlayered when the selector is applied. This is necessary because
 $\theta.\,t$ is classified as a single-layer term ($g$); returning raw $t_1$
 or $t_2$ without $\theta$ could yield multi-layer terms ($h$), violating the
 syntactic category. For single-layer sub-terms, the recursion bottoms out at
-\textsc{E-Ground}, producing a terminal selector. For multi-layer sub-terms,
+\textsc{E-Ground}, returning the term directly. For multi-layer sub-terms,
 squash is applied again, peeling off one level of layering at a time. All
 paths terminate with no stuck cases.
 
@@ -330,7 +346,7 @@ $$
 If the body is already separated, distribute the abstraction over the layers:
 
 $$
-\dfrac{\sigma[\lambda x.\,(t_1{:}t_2)]}{(\lambda x.\,t_1){:}(\lambda x.\,t_2)}
+\dfrac{\sigma[\lambda x.\,t_1{:}t_2]}{(\lambda x.\,t_1){:}(\lambda x.\,t_2)}
 \quad (\textsc{S-Split})
 $$
 
@@ -343,10 +359,10 @@ When a single-layer term interacts with a multi-layer term in an application,
 the single-layer term is \textbf{cloned} into both layers:
 
 $$
-\dfrac{\sigma[g\ h]}{(g{:}g)\ h}
+\dfrac{\sigma[g\ h]}{g{:}g\ h}
 \quad (\textsc{S-Clone1})
 \qquad\qquad
-\dfrac{\sigma[h\ g]}{h\ (g{:}g)}
+\dfrac{\sigma[h\ g]}{h\ g{:}g}
 \quad (\textsc{S-Clone2})
 $$
 
@@ -377,7 +393,7 @@ $$
 If both are separated, distribute the application over the layers:
 
 $$
-\dfrac{\sigma[(t_1{:}t_2)\ (t_3{:}t_4)]}{(t_1\ t_3){:}(t_2\ t_4)}
+\dfrac{\sigma[t_1{:}t_2\ t_3{:}t_4]}{(t_1\ t_3){:}(t_2\ t_4)}
 \quad (\textsc{S-Zip})
 $$
 
@@ -664,7 +680,7 @@ without altering the behavior of existing terms.
 Unlayering ($\theta$) is total: every sub-case of the \textsc{E-Ground},
 \textsc{E-Separate}, and \textsc{E-Squash} rules produces a new term. There
 are no stuck cases in unlayering. For single-layer bodies,
-\textsc{E-Ground} produces a terminal selector. For separable bodies,
+\textsc{E-Ground} returns the term directly. For separable bodies,
 \textsc{E-Separate} delegates to $\sigma$ and recurs. For layered bodies,
 \textsc{E-Squash} produces a selector with recursive $\theta$ applications
 that bottom out at \textsc{E-Ground}. This guarantees that any term can be
@@ -749,6 +765,8 @@ chapter~1, pages 3--43. MIT Press, 2005.
 
 \appendix
 
+\newpage
+
 \section{$\theta$-Calculus\ Formal\ Rules}\label{sec:appendix}
 
 \setlength{\fboxsep}{6pt}
@@ -809,7 +827,7 @@ $g\ g$
 $\theta.\,t$
   & $\theta.\,g \mid \theta.\,s \mid \theta.\,t{:}t$
   & \\[4pt]
-  & $\dfrac{\epsilon[\theta.\,g]}{\lambda x.\ x\ (\lambda y.\,y)\ g}$
+  & $\dfrac{\epsilon[\theta.\,g]}{g}$
   & \textsc{E-Ground} \\[4pt]
   & $\dfrac{\epsilon[\theta.\,s]}{\theta.\,\sigma[s]}$
   & \textsc{E-Separate} \\[4pt]
