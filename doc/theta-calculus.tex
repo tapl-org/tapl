@@ -393,46 +393,45 @@ where each layer's function is applied to that layer's argument.
 One of the most significant results of the $\theta$-calculus is that multiple
 type system features emerge from the same layering mechanism. This section
 defines the combinators or psuedocodes used in the encodings and demonstrates
-each correspondence. Since lambda calculus is turing complete, it can simulate memory operations, 
+each correspondence. 
+
+Since lambda calculus is turing complete, it can simulate memory operations, 
 conditional expressions, and error-signalling keywords. 
-For the sake of simplicity, we introduce this definitions to show how type system encodings are constructed.
+For the sake of simplicity, we use pseudocode to show how type system encodings are constructed.
 
-Predefined functions:
-we use camel case for predefined functions.
-for completeness, predifined functions are introduces as followings:
-$(\lambda Add. \lambda Sub. \text{"pseudo code uses Add or Sub"}) AddImpl SubImpl$
+here are some definitions that are used in the encodings:
 
+All psuedocode that is not a lambda calculus term are inside curly braces.
 
+Note that the evaluation order in the appendix is call-by-value.
 
+We all need to raise a type error when the type check fails. so we use the keyword $\mathit{TypeError}$ to signal a type error.
 
+we will use literal values for integer and string. Example: 1, 2, `hello', `Int'. Types are actually a data behind the scene, so we will use strings as types.
 
-\subsection{Combinators}
+all camelcase symbols are predefined functions. You can imagine them as closed term, like this:
+$$ (\lambda Add. \lambda Print. Print\ (Add\ 1\ 2))\ AddImpl\ PrintImpl $$
 
+is same as $$ Print\ (Add\ 1\ 2) $$
+
+here are list of predefined functions:
 $$
 \begin{array}{rcl}
 I &\coloneqq& \lambda x.\, x \\[4pt]
 B &\coloneqq& \lambda f.\,\lambda g.\,\lambda x.\, f\ (g\ x) \\[4pt]
-G &\coloneqq& \lambda a.\,\lambda b.\
-  \text{if } b <: a \text{ then } a \text{ else } \mathit{TypeError}
+UnsafeAdd &\coloneqq& \lambda a.\,\lambda b.\, \{a + b\} \\[4pt]
 \end{array}
 $$
 
-$I$ is the identity combinator. $B$ is the composition combinator:
-$B\ f\ g\ x = f\ (g\ x)$. $G$ is a type guard that takes two arguments:
-$a$, the formal parameter type declared in the function signature, and $b$,
-the type of the argument actually passed. $G$ returns $a$---the declared
-type---making the type check independent of the argument's type.
 
-For simplicity, the encodings in this section use pseudocode conventions
-that are not part of the formal $\theta$-calculus rules defined in
-Sections~\ref{sec:evaluation} and~\ref{sec:separation}. In particular, we
-freely use conditional expressions ($\text{if}/\text{then}/\text{else}$),
-error-signalling keywords ($\mathit{TypeError}$), a subtyping relation
-($<:$), predefined base types ($\mathit{Int}$, $\mathit{Str}$), literal
-values ($1$, $2$, \ldots), and native arithmetic operators ($+$). These are
-meta-level devices used to state the \emph{intent} of each guard combinator
-concisely; a full formalization would encode them as $\theta$-calculus terms
-or treat them as an ambient theory.
+$G$ is a type guard that takes two arguments: $a$, the formal parameter type declared in the function signature, and $b$, the type of the argument actually passed. $G$ returns $a$---the declared type---making the type check independent of the argument's type.
+$$
+\begin{array}{rcl}
+G &\coloneqq& \lambda a.\,\lambda b.\
+  \text{if } Equal(a, b) \text{ then } a \text{ else } \mathit{TypeError}
+\end{array}
+$$
+
 
 \subsection{Simply Typed Lambda Calculus}\label{sec:stlc}
 
@@ -445,11 +444,25 @@ $$
 
 The layering $I{:}(G\ T)$ creates a two-layer term: the identity function at
 the evaluation layer (pass the argument through unchanged) and a type guard
-at the type-checking layer (check that the argument is a subtype of $T$ and
+at the type-checking layer (check that the argument type is equal to $T$ and
 return $T$). The composition combinator $B$ threads the argument through both
 layers.
 
 \subsubsection*{Worked example}
+
+Let's create a type safe version of Add function.
+$$
+\begin{array}{rcl}
+Add &\coloneqq& UnsafeAdd{:} (\lambda a.\,\lambda b.\, {G\ \text{`Int'}\ a; G\ \text{`Int'}\ b}) \\[4pt]
+\end{array}
+$$
+
+$$
+Add\ 1\ 2
+$$
+
+this will be parsed as:
+$$ Add\ 1{:}\text{`Int'}\ 2{:}\text{`Int'} $$
 
 Consider the STLC term $(\lambda x{:}\mathit{Int}.\, x + 1)\ 2$.
 In the $\theta$-calculus:
