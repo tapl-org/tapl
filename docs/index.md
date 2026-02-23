@@ -113,23 +113,6 @@ my_dog = Dog('Buddy')
 print(my_dog.bark())
 ```
 
-### The `!` Operator: Classes vs. Instances
-
-In Python, when you write `Dog` in a type hint, it's sometimes ambiguous -- does it mean the class itself or an instance of it? TAPL removes that ambiguity with a simple rule:
-
-- `Dog` means the class (the constructor).
-- `Dog!` means an instance of that class.
-
-```python
-def greet_dog(dog: Dog!) -> Str:
-    return 'Hello, ' + dog.name + '!'
-
-def make_dog(factory: Dog, name: Str) -> Dog!:
-    return factory(name)
-```
-
-`greet_dog` takes an instance (a dog you already created). `make_dog` takes the class itself and uses it as a factory to create a new instance.
-
 ### Collections
 
 Lists, sets, and dictionaries work like Python:
@@ -192,6 +175,23 @@ print(my_dog.bark())
 ```
 
 The imported file is also compiled and type-checked by TAPL.
+
+### The `!` Operator: Classes vs. Instances
+
+In Python, when you write `Dog` in a type hint, it's sometimes ambiguous -- does it mean the class itself or an instance of it? TAPL removes that ambiguity with a simple rule:
+
+- `Dog` means the class (the constructor).
+- `Dog!` means an instance of that class.
+
+```python
+def greet_dog(dog: Dog!) -> Str:
+    return 'Hello, ' + dog.name + '!'
+
+def make_dog(factory: Dog, name: Str) -> Dog!:
+    return factory(name)
+```
+
+`greet_dog` takes an instance (a dog you already created). `make_dog` takes the class itself and uses it as a factory to create a new instance.
 
 ## Type Errors
 
