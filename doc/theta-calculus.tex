@@ -34,7 +34,7 @@ with two operations---layering ($t{:}t$) and unlayering ($\theta.\,t$)---that
 provides a unified mechanism for expressing the full spectrum of type system
 features. We define the syntax, term classification, evaluation semantics, and
 separation operation, then show that Simply Typed Lambda Calculus, System~F
-polymorphism, substructural types, and dependent types all arise as
+polymorphism, and dependent types all arise as
 configurations of the same mechanism, differing only in the choice of guard
 combinator.
 \end{abstract}
@@ -54,7 +54,7 @@ its own rules, its own machinery.
 The $\theta$-calculus rejects that dichotomy. It extends the untyped lambda
 calculus with just two operations---\emph{layering} ($t{:}t$) and
 \emph{unlayering} ($\theta.\,t$)---and shows that type checking, polymorphism,
-substructural types, and dependent types all emerge from the same computational
+and dependent types all emerge from the same computational
 substrate. The layering operation says ``this term exists simultaneously at
 multiple levels,'' and the \emph{separation} operation decomposes a multi-layer
 program into its individual layers.
@@ -63,7 +63,7 @@ This yields two key results:
 
 \begin{itemize}
 \item \textbf{Unified type system hierarchy.} Simply Typed Lambda Calculus,
-  System~F, substructural types, and dependent types are all encoded using the
+  System~F, and dependent types are all encoded using the
   same mechanism. They are not different type systems---they are different
   configurations of the same system, differing only in the choice of guard
   combinator.
@@ -84,8 +84,8 @@ Section~\ref{sec:classification} introduces the term classification that
 drives both evaluation and separation.
 Sections~\ref{sec:evaluation} and~\ref{sec:separation} present the evaluation
 and separation semantics.
-Section~\ref{sec:encodings} demonstrates that STLC, System~F, substructural
-types, and dependent types are all encodable in the calculus.
+Section~\ref{sec:encodings} demonstrates that STLC, System~F,
+and dependent types are all encodable in the calculus.
 Section~\ref{sec:discussion} discusses properties of the system.
 Section~\ref{sec:conclusion} concludes.
 Appendix~\ref{sec:appendix} provides a compact one-page reference of all
@@ -604,30 +604,6 @@ that can be bound to any type. The same abstraction mechanism that works for
 terms works for types, because in the $\theta$-calculus types \emph{are} terms
 in another layer.
 
-\subsection{Substructural Types}
-
-When the result of type checking must depend on the argument's type---for
-example, to track whether a file handle is open or closed---we use a different
-guard combinator:
-
-$$
-G_b \coloneqq \lambda a.\,\lambda b.\
-  \text{if } b <: a \text{ then } b \text{ else } \mathit{TypeError}
-$$
-
-$G_b$ returns the \emph{input} type $b$ rather than the annotation type $a$,
-preserving precise type information through the computation. The encoding is
-otherwise identical:
-
-$$
-\lambda x{:}T.\, t \quad\Longleftrightarrow\quad B\ (\lambda x.\,t)\ (I{:}(G_b\ T))
-$$
-
-The only difference between STLC and substructural typing is the guard
-combinator. $G$ discards the precise input type (returning the annotation),
-while $G_b$ preserves it. This distinction controls how type information flows
-through the system, which is the essence of substructural typing.
-
 \subsection{Dependent Types}
 
 For dependent types, we introduce a type function $T_D = \lambda x.\, t_d$
@@ -659,7 +635,7 @@ $$
 B\ (\lambda x.\,t)\ (I{:}(\mathcal{G}\ T))
 $$
 
-\noindent where $\mathcal{G} \in \{G,\, G_b,\, G_D\}$. The layering
+\noindent where $\mathcal{G} \in \{G,\, G_D\}$. The layering
 mechanism is identical; only the guard combinator varies:
 
 \medskip
@@ -669,7 +645,6 @@ mechanism is identical; only the guard combinator varies:
 \hline
 STLC & $G$ & annotation type $a$ \\
 System~F & $G$ (with type variable) & annotation type $a$ \\
-Substructural & $G_b$ & input type $b$ \\
 Dependent & $G_D$ & delayed check \\
 \end{tabular}
 \end{center}
@@ -703,8 +678,8 @@ decomposed into its individual layers.
 The encodings in Section~\ref{sec:encodings} reveal that the guard combinator
 is the single point of variation across type system features. The layering
 $I{:}(\mathcal{G}\ T)$ is the uniform mechanism; $\mathcal{G}$ alone
-determines whether the system behaves as STLC ($G$), supports substructural
-tracking ($G_b$), or handles dependent types ($G_D$). This suggests that the
+determines whether the system behaves as STLC ($G$) or handles dependent
+types ($G_D$). This suggests that the
 space of type systems is not a taxonomy of distinct formalisms but a
 parameter space over a single architecture.
 
@@ -761,10 +736,10 @@ mechanically.
 
 The $\theta$-calculus demonstrates that a single mechanism---layered
 computation with separation---is sufficient to express the full spectrum of
-type system features. Simply Typed Lambda Calculus, System~F, substructural
-types, and dependent types are not distinct formalisms; they are
+type system features. Simply Typed Lambda Calculus, System~F,
+and dependent types are not distinct formalisms; they are
 configurations of the same system, differing only in the choice of guard
-combinator ($G$, $G_b$, or $G_D$).
+combinator ($G$ or $G_D$).
 
 The separation rules provide a formal mechanism for decomposing a multi-layer
 program into independent single-layer computations. The cloning rules ensure
@@ -802,12 +777,6 @@ J.-Y. Girard.
 \textit{Interpr\'{e}tation fonctionnelle et \'{e}limination des coupures de
 l'arithm\'{e}tique d'ordre sup\'{e}rieur}.
 PhD thesis, Universit\'{e} Paris VII, 1972.
-
-\bibitem{walker2005}
-D.~Walker.
-Substructural type systems.
-In \textit{Advanced Topics in Types and Programming Languages},
-chapter~1, pages 3--43. MIT Press, 2005.
 
 \bibitem{coquand1988}
 T.~Coquand and G.~Huet.

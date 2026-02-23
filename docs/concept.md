@@ -2,15 +2,15 @@
 
 This document explains the ideas behind TAPL -- the theoretical framework, the compilation architecture, and the design decisions that make it different from conventional approaches.
 
-## The Core Idea: Types Are Just Terms in Another Layer
+## The Core Idea: Types Are Just Code in Another Level
 
-Most language ecosystems treat the type system as a fundamentally different mechanism bolted onto the term language. TypeScript adds types to JavaScript. Mypy adds types to Python. Rust's type system is a separate phase from evaluation. Each requires its own formalism, its own rules, its own machinery.
+Most language ecosystems treat the type system as a fundamentally different mechanism bolted onto the code you actually write. TypeScript adds types to JavaScript. Mypy adds types to Python. Rust's type system is a separate phase from evaluation. Each requires its own formalism, its own rules, its own machinery.
 
-TAPL rejects that split. It extends lambda calculus with two operations -- **layering** and **separation** -- and shows that type checking, polymorphism, substructural types, and dependent types all emerge from the same computational substrate. Layering says "this term exists simultaneously at multiple levels," and separation decomposes a multi-layer program into its individual layers. That's why TAPL compiles a single `.tapl` file into two `.py` files -- one for execution, one for type-checking. It's separation made concrete.
+TAPL rejects that split. It extends lambda calculus with two operations -- **layering** and **unlayering** -- and shows that type checking, polymorphism, and dependent types all emerge from the same computational substrate. Layering says "this term exists simultaneously at multiple levels," and unlayering decomposes a multi-layer program into its individual layers. That's why TAPL compiles a single `.tapl` file into two `.py` files -- one for execution, one for type-checking. It's unlayering made concrete.
 
 This has several practical consequences:
 
-- **Unified type system.** Simply Typed Lambda Calculus, System F, substructural types, and dependent types are all configurations of the same mechanism -- not separate type systems bolted together.
+- **Unified type system.** Simply Typed Lambda Calculus, System F, and dependent types are all configurations of the same mechanism -- not separate type systems bolted together.
 
 - **Dependent types without a proof assistant.** When types are just terms in another layer, dependent types -- where types depend on values -- aren't a special feature. They're just terms that reference values. `Matrix(^2, ^3)` lifts `2` and `3` into the type layer, making `Matrix(2, 3)` a distinct type from `Matrix(3, 3)`.
 
@@ -30,7 +30,7 @@ TAPL is grounded in the **theta-calculus**, which extends lambda calculus with t
 
 These two operations are enough to derive a type-checker from a program. You write multi-layer code, and the compiler separates it into an evaluation layer (the executable) and a type-checking layer (the constraints). Extending the type system is the same operation as extending the term language -- add a new syntactic form, define how it separates, and you get both runtime semantics and type-checking.
 
-> For the full formal treatment of the theta-calculus -- including term classification, evaluation rules, separation rules, and how it encodes STLC, System F, substructural types, and dependent types -- see the [theta-calculus paper](theta-calculus.pdf).
+> For the full formal treatment of the theta-calculus -- including term classification, evaluation rules, separation rules, and how it encodes STLC, System F, and dependent types -- see the [theta-calculus paper](theta-calculus.pdf).
 
 ## Compilation Pipeline
 
