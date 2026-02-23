@@ -2,18 +2,11 @@
 layout: default
 ---
 
-TAPL is a typed programming language that looks like Python and compiles to Python. What makes it different:
+TAPL gives you a type system that can catch bugs Python can't -- while still compiling to readable Python you can run anywhere. What makes it different:
 
-- **Type checks you write as code.** Not just annotations -- actual logic that runs at compile time. You can make the compiler reject a matrix multiplication where the dimensions don't match, something most type systems can't express.
-- **Syntax you can extend.** Add custom operators and expressions to build your own DSL on top of the Python-like language. For example, adding a pipe operator (`|>`) to chain function calls.
-- **Compiles to readable Python.** Produces `.py` files you can inspect, run, and debug with your existing tools.
-
-> **Important:**
-> - TAPL is experimental with no stable release yet.
-> - It improves with every commit. Please report issues via the [Issue Tracker](https://github.com/tapl-org/tapl/issues).
-> - It is not an officially supported Google product yet.
-
-> The name TAPL comes from Benjamin C. Pierce's [book](https://www.cis.upenn.edu/~bcpierce/tapl/) *Types and Programming Languages*, which inspired the project.
+- **Types are programs, not just labels.** In most languages, types are passive annotations like `x: int`. In TAPL, type-checking is done by generated Python code that runs at compile time. This means you can enforce constraints that depend on values -- for example, rejecting a matrix multiplication where the dimensions don't match -- before your code ever runs.
+- **Build your own language grammar.** Most languages have a fixed grammar -- you can't add new syntax. TAPL ships with `pythonlike` as its default language, but you're not stuck with it. You can create entirely new language grammars by extending the existing ones -- adding operators, expressions, or any syntax you need. For example, you could add a pipe operator (`|>`) so you write `3 |> double |> print` instead of `print(double(3))`.
+- **Compiles to readable Python.** Produces `.py` files you can inspect, run, and debug with your existing tools. You get the full Python ecosystem -- libraries, package managers, debuggers, and toolchains -- with no extra effort.
 
 ## Installation
 
@@ -28,6 +21,11 @@ Verify the installation:
 ```bash
 tapl --help
 ```
+
+> **Important:**
+> - TAPL is experimental with no stable release yet.
+> - It improves with every commit. Please report issues via the [Issue Tracker](https://github.com/tapl-org/tapl/issues).
+> - It is not an officially supported Google product yet.
 
 ## Hello World
 
@@ -404,3 +402,5 @@ Explore TAPL further:
 - Join the [Official Discord Server](https://discord.gg/7N5Gp85hAy) to connect with other developers and the TAPL community.
 - Participate in [GitHub Discussions](https://github.com/tapl-org/tapl/discussions) to ask questions and share ideas.
 - Report bugs or request features via the [Issue Tracker](https://github.com/tapl-org/tapl/issues).
+
+> The name TAPL comes from Benjamin C. Pierce's [book](https://www.cis.upenn.edu/~bcpierce/tapl/) *Types and Programming Languages*, which inspired the project.
