@@ -2,7 +2,7 @@
 layout: default
 ---
 
-TAPL is an extensible typed programming language that compiles to readable Python. It gives you a type system powerful enough to catch bugs that most type systems can't -- while keeping the full Python ecosystem at your fingertips.
+TAPL is an extensible typed programming language that compiles to Python. It gives you a type system powerful enough to catch bugs that most type systems can't -- while keeping the full Python ecosystem at your fingertips.
 
 Here's what makes it different:
 
@@ -39,7 +39,7 @@ language pythonlike
 print('Hello World!')
 ```
 
-Every TAPL file starts with a `language` directive that tells the compiler which grammar to use. The built-in `pythonlike` language gives you a strongly typed, Python-like syntax.
+Every TAPL file starts with a `language` directive that tells the compiler which grammar to use. The built-in `pythonlike` language gives you a typed, Python-like syntax.
 
 Run it:
 
@@ -57,7 +57,7 @@ Behind the scenes, TAPL generates a Python file from your source -- `hello_world
 print('Hello World!')
 ```
 
-But before running it, TAPL first runs a type-checker (also generated as plain Python). If the type-checker finds problems, you get error messages and the runtime code never executes. If everything checks out, TAPL considers the runtime code safe and runs it.
+Before running it, TAPL first runs a type-checker (also generated as plain Python). If the type-checker finds problems, you get error messages and the runtime code never executes. If everything checks out, TAPL considers the runtime code safe and runs it.
 
 > **Tip:** You can always open the generated `.py` files to see exactly what TAPL produced. This is handy for debugging when something doesn't behave as expected.
 
@@ -118,9 +118,7 @@ def make_dog(factory: Dog, name: Str) -> Dog!:
 
 ## Type Errors
 
-Here's TAPL's type checker in action. Say you write a function that promises to return a `Str` but actually returns an `Int`:
-
-Create a file called `type_error.tapl`:
+Here's TAPL's type checker in action. Create a file called `type_error.tapl`:
 
 ```python
 language pythonlike
