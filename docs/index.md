@@ -47,26 +47,19 @@ Run it:
 tapl hello_world.tapl
 ```
 
-Behind the scenes, TAPL generates two Python files from your source:
+```
+Hello World!
+```
 
-- `hello_world.py` -- your actual runtime code:
+Behind the scenes, TAPL generates a Python file from your source -- `hello_world.py`:
 
 ```python
 print('Hello World!')
 ```
 
-- `hello_world1.py` -- the type-checker (auto-generated, you don't write this):
+But before running it, TAPL first runs a type-checker (also generated as plain Python). If the type-checker finds problems, you get error messages and the runtime code never executes. If everything checks out, TAPL considers the runtime code safe and runs it.
 
-```python
-from tapl_lang.lib import tapl_typing
-from tapl_lang.pythonlike.predef1 import predef_scope as predef_scope__sa
-s0 = tapl_typing.create_scope(parent__sa=predef_scope__sa)
-s0.print(s0.Str)
-```
-
-TAPL runs the type-checker first. If it finds problems, you get error messages and the runtime code never executes. If everything checks out, TAPL runs the runtime code.
-
-> **Tip:** You can always open the generated `.py` files to see exactly what TAPL produced. The runtime file (`hello_world.py`) is plain Python. The type-checker file (`hello_world1.py`) is also plain Python that validates your types. This is handy for debugging when something doesn't behave as expected.
+> **Tip:** You can always open the generated `.py` files to see exactly what TAPL produced. This is handy for debugging when something doesn't behave as expected.
 
 ## Language Basics
 
