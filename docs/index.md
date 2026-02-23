@@ -257,7 +257,7 @@ Here's a practical example. Deeply nested function calls are hard to read:
 print(round(abs(-2.5)))
 ```
 
-A pipe operator (`|>`) would let you write this left-to-right instead. TAPL ships with `pipeweaver`, a custom language that adds exactly this:
+A pipe operator (`|>`) would let you write this left-to-right instead. TAPL includes `pipeweaver` as an example of how to create your own language grammar:
 
 ```python
 language pipeweaver
@@ -295,7 +295,7 @@ The `pipeweaver` language is implemented by subclassing the base grammar and add
 
 ## What's Supported
 
-Here's a quick reference of Python features that work in TAPL's `pythonlike` language:
+The goal is to make `pythonlike` as close to Python as possible. Here's what works today:
 
 **Basics:** variables, functions, classes, `if`/`elif`/`else`, `for`, `while`, `try`/`except`/`finally`
 
