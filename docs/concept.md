@@ -1,6 +1,8 @@
 # TAPL Concepts
 
-> **Draft -- Work in Progress.** This document is not finished and may contain inconsistent or unreliable information.
+
+
+> **Draft -- Work in Progress.** This document is not finished and may contain inconsistent or unreliable information. Last updated: February 22, 2026.
 
 This document explains the ideas behind TAPL -- the theoretical framework, the compilation architecture, and the design decisions that make it different from conventional approaches.
 
