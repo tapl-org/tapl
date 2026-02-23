@@ -144,7 +144,7 @@ Most type systems can only check things like "this is an integer" or "this is a 
 This section uses two special TAPL operators. Here's what they do:
 
 - **`^expr`** -- tells the compiler to track a runtime value at compile time too. For example, `^2` makes the number `2` available to the type-checker, so it can reason about dimensions statically. Think of it as "the compiler should know about this value."
-- **`<expr:Type>`** -- gives the compiler both the runtime value and its type explicitly. For example, `<rows:Int>` says "at runtime this is `rows`, and the type-checker should treat it as `Int`." Think of it as an explicit type annotation for cases where the compiler can't infer the type on its own.
+- **`<expr:Type>`** -- gives the compiler both the runtime value and its type explicitly. For example, `<rows:Int>` says "at runtime this is `rows`, and the type-checker should treat it as `Int`." Think of it as type casting.
 
 ### Defining a Dimension-Parameterized Matrix
 
@@ -178,7 +178,7 @@ def Matrix(rows, cols):
 
 A few things to note:
 
-- `class_name = ^'Matrix({},{})'.format(rows, cols)` sets a readable name for the type (like `Matrix(2,3)`) so error messages make sense. The `^` makes this string available to the type-checker.
+- `class_name = ^'Matrix({},{})'.format(rows, cols)` is optional -- the type-checker doesn't use it for type-checking. It just sets a readable name (like `Matrix(2,3)`) for debugging and error messages.
 - `<rows:Int>` tells the compiler: "the runtime value is `rows`, and the type is `Int`."
 - `<[]:List(List(Int))>` tells the compiler: "the runtime value is an empty list `[]`, and the type is `List(List(Int))`."
 
