@@ -63,41 +63,9 @@ But before running it, TAPL first runs a type-checker (also generated as plain P
 
 ## Language Basics
 
-TAPL's `pythonlike` language looks and feels like Python. The main differences are in how types are written.
+If you know Python, you already know most of TAPL. Variables, functions, classes, collections, `if`/`for`/`while`, `try`/`except`/`finally`, and imports all work the way you'd expect. You can import other `.tapl` files the same way you import Python modules, and the imported file is also compiled and type-checked.
 
-### Variables
-
-Typed variables work like you'd expect. The only difference is that TAPL uses CamelCase type names (`Int`, `Str`, `Bool`, `Float`) instead of Python's lowercase (`int`, `str`, `bool`, `float`):
-
-```python
-language pythonlike
-
-x: Int = 42
-name: Str = 'hello'
-pi: Float = 3.14
-```
-
-### Functions
-
-Functions look just like Python, with type annotations:
-
-```python
-language pythonlike
-
-def factorial(n: Int) -> Int:
-    if n == 0 or n == 1:
-        return 1
-    else:
-        return n * factorial(n - 1)
-
-print(factorial(5))
-```
-
-Parameterized types use function-call syntax: `List(Int)` for a list of integers, `List(List(Int))` for a nested list.
-
-### Classes
-
-Classes also look like Python:
+Here's a quick example that shows the familiar syntax:
 
 ```python
 language pythonlike
@@ -113,68 +81,23 @@ my_dog = Dog('Buddy')
 print(my_dog.bark())
 ```
 
-### Collections
+The differences are small but important:
 
-Lists, sets, and dictionaries work like Python:
+### CamelCase Type Names
 
-```python
-language pythonlike
-
-numbers = [1, 2, 3]
-numbers.append(4)
-
-unique = {1, 2, 3}
-unique.add(4)
-
-config = {'key1': 'value1', 'key2': 'value2'}
-config['key3'] = 'value3'
-```
-
-### Union Types
-
-Use `|` to say a value can be one of several types:
+TAPL uses `Int`, `Str`, `Bool`, `Float` instead of Python's lowercase `int`, `str`, `bool`, `float`:
 
 ```python
 language pythonlike
 
-def display(value: Int | Str):
-    print(value)
-
-display(42)
-display('hello')
+x: Int = 42
+name: Str = 'hello'
+pi: Float = 3.14
 ```
 
-Note: `|` and `&` are reserved for type operations in TAPL. They are not bitwise operators.
+### Parameterized Types Use Function-Call Syntax
 
-### Error Handling
-
-Try/except/finally works like Python:
-
-```python
-language pythonlike
-
-try:
-    result = 10 / 0
-except ZeroDivisionError:
-    print('Cannot divide by zero')
-finally:
-    print('Execution completed')
-```
-
-### Imports
-
-You can import other `.tapl` files the same way you import Python modules:
-
-```python
-language pythonlike
-
-import examples.easy
-
-my_dog = examples.easy.Dog('Simba')
-print(my_dog.bark())
-```
-
-The imported file is also compiled and type-checked by TAPL.
+Where Python writes `list[int]`, TAPL writes `List(Int)`. Nesting works the same way: `List(List(Int))` for a list of lists.
 
 ### The `!` Operator: Classes vs. Instances
 
