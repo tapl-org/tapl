@@ -257,6 +257,8 @@ print(round(abs(-2.5)))
 
 A pipe operator (`|>`) would let you write this left-to-right instead. TAPL includes `pipeweaver` as an example of how to create your own language grammar:
 
+> **Note:** The example below uses `language pipeweaver`, not `pythonlike`. This is a custom grammar built on top of `pythonlike` language.
+
 ```python
 language pipeweaver
 
