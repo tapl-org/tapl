@@ -48,13 +48,12 @@ tapl hello_world.tapl
 # Output: Hello World!
 ```
 
-Behind the scenes, TAPL generates a Python file from your source -- `hello_world.py`:
+Behind the scenes, TAPL generates two Python files from your source:
 
-```python
-print('Hello World!')
-```
+- `hello_world.py` -- your runtime code. This is what actually runs.
+- `hello_world1.py` -- the type-checker. This is compile-time code that validates your types.
 
-Before running it, TAPL first runs a type-checker (also generated as plain Python). If the type-checker finds problems, you get error messages and the runtime code never executes. If everything checks out, TAPL considers the runtime code safe and runs it.
+TAPL runs the type-checker first. If it finds problems, you get error messages and the runtime code never executes. If everything checks out, TAPL considers the runtime code safe and runs it.
 
 > **Tip:** You can always open the generated `.py` files to see exactly what TAPL produced. This is handy for debugging when something doesn't behave as expected.
 
