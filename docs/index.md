@@ -101,7 +101,7 @@ Where Python writes `list[int]`, TAPL writes `List(Int)`. Nesting works the same
 
 ### The `!` Operator: Classes vs. Instances
 
-In Python, when you write `Dog` in a type hint, it's sometimes ambiguous -- does it mean the class itself or an instance of it? TAPL removes that ambiguity with a simple rule:
+Python type checkers use `type[Dog]` to distinguish the class from an instance. TAPL takes a different approach with the `!` operator:
 
 - `Dog` means the class (the constructor).
 - `Dog!` means an instance of that class.
@@ -118,9 +118,9 @@ def make_dog(factory: Dog, name: Str) -> Dog!:
 
 ## Type Errors
 
-One of the main reasons to use TAPL is catching bugs before your code runs. Here's what that looks like in practice.
+Here's TAPL's type checker in action. Say you write a function that promises to return a `Str` but actually returns an `Int`:
 
-Say you write a function that promises to return a `Str` but actually returns an `Int`:
+Create a file called `type_error.tapl`:
 
 ```python
 language pythonlike
@@ -129,15 +129,13 @@ def one() -> Str:
     return 0
 ```
 
-When you run `tapl` on this file, you'll get:
+TAPL catches this at compile time -- the runtime code never executes:
 
 ```
 Return type mismatch: expected Str, got Int.
 ```
 
-The runtime code never executes. TAPL caught the bug at compile time.
-
-This applies to function arguments too -- if a function expects a `Dog!` and you pass it a `Str`, TAPL will tell you before anything runs.
+Since the type-checker is itself generated Python (`type_error1.py`), you can open it, step through it with a debugger, and see exactly how this error is raised.
 
 ## Dependent Types with Matrices
 
