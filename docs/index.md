@@ -2,7 +2,9 @@
 layout: default
 ---
 
-TAPL gives you a type system that can catch bugs Python can't -- while still compiling to readable Python you can run anywhere. What makes it different:
+TAPL is an extensible typed programming language that compiles to readable Python. It gives you a type system powerful enough to catch bugs that most type systems can't -- while keeping the full Python ecosystem at your fingertips.
+
+Here's what makes it different:
 
 - **Types are programs, not just labels.** In most languages, types are passive annotations like `x: int`. In TAPL, type-checking is done by generated Python code that runs at compile time. This means you can enforce constraints that depend on values -- for example, rejecting a matrix multiplication where the dimensions don't match -- before your code ever runs.
 - **Build your own language grammar.** Most languages have a fixed grammar -- you can't add new syntax. TAPL ships with `pythonlike` as its default language, but you're not stuck with it. You can create entirely new language grammars by extending the existing ones -- adding operators, expressions, or any syntax you need. For example, you could add a pipe operator (`|>`) so you write `3 |> double |> print` instead of `print(double(3))`.
@@ -10,7 +12,7 @@ TAPL gives you a type system that can catch bugs Python can't -- while still com
 
 ## Installation
 
-TAPL requires **Python 3.9** or higher.
+TAPL requires **Python 3.9** or higher. It has no third-party dependencies -- only the Python standard library.
 
 ```bash
 pip install tapl-lang
