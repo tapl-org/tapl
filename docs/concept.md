@@ -10,7 +10,7 @@ This document explains the ideas behind TAPL -- the theoretical framework, the c
 
 Most languages treat the type system as a fundamentally different mechanism from the code you actually write. In TypeScript, Rust, or Java, the type checker is a dedicated phase inside the compiler -- separate logic, separate rules, separate machinery from the code that actually runs.
 
-TAPL rejects that split. It extends lambda calculus with two operations -- **layering** and **unlayering** -- and shows that type checking, polymorphism, and dependent types all emerge from the same foundation. Layering says "this code exists simultaneously at multiple levels," and unlayering decomposes a multi-layer program into its individual layers. That's why TAPL compiles a single `.tapl` file into two `.py` files -- one for execution, one for type-checking. It's unlayering made concrete.
+TAPL rejects that split. It extends lambda calculus with two operations -- **layering** and **unlayering** -- and shows that type checking, generics, subtyping, type constructors (like `List(Int)`), and dependent types all emerge from the same foundation. Layering says "this code exists simultaneously at multiple levels," and unlayering decomposes a multi-layer program into its individual layers. That's why TAPL compiles a single `.tapl` file into two `.py` files -- one for execution, one for type-checking. It's unlayering made concrete.
 
 This has several practical consequences:
 
