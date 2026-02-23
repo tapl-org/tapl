@@ -45,10 +45,7 @@ Run it:
 
 ```bash
 tapl hello_world.tapl
-```
-
-```
-Hello World!
+# Output: Hello World!
 ```
 
 Behind the scenes, TAPL generates a Python file from your source -- `hello_world.py`:
