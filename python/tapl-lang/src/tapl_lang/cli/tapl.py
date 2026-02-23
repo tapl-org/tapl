@@ -32,7 +32,9 @@ def compile_and_run(path: str) -> None:
         python_code = ast.unparse(layers[i])
         with open(filename, 'w') as f:
             f.write(python_code)
-        subprocess.run([sys.executable, filename], check=True)
+        result = subprocess.run([sys.executable, filename], check=False)
+        if result.returncode != 0:
+            sys.exit(result.returncode)
 
 
 def main():
