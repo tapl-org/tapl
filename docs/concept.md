@@ -2,39 +2,33 @@
 
 
 
-> **Draft -- Work in Progress.** This document is not finished and may contain inconsistent or unreliable information. Last updated: February 22, 2026.
+> **Draft -- Work in Progress.** This document is not finished and may contain inconsistent or unreliable information. Last updated: February 25, 2026.
 
 This document explains the ideas behind TAPL -- the theoretical framework, the compilation architecture, and the design decisions that make it different from conventional approaches.
 
-## The Core Idea: Types Are Just Code in Another Level
+## The Core Idea 1: Types Are Just Code in Another Level
 
-Most languages treat the type system as a fundamentally different mechanism from the code you actually write. In TypeScript, Rust, or Java, the type checker is a dedicated phase inside the compiler -- separate logic, separate rules, separate machinery from the code that actually runs.
+Most languages treat the type system as a fundamentally different mechanism from the code you actually write. In TypeScript, Rust, or Java, the type checker is a dedicated phase inside the compiler -- separate logic, separate rules, separate machinery from the code that actually runs. In another words, there is a split between your code and compilers type-checker.
 
-TAPL rejects that split. It extends lambda calculus with two operations -- **layering** and **unlayering** -- and shows that type checking, generics, subtyping, type constructors (like `List(Int)`), and dependent types all emerge from the same foundation. Layering says "this code exists simultaneously at multiple levels," and unlayering decomposes a multi-layer program into its individual layers. That's why TAPL compiles a single `.tapl` file into two `.py` files -- one for execution, one for type-checking. It's unlayering made concrete.
+TAPL rejects that split. It does not embed a type-checker as a separate subsystem inside the compiler. Instead, TAPL compiles one `.tapl` program into two self-contained `.py` outputs: one runtime program and one program that type-checks itself. In this model, types are not just annotations; the type-checker is a language in its own right, where users can write Turing-complete logic in type definitions. That opens many new possibilities for what type checking can express and enforce.
 
-This has several practical consequences:
+This has several practical consequences. Basic type annotations, generics, type-constructors, and dependent types are all configurations of the same mechanism -- not separate type systems bolted together.
 
-- **Unified type system.** Basic type annotations, generics, and dependent types are all configurations of the same mechanism -- not separate type systems bolted together.
+## The Core Idea 2: Syntax is not fixed
 
-- **Dependent types without a proof assistant.** When types are just code in another layer, dependent types -- where types depend on values -- aren't a special feature. They're just code that references values. `Matrix(^2, ^3)` lifts `2` and `3` into the type layer, making `Matrix(2, 3)` a distinct type from `Matrix(3, 3)`.
+Most languages treat syntax as fixed: users can write programs in the language, but they cannot extend the language itself as a first-class operation.
 
-- **Language extensibility is first-class.** Creating a new language (like `pipeweaver` with the `|>` operator) extends both the runtime layer and the type layer simultaneously. The framework keeps them consistent.
+TAPL rejects that limitation. Users can create their own syntax on the fly, start using it immediately in the same project, and share it with others as reusable language extensions. This is syntax liberation: programming language syntax is no longer fixed by the language designer, but open to programmers themselves. As a result, teams can invent and evolve new domain-specific syntaxes at a much larger scale.
 
-- **The compiler frontend is the interesting part.** By targeting Python AST as a backend, TAPL sidesteps the backend problem and focuses on what's actually novel -- the frontend architecture where parsing, type-checking, and code generation all follow from layered computation.
 
-TAPL is named after Benjamin C. Pierce's *Types and Programming Languages* (MIT Press, 2002), which inspired the project.
+
 
 ## How It Works
 
-TAPL is grounded in the **theta-calculus**, which extends lambda calculus with two operations:
+TAPL is grounded in two foundations: **[theta-calculus](theta-calculus.pdf)** and a **[PEG parser](https://en.wikipedia.org/wiki/Parsing_expression_grammar)**.
 
-- **Layering** (`t:t`): An expression that exists simultaneously in multiple layers. In TAPL syntax, this shows up as `<expr:Type>` -- the left side is the runtime expression, the right side is the type expression.
+Theta-calculus provides the model used to implement TAPL's type-checking mechanism, and the PEG parser provides a pluggable syntax system so users can define and adopt new syntax forms.
 
-- **Unlayering**: The compiler operation that takes a multi-layer expression and splits it into independent single-layer expressions. A function whose body spans two layers becomes two functions -- one per layer. Code that only lives in one layer gets cloned into every layer it's needed in.
-
-These two operations are enough to derive a type-checker from a program. You write multi-layer code, and the compiler separates it into an evaluation layer (the executable) and a type-checking layer (the constraints). Extending the type system is the same operation as extending the language -- add a new syntactic form, define how it splits across layers, and you get both runtime behavior and type-checking.
-
-> For the full formal treatment of the theta-calculus -- including how it encodes basic type annotations, generics, and dependent types using a single mechanism -- see the [theta-calculus paper](theta-calculus.pdf).
 
 ## Compilation Pipeline
 
