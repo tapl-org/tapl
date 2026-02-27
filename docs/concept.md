@@ -2,7 +2,7 @@
 
 
 
-> **Draft -- Work in Progress.** This document is not finished and may contain inconsistent or unreliable information. Last updated: February 25, 2026.
+> **Draft -- Work in Progress.** This document is not finished and may contain inconsistent or unreliable information. Last updated: February 27, 2026.
 
 This document explains the ideas behind TAPL -- the theoretical framework, the compilation architecture, and the design decisions that make it different from conventional approaches.
 
@@ -27,29 +27,30 @@ TAPL rejects that limitation. Users can create their own syntax on the fly, star
 
 TAPL is grounded in two foundations: **[theta-calculus](theta-calculus.pdf)** and a **[PEG parser](https://en.wikipedia.org/wiki/Parsing_expression_grammar)**.
 
-Theta-calculus provides the model used to implement TAPL's type-checking mechanism, and the PEG parser provides a pluggable syntax system so users can define and adopt new syntax forms.
+Theta-calculus provides the model used to implement TAPL's type-checking program generation, and the PEG parser provides a pluggable syntax system so users can define and adopt new syntax forms.
 
 
 ## Compilation Pipeline
 
-For each `.tapl` source file, the compiler produces two Python files:
+For each `.tapl` source file, the compiler produces two Python files as mentioned before:
 
 1. **The evaluation layer** (e.g., `hello_world.py`): executable runtime code.
 2. **The type-checking layer** (e.g., `hello_world1.py`): type constraint code that runs first. If it executes without error, the evaluation layer is guaranteed to be type-safe.
 
+
 The pipeline:
 
 ```
-Source (.tapl)
+Source (a.tapl)
     |
     v
 [Chunker] -- Splits source into indentation-based chunks
     |
     v
-[Language Directive] -- First chunk: "language pythonlike"
+[Language Directive] -- First chunk: "language {language-name}"
     |
     v
-[Language Module] -- Loaded dynamically: tapl_language.{name}
+[Language Module] -- Loaded dynamically: tapl_language.{language-name}
     |
     v
 [Parser] -- Grammar rules produce a syntax tree (multi-layer)
@@ -61,97 +62,12 @@ Source (.tapl)
 [Backend (Python AST)] -- Each layer is converted to a Python AST
     |
     v
-Output: file.py (layer 0), file1.py (layer 1)
+Output: a.py (layer 0), a1.py (layer 1)
 ```
 
-### The LayerSeparator
+> **Note:** Why the `1` suffix? Internally, TAPL treats a program as having not just two but *n* layers, numbered starting from 0. Layer 0 is the evaluation layer, layer 1 is the type-checking layer, and so on. So `a.tapl` would technically produce `a0.py` and `a1.py`. Since the evaluation layer (index 0) is the primary output, the `0` is omitted by convention -- giving you `a.py` and `a1.py`.
 
-The LayerSeparator walks the syntax tree and calls `separate()` on each node. Nodes that represent layering split into their components. Single-layer nodes are cloned into every layer.
 
-A `FunctionDef` node separates by running its body through the separator:
-
-```python
-def separate(self, ls):
-    return ls.build(lambda layer: FunctionDef(
-        name=self.name,
-        body=layer(self.body),
-    ))
-```
-
-A `Layers` node simply returns its components:
-
-```python
-def separate(self, ls):
-    return self.layers  # [layer_0_term, layer_1_term]
-```
-
-The separator uses a factory pattern: it runs the factory function once per layer, and on each pass extracts the corresponding component from each `Layers` node. The result is N independent syntax trees, one per layer.
-
-## Syntax
-
-TAPL introduces syntactic constructs that map directly to the layering mechanism.
-
-### Literal Lifting: `^`
-
-The `^` operator promotes a value from the evaluation layer into the type layer. It creates a layered expression where the value participates in both layers.
-
-```
-class_name = ^'Matrix({},{})'.format(rows, cols)
-```
-
-In normal code (`MODE_SAFE`), `^` switches to `MODE_LIFT`, meaning the expression is evaluated at both layers. This is how dependent types work: `Matrix(^2, ^3)` lifts `2` and `3` into the type layer, so `Matrix(2, 3)` becomes a distinct type from `Matrix(3, 3)`.
-
-### Double-Layer Expressions: `<expr:Type>`
-
-The `<expr:Type>` syntax explicitly specifies different expressions for different layers -- the direct representation of layering.
-
-```
-self.num_rows = <rows:Int>
-```
-
-This means:
-- **Evaluation layer (layer 0):** `self.num_rows = rows` -- assign the runtime value.
-- **Type-checking layer (layer 1):** `self.num_rows = Int` -- record that the type is `Int`.
-
-The parser creates a `Layers` node with `[rows_expr, Int_expr]`, and the separator sends each to its respective layer.
-
-Use this when the type can't be inferred from the evaluation-layer code alone:
-
-```
-self.values = <[]:List(List(Int))>
-```
-
-Evaluation layer: `self.values = []`. Type-checking layer: `self.values` has type `List(List(Int))`.
-
-### Instance Types: `!`
-
-The `!` sigil distinguishes classes from instances:
-
-- `Dog` refers to the class (the constructor).
-- `Dog!` refers to an instance of `Dog`.
-
-This resolves a common ambiguity in Python where `Dog` can mean either the class object or the instance type depending on context. In TAPL, names consistently refer to the same kind of entity in both layers -- a principle called **Intentional Symmetry**.
-
-In the type-level representation, `Dog` is a function type (the constructor) and `Dog!` is the record type it returns:
-
-```python
-# Dog  = Function(args=[('name', Str)], result=Record({name: Str}, label='Dog!'))
-# Dog! = Record({name: Str}, label='Dog!')
-```
-
-### Dynamic Class Names: `class_name`
-
-The `class_name` attribute parameterizes the type-level label of a class. Combined with `^`, this enables dependent types:
-
-```python
-def Matrix(rows, cols):
-    class Matrix_:
-        class_name = ^'Matrix({},{})'.format(rows, cols)
-        ...
-    return Matrix_
-```
-
-When `Matrix(2, 3)` is called, the type-checker creates a class labeled `Matrix(2,3)!`. When `Matrix(3, 3)` is called, it creates `Matrix(3,3)!`. These are distinct types, enforced at the type level.
 
 ## Type System
 
