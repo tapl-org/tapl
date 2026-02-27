@@ -6,19 +6,19 @@
 
 This document explains the ideas behind TAPL -- the theoretical framework, the compilation architecture, and the design decisions that make it different from conventional approaches.
 
-## The Core Idea 1: Types Are Just Code in Another Level
+## The Core Idea 1: Types Are Just Code at Another Level
 
-Most languages treat the type system as a fundamentally different mechanism from the code you actually write. In TypeScript, Rust, or Java, the type checker is a dedicated phase inside the compiler -- separate logic, separate rules, separate machinery from the code that actually runs. In another words, there is a split between your code and compilers type-checker.
+Most languages treat the type system as a fundamentally different mechanism from the code you actually write. In TypeScript, Rust, or Java, the type checker is a dedicated phase inside the compiler -- separate logic, separate rules, separate machinery from the code that actually runs. In other words, there is a split between your code and the compiler's type-checker.
 
-TAPL rejects that split. It does not embed a type-checker as a separate subsystem inside the compiler. Instead, TAPL compiles one `.tapl` program into two self-contained `.py` outputs: one runtime program and one program that type-checks itself. In this model, types are not just annotations; the type-checker is a language in its own right, where users can write Turing-complete logic in type definitions. That opens many new possibilities for what type checking can express and enforce.
+TAPL rejects that split. There is no built-in type-checker hidden inside the compiler. Instead, TAPL takes one `.tapl` file and produces two `.py` files: one that runs, and one that checks the types. Each file is self-contained -- you can run them independently. Because the type-checking output is just a regular program, types in TAPL are not limited to simple labels like `Int` or `String`. Users can write real, executable logic inside type definitions, which means type checking can verify much richer rules than traditional type systems allow.
 
-This has several practical consequences. Basic type annotations, generics, type-constructors, and dependent types are all configurations of the same mechanism -- not separate type systems bolted together.
+A practical consequence is that basic type annotations, generics, type-constructors, and dependent types are all configurations of the same mechanism -- not separate type systems bolted together.
 
-## The Core Idea 2: Syntax is not fixed
+## The Core Idea 2: Syntax Is Not Fixed
 
-Most languages treat syntax as fixed: users can write programs in the language, but they cannot extend the language itself as a first-class operation.
+Most languages treat syntax as fixed: users can write programs in the language, but they cannot change or extend the language itself.
 
-TAPL rejects that limitation. Users can create their own syntax on the fly, start using it immediately in the same project, and share it with others as reusable language extensions. This is syntax liberation: programming language syntax is no longer fixed by the language designer, but open to programmers themselves. As a result, teams can invent and evolve new domain-specific syntaxes at a much larger scale.
+TAPL rejects that limitation. Users can create their own syntax on the fly, start using it immediately in the same project, and share it with others as reusable language extensions. This is syntax liberation: programming language syntax is no longer fixed by the language designer, but open to programmers themselves. As a result, teams can invent and evolve new domain-specific syntax far more freely than traditional languages allow.
 
 
 
