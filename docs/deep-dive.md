@@ -91,3 +91,135 @@ def Matrix(rows, cols):
 ```
 
 When `Matrix(2, 3)` is called, the type-checker creates a class labeled `Matrix(2,3)!`. When `Matrix(3, 3)` is called, it creates `Matrix(3,3)!`. These are distinct types, enforced at the type level.
+
+
+
+
+## Type System
+
+### Type Hierarchy
+
+TAPL's type hierarchy is inspired by Kotlin:
+
+```
+Nothing  <:  T  <:  Any  <:  Any | NoneType
+```
+
+- **`Nothing`**: The bottom type -- subtype of all types. Represents code that never returns (exceptions, infinite loops). Similar to `never` in TypeScript.
+- **`Any`**: The top type for non-nullable values. Supertype of all types except `NoneType`.
+- **`NoneType`**: The type of `None`. Deliberately *not* a subtype of `Any`.
+- **`Any | NoneType`**: The true top type. Supertype of everything.
+
+By default, types are **non-nullable**. A function returning `Int` cannot return `None`. To allow it, use `Int | None` explicitly. This mirrors Kotlin's null safety.
+
+### Structural Typing
+
+Instance types are **Records** -- structural types with named fields. A type is a subtype of another if it has all the required fields:
+
+```python
+# {name: Str, age: Int} <: {name: Str}   -- True (has all required fields)
+# {name: Str} <: {name: Str, age: Int}    -- False (missing 'age')
+```
+
+Records carry an optional label (like `Dog!`) for readable error messages, but subtype checking is structural, not nominal.
+
+### Function Types
+
+Function subtyping follows the standard rule: a function is a subtype of another if it accepts broader input types and returns a narrower output type:
+
+- If `A <: B`, then `(B) -> T <: (A) -> T` (parameters: broader input is OK)
+- If `T <: U`, then `(A) -> T <: (A) -> U` (return: narrower output is OK)
+
+### Union and Intersection Types
+
+TAPL reserves `|` and `&` exclusively for type-level operations -- they are **not** bitwise operators.
+
+- **Union** (`A | B`): A value is either of type `A` or type `B`. A type is a subtype of a union if it's a subtype of any member.
+- **Intersection** (`A & B`): A value is both of type `A` and type `B`. A type is a subtype of an intersection if it's a subtype of all members.
+
+Since TAPL evaluates code at the type level using the same operations as the value level, it can't distinguish `|` as "bitwise OR" vs. "union." Reserving `|` and `&` for types is the consistent choice.
+
+### Subtype Checking
+
+Subtype checking uses a bidirectional protocol. Each type implements:
+
+- `is_supertype_of(subtype)`: Returns `True`, `False`, or `None` (inconclusive).
+- `is_subtype_of(supertype)`: Returns `True`, `False`, or `None` (inconclusive).
+
+The checker calls both methods and reconciles the results. Recursive types are handled by tracking in-progress checks: when checking `A <: B`, the pair `(A, B)` is pushed onto a stack. If the same pair comes up again during recursion (a cycle), the check is assumed to hold. Results are cached for performance.
+
+## Language Extensibility
+
+TAPL is a framework for building languages, not a single fixed language.
+
+### The Language Interface
+
+Every TAPL language implements the `Language` abstract class:
+
+- `get_grammar(parent_stack)`: Returns the grammar -- a mapping from rule names to lists of parsing functions.
+- `get_predef_headers()`: Returns the predefined imports/headers for each layer.
+
+Parsing functions take a `Cursor` (a position in the token stream) and return either a syntax node (success) or `ParseFailed` (backtrack). Rules are tried in order; the first match wins.
+
+### Extending a Grammar
+
+To create a new language, subclass an existing one and modify its grammar. The `pipeweaver` language adds a pipe operator (`|>`):
+
+```python
+class PipeweaverLanguage(PythonlikeLanguage):
+    def get_grammar(self, parent_stack):
+        grammar = super().get_grammar(parent_stack).clone()
+        grammar.rule_map[TOKEN] = [_parse_pipe_token, *grammar.rule_map[TOKEN]]
+        grammar.rule_map[EXPRESSION] = [_parse_pipe_call, *grammar.rule_map[EXPRESSION]]
+        return grammar
+```
+
+New rules are prepended to give them priority over the base grammar. The `clone()` call ensures the parent grammar isn't mutated.
+
+With `pipeweaver`:
+
+```
+3 |> double |> square |> print
+```
+
+becomes:
+
+```python
+print(square(double(3)))
+```
+
+### What Extensions Can Do
+
+A language extension can:
+
+- **Add new syntax**: new operators, expression forms, statement types.
+- **Add new node types**: custom `Term` subclasses with their own `separate()` and code-generation methods.
+- **Modify parsing priority**: prepend or append rules to change how ambiguous syntax is resolved.
+- **Redefine existing rules**: replace entire rule lists to change the grammar.
+
+Because each syntax node carries its own `separate()` method, any new syntax automatically participates in layer separation. You define how your node splits across layers, and the compiler handles the rest.
+
+### Language Registration
+
+Languages are discovered by module path. When a `.tapl` file starts with `language pipeweaver`, the compiler loads:
+
+```python
+language = importlib.import_module('tapl_language.pipeweaver').get_language()
+```
+
+The `tapl_language` namespace package contains language modules, each exporting a `get_language()` function.
+
+
+## Summary
+
+If you're building on TAPL, here's what matters:
+
+1. **Your language is a grammar** -- a set of parsing rules that produce syntax nodes. Extend the base `pythonlike` grammar or start from scratch.
+
+2. **Your syntax nodes are multi-layer** -- each node knows how to split itself into layers. Use `Layers` nodes for expressions that mean different things at different layers. Use single-layer nodes for code that gets cloned into every layer.
+
+3. **Your type system is a program** -- the type-checker layer is real, executable code. Define type-checking by defining what the type layer *does*, not by writing formal typing rules.
+
+4. **Dependent types are free** -- because types are code, a type that depends on a value is just a function. Use `^` to lift values into the type layer.
+
+5. **The theta-calculus is the foundation** -- layering and unlayering give you a formal basis for reasoning about your language's semantics. For the full formal treatment, see the [theta-calculus paper](theta-calculus.pdf).
