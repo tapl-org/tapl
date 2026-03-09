@@ -1,7 +1,15 @@
 # TAPL Deep Dive
 
 
-> **Draft -- Work in Progress.** This document is not finished and may contain inconsistent or unreliable information. Last updated: February 27, 2026.
+> **Draft -- Work in Progress.** This document is not finished and may contain inconsistent or unreliable information. Last updated: March 9, 2026.
+
+
+## How It Works
+
+TAPL is grounded in two foundations: **[theta-calculus](theta-calculus.pdf)** and a **[PEG parser](https://en.wikipedia.org/wiki/Parsing_expression_grammar)**.
+
+Theta-calculus provides the model used to implement TAPL's type-checking program generation, and the PEG parser provides a pluggable syntax system so users can define and adopt new syntax forms.
+
 
 ## The LayerSeparator
 
