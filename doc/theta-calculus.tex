@@ -53,7 +53,7 @@ its own rules, its own machinery.
 
 The $\theta$-calculus rejects that dichotomy. It extends the untyped lambda
 calculus with just two operations---\emph{layering} ($t{:}t$) and
-\emph{unlayering} ($\theta.\,t$)---and shows that type checking, polymorphism,
+\emph{unlayering} ($\theta.\,t$)---and shows that simply type checking, polymorphism, type constructors,
 and dependent types all emerge from the same computational
 substrate. The layering operation says ``this term exists simultaneously at
 multiple levels,'' and the \emph{separation} operation decomposes a multi-layer
@@ -63,7 +63,7 @@ This yields two key results:
 
 \begin{itemize}
 \item \textbf{Unified type system hierarchy.} Simply Typed Lambda Calculus,
-  System~F, and dependent types are all encoded using the
+  System~F, Type Constructors, and dependent types are all encoded using the
   same mechanism. They are not different type systems---they are different
   configurations of the same system, differing only in the choice of guard
   combinator.
@@ -203,8 +203,7 @@ $$
 
 A separated term ($p$) is already decomposed into its layers---it is a
 layering node $t_1{:}t_2$. A separable term ($s$) still needs the separation
-operation to decompose it. The distinction between $p$ and $s$ determines
-which separation rules apply.
+operation to decompose it.
 
 %% ── Evaluation ──────────────────────────────────────────────────────────
 
@@ -266,15 +265,15 @@ Unlayering ($\theta.\,t$) decomposes into three sub-cases:
 $\theta.\,g \mid \theta.\,s \mid \theta.\,t_1{:}t_2$.
 
 
-If the body is single-layer, return it directly:
+If the body is single-layer, wrap it in a selector:
 
 $$
-\dfrac{\epsilon[\theta.\,g]}{g}
+\dfrac{\epsilon[\theta.\,g]}{\lambda x.\, g}
 \quad (\textsc{E-Ground})
 $$
 
-A single-layer term has no layered structure to decompose, so unlayering
-simply returns the term itself.
+A single-layer term has no layers to decompose, so unlayering produces a
+constant selector that ignores its argument and returns $g$ directly.
 
 If the body is separable, apply the separation operation:
 
@@ -302,8 +301,8 @@ paths terminate with no stuck cases.
 
 \subsection{Multi-Layer Terms}
 
-Multi-layer terms do not reduce under evaluation---they must be explicitly
-unlayered:
+Multi-layer terms are stuck under evaluation---they do not reduce and must be
+explicitly unlayered to make progress:
 
 $$
 \dfrac{\epsilon[h]}{h}
