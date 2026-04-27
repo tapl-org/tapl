@@ -25,3 +25,12 @@ pip install tapl-lang
 ## License
 
 `tapl-lang` is distributed under the terms of the [Apache-2.0 WITH LLVM-exception](https://spdx.org/licenses/Apache-2.0.html) license.
+
+
+## Development Setup
+
+```console
+sudo apt install pipx
+pipx ensurepath
+pipx install hatch
+```

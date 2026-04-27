@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import ast
+from typing import cast
 
 from tapl_lang.core import syntax, tapl_error
 from tapl_lang.lib import terms
@@ -119,9 +120,10 @@ class AstGenerator:
                     defaults=[self.generate_expr(t, setting) for t in term.defaults],
                 ),
                 body=self.generate_stmt(term.body, setting),
-                decorator_list=[],
+                decorator_list=cast('list[ast.expr]', []),
                 returns=None,
                 type_comment=None,
+                type_params=[],
             )
             locate(term.location, func_def)
             return [func_def]
@@ -134,6 +136,7 @@ class AstGenerator:
                 keywords=[ast.keyword(arg=k, value=self.generate_expr(v, setting)) for k, v in term.keywords],
                 body=[],
                 decorator_list=[self.generate_expr(d, setting) for d in term.decorator_list],
+                type_params=[],
             )
             locate(term.location, class_def)
             class_def.body = self.generate_stmt(term.body, setting)
