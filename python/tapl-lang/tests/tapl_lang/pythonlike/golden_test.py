@@ -98,3 +98,4 @@ def test_goldens():
     run_golden_test('try_stmt')
     run_golden_test('system_f')
     run_golden_test('matrix')
+    run_golden_test('name_collision')

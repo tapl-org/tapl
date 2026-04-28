@@ -1,0 +1,11 @@
+def s1():
+    print('s1 function')
+
+def f1():
+    print('f1 function')
+
+def s2():
+    s1()
+    if True:
+        f1()
+s1()

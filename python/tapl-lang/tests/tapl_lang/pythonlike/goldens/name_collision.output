@@ -1,0 +1,13 @@
+====== name_collision1.py exit-status:0 stdout:
+
+------ stderr:
+
+------ end.
+
+====== name_collision.py exit-status:0 stdout:
+s1 function
+
+------ stderr:
+
+------ end.
+
