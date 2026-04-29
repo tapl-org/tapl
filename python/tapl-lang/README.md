@@ -34,3 +34,29 @@ sudo apt install pipx
 pipx ensurepath
 pipx install hatch
 ```
+
+As a temporary workaround until a better approach is found, create `/usr/bin/meld` with the following shell script when a diff tool for ApprovalTests is not set up.
+
+```bash
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+CURSOR_BIN="/home/ortibazar/.cursor-server/bin/linux-arm64/e9ee1339915a927dfb2df4a836dd9c8337e17cc0/bin/remote-cli/cursor"
+
+if [[ $# -ne 2 ]]; then
+  printf 'Called as: %q' "$0"
+  printf ' %q' "$@"
+  printf '\n'
+  echo "Usage: $0 <param1> <param2>" >&2
+  exit 1
+fi
+
+if [[ ! -x "$CURSOR_BIN" ]]; then
+  echo "Error: cursor binary is not executable or not found at:" >&2
+  echo "  $CURSOR_BIN" >&2
+  exit 1
+fi
+
+"$CURSOR_BIN" --diff "$1" "$2"
+```

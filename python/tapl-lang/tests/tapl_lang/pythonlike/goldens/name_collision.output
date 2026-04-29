@@ -6,6 +6,7 @@
 
 ====== name_collision.py exit-status:0 stdout:
 s1 function
+f1 function
 
 ------ stderr:
 

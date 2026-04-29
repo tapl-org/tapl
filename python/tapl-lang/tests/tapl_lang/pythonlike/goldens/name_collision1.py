@@ -24,4 +24,4 @@ def s2():
         s2 = tapl_typing.fork_scope(f1)
     return tapl_typing.get_return_type(s1)
 s0.s2 = tapl_typing.create_function([], s2())
-s0.s1()
+s0.s2()

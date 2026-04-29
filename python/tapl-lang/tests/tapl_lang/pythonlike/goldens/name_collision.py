@@ -8,4 +8,4 @@ def s2():
     s1()
     if True:
         f1()
-s1()
+s2()
