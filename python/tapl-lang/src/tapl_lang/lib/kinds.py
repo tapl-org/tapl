@@ -287,7 +287,7 @@ class Record(BaseKind):
 _PAIR_ELEMENT_COUNT = 2
 
 
-# FIXME: Implement vararg, kwonlyargs, kw_defaults, kwarg, and defaults. For example string.format function.
+# TODO: Implement vararg, kwonlyargs, kw_defaults, kwarg, and defaults. For example string.format function.
 class Function(BaseKind):
     def __init__(self, posonlyargs, args, result=None, lazy_result=None):
         if not isinstance(posonlyargs, list):

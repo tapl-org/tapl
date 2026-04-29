@@ -407,7 +407,7 @@ class BoolOp(syntax.Term):
         )
 
 
-# FIXME: target of ast.NamedExpr accepts only ast.Name. This prevents us to assign attributes like s0.name := s0.Int. Figure out how to support that.
+# TODO: target of ast.NamedExpr accepts only ast.Name. This prevents us to assign attributes like s0.name := s0.Int. Figure out how to support that.
 @dataclasses.dataclass
 class NamedExpr(syntax.Term):
     target: syntax.Term
@@ -1664,7 +1664,7 @@ class TypedIf(syntax.Term):
         return BranchTyping(branches=[true_side, self.orelse], location=self.location)
 
     def unfold(self) -> syntax.Term:
-        # FIXME: handle elifs
+        # TODO: handle elifs
         if self.elifs:
             raise tapl_error.UnhandledError('Elif clauses are not yet supported in TypedIf unfold.')
         if self.mode is MODE_EVALUATE:
@@ -1979,7 +1979,7 @@ class TypedImport(syntax.Term):
             if len(self.names) > 1:
                 raise tapl_error.TaplError(
                     'Import does not support multiple names yet.'
-                )  # FIXME: Support multiple import names
+                )  # TODO: Support multiple import names
             return Expr(
                 value=Call(
                     location=self.location,
