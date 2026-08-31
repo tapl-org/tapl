@@ -1,8 +1,18 @@
-# Yasa
+# Gap
 
 A formally verifiable programming language based on lambda calculus. Source programs are reduced with lambda-calculus techniques, then whatever remains is compiled to machine code from its shape.
 
 The name *gap* comes from the idea of a gap between functional programming and imperative programming.
+
+## A brief philosophical background
+
+A compiler translates a program into machine code. But what exactly does it compile? A programming language and machine code are different kinds of things. Treating them as the same risks a category error.
+
+My current view is that compilation makes abstractions concrete. It chooses or infers data layouts and an execution order for operations. Engineers often describe computations in a functional style. They also add imperative details that constrain the execution order.
+
+A functional program forms a graph of dependencies. The compiler turns that graph into a valid topological order of operations. Executing those operations must preserve the semantics of the original program.
+
+Lambda-calculus programs and SSA programs can both be represented as graphs. Gap transforms the graph of a lambda-calculus program until its remaining nodes and edges map one-to-one to SSA. This bridges functional code and imperative execution while preserving the program's semantics.
 
 ## Goals
 
@@ -34,30 +44,34 @@ A type and a layout are independent concepts. The same type may have different l
 
 ## Syntax
 
-Source, residuals, and dumps all use the same S-expression language. A list is an application unless the head is a reserved keyword. That keeps the calculus honest: application is the default, and every other form is marked.
+Source, residuals, and dumps all use the same S-expression language. A list is an application unless its head is a colon-prefixed structural form. Application is therefore the default, while language structure remains explicitly marked.
+
+Colon-prefixed names belong to the language. Ordinary names are unrestricted, so names such as `fn`, `record`, and `if` may still be used as functions.
 
 ### Forms
 
 | Form | S-expression | Meaning |
 | --- | --- | --- |
-| Variable | `x` | Named binder (printer may also show de Bruijn) |
-| Abstraction | `(fn x body)` | `λx. body`. Alias: `λ` |
-| Annotated abstraction | `(fn (x : i32) body)` | Parameter store size type (`i32`, `f64`, `index`, …) |
-| Application | `(f x)` / `(f x y)` | Call; multi-arg is left-assoc sugar: `((f x) y)` |
-| Record | `(record fact e1 even e2)` | Product of label-field pairs |
-| Projection | `(. e fact)` | Field access |
-| Fix | `(! A)` | Fixed record: `A (! A)` |
-| Data / bits | `(bits 2 : i32)` | Literal with a store size type |
-| If | `(if c t f)` | If clause |
+| Variable reference | `x` | Reference to a named variable; the printer may also show its de Bruijn index |
+| Abstraction | `(:fn x body)` | Function abstraction, equivalent to `λx. body` |
+| Layout-annotated abstraction | `(:fn (x i32) body)` | Abstraction whose parameter uses the `i32` layout; other layouts include `f64` and `index` |
+| Application | `(f x)` / `(f x y)` | Function application; multiple arguments are left-associative sugar, so `(f x y)` means `((f x) y)` |
+| Record | `(:record label1 expr1 label2 expr2)` | Record containing alternating label–expression pairs |
+| Projection | `(:project record label)` | Selects `label` from `record` |
+| Fixed point | `(:fix A)` | Fixed point of `A`; unfolds to `(A (:fix A))` |
+| Bits literal | `(:bits 2 : i32)` | Literal `2` stored using the `i32` layout |
+| Conditional | `(:if condition then_branch else_branch)` | Evaluates one of two branches according to `condition` |
 
 ### Sugars
 | Form | S-expression | Meaning |
 | --- | --- | --- |
-| Let | `(let x e body)` | Sugar for `((fn x body) e)` |
-| Fixed field | `(! A fact)` | Sugar for `(. (! A) fact)` |
+| Let | `(:let x e body)` | Sugar for `((:fn x body) e)` |
+| Fixed field | `(:fix A fact)` | Sugar for `(:project (:fix A) fact)` |
 
 
-Reserved heads: `fn`, `record`, `.`, `!`, `bits`, `if`, `let`. Everything else in head position is a function being applied, including `=`, `*`, `-`.
+Structural heads are `:fn`, `:record`, `:project`, `:fix`, `:bits`, `:if`, and `:let`. An unknown colon-prefixed head is an unknown structural form, not an application. Every non-colon head is a function being applied, including `fn`, `record`, `if`, `=`, `*`, and `-`.
+
+An application must have at least one argument. Empty and single-element lists are invalid. A list may itself be the function in an application, as in `((:fn x x) value)`.
 
 ### Print options
 
@@ -66,14 +80,15 @@ Same terms, different views:
 | Option | Off (source default) | On |
 | --- | --- | --- |
 | `show-bruijn` | `n` | `n#0` (name + index) |
-| `show-layout` | `(fn n body)` | `(fn (n : i32) body)` |
+| `show-layout` | `(:fn n body)` | `(:fn (n i32) body)` |
 
 de Bruijn is a print/IR view of named terms, not a second language.
 
 ### Why this encoding
 
-- **Unmarked application** — `(f x)` is the calculus. Wrapping every call in `app` would hide the shape that later becomes SSA.
-- **`!` is a term** — `(! A)` is the fixed point; `(! A fact)` is the usual sugar for `!A.fact`. Unfolding is still `(! A fact) = (. (A (! A)) fact)`.
+- **Unmarked application** — `(f x)` is the calculus. Wrapping every call in `:app` would hide the shape that later becomes SSA.
+- **Structural namespace** — the quiet `:` prefix distinguishes language forms without reserving ordinary names.
+- **`:fix` is a term** — `(:fix A)` is the fixed point; `(:fix A fact)` is the usual fixed-field sugar. Unfolding is `(:fix A fact) = (:project (A (:fix A)) fact)`.
 - **One syntax for source and residual** — after partial β-reduction the leftover applications stay written as applications, which matches the concise-residual note above.
 
 ## Examples
@@ -81,21 +96,21 @@ de Bruijn is a print/IR view of named terms, not a second language.
 ### Factorial
 
 ```
-(let F (fn E
-        (record fact (fn n
-                    (if (= n 1)
+(:let F (:fn E
+        (:record fact (:fn n
+                    (:if (= n 1)
                         1
-                        (* n ((! E fact) (- n 1)))))))
-  ((! F fact) 2))
+                        (* n ((:fix E fact) (- n 1)))))))
+  ((:fix F fact) 2))
 ```
 
 Reduction:
 
 ```
-((! F fact) 2)
-= ((fn n (if (= n 1) 1 (* n ((! F fact) (- n 1))))) 2)
-= (* 2 ((! F fact) 1))
-= (* 2 ((fn n (if (= n 1) 1 (* n ((! F fact) (- n 1))))) 1))
+((:fix F fact) 2)
+= ((:fn n (:if (= n 1) 1 (* n ((:fix F fact) (- n 1))))) 2)
+= (* 2 ((:fix F fact) 1))
+= (* 2 ((:fn n (:if (= n 1) 1 (* n ((:fix F fact) (- n 1))))) 1))
 = (* 2 1)
 = 2
 ```
@@ -103,31 +118,31 @@ Reduction:
 With `show-bruijn` and `show-layout` on, the same residual looks like:
 
 ```
-(* 2 ((! F fact#1) 1))
-; F : (fn E#0 (rec (fact (fn (n#0 : i32) …))))
+(* 2 ((:fix F fact#1) 1))
+; F : (:fn E#0 (:record fact (:fn (n#0 : i32) …)))
 ```
 
 ### Mutual recursion (even / odd)
 
 ```
-(let P (fn E
-        (rec (even (fn n (if (= n 0) false ((! E odd)  (- n 1)))))
-             (odd  (fn n (if (= n 0) true  ((! E even) (- n 1)))))))
-  ((! P even) 2))
+(:let P (:fn E
+        (:record even (:fn n (:if (= n 0) false ((:fix E odd)  (- n 1))))
+                 odd  (:fn n (:if (= n 0) true  ((:fix E even) (- n 1))))))
+  ((:fix P even) 2))
 ```
 
 Reduction:
 
 ```
-((! P even) 2)
-= ((fn n (if (= n 0) false ((! P odd) (- n 1)))) 2)
-= (if (= 2 0) false ((! P odd) (- 2 1)))
-= ((! P odd) 1)
-= ((fn n (if (= n 0) true ((! P even) (- n 1)))) 1)
-= ((! P even) 0)
-= ((fn n (if (= n 0) false ((! P odd) (- n 1)))) 0)
-= ((! P odd) 0)
-= ((fn n (if (= n 0) true ((! P even) (- n 1)))) 0)
+((:fix P even) 2)
+= ((:fn n (:if (= n 0) false ((:fix P odd) (- n 1)))) 2)
+= (:if (= 2 0) false ((:fix P odd) (- 2 1)))
+= ((:fix P odd) 1)
+= ((:fn n (:if (= n 0) true ((:fix P even) (- n 1)))) 1)
+= ((:fix P even) 0)
+= ((:fn n (:if (= n 0) false ((:fix P odd) (- n 1)))) 0)
+= ((:fix P odd) 0)
+= ((:fn n (:if (= n 0) true ((:fix P even) (- n 1)))) 0)
 = true
 ```
 
