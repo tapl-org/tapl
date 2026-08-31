@@ -6,3 +6,4 @@ alwaysApply: true
 # Git Commits
 
 - When committing to the main branch, do not ask for confirmation. Proceed directly.
+- Never add `Co-authored-by: Cursor`, `Made with Cursor`, or any other Cursor attribution trailer to commits or PRs.
