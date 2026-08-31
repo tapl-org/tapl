@@ -23,6 +23,7 @@ The name *gap* comes from the idea of a gap between functional programming and i
    - QBE
    - C
    - others
+   - in-house stack-based pure interpreter (gapvm will be implemented)
 
 ## Design notes
 
@@ -43,17 +44,20 @@ Source, residuals, and dumps all use the same S-expression language. A list is a
 | Abstraction | `(fn x body)` | `λx. body`. Alias: `λ` |
 | Annotated abstraction | `(fn (x : i32) body)` | Parameter store size type (`i32`, `f64`, `index`, …) |
 | Application | `(f x)` / `(f x y)` | Call; multi-arg is left-assoc sugar: `((f x) y)` |
-| Let | `(let x e body)` | Sugar for `((fn x body) e)` |
-| Record | `(rec (fact e1) (even e2))` | Product of labeled fields |
+| Record | `(record fact e1 even e2)` | Product of label-field pairs |
 | Projection | `(. e fact)` | Field access |
 | Fix | `(! A)` | Fixed record: `A (! A)` |
-| Fixed field | `(! A fact)` | Sugar for `(. (! A) fact)` |
-| Variant | `(inj some e)` | Injection of a labeled alternative |
-| Case | `(case e (some x t1) (none _ t2))` | Eliminate a variant |
 | Data / bits | `(bits 2 : i32)` | Literal with a store size type |
-| If | `(if c t f)` | Primitive for now; later a variant |
+| If | `(if c t f)` | If clause |
 
-Reserved heads: `fn`, `λ`, `let`, `rec`, `.`, `!`, `inj`, `case`, `bits`, `if`. Everything else in head position is a function being applied, including `=`, `*`, `-`.
+### Sugars
+| Form | S-expression | Meaning |
+| --- | --- | --- |
+| Let | `(let x e body)` | Sugar for `((fn x body) e)` |
+| Fixed field | `(! A fact)` | Sugar for `(. (! A) fact)` |
+
+
+Reserved heads: `fn`, `record`, `.`, `!`, `bits`, `if`, `let`. Everything else in head position is a function being applied, including `=`, `*`, `-`.
 
 ### Print options
 
@@ -62,14 +66,13 @@ Same terms, different views:
 | Option | Off (source default) | On |
 | --- | --- | --- |
 | `show-bruijn` | `n` | `n#0` (name + index) |
-| `show-store-size` | `(fn n body)` | `(fn (n : i32) body)` |
+| `show-layout` | `(fn n body)` | `(fn (n : i32) body)` |
 
 de Bruijn is a print/IR view of named terms, not a second language.
 
 ### Why this encoding
 
 - **Unmarked application** — `(f x)` is the calculus. Wrapping every call in `app` would hide the shape that later becomes SSA.
-- **Records as labeled pairs** — `(rec (fact e) …)` cannot be confused with `(fact e)` (an application).
 - **`!` is a term** — `(! A)` is the fixed point; `(! A fact)` is the usual sugar for `!A.fact`. Unfolding is still `(! A fact) = (. (A (! A)) fact)`.
 - **One syntax for source and residual** — after partial β-reduction the leftover applications stay written as applications, which matches the concise-residual note above.
 
@@ -79,10 +82,10 @@ de Bruijn is a print/IR view of named terms, not a second language.
 
 ```
 (let F (fn E
-        (rec (fact (fn n
+        (record fact (fn n
                     (if (= n 1)
                         1
-                        (* n ((! E fact) (- n 1))))))))
+                        (* n ((! E fact) (- n 1)))))))
   ((! F fact) 2))
 ```
 
@@ -97,7 +100,7 @@ Reduction:
 = 2
 ```
 
-With `show-bruijn` and `show-store-size` on, the same residual looks like:
+With `show-bruijn` and `show-layout` on, the same residual looks like:
 
 ```
 (* 2 ((! F fact#1) 1))
