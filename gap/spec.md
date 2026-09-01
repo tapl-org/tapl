@@ -1,8 +1,8 @@
 # Gap
 
-A formally verifiable programming language based on lambda calculus. Source programs are reduced with lambda-calculus techniques, then whatever remains is compiled to machine code from its shape.
+A formally verifiable language based on lambda calculus. It reduces source programs using lambda-calculus rules, then compiles the remaining structure to machine code.
 
-The name *gap* comes from the idea of a gap between functional programming and imperative programming.
+The name *Gap* refers to the gap between functional programming and imperative execution.
 
 ## A brief philosophical background
 
@@ -42,36 +42,79 @@ Lambda-calculus programs and SSA programs can both be represented as graphs. Gap
 
 A type and a layout are independent concepts. The same type may have different layouts; for example, `Mile` may use either an `i32` or an `i64` layout. Conversely, the same layout may be used by different types; for example, both `Mile` and `Meter` may use an `i32` layout while remaining distinct semantic types.
 
+### Literals and lowering
+
+A literal pairs a value with its storage layout:
+
+```lisp
+(:literal 42 i32)
+(:literal 1.0 f32)
+(:literal "hello" utf8)
+(:literal 0x00112233 MyStructLayout)
+```
+
+Lowering converts the value into the concrete representation required by its layout. For example, `1.0` with the `f32` layout becomes its 32-bit IEEE 754 representation. A hexadecimal value already provides the bits directly, but its size and structure must still match the given layout.
+
+Each layout must define its encoding rules, including integer width, floating-point format, string encoding, byte order, and struct padding. This makes lowering deterministic and formally verifiable. Hexadecimal data is therefore one kind of literal, not a separate term.
+
 ## Syntax
 
 Source, residuals, and dumps all use the same S-expression language. A list is an application unless its head is a colon-prefixed structural form. Application is therefore the default, while language structure remains explicitly marked.
 
-Colon-prefixed names belong to the language. Ordinary names are unrestricted, so names such as `fn`, `record`, and `if` may still be used as functions.
+Colon-prefixed names belong to the language. Ordinary names are unrestricted, so names such as `lambda`, `record`, and `if` may still be used as functions.
 
 ### Forms
 
 | Form | S-expression | Meaning |
 | --- | --- | --- |
 | Variable reference | `x` | Reference to a named variable; the printer may also show its de Bruijn index |
-| Abstraction | `(:fn x body)` | Function abstraction, equivalent to `λx. body` |
-| Layout-annotated abstraction | `(:fn (x i32) body)` | Abstraction whose parameter uses the `i32` layout; other layouts include `f64` and `index` |
+| Abstraction | `(:lambda x body)` | Function abstraction, equivalent to `λx. body` |
+| Layout-annotated abstraction | `(:lambda (x i32) body)` | Abstraction whose parameter uses the `i32` layout; other example layouts include `f64` and `index` |
 | Application | `(f x)` / `(f x y)` | Function application; multiple arguments are left-associative sugar, so `(f x y)` means `((f x) y)` |
 | Record | `(:record label1 = expr1 label2 = expr2)` | Record containing `label = expression` fields |
 | Field access | `(:get record label)` | Static projection of `label` from `record` |
 | Fixed point | `(:fix A)` | Fixed point of `A`; unfolds to `(A (:fix A))` |
-| Bits literal | `(:bits 2 i32)` | Literal `2` stored using the `i32` layout |
+| Literal | `(:literal value layout)` | Value represented using the given storage layout |
 | Conditional | `(:if condition then_branch else_branch)` | Evaluates one of two branches according to `condition` |
 
 ### Sugars
 | Form | S-expression | Meaning |
 | --- | --- | --- |
-| Let | `(:let x1 = e1 x2 = e2 xn = en body)` | Sugar for alternating variable expression of let `((:fn x body) e)` |
+| Let | `(:let x1 = e1 x2 = e2 … xn = en body)` | Sequential bindings expanded into nested lambda applications |
 | Fixed field | `(:fix A label)` | Sugar for `(:get (:fix A) label)` |
 
+#### Let expansion
 
-Structural heads are `:fn`, `:record`, `:get`, `:fix`, `:bits`, `:if`, and `:let`. An unknown colon-prefixed head is an unknown structural form, not an application. Every non-colon head is a function being applied, including `fn`, `record`, `if`, `=`, `*`, and `-`.
+A `:let` may contain one or more bindings. Each binding introduces one lambda application:
 
-An application must have at least one argument. Empty and single-element lists are invalid. A list may itself be the function in an application, as in `((:fn x x) value)`.
+```lisp
+(:let x = e body)
+≡ ((:lambda x body) e)
+```
+
+Multiple bindings expand from left to right:
+
+```lisp
+(:let x1 = e1
+      x2 = e2
+      x3 = e3
+  body)
+
+≡
+
+((:lambda x1
+   ((:lambda x2
+      ((:lambda x3 body) e3))
+    e2))
+ e1)
+```
+
+The bindings are sequential. Each expression may refer to variables introduced before it. For example, `e2` may refer to `x1`, and `e3` may refer to both `x1` and `x2`.
+
+
+Structural heads are `:lambda`, `:record`, `:get`, `:fix`, `:literal`, `:if`, and `:let`. An unknown colon-prefixed head is an unknown structural form, not an application. Every non-colon head is a function being applied, including `lambda`, `record`, `if`, `=`, `*`, and `-`.
+
+An application must have at least one argument. Empty and single-element lists are invalid. A list may itself be the function in an application, as in `((:lambda x x) value)`.
 
 ### Print options
 
@@ -97,8 +140,8 @@ de Bruijn is a print/IR view of named terms, not a second language.
 ### Factorial
 
 ```
-(:let F = (:fn self
-        (:record fact = (:fn n
+(:let F = (:lambda self
+        (:record fact = (:lambda n
                     (:if (= n 1)
                         1
                         (* n ((:get self fact) (- n 1)))))))
@@ -109,9 +152,9 @@ Reduction:
 
 ```
 ((:fix F fact) 2)
-= ((:fn n (:if (= n 1) 1 (* n ((:fix F fact) (- n 1))))) 2)
+= ((:lambda n (:if (= n 1) 1 (* n ((:fix F fact) (- n 1))))) 2)
 = (* 2 ((:fix F fact) 1))
-= (* 2 ((:fn n (:if (= n 1) 1 (* n ((:fix F fact) (- n 1))))) 1))
+= (* 2 ((:lambda n (:if (= n 1) 1 (* n ((:fix F fact) (- n 1))))) 1))
 = (* 2 1)
 = 2
 ```
@@ -119,9 +162,9 @@ Reduction:
 With `show-bruijn` on, the recursive reference inside the nested abstraction has index `1`, while its parameter has index `0`:
 
 ```
-(:fn self
+(:lambda self
   (:record fact =
-    (:fn n
+    (:lambda n
       (:if (= n#0 1)
           1
           (* n#0 ((:get self#1 fact) (- n#0 1))))))
@@ -130,9 +173,9 @@ With `show-bruijn` on, the recursive reference inside the nested abstraction has
 ### Mutual recursion (even / odd)
 
 ```
-(:let P = (:fn self
-        (:record even = (:fn n (:if (= n 0) true  ((:get self odd) (- n 1))))
-                 odd  = (:fn n (:if (= n 0) false ((:get self even) (- n 1))))))
+(:let P = (:lambda self
+        (:record even = (:lambda n (:if (= n 0) true  ((:get self odd) (- n 1))))
+                 odd  = (:lambda n (:if (= n 0) false ((:get self even) (- n 1))))))
   ((:fix P even) 2))
 ```
 
@@ -140,19 +183,19 @@ Reduction:
 
 ```
 ((:fix P even) 2)
-= ((:fn n (:if (= n 0) true ((:fix P odd) (- n 1)))) 2)
+= ((:lambda n (:if (= n 0) true ((:fix P odd) (- n 1)))) 2)
 = (:if (= 2 0) true ((:fix P odd) (- 2 1)))
 = ((:fix P odd) 1)
-= ((:fn n (:if (= n 0) false ((:fix P even) (- n 1)))) 1)
+= ((:lambda n (:if (= n 0) false ((:fix P even) (- n 1)))) 1)
 = ((:fix P even) 0)
-= ((:fn n (:if (= n 0) true ((:fix P odd) (- n 1)))) 0)
+= ((:lambda n (:if (= n 0) true ((:fix P odd) (- n 1)))) 0)
 = true
 ```
 
 ## Open work
 
 - [ ] Design terms
-- [ ] Refine S-expression surface (literals vs `bits`, primitive set)
+- [ ] Define literal encoding rules and the primitive set
 - [ ] Design evaluation
 - [ ] Implement store size types on lambdas (`i32`, `f64`, `index`, …)
 - [ ] Design how to introduce memory, and remove the memory parameter when generating machine code
