@@ -68,6 +68,8 @@ Lowering converts the value into the concrete representation required by its lay
 
 Each layout must define its encoding rules, including integer width, floating-point format, string encoding, byte order, and struct padding. This makes lowering deterministic and formally verifiable. Hexadecimal data is therefore one kind of literal, not a separate term.
 
+A bare literal value such as `1` is not a term. Gap never infers a literal's layout from its surrounding context; the layout must always be stated explicitly with `:literal`.
+
 ### Layering stays outside Gap
 
 The `θ`-calculus in this repository extends the lambda calculus with layering (`t₁:t₂`) and unlayering (`θ.t`), which let a term exist in several computational layers at once — evaluation and type checking, for example. Gap does not adopt them. Layering belongs to the frontend and to the type layer; by the time a program reaches Gap it has been separated, and a Gap term inhabits a single layer. Gap therefore has no layering form and no `θ`-reduction.
@@ -278,11 +280,14 @@ A parsed S-expression is a well-formed term when:
 - **Applications.** A list whose head is not colon-prefixed has at least two elements. The head may itself be a list.
 - **Parameters.** A `:lambda` parameter is a bare name or a two-element `(x ℓ)`.
 - **Labels.** Labels within one `:record` are pairwise distinct.
+- **Literals.** A literal value is valid only inside `(:literal v ℓ)`. A bare numeral or other bare literal value is not a term. They may considered as a lambda variable.
 - **Scope.** `FV(t) ⊆ dom(Σ)`.
 
 Well-formedness does not check whether a projected field exists, an `:if` condition is a boolean, or a `:fix` argument is a function. Reduction checks those conditions. Lowering checks whether a literal value fits its layout.
 
 ## Examples
+
+For simplicity, the examples use bare numerals as shorthand for layout-annotated literals. This shorthand is not part of Gap syntax; real Gap terms must write each numeral as `(:literal v ℓ)`.
 
 ### Factorial
 
@@ -339,15 +344,13 @@ Reduction:
 = true
 ```
 
-## TODO
-- [ ] add abstraction return layout syntax
-
 ## Open work
 
 - [x] Design terms
-- [ ] Decide what a bare numeral means. The examples write `1` and `2`, but the grammar has only `(:literal v ℓ)`, and picking a default layout would be the kind of implicit decision the goals rule out.
-- [ ] Define literal encoding rules and the primitive set, including the `bool` layout and the contents of `Σ`
+- [x] Bare numerals are not terms. Literal layouts are always explicit and are never inferred from context; examples use bare numerals only for simplicity.
+- [ ] Define literal encoding rules and the primitive set, including the `bool` layout and the contents of `Σ`. decide whether one file is a one compilation unit, since this is a generated programming language, no need to support multiple files as a single compilation unit.
 - [ ] Design evaluation
 - [ ] Implement store size types on lambdas (`i32`, `f64`, `index`, …)
 - [ ] Design how to introduce memory, and remove the memory parameter when generating machine code
 - [ ] Figure out how to reduce fix when needed in strong reduction process.
+- [ ] add abstraction return layout syntax
