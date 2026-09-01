@@ -57,7 +57,7 @@ Colon-prefixed names belong to the language. Ordinary names are unrestricted, so
 | Layout-annotated abstraction | `(:fn (x i32) body)` | Abstraction whose parameter uses the `i32` layout; other layouts include `f64` and `index` |
 | Application | `(f x)` / `(f x y)` | Function application; multiple arguments are left-associative sugar, so `(f x y)` means `((f x) y)` |
 | Record | `(:record label1 = expr1 label2 = expr2)` | Record containing `label = expression` fields |
-| Projection | `(:project record label)` | Selects `label` from `record` |
+| Field access | `(:get record label)` | Static projection of `label` from `record` |
 | Fixed point | `(:fix A)` | Fixed point of `A`; unfolds to `(A (:fix A))` |
 | Bits literal | `(:bits 2 i32)` | Literal `2` stored using the `i32` layout |
 | Conditional | `(:if condition then_branch else_branch)` | Evaluates one of two branches according to `condition` |
@@ -66,10 +66,10 @@ Colon-prefixed names belong to the language. Ordinary names are unrestricted, so
 | Form | S-expression | Meaning |
 | --- | --- | --- |
 | Let | `(:let x1 = e1 x2 = e2 xn = en body)` | Sugar for alternating variable expression of let `((:fn x body) e)` |
-| Fixed field | `(:fix A fact)` | Sugar for `(:project (:fix A) fact)` |
+| Fixed field | `(:fix A label)` | Sugar for `(:get (:fix A) label)` |
 
 
-Structural heads are `:fn`, `:record`, `:project`, `:fix`, `:bits`, `:if`, and `:let`. An unknown colon-prefixed head is an unknown structural form, not an application. Every non-colon head is a function being applied, including `fn`, `record`, `if`, `=`, `*`, and `-`.
+Structural heads are `:fn`, `:record`, `:get`, `:fix`, `:bits`, `:if`, and `:let`. An unknown colon-prefixed head is an unknown structural form, not an application. Every non-colon head is a function being applied, including `fn`, `record`, `if`, `=`, `*`, and `-`.
 
 An application must have at least one argument. Empty and single-element lists are invalid. A list may itself be the function in an application, as in `((:fn x x) value)`.
 
@@ -81,13 +81,15 @@ Same terms, different views:
 | --- | --- | --- |
 | `show-bruijn` | `n` | `n#0` (name + index) |
 
+todo: add without sugars option.
+
 de Bruijn is a print/IR view of named terms, not a second language.
 
 ### Why this encoding
 
 - **Unmarked application** — `(f x)` is the calculus. Wrapping every call in `:app` would hide the shape that later becomes SSA.
 - **Structural namespace** — the quiet `:` prefix distinguishes language forms without reserving ordinary names.
-- **`:fix` is a term** — `(:fix A)` is the fixed point; `(:fix A fact)` is the usual fixed-field sugar. Unfolding is `(:fix A fact) = (:project (A (:fix A)) fact)`.
+- **`:fix` is a term** — `(:fix A)` is the fixed point; `(:fix A fact)` is the usual fixed-field sugar. Unfolding is `(:fix A fact) = (:get (A (:fix A)) fact)`.
 - **One syntax for source and residual** — after partial β-reduction the leftover applications stay written as applications, which matches the concise-residual note above.
 
 ## Examples
@@ -95,11 +97,11 @@ de Bruijn is a print/IR view of named terms, not a second language.
 ### Factorial
 
 ```
-(:let F = (:fn E
+(:let F = (:fn self
         (:record fact = (:fn n
                     (:if (= n 1)
                         1
-                        (* n ((:project E fact) (- n 1)))))))
+                        (* n ((:get self fact) (- n 1)))))))
   ((:fix F fact) 2))
 ```
 
@@ -117,20 +119,20 @@ Reduction:
 With `show-bruijn` on, the recursive reference inside the nested abstraction has index `1`, while its parameter has index `0`:
 
 ```
-(:fn E
+(:fn self
   (:record fact =
     (:fn n
       (:if (= n#0 1)
           1
-          (* n#0 ((:project E#1 fact) (- n#0 1))))))
+          (* n#0 ((:get self#1 fact) (- n#0 1))))))
 ```
 
 ### Mutual recursion (even / odd)
 
 ```
-(:let P = (:fn E
-        (:record even = (:fn n (:if (= n 0) true  ((:project E odd) (- n 1))))
-                 odd  = (:fn n (:if (= n 0) false ((:project E even) (- n 1))))))
+(:let P = (:fn self
+        (:record even = (:fn n (:if (= n 0) true  ((:get self odd) (- n 1))))
+                 odd  = (:fn n (:if (= n 0) false ((:get self even) (- n 1))))))
   ((:fix P even) 2))
 ```
 
@@ -154,3 +156,4 @@ Reduction:
 - [ ] Design evaluation
 - [ ] Implement store size types on lambdas (`i32`, `f64`, `index`, …)
 - [ ] Design how to introduce memory, and remove the memory parameter when generating machine code
+- [ ] Figure out how to reduce fix when needed in strong reduction process.
