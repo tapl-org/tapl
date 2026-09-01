@@ -74,6 +74,24 @@ A bare literal value such as `1` is not a term. Gap never infers a literal's lay
 
 The `θ`-calculus in this repository extends the lambda calculus with layering (`t₁:t₂`) and unlayering (`θ.t`), which let a term exist in several computational layers at once — evaluation and type checking, for example. Gap does not adopt them. Layering belongs to the frontend and to the type layer; by the time a program reaches Gap it has been separated, and a Gap term inhabits a single layer. Gap therefore has no layering form and no `θ`-reduction.
 
+### Compilation units
+
+Each source file contains exactly one compilation unit. A compilation unit is one outer abstraction whose parameter is the compilation-unit environment and whose body is an open recursive record:
+
+```lisp
+(:lambda env
+  (:lambda self
+    (:record
+      main = ...
+      helper = ...)))
+```
+
+The `env` parameter is a record containing the compilation unit's external dependencies, including primitives. Fields access those dependencies explicitly with projections such as `(:get env add-i32)`.
+
+The inner abstraction is the recursive-record generator. Its `self` parameter is in scope in every field, so fields can refer to one another with projections such as `(:get self helper)`. Applying `:fix` to this inner abstraction ties the recursion and produces the exported record. The exact contents of `env` and any dedicated recursive-record syntax are defined separately.
+
+A complete compilation unit is closed: all external dependencies enter through `env`, and no free variables remain.
+
 ## Syntax
 
 Source, residuals, and dumps all use the same S-expression language. A list is an application unless its head is a colon-prefixed structural form. Application is therefore the default, while language structure remains explicitly marked.
@@ -212,12 +230,6 @@ In a record, `=` separates a label from its value. It is different from the ordi
 
 Projection labels and literal layouts are static. If a program must choose a field or layout at run time, it must express that choice explicitly, for example with `:if`.
 
-### Primitives are free variables
-
-Names such as `=`, `*`, and `-` are variables, not special terms. A primitive environment `Σ` defines which free variables are available as primitives.
-
-Because primitives are ordinary variables, a lambda may shadow them. For example, `(:lambda * (* 1 2))` binds the name `*`. Free primitive names print without a de Bruijn index.
-
 ### Names and binding
 
 #### Free variables
@@ -236,7 +248,7 @@ FV((:literal v ℓ))                 = ∅
 FV((:if t₁ t₂ t₃))                 = FV(t₁) ∪ FV(t₂) ∪ FV(t₃)
 ```
 
-A term is *closed* when `FV(t) = ∅`. A term is *scope-correct under `Σ`* when every free variable is provided by the primitive environment: `FV(t) ⊆ dom(Σ)`.
+A term is *closed* when `FV(t) = ∅`. Every complete compilation unit must be closed.
 
 #### Binding and α-equivalence
 
@@ -281,13 +293,13 @@ A parsed S-expression is a well-formed term when:
 - **Parameters.** A `:lambda` parameter is a bare name or a two-element `(x ℓ)`.
 - **Labels.** Labels within one `:record` are pairwise distinct.
 - **Literals.** A literal value is valid only inside `(:literal v ℓ)`. A bare numeral or other bare literal value is not a term. They may considered as a lambda variable.
-- **Scope.** `FV(t) ⊆ dom(Σ)`.
+- **Scope.** A complete compilation unit is closed. Every variable occurrence in it is bound by an enclosing `:lambda`.
 
 Well-formedness does not check whether a projected field exists, an `:if` condition is a boolean, or a `:fix` argument is a function. Reduction checks those conditions. Lowering checks whether a literal value fits its layout.
 
 ## Examples
 
-For simplicity, the examples use bare numerals as shorthand for layout-annotated literals. This shorthand is not part of Gap syntax; real Gap terms must write each numeral as `(:literal v ℓ)`.
+For simplicity, the examples use bare numerals as shorthand for layout-annotated literals. Real Gap terms must write each numeral as `(:literal v ℓ)`. They also use primitive labels such as `=`, `*`, and `-` as bare terms; these stand for projections from the compilation-unit environment, so bare `=` stands for `(:get env =)`, for example. These shorthands are not part of Gap syntax. The examples omit the outer compilation-unit abstraction and are term fragments rather than complete compilation units.
 
 ### Factorial
 
@@ -348,7 +360,8 @@ Reduction:
 
 - [x] Design terms
 - [x] Bare numerals are not terms. Literal layouts are always explicit and are never inferred from context; examples use bare numerals only for simplicity.
-- [ ] Define literal encoding rules and the primitive set, including the `bool` layout and the contents of `Σ`. decide whether one file is a one compilation unit, since this is a generated programming language, no need to support multiple files as a single compilation unit.
+- [x] Define one source file as one closed compilation unit of the form `(:lambda env (:lambda self (:record ...)))`.
+- [ ] Define literal encoding rules and the primitive set, including the `bool` layout and the contents of `env`.
 - [ ] Design evaluation
 - [ ] Implement store size types on lambdas (`i32`, `f64`, `index`, …)
 - [ ] Design how to introduce memory, and remove the memory parameter when generating machine code
