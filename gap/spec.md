@@ -1,6 +1,17 @@
 # Gap
 
-A formally verifiable language based on lambda calculus. It reduces source programs using lambda-calculus rules, then compiles the remaining structure to machine code.
+A reduction-oriented functional IR that partially evaluates lambda-calculus terms until the residual program maps one-to-one onto SSA.
+
+Gap sits between a frontend language and a conventional compiler backend:
+
+```text
+frontend program
+    → lambda-calculus terms
+    → reduction and partial evaluation
+    → residual term
+    → SSA
+    → machine code
+```
 
 The name *Gap* refers to the gap between functional programming and imperative execution.
 
