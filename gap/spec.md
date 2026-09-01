@@ -56,16 +56,16 @@ Colon-prefixed names belong to the language. Ordinary names are unrestricted, so
 | Abstraction | `(:fn x body)` | Function abstraction, equivalent to `λx. body` |
 | Layout-annotated abstraction | `(:fn (x i32) body)` | Abstraction whose parameter uses the `i32` layout; other layouts include `f64` and `index` |
 | Application | `(f x)` / `(f x y)` | Function application; multiple arguments are left-associative sugar, so `(f x y)` means `((f x) y)` |
-| Record | `(:record label1 expr1 label2 expr2)` | Record containing alternating label–expression pairs |
+| Record | `(:record label1 = expr1 label2 = expr2)` | Record containing `label = expression` fields |
 | Projection | `(:project record label)` | Selects `label` from `record` |
 | Fixed point | `(:fix A)` | Fixed point of `A`; unfolds to `(A (:fix A))` |
-| Bits literal | `(:bits 2 : i32)` | Literal `2` stored using the `i32` layout |
+| Bits literal | `(:bits 2 i32)` | Literal `2` stored using the `i32` layout |
 | Conditional | `(:if condition then_branch else_branch)` | Evaluates one of two branches according to `condition` |
 
 ### Sugars
 | Form | S-expression | Meaning |
 | --- | --- | --- |
-| Let | `(:let x e body)` | Sugar for `((:fn x body) e)` |
+| Let | `(:let x1 = e1 x2 = e2 xn = en body)` | Sugar for alternating variable expression of let `((:fn x body) e)` |
 | Fixed field | `(:fix A fact)` | Sugar for `(:project (:fix A) fact)` |
 
 
@@ -80,7 +80,6 @@ Same terms, different views:
 | Option | Off (source default) | On |
 | --- | --- | --- |
 | `show-bruijn` | `n` | `n#0` (name + index) |
-| `show-layout` | `(:fn n body)` | `(:fn (n i32) body)` |
 
 de Bruijn is a print/IR view of named terms, not a second language.
 
@@ -96,11 +95,11 @@ de Bruijn is a print/IR view of named terms, not a second language.
 ### Factorial
 
 ```
-(:let F (:fn E
-        (:record fact (:fn n
+(:let F = (:fn E
+        (:record fact = (:fn n
                     (:if (= n 1)
                         1
-                        (* n ((:fix E fact) (- n 1)))))))
+                        (* n ((:project E fact) (- n 1)))))))
   ((:fix F fact) 2))
 ```
 
@@ -115,19 +114,23 @@ Reduction:
 = 2
 ```
 
-With `show-bruijn` and `show-layout` on, the same residual looks like:
+With `show-bruijn` on, the recursive reference inside the nested abstraction has index `1`, while its parameter has index `0`:
 
 ```
-(* 2 ((:fix F fact#1) 1))
-; F : (:fn E#0 (:record fact (:fn (n#0 : i32) …)))
+(:fn E
+  (:record fact =
+    (:fn n
+      (:if (= n#0 1)
+          1
+          (* n#0 ((:project E#1 fact) (- n#0 1))))))
 ```
 
 ### Mutual recursion (even / odd)
 
 ```
-(:let P (:fn E
-        (:record even (:fn n (:if (= n 0) false ((:fix E odd)  (- n 1))))
-                 odd  (:fn n (:if (= n 0) true  ((:fix E even) (- n 1))))))
+(:let P = (:fn E
+        (:record even = (:fn n (:if (= n 0) true  ((:project E odd) (- n 1))))
+                 odd  = (:fn n (:if (= n 0) false ((:project E even) (- n 1))))))
   ((:fix P even) 2))
 ```
 
@@ -135,14 +138,12 @@ Reduction:
 
 ```
 ((:fix P even) 2)
-= ((:fn n (:if (= n 0) false ((:fix P odd) (- n 1)))) 2)
-= (:if (= 2 0) false ((:fix P odd) (- 2 1)))
+= ((:fn n (:if (= n 0) true ((:fix P odd) (- n 1)))) 2)
+= (:if (= 2 0) true ((:fix P odd) (- 2 1)))
 = ((:fix P odd) 1)
-= ((:fn n (:if (= n 0) true ((:fix P even) (- n 1)))) 1)
+= ((:fn n (:if (= n 0) false ((:fix P even) (- n 1)))) 1)
 = ((:fix P even) 0)
-= ((:fn n (:if (= n 0) false ((:fix P odd) (- n 1)))) 0)
-= ((:fix P odd) 0)
-= ((:fn n (:if (= n 0) true ((:fix P even) (- n 1)))) 0)
+= ((:fn n (:if (= n 0) true ((:fix P odd) (- n 1)))) 0)
 = true
 ```
 
