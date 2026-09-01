@@ -36,7 +36,7 @@ Lambda-calculus programs and SSA programs can both be represented as graphs. Gap
 ## Compilation pipeline
 
 1. Write a program in lambda calculus.
-2. Partially evaluate it with reductions (`β`, `η`, `θ`, …).
+2. Partially evaluate it with reductions (`β`, `η`, …).
 3. Translate the residual term to SSA, driven by the term's shape/structure.
 4. Lower SSA to machine code through one of several backends:
    - MLIR
@@ -68,6 +68,10 @@ Lowering converts the value into the concrete representation required by its lay
 
 Each layout must define its encoding rules, including integer width, floating-point format, string encoding, byte order, and struct padding. This makes lowering deterministic and formally verifiable. Hexadecimal data is therefore one kind of literal, not a separate term.
 
+### Layering stays outside Gap
+
+The `θ`-calculus in this repository extends the lambda calculus with layering (`t₁:t₂`) and unlayering (`θ.t`), which let a term exist in several computational layers at once — evaluation and type checking, for example. Gap does not adopt them. Layering belongs to the frontend and to the type layer; by the time a program reaches Gap it has been separated, and a Gap term inhabits a single layer. Gap therefore has no layering form and no `θ`-reduction.
+
 ## Syntax
 
 Source, residuals, and dumps all use the same S-expression language. A list is an application unless its head is a colon-prefixed structural form. Application is therefore the default, while language structure remains explicitly marked.
@@ -93,6 +97,7 @@ Colon-prefixed names belong to the language. Ordinary names are unrestricted, so
 | --- | --- | --- |
 | Let | `(:let x1 = e1 x2 = e2 … xn = en body)` | Sequential bindings expanded into nested lambda applications |
 | Fixed field | `(:fix A label)` | Sugar for `(:get (:fix A) label)` |
+| Booleans | `true` / `false` | Sugar for `(:literal true bool)` and `(:literal false bool)` |
 
 #### Let expansion
 
@@ -146,11 +151,142 @@ de Bruijn is a print/IR view of named terms, not a second language.
 - **`:fix` is a term** — `(:fix A)` is the fixed point; `(:fix A fact)` is the usual fixed-field sugar. Unfolding is `(:fix A fact) = (:get (A (:fix A)) fact)`.
 - **One syntax for source and residual** — after partial β-reduction the leftover applications stay written as applications, which matches the concise-residual note above.
 
+## Terms
+
+This section defines the structure of a Gap term. Reduction rules are defined separately.
+
+### Syntactic categories
+
+| Category | Metavariables | Contents |
+| --- | --- | --- |
+| Term | `t`, `s` | The grammar below |
+| Variable | `x`, `y`, `z` | Names that do not begin with `:` |
+| Parameter | `p` | A variable with an optional layout |
+| Label | `l` | Record field names |
+| Layout | `ℓ` | Storage layouts such as `i32`, `bool`, or `utf8` |
+| Literal value | `v` | Values such as `42`, `"hello"`, or `true` |
+
+Labels, layouts, and literal values are data contained in a term. They are not terms themselves and do not reduce.
+
+### The grammar
+
+```text
+t ::= x                       variable
+    | (:lambda p t)           abstraction
+    | (t t)                   application
+    | (:record f*)            record
+    | (:get t l)              projection
+    | (:fix t)                fixed point
+    | (:literal v ℓ)          literal
+    | (:if t t t)             conditional
+
+p ::= x                       parameter
+    | (x ℓ)                   layout-annotated parameter
+
+f ::= l = t                   record field
+```
+
+The following forms are syntax sugar. They are converted to core terms before reduction.
+
+| Surface | Abstract syntax |
+| --- | --- |
+| `(f x y)` | `((f x) y)` |
+| `(:let x = e body)` | `((:lambda x body) e)` |
+| `(:fix A l)` | `(:get (:fix A) l)` |
+| `true` | `(:literal true bool)` |
+| `false` | `(:literal false bool)` |
+
+### Meaning of each form
+
+- **Abstraction** — `(:lambda p t)` binds one parameter in `t`. A layout annotation describes storage, not type. For example, `(:lambda (x i32) t)` stores `x` as `i32`.
+- **Application** — `(t₁ t₂)` applies one term to another. Multiple arguments associate to the left: `(f x y)` means `((f x) y)`.
+- **Record** — `(:record l₁ = t₁ … lₙ = tₙ)` contains an ordered list of fields with unique labels. Field order is preserved for layout. `(:record)` is the empty record and unit value.
+- **Projection** — `(:get t l)` selects the field named `l`. The label is fixed in the term; it cannot be computed at run time. A missing field is a reduction error.
+- **Fixed point** — `(:fix t)` provides recursion and unfolds to `(t (:fix t))`.
+- **Literal** — `(:literal v ℓ)` stores value `v` using layout `ℓ`. A literal has no subterms.
+- **Conditional** — `(:if c a b)` chooses between `a` and `b`. The condition `c` must reduce to a `bool` literal.
+
+In a record, `=` separates a label from its value. It is different from the ordinary variable named `=`, which may be used as a function.
+
+Projection labels and literal layouts are static. If a program must choose a field or layout at run time, it must express that choice explicitly, for example with `:if`.
+
+### Primitives are free variables
+
+Names such as `=`, `*`, and `-` are variables, not special terms. A primitive environment `Σ` defines which free variables are available as primitives.
+
+Because primitives are ordinary variables, a lambda may shadow them. For example, `(:lambda * (* 1 2))` binds the name `*`. Free primitive names print without a de Bruijn index.
+
+### Names and binding
+
+#### Free variables
+
+`FV(t)` is the set of variables used in `t` but not bound by a surrounding `:lambda`.
+
+```text
+FV(x)                              = {x}
+FV((:lambda x t))                  = FV(t) \ {x}
+FV((:lambda (x ℓ) t))              = FV(t) \ {x}
+FV((t₁ t₂))                        = FV(t₁) ∪ FV(t₂)
+FV((:record l₁ = t₁ … lₙ = tₙ))     = FV(t₁) ∪ … ∪ FV(tₙ)
+FV((:get t l))                     = FV(t)
+FV((:fix t))                       = FV(t)
+FV((:literal v ℓ))                 = ∅
+FV((:if t₁ t₂ t₃))                 = FV(t₁) ∪ FV(t₂) ∪ FV(t₃)
+```
+
+A term is *closed* when `FV(t) = ∅`. A term is *scope-correct under `Σ`* when every free variable is provided by the primitive environment: `FV(t) ⊆ dom(Σ)`.
+
+#### Binding and α-equivalence
+
+`:lambda` is the only core form that binds a variable. `:let` binds through the lambda into which it expands.
+
+Two terms are α-equivalent if they differ only in bound variable names. For example, `(:lambda (x i32) x)` and `(:lambda (y i32) y)` are α-equivalent. Changing `i32` to `f32` is not renaming, so those terms would not be α-equivalent.
+
+#### Substitution
+
+`[x ↦ s]t` replaces each free occurrence of `x` in `t` with `s`.
+
+```text
+[x ↦ s]x                              = s
+[x ↦ s]y                              = y                            (y ≠ x)
+[x ↦ s](:lambda x t)                  = (:lambda x t)
+[x ↦ s](:lambda y t)                  = (:lambda y [x ↦ s]t)         (y ≠ x, y ∉ FV(s))
+[x ↦ s](:lambda (x ℓ) t)              = (:lambda (x ℓ) t)
+[x ↦ s](:lambda (y ℓ) t)              = (:lambda (y ℓ) [x ↦ s]t)     (y ≠ x, y ∉ FV(s))
+[x ↦ s](t₁ t₂)                        = ([x ↦ s]t₁ [x ↦ s]t₂)
+[x ↦ s](:record l₁ = t₁ … lₙ = tₙ)     = (:record l₁ = [x ↦ s]t₁ … lₙ = [x ↦ s]tₙ)
+[x ↦ s](:get t l)                     = (:get [x ↦ s]t l)
+[x ↦ s](:fix t)                       = (:fix [x ↦ s]t)
+[x ↦ s](:literal v ℓ)                 = (:literal v ℓ)
+[x ↦ s](:if t₁ t₂ t₃)                 = (:if [x ↦ s]t₁ [x ↦ s]t₂ [x ↦ s]t₃)
+```
+
+The condition `y ∉ FV(s)` prevents variable capture. If it does not hold, rename `y` to a fresh name before substituting.
+
+#### The de Bruijn view
+
+With `show-bruijn` enabled, a bound variable prints as `x#i`. The index `i` is the number of enclosing lambdas between the variable and its binder. A free variable has no index.
+
+The index is only a print view. It is not stored as a second form of the term.
+
+### Well-formedness
+
+A parsed S-expression is a well-formed term when:
+
+- **Arity.** Each structural head takes exactly the arity given in the grammar: `:lambda` takes 2, `:get` takes 2, `:fix` takes 1, `:literal` takes 2, `:if` takes 3, and `:record` takes any number of `l = t` fields.
+- **Known heads.** A colon-prefixed head is one of `:lambda`, `:record`, `:get`, `:fix`, `:literal`, `:if`, or `:let`. An unknown colon-prefixed head is an error and is never reinterpreted as an application.
+- **Applications.** A list whose head is not colon-prefixed has at least two elements. The head may itself be a list.
+- **Parameters.** A `:lambda` parameter is a bare name or a two-element `(x ℓ)`.
+- **Labels.** Labels within one `:record` are pairwise distinct.
+- **Scope.** `FV(t) ⊆ dom(Σ)`.
+
+Well-formedness does not check whether a projected field exists, an `:if` condition is a boolean, or a `:fix` argument is a function. Reduction checks those conditions. Lowering checks whether a literal value fits its layout.
+
 ## Examples
 
 ### Factorial
 
-```
+```lisp
 (:let F = (:lambda self
         (:record fact = (:lambda n
                     (:if (= n 1)
@@ -161,7 +297,7 @@ de Bruijn is a print/IR view of named terms, not a second language.
 
 Reduction:
 
-```
+```lisp
 ((:fix F fact) 2)
 = ((:lambda n (:if (= n 1) 1 (* n ((:fix F fact) (- n 1))))) 2)
 = (* 2 ((:fix F fact) 1))
@@ -172,7 +308,7 @@ Reduction:
 
 With `show-bruijn` on, the recursive reference inside the nested abstraction has index `1`, while its parameter has index `0`:
 
-```
+```lisp
 (:lambda self
   (:record fact =
     (:lambda n
@@ -183,7 +319,7 @@ With `show-bruijn` on, the recursive reference inside the nested abstraction has
 
 ### Mutual recursion (even / odd)
 
-```
+```lisp
 (:let P = (:lambda self
         (:record even = (:lambda n (:if (= n 0) true  ((:get self odd) (- n 1))))
                  odd  = (:lambda n (:if (= n 0) false ((:get self even) (- n 1))))))
@@ -192,7 +328,7 @@ With `show-bruijn` on, the recursive reference inside the nested abstraction has
 
 Reduction:
 
-```
+```lisp
 ((:fix P even) 2)
 = ((:lambda n (:if (= n 0) true ((:fix P odd) (- n 1)))) 2)
 = (:if (= 2 0) true ((:fix P odd) (- 2 1)))
@@ -203,10 +339,14 @@ Reduction:
 = true
 ```
 
+## TODO
+- [ ] add abstraction return layout syntax
+
 ## Open work
 
-- [ ] Design terms
-- [ ] Define literal encoding rules and the primitive set
+- [x] Design terms
+- [ ] Decide what a bare numeral means. The examples write `1` and `2`, but the grammar has only `(:literal v ℓ)`, and picking a default layout would be the kind of implicit decision the goals rule out.
+- [ ] Define literal encoding rules and the primitive set, including the `bool` layout and the contents of `Σ`
 - [ ] Design evaluation
 - [ ] Implement store size types on lambdas (`i32`, `f64`, `index`, …)
 - [ ] Design how to introduce memory, and remove the memory parameter when generating machine code
