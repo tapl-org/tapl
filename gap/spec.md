@@ -167,6 +167,35 @@ root has `ν ⊕ μ`. The merge keeps attributes from both maps and `μ` wins wh
 both maps contain the same name. Metadata below the root is unchanged. This
 preserves the redex's semantic attributes on its contractum.
 
+A simple beta step with empty metadata:
+
+```text
+(λx. x) 42
+→ 42
+```
+
+The same step with metadata shows the merge. The application is the redex
+(`μ = { src = app }`). The contractum is the bits node
+(`ν = { layout = i32 }`). The result root is `ν ⊕ μ`:
+
+```text
+((λx. x) (42 @ { layout = i32 })) @ { src = app }
+→ 42 @ { layout = i32, src = app }
+```
+
+In the text format that is:
+
+```lisp
+(meta
+  (apply (lambda x x) (meta (bits 42) (layout i32)))
+  (src app))
+→ (meta (bits 42) (layout i32) (src app))
+```
+
+Projection and `if` merge the same way. The chosen field or branch keeps its
+root metadata `ν`; the redex root `μ` is merged onto it. A `fix` step produces
+a fresh application whose `ν` is empty, so the result root is just `μ`.
+
 Reduction is strong: Gap may reduce a term anywhere, including inside an
 abstraction. Partial evaluation stops when no more chosen reductions can be
 performed. The remaining term is the residual program that will map to SSA.
