@@ -78,6 +78,10 @@ r ::= x                          variable
     | if t then t else t         conditional
 
 μ ::= { a₁ = w₁, …, aₙ = wₙ }    metadata
+
+b ::= [0-9]+                     integer
+    | "[^"]*"                    string
+    | 0x[0-9A-Fa-f]+             hexadecimal bit pattern
 ```
 
 Here:
@@ -89,8 +93,7 @@ Here:
 - `μ` stands for a finite map of metadata attributes.
 - `a` stands for a metadata attribute name.
 - `w` stands for a metadata value such as `i32`.
-- `b` stands for a bits value. A bits value is an integer such as `42`, a
-  string such as `"hello"`, or a hexadecimal bit pattern such as `0x00112233`.
+- `b` stands for a bits value.
 
 Every term node has metadata, including variables and structural nodes.
 The notation `r` abbreviates `r @ {}` when a node has no metadata worth
