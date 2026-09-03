@@ -95,10 +95,13 @@ b ::= [0-9]+                     integer
     | 0x[0-9A-Fa-f]+             hexadecimal bit pattern
 ```
 
-t is term, r is ???, v is value, n is neutral
+- `t` is an attributed term
+- `r` is a core form
+- `v` is a value
+- `n` is a neutral
 
 Every node is an attributed term `r @ μ`, including variables. Writing `r`
-means `r @ {}`. Metadata is part of the term: the same core form with
+means `r @ {}`. Metadata is part of the term. The same core form with
 different metadata is a different term.
 
 `layout` is the first defined attribute. It is the concrete representation of
@@ -126,18 +129,32 @@ terms and do not reduce. A bits value is a core term form.
 - `if t₁ then t₂ else t₃` requires `t₁` to reduce to a bits term. A nonzero
   bits value is true; a zero bits value is false.
 
-Abstractions, records of values, bits terms, and variables are values.
-Application, projection, `fix`, and `if` are elimination forms: they compute
-from a value in subject position. A record is a value only when every field
-is a value. Values are not normal forms: `λx. t` is a value even when `t`
-still has redexes.
+Values are:
 
-A *neutral* term is an elimination of a variable, or of another neutral:
-`x t`, `x.l`, `fix x`, `if x then t else t`, and the same forms with a
-neutral subject. A variable is both a value and a neutral. Neutrals are
-residual names and leftover eliminators, not errors. That is why `{ a = x }`
-is a record value (so `{ a = x }.a → x` under a binder) while `x.l` stays
-neutral rather than stuck.
+- variables
+- abstractions
+- bits terms
+- records whose fields are all values
+
+Values are not normal forms. `λx. t` is a value even when `t` still has
+redexes.
+
+Application, projection, `fix`, and `if` are elimination forms. They compute
+from a value in subject position.
+
+A *neutral* term is an elimination whose subject is a variable or another
+neutral:
+
+- `n t`
+- `n.l`
+- `fix n`
+- `if n then t else t`
+
+A variable is both a value and a neutral. Neutrals are residual names and
+leftover eliminators, not errors. For example:
+
+- `{ a = x }` is a record value, so `{ a = x }.a → x` even under a binder
+- `x.l` stays neutral; it is not stuck
 
 Labels and metadata are static. A run-time choice of field or layout must be
 written explicitly, for example with a conditional.
@@ -172,18 +189,21 @@ Each expression may refer to variables introduced before it. For example,
 ### Evaluation
 
 Gap computes by reducing terms. The small-step relation `t → t'` is the
-computation rules together with the congruence rules below. Reduction is
-strong: a redex may be contracted anywhere, including under an abstraction.
-The relation is not a strategy. When several redexes exist, any one of them
-may step. Partial evaluation chooses which legal steps to take and stops when
-no more chosen reductions remain. The remaining term is the residual program
-that will map to SSA.
+computation rules plus the congruence rules below.
 
-The rules are stated on core forms. Every node still carries metadata; the
+Reduction is strong: a redex may be contracted anywhere, including under an
+abstraction. The relation is not a strategy. If several redexes exist, any
+one of them may step.
+
+Partial evaluation chooses which legal steps to take. It stops when no more
+chosen reductions remain. The remaining term is the residual program that
+maps to SSA.
+
+The rules are stated on core forms. Every node still carries metadata. The
 merge convention after the rules says how attribution is preserved.
 
-Beta reduction replaces the free occurrences of `x` in `t₁₂` with `t₂`. The
-argument need not be a value:
+Beta reduction substitutes `t₂` for the free occurrences of `x` in `t₁₂`.
+The argument need not be a value:
 
 ```text
 (λx. t₁₂) t₂  →  [x ↦ t₂] t₁₂                  (E-AppAbs)
@@ -208,20 +228,25 @@ if b then t₂ else t₃  →  t₃                    (E-IfFalse)
 
 A bits value is *zero* when it denotes the integer 0: decimal `0`, `00`, …,
 or hexadecimal `0x0`, `0x00`, …. Any other bits value, including every
-string, is *nonzero*. The condition of `if` must already be a bits term;
+string, is *nonzero*. The condition of `if` must already be a bits term.
 `true` and `false` are the usual cases.
 
-`E-Fix` may fire whenever its argument is an abstraction, so an unrestricted
-strategy diverges under strong reduction. Partial evaluation unfolds `fix`
-only when an elimination needs the unfolding — typically a projection
-`(fix t).l` or an application `(fix t) s`. The exact policy is still open
-work. Maybe outer terms are evaluated first, then inner terms. This may prevent diverges in unfolding fix terms.
+`E-Fix` may fire whenever its argument is an abstraction. An unrestricted
+strategy therefore diverges under strong reduction. Partial evaluation
+unfolds `fix` only when an elimination needs it, typically `(fix t).l` or
+`(fix t) s`. The exact policy is still open work. One candidate is to
+evaluate outer terms before inner terms, which may prevent diverging
+unfoldings.
 
 A closed term is *stuck* when it is not a value, not neutral, and no rule
-applies: a projection of a missing field or of a non-record constructor, `if`
-whose condition is a λ or a record, or a bits term or record in function
-position. A *neutral* term is *residual*, not stuck: no computation rule
-applies at the root, and reduction may continue in other subterms.
+applies. Examples:
+
+- projecting a missing field, or projecting from a non-record constructor
+- `if` whose condition is a λ or a record
+- a bits term or record in function position
+
+A *neutral* term is *residual*, not stuck. No computation rule applies at
+the root, but reduction may continue in other subterms.
 
 Congruence allows a step inside any subterm:
 
@@ -271,13 +296,17 @@ if t₁ then t₂ else t₃ → if t₁ then t₂' else t₃
 if t₁ then t₂ else t₃ → if t₁ then t₂ else t₃'
 ```
 
-These rules omit metadata on structural nodes for readability. When a
-computation rule fires at a redex with root metadata `μ` and produces a term
-whose root has metadata `ν`, the result root has `ν ⊕ μ`. The merge keeps
-attributes from both maps and `μ` wins when both maps contain the same name.
-Metadata below the root is unchanged. Congruence preserves the parent node's
-metadata: only the reduced child changes. This preserves the redex's
-semantic attributes on its contractum.
+These rules omit metadata on structural nodes for readability.
+
+When a computation rule fires at a redex with root metadata `μ` and produces
+a term whose root has metadata `ν`, the result root is `ν ⊕ μ`:
+
+- the merge keeps attributes from both maps
+- if both maps contain the same name, `μ` wins
+- metadata below the root is unchanged
+
+Congruence preserves the parent node's metadata. Only the reduced child
+changes. This keeps the redex's semantic attributes on its contractum.
 
 A simple beta step with empty metadata:
 
@@ -286,9 +315,11 @@ A simple beta step with empty metadata:
 → 42
 ```
 
-The same step with metadata shows the merge. The application is the redex
-(`μ = { src = app }`). The contractum is the bits node
-(`ν = { layout = i32 }`). The result root is `ν ⊕ μ`:
+The same step with metadata shows the merge:
+
+- the application is the redex (`μ = { src = app }`)
+- the contractum is the bits node (`ν = { layout = i32 }`)
+- the result root is `ν ⊕ μ`
 
 ```text
 ((λx. x) (42 @ { layout = i32 })) @ { src = app }
@@ -305,7 +336,7 @@ In the text format that is:
 ```
 
 Projection, `if`, and `fix` merge the same way. The chosen field, chosen
-branch, or substituted body keeps its root metadata `ν`; the redex root `μ`
+branch, or substituted body keeps its root metadata `ν`. The redex root `μ`
 is merged onto it.
 
 #### Factorial
@@ -705,4 +736,5 @@ defined later.
   under strong reduction.
 - [ ] Design how to introduce memory and remove the memory parameter when
   generating machine code.
-- [ ] For recursive-record generator, I should allow partial record application. For example, I want to pass some privimitives to the env, not all of them. how can i do this?
+- [ ] Support partial records for the recursive-record generator, so `env`
+  can supply some primitives without requiring all of them.
