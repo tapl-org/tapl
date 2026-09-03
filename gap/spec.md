@@ -84,59 +84,36 @@ b ::= [0-9]+                     integer
     | 0x[0-9A-Fa-f]+             hexadecimal bit pattern
 ```
 
-Here:
+Every node is an attributed term `r @ μ`, including variables. Writing `r`
+means `r @ {}`. Metadata is part of the term: the same core form with
+different metadata is a different term.
 
-- `t` and `s` stand for terms.
-- `r` stands for a core term form.
-- `x`, `y`, and `z` stand for variables.
-- `l` stands for a record label.
-- `μ` stands for a finite map of metadata attributes.
-- `a` stands for a metadata attribute name.
-- `w` stands for a metadata value such as `i32`.
-- `b` stands for a bits value.
-
-Every term node has metadata, including variables and structural nodes.
-The notation `r` abbreviates `r @ {}` when a node has no metadata worth
-showing. Metadata is part of the term: two otherwise identical terms with
-different metadata are distinct.
-
-The first defined attribute is `layout`. It describes the concrete
-representation of the value produced by its term:
+`layout` is the first defined attribute. It is the concrete representation of
+the produced value, supplied by the frontend rather than encoded as a core
+form:
 
 ```text
 42 @ { layout = i32 }
 ```
 
-Layouts are no longer part of any core term form. A frontend supplies them as
-term metadata. Future attributes may record source locations or restrict which
-reductions are allowed.
+Later attributes may record source locations or restrict which reductions are
+allowed.
 
-Labels and metadata names and values are data contained in a term. They are
-not terms themselves and do not reduce. A bits value is different: it is a
-core term form on its own.
+Labels, attribute names, and attribute values are data in a term. They are not
+terms and do not reduce. A bits value is a core term form.
 
-### Meaning of each term
+- Application associates to the left: `f x y` means `(f x) y`.
+- Record fields have unique labels. Field order is semantic and is preserved
+  through lowering. `{}` is the empty record and the unit value.
+- Projection `t.l` selects a label fixed in the term. A missing field is a
+  reduction error.
+- `fix (λx. t)` unfolds to `[x ↦ fix (λx. t)] t`.
+- A bits term has no subterms. Its representation comes from `layout`
+  metadata.
+- `if t₁ then t₂ else t₃` requires `t₁` to reduce to a bits term. if bits not equals 0 then true otherwise false.
 
-- **Variable** — `x` refers to a variable.
-- **Abstraction** — `λx. t` binds one parameter in `t`.
-- **Application** — `t₁ t₂` applies one term to another. Application associates
-  to the left, so `f x y` means `(f x) y`.
-- **Record** — `{ l₁ = t₁, …, lₙ = tₙ }` contains an ordered list of fields with
-  unique labels. Field order is semantic data and is preserved through
-  lowering. `{}` is the empty record and unit value.
-- **Projection** — `t.l` selects field `l` from `t`. The label is fixed in the
-  term; it cannot be computed at run time. A missing field is a reduction
-  error.
-- **Fixed point** — `fix t` provides recursion and unfolds to `t (fix t)`.
-- **Bits** — `b` is a bits value written directly as a term. It has no
-  subterms and denotes a fixed bit pattern whose concrete representation is
-  supplied by `layout` metadata.
-- **Conditional** — `if t₁ then t₂ else t₃` chooses between `t₂` and `t₃`. The
-  condition must reduce to a bits term whose layout metadata is `bool`.
-
-Projection labels and metadata are static. If a program must choose a field or
-layout at run time, it must express that choice explicitly, for example with a
-conditional.
+Labels and metadata are static. A run-time choice of field or layout must be
+written explicitly, for example with a conditional.
 
 ### Derived terms
 
