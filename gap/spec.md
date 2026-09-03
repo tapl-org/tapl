@@ -362,96 +362,122 @@ single layer. Gap therefore has no layering form and no `θ`-reduction.
 
 ## Input formats
 
-A frontend provides a core term as text or binary together with a metadata
-sidecar that associates every parsed node with its metadata map. The pair
-represents one attributed term. Metadata is semantic, so the core term alone is
-not a complete Gap input.
-
-The general sidecar encoding and the node identifiers it uses are still open
-work. Text and binary inputs must use the same association model so that they
+A frontend provides one attributed term as text or binary. The text format
+writes attribution in the term with `meta`. The binary format will store the
+same `μ` on each node; its encoding is still open work. Text and binary
 represent the same abstract language and have the same meaning.
 
 ### Text input format
 
-The text format uses S-expressions for the core term. Source files, residual
-programs, and dumps all use this format together with their metadata sidecars.
+The text format uses S-expressions. Source files, residual programs, and dumps
+all use this format. A text file is a complete attributed term; there is no
+metadata sidecar.
 
-A list is an application unless its head is a colon-prefixed structural form.
-Application is therefore the default, while language structure remains
-explicitly marked.
-
-Colon-prefixed names belong to the language. Ordinary names are unrestricted,
-so names such as `lambda`, `record`, and `if` may still be used as functions.
+Every list is a tagged form. The head must be a known name. Application is
+written `(apply f x)`, not `(f x)`. Ordinary names remain usable as variables
+and as functions; calling a function named `lambda` is `(apply lambda x)`.
 
 #### Forms
 
 | Abstract term | Text |
 | --- | --- |
 | Variable `x` | `x` |
-| Abstraction `λx. t` | `(:lambda x t)` |
-| Application `f x` | `(f x)` |
-| Record `{ first = p, second = q }` | `(:record first = p second = q)` |
-| Projection `t.label` | `(:get t label)` |
-| Fixed point `fix A` | `(:fix A)` |
-| Bits `42` | `(:literal 42)` |
-| Conditional `if c then t else e` | `(:if c t e)` |
+| Abstraction `λx. t` | `(lambda x t)` |
+| Application `f x` | `(apply f x)` |
+| Record `{ first = p, second = q }` | `(record first = p second = q)` |
+| Projection `t.label` | `(get t label)` |
+| Fixed point `fix A` | `(fix A)` |
+| Bits `42` | `(bits 42)` |
+| Conditional `if c then t else e` | `(if c t e)` |
+| `r @ { a₁ = w₁, … }` | `(meta r (a1 w1) …)` |
 
-Multiple arguments are left-associative text sugar, so `(f x y)` represents
-`(f x) y`.
+`apply` is exactly binary. The abstract left-associative sugar `f x y ≡
+(f x) y` has no compact text spelling; that term is `(apply (apply f x) y)`.
+`(apply f x y)` is an arity error.
 
-The table intentionally shows no metadata syntax. For example, the `layout =
-i32` metadata for `(:literal 42)` is supplied by the sidecar.
+Bare `r` means `r @ {}`. Printers omit empty `meta`. `(meta r)` with no
+attribute pairs is allowed and equals `r`. Non-empty metadata is written on
+the term:
+
+```lisp
+(meta (bits 42) (layout i32))
+```
 
 #### Sugars
 
 | Abstract term | Text |
 | --- | --- |
-| `let x₁ = e₁ … xₙ = eₙ in body` | `(:let x1 = e1 … xn = en body)` |
-| `(fix A).label` | `(:fix A label)` |
+| `let x₁ = e₁ … xₙ = eₙ in body` | `(let x1 = e1 … xn = en body)` |
+| `(fix A).label` | `(fix A label)` |
 | `1 @ { layout = bool }` | `true` |
 | `0 @ { layout = bool }` | `false` |
 
 The abstract-language section defines how multiple `let` bindings expand.
-The boolean sugars introduce their shown metadata without a sidecar entry.
+The boolean sugars expand to `(meta (bits 1) (layout bool))` and
+`(meta (bits 0) (layout bool))`.
 
 #### Structural forms and applications
 
-Structural heads are `:lambda`, `:record`, `:get`, `:fix`, `:literal`, `:if`,
-and `:let`. An unknown colon-prefixed head is an unknown structural form, not
-an application. Every non-colon head is a function being applied, including
-`lambda`, `record`, `if`, `=`, `*`, and `-`.
+The reserved heads are `lambda`, `record`, `get`, `fix`, `bits`, `if`, `let`,
+`apply`, and `meta`. An unknown head is an error and is never reinterpreted as
+an application.
 
-An application must have at least one argument. Empty and single-element lists
-are invalid. A list may itself be the function in an application, as in
-`((:lambda x x) value)`.
+`apply` takes exactly two arguments: the function and the argument. Either
+may be any term, including a list, as in `(apply (lambda x x) value)`.
+
+Empty lists and lists whose head is not a reserved name are invalid.
+
+#### Metadata
+
+`meta` is the text spelling of `r @ μ`. It is not a new core constructor.
+The first argument is the core form `r`. Each following argument is a
+two-element list `(name value)`. Those pairs are data, not terms: `(layout
+i32)` is legal only in the tail of `meta`. In term position it is an unknown
+head.
+
+- `name` is an atom. Names in one `meta` are pairwise distinct.
+- `value` is any S-expression. The reader stores it as opaque data and does
+  not interpret it.
+- The inner `r` must not itself be `meta`. `(meta (meta r (k v)) …)` is an
+  error, not an implicit merge. Children of `r` may be `meta` forms.
+
+The shape of each value depends on its key. Parse does not check that shape.
+A later verification pass looks up each key and checks the collected
+S-expression against that key's schema. Unknown keys and ill-shaped values
+fail then, not in the reader. Values do not reduce, even when they look like
+terms.
+
+Records and `let` still use `label = term`. Metadata uses `(name value)`.
+Field bindings are terms; attribute values are not.
 
 #### Well-formedness
 
 A parsed S-expression is a well-formed term when:
 
-- **Arity.** Each structural head takes exactly its defined number of
-  arguments: `:lambda` takes 2, `:get` takes 2, `:fix` takes 1, `:literal`
-  takes 1, `:if` takes 3, and `:record` takes any number of `label = term`
-  fields.
-- **Known heads.** A colon-prefixed head is one of the defined structural
-  forms. An unknown colon-prefixed head is an error and is never reinterpreted
-  as an application.
-- **Applications.** A list whose head is not colon-prefixed has at least two
-  elements. The head may itself be a list.
-- **Parameters.** A `:lambda` parameter is a bare name.
-- **Labels.** Labels within one `:record` are pairwise distinct.
-- **Literals.** A bits value is valid only inside `(:literal value)`, except
-  for `true` and `false`. A bare numeral, string, or hexadecimal pattern is
-  not a term in the text format, even though the abstract language writes the
-  value on its own. The combined input must give every `:literal` node
-  `layout` metadata; the boolean sugars provide `bool` themselves.
+- **Known heads.** The head of every list that is a term is one of the
+  reserved heads. An unknown head is an error.
+- **Arity.** `lambda` takes 2, `get` takes 2, `fix` takes 1, `bits` takes 1,
+  `if` takes 3, and `apply` takes 2. `record` takes any number of
+  `label = term` fields. `let` takes any number of `name = term` bindings
+  followed by a body. `meta` takes a non-`meta` form plus zero or more
+  `(name value)` lists.
+- **Parameters.** A `lambda` parameter is a bare name.
+- **Labels.** Labels within one `record` are pairwise distinct. Attribute
+  names within one `meta` are pairwise distinct.
+- **Bits.** A bits value is valid only inside `(bits value)`, except for
+  `true` and `false`. A bare numeral, string, or hexadecimal pattern is not
+  a term in the text format, even though the abstract language writes the
+  value on its own.
 - **Scope.** A complete compilation unit is closed. Every variable occurrence
-  in it is bound by an enclosing `:lambda`.
+  in it is bound by an enclosing `lambda`.
 
-Well-formedness does not check whether a projected field exists, an `:if`
-condition is a boolean, or a `:fix` argument is a function. Reduction checks
-those conditions. Lowering checks whether a literal value fits the layout in
-its metadata.
+Well-formedness is a parse check. It does not check whether a projected field
+exists, an `if` condition is a boolean, a `fix` argument is a function, a
+`bits` node has `layout` metadata, or a metadata value matches its key's
+schema. Verification checks metadata keys and value shapes, including that
+every `bits` node has a well-formed `layout` (the boolean sugars provide
+`bool` themselves). Reduction checks the remaining dynamic conditions.
+Lowering checks whether a bits value fits the layout in its metadata.
 
 #### Print options
 
@@ -471,28 +497,32 @@ TODO: add an option to print without sugars.
 
 #### Why this encoding
 
-- **Unmarked application** — `(f x)` is the calculus. Wrapping every call in
-  `:app` would hide the shape that later becomes SSA.
-- **Structural namespace** — the quiet `:` prefix distinguishes language forms
-  without reserving ordinary names.
-- **`:fix` is a term** — `(:fix A)` is the fixed point; `(:fix A fact)` is the
+- **Tagged forms** — every list starts with a reserved head. Application is
+  `apply` because it is a core form, not the default list.
+- **Binary `apply`** — `(apply f x)` is one list per application node, the
+  same tree that later maps one-to-one onto SSA. Left-associative `f x y`
+  remains only in the abstract language.
+- **`fix` is a term** — `(fix A)` is the fixed point; `(fix A fact)` is the
   usual fixed-field sugar. Unfolding is
-  `(:fix A fact) = (:get (A (:fix A)) fact)`.
-- **`:literal` wraps a bits value** — the abstract language writes the value
+  `(fix A fact) = (get (apply A (fix A)) fact)`.
+- **`bits` wraps a bits value** — the abstract language writes the value
   itself, since a bits term is nothing but a bit pattern described by
-  `layout`. Text wraps it in `:literal` so a value is never confused with a
-  name and always has a node the sidecar can attach metadata to.
+  `layout`. Text wraps it in `bits` so a value is never confused with a name
+  and always has a node `meta` can attach metadata to.
+- **`meta` writes `r @ μ`** — `(meta r (k v) …)` is attribution, not a new
+  core form. A text file is complete without a sidecar. Attribute values are
+  opaque S-expressions until verification.
 - **One syntax for source and residual** — after partial beta reduction, the
-  remaining applications stay written as applications.
+  remaining applications stay written as `apply`.
 
 #### Compilation unit example
 
 The abstract compilation unit shown earlier has this text representation:
 
 ```lisp
-(:lambda env
-  (:lambda self
-    (:record
+(lambda env
+  (lambda self
+    (record
       main = ...
       helper = ...)))
 ```
@@ -500,15 +530,21 @@ The abstract compilation unit shown earlier has this text representation:
 External and recursive dependencies use explicit projections:
 
 ```lisp
-(:get env add-i32)
-(:get self helper)
+(get env add-i32)
+(get self helper)
+```
+
+A bits term with layout metadata:
+
+```lisp
+(meta (bits 42) (layout i32))
 ```
 
 ### Binary input format
 
-The binary format will represent the same core terms as the text format and
-use the same metadata-association model. Its core encoding and the shared
-sidecar encoding will be defined later.
+The binary format will represent the same attributed terms as the text
+format, storing each node's metadata with the node. Its core encoding is
+defined later.
 
 ## Open work
 
@@ -516,16 +552,19 @@ sidecar encoding will be defined later.
 - [x] A bits value `b` is a core term form and is one of an integer, a string,
   or a hexadecimal bit pattern. Its layout is explicit term metadata and is
   never inferred from context; examples omit metadata only for simplicity.
-  The text format still writes it as `(:literal v)`.
+  The text format writes it as `(bits v)`.
 - [x] Move layouts out of core term forms and into semantic metadata attached
   to every term node.
 - [x] Define one input as one closed compilation unit of the form
   `λenv. λself. { … }`.
 - [x] Separate the abstract language from the text and binary input formats.
-- [ ] Define the metadata sidecar encoding and stable node association for text
-  and binary inputs.
-- [ ] Define source-location and permitted-reduction metadata attributes.
-- [ ] Define concrete layout values, literal encoding rules, and the primitive
+- [x] Text writes attribution as `(meta r (k v) …)`. A text file needs no
+  sidecar. Attribute values are opaque S-expressions at parse time; per-key
+  structure is checked at verification.
+- [ ] Define the binary encoding of core terms and per-node metadata.
+- [ ] Define source-location and permitted-reduction metadata attributes, and
+  the verification schemas for each metadata key, including `layout`.
+- [ ] Define concrete layout values, bits encoding rules, and the primitive
   set, including the `bool` layout and the contents of `env`.
 - [ ] Design evaluation.
 - [ ] Design how to introduce memory and remove the memory parameter when
