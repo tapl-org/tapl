@@ -77,12 +77,25 @@ r ::= x                          variable
     | b                          bits
     | if t then t else t         conditional
 
+v ::= x                          variable
+    | λx. t                      abstraction
+    | { l₁ = v₁, …, lₙ = vₙ }    record
+    | b                          bits
+
+n ::= x                          variable
+    | n t                        application
+    | n.l                        projection
+    | fix n                      fixed point
+    | if n then t else t         conditional
+
 μ ::= { a₁ = w₁, …, aₙ = wₙ }    metadata
 
 b ::= [0-9]+                     integer
     | "[^"]*"                    string
     | 0x[0-9A-Fa-f]+             hexadecimal bit pattern
 ```
+
+t is term, r is ???, v is value, n is neutral
 
 Every node is an attributed term `r @ μ`, including variables. Writing `r`
 means `r @ {}`. Metadata is part of the term: the same core form with
@@ -110,7 +123,21 @@ terms and do not reduce. A bits value is a core term form.
 - `fix (λx. t)` unfolds to `[x ↦ fix (λx. t)] t`.
 - A bits term has no subterms. Its representation comes from `layout`
   metadata.
-- `if t₁ then t₂ else t₃` requires `t₁` to reduce to a bits term. if bits not equals 0 then true otherwise false.
+- `if t₁ then t₂ else t₃` requires `t₁` to reduce to a bits term. A nonzero
+  bits value is true; a zero bits value is false.
+
+Abstractions, records of values, bits terms, and variables are values.
+Application, projection, `fix`, and `if` are elimination forms: they compute
+from a value in subject position. A record is a value only when every field
+is a value. Values are not normal forms: `λx. t` is a value even when `t`
+still has redexes.
+
+A *neutral* term is an elimination of a variable, or of another neutral:
+`x t`, `x.l`, `fix x`, `if x then t else t`, and the same forms with a
+neutral subject. A variable is both a value and a neutral. Neutrals are
+residual names and leftover eliminators, not errors. That is why `{ a = x }`
+is a record value (so `{ a = x }.a → x` under a binder) while `x.l` stays
+neutral rather than stuck.
 
 Labels and metadata are static. A run-time choice of field or layout must be
 written explicitly, for example with a conditional.
@@ -142,30 +169,115 @@ in body
 Each expression may refer to variables introduced before it. For example,
 `e₂` may refer to `x₁`, and `e₃` may refer to both `x₁` and `x₂`.
 
-### Computation
+### Evaluation
 
-Gap computes by reducing terms. The central rule is beta reduction:
+Gap computes by reducing terms. The small-step relation `t → t'` is the
+computation rules together with the congruence rules below. Reduction is
+strong: a redex may be contracted anywhere, including under an abstraction.
+The relation is not a strategy. When several redexes exist, any one of them
+may step. Partial evaluation chooses which legal steps to take and stops when
+no more chosen reductions remain. The remaining term is the residual program
+that will map to SSA.
+
+The rules are stated on core forms. Every node still carries metadata; the
+merge convention after the rules says how attribution is preserved.
+
+Beta reduction replaces the free occurrences of `x` in `t₁₂` with `t₂`. The
+argument need not be a value:
 
 ```text
-(λx. t) s → [x ↦ s]t
+(λx. t₁₂) t₂  →  [x ↦ t₂] t₁₂                  (E-AppAbs)
 ```
 
-It replaces the free occurrences of `x` in `t` with `s`.
-
-Records, fixed points, and conditionals have similarly direct reductions:
+Projection, fixed-point unfolding, and conditionals:
 
 ```text
-{ …, l = t, … }.l                              → t
-fix t                                          → t (fix t)
-if (1 @ { layout = bool }) then t₁ else t₂     → t₁
-if (0 @ { layout = bool }) then t₁ else t₂     → t₂
+{ …, l = v, … }.l  →  v                        (E-Proj)
+
+fix (λx. t)  →  [x ↦ fix (λx. t)] t            (E-Fix)
+
+if b then t₂ else t₃  →  t₂                    (E-IfTrue)
+                                               (b nonzero)
+
+if b then t₂ else t₃  →  t₃                    (E-IfFalse)
+                                               (b zero)
 ```
 
-These rules omit metadata on structural nodes for readability. When a redex
-with root metadata `μ` produces a term whose root has metadata `ν`, the result
-root has `ν ⊕ μ`. The merge keeps attributes from both maps and `μ` wins when
-both maps contain the same name. Metadata below the root is unchanged. This
-preserves the redex's semantic attributes on its contractum.
+`E-Proj` waits for a record value: every field must already be a value.
+`E-Rcd` reduces fields until they are.
+
+A bits value is *zero* when it denotes the integer 0: decimal `0`, `00`, …,
+or hexadecimal `0x0`, `0x00`, …. Any other bits value, including every
+string, is *nonzero*. The condition of `if` must already be a bits term;
+`true` and `false` are the usual cases.
+
+`E-Fix` may fire whenever its argument is an abstraction, so an unrestricted
+strategy diverges under strong reduction. Partial evaluation unfolds `fix`
+only when an elimination needs the unfolding — typically a projection
+`(fix t).l` or an application `(fix t) s`. The exact policy is still open
+work. Maybe outer terms are evaluated first, then inner terms. This may prevent diverges in unfolding fix terms.
+
+A closed term is *stuck* when it is not a value, not neutral, and no rule
+applies: a projection of a missing field or of a non-record constructor, `if`
+whose condition is a λ or a record, or a bits term or record in function
+position. A *neutral* term is *residual*, not stuck: no computation rule
+applies at the root, and reduction may continue in other subterms.
+
+Congruence allows a step inside any subterm:
+
+```text
+      t → t'
+────────────────                               (E-Abs)
+   λx. t → λx. t'
+
+
+     t₁ → t₁'
+────────────────                               (E-App1)
+   t₁ t₂ → t₁' t₂
+
+
+     t₂ → t₂'
+────────────────                               (E-App2)
+   t₁ t₂ → t₁ t₂'
+
+
+      t → t'
+────────────────────────────                   (E-Rcd)
+{ …, l = t, … } → { …, l = t', … }
+
+
+      t → t'
+────────────────                               (E-Proj1)
+     t.l → t'.l
+
+
+      t → t'
+────────────────                               (E-Fix1)
+   fix t → fix t'
+
+
+     t₁ → t₁'
+──────────────────────────────────────────     (E-If)
+if t₁ then t₂ else t₃ → if t₁' then t₂ else t₃
+
+
+     t₂ → t₂'
+──────────────────────────────────────────     (E-If2)
+if t₁ then t₂ else t₃ → if t₁ then t₂' else t₃
+
+
+     t₃ → t₃'
+──────────────────────────────────────────     (E-If3)
+if t₁ then t₂ else t₃ → if t₁ then t₂ else t₃'
+```
+
+These rules omit metadata on structural nodes for readability. When a
+computation rule fires at a redex with root metadata `μ` and produces a term
+whose root has metadata `ν`, the result root has `ν ⊕ μ`. The merge keeps
+attributes from both maps and `μ` wins when both maps contain the same name.
+Metadata below the root is unchanged. Congruence preserves the parent node's
+metadata: only the reduced child changes. This preserves the redex's
+semantic attributes on its contractum.
 
 A simple beta step with empty metadata:
 
@@ -192,16 +304,9 @@ In the text format that is:
 → (meta (bits 42) (layout i32) (src app))
 ```
 
-Projection and `if` merge the same way. The chosen field or branch keeps its
-root metadata `ν`; the redex root `μ` is merged onto it. A `fix` step produces
-a fresh application whose `ν` is empty, so the result root is just `μ`.
-
-Reduction is strong: Gap may reduce a term anywhere, including inside an
-abstraction. Partial evaluation stops when no more chosen reductions can be
-performed. The remaining term is the residual program that will map to SSA.
-
-The exact evaluation strategy, including when to unfold `fix`, is still open
-work.
+Projection, `if`, and `fix` merge the same way. The chosen field, chosen
+branch, or substituted body keeps its root metadata `ν`; the redex root `μ`
+is merged onto it.
 
 #### Factorial
 
@@ -595,7 +700,9 @@ defined later.
   the verification schemas for each metadata key, including `layout`.
 - [ ] Define concrete layout values, bits encoding rules, and the primitive
   set, including the `bool` layout and the contents of `env`.
-- [ ] Design evaluation.
+- [x] Define the small-step evaluation relation (computation and congruence).
+- [ ] Choose the partial-evaluation strategy, including when to unfold `fix`
+  under strong reduction.
 - [ ] Design how to introduce memory and remove the memory parameter when
   generating machine code.
-- [ ] Figure out how to reduce `fix` when needed during strong reduction.
+- [ ] For recursive-record generator, I should allow partial record application. For example, I want to pass some privimitives to the env, not all of them. how can i do this?
