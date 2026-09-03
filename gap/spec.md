@@ -66,53 +66,71 @@ language itself; it is not the syntax of a Gap input file.
 ### Terms
 
 ```text
-t ::= x                          variable
-    | λp. t                      abstraction
+t ::= r @ μ                      attributed term
+
+r ::= x                          variable
+    | λx. t                      abstraction
     | t t                        application
     | { l₁ = t₁, …, lₙ = tₙ }    record
     | t.l                        projection
     | fix t                      fixed point
-    | literal(v, ℓ)              literal
+    | literal(v)                 literal
     | if t then t else t         conditional
 
-p ::= x                          parameter
-    | x : ℓ                      layout-annotated parameter
+μ ::= { a₁ = w₁, …, aₙ = wₙ }    metadata
 ```
 
 Here:
 
 - `t` and `s` stand for terms.
+- `r` stands for a core term form.
 - `x`, `y`, and `z` stand for variables.
 - `l` stands for a record label.
-- `ℓ` stands for a storage layout such as `i32`, `bool`, or `utf8`.
+- `μ` stands for a finite map of metadata attributes.
+- `a` stands for a metadata attribute name.
+- `w` stands for a metadata value such as `i32`.
 - `v` stands for a literal value such as `42`, `"hello"`, or `true`.
 
-Labels, layouts, and literal values are data contained in a term. They are not
-terms themselves and do not reduce.
+Every term node has metadata, including variables and structural nodes.
+The notation `r` abbreviates `r @ {}` when a node has no metadata worth
+showing. Metadata is part of the term: two otherwise identical terms with
+different metadata are distinct.
+
+The first defined attribute is `layout`. It describes the concrete
+representation of the value produced by its term:
+
+```text
+literal(42) @ { layout = i32 }
+```
+
+Layouts are no longer part of any core term form. A frontend supplies them as
+term metadata. Future attributes may record source locations or restrict which
+reductions are allowed.
+
+Labels, metadata names and values, and literal values are data contained in a
+term. They are not terms themselves and do not reduce.
 
 ### Meaning of each term
 
 - **Variable** — `x` refers to a variable.
-- **Abstraction** — `λp. t` binds one parameter in `t`. A layout annotation
-  describes storage, not type. For example, `λ(x : i32). t` stores `x` as
-  `i32`.
+- **Abstraction** — `λx. t` binds one parameter in `t`.
 - **Application** — `t₁ t₂` applies one term to another. Application associates
   to the left, so `f x y` means `(f x) y`.
 - **Record** — `{ l₁ = t₁, …, lₙ = tₙ }` contains an ordered list of fields with
-  unique labels. Field order is preserved for layout. `{}` is the empty record
-  and unit value.
+  unique labels. Field order is semantic data and is preserved through
+  lowering. `{}` is the empty record and unit value.
 - **Projection** — `t.l` selects field `l` from `t`. The label is fixed in the
   term; it cannot be computed at run time. A missing field is a reduction
   error.
 - **Fixed point** — `fix t` provides recursion and unfolds to `t (fix t)`.
-- **Literal** — `literal(v, ℓ)` stores value `v` using layout `ℓ`. A literal has
-  no subterms.
+- **Literal** — `literal(v)` contains value `v` and has no subterms. Its
+  representation is supplied by `layout` metadata.
 - **Conditional** — `if c then a else b` chooses between `a` and `b`. The
-  condition must reduce to a `bool` literal.
+  condition must reduce to a boolean literal whose layout metadata is `bool`.
 
-Projection labels and literal layouts are static. If a program must choose a
-field or layout at run time, it must express that choice explicitly, for
-example with a conditional.
+Projection labels and metadata are static. If a program must choose a field or
+layout at run time, it must express that choice explicitly, for example with a
+conditional.
 
 ### Derived terms
 
@@ -121,8 +139,8 @@ The following convenient forms stand for core terms:
 ```text
 f x y                ≡ (f x) y
 let x = e in body    ≡ (λx. body) e
-true                 ≡ literal(true, bool)
-false                ≡ literal(false, bool)
+true                 ≡ literal(true) @ { layout = bool }
+false                ≡ literal(false) @ { layout = bool }
 ```
 
 Multiple `let` bindings are sequential:
@@ -154,11 +172,17 @@ It replaces the free occurrences of `x` in `t` with `s`.
 Records, fixed points, and conditionals have similarly direct reductions:
 
 ```text
-{ …, l = t, … }.l                 → t
-fix t                             → t (fix t)
-if literal(true, bool) then a else b  → a
-if literal(false, bool) then a else b → b
+{ …, l = t, … }.l                                      → t
+fix t                                                  → t (fix t)
+if (literal(true) @ { layout = bool }) then a else b   → a
+if (literal(false) @ { layout = bool }) then a else b  → b
 ```
+
+These rules omit metadata on structural nodes for readability. When a redex
+with root metadata `μ` produces a term whose root has metadata `ν`, the result
+root has `ν ⊕ μ`. The merge keeps attributes from both maps and `μ` wins when
+both maps contain the same name. Metadata below the root is unchanged. This
+preserves the redex's semantic attributes on its contractum.
 
 Reduction is strong: Gap may reduce a term anywhere, including inside an
 abstraction. Partial evaluation stops when no more chosen reductions can be
@@ -169,7 +193,7 @@ work.
 
 #### Factorial
 
-For simplicity, this example writes numerals without layouts and writes
+For simplicity, this example writes numerals without layout metadata and writes
 primitives such as `=`, `*`, and `-` directly. These are readability
 shorthands, not Gap terms.
 
@@ -228,14 +252,15 @@ abstraction.
 ```text
 FV(x)                              = {x}
 FV(λx. t)                          = FV(t) \ {x}
-FV(λ(x : ℓ). t)                    = FV(t) \ {x}
 FV(t₁ t₂)                          = FV(t₁) ∪ FV(t₂)
 FV({ l₁ = t₁, …, lₙ = tₙ })        = FV(t₁) ∪ … ∪ FV(tₙ)
 FV(t.l)                            = FV(t)
 FV(fix t)                          = FV(t)
-FV(literal(v, ℓ))                  = ∅
+FV(literal(v))                     = ∅
 FV(if t₁ then t₂ else t₃)          = FV(t₁) ∪ FV(t₂) ∪ FV(t₃)
 ```
+
+Metadata does not contain terms, so it contributes no free variables.
 
 A term is *closed* when `FV(t) = ∅`. Every complete compilation unit must be
 closed.
@@ -246,9 +271,8 @@ An abstraction is the only core term that binds a variable. A `let` binds
 through the abstraction into which it expands.
 
 Two terms are alpha-equivalent if they differ only in bound variable names.
-For example, `λ(x : i32). x` and `λ(y : i32). y` are alpha-equivalent.
-Changing `i32` to `f32` is not renaming, so those terms are not
-alpha-equivalent.
+For example, `λx. x` and `λy. y` are alpha-equivalent. Alpha-renaming does not
+change metadata. Terms that differ in metadata are not alpha-equivalent.
 
 #### Substitution
 
@@ -259,36 +283,41 @@ alpha-equivalent.
 [x ↦ s] y                              = y                         (y ≠ x)
 [x ↦ s] (λx. t)                        = λx. t
 [x ↦ s] (λy. t)                        = λy. [x ↦ s]t              (y ≠ x, y ∉ FV(s))
-[x ↦ s] (λ(x : ℓ). t)                  = λ(x : ℓ). t
-[x ↦ s] (λ(y : ℓ). t)                  = λ(y : ℓ). [x ↦ s]t        (y ≠ x, y ∉ FV(s))
 [x ↦ s] (t₁ t₂)                        = ([x ↦ s]t₁) ([x ↦ s]t₂)
 [x ↦ s] { l₁ = t₁, …, lₙ = tₙ }        = { l₁ = [x ↦ s]t₁, …, lₙ = [x ↦ s]tₙ }
 [x ↦ s] (t.l)                          = ([x ↦ s]t).l
 [x ↦ s] (fix t)                        = fix ([x ↦ s]t)
-[x ↦ s] literal(v, ℓ)                  = literal(v, ℓ)
+[x ↦ s] literal(v)                     = literal(v)
 [x ↦ s] (if t₁ then t₂ else t₃)        = if [x ↦ s]t₁ then [x ↦ s]t₂ else [x ↦ s]t₃
 ```
+
+The equations omit metadata for readability. Substitution preserves the
+metadata of every retained or rebuilt node. When an occurrence of `x` with
+metadata `μ` is replaced by `s` whose root metadata is `ν`, the replacement
+root receives `ν ⊕ μ`, using the same right-precedence merge as reduction.
 
 The condition `y ∉ FV(s)` prevents variable capture. If it does not hold,
 rename `y` to a fresh name before substituting.
 
-### Type and layout
+### Type and layout metadata
 
 A type and a layout are independent concepts. The same type may have different
 layouts; for example, `Mile` may use either an `i32` or an `i64` layout.
 Conversely, the same layout may be used by different types; for example, both
 `Mile` and `Meter` may use an `i32` layout while remaining distinct semantic
-types. We use layout term to denote how underline bit layout and encondings.
+types. Layout metadata describes concrete bit representation and encoding; it
+does not assign a type to a term.
 
 ### Literals and lowering
 
-A literal pairs a value with its storage layout:
+A literal's core form contains only its value. Its frontend-provided metadata
+specifies the storage layout used by lowering:
 
 ```text
-literal(42, i32)
-literal(1.0, f32)
-literal("hello", utf8)
-literal(0x00112233, MyStructLayout)
+literal(42)         @ { layout = i32 }
+literal(1.0)        @ { layout = f32 }
+literal("hello")    @ { layout = utf8 }
+literal(0x00112233) @ { layout = MyStructLayout }
 ```
 
 Lowering converts the value into the concrete representation required by its
@@ -301,9 +330,9 @@ floating-point format, string encoding, byte order, and struct padding. This
 makes lowering deterministic and formally verifiable. Hexadecimal data is
 therefore one kind of literal, not a separate term.
 
-A bare literal value such as `1` is not a term. Gap never infers a literal's
-layout from its surrounding context; the layout must always be explicit.
-Note: Gap never infers anything at all.
+A bare literal value such as `1` is not a term. Every literal term must have
+explicit `layout` metadata supplied by the frontend. Gap never infers it from
+surrounding context. More generally, Gap never infers metadata.
 
 ### Compilation units
 
@@ -344,13 +373,19 @@ single layer. Gap therefore has no layering form and no `θ`-reduction.
 
 ## Input formats
 
-Frontend compilers can provide a Gap term as text or binary. Both formats
+A frontend provides a core term as text or binary together with a metadata
+sidecar that associates every parsed node with its metadata map. The pair
+represents one attributed term. Metadata is semantic, so the core term alone is
+not a complete Gap input.
+
+The general sidecar encoding and the node identifiers it uses are still open
+work. Text and binary inputs must use the same association model so that they
 represent the same abstract language and have the same meaning.
 
 ### Text input format
 
-The text format uses S-expressions. Source files, residual programs, and dumps
-all use this format.
+The text format uses S-expressions for the core term. Source files, residual
+programs, and dumps all use this format together with their metadata sidecars.
 
 A list is an application unless its head is a colon-prefixed structural form.
 Application is therefore the default, while language structure remains
@@ -365,16 +400,18 @@ so names such as `lambda`, `record`, and `if` may still be used as functions.
 | --- | --- |
 | Variable `x` | `x` |
 | Abstraction `λx. t` | `(:lambda x t)` |
-| Layout-annotated abstraction `λ(x : i32). t` | `(:lambda (x i32) t)` |
 | Application `f x` | `(f x)` |
 | Record `{ first = a, second = b }` | `(:record first = a second = b)` |
 | Projection `t.label` | `(:get t label)` |
 | Fixed point `fix A` | `(:fix A)` |
-| Literal `literal(42, i32)` | `(:literal 42 i32)` |
+| Literal `literal(42)` | `(:literal 42)` |
 | Conditional `if c then a else b` | `(:if c a b)` |
 
 Multiple arguments are left-associative text sugar, so `(f x y)` represents
 `(f x) y`.
+
+The table intentionally shows no metadata syntax. For example, the `layout =
+i32` metadata for `(:literal 42)` is supplied by the sidecar.
 
 #### Sugars
 
@@ -382,10 +419,11 @@ Multiple arguments are left-associative text sugar, so `(f x y)` represents
 | --- | --- |
 | `let x₁ = e₁ … xₙ = eₙ in body` | `(:let x1 = e1 … xn = en body)` |
 | `(fix A).label` | `(:fix A label)` |
-| `literal(true, bool)` | `true` |
-| `literal(false, bool)` | `false` |
+| `literal(true) @ { layout = bool }` | `true` |
+| `literal(false) @ { layout = bool }` | `false` |
 
 The abstract-language section defines how multiple `let` bindings expand.
+The boolean sugars introduce their shown metadata without a sidecar entry.
 
 #### Structural forms and applications
 
@@ -404,25 +442,26 @@ A parsed S-expression is a well-formed term when:
 
 - **Arity.** Each structural head takes exactly its defined number of
   arguments: `:lambda` takes 2, `:get` takes 2, `:fix` takes 1, `:literal`
-  takes 2, `:if` takes 3, and `:record` takes any number of `label = term`
+  takes 1, `:if` takes 3, and `:record` takes any number of `label = term`
   fields.
 - **Known heads.** A colon-prefixed head is one of the defined structural
   forms. An unknown colon-prefixed head is an error and is never reinterpreted
   as an application.
 - **Applications.** A list whose head is not colon-prefixed has at least two
   elements. The head may itself be a list.
-- **Parameters.** A `:lambda` parameter is a bare name or a two-element
-  `(name layout)`.
+- **Parameters.** A `:lambda` parameter is a bare name.
 - **Labels.** Labels within one `:record` are pairwise distinct.
 - **Literals.** A literal value is valid only inside
-  `(:literal value layout)`, except for `true` and `false`. A bare numeral or
-  other bare literal value is not a term.
+  `(:literal value)`, except for `true` and `false`. A bare numeral or other
+  bare literal value is not a term. The combined input must give every literal
+  `layout` metadata; the boolean sugars provide `bool` themselves.
 - **Scope.** A complete compilation unit is closed. Every variable occurrence
   in it is bound by an enclosing `:lambda`.
 
 Well-formedness does not check whether a projected field exists, an `:if`
 condition is a boolean, or a `:fix` argument is a function. Reduction checks
-those conditions. Lowering checks whether a literal value fits its layout.
+those conditions. Lowering checks whether a literal value fits the layout in
+its metadata.
 
 #### Print options
 
@@ -473,23 +512,27 @@ External and recursive dependencies use explicit projections:
 
 ### Binary input format
 
-The binary format will represent the same abstract terms as the text format.
-Its encoding will be defined later.
+The binary format will represent the same core terms as the text format and
+use the same metadata-association model. Its core encoding and the shared
+sidecar encoding will be defined later.
 
 ## Open work
 
 - [x] Design terms
-- [x] Bare numerals are not terms. Literal layouts are always explicit and are
-  never inferred from context; examples use bare numerals only for simplicity.
+- [x] Bare numerals are not terms. Literal layouts are explicit term metadata
+  and are never inferred from context; examples omit metadata only for
+  simplicity.
+- [x] Move layouts out of core term forms and into semantic metadata attached
+  to every term node.
 - [x] Define one input as one closed compilation unit of the form
   `λenv. λself. { … }`.
 - [x] Separate the abstract language from the text and binary input formats.
-- [ ] Define literal encoding rules and the primitive set, including the
-  `bool` layout and the contents of `env`.
+- [ ] Define the metadata sidecar encoding and stable node association for text
+  and binary inputs.
+- [ ] Define source-location and permitted-reduction metadata attributes.
+- [ ] Define concrete layout values, literal encoding rules, and the primitive
+  set, including the `bool` layout and the contents of `env`.
 - [ ] Design evaluation.
-- [ ] Implement storage size types on lambdas (`i32`, `f64`, `index`, and
-  others).
 - [ ] Design how to introduce memory and remove the memory parameter when
   generating machine code.
 - [ ] Figure out how to reduce `fix` when needed during strong reduction.
-- [ ] Add abstraction return-layout syntax.
