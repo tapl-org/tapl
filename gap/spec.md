@@ -7,7 +7,7 @@ Gap sits between a frontend language and a conventional compiler backend:
 
 ```text
 frontend program
-    → Gap terms
+    → Gap terms (same untyped lambda calculus)
     → reduction and partial evaluation
     → residual term
     → SSA
@@ -74,7 +74,7 @@ r ::= x                          variable
     | { l₁ = t₁, …, lₙ = tₙ }    record
     | t.l                        projection
     | fix t                      fixed point
-    | literal(v)                 literal
+    | b                          bits
     | if t then t else t         conditional
 
 μ ::= { a₁ = w₁, …, aₙ = wₙ }    metadata
@@ -89,7 +89,8 @@ Here:
 - `μ` stands for a finite map of metadata attributes.
 - `a` stands for a metadata attribute name.
 - `w` stands for a metadata value such as `i32`.
-- `v` stands for a literal value such as `42`, `"hello"`, or `true`.
+- `b` stands for a bits value. A bits value is an integer such as `42`, a
+  string such as `"hello"`, or a hexadecimal bit pattern such as `0x00112233`.
 
 Every term node has metadata, including variables and structural nodes.
 The notation `r` abbreviates `r @ {}` when a node has no metadata worth
@@ -100,15 +101,16 @@ The first defined attribute is `layout`. It describes the concrete
 representation of the value produced by its term:
 
 ```text
-literal(42) @ { layout = i32 }
+42 @ { layout = i32 }
 ```
 
 Layouts are no longer part of any core term form. A frontend supplies them as
 term metadata. Future attributes may record source locations or restrict which
 reductions are allowed.
 
-Labels, metadata names and values, and literal values are data contained in a
-term. They are not terms themselves and do not reduce.
+Labels and metadata names and values are data contained in a term. They are
+not terms themselves and do not reduce. A bits value is different: it is a
+core term form on its own.
 
 ### Meaning of each term
 
@@ -123,10 +125,11 @@ term. They are not terms themselves and do not reduce.
   term; it cannot be computed at run time. A missing field is a reduction
   error.
 - **Fixed point** — `fix t` provides recursion and unfolds to `t (fix t)`.
-- **Literal** — `literal(v)` contains value `v` and has no subterms. Its
-  representation is supplied by `layout` metadata.
-- **Conditional** — `if c then a else b` chooses between `a` and `b`. The
-  condition must reduce to a boolean literal whose layout metadata is `bool`.
+- **Bits** — `b` is a bits value written directly as a term. It has no
+  subterms and denotes a fixed bit pattern whose concrete representation is
+  supplied by `layout` metadata.
+- **Conditional** — `if t₁ then t₂ else t₃` chooses between `t₂` and `t₃`. The
+  condition must reduce to a bits term whose layout metadata is `bool`.
 
 Projection labels and metadata are static. If a program must choose a field or
 layout at run time, it must express that choice explicitly, for example with a
@@ -139,8 +142,8 @@ The following convenient forms stand for core terms:
 ```text
 f x y                ≡ (f x) y
 let x = e in body    ≡ (λx. body) e
-true                 ≡ literal(true) @ { layout = bool }
-false                ≡ literal(false) @ { layout = bool }
+true                 ≡ 1 @ { layout = bool }
+false                ≡ 0 @ { layout = bool }
 ```
 
 Multiple `let` bindings are sequential:
@@ -172,10 +175,10 @@ It replaces the free occurrences of `x` in `t` with `s`.
 Records, fixed points, and conditionals have similarly direct reductions:
 
 ```text
-{ …, l = t, … }.l                                      → t
-fix t                                                  → t (fix t)
-if (literal(true) @ { layout = bool }) then a else b   → a
-if (literal(false) @ { layout = bool }) then a else b  → b
+{ …, l = t, … }.l                              → t
+fix t                                          → t (fix t)
+if (1 @ { layout = bool }) then t₁ else t₂     → t₁
+if (0 @ { layout = bool }) then t₁ else t₂     → t₂
 ```
 
 These rules omit metadata on structural nodes for readability. When a redex
@@ -193,9 +196,10 @@ work.
 
 #### Factorial
 
-For simplicity, this example writes numerals without layout metadata and writes
-primitives such as `=`, `*`, and `-` directly. These are readability
-shorthands, not Gap terms.
+For simplicity, this example writes numerals without their layout metadata and
+writes primitives such as `=`, `*`, and `-` directly. The numerals are bits
+terms with metadata omitted; the primitives are readability shorthands, not
+Gap terms.
 
 ```text
 let F =
@@ -256,7 +260,7 @@ FV(t₁ t₂)                          = FV(t₁) ∪ FV(t₂)
 FV({ l₁ = t₁, …, lₙ = tₙ })        = FV(t₁) ∪ … ∪ FV(tₙ)
 FV(t.l)                            = FV(t)
 FV(fix t)                          = FV(t)
-FV(literal(v))                     = ∅
+FV(b)                              = ∅
 FV(if t₁ then t₂ else t₃)          = FV(t₁) ∪ FV(t₂) ∪ FV(t₃)
 ```
 
@@ -287,7 +291,7 @@ change metadata. Terms that differ in metadata are not alpha-equivalent.
 [x ↦ s] { l₁ = t₁, …, lₙ = tₙ }        = { l₁ = [x ↦ s]t₁, …, lₙ = [x ↦ s]tₙ }
 [x ↦ s] (t.l)                          = ([x ↦ s]t).l
 [x ↦ s] (fix t)                        = fix ([x ↦ s]t)
-[x ↦ s] literal(v)                     = literal(v)
+[x ↦ s] b                              = b
 [x ↦ s] (if t₁ then t₂ else t₃)        = if [x ↦ s]t₁ then [x ↦ s]t₂ else [x ↦ s]t₃
 ```
 
@@ -308,31 +312,36 @@ Conversely, the same layout may be used by different types; for example, both
 types. Layout metadata describes concrete bit representation and encoding; it
 does not assign a type to a term.
 
-### Literals and lowering
+### Bits and lowering
 
-A literal's core form contains only its value. Its frontend-provided metadata
+A bits term is written as the value itself. Its frontend-provided metadata
 specifies the storage layout used by lowering:
 
 ```text
-literal(42)         @ { layout = i32 }
-literal(1.0)        @ { layout = f32 }
-literal("hello")    @ { layout = utf8 }
-literal(0x00112233) @ { layout = MyStructLayout }
+42         @ { layout = i32 }
+"hello"    @ { layout = utf8 }
+0x3f800000 @ { layout = f32 }
+0x00112233 @ { layout = MyStructLayout }
 ```
 
 Lowering converts the value into the concrete representation required by its
-layout. For example, `1.0` with the `f32` layout becomes its 32-bit IEEE 754
-representation. A hexadecimal value already provides the bits directly, but
+layout. For example, `42` with the `i32` layout becomes a 32-bit two's
+complement word. A hexadecimal value already provides the bits directly, but
 its size and structure must still match the given layout.
+
+The three value kinds are integers, strings, and hexadecimal bit patterns.
+There is no decimal floating-point value: a float is written as the
+hexadecimal pattern of its encoding, as `0x3f800000 @ { layout = f32 }` writes
+`1.0`.
 
 Each layout must define its encoding rules, including integer width,
 floating-point format, string encoding, byte order, and struct padding. This
 makes lowering deterministic and formally verifiable. Hexadecimal data is
-therefore one kind of literal, not a separate term.
+therefore one kind of bits value, not a separate term.
 
-A bare literal value such as `1` is not a term. Every literal term must have
-explicit `layout` metadata supplied by the frontend. Gap never infers it from
-surrounding context. More generally, Gap never infers metadata.
+Every bits term must have explicit `layout` metadata supplied by the frontend.
+Gap never infers it from surrounding context. More generally, Gap never infers
+metadata.
 
 ### Compilation units
 
@@ -401,11 +410,11 @@ so names such as `lambda`, `record`, and `if` may still be used as functions.
 | Variable `x` | `x` |
 | Abstraction `λx. t` | `(:lambda x t)` |
 | Application `f x` | `(f x)` |
-| Record `{ first = a, second = b }` | `(:record first = a second = b)` |
+| Record `{ first = p, second = q }` | `(:record first = p second = q)` |
 | Projection `t.label` | `(:get t label)` |
 | Fixed point `fix A` | `(:fix A)` |
-| Literal `literal(42)` | `(:literal 42)` |
-| Conditional `if c then a else b` | `(:if c a b)` |
+| Bits `42` | `(:literal 42)` |
+| Conditional `if c then t else e` | `(:if c t e)` |
 
 Multiple arguments are left-associative text sugar, so `(f x y)` represents
 `(f x) y`.
@@ -419,8 +428,8 @@ i32` metadata for `(:literal 42)` is supplied by the sidecar.
 | --- | --- |
 | `let x₁ = e₁ … xₙ = eₙ in body` | `(:let x1 = e1 … xn = en body)` |
 | `(fix A).label` | `(:fix A label)` |
-| `literal(true) @ { layout = bool }` | `true` |
-| `literal(false) @ { layout = bool }` | `false` |
+| `1 @ { layout = bool }` | `true` |
+| `0 @ { layout = bool }` | `false` |
 
 The abstract-language section defines how multiple `let` bindings expand.
 The boolean sugars introduce their shown metadata without a sidecar entry.
@@ -451,9 +460,10 @@ A parsed S-expression is a well-formed term when:
   elements. The head may itself be a list.
 - **Parameters.** A `:lambda` parameter is a bare name.
 - **Labels.** Labels within one `:record` are pairwise distinct.
-- **Literals.** A literal value is valid only inside
-  `(:literal value)`, except for `true` and `false`. A bare numeral or other
-  bare literal value is not a term. The combined input must give every literal
+- **Literals.** A bits value is valid only inside `(:literal value)`, except
+  for `true` and `false`. A bare numeral, string, or hexadecimal pattern is
+  not a term in the text format, even though the abstract language writes the
+  value on its own. The combined input must give every `:literal` node
   `layout` metadata; the boolean sugars provide `bool` themselves.
 - **Scope.** A complete compilation unit is closed. Every variable occurrence
   in it is bound by an enclosing `:lambda`.
@@ -488,6 +498,10 @@ TODO: add an option to print without sugars.
 - **`:fix` is a term** — `(:fix A)` is the fixed point; `(:fix A fact)` is the
   usual fixed-field sugar. Unfolding is
   `(:fix A fact) = (:get (A (:fix A)) fact)`.
+- **`:literal` wraps a bits value** — the abstract language writes the value
+  itself, since a bits term is nothing but a bit pattern described by
+  `layout`. Text wraps it in `:literal` so a value is never confused with a
+  name and always has a node the sidecar can attach metadata to.
 - **One syntax for source and residual** — after partial beta reduction, the
   remaining applications stay written as applications.
 
@@ -519,9 +533,10 @@ sidecar encoding will be defined later.
 ## Open work
 
 - [x] Design terms
-- [x] Bare numerals are not terms. Literal layouts are explicit term metadata
-  and are never inferred from context; examples omit metadata only for
-  simplicity.
+- [x] A bits value `b` is a core term form and is one of an integer, a string,
+  or a hexadecimal bit pattern. Its layout is explicit term metadata and is
+  never inferred from context; examples omit metadata only for simplicity.
+  The text format still writes it as `(:literal v)`.
 - [x] Move layouts out of core term forms and into semantic metadata attached
   to every term node.
 - [x] Define one input as one closed compilation unit of the form
