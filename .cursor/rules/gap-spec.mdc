@@ -1,0 +1,17 @@
+---
+description: Keep gap/spec.md formula-first with implementer English
+globs: gap/spec.md
+alwaysApply: false
+---
+
+# Gap spec style
+
+`gap/spec.md` is a formal language spec used to generate an implementation.
+
+- Prefer formulas for syntax, evaluation, binding, and sugar
+- Keep `#` comments next to formulas
+- Keep English that an implementer needs to write code: AST distinctions,
+  dispatch order, when a rule waits, error vs residual, parse vs reduce,
+  desugaring, capture avoidance
+- Do not add philosophy, goals, rationale, tutorials, or checklists
+- Do not delete implementer English or `#` comments to make a block denser
