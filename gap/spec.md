@@ -15,20 +15,20 @@ reader/printer for the same syntax.
 ```text
 t ::= x                          # variable
     | (lambda x t)               # abstraction
-    | (apply t t)                # application (also record select)
-    | (record b = t …)           # record
-    | (record t b = t …)         # record with default
+    | (apply t t)                # application
+    | (record l = t …)           # record
+    | t.l                        # projection
     | (fix t)                    # fixed point
     | b                          # bits (bare token)
 
 v ::= x                          # variable
     | (lambda x t)               # abstraction
-    | (record b = v …)           # record value
-    | (record v b = v …)         # record value with default
+    | (record l = v …)           # record value
     | b                          # bits
 
 n ::= x                          # residual eliminator; subject is x or n
     | (apply n t)
+    | n.l
     | (fix n)
 
 b ::= [0-9]+                     # integer
@@ -36,24 +36,24 @@ b ::= [0-9]+                     # integer
     | 0x[0-9A-Fa-f]+             # hex bit pattern
 ```
 
-Field order is sorted by bits at parse: integers by value, then strings
-by bytes (`0`, `00`, `0x0` are the same key). Preserve that order in the
-AST, reducer, and printer.
+- A name standing alone is a variable: `env`, `x`
+- The same spelling after `.` or left of `=` is a label: `env.puts`, `main = t`
+- A label is not a term; it does not reduce
+- Field order is as written; keep that order in the AST, reducer, and printer
 
 ```text
-(apply (record "a" = x) "a")  →  x             # select under binders
-(apply (record d "a" = x) "b") →  d            # miss → default (once values)
-(apply (record "a" = x) "b") ↛                 # residual (miss, no default)
-(apply x "a")             ↛                    # residual
+(record a = x).a              →  x             # select under binders
+(record a = x).b              ↛                 # residual (miss)
+x.a                           ↛                 # residual
 ```
 
-Application of a record to a matching key is computation, including under
-`(lambda …)`. A miss uses the default if the record has one, else residual:
-keep the node. Application whose function is a variable (or other
-neutral) is residual: keep the node and reduce elsewhere.
+- A matching label is computation, including under `(lambda …)`
+- A miss is residual: keep the node
+- A subject that is a variable (or other neutral) is residual: keep the
+  node and reduce elsewhere
+- Application is only β; a record in function position is residual
 
-A leading bare term is the default, not a key; at most one. A bare term
-after a field is an error. A bare numeral, string, or hex token is bits.
+A bare numeral, string, or hex token is bits.
 
 Reserved heads: `lambda`, `record`, `fix`, `apply`. An unknown head is
 an error; do not treat it as application. Empty lists are invalid.
@@ -62,18 +62,19 @@ an error; do not treat it as application. Empty lists are invalid.
 arity(lambda) = 2
 arity(fix) = 1
 arity(apply) = 2
-arity(record) = t? (b = t)+                  # optional default, then one or more fields
+arity(record) = (l = t)+                         # one or more fields
 
 x ∩ b = ∅                     # lexer: if token matches b it is bits, never a variable
 lambda-param                  =  atom and not b
-keys in one record            pairwise distinct by bits denotation
+l                             =  atom and not b  # AST: label ≠ variable
+labels in one record          pairwise distinct
 CU                            closed
 ```
 
-Parse checks the table above, including key distinctness. It does not
-check whether a record application finds a key or whether `fix` is
-applied to a `(lambda …)`. PE fires those rules when they match;
-otherwise the node is residual.
+Parse checks the table above, including label distinctness. It does not
+check whether a projection finds a field or whether `fix` is applied to
+a `(lambda …)`. PE fires those rules when they match; otherwise the node
+is residual.
 
 ## Evaluation
 
@@ -83,34 +84,26 @@ chooses which legal steps (strategy unspecified); the rest is residual.
 ```text
 # apply — first match
 (apply (lambda x t) s)        E-AppAbs                         # s need not be v
-(apply rcd v)  v ≡ key        E-AppRcd                         # rcd ∈ v
-(apply rcd v)  no key ≡ v     E-AppRcdDefault                  # rcd ∈ v, has default
-else                          E-App1 | E-App2 | E-Rcd0 | E-Rcd2
+else                          E-App1 | E-App2
 # no rule → residual (keep the node; leave for SSA)
-# miss, no default; (apply b _); (apply n t)
+# (apply b _); (apply n t); (apply rcd _)
+
+# proj — first match
+rcd.l  l ∈ keys               E-Proj                           # rcd ∈ v
+else                          E-Proj1 | E-Rcd
+# no rule → residual (keep the node; leave for SSA)
+# miss; b.l; n.l
 ```
 
 ```text
 (apply (lambda x t) s)        →  [x ↦ s] t                    (E-AppAbs)
 
-(apply (record … bk = v …) bk)
-                              →  v                            (E-AppRcd)
-                                                                  # keys already b; arg ≡ key
-
-(apply (record d …) v)        →  d                            (E-AppRcdDefault)
-                                                                  # no key ≡ v; match wins
+(record … l = v …).l          →  v                            (E-Proj)
+                                                                  # wait until record is a value
 
 (fix (lambda x t))            →  [x ↦ (fix (lambda x t))] t   (E-Fix)
                                                                   # only under (apply (fix t) s)
-```
-
-```text
-v ≡ v'                        ≜  same constructor ∧ children ≡
-x ≡ x
-b ≡ b'                        ≜  denotation(b) = denotation(b')   # 0, 00, 0x0
-(lambda x t) ≡ (lambda y s)   ≜  α
-(record …) ≡ (record …)       ≜  same fields (sorted) ∧ same default
-                                                                  # both absent, or ≡
+                                                                  # or (fix t).l
 ```
 
 ```text
@@ -127,13 +120,13 @@ b ≡ b'                        ≜  denotation(b) = denotation(b')   # 0, 00, 0
 ────────────────                               (E-App2)
 (apply t₁ t₂) → (apply t₁ t₂')
 
-      d → d'
-────────────────────────────────────────       (E-Rcd0)
-(record d …) → (record d' …)                   # default
-
       u → u'
-────────────────────────────────────────       (E-Rcd2)
-(record … b = u …) → (record … b = u' …)       # field
+────────────────────────────────────────       (E-Rcd)
+(record … l = u …) → (record … l = u' …)       # field
+
+      t → t'
+────────────────                               (E-Proj1)
+     t.l → t'.l
 
       t → t'
 ────────────────                               (E-Fix1)
@@ -146,8 +139,8 @@ b ≡ b'                        ≜  denotation(b) = denotation(b')   # 0, 00, 0
 FV(x)                         = {x}
 FV((lambda x t))              = FV(t) \ {x}                   # only lambda binds
 FV((apply t₁ t₂))             = FV(t₁) ∪ FV(t₂)
-FV((record bᵢ = uᵢ)ᵢ)         = ⋃ᵢ FV(uᵢ)                     # keys are b
-FV((record d bᵢ = uᵢ)ᵢ)       = FV(d) ∪ ⋃ᵢ FV(uᵢ)
+FV((record lᵢ = uᵢ)ᵢ)         = ⋃ᵢ FV(uᵢ)                     # labels are not terms
+FV(t.l)                       = FV(t)
 FV((fix t))                   = FV(t)
 FV(b)                         = ∅
 
@@ -161,8 +154,8 @@ closed(t)                     ≜  FV(t) = ∅
 [x ↦ s] (lambda x t)          = (lambda x t)                   # shadow
 [x ↦ s] (lambda y t)          = (lambda y [x ↦ s] t)           (y ≠ x, y ∉ FV(s))
 [x ↦ s] (apply t₁ t₂)         = (apply ([x ↦ s] t₁) ([x ↦ s] t₂))
-[x ↦ s] (record bᵢ = uᵢ)ᵢ     = (record bᵢ = [x ↦ s] uᵢ)ᵢ      # not keys
-[x ↦ s] (record d bᵢ = uᵢ)ᵢ   = (record [x ↦ s] d bᵢ = [x ↦ s] uᵢ)ᵢ
+[x ↦ s] (record lᵢ = uᵢ)ᵢ     = (record lᵢ = [x ↦ s] uᵢ)ᵢ      # not labels
+[x ↦ s] (t.l)                 = ([x ↦ s] t).l
 [x ↦ s] (fix t)               = (fix [x ↦ s] t)
 [x ↦ s] b                     = b
 ```
@@ -178,36 +171,35 @@ b ∈ { 42, "hello", 0x3f800000 }
 
 ## Compilation unit
 
-Each input is one closed term. Keys are bits, so they do not open the
-unit:
+Each input is one closed term. Labels are not terms, so they do not open
+the unit:
 
 ```text
 CU  ::=  (lambda env
            (lambda self
              (record
-               "main" = …
-               "helper" = …)))
+               main = …
+               helper = …)))
 FV(CU) = ∅
 ```
 
 `env` is a record of external dependencies (primitives). `self` is the
-recursive-record generator. Access fields by application:
-`(apply env "add-i32")`, `(apply self "helper")`. Tie recursion with
-`fix` on the inner `lambda`.
+recursive-record generator. Access fields by projection: `env.add-i32`,
+`self.helper`. Tie recursion with `fix` on the inner `lambda`.
 
 No layering form and no `θ`.
 
 ## Residual to LLVM IR
 
-`(apply env b)` is residual (`env` is a variable). A residual not in the
-table is an error. `(apply env "puts")` has LLVM type `i32 (ptr)`. Unused
-`self` emits no IR. `main` returns the lowered body, not a synthetic `0`.
+`env.l` is residual (`env` is a variable). A residual not in the table is
+an error. `env.puts` has LLVM type `i32 (ptr)`. Unused `self` emits no
+IR. `main` returns the lowered body, not a synthetic `0`.
 
 ```text
 (lambda env
   (lambda self
     (record
-      "main" = (apply (apply env "puts") "Hello World!"))))
+      main = (apply env.puts "Hello World!"))))
 ```
 
 ```llvm
@@ -222,9 +214,9 @@ define i32 @main() {
 ```
 
 ```text
-(lambda env t)                 ↦  declare each (apply env b) used in t
+(lambda env t)                 ↦  declare each env.l used in t
 (lambda self t)                ↦  t                            # unused self
-(record "main" = t)            ↦  define i32 @main() { ret lower(t) }
-(apply (apply env "puts") s)   ↦  call i32 @puts(ptr lower(s))
+(record main = t)              ↦  define i32 @main() { ret lower(t) }
+(apply env.puts s)             ↦  call i32 @puts(ptr lower(s))
 "…"                            ↦  private [n x i8] global       # n = |bytes|+1
 ```
