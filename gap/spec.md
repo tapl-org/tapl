@@ -4,7 +4,7 @@ A frontend emits one Gap term. Partial evaluation reduces it. The residual
 term maps one-to-one onto SSA if possible otherwise error.
 
 ```text
-frontend → Gap → residual → SSA → machine code
+frontend → Gap → residual → SSA/LLVM IR → machine code
 ```
 
 Implement the AST and reducer from this grammar; implement the
@@ -196,3 +196,35 @@ recursive-record generator. Access fields by application:
 `fix` on the inner `lambda`.
 
 No layering form and no `θ`.
+
+## Residual to LLVM IR
+
+`(apply env b)` is residual (`env` is a variable). A residual not in the
+table is an error. `(apply env "puts")` has LLVM type `i32 (ptr)`. Unused
+`self` emits no IR. `main` returns the lowered body, not a synthetic `0`.
+
+```text
+(lambda env
+  (lambda self
+    (record
+      "main" = (apply (apply env "puts") "Hello World!"))))
+```
+
+```llvm
+@s = private unnamed_addr constant [13 x i8] c"Hello World!\00"
+
+declare i32 @puts(ptr)
+
+define i32 @main() {
+  %0 = call i32 @puts(ptr @s)
+  ret i32 %0
+}
+```
+
+```text
+(lambda env t)                 ↦  declare each (apply env b) used in t
+(lambda self t)                ↦  t                            # unused self
+(record "main" = t)            ↦  define i32 @main() { ret lower(t) }
+(apply (apply env "puts") s)   ↦  call i32 @puts(ptr lower(s))
+"…"                            ↦  private [n x i8] global       # n = |bytes|+1
+```
