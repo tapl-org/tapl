@@ -13,23 +13,23 @@ frontend → Gap → residual → SSA/LLVM IR → machine code
 ## Syntax
 
 ```text
-t ::= x                          # variable
+t ::= (var x)                    # variable
     | (lambda x t)               # abstraction
     | (apply t t)                # application
     | (record l = t …)           # record
-    | t.l                        # projection
+    | (get t l)                  # projection
     | (fix t)                    # fixed point
     | (if t t t)                 # conditional
-    | b                          # bits (bare token)
+    | (bits b)                   # bits
 
-v ::= x                          # variable
+v ::= (var x)                    # variable
     | (lambda x t)               # abstraction
     | (record l = v …)           # record value
-    | b                          # bits
+    | (bits b)                   # bits
 
-n ::= x                          # residual eliminator; subject is x or n
+n ::= (var x)                    # residual eliminator; subject is (var x) or n
     | (apply n t)
-    | n.l
+    | (get n l)
     | (fix n)
     | (if n t t)                 # branch on an unknown condition
 
@@ -44,21 +44,23 @@ Three shapes matter when writing the reducer:
 - `v` is a value, the shape a rule waits for. `(lambda x t)` is already a value
   even when its body still contains redexes
 - `n` is a neutral term: an elimination whose innermost subject is a variable,
-  such as `x.a`. A neutral is residual rather than an error; it survives to SSA
+  such as `(get (var x) a)`. A neutral is residual rather than an error; it
+  survives to SSA
 
 Names, labels, and bits:
 
-- A name on its own is a variable: `env`, `x`
-- The same spelling after a `.`, or to the left of an `=`, is a label instead:
-  `env.puts`, `main = t`
+- Every term is a list; a bare name or token is not a term
+- A name is a variable only under `var`: `(var env)`, `(var x)`
+- The same spelling as the second subterm of `get`, or to the left of an `=`,
+  is a label instead: `(get (var env) puts)`, `main = t`
 - Labels are field names rather than terms, so they never reduce
 - Keep record fields in written order, in the AST, the reducer, and the printer
-- A bare numeral, string, or hex token is bits; bits need no wrapper
+- A numeral, string, or hex token is bits only under `bits`: `(bits 42)`
 
 ```text
-(record a = x).a              →  x             # select under binders
-(record a = x).b              ↛                 # residual (miss)
-x.a                           ↛                 # residual
+(get (record a = (var x)) a)  →  (var x)        # select under binders
+(get (record a = (var x)) b)  ↛                 # residual (miss)
+(get (var x) a)               ↛                 # residual
 ```
 
 Projection is the only way to read a field:
@@ -72,22 +74,27 @@ Projection is the only way to read a field:
 `apply` performs β-reduction only. Applying a record to something is not a field
 lookup, so such a node stays residual.
 
-Every other list is a form with a reserved head:
+Every term is a list with a reserved head:
 
-- The only heads are `lambda`, `record`, `fix`, `apply`, and `if`
+- The only heads are `var`, `bits`, `lambda`, `record`, `get`, `fix`, `apply`,
+  and `if`
 - Any other head is an error, never an implicit application
 - The empty list is invalid
 
 ```text
+arity(var) = 1                                   # a name, not a term
+arity(bits) = 1                                  # a bits token, not a term
 arity(lambda) = 2
+arity(get) = 2                                   # (get t l); l is a label
 arity(fix) = 1
 arity(apply) = 2
 arity(if) = 3
 arity(record) = (l = t)+                         # one or more fields
 
 x ∩ b = ∅                     # lexer: if token matches b it is bits, never a variable
-lambda-param                  =  atom and not b
+var-name, lambda-param        =  atom and not b
 l                             =  atom and not b  # AST: label ≠ variable
+bits-token                    =  b
 labels in one record          pairwise distinct
 ```
 
@@ -116,17 +123,17 @@ For each elimination, try the cases in order and take the first that matches:
 (apply (lambda x t) s)        E-AppAbs                         # s need not be v
 else                          E-App1 | E-App2
 # no rule → residual (keep the node; leave for SSA)
-# (apply b _); (apply n t); (apply rcd _)
+# (apply (bits b) _); (apply n t); (apply rcd _)
 
-# proj — first match
-rcd.l  l ∈ keys               E-Proj                           # rcd ∈ v
+# get — first match
+(get rcd l)  l ∈ keys         E-Proj                           # rcd ∈ v
 else                          E-Proj1 | E-Rcd
 # no rule → residual (keep the node; leave for SSA)
-# miss; b.l; n.l
+# miss; (get (bits b) l); (get n l)
 
 # if — first match
-(if b t₂ t₃)  b ≠ 0           E-IfNonzero                      # take t₂
-(if b t₂ t₃)  b = 0           E-IfZero                         # take t₃
+(if (bits b) t₂ t₃)  b ≠ 0    E-IfNonzero                      # take t₂
+(if (bits b) t₂ t₃)  b = 0    E-IfZero                         # take t₃
 else                          E-If1 | E-If2 | E-If3
 # no rule → residual (keep the node; leave for SSA)
 # (if n t t); (if (lambda x t) t t); (if rcd t t)
@@ -137,15 +144,15 @@ The computation rules:
 ```text
 (apply (lambda x t) s)        →  [x ↦ s] t                    (E-AppAbs)
 
-(record … l = v …).l          →  v                            (E-Proj)
+(get (record … l = v …) l)    →  v                            (E-Proj)
                                                                   # wait until record is a value
 
 (fix (lambda x t))            →  [x ↦ (fix (lambda x t))] t   (E-Fix)
                                                                   # only under (apply (fix t) s)
-                                                                  # or (fix t).l
+                                                                  # or (get (fix t) l)
 
-(if b t₂ t₃)   b ≠ 0          →  t₂                           (E-IfNonzero)
-(if b t₂ t₃)   b = 0          →  t₃                           (E-IfZero)
+(if (bits b) t₂ t₃)   b ≠ 0   →  t₂                           (E-IfNonzero)
+(if (bits b) t₂ t₃)   b = 0   →  t₃                           (E-IfZero)
                                                                   # wait until the condition is bits
 ```
 
@@ -170,9 +177,9 @@ whole term:
 ────────────────────────────────────────       (E-Rcd)
 (record … l = u …) → (record … l = u' …)       # field
 
-      t → t'
-────────────────                               (E-Proj1)
-     t.l → t'.l
+        t → t'
+──────────────────────                         (E-Proj1)
+(get t l) → (get t' l)
 
       t → t'
 ────────────────                               (E-Fix1)
@@ -197,14 +204,14 @@ Only `lambda` binds a name, and `FV(t)` collects the variables that nothing
 binds:
 
 ```text
-FV(x)                         = {x}
+FV((var x))                   = {x}
 FV((lambda x t))              = FV(t) \ {x}                   # only lambda binds
 FV((apply t₁ t₂))             = FV(t₁) ∪ FV(t₂)
 FV((record lᵢ = uᵢ)ᵢ)         = ⋃ᵢ FV(uᵢ)                     # labels are not terms
-FV(t.l)                       = FV(t)
+FV((get t l))                 = FV(t)
 FV((fix t))                   = FV(t)
 FV((if t₁ t₂ t₃))             = FV(t₁) ∪ FV(t₂) ∪ FV(t₃)
-FV(b)                         = ∅
+FV((bits b))                  = ∅
 
 closed(t)                     ≜  FV(t) = ∅
 ```
@@ -217,16 +224,16 @@ Substitution below is written on names:
 
 ```text
 # if y ∈ FV(s), rename y fresh before substituting under (lambda y …)
-[x ↦ s] x                     = s
-[x ↦ s] y                     = y                              (y ≠ x)
+[x ↦ s] (var x)               = s
+[x ↦ s] (var y)               = (var y)                        (y ≠ x)
 [x ↦ s] (lambda x t)          = (lambda x t)                   # shadow
 [x ↦ s] (lambda y t)          = (lambda y [x ↦ s] t)           (y ≠ x, y ∉ FV(s))
 [x ↦ s] (apply t₁ t₂)         = (apply ([x ↦ s] t₁) ([x ↦ s] t₂))
 [x ↦ s] (record lᵢ = uᵢ)ᵢ     = (record lᵢ = [x ↦ s] uᵢ)ᵢ      # not labels
-[x ↦ s] (t.l)                 = ([x ↦ s] t).l
+[x ↦ s] (get t l)             = (get ([x ↦ s] t) l)
 [x ↦ s] (fix t)               = (fix [x ↦ s] t)
 [x ↦ s] (if t₁ t₂ t₃)         = (if ([x ↦ s] t₁) ([x ↦ s] t₂) ([x ↦ s] t₃))
-[x ↦ s] b                     = b
+[x ↦ s] (bits b)              = (bits b)
 ```
 
 ## Bits
@@ -245,7 +252,7 @@ b = 0                         ⇔  every bit of b is 0
 
 An `if` reads its condition as bits and compares the bit pattern, not the kind:
 zero is the only false condition, every other bits value is true. A condition
-that is not bits fires no rule, so the `if` stays residual.
+that is not a `(bits b)` fires no rule, so the `if` stays residual.
 
 ## Compilation unit
 
@@ -262,9 +269,9 @@ FV(CU) = ∅
 ```
 
 - `env` holds everything the unit needs from outside, primitives included; read
-  from it by projection, as in `env.add-i32`
+  from it by projection, as in `(get (var env) add-i32)`
 - `module` is the recursive-record generator, so fields reach one another
-  through `module.helper`
+  through `(get (var module) helper)`
 - `fix` on the inner `lambda` ties the recursion
 - Gap has no layering form and no `θ` calculus from the Tapl project
 

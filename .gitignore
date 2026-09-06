@@ -31,6 +31,9 @@ compile_commands.json
 # Python builds
 dist/
 
+# Python virtual environments
+.venv/
+
 # Bytecode compiled files
 *.pyc
 __pycache__/
