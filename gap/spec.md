@@ -1,15 +1,14 @@
 # Gap
 
-A frontend emits one Gap term. Gap partially evaluates that term, and whatever
-cannot reduce is left behind as the residual term. The residual must map
-one-to-one onto SSA; if it does not, that is an error.
-
 ```text
 frontend → Gap → residual → SSA/LLVM IR → machine code
 ```
 
-Build the AST and the reducer from the grammar below, and build the reader and
-printer from that same syntax: the text you read is the term you reduce.
+- A frontend emits one Gap term
+- Gap partially evaluates it; whatever cannot reduce is the residual term
+- The residual must map one-to-one onto SSA, otherwise it is an error
+- Build the AST and reducer from the grammar below, and the reader and printer
+  from that same syntax: the text you read is the term you reduce
 
 ## Syntax
 
@@ -39,17 +38,20 @@ b ::= [0-9]+                     # integer
 
 Three shapes matter when writing the reducer:
 
-- `t` is any term.
+- `t` is any term
 - `v` is a value, the shape a rule waits for. `(lambda x t)` is already a value
-  even when its body still contains redexes.
+  even when its body still contains redexes
 - `n` is a neutral term: an elimination whose innermost subject is a variable,
-  such as `x.a`. A neutral is not an error; it is residual and survives to SSA.
+  such as `x.a`. A neutral is residual rather than an error; it survives to SSA
 
-A name on its own is a variable, as in `env` or `x`. The same spelling after a
-`.`, or to the left of an `=`, is a label instead, as in `env.puts` and
-`main = t`. Labels are field names rather than terms, so they never reduce.
-Keep record fields in the order they were written, in the AST, in the reducer,
-and in the printer.
+Names, labels, and bits:
+
+- A name on its own is a variable: `env`, `x`
+- The same spelling after a `.`, or to the left of an `=`, is a label instead:
+  `env.puts`, `main = t`
+- Labels are field names rather than terms, so they never reduce
+- Keep record fields in written order, in the AST, the reducer, and the printer
+- A bare numeral, string, or hex token is bits; bits need no wrapper
 
 ```text
 (record a = x).a              →  x             # select under binders
@@ -59,20 +61,20 @@ x.a                           ↛                 # residual
 
 Projection is the only way to read a field:
 
-- When the record already has that label, the projection reduces to the field's
-  value. This may happen anywhere, including inside a `(lambda …)` body.
-- When the label is missing, nothing fires: keep the node as residual.
+- When the record has that label, the projection reduces to the field's value.
+  This may happen anywhere, including inside a `(lambda …)` body
+- When the label is missing, nothing fires: keep the node as residual
 - When the subject is a variable or another neutral, keep the node and look for
-  work elsewhere in the term.
+  work elsewhere in the term
 
 `apply` performs β-reduction only. Applying a record to something is not a field
 lookup, so such a node stays residual.
 
-A bare numeral (non-negative integers. use hex token for negative numbers), string, or hex token is bits; bits need no wrapper.
+Every other list is a form with a reserved head:
 
-The only heads a list may have are `lambda`, `record`, `fix`, and `apply`. A
-list with any other head is an error rather than an implicit application, and
-the empty list is invalid.
+- The only heads are `lambda`, `record`, `fix`, and `apply`
+- Any other head is an error, never an implicit application
+- The empty list is invalid
 
 ```text
 arity(lambda) = 2
@@ -86,18 +88,22 @@ l                             =  atom and not b  # AST: label ≠ variable
 labels in one record          pairwise distinct
 ```
 
-The parser checks everything in that table, including that no two fields of one
-record share a label. Two things are deliberately left unchecked: whether a
-projection will find its field, and whether `fix` is applied to a `(lambda …)`.
+The parser checks that whole table, including that no two fields of one record
+share a label. It deliberately does not check:
+
+- whether a projection will find its field
+- whether `fix` is applied to a `(lambda …)`
+
 Partial evaluation fires those rules when a term happens to match them, and
 otherwise leaves the node residual.
 
 ## Evaluation
 
-Reduction is strong, so any redex may fire wherever it sits, including under a
-`(lambda …)`. The rules say which steps are legal, not which order to take them
-in; partial evaluation picks the order, and every node it leaves alone becomes
-part of the residual.
+- Reduction is strong: any redex may fire wherever it sits, including under a
+  `(lambda …)`
+- The rules say which steps are legal, not which order to take them in
+- Partial evaluation picks the order; every node it leaves alone becomes part of
+  the residual
 
 For each elimination, try the cases in order and take the first that matches:
 
@@ -175,9 +181,11 @@ FV(b)                         = ∅
 closed(t)                     ≜  FV(t) = ∅
 ```
 
-Substitution must avoid capture: before going under `(lambda y …)`, rename `y`
-to a fresh name if `y` occurs free in the term being substituted. Labels are
-never substituted. Internally we use de Bruijn indexes so no need for alpha reduction.
+Substitution below is written on names:
+
+- Labels are never substituted
+- The implementation stores binders as de Bruijn indexes, so it needs no
+  renaming and no α-conversion
 
 ```text
 # if y ∈ FV(s), rename y fresh before substituting under (lambda y …)
@@ -194,8 +202,9 @@ never substituted. Internally we use de Bruijn indexes so no need for alpha redu
 
 ## Bits
 
-Bits come in three kinds: non-negative integer, string, and hex bit pattern. There is no
-decimal float syntax, so write a float as the hex of its encoding.
+- Three kinds: non-negative integer, string, hex bit pattern
+- Write a negative number as a hex token
+- There is no decimal float syntax: write a float as the hex of its encoding
 
 ```text
 b ∈ { 42, "hello", 0x3f800000 }
@@ -215,42 +224,11 @@ CU  ::=  (lambda env
 FV(CU) = ∅
 ```
 
-`env` is the record holding everything the unit needs from outside, primitives
-included; read from it by projection, as in `env.add-i32`. The inner `module`
-parameter is the recursive-record generator, so fields reach one another through
-`module.helper`, and `fix` on that inner `lambda` ties the recursion.
+- `env` holds everything the unit needs from outside, primitives included; read
+  from it by projection, as in `env.add-i32`
+- `module` is the recursive-record generator, so fields reach one another
+  through `module.helper`
+- `fix` on the inner `lambda` ties the recursion
+- Gap has no layering form and no `θ` calculus from the Tapl project
 
-Gap has no layering form and no `θ` calculus from Tapl project.
 
-## Residual to LLVM IR
-
-Since `env` is a variable, `env.l` can never reduce; each one names an external
-function, and the table below says how to emit it. A residual the table does not
-cover is an error. `env.puts` has LLVM type `i32 (ptr)`. An unused `self`
-produces no IR, and `main` returns its lowered body rather than a synthetic `0`.
-
-```text
-(lambda env
-  (lambda self
-    (record
-      main = (apply env.puts "Hello World!"))))
-```
-
-```llvm
-@s = private unnamed_addr constant [13 x i8] c"Hello World!\00"
-
-declare i32 @puts(ptr)
-
-define i32 @main() {
-  %0 = call i32 @puts(ptr @s)
-  ret i32 %0
-}
-```
-
-```text
-(lambda env t)                 ↦  declare each env.l used in t
-(lambda self t)                ↦  t                            # unused self
-(record main = t)              ↦  define i32 @main() { ret lower(t) }
-(apply env.puts s)             ↦  call i32 @puts(ptr lower(s))
-"…"                            ↦  private [n x i8] global       # n = |bytes|+1
-```
