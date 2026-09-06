@@ -5,5 +5,7 @@ alwaysApply: true
 
 # Git Commits
 
+- Commit only when explicitly asked. Finishing a change, passing tests, or
+  reaching a milestone is not a reason to commit on your own.
 - When committing to the main branch, do not ask for confirmation. Proceed directly.
 - Never add `Co-authored-by: Cursor`, `Made with Cursor`, or any other Cursor attribution trailer to commits or PRs.
