@@ -19,6 +19,7 @@ t ::= x                          # variable
     | (record l = t …)           # record
     | t.l                        # projection
     | (fix t)                    # fixed point
+    | (if t t t)                 # conditional
     | b                          # bits (bare token)
 
 v ::= x                          # variable
@@ -30,6 +31,7 @@ n ::= x                          # residual eliminator; subject is x or n
     | (apply n t)
     | n.l
     | (fix n)
+    | (if n t t)                 # branch on an unknown condition
 
 b ::= [0-9]+                     # integer
     | "[^"]*"                    # string
@@ -72,7 +74,7 @@ lookup, so such a node stays residual.
 
 Every other list is a form with a reserved head:
 
-- The only heads are `lambda`, `record`, `fix`, and `apply`
+- The only heads are `lambda`, `record`, `fix`, `apply`, and `if`
 - Any other head is an error, never an implicit application
 - The empty list is invalid
 
@@ -80,6 +82,7 @@ Every other list is a form with a reserved head:
 arity(lambda) = 2
 arity(fix) = 1
 arity(apply) = 2
+arity(if) = 3
 arity(record) = (l = t)+                         # one or more fields
 
 x ∩ b = ∅                     # lexer: if token matches b it is bits, never a variable
@@ -93,6 +96,7 @@ share a label. It deliberately does not check:
 
 - whether a projection will find its field
 - whether `fix` is applied to a `(lambda …)`
+- whether the condition of an `if` is bits
 
 Partial evaluation fires those rules when a term happens to match them, and
 otherwise leaves the node residual.
@@ -119,6 +123,13 @@ rcd.l  l ∈ keys               E-Proj                           # rcd ∈ v
 else                          E-Proj1 | E-Rcd
 # no rule → residual (keep the node; leave for SSA)
 # miss; b.l; n.l
+
+# if — first match
+(if b t₂ t₃)  b ≠ 0           E-IfNonzero                      # take t₂
+(if b t₂ t₃)  b = 0           E-IfZero                         # take t₃
+else                          E-If1 | E-If2 | E-If3
+# no rule → residual (keep the node; leave for SSA)
+# (if n t t); (if (lambda x t) t t); (if rcd t t)
 ```
 
 The computation rules:
@@ -132,6 +143,10 @@ The computation rules:
 (fix (lambda x t))            →  [x ↦ (fix (lambda x t))] t   (E-Fix)
                                                                   # only under (apply (fix t) s)
                                                                   # or (fix t).l
+
+(if b t₂ t₃)   b ≠ 0          →  t₂                           (E-IfNonzero)
+(if b t₂ t₃)   b = 0          →  t₃                           (E-IfZero)
+                                                                  # wait until the condition is bits
 ```
 
 The congruence rules say only that a step inside any child is a step of the
@@ -162,6 +177,18 @@ whole term:
       t → t'
 ────────────────                               (E-Fix1)
    (fix t) → (fix t')
+
+           t₁ → t₁'
+────────────────────────────                   (E-If1)
+(if t₁ t₂ t₃) → (if t₁' t₂ t₃)
+
+           t₂ → t₂'
+────────────────────────────                   (E-If2)
+(if t₁ t₂ t₃) → (if t₁ t₂' t₃)                 # legal even before t₁ is bits
+
+           t₃ → t₃'
+────────────────────────────                   (E-If3)
+(if t₁ t₂ t₃) → (if t₁ t₂ t₃')
 ```
 
 ## Binding
@@ -176,6 +203,7 @@ FV((apply t₁ t₂))             = FV(t₁) ∪ FV(t₂)
 FV((record lᵢ = uᵢ)ᵢ)         = ⋃ᵢ FV(uᵢ)                     # labels are not terms
 FV(t.l)                       = FV(t)
 FV((fix t))                   = FV(t)
+FV((if t₁ t₂ t₃))             = FV(t₁) ∪ FV(t₂) ∪ FV(t₃)
 FV(b)                         = ∅
 
 closed(t)                     ≜  FV(t) = ∅
@@ -197,6 +225,7 @@ Substitution below is written on names:
 [x ↦ s] (record lᵢ = uᵢ)ᵢ     = (record lᵢ = [x ↦ s] uᵢ)ᵢ      # not labels
 [x ↦ s] (t.l)                 = ([x ↦ s] t).l
 [x ↦ s] (fix t)               = (fix [x ↦ s] t)
+[x ↦ s] (if t₁ t₂ t₃)         = (if ([x ↦ s] t₁) ([x ↦ s] t₂) ([x ↦ s] t₃))
 [x ↦ s] b                     = b
 ```
 
@@ -208,7 +237,15 @@ Substitution below is written on names:
 
 ```text
 b ∈ { 42, "hello", 0x3f800000 }
+
+b = 0                         ⇔  every bit of b is 0
+0, 0x0, 0x00000000, ""        = 0               # "" has no bits, so it is zero
+1, 0x1, "0", "hello"          ≠ 0               # "0" is the byte 0x30
 ```
+
+An `if` reads its condition as bits and compares the bit pattern, not the kind:
+zero is the only false condition, every other bits value is true. A condition
+that is not bits fires no rule, so the `if` stays residual.
 
 ## Compilation unit
 
