@@ -7,5 +7,7 @@ alwaysApply: true
 
 - Commit only when explicitly asked. Finishing a change, passing tests, or
   reaching a milestone is not a reason to commit on your own.
+- When asked to commit, change no files. Stage and commit what is already
+  there: no fixes, no formatting, no lint or test runs that rewrite files.
 - When committing to the main branch, do not ask for confirmation. Proceed directly.
 - Never add `Co-authored-by: Cursor`, `Made with Cursor`, or any other Cursor attribution trailer to commits or PRs.
