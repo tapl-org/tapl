@@ -1,26 +1,27 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import enum
 from dataclasses import dataclass
 
-import enum
 
 class Kind(enum.Enum):
-    Var = enum.auto()
-    Lambda = enum.auto()
-    Apply = enum.auto()
-    Record = enum.auto()
-    Get = enum.auto()
-    Fix = enum.auto()
-    If = enum.auto()
-    Bits = enum.auto()
+    Var = 'var'
+    Lambda = 'lambda'
+    Apply = 'apply'
+    Record = 'record'
+    Get = 'get'
+    Fix = 'fix'
+    If = 'if'
+    Bits = 'bits'
 
 
 class Term:
-
     def kind(self) -> Kind:
         raise NotImplementedError
+
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}'
+
 
 @dataclass
 class Var(Term):
@@ -31,6 +32,7 @@ class Var(Term):
     def kind(self) -> Kind:
         return Kind.Var
 
+
 @dataclass
 class Lambda(Term):
     parameter: str
@@ -38,6 +40,7 @@ class Lambda(Term):
 
     def kind(self) -> Kind:
         return Kind.Lambda
+
 
 @dataclass
 class Apply(Term):
@@ -47,12 +50,14 @@ class Apply(Term):
     def kind(self) -> Kind:
         return Kind.Apply
 
+
 @dataclass
 class Record(Term):
-    fields: list[(str,Term)]
+    fields: list[tuple[str, Term]]
 
     def kind(self) -> Kind:
         return Kind.Record
+
 
 @dataclass
 class Get(Term):
@@ -62,6 +67,7 @@ class Get(Term):
     def kind(self) -> Kind:
         return Kind.Get
 
+
 @dataclass
 class Fix(Term):
     body: Term
@@ -69,19 +75,21 @@ class Fix(Term):
     def kind(self) -> Kind:
         return Kind.Fix
 
+
 @dataclass
 class If(Term):
     condition: Term
     true: Term
-    else: Term
+    false: Term
 
     def kind(self) -> Kind:
         return Kind.If
 
+
 @dataclass
 class Bits(Term):
-    value: int | str | bytes
-    format: str
+    value: bytes  # base64 encoded in text form
+    layout: str  # i32, u32, 10xi8, etc.
 
     def kind(self) -> Kind:
         return Kind.Bits
