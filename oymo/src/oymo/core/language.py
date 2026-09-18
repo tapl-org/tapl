@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+
+from oymo.core import chunker, parser, syntax, tapl_error
+
+
+class Language(ABC):
+    def parse_chunks(self, chunks: list[chunker.Chunk], parent_stack: list[syntax.Term]) -> None:
+        delayed_statements: syntax.TermList | None = syntax.find_placeholder(parent_stack[-1])
+        if delayed_statements is None:
+            raise tapl_error.TaplError(
+                f'The top of parent_stack[{parent_stack[-1].__class__.__name__}] does not have a placeholder to hold parsed child terms.'
+            )
+        body: list[syntax.Term] = []
+        for chunk in chunks:
+            term = self.parse_chunk(chunk, parent_stack)
+            if isinstance(term, syntax.SiblingTerm):
+                term.integrate_into(body)
+            else:
+                body.append(term)
+        delayed_statements.terms = body
+        delayed_statements.is_placeholder = False
+
+    def parse_chunk(self, chunk: chunker.Chunk, parent_stack: list[syntax.Term]) -> syntax.Term:
+        grammar = self.get_grammar(parent_stack)
+        term = parser.parse_line_records(chunk.line_records, grammar)
+        if not isinstance(term, syntax.ErrorTerm) and chunk.children:
+            parent_stack.append(term)
+            try:
+                self.parse_chunks(chunk.children, parent_stack)
+            finally:
+                parent_stack.pop()
+        return term
+
+    @abstractmethod
+    def get_grammar(self, parent_stack: list[syntax.Term]) -> parser.Grammar:
+        """Returns the grammar for the language."""
+
+    @abstractmethod
+    def get_predef_headers(self) -> list[syntax.Term]:
+        """Returns the list of each layer's predefined headers for the language."""
