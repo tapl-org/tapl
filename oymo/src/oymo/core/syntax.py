@@ -227,3 +227,24 @@ def find_placeholder(term: Term) -> TermList | None:
 
     loop(term)
     return placeholder
+
+
+@dataclass
+class ModeTerm(Term):
+    typecheck: bool = False
+    use_scope: bool = False
+
+    def children(self) -> Generator[Term, None, None]:
+        yield from ()
+
+    def separate(self, ls: LayerSeparator) -> list[Term]:
+        return ls.build(lambda _: self)
+
+
+MODE_EVALUATE = ModeTerm(typecheck=False, use_scope=False)
+MODE_EVALUATE_WITH_SCOPE = ModeTerm(typecheck=False, use_scope=True)
+MODE_TYPECHECK = ModeTerm(typecheck=True, use_scope=True)
+MODE_TYPECHECK_NO_SCOPE = ModeTerm(typecheck=True, use_scope=False)
+MODE_SAFE = Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
+MODE_LIFT = Layers(layers=[MODE_EVALUATE, MODE_EVALUATE_WITH_SCOPE])
+SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
