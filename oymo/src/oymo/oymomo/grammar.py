@@ -60,6 +60,8 @@ _PUNCT_SET = {
     '}',
     ',',
     '.',
+    '(',
+    ')',
 }
 
 _PUNCT_FIRST_CHARS = {c[0] for c in _PUNCT_SET}
@@ -81,7 +83,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.GROUP, [_parse_group])
     add(
         rn.EXPRESSION,
-        [rn.LAMBDA, rn.RECORD, rn.SELECT, rn.IF, rn.FIX, rn.APPLY, rn.INTEGER, rn.STRING, rn.VARIABLE],
+        [rn.GROUP, rn.LAMBDA, rn.RECORD, rn.SELECT, rn.IF, rn.FIX, rn.APPLY, rn.INTEGER, rn.STRING, rn.VARIABLE],
     )
     add(rn.VARIABLE, [_parse_variable])
     add(rn.LAMBDA, [_parse_lambda])
@@ -377,8 +379,16 @@ def _parse_byte_array(c: Cursor) -> syntax.Term:
     raise NotImplementedError('byte_array not implemented')
 
 
+# (x)
 def _parse_group(c: Cursor) -> syntax.Term:
-    raise NotImplementedError('group not implemented')
+    t = c.start_tracker()
+    if (
+        t.validate(_consume_punct(c, '('))
+        and t.validate(expression := _expect_rule(c, rn.EXPRESSION))
+        and t.validate(_expect_punct(c, ')'))
+    ):
+        return expression
+    return t.fail()
 
 
 def _parse_start(c: Cursor) -> syntax.Term:

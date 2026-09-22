@@ -43,6 +43,13 @@ def test_apply() -> None:
     assert term.argument.name == 'x'
 
 
+def test_group() -> None:
+    text = '(x)'
+    term = parse_expr(text, rn.GROUP)
+    assert isinstance(term, terms.Variable)
+    assert term.name == 'x'
+
+
 def test_record_empty() -> None:
     text = '{}'
     term = parse_expr(text, rn.RECORD)
