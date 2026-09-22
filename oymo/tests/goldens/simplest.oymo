@@ -1,0 +1,3 @@
+language oymomo
+
+realm -> module -> { main = a -> 0 }

@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from __future__ import annotations
-
+import re
 from abc import ABC, abstractmethod
 
 from oymo.core import chunker, parser, syntax, tapl_error
@@ -42,3 +41,17 @@ class Language(ABC):
     @abstractmethod
     def get_predef_headers(self) -> list[syntax.Term]:
         """Returns the list of each layer's predefined headers for the language."""
+
+
+def extract_language(chunk: chunker.Chunk) -> str:
+    if chunk.children:
+        raise tapl_error.TaplError('language clause chunk should not have children.')
+    for i in range(1, len(chunk.line_records)):
+        if not chunk.line_records[i].empty:
+            raise tapl_error.TaplError('language clause chunk should be the first line.')
+    pattern = r'^language ([a-zA-Z_][a-zA-Z0-9_]*)$'
+    line = chunk.line_records[0].text
+    match = re.findall(pattern, line)
+    if not match:
+        raise tapl_error.TaplError(f'Could not parse language clause[{line}]')
+    return match[0]

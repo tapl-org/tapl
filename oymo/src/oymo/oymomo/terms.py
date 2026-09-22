@@ -1,51 +1,64 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from oymo import core
-
 from dataclasses import dataclass
+
+from oymo.core import syntax
+
 
 class Form:
     pass
+
 
 @dataclass
 class ScalarForm(Form):
     name: str
 
+
 @dataclass
 class RecordForm(Form):
     fields: list[tuple[str, Form]]
 
-@dataclass
-class Variable(core.Term):
-    name: str
 
-class BruijnIndex(core.Term):
+@dataclass
+class Variable(syntax.Term):
+    name: str
+    location: syntax.Location
+
+
+class BruijnIndex(syntax.Term):
     index: int
 
-class Lambda(core.Term):
+
+class Lambda(syntax.Term):
     param_name: str
     param_form: Form
-    body: core.Term
+    body: syntax.Term
 
-class Apply(core.Term):
-    function: core.Term
-    argument: core.Term
 
-class Fix(core.Term):
-    body: core.Term
+class Apply(syntax.Term):
+    function: syntax.Term
+    argument: syntax.Term
 
-class Record(core.Term):
-    fields: list[tuple[str, core.Term]]
 
-class Select(core.Term):
-    record: core.Term
+class Fix(syntax.Term):
+    body: syntax.Term
+
+
+class Record(syntax.Term):
+    fields: list[tuple[str, syntax.Term]]
+
+
+class Select(syntax.Term):
+    record: syntax.Term
     label: str
 
-class If(core.Term):
-    condition: core.Term
-    then_clause: core.Term
-    else_clause: core.Term
 
-class Bits(core.Term):
+class If(syntax.Term):
+    condition: syntax.Term
+    then_clause: syntax.Term
+    else_clause: syntax.Term
+
+
+class Bits(syntax.Term):
     data: bytes
     form: Form
