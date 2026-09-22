@@ -35,6 +35,7 @@ _PUNCT_SET = {
     '{',
     '}',
     ',',
+    '.',
 }
 
 _PUNCT_FIRST_CHARS = {c[0] for c in _PUNCT_SET}
@@ -55,6 +56,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.LAMBDA, [_parse_lambda])
     add(rn.APPLY, [_parse_apply])
     add(rn.RECORD, [_parse_record])
+    add(rn.SELECT, [_parse_select])
 
     return parser.Grammar(rule_map=rules, start_rule=rn.START)
 
@@ -209,6 +211,18 @@ def _parse_record(c: Cursor) -> syntax.Term:
                 break
         if t.validate(_expect_punct(c, '}')):
             return terms.Record(fields=fields, location=t.location)
+    return t.fail()
+
+
+# r.a
+def _parse_select(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(record := c.consume_rule(rn.VARIABLE))
+        and t.validate(_expect_punct(c, '.'))
+        and t.validate(label := _expect_name(c))
+    ):
+        return terms.Select(record=record, label=cast('TokenName', label).value, location=t.location)
     return t.fail()
 
 

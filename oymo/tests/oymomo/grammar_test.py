@@ -79,3 +79,12 @@ def test_record_two_fields() -> None:
     assert field.form.name == 'f64'
     assert isinstance(field.value, terms.Variable)
     assert field.value.name == 'y'
+
+
+def test_select() -> None:
+    text = 'r.a'
+    term = parse_expr(text, rn.SELECT)
+    assert isinstance(term, terms.Select)
+    assert isinstance(term.record, terms.Variable)
+    assert term.record.name == 'r'
+    assert term.label == 'a'
