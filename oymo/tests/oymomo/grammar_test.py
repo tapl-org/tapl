@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-from oymo.core import parser, syntax
+from oymo.core import parser, syntax, util
 from oymo.oymomo import grammar, terms
 from oymo.oymomo import rule_names as rn
 
@@ -135,3 +135,10 @@ def test_string() -> None:
     assert term.value == 'hello'
     assert isinstance(term.form, terms.ScalarForm)
     assert term.form.name == 'str'
+
+
+def test_parse_simplest_main() -> None:
+    text = 'realm:_ -> module:_ -> { main:_ = a:i32 -> 0:i32,}'
+    term = parse_expr(text, rn.START)
+    errors = util.gather_errors(term)
+    assert len(errors) == 0

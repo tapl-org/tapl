@@ -78,6 +78,11 @@ def get_grammar() -> parser.Grammar:
 
     add(rn.START, [_parse_start])
     add(rn.TOKEN, [_parse_token])
+    add(rn.GROUP, [_parse_group])
+    add(
+        rn.EXPRESSION,
+        [rn.LAMBDA, rn.RECORD, rn.SELECT, rn.IF, rn.FIX, rn.APPLY, rn.INTEGER, rn.STRING, rn.VARIABLE],
+    )
     add(rn.VARIABLE, [_parse_variable])
     add(rn.LAMBDA, [_parse_lambda])
     add(rn.APPLY, [_parse_apply])
@@ -244,11 +249,11 @@ def _parse_variable(c: Cursor) -> syntax.Term:
 def _parse_lambda(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
-        t.validate(param_name_ := _expect_name(c))
-        and t.validate(_expect_punct(c, ':'))
-        and t.validate(param_form_ := _expect_name(c))
-        and t.validate(_expect_punct(c, '->'))
-        and t.validate(body := _expect_rule(c, rn.VARIABLE))
+        t.validate(param_name_ := _consume_name(c))
+        and t.validate(_consume_punct(c, ':'))
+        and t.validate(param_form_ := _consume_name(c))
+        and t.validate(_consume_punct(c, '->'))
+        and t.validate(body := _expect_rule(c, rn.EXPRESSION))
     ):
         param_name = cast('TokenName', param_name_).value
         param_form = cast('TokenName', param_form_).value
@@ -261,7 +266,7 @@ def _parse_lambda(c: Cursor) -> syntax.Term:
 # f x
 def _parse_apply(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(function := _expect_rule(c, rn.VARIABLE)) and t.validate(argument := _expect_rule(c, rn.VARIABLE)):
+    if t.validate(function := c.consume_rule(rn.EXPRESSION)) and t.validate(argument := c.consume_rule(rn.EXPRESSION)):
         return terms.Apply(function=function, argument=argument, location=t.location)
     return t.fail()
 
@@ -274,7 +279,7 @@ def _scan_field(c: Cursor) -> terms.Field:
         and t.validate(_expect_punct(c, ':'))
         and t.validate(form_ := _consume_name(c))
         and t.validate(_expect_punct(c, '='))
-        and t.validate(value := _expect_rule(c, rn.VARIABLE))
+        and t.validate(value := _expect_rule(c, rn.EXPRESSION))
     ):
         return terms.Field(
             label=cast('TokenName', label_).value,
@@ -306,8 +311,8 @@ def _parse_record(c: Cursor) -> syntax.Term:
 def _parse_select(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
-        t.validate(record := c.consume_rule(rn.VARIABLE))
-        and t.validate(_expect_punct(c, '.'))
+        t.validate(record := c.consume_rule(rn.EXPRESSION))
+        and t.validate(_consume_punct(c, '.'))
         and t.validate(label := _expect_name(c))
     ):
         return terms.Select(record=record, label=cast('TokenName', label).value, location=t.location)
@@ -319,11 +324,11 @@ def _parse_if(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if (
         t.validate(_consume_keyword(c, 'if'))
-        and t.validate(condition := c.consume_rule(rn.VARIABLE))
+        and t.validate(condition := c.consume_rule(rn.EXPRESSION))
         and t.validate(_expect_keyword(c, 'then'))
-        and t.validate(then_clause := _expect_rule(c, rn.VARIABLE))
+        and t.validate(then_clause := _expect_rule(c, rn.EXPRESSION))
         and t.validate(_expect_keyword(c, 'else'))
-        and t.validate(else_clause := _expect_rule(c, rn.VARIABLE))
+        and t.validate(else_clause := _expect_rule(c, rn.EXPRESSION))
     ):
         return terms.If(condition=condition, then_clause=then_clause, else_clause=else_clause, location=t.location)
     return t.fail()
@@ -332,7 +337,7 @@ def _parse_if(c: Cursor) -> syntax.Term:
 # fix f
 def _parse_fix(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(_consume_keyword(c, 'fix')) and t.validate(function := _expect_rule(c, rn.VARIABLE)):
+    if t.validate(_consume_keyword(c, 'fix')) and t.validate(function := _expect_rule(c, rn.EXPRESSION)):
         return terms.Fix(function=function, location=t.location)
     return t.fail()
 
@@ -372,9 +377,13 @@ def _parse_byte_array(c: Cursor) -> syntax.Term:
     raise NotImplementedError('byte_array not implemented')
 
 
+def _parse_group(c: Cursor) -> syntax.Term:
+    raise NotImplementedError('group not implemented')
+
+
 def _parse_start(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(expression := _expect_rule(c, rn.VARIABLE)):
+    if t.validate(expression := _expect_rule(c, rn.EXPRESSION)):
         c.skip_whitespace()
         return expression
     return t.fail()

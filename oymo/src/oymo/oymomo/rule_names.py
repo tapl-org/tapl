@@ -18,6 +18,8 @@ def declare(rule_key: str) -> str:
 
 START = declare('start')
 TOKEN = declare('token')
+GROUP = declare('group')
+EXPRESSION = declare('expression')
 VARIABLE = declare('variable')
 LAMBDA = declare('lambda')
 APPLY = declare('apply')

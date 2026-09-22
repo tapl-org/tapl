@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from collections.abc import Generator
 from dataclasses import dataclass
 
 from oymo.core import syntax
@@ -32,10 +33,16 @@ class Variable(Term):
     name: str
     location: Location
 
+    def children(self) -> Generator[Term, None, None]:
+        yield from ()
+
 
 @dataclass
 class BruijnIndex(Term):
     index: int
+
+    def children(self) -> Generator[Term, None, None]:
+        yield from ()
 
 
 @dataclass
@@ -45,12 +52,19 @@ class Lambda(Term):
     body: Term
     location: Location
 
+    def children(self) -> Generator[Term, None, None]:
+        yield self.body
+
 
 @dataclass
 class Apply(Term):
     function: Term
     argument: Term
     location: Location
+
+    def children(self) -> Generator[Term, None, None]:
+        yield self.function
+        yield self.argument
 
 
 @dataclass
@@ -60,11 +74,17 @@ class Field(Term):
     value: Term
     location: Location
 
+    def children(self) -> Generator[Term, None, None]:
+        yield self.value
+
 
 @dataclass
 class Record(Term):
     fields: list[Field]
     location: Location
+
+    def children(self) -> Generator[Term, None, None]:
+        yield from (f.value for f in self.fields)
 
 
 @dataclass
@@ -72,6 +92,9 @@ class Select(Term):
     record: Term
     label: str
     location: Location
+
+    def children(self) -> Generator[Term, None, None]:
+        yield self.record
 
 
 @dataclass
@@ -81,11 +104,19 @@ class If(Term):
     else_clause: Term
     location: Location
 
+    def children(self) -> Generator[Term, None, None]:
+        yield self.condition
+        yield self.then_clause
+        yield self.else_clause
+
 
 @dataclass
 class Fix(Term):
     function: Term
     location: Location
+
+    def children(self) -> Generator[Term, None, None]:
+        yield self.function
 
 
 @dataclass
@@ -94,6 +125,9 @@ class Integer(Term):
     form: Form
     location: Location
 
+    def children(self) -> Generator[Term, None, None]:
+        yield from ()
+
 
 @dataclass
 class String(Term):
@@ -101,9 +135,15 @@ class String(Term):
     form: Form
     location: Location
 
+    def children(self) -> Generator[Term, None, None]:
+        yield from ()
+
 
 @dataclass
 class ByteArray(Term):
     value: bytes
     form: Form
     location: Location
+
+    def children(self) -> Generator[Term, None, None]:
+        yield from ()
