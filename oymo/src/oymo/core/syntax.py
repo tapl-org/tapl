@@ -182,8 +182,6 @@ class Location:
 @dataclass
 class ErrorTerm(Term):
     message: str
-    recovered: bool = False
-    guess: Term | None = None
     location: Location | None = None
 
     def children(self) -> Generator[Term, None, None]:

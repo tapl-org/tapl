@@ -48,3 +48,34 @@ def test_record_empty() -> None:
     term = parse_expr(text, rn.RECORD)
     assert isinstance(term, terms.Record)
     assert len(term.fields) == 0
+
+
+def test_record_one_field() -> None:
+    text = '{a: i32 = x,}'
+    term = parse_expr(text, rn.RECORD)
+    assert isinstance(term, terms.Record)
+    assert len(term.fields) == 1
+    field = term.fields[0]
+    assert field.label == 'a'
+    assert isinstance(field.form, terms.ScalarForm)
+    assert field.form.name == 'i32'
+    assert isinstance(field.value, terms.Variable)
+    assert field.value.name == 'x'
+
+
+def test_record_two_fields() -> None:
+    text = '{a: i32 = x, b: f64 = y,}'
+    term = parse_expr(text, rn.RECORD)
+    assert isinstance(term, terms.Record)
+    field = term.fields[0]
+    assert field.label == 'a'
+    assert isinstance(field.form, terms.ScalarForm)
+    assert field.form.name == 'i32'
+    assert isinstance(field.value, terms.Variable)
+    assert field.value.name == 'x'
+    field = term.fields[1]
+    assert field.label == 'b'
+    assert isinstance(field.form, terms.ScalarForm)
+    assert field.form.name == 'f64'
+    assert isinstance(field.value, terms.Variable)
+    assert field.value.name == 'y'

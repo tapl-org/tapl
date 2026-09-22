@@ -34,6 +34,7 @@ _PUNCT_SET = {
     '->',
     '{',
     '}',
+    ',',
 }
 
 _PUNCT_FIRST_CHARS = {c[0] for c in _PUNCT_SET}
@@ -175,11 +176,39 @@ def _parse_apply(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-# {}
+# a: i32 = x
+def _scan_field(c: Cursor) -> terms.Field:
+    t = c.start_tracker()
+    if (
+        t.validate(label_ := _consume_name(c))
+        and t.validate(_expect_punct(c, ':'))
+        and t.validate(form_ := _consume_name(c))
+        and t.validate(_expect_punct(c, '='))
+        and t.validate(value := _expect_rule(c, rn.VARIABLE))
+    ):
+        return terms.Field(
+            label=cast('TokenName', label_).value,
+            form=terms.ScalarForm(name=cast('TokenName', form_).value),
+            value=value,
+            location=t.location,
+        )
+    return t.fail()
+
+
+# {}, {a: i32 = x, b: i32 = y,}
 def _parse_record(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(_expect_punct(c, '{')) and t.validate(_expect_punct(c, '}')):
-        return terms.Record(fields=[], location=t.location)
+    if t.validate(_consume_punct(c, '{')):
+        fields: list[terms.Field] = []
+        while not c.is_end():
+            k = c.clone()
+            if t.validate(field := _scan_field(k)) and t.validate(_expect_punct(k, ',')):
+                fields.append(field)
+                c.copy_position_from(k)
+            else:
+                break
+        if t.validate(_expect_punct(c, '}')):
+            return terms.Record(fields=fields, location=t.location)
     return t.fail()
 
 

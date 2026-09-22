@@ -51,8 +51,16 @@ class Apply(syntax.Term):
 
 
 @dataclass
+class Field(syntax.Term):
+    label: str
+    form: Form
+    value: syntax.Term
+    location: syntax.Location
+
+
+@dataclass
 class Record(syntax.Term):
-    fields: list[tuple[str, syntax.Term]]
+    fields: list[Field]
     location: syntax.Location
 
 
@@ -60,6 +68,7 @@ class Record(syntax.Term):
 class Select(syntax.Term):
     record: syntax.Term
     label: str
+    location: syntax.Location
 
 
 @dataclass
