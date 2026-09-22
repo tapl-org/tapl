@@ -14,7 +14,9 @@ license = {text = "Apache-2.0 WITH LLVM-exception"}
 authors = [
   { name = "Orti Bazar", email = "orti.bazar@gmail.com" },
 ]
-dependencies = []
+dependencies = [
+  "llvmlite",
+]
 
 [project.urls]
 Documentation = "https://tapl-lang.org"
