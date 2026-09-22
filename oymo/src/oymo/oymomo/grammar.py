@@ -66,6 +66,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.RECORD, [_parse_record])
     add(rn.SELECT, [_parse_select])
     add(rn.IF, [_parse_if])
+    add(rn.FIX, [_parse_fix])
 
     return parser.Grammar(rule_map=rules, start_rule=rn.START)
 
@@ -263,6 +264,14 @@ def _parse_if(c: Cursor) -> syntax.Term:
         and t.validate(else_clause := _expect_rule(c, rn.VARIABLE))
     ):
         return terms.If(condition=condition, then_clause=then_clause, else_clause=else_clause, location=t.location)
+    return t.fail()
+
+
+# fix f
+def _parse_fix(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(_consume_keyword(c, 'fix')) and t.validate(function := _expect_rule(c, rn.VARIABLE)):
+        return terms.Fix(function=function, location=t.location)
     return t.fail()
 
 

@@ -100,3 +100,11 @@ def test_if() -> None:
     assert term.then_clause.name == 'y'
     assert isinstance(term.else_clause, terms.Variable)
     assert term.else_clause.name == 'z'
+
+
+def test_fix() -> None:
+    text = 'fix f'
+    term = parse_expr(text, rn.FIX)
+    assert isinstance(term, terms.Fix)
+    assert isinstance(term.function, terms.Variable)
+    assert term.function.name == 'f'
