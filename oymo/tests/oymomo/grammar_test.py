@@ -41,3 +41,10 @@ def test_apply() -> None:
     assert term.function.name == 'f'
     assert isinstance(term.argument, terms.Variable)
     assert term.argument.name == 'x'
+
+
+def test_record_empty() -> None:
+    text = '{}'
+    term = parse_expr(text, rn.RECORD)
+    assert isinstance(term, terms.Record)
+    assert len(term.fields) == 0

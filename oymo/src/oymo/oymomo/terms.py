@@ -53,6 +53,7 @@ class Apply(syntax.Term):
 @dataclass
 class Record(syntax.Term):
     fields: list[tuple[str, syntax.Term]]
+    location: syntax.Location
 
 
 @dataclass
