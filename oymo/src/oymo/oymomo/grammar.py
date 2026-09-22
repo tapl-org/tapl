@@ -49,6 +49,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.START, [_parse_start])
     add(rn.TOKEN, [_parse_token])
     add(rn.VARIABLE, [_parse_variable])
+    add(rn.LAMBDA, [_parse_lambda])
 
     return parser.Grammar(rule_map=rules, start_rule=rn.START)
 
@@ -128,7 +129,7 @@ def _parse_token(c: Cursor) -> syntax.Term:
     c.move_to_next()
     if char.isalpha() or char == '_':
         return scan_name(char)
-    if char in _PUNCT_SET:
+    if char in _PUNCT_FIRST_CHARS:
         return scan_punct(char)
     # Error
     return tracker.captured_error or syntax.ErrorTerm(
@@ -141,6 +142,24 @@ def _parse_variable(c: Cursor) -> syntax.Term:
     if t.validate(name_token := _expect_name(c)):
         name = cast('TokenName', name_token).value
         return terms.Variable(name=name, location=t.location)
+    return t.fail()
+
+
+# a:i32 -> x
+def _parse_lambda(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(param_name_ := _expect_name(c))
+        and t.validate(_expect_punct(c, ':'))
+        and t.validate(param_form_ := _expect_name(c))
+        and t.validate(_expect_punct(c, '->'))
+        and t.validate(body := _expect_rule(c, rn.VARIABLE))
+    ):
+        param_name = cast('TokenName', param_name_).value
+        param_form = cast('TokenName', param_form_).value
+        return terms.Lambda(
+            param_name=param_name, param_form=terms.ScalarForm(name=param_form), body=body, location=t.location
+        )
     return t.fail()
 
 

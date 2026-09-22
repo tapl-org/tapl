@@ -17,6 +17,17 @@ def parse_expr(text: str, start_rule: str, *, mode: syntax.Term = syntax.MODE_SA
 
 def test_variable() -> None:
     text = 'x'
-    term = parse_expr(text, rn.START)
+    term = parse_expr(text, rn.VARIABLE)
     assert isinstance(term, terms.Variable)
     assert term.name == 'x'
+
+
+def test_lambda() -> None:
+    text = 'a:i32 -> x'
+    term = parse_expr(text, rn.LAMBDA)
+    assert isinstance(term, terms.Lambda)
+    assert term.param_name == 'a'
+    assert isinstance(term.param_form, terms.ScalarForm)
+    assert term.param_form.name == 'i32'
+    assert isinstance(term.body, terms.Variable)
+    assert term.body.name == 'x'

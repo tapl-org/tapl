@@ -19,3 +19,4 @@ def declare(rule_key: str) -> str:
 START = declare('start')
 TOKEN = declare('token')
 VARIABLE = declare('variable')
+LAMBDA = declare('lambda')
