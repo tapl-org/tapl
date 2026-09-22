@@ -75,12 +75,6 @@ class Select(Term):
 
 
 @dataclass
-class Bits(Term):
-    data: bytes
-    form: Form
-
-
-@dataclass
 class If(Term):
     condition: Term
     then_clause: Term
@@ -91,4 +85,25 @@ class If(Term):
 @dataclass
 class Fix(Term):
     function: Term
+    location: Location
+
+
+@dataclass
+class Integer(Term):
+    value: int
+    form: Form
+    location: Location
+
+
+@dataclass
+class String(Term):
+    value: str
+    form: Form
+    location: Location
+
+
+@dataclass
+class ByteArray(Term):
+    value: bytes
+    form: Form
     location: Location

@@ -108,3 +108,30 @@ def test_fix() -> None:
     assert isinstance(term, terms.Fix)
     assert isinstance(term.function, terms.Variable)
     assert term.function.name == 'f'
+
+
+def test_positive_integer() -> None:
+    text = '123:i32'
+    term = parse_expr(text, rn.INTEGER)
+    assert isinstance(term, terms.Integer)
+    assert term.value == 123
+    assert isinstance(term.form, terms.ScalarForm)
+    assert term.form.name == 'i32'
+
+
+def test_negative_integer() -> None:
+    text = '-123:i32'
+    term = parse_expr(text, rn.INTEGER)
+    assert isinstance(term, terms.Integer)
+    assert term.value == -123
+    assert isinstance(term.form, terms.ScalarForm)
+    assert term.form.name == 'i32'
+
+
+def test_string() -> None:
+    text = '"hello":str'
+    term = parse_expr(text, rn.STRING)
+    assert isinstance(term, terms.String)
+    assert term.value == 'hello'
+    assert isinstance(term.form, terms.ScalarForm)
+    assert term.form.name == 'str'

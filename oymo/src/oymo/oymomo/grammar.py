@@ -13,20 +13,38 @@ from oymo.oymomo import terms
 
 @dataclasses.dataclass
 class TokenKeyword(syntax.Term):
-    location: syntax.Location
     value: str
+    location: syntax.Location
 
 
 @dataclasses.dataclass
 class TokenName(syntax.Term):
-    location: syntax.Location
     value: str
+    location: syntax.Location
 
 
 @dataclasses.dataclass
 class TokenPunct(syntax.Term):
-    location: syntax.Location
     value: str
+    location: syntax.Location
+
+
+@dataclasses.dataclass
+class TokenString(syntax.Term):
+    value: str
+    location: syntax.Location
+
+
+@dataclasses.dataclass
+class TokenInteger(syntax.Term):
+    value: int
+    location: syntax.Location
+
+
+@dataclasses.dataclass
+class TokenFloat(syntax.Term):
+    value: float
+    location: syntax.Location
 
 
 @dataclasses.dataclass
@@ -67,6 +85,9 @@ def get_grammar() -> parser.Grammar:
     add(rn.SELECT, [_parse_select])
     add(rn.IF, [_parse_if])
     add(rn.FIX, [_parse_fix])
+    add(rn.INTEGER, [_parse_integer])
+    add(rn.STRING, [_parse_string])
+    add(rn.BYTE_ARRAY, [_parse_byte_array])
 
     return parser.Grammar(rule_map=rules, start_rule=rn.START)
 
@@ -135,8 +156,45 @@ def _parse_token(c: Cursor) -> syntax.Term:
             result += char
             c.move_to_next()
         if result in _KEYWORDS:
-            return TokenKeyword(tracker.location, value=result)
-        return TokenName(tracker.location, value=result)
+            return TokenKeyword(value=result, location=tracker.location)
+        return TokenName(value=result, location=tracker.location)
+
+    def unterminated_string() -> syntax.Term:
+        return syntax.ErrorTerm(
+            message=f'unterminated string literal (detected at line {tracker.location.end.line}); perhaps you escaped the end quote?',
+            location=tracker.location,
+        )
+
+    def scan_string(quote: str) -> syntax.Term:
+        result = ''
+        if c.is_end():
+            return unterminated_string()
+        while (char := c.current_char()) != quote:
+            result += char
+            c.move_to_next()
+            if c.is_end():
+                return unterminated_string()
+        c.move_to_next()  # consume quote
+        return TokenString(value=result, location=tracker.location)
+
+    def scan_number(char: str) -> syntax.Term:
+        number_str = char
+        while not c.is_end() and (char := c.current_char()).isdigit():
+            number_str += char
+            c.move_to_next()
+        if not c.is_end() and c.current_char() == '.':
+            number_str += '.'
+            c.move_to_next()
+            if c.is_end() or not c.current_char().isdigit():
+                return syntax.ErrorTerm(
+                    message='Invalid float literal',
+                    location=tracker.location,
+                )
+            while not c.is_end() and (char := c.current_char()).isdigit():
+                number_str += char
+                c.move_to_next()
+            return TokenFloat(value=float(number_str), location=tracker.location)
+        return TokenInteger(value=int(number_str), location=tracker.location)
 
     def scan_punct(char: str) -> syntax.Term:
         k = c.clone()
@@ -151,17 +209,21 @@ def _parse_token(c: Cursor) -> syntax.Term:
         if char2 is not None:
             if char3 is not None and (temp := char + char2 + char3) in _PUNCT_SET:
                 c.copy_position_from(k)
-                return TokenPunct(tracker.location, value=temp)
+                return TokenPunct(value=temp, location=tracker.location)
             if (temp := char + char2) in _PUNCT_SET:
                 c.move_to_next()
-                return TokenPunct(tracker.location, value=temp)
+                return TokenPunct(value=temp, location=tracker.location)
         # single-character punctuation
-        return TokenPunct(tracker.location, value=char)
+        return TokenPunct(value=char, location=tracker.location)
 
     char = c.current_char()
     c.move_to_next()
     if char.isalpha() or char == '_':
         return scan_name(char)
+    if char in ("'", '"'):
+        return scan_string(char)
+    if char.isdigit() or (char == '-' and not c.is_end() and c.current_char().isdigit()):
+        return scan_number(char)
     if char in _PUNCT_FIRST_CHARS:
         return scan_punct(char)
     # Error
@@ -273,6 +335,41 @@ def _parse_fix(c: Cursor) -> syntax.Term:
     if t.validate(_consume_keyword(c, 'fix')) and t.validate(function := _expect_rule(c, rn.VARIABLE)):
         return terms.Fix(function=function, location=t.location)
     return t.fail()
+
+
+# 123:i32
+def _parse_integer(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(token := c.consume_rule(rn.TOKEN))
+        and isinstance(token, TokenInteger)
+        and t.validate(_expect_punct(c, ':'))
+        and t.validate(form := _consume_name(c))
+    ):
+        return terms.Integer(
+            value=token.value, form=terms.ScalarForm(name=cast('TokenName', form).value), location=token.location
+        )
+    return t.fail()
+
+
+# "hello":str
+def _parse_string(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(token := c.consume_rule(rn.TOKEN))
+        and isinstance(token, TokenString)
+        and t.validate(_expect_punct(c, ':'))
+        and t.validate(form := _consume_name(c))
+    ):
+        return terms.String(
+            value=token.value, form=terms.ScalarForm(name=cast('TokenName', form).value), location=token.location
+        )
+    return t.fail()
+
+
+# x400921fb54442d18:f64
+def _parse_byte_array(c: Cursor) -> syntax.Term:
+    raise NotImplementedError('byte_array not implemented')
 
 
 def _parse_start(c: Cursor) -> syntax.Term:
