@@ -41,6 +41,12 @@ dependencies = [
   "pytest-randomly",
   "pytest-rerunfailures",
   "pytest-xdist[psutil]",
+  "approvaltests",
+]
+
+[tool.hatch.envs.hatch-check-types]
+extra-dependencies = [
+  "approvaltests",
 ]
 
 [tool.pytest.ini_options]
