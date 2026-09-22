@@ -10,6 +10,11 @@ class Form:
 
 
 @dataclass
+class UnknownForm(Form):
+    pass
+
+
+@dataclass
 class ScalarForm(Form):
     name: str
 
@@ -42,6 +47,7 @@ class Lambda(syntax.Term):
 class Apply(syntax.Term):
     function: syntax.Term
     argument: syntax.Term
+    location: syntax.Location
 
 
 @dataclass

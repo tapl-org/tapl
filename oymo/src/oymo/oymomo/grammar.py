@@ -50,6 +50,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.TOKEN, [_parse_token])
     add(rn.VARIABLE, [_parse_variable])
     add(rn.LAMBDA, [_parse_lambda])
+    add(rn.APPLY, [_parse_apply])
 
     return parser.Grammar(rule_map=rules, start_rule=rn.START)
 
@@ -160,6 +161,14 @@ def _parse_lambda(c: Cursor) -> syntax.Term:
         return terms.Lambda(
             param_name=param_name, param_form=terms.ScalarForm(name=param_form), body=body, location=t.location
         )
+    return t.fail()
+
+
+# f x
+def _parse_apply(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(function := _expect_rule(c, rn.VARIABLE)) and t.validate(argument := _expect_rule(c, rn.VARIABLE)):
+        return terms.Apply(function=function, argument=argument, location=t.location)
     return t.fail()
 
 

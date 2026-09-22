@@ -31,3 +31,13 @@ def test_lambda() -> None:
     assert term.param_form.name == 'i32'
     assert isinstance(term.body, terms.Variable)
     assert term.body.name == 'x'
+
+
+def test_apply() -> None:
+    text = 'f x'
+    term = parse_expr(text, rn.APPLY)
+    assert isinstance(term, terms.Apply)
+    assert isinstance(term.function, terms.Variable)
+    assert term.function.name == 'f'
+    assert isinstance(term.argument, terms.Variable)
+    assert term.argument.name == 'x'
