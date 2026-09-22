@@ -12,6 +12,12 @@ from oymo.oymomo import terms
 
 
 @dataclasses.dataclass
+class TokenKeyword(syntax.Term):
+    location: syntax.Location
+    value: str
+
+
+@dataclasses.dataclass
 class TokenName(syntax.Term):
     location: syntax.Location
     value: str
@@ -40,6 +46,8 @@ _PUNCT_SET = {
 
 _PUNCT_FIRST_CHARS = {c[0] for c in _PUNCT_SET}
 
+_KEYWORDS = {'if', 'then', 'else', 'fix'}
+
 
 def get_grammar() -> parser.Grammar:
     rules: parser.GrammarRuleMap = {}
@@ -57,6 +65,7 @@ def get_grammar() -> parser.Grammar:
     add(rn.APPLY, [_parse_apply])
     add(rn.RECORD, [_parse_record])
     add(rn.SELECT, [_parse_select])
+    add(rn.IF, [_parse_if])
 
     return parser.Grammar(rule_map=rules, start_rule=rn.START)
 
@@ -66,6 +75,20 @@ def _expect_rule(c: Cursor, rule: str) -> syntax.Term:
     if t.validate(term := c.consume_rule(rule)):
         return term
     return t.captured_error or syntax.ErrorTerm(message=f'Expected rule "{rule}"', location=t.location)
+
+
+def _consume_keyword(c: Cursor, keyword: str) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, TokenKeyword) and term.value == keyword:
+        return term
+    return t.fail()
+
+
+def _expect_keyword(c: Cursor, keyword: str) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(term := c.consume_rule(rn.TOKEN)) and isinstance(term, TokenKeyword) and term.value == keyword:
+        return term
+    return t.captured_error or syntax.ErrorTerm(message=f'Expected "{keyword}", but found {term}', location=t.location)
 
 
 def _consume_name(c: Cursor) -> syntax.Term:
@@ -110,6 +133,8 @@ def _parse_token(c: Cursor) -> syntax.Term:
         while not c.is_end() and (char := c.current_char()) and (char.isalnum() or char == '_'):
             result += char
             c.move_to_next()
+        if result in _KEYWORDS:
+            return TokenKeyword(tracker.location, value=result)
         return TokenName(tracker.location, value=result)
 
     def scan_punct(char: str) -> syntax.Term:
@@ -223,6 +248,21 @@ def _parse_select(c: Cursor) -> syntax.Term:
         and t.validate(label := _expect_name(c))
     ):
         return terms.Select(record=record, label=cast('TokenName', label).value, location=t.location)
+    return t.fail()
+
+
+# if x then y else z
+def _parse_if(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if (
+        t.validate(_consume_keyword(c, 'if'))
+        and t.validate(condition := c.consume_rule(rn.VARIABLE))
+        and t.validate(_expect_keyword(c, 'then'))
+        and t.validate(then_clause := _expect_rule(c, rn.VARIABLE))
+        and t.validate(_expect_keyword(c, 'else'))
+        and t.validate(else_clause := _expect_rule(c, rn.VARIABLE))
+    ):
+        return terms.If(condition=condition, then_clause=then_clause, else_clause=else_clause, location=t.location)
     return t.fail()
 
 

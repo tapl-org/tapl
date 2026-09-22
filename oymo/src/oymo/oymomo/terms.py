@@ -4,6 +4,9 @@ from dataclasses import dataclass
 
 from oymo.core import syntax
 
+Term = syntax.Term
+Location = syntax.Location
+
 
 class Form:
     pass
@@ -25,60 +28,67 @@ class RecordForm(Form):
 
 
 @dataclass
-class Variable(syntax.Term):
+class Variable(Term):
     name: str
-    location: syntax.Location
+    location: Location
 
 
 @dataclass
-class BruijnIndex(syntax.Term):
+class BruijnIndex(Term):
     index: int
 
 
 @dataclass
-class Lambda(syntax.Term):
+class Lambda(Term):
     param_name: str
     param_form: Form
-    body: syntax.Term
-    location: syntax.Location
+    body: Term
+    location: Location
 
 
 @dataclass
-class Apply(syntax.Term):
-    function: syntax.Term
-    argument: syntax.Term
-    location: syntax.Location
+class Apply(Term):
+    function: Term
+    argument: Term
+    location: Location
 
 
 @dataclass
-class Field(syntax.Term):
+class Field(Term):
     label: str
     form: Form
-    value: syntax.Term
-    location: syntax.Location
+    value: Term
+    location: Location
 
 
 @dataclass
-class Record(syntax.Term):
+class Record(Term):
     fields: list[Field]
-    location: syntax.Location
+    location: Location
 
 
 @dataclass
-class Select(syntax.Term):
-    record: syntax.Term
+class Select(Term):
+    record: Term
     label: str
-    location: syntax.Location
+    location: Location
 
 
 @dataclass
-class If(syntax.Term):
-    condition: syntax.Term
-    then_clause: syntax.Term
-    else_clause: syntax.Term
-
-
-@dataclass
-class Bits(syntax.Term):
+class Bits(Term):
     data: bytes
     form: Form
+
+
+@dataclass
+class If(Term):
+    condition: Term
+    then_clause: Term
+    else_clause: Term
+    location: Location
+
+
+@dataclass
+class Fix(Term):
+    function: Term
+    location: Location

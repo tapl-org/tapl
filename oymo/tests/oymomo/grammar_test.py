@@ -88,3 +88,15 @@ def test_select() -> None:
     assert isinstance(term.record, terms.Variable)
     assert term.record.name == 'r'
     assert term.label == 'a'
+
+
+def test_if() -> None:
+    text = 'if x then y else z'
+    term = parse_expr(text, rn.IF)
+    assert isinstance(term, terms.If)
+    assert isinstance(term.condition, terms.Variable)
+    assert term.condition.name == 'x'
+    assert isinstance(term.then_clause, terms.Variable)
+    assert term.then_clause.name == 'y'
+    assert isinstance(term.else_clause, terms.Variable)
+    assert term.else_clause.name == 'z'
