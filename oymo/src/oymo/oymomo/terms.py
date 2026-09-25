@@ -9,22 +9,11 @@ Term = syntax.Term
 Location = syntax.Location
 
 
-class Form:
-    pass
+type Form = str | RecordForm
 
 
 @dataclass
-class UnknownForm(Form):
-    pass
-
-
-@dataclass
-class ScalarForm(Form):
-    name: str
-
-
-@dataclass
-class RecordForm(Form):
+class RecordForm:
     fields: list[tuple[str, Form]]
 
 

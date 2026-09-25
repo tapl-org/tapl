@@ -259,9 +259,7 @@ def _parse_lambda(c: Cursor) -> syntax.Term:
     ):
         param_name = cast('TokenName', param_name_).value
         param_form = cast('TokenName', param_form_).value
-        return terms.Lambda(
-            param_name=param_name, param_form=terms.ScalarForm(name=param_form), body=body, location=t.location
-        )
+        return terms.Lambda(param_name=param_name, param_form=param_form, body=body, location=t.location)
     return t.fail()
 
 
@@ -354,9 +352,7 @@ def _parse_integer(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, ':'))
         and t.validate(form := _consume_name(c))
     ):
-        return terms.Integer(
-            value=token.value, form=terms.ScalarForm(name=cast('TokenName', form).value), location=token.location
-        )
+        return terms.Integer(value=token.value, form=cast('TokenName', form).value, location=token.location)
     return t.fail()
 
 
@@ -369,9 +365,7 @@ def _parse_string(c: Cursor) -> syntax.Term:
         and t.validate(_expect_punct(c, ':'))
         and t.validate(form := _consume_name(c))
     ):
-        return terms.String(
-            value=token.value, form=terms.ScalarForm(name=cast('TokenName', form).value), location=token.location
-        )
+        return terms.String(value=token.value, form=cast('TokenName', form).value, location=token.location)
     return t.fail()
 
 

@@ -27,8 +27,7 @@ def test_lambda() -> None:
     term = parse_expr(text, rn.LAMBDA)
     assert isinstance(term, terms.Lambda)
     assert term.param_name == 'a'
-    assert isinstance(term.param_form, terms.ScalarForm)
-    assert term.param_form.name == 'i32'
+    assert term.param_form == 'i32'
     assert isinstance(term.body, terms.Variable)
     assert term.body.name == 'x'
 
@@ -116,8 +115,7 @@ def test_positive_integer() -> None:
     term = parse_expr(text, rn.INTEGER)
     assert isinstance(term, terms.Integer)
     assert term.value == 123
-    assert isinstance(term.form, terms.ScalarForm)
-    assert term.form.name == 'i32'
+    assert term.form == 'i32'
 
 
 def test_negative_integer() -> None:
@@ -125,8 +123,7 @@ def test_negative_integer() -> None:
     term = parse_expr(text, rn.INTEGER)
     assert isinstance(term, terms.Integer)
     assert term.value == -123
-    assert isinstance(term.form, terms.ScalarForm)
-    assert term.form.name == 'i32'
+    assert term.form == 'i32'
 
 
 def test_string() -> None:
@@ -134,8 +131,7 @@ def test_string() -> None:
     term = parse_expr(text, rn.STRING)
     assert isinstance(term, terms.String)
     assert term.value == 'hello'
-    assert isinstance(term.form, terms.ScalarForm)
-    assert term.form.name == 'str'
+    assert term.form == 'str'
 
 
 def test_parse_simplest_main() -> None:
