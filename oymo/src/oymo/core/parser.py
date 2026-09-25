@@ -235,6 +235,13 @@ class PegEngine:
             cell.term, cell.next_row, cell.next_col = term, next_row, next_col
         cell.term = syntax.ErrorTerm(message='PegEngine: Growing failed due to too many iterations.')
 
+    def start_rule(self, key: CellKey, cell: Cell, config: Config) -> None:
+        cell.state = CellState.START
+        cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(key, config)
+        cell.state = CellState.DONE
+        if cell.growable and not isinstance(cell.term, syntax.ErrorTerm):
+            self.grow_seed(key, cell, config)
+
     def apply_rule(self, row: int, col: int, rule: str, config: Config) -> tuple[syntax.Term, int, int]:
         self.rule_call_stack_limit -= 1
         if self.rule_call_stack_limit < 0:
@@ -249,11 +256,7 @@ class PegEngine:
             self.cell_memo[cell_key] = cell
         try:
             if cell.state == CellState.BLANK:
-                cell.state = CellState.START
-                cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(cell_key, config)
-                cell.state = CellState.DONE
-                if cell.growable and not isinstance(cell.term, syntax.ErrorTerm):
-                    self.grow_seed(cell_key, cell, config)
+                self.start_rule(cell_key, cell, config)
                 return cell.term, cell.next_row, cell.next_col
 
             if cell.state == CellState.START:
