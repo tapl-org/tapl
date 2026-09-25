@@ -154,7 +154,8 @@ def parse_sum__binop(c: Cursor) -> syntax.Term:
 
 def parse_apply(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
-    if t.validate(expr := expect_rule(c, 'expr')) and t.validate(expr2 := expect_rule(c, 'expr')):
+    print(f'*** apply: {c.engine.dump(print_traces=True)}')
+    if t.validate(expr := c.consume_rule('expr')) and t.validate(expr2 := c.consume_rule('expr')):
         return Apply(t.location, expr, expr2)
     return t.fail()
 
@@ -184,7 +185,7 @@ RULES: parser.GrammarRuleMap = {
     'product': [parse_product__binop, 'value'],
     'sum': [parse_sum__binop, 'product'],
     'apply': [parse_apply],
-    'expr': ['sum', 'apply'],
+    'expr': ['apply', 'sum'],
     'start': [parse_start],
     'none': [parse_none],
     'route_error': ['not_found_rule'],
@@ -256,7 +257,7 @@ def test_apply():
 
 
 def tst_apply2():
-    parsed_term = parse('1 2')
+    parsed_term = parse('1 2', debug=True)
     assert dump(parsed_term) == 'A(N1(N2))'
 
 
