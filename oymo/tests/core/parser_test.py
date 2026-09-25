@@ -32,6 +32,13 @@ class BinOp(Term):
     right: Term
 
 
+@dataclass
+class Apply(Term):
+    location: Location
+    function: Term
+    argument: Term
+
+
 class EndOfText(Term):
     def __str__(self) -> str:
         return 'EndOfText'
@@ -145,6 +152,13 @@ def parse_sum__binop(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
+def parse_apply(c: Cursor) -> syntax.Term:
+    t = c.start_tracker()
+    if t.validate(expr := expect_rule(c, 'expr')) and t.validate(expr2 := expect_rule(c, 'expr')):
+        return Apply(t.location, expr, expr2)
+    return t.fail()
+
+
 def parse_start(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(expr := expect_rule(c, 'expr')):
@@ -161,6 +175,7 @@ def parse_none(c: Cursor):
 # value   <- '(' expr (')'|^E) / number / |^E
 # product <- product '*' value / value
 # sum     <- sum '+' product / product
+# apply   <- expr expr
 # expr    <- sum
 
 RULES: parser.GrammarRuleMap = {
@@ -168,15 +183,16 @@ RULES: parser.GrammarRuleMap = {
     'value': [parse_value__expr, parse_value__number, parse_value__error],
     'product': [parse_product__binop, 'value'],
     'sum': [parse_sum__binop, 'product'],
-    'expr': ['sum'],
+    'apply': [parse_apply],
+    'expr': ['sum', 'apply'],
     'start': [parse_start],
     'none': [parse_none],
     'route_error': ['not_found_rule'],
 }
 
 
-def parse(text: str, *, debug: bool = False) -> syntax.Term:
-    return parser.parse_text(text, parser.Grammar(RULES, 'start'), debug=debug)
+def parse(text: str, *, start_rule: str = 'start', debug: bool = False) -> syntax.Term:
+    return parser.parse_text(text, parser.Grammar(RULES, start_rule), debug=debug)
 
 
 def dump(term: Term | None) -> str:
@@ -186,6 +202,10 @@ def dump(term: Term | None) -> str:
         left = dump(term.left)
         right = dump(term.right)
         return f'B({left}{term.op}{right})'
+    if isinstance(term, Apply):
+        function = dump(term.function)
+        argument = dump(term.argument)
+        return f'A({function}({argument}))'
     return str(term)
 
 
@@ -228,6 +248,16 @@ def test_expr3_and_location():
 def test_whitespace():
     parsed_term = parse(' ( 2  + 3 ) *   4      ')
     assert dump(parsed_term) == 'B(B(N2+N3)*N4)'
+
+
+def test_apply():
+    parsed_term = parse('1 2', start_rule='apply')
+    assert dump(parsed_term) == 'A(N1(N2))'
+
+
+def tst_apply2():
+    parsed_term = parse('1 2')
+    assert dump(parsed_term) == 'A(N1(N2))'
 
 
 def test_expected_error():
