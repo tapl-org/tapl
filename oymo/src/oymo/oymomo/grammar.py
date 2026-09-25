@@ -273,7 +273,7 @@ def _parse_apply(c: Cursor) -> syntax.Term:
     return t.fail()
 
 
-# a: i32 = x
+# a = x
 def _scan_field(c: Cursor) -> terms.Field:
     t = c.start_tracker()
     if (
@@ -289,7 +289,7 @@ def _scan_field(c: Cursor) -> terms.Field:
     return t.fail()
 
 
-# {}, {a: i32 = x, b: i32 = y,}
+# {}, {a = x, b = y,}
 def _parse_record(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_punct(c, '[')):
