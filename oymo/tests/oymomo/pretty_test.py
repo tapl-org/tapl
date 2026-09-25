@@ -24,3 +24,11 @@ def to_pretty(text: str) -> str:
 
 def test_integer() -> None:
     assert to_pretty('123:i32') == '123:i32'
+
+
+def test_string() -> None:
+    assert to_pretty('"hello":str') == '"hello":str'
+
+
+def test_variable() -> None:
+    assert to_pretty('x') == 'x'

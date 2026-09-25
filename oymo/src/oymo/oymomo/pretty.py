@@ -11,4 +11,8 @@ def print_term(term: syntax.Term) -> str:
 def print_atom(term: syntax.Term) -> str:
     if isinstance(term, terms.Integer):
         return f'{term.value}:{term.form}'
+    if isinstance(term, terms.String):
+        return f'"{term.value}":{term.form}'
+    if isinstance(term, terms.Variable):
+        return f'{term.name}'
     return f'({print_term(term)})'
