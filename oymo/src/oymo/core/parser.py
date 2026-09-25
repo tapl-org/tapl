@@ -235,7 +235,7 @@ class PegEngine:
                 if next_row == seed_next_row and next_col == seed_next_col:
                     return
                 cell.term, cell.next_row, cell.next_col = term, next_row, next_col
-            cell.term = syntax.ErrorTerm(message='PegEngine: Growing failed due to too many iterations.')
+            raise RuntimeError('PegEngine: Growing failed due to too many iterations.')
 
     def apply_rule(self, row: int, col: int, rule: str, config: Config) -> tuple[syntax.Term, int, int]:
         self.rule_call_stack_limit -= 1
@@ -258,7 +258,7 @@ class PegEngine:
             # Rule already parsed at this position, so no further action is required.
             pass
         else:
-            cell.term = syntax.ErrorTerm(f'PEG Parser Engine: Unknown cell state [{cell.state}] at {cell_key}.')
+            raise RuntimeError(f'PEG Parser Engine: Unknown cell state [{cell.state}] at {cell_key}.')
         self.rule_call_stack_limit += 1
         return cell.term, cell.next_row, cell.next_col
 
