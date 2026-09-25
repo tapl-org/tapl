@@ -58,7 +58,7 @@ def test_record_empty() -> None:
 
 
 def test_record_one_field() -> None:
-    text = '[a = x,]'
+    text = '[a = x]'
     term = parse_expr(text, rn.RECORD)
     assert isinstance(term, terms.Record)
     assert len(term.fields) == 1
@@ -139,7 +139,7 @@ def test_string() -> None:
 
 
 def test_parse_simplest_main() -> None:
-    text = 'realm:_ -> module:_ -> [main = a:i32 -> 0:i32,]'
+    text = 'realm:_ -> module:_ -> [main = a:i32 -> 0:i32]'
     term = parse_expr(text, rn.START)
     errors = util.gather_errors(term)
     assert len(errors) == 0

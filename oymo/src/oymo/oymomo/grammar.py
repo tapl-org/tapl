@@ -294,13 +294,17 @@ def _parse_record(c: Cursor) -> syntax.Term:
     t = c.start_tracker()
     if t.validate(_consume_punct(c, '[')):
         fields: list[terms.Field] = []
-        while not c.is_end():
-            k = c.clone()
-            if t.validate(field := _scan_field(k)) and t.validate(_expect_punct(k, ',')):
+        k = c.clone()
+        if t.validate(first_field := _scan_field(k)):
+            fields.append(first_field)
+            c.copy_position_from(k)
+            while t.validate(_consume_punct(k, ',')) and t.validate(field := _scan_field(k)):
                 fields.append(field)
                 c.copy_position_from(k)
-            else:
-                break
+        k = c.clone()
+        if t.validate(_consume_punct(k, ',')):
+            # Allow trailing comma
+            c.copy_position_from(k)
         if t.validate(_expect_punct(c, ']')):
             return terms.Record(fields=fields, location=t.location)
     return t.fail()
