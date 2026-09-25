@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import dataclasses
 import enum
+import io
+import itertools
 import logging
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 
 from oymo.core import line_record, syntax, tapl_error
 
@@ -18,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 ParseFunction = Callable[['Cursor'], syntax.Term]
-OrderedParseFunctions = Iterable[ParseFunction | str]
+OrderedParseFunctions = list[ParseFunction | str]
 GrammarRuleMap = dict[str, OrderedParseFunctions]
 
 
@@ -166,9 +168,6 @@ CellMemo = dict[CellKey, Cell]
 
 
 class PegEngine:
-    # Bounds left-recursion growth so a cycle cannot loop forever.
-    _MAX_GROW_ITERATIONS = 37
-
     def __init__(self, line_records: list[line_record.LineRecord], grammar_rule_map: GrammarRuleMap):
         self.line_records = line_records
         self.grammar_rule_map = grammar_rule_map
@@ -218,31 +217,25 @@ class PegEngine:
                 return term, row, col
         return ParseFailed, key.row, key.col
 
-    def start_rule(self, key: CellKey, cell: Cell, config: Config) -> None:
-        cell.state = CellState.START
-        cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(key, config)
-        cell.state = CellState.DONE
-        if isinstance(cell.term, syntax.ErrorTerm) or not cell.growable:
-            return
-
-        seed_end = cell.next_row, cell.next_col
-        for _ in range(self._MAX_GROW_ITERATIONS):
+    def grow_seed(self, key: CellKey, cell: Cell, config: Config) -> None:
+        seed_next_row, seed_next_col = cell.next_row, cell.next_col
+        iteration_count = 10  # Prevent infinite loop by limiting iterations
+        while iteration_count > 0:
+            iteration_count -= 1
             term, next_row, next_col = self.call_ordered_parse_functions(key, config)
+            if term is ParseFailed:
+                cell.term = syntax.ErrorTerm(
+                    message='PegEngine: Once ordered_parse_functions was successful, but it failed afterward. This indicates an inconsistency between ordered parse functions.'
+                )
+                return
             if isinstance(term, syntax.ErrorTerm):
-                if term is ParseFailed:
-                    term = syntax.ErrorTerm(
-                        message=(
-                            'PegEngine: Once ordered_parse_functions was successful, but it failed afterward. '
-                            'This indicates an inconsistency between ordered parse functions.'
-                        )
-                    )
                 cell.term = term
                 return
-            # Same end as the seed means growth cycled; keep the result already stored.
-            if (next_row, next_col) == seed_end:
+            # Stop growing when the new next position mathches seed's next position, as this indicates a cycle.
+            if next_row == seed_next_row and next_col == seed_next_col:
                 return
             cell.term, cell.next_row, cell.next_col = term, next_row, next_col
-        raise RuntimeError('PegEngine: Growing failed due to too many iterations.')
+        cell.term = syntax.ErrorTerm(message='PegEngine: Growing failed due to too many iterations.')
 
     def apply_rule(self, row: int, col: int, rule: str, config: Config) -> tuple[syntax.Term, int, int]:
         self.rule_call_stack_limit -= 1
@@ -257,7 +250,11 @@ class PegEngine:
             )
             self.cell_memo[cell_key] = cell
         if cell.state == CellState.BLANK:
-            self.start_rule(cell_key, cell, config)
+            cell.state = CellState.START
+            cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(cell_key, config)
+            cell.state = CellState.DONE
+            if cell.growable and not isinstance(cell.term, syntax.ErrorTerm):
+                self.grow_seed(cell_key, cell, config)
         elif cell.state == CellState.START:
             # Left recursion detected. Delaying expansion of this rule.
             cell.growable = True
@@ -265,9 +262,159 @@ class PegEngine:
             # Rule already parsed at this position, so no further action is required.
             pass
         else:
-            raise RuntimeError(f'PEG Parser Engine: Unknown cell state [{cell.state}] at {cell_key}.')
+            cell.term = syntax.ErrorTerm(f'PEG Parser Engine: Unknown cell state [{cell.state}] at {cell_key}.')
         self.rule_call_stack_limit += 1
         return cell.term, cell.next_row, cell.next_col
+
+    def dump(self) -> str:
+        return 'Use PegEngineDebug to get the engine dump.'
+
+
+@dataclasses.dataclass
+class ParseTrace:
+    start_row: int
+    start_col: int
+    end_row: int
+    end_col: int
+    rule: str
+    function_name: str
+    term: syntax.Term
+    start_call_order: int
+    end_call_order: int
+    growing_id: int | None
+    applyied_rules: list[str]
+
+
+class PegEngineDebug(PegEngine):
+    def __init__(self, line_records: list[line_record.LineRecord], grammar_rule_map: GrammarRuleMap):
+        super().__init__(line_records, grammar_rule_map)
+        self.parse_traces: list[ParseTrace] = []
+        self._next_call_order = 0
+        self.growing_id: int | None = None
+        self.next_growing_id = 0
+        self.applied_rules: list[str] = []
+
+    def next_call_order(self) -> int:
+        self._next_call_order += 1
+        return self._next_call_order
+
+    def call_parse_function(
+        self, key: CellKey, function: ParseFunction | str, config: Config
+    ) -> tuple[syntax.Term, int, int]:
+        old_applied_rules = self.applied_rules
+        self.applied_rules = []
+        start_call_order = self.next_call_order()
+        term, row, col = super().call_parse_function(key, function, config=config)
+        self.parse_traces.append(
+            ParseTrace(
+                start_row=key.row,
+                start_col=key.col,
+                end_row=row,
+                end_col=col,
+                rule=key.rule,
+                function_name=parse_function_name(function),
+                term=term,
+                start_call_order=start_call_order,
+                end_call_order=self.next_call_order(),
+                growing_id=self.growing_id,
+                applyied_rules=self.applied_rules,
+            )
+        )
+        self.applied_rules = old_applied_rules
+        return term, row, col
+
+    def grow_seed(self, key: CellKey, cell: Cell, config: Config) -> None:
+        old_growing_id = self.growing_id
+        self.next_growing_id += 1
+        self.growing_id = self.next_growing_id
+        super().grow_seed(key, cell, config)
+        self.growing_id = old_growing_id
+
+    def apply_rule(self, row: int, col: int, rule: str, config: Config) -> tuple[syntax.Term, int, int]:
+        self.applied_rules.append(f'{row}:{col}:{rule}')
+        term, next_row, next_col = super().apply_rule(row, col, rule, config)
+        if self.cell_memo[CellKey(row, col, rule)].state == CellState.START:
+            self.applied_rules[-1] += ' (left recursion)'
+        return term, next_row, next_col
+
+    def dump_term(self, term: syntax.Term | None) -> tuple[str, str]:
+        if term is None:
+            return 'Error', 'None'
+        if term is ParseFailed:
+            return 'Fail', ''
+        if isinstance(term, syntax.ErrorTerm):
+            return 'Error', term.message
+        return 'Success', f'term={term.__class__.__qualname__}'
+
+    def dump_table(self, output: io.StringIO, table: list[list[str]]) -> None:
+        col_widths = [max(len(str(item)) for item in col) for col in zip(*table, strict=False)]
+        row_format = ' '.join(f'{{:<{width + 2}}}' for width in col_widths[:-1]) + ' {}'
+        output.writelines(row_format.format(*row) + '\n' for row in table)
+
+    def dump_cell_memo(self) -> list[list[str]]:
+        table = [['Start/Rule', 'End', 'Status', 'Details']]
+        sorted_cells = sorted(self.cell_memo.items(), key=lambda item: (item[0].row, item[0].col, item[0].rule))
+        for (row, col), group in itertools.groupby(sorted_cells, key=lambda item: (item[0].row, item[0].col)):
+            table.append([f'{row}:{col}', '', '', ''])
+            for item in group:
+                cell = item[1]
+                if cell.state == CellState.DONE:
+                    state, details = self.dump_term(cell.term)
+                else:
+                    state = cell.state.name.capitalize()
+                    details = ''
+                state += ' Grown' if cell.growable else ''
+                table.append([f'   {item[0].rule}', f'{cell.next_row}:{cell.next_col}', state, details])
+        return table
+
+    def tableize_parse_traces(self) -> list[list[str]]:
+        sorted_traces = sorted(self.parse_traces, key=lambda t: (t.start_row, t.start_col, t.rule, t.start_call_order))
+        table = [['Start/Rule', 'End', 'Order#', 'Status/Grow', 'Applied rules', 'Details']]
+        last_pos = None
+        for (row, col, rule), group in itertools.groupby(
+            sorted_traces, key=lambda t: (t.start_row, t.start_col, t.rule)
+        ):
+            pos = f'{row}:{col}'
+            if last_pos != pos:
+                table.append(['', '', '', '', '', ''])
+            last_pos = pos
+            table.append([f'{row}:{col}:{rule}', '', '', '', '', ''])
+            for trace in group:
+                rule_key = f'   {trace.function_name}'
+                status, details = self.dump_term(trace.term)
+                if trace.growing_id:
+                    status += ' G' + str(trace.growing_id)
+                table.append(
+                    [
+                        rule_key,
+                        f'{trace.end_row}:{trace.end_col}',
+                        f'{trace.start_call_order}..{trace.end_call_order}',
+                        status,
+                        ', '.join(trace.applyied_rules),
+                        details,
+                    ]
+                )
+        return table
+
+    def dump(self) -> str:
+        output = io.StringIO()
+        output.write('\n------PEG Engine Dump (Rows sorted by row,col,rule,call_order)--------')
+        # Print line records
+        max_len = max(len(line.text) for line in self.line_records)
+        output.write('\n  ')
+        for i in range(max_len):
+            output.write(str(i % 10))
+        output.write('\n')
+        for i, line in enumerate(self.line_records):
+            output.write(f'{i % 10}|')
+            output.write(line.text)
+
+        output.write('\n\n')
+        self.dump_table(output, self.dump_cell_memo())
+        output.write('\n\n')
+        self.dump_table(output, self.tableize_parse_traces())
+        output.write('\n------End of PEG Engine Dump------------------------------------------\n')
+        return output.getvalue()
 
 
 def find_first_position(line_records: list[line_record.LineRecord]) -> tuple[int, int]:
@@ -281,13 +428,13 @@ def parse_line_records(
     line_records: list[line_record.LineRecord], grammar: Grammar, *, debug: bool = False, config: Config | None = None
 ) -> syntax.Term:
     config = config or Config(mode=syntax.MODE_SAFE)
-    engine = PegEngine(line_records, grammar.rule_map)
+    engine = PegEngineDebug(line_records, grammar.rule_map) if debug else PegEngine(line_records, grammar.rule_map)
     row, col = find_first_position(line_records)
     if row == len(line_records) and col == 0:
         return syntax.ErrorTerm(message='Empty text.')
     term, next_row, next_col = engine.apply_rule(row, col, grammar.start_rule, config=config)
     if debug:
-        logger.warning('Will print the engine dump soon.')
+        logger.warning(engine.dump())
     if not isinstance(term, syntax.ErrorTerm) and not (next_row == len(line_records) and next_col == 0):
         lineno = line_records[0].line_number if line_records else -1
         return syntax.ErrorTerm(

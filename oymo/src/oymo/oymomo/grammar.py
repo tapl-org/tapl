@@ -2,7 +2,6 @@
 
 
 import dataclasses
-from collections.abc import Iterable
 from typing import cast
 
 from oymo.core import parser, syntax
@@ -72,7 +71,7 @@ _KEYWORDS = {'if', 'then', 'else', 'fix'}
 def get_grammar() -> parser.Grammar:
     rules: parser.GrammarRuleMap = {}
 
-    def add(name: str, ordered_parse_functions: Iterable[parser.ParseFunction | str]) -> None:
+    def add(name: str, ordered_parse_functions: list[parser.ParseFunction | str]) -> None:
         if name in rules:
             raise ValueError(f'Rule {name} is already defined.')
         # TODO: Wrap ordered_parse_functions in an "tuple" to ensure internal immutability
