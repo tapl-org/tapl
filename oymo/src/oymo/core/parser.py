@@ -166,6 +166,9 @@ CellMemo = dict[CellKey, Cell]
 
 
 class PegEngine:
+    # Bounds left-recursion growth so a cycle cannot loop forever.
+    _MAX_GROW_ITERATIONS = 37
+
     def __init__(self, line_records: list[line_record.LineRecord], grammar_rule_map: GrammarRuleMap):
         self.line_records = line_records
         self.grammar_rule_map = grammar_rule_map
@@ -219,23 +222,27 @@ class PegEngine:
         cell.state = CellState.START
         cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(key, config)
         cell.state = CellState.DONE
-        if cell.growable and not isinstance(cell.term, syntax.ErrorTerm):
-            seed_next_row, seed_next_col = cell.next_row, cell.next_col
-            for _ in range(37):  # 37 is the magic number for preventing infinite loop
-                term, next_row, next_col = self.call_ordered_parse_functions(key, config)
+        if isinstance(cell.term, syntax.ErrorTerm) or not cell.growable:
+            return
+
+        seed_end = cell.next_row, cell.next_col
+        for _ in range(self._MAX_GROW_ITERATIONS):
+            term, next_row, next_col = self.call_ordered_parse_functions(key, config)
+            if isinstance(term, syntax.ErrorTerm):
                 if term is ParseFailed:
-                    cell.term = syntax.ErrorTerm(
-                        message='PegEngine: Once ordered_parse_functions was successful, but it failed afterward. This indicates an inconsistency between ordered parse functions.'
+                    term = syntax.ErrorTerm(
+                        message=(
+                            'PegEngine: Once ordered_parse_functions was successful, but it failed afterward. '
+                            'This indicates an inconsistency between ordered parse functions.'
+                        )
                     )
-                    return
-                if isinstance(term, syntax.ErrorTerm):
-                    cell.term = term
-                    return
-                # Stop growing when the new next position mathches seed's next position, as this indicates a cycle.
-                if next_row == seed_next_row and next_col == seed_next_col:
-                    return
-                cell.term, cell.next_row, cell.next_col = term, next_row, next_col
-            raise RuntimeError('PegEngine: Growing failed due to too many iterations.')
+                cell.term = term
+                return
+            # Same end as the seed means growth cycled; keep the result already stored.
+            if (next_row, next_col) == seed_end:
+                return
+            cell.term, cell.next_row, cell.next_col = term, next_row, next_col
+        raise RuntimeError('PegEngine: Growing failed due to too many iterations.')
 
     def apply_rule(self, row: int, col: int, rule: str, config: Config) -> tuple[syntax.Term, int, int]:
         self.rule_call_stack_limit -= 1
