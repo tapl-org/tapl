@@ -42,6 +42,16 @@ def test_apply() -> None:
     assert term.argument.name == 'x'
 
 
+def tst_apply_rule_start() -> None:
+    text = 'f x'
+    term = parse_expr(text, rn.START, debug=True)
+    assert isinstance(term, terms.Apply)
+    assert isinstance(term.function, terms.Variable)
+    assert term.function.name == 'f'
+    assert isinstance(term.argument, terms.Variable)
+    assert term.argument.name == 'x'
+
+
 def test_group() -> None:
     text = '(x)'
     term = parse_expr(text, rn.GROUP)

@@ -10,6 +10,16 @@ def print_term(term: syntax.Term) -> str:
     return print_atom(term)
 
 
+def print_apply(term: syntax.Term) -> str:
+    if isinstance(term, terms.Apply):
+        return f'{print_apply(term.function)} {print_atom(term.argument)}'
+    return print_path(term)
+
+
+def print_path(term: syntax.Term) -> str:
+    return print_atom(term)
+
+
 def print_atom(term: syntax.Term) -> str:
     if isinstance(term, terms.Integer):
         return f'{term.value}:{term.form}'
