@@ -32,3 +32,7 @@ def test_string() -> None:
 
 def test_variable() -> None:
     assert to_pretty('x') == 'x'
+
+
+def test_lambda() -> None:
+    assert to_pretty('a:i32 -> a') == 'λa:i32.a'

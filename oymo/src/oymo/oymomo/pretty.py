@@ -5,6 +5,8 @@ from oymo.oymomo import terms
 
 
 def print_term(term: syntax.Term) -> str:
+    if isinstance(term, terms.Lambda):
+        return f'λ{term.param_name}:{term.param_form}.{print_term(term.body)}'
     return print_atom(term)
 
 
