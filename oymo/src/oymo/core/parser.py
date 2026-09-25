@@ -221,9 +221,7 @@ class PegEngine:
         cell.state = CellState.DONE
         if cell.growable and not isinstance(cell.term, syntax.ErrorTerm):
             seed_next_row, seed_next_col = cell.next_row, cell.next_col
-            iteration_count = 10  # Prevent infinite loop by limiting iterations
-            while iteration_count > 0:
-                iteration_count -= 1
+            for _ in range(37):  # 37 is the magic number for preventing infinite loop
                 term, next_row, next_col = self.call_ordered_parse_functions(key, config)
                 if term is ParseFailed:
                     cell.term = syntax.ErrorTerm(
