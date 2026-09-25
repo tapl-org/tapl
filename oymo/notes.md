@@ -24,3 +24,8 @@ Point
   form: (x:Int, y:Int)
   LLVM layout: { i32, i32 }
 ```
+
+## Punctuation
+
+[] brackets denote records instead of curly braces, to preserve order
+() parentheses are used only for grouping

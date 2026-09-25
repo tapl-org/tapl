@@ -70,7 +70,6 @@ class Apply(Term):
 @dataclass
 class Field(Term):
     label: str
-    form: Form
     value: Term
     location: Location
 
@@ -84,7 +83,7 @@ class Record(Term):
     location: Location
 
     def children(self) -> Generator[Term, None, None]:
-        yield from (f.value for f in self.fields)
+        yield from self.fields
 
 
 @dataclass
