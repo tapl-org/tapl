@@ -251,24 +251,18 @@ class PegEngine:
                 next_row=cell_key.row, next_col=cell_key.col, growable=False, state=CellState.BLANK, term=ParseFailed
             )
             self.cell_memo[cell_key] = cell
-        try:
-            if cell.state == CellState.BLANK:
-                self.start_rule(cell_key, cell, config)
-                return cell.term, cell.next_row, cell.next_col
-
-            if cell.state == CellState.START:
-                # Left recursion detected. Delaying expansion of this rule.
-                cell.growable = True
-                return cell.term, cell.next_row, cell.next_col
-
-            if cell.state == CellState.DONE:
-                # Rule already parsed at this position, so no further action is required.
-                return cell.term, cell.next_row, cell.next_col
-
+        if cell.state == CellState.BLANK:
+            self.start_rule(cell_key, cell, config)
+        elif cell.state == CellState.START:
+            # Left recursion detected. Delaying expansion of this rule.
+            cell.growable = True
+        elif cell.state == CellState.DONE:
+            # Rule already parsed at this position, so no further action is required.
+            pass
+        else:
             cell.term = syntax.ErrorTerm(f'PEG Parser Engine: Unknown cell state [{cell.state}] at {cell_key}.')
-            return cell.term, cell.next_row, cell.next_col
-        finally:
-            self.rule_call_stack_limit += 1
+        self.rule_call_stack_limit += 1
+        return cell.term, cell.next_row, cell.next_col
 
 
 def find_first_position(line_records: list[line_record.LineRecord]) -> tuple[int, int]:
