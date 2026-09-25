@@ -266,7 +266,8 @@ class PegEngine:
         self.rule_call_stack_limit += 1
         return cell.term, cell.next_row, cell.next_col
 
-    def dump(self) -> str:
+    def dump(self, *, print_traces: bool = False) -> str:
+        del print_traces
         return 'Use PegEngineDebug to get the engine dump.'
 
 
@@ -363,7 +364,7 @@ class PegEngineDebug(PegEngine):
                 else:
                     state = cell.state.name.capitalize()
                     details = ''
-                state += ' Grown' if cell.growable else ''
+                state += ' Growable' if cell.growable else ''
                 table.append([f'   {item[0].rule}', f'{cell.next_row}:{cell.next_col}', state, details])
         return table
 
@@ -396,7 +397,7 @@ class PegEngineDebug(PegEngine):
                 )
         return table
 
-    def dump(self) -> str:
+    def dump(self, *, print_traces: bool = False) -> str:
         output = io.StringIO()
         output.write('\n------PEG Engine Dump (Rows sorted by row,col,rule,call_order)--------')
         # Print line records
@@ -411,8 +412,9 @@ class PegEngineDebug(PegEngine):
 
         output.write('\n\n')
         self.dump_table(output, self.dump_cell_memo())
-        output.write('\n\n')
-        self.dump_table(output, self.tableize_parse_traces())
+        if print_traces:
+            output.write('\n\n')
+            self.dump_table(output, self.tableize_parse_traces())
         output.write('\n------End of PEG Engine Dump------------------------------------------\n')
         return output.getvalue()
 
@@ -434,7 +436,7 @@ def parse_line_records(
         return syntax.ErrorTerm(message='Empty text.')
     term, next_row, next_col = engine.apply_rule(row, col, grammar.start_rule, config=config)
     if debug:
-        logger.warning(engine.dump())
+        logger.warning(engine.dump(print_traces=True))
     if not isinstance(term, syntax.ErrorTerm) and not (next_row == len(line_records) and next_col == 0):
         lineno = line_records[0].line_number if line_records else -1
         return syntax.ErrorTerm(
