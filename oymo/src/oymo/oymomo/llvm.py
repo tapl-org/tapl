@@ -27,3 +27,6 @@ def main() -> None:
 
     # 7. Print the generated LLVM IR
     print(str(module))
+
+
+main()
