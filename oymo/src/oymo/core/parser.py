@@ -178,7 +178,9 @@ class PegEngine:
         self.cell_memo: CellMemo = {}
         self.call_stack_depth = 0
         self.log_enabled = log_enabled
-        self.log = logger.info
+
+    def log(self, message: str) -> None:
+        logger.info('%s %s', ' ' * self.call_stack_depth * 4, message)
 
     def call_parse_function(
         self, key: CellKey, function: ParseFunction | str, config: Config
@@ -250,6 +252,8 @@ class PegEngine:
         if self.call_stack_depth > MAX_CALL_STACK_DEPTH:
             raise RuntimeError(f'PEG Parser: Exceeded the maximum call stack depth of {MAX_CALL_STACK_DEPTH}.')
         cell_key = CellKey(row, col, rule)
+        if self.log_enabled:
+            self.log(f'Applying rule {rule} at {cell_key}.')
         cell = self.cell_memo.get(cell_key)
         if not cell:
             cell = Cell(
