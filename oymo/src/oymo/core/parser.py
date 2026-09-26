@@ -111,7 +111,7 @@ class Cursor:
         return True
 
 
-ParseFailed = syntax.ErrorTerm(message='Parsing failed: Unable to match any rule.')
+ParseFailed = syntax.ErrorTerm(message='ParseFailed')
 
 
 # Tracker is designed for use within its originating function only and should not be passed between functions.
@@ -239,6 +239,13 @@ class PegEngine:
             cell.term, cell.next_row, cell.next_col = term, next_row, next_col
         cell.term = syntax.ErrorTerm(message='PegEngine: Growing failed due to too many iterations.')
 
+    def start_rule(self, key: CellKey, cell: Cell, config: Config) -> None:
+        cell.state = CellState.START
+        cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(key, config)
+        cell.state = CellState.DONE
+        if cell.growable and not isinstance(cell.term, syntax.ErrorTerm):
+            self.grow_seed(key, cell, config)
+
     def apply_rule(self, row: int, col: int, rule: str, config: Config) -> tuple[syntax.Term, int, int]:
         self.rule_call_stack_limit -= 1
         if self.rule_call_stack_limit < 0:
@@ -252,11 +259,7 @@ class PegEngine:
             )
             self.cell_memo[cell_key] = cell
         if cell.state == CellState.BLANK:
-            cell.state = CellState.START
-            cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(cell_key, config)
-            cell.state = CellState.DONE
-            if cell.growable and not isinstance(cell.term, syntax.ErrorTerm):
-                self.grow_seed(cell_key, cell, config)
+            self.start_rule(cell_key, cell, config)
         elif cell.state == CellState.START:
             # Left recursion detected. Delaying expansion of this rule.
             cell.growable = True
@@ -264,13 +267,9 @@ class PegEngine:
             # Rule already parsed at this position, so no further action is required.
             pass
         else:
-            cell.term = syntax.ErrorTerm(f'PEG Parser Engine: Unknown cell state [{cell.state}] at {cell_key}.')
+            raise RuntimeError(f'PEG Parser Engine: Unknown cell state [{cell.state}] at {cell_key}.')
         self.rule_call_stack_limit += 1
         return cell.term, cell.next_row, cell.next_col
-
-    def dump(self, *, print_traces: bool = False) -> str:
-        del print_traces
-        return 'Use PegEngineDebug to get the engine dump.'
 
 
 def find_first_position(line_records: list[line_record.LineRecord]) -> tuple[int, int]:
