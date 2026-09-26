@@ -165,6 +165,10 @@ class Cell:
 CellMemo = dict[CellKey, Cell]
 
 
+MAX_CALL_STACK_DEPTH = 10000
+MAX_GROW_ITERATIONS = 1000
+
+
 class PegEngine:
     def __init__(
         self, line_records: list[line_record.LineRecord], grammar_rule_map: GrammarRuleMap, *, log_enabled: bool = False
@@ -172,8 +176,7 @@ class PegEngine:
         self.line_records = line_records
         self.grammar_rule_map = grammar_rule_map
         self.cell_memo: CellMemo = {}
-        # Set a call stack limit to prevent infinite recursion in rule applications
-        self.rule_call_stack_limit = 1000
+        self.call_stack_depth = 0
         self.log_enabled = log_enabled
         self.log = logger.info
 
@@ -226,7 +229,7 @@ class PegEngine:
         if isinstance(cell.term, syntax.ErrorTerm) or not cell.growable:
             return
         seed_end = (cell.next_row, cell.next_col)
-        for _ in range(100):
+        for _ in range(MAX_GROW_ITERATIONS):
             term, next_row, next_col = self.call_ordered_parse_functions(key, config)
             if term is ParseFailed:
                 raise RuntimeError(
@@ -243,10 +246,9 @@ class PegEngine:
         raise RuntimeError('PegEngine: Growth reached the iteration limit that prevents an infinite loop.')
 
     def apply_rule(self, row: int, col: int, rule: str, config: Config) -> tuple[syntax.Term, int, int]:
-        self.rule_call_stack_limit -= 1
-        if self.rule_call_stack_limit < 0:
-            error = syntax.ErrorTerm(message='PEG Parser: Rule application limit exceeded.')
-            return (error, row, col)
+        self.call_stack_depth += 1
+        if self.call_stack_depth > MAX_CALL_STACK_DEPTH:
+            raise RuntimeError(f'PEG Parser: Exceeded the maximum call stack depth of {MAX_CALL_STACK_DEPTH}.')
         cell_key = CellKey(row, col, rule)
         cell = self.cell_memo.get(cell_key)
         if not cell:
@@ -264,7 +266,7 @@ class PegEngine:
             pass
         else:
             raise RuntimeError(f'PEG Parser Engine: Unknown cell state [{cell.state}] at {cell_key}.')
-        self.rule_call_stack_limit += 1
+        self.call_stack_depth -= 1
         return cell.term, cell.next_row, cell.next_col
 
 
