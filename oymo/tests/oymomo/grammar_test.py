@@ -6,11 +6,13 @@ from oymo.oymomo import grammar, terms
 from oymo.oymomo import rule_names as rn
 
 
-def parse_expr(text: str, start_rule: str, *, mode: syntax.Term = syntax.MODE_SAFE, debug=False) -> syntax.Term:
+def parse_expr(
+    text: str, start_rule: str, *, mode: syntax.Term = syntax.MODE_SAFE, log_enabled: bool = False
+) -> syntax.Term:
     return parser.parse_text(
         text,
         grammar=parser.Grammar(grammar.get_grammar().rule_map, start_rule),
-        debug=debug,
+        log_enabled=log_enabled,
         config=parser.Config(mode=mode),
     )
 
@@ -42,9 +44,10 @@ def test_apply() -> None:
     assert term.argument.name == 'x'
 
 
+# TODO: fix this test
 def tst_apply_rule_start() -> None:
     text = 'f x'
-    term = parse_expr(text, rn.START, debug=True)
+    term = parse_expr(text, rn.START)
     assert isinstance(term, terms.Apply)
     assert isinstance(term.function, terms.Variable)
     assert term.function.name == 'f'

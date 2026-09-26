@@ -8,12 +8,12 @@ from oymo.oymomo.pretty import print_term
 
 
 def parse_term(
-    text: str, *, start_rule: str = rn.START, mode: syntax.Term = syntax.MODE_SAFE, debug=False
+    text: str, *, start_rule: str = rn.START, mode: syntax.Term = syntax.MODE_SAFE, log_enabled: bool = False
 ) -> syntax.Term:
     return parser.parse_text(
         text,
         grammar=parser.Grammar(grammar.get_grammar().rule_map, start_rule),
-        debug=debug,
+        log_enabled=log_enabled,
         config=parser.Config(mode=mode),
     )
 
