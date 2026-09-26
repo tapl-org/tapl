@@ -257,7 +257,7 @@ def test_apply():
 
 # TODO: fix this test
 def tst_apply2():
-    parsed_term = parse('1 2', debug=True)
+    parsed_term = parse('1 2', log_enabled=True)
     assert dump(parsed_term) == 'A(N1(N2))'
 
 

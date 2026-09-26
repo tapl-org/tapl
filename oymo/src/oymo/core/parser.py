@@ -10,6 +10,7 @@ from collections.abc import Callable
 from oymo.core import line_record, syntax, tapl_error
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 # Implemented PEG parser - https://en.wikipedia.org/wiki/Parsing_expression_grammar,
 # https://pdos.csail.mit.edu/~baford/packrat/thesis/
@@ -231,7 +232,9 @@ class PegEngine:
         if isinstance(cell.term, syntax.ErrorTerm) or not cell.growable:
             return
         seed_end = (cell.next_row, cell.next_col)
-        for _ in range(MAX_GROW_ITERATIONS):
+        for i in range(MAX_GROW_ITERATIONS):
+            if self.log_enabled:
+                self.log(f'{key.row}:{key.col}:{key.rule}  GROW iteration={i} source=peg_engine.start_rule')
             term, next_row, next_col = self.call_ordered_parse_functions(key, config)
             if term is ParseFailed:
                 raise RuntimeError(
@@ -251,17 +254,15 @@ class PegEngine:
         self.call_stack_depth += 1
         if self.call_stack_depth > MAX_CALL_STACK_DEPTH:
             raise RuntimeError(f'PEG Parser: Exceeded the maximum call stack depth of {MAX_CALL_STACK_DEPTH}.')
-        cell_key = CellKey(row, col, rule)
+        key = CellKey(row, col, rule)
         if self.log_enabled:
-            self.log(f'Applying rule {rule} at {cell_key}.')
-        cell = self.cell_memo.get(cell_key)
+            self.log(f'{key.row}:{key.col}:{rule}  BEGIN source=peg_engine.apply_rule')
+        cell = self.cell_memo.get(key)
         if not cell:
-            cell = Cell(
-                next_row=cell_key.row, next_col=cell_key.col, growable=False, state=CellState.BLANK, term=ParseFailed
-            )
-            self.cell_memo[cell_key] = cell
+            cell = Cell(next_row=key.row, next_col=key.col, growable=False, state=CellState.BLANK, term=ParseFailed)
+            self.cell_memo[key] = cell
         if cell.state == CellState.BLANK:
-            self.start_rule(cell_key, cell, config)
+            self.start_rule(key, cell, config)
         elif cell.state == CellState.START:
             # Left recursion detected. Delaying expansion of this rule.
             cell.growable = True
@@ -269,7 +270,15 @@ class PegEngine:
             # Rule already parsed at this position, so no further action is required.
             pass
         else:
-            raise RuntimeError(f'PEG Parser Engine: Unknown cell state [{cell.state}] at {cell_key}.')
+            raise RuntimeError(f'PEG Parser Engine: Unknown cell state [{cell.state}] at {key}.')
+        if self.log_enabled:
+            state = cell.state.name
+            if cell.growable:
+                state += '-Growable'
+            desc = cell.term.message if isinstance(cell.term, syntax.ErrorTerm) else cell.term.__class__.__name__
+            self.log(
+                f'{key.row}:{key.col}:{rule}  END state={state} term={desc} end-pos={cell.next_row}:{cell.next_col} source=peg_engine.apply_rule'
+            )
         self.call_stack_depth -= 1
         return cell.term, cell.next_row, cell.next_col
 
