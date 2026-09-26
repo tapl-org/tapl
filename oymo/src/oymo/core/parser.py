@@ -219,32 +219,28 @@ class PegEngine:
                 return term, row, col
         return ParseFailed, key.row, key.col
 
-    def grow_seed(self, key: CellKey, cell: Cell, config: Config) -> None:
-        seed_next_row, seed_next_col = cell.next_row, cell.next_col
-        iteration_count = 10  # Prevent infinite loop by limiting iterations
-        while iteration_count > 0:
-            iteration_count -= 1
+    def start_rule(self, key: CellKey, cell: Cell, config: Config) -> None:
+        cell.state = CellState.START
+        cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(key, config)
+        cell.state = CellState.DONE
+        if isinstance(cell.term, syntax.ErrorTerm) or not cell.growable:
+            return
+        seed_end = (cell.next_row, cell.next_col)
+        for _ in range(100):
             term, next_row, next_col = self.call_ordered_parse_functions(key, config)
             if term is ParseFailed:
-                cell.term = syntax.ErrorTerm(
-                    message='PegEngine: Once ordered_parse_functions was successful, but it failed afterward. This indicates an inconsistency between ordered parse functions.'
+                raise RuntimeError(
+                    'PegEngine: ordered_parse_functions failed after a previous success, indicating inconsistent ordered parse functions.'
                 )
                 return
             if isinstance(term, syntax.ErrorTerm):
                 cell.term = term
                 return
-            # Stop growing when the new next position mathches seed's next position, as this indicates a cycle.
-            if next_row == seed_next_row and next_col == seed_next_col:
+            # Stop growing when the new next position matches the seed's next position, as this indicates a cycle.
+            if (next_row, next_col) == seed_end:
                 return
             cell.term, cell.next_row, cell.next_col = term, next_row, next_col
-        cell.term = syntax.ErrorTerm(message='PegEngine: Growing failed due to too many iterations.')
-
-    def start_rule(self, key: CellKey, cell: Cell, config: Config) -> None:
-        cell.state = CellState.START
-        cell.term, cell.next_row, cell.next_col = self.call_ordered_parse_functions(key, config)
-        cell.state = CellState.DONE
-        if cell.growable and not isinstance(cell.term, syntax.ErrorTerm):
-            self.grow_seed(key, cell, config)
+        raise RuntimeError('PegEngine: Growth reached the iteration limit that prevents an infinite loop.')
 
     def apply_rule(self, row: int, col: int, rule: str, config: Config) -> tuple[syntax.Term, int, int]:
         self.rule_call_stack_limit -= 1
