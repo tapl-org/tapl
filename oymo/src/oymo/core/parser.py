@@ -14,8 +14,10 @@ logger.setLevel(logging.INFO)
 
 # Implemented PEG parser - https://en.wikipedia.org/wiki/Parsing_expression_grammar,
 # https://pdos.csail.mit.edu/~baford/packrat/thesis/
+# Warth, Douglass & Millstein, "Packrat Parsers Can Support Left Recursion" (2008) https://tinlizzie.org/VPRIPapers/tr2007002_packrat.pdf
 # Left recursion: https://web.cs.ucla.edu/~todd/research/pepm08.pdf
 # Error Detection taken from - https://arxiv.org/abs/1806.11150
+# The Sequil Parser - https://arxiv.org/pdf/2601.05012
 
 
 ParseFunction = Callable[['Cursor'], syntax.Term]
