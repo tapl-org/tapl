@@ -6,6 +6,7 @@ from oymo.core.peg import (
     Char,
     Eof,
     First,
+    Memoized,
     Not,
     OneOrMore,
     Optional,
@@ -100,3 +101,41 @@ def test_keyword_prefix_of_identifier_fails():
 
 def test_and_consumes_nothing():
     assert parse('ab', 'Peek', LOOKAHEAD_RULES) == (1, ['a'])
+
+
+def counting_word(calls):
+    """[a-z]+ that records the position of every evaluation of its action."""
+    return OneOrMore(Range('a', 'z'), action=lambda c: calls.append(c.pos) or c.text)
+
+
+def test_memoized_sub_evaluated_once_across_backtracking():
+    calls = []
+    word = counting_word(calls)
+    rules = {'S': First(Seq(Memoized(word), Char('!')), Seq(Memoized(word), Char('?')))}
+    assert parse('hi?', 'S', rules) == (3, ['hi', '?'])
+    assert calls == [0]
+
+
+def test_unmemoized_sub_reevaluated_across_backtracking():
+    calls = []
+    word = counting_word(calls)
+    rules = {'S': First(Seq(word, Char('!')), Seq(word, Char('?')))}
+    assert parse('hi?', 'S', rules) == (3, ['hi', '?'])
+    assert calls == [0, 0]
+
+
+def test_memoized_is_per_position():
+    calls = []
+    word = counting_word(calls)
+    rules = {'S': Seq(Memoized(word), Char(' ', action=drop), Memoized(word))}
+    assert parse('ab cd', 'S', rules) == (5, ['ab', 'cd'])
+    assert calls == [0, 3]
+
+
+def test_memoized_mismatch():
+    assert parse('1', 'S', {'S': Memoized(Range('a', 'z'))}) is None
+
+
+def test_memoized_action():
+    rules = {'S': Memoized(Range('a', 'z'), action=lambda c: c.value.upper())}
+    assert parse('q', 'S', rules) == (1, 'Q')

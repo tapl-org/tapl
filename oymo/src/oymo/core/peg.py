@@ -36,11 +36,11 @@ class MemoEntry:
         self.left_recursion_detected = False
         self.version = 0
 
-    def get(self, parser, rule, pos):
+    def get(self, parser, clause, pos):
         # Cache miss, or entry is stale (an LR expansion bumped the version at pos)
         if self.match is None or self.version < parser.version_for_pos[pos]:
             if self.in_progress:
-                # (rule, pos) is already on the call stack: left-recursive cycle.
+                # (clause, pos) is already on the call stack: left-recursive cycle.
                 # Seed with MISMATCH (the fixed point) and flag the ancestor frame.
                 if self.match is None:
                     self.left_recursion_detected = True
@@ -48,7 +48,7 @@ class MemoEntry:
             else:
                 self.in_progress = True
                 while True:
-                    new = rule.match(parser, pos)
+                    new = clause.match(parser, pos)
                     if self.match is not None and new.len <= self.match.len:
                         break  # no progress: fixed point reached
                     self.match = new
@@ -232,7 +232,8 @@ class RefCtx(Ctx):
 
 
 class Ref(Clause):
-    """The only clause that goes through parser.match(), i.e. the memo table."""
+    """Goes through parser.match(), i.e. the memo table. Every left-recursive
+    cycle passes through a Ref, so left recursion is always detected."""
 
     def __init__(self, name, action=None):
         super().__init__(action)
@@ -246,6 +247,35 @@ class Ref(Clause):
         if m is MISMATCH:
             return MISMATCH
         return self.make(RefCtx(parser.input, pos, m.len, m.value, self.name))
+
+
+# ---- Memoized --------------------------------------------------------------
+
+
+class MemoizedCtx(Ctx):
+    __slots__ = ('value',)  # sub's memoized value
+
+    def __init__(self, text, pos, length, value):
+        super().__init__(text, pos, length)
+        self.value = value
+
+
+class Memoized(Clause):
+    """Memoizes sub at each position without naming it as a rule. Only sub's
+    result is memoized; this clause's own action runs on every match."""
+
+    def __init__(self, sub, action=None):
+        super().__init__(action)
+        self.sub = sub
+
+    def default_action(self, ctx):
+        return ctx.value
+
+    def match(self, parser, pos):
+        m = parser.match(self.sub, pos)
+        if m is MISMATCH:
+            return MISMATCH
+        return self.make(MemoizedCtx(parser.input, pos, m.len, m.value))
 
 
 # ---- repetition ------------------------------------------------------------
@@ -389,9 +419,9 @@ class Eof(Clause):
 
 
 class Parser:
-    def match(self, rule, pos):
-        entry = self.memo.setdefault((rule, pos), MemoEntry())
-        return entry.get(self, rule, pos)
+    def match(self, clause, pos):
+        entry = self.memo.setdefault((clause, pos), MemoEntry())
+        return entry.get(self, clause, pos)
 
     def parse(self, text, start_rule, rules):
         """Returns (consumed_length, value), or None on mismatch."""
