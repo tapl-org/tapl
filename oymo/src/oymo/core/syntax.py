@@ -6,8 +6,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
-from oymo.core import tapl_error
-
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
@@ -15,12 +13,12 @@ if TYPE_CHECKING:
 class Term:
     def children(self) -> Generator[Term, None, None]:
         """Yields the child terms of this term for tree traversal or visitor operations."""
-        raise tapl_error.TaplError(f'{self.__class__.__name__}.children is not implemented.')
+        raise RuntimeError(f'{self.__class__.__name__}.children is not implemented.')
 
     def separate(self, ls: LayerSeparator) -> list[Term]:
         """Separate the term into layers based on the number of layers specified by the LayerSeparator."""
         del ls
-        raise tapl_error.TaplError(f'The {self.__class__.__name__} class does not support separate.')
+        raise RuntimeError(f'The {self.__class__.__name__} class does not support separate.')
 
     def unfold(self) -> Term:
         """Unfolds the term if it is a wrapper or syntactic sugar, returning the underlying term.
@@ -53,7 +51,7 @@ class SiblingTerm(Term):
     def integrate_into(self, previous_siblings: list[Term]) -> None:
         """Integrates this term into the given previous siblings."""
         del previous_siblings
-        raise tapl_error.TaplError(f'{self.__class__.__name__}.integrate_into is not implemented.')
+        raise RuntimeError(f'{self.__class__.__name__}.integrate_into is not implemented.')
 
 
 @dataclass
@@ -62,7 +60,7 @@ class Layers(Term):
 
     def _post_init(self) -> None:
         if len(self.layers) <= 1:
-            raise tapl_error.TaplError('Number of layers must be equal or greater than 2.')
+            raise RuntimeError('Number of layers must be equal or greater than 2.')
 
     def children(self) -> Generator[Term, None, None]:
         yield from self.layers
@@ -70,7 +68,7 @@ class Layers(Term):
     def separate(self, ls: LayerSeparator) -> list[Term]:
         actual_count = len(self.layers)
         if actual_count != ls.layer_count:
-            raise tapl_error.TaplError(
+            raise RuntimeError(
                 f'Mismatched layer lengths, actual_count={actual_count}, expected_count={ls.layer_count}'
             )
         return self.layers
@@ -79,7 +77,7 @@ class Layers(Term):
 class LayerSeparator:
     def __init__(self, layer_count: int) -> None:
         if layer_count <= 1:
-            raise tapl_error.TaplError('layer_count must be equal or greater than 2 to separate.')
+            raise RuntimeError('layer_count must be equal or greater than 2 to separate.')
         self.layer_count = layer_count
 
     def build(self, factory: Callable[[Callable[[Term], Term]], Term]) -> list[Term]:
@@ -93,7 +91,7 @@ class LayerSeparator:
             original_term, layers = memo[memo_index[0]]
             memo_index[0] += 1
             if original_term is not term:
-                raise tapl_error.TaplError('LAYER FUNCTION CALL ORDER IS CHANGED.')
+                raise RuntimeError('LAYER FUNCTION CALL ORDER IS CHANGED.')
             return layers[index]
 
         def create_extract_layer_fn(index: int) -> Callable[[Term], Term]:
@@ -153,7 +151,7 @@ class BackendSettingTerm(Term):
 
     def new_setting(self, setting: BackendSetting) -> BackendSetting:
         if not isinstance(self.backend_setting_changer, BackendSettingChanger):
-            raise tapl_error.TaplError(
+            raise TypeError(
                 f'Expected setting to be an instance of {BackendSettingChanger.__name__}, got {type(self.backend_setting_changer).__name__}'
             )
         return cast('BackendSettingChanger', self.backend_setting_changer).changer(setting)
@@ -206,7 +204,7 @@ class TermList(Term):
 
     def separate(self, ls: LayerSeparator) -> list[Term]:
         if self.is_placeholder:
-            raise tapl_error.TaplError('The placeholder list must be resolved before separation.')
+            raise RuntimeError('The placeholder list must be resolved before separation.')
         return ls.build(lambda layer: TermList(terms=[layer(s) for s in self.terms], is_placeholder=False))
 
 
@@ -219,7 +217,7 @@ def find_placeholder(term: Term) -> TermList | None:
             if placeholder is None:
                 placeholder = t
             else:
-                raise tapl_error.TaplError('Multiple placeholders found.')
+                raise RuntimeError('Multiple placeholders found.')
         for child in t.children():
             loop(child)
 
@@ -246,3 +244,16 @@ MODE_TYPECHECK_NO_SCOPE = ModeTerm(typecheck=True, use_scope=False)
 MODE_SAFE = Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
 MODE_LIFT = Layers(layers=[MODE_EVALUATE, MODE_EVALUATE_WITH_SCOPE])
 SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
+
+
+def gather_errors(term: Term) -> list[ErrorTerm]:
+    error_bucket: list[ErrorTerm] = []
+
+    def gather_errors_recursive(t: Term) -> None:
+        if isinstance(t, ErrorTerm):
+            error_bucket.append(t)
+        for child in t.children():
+            gather_errors_recursive(child)
+
+    gather_errors_recursive(term)
+    return error_bucket
