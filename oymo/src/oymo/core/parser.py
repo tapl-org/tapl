@@ -12,12 +12,13 @@ from oymo.core import line_record, syntax, tapl_error
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# Implemented PEG parser - https://en.wikipedia.org/wiki/Parsing_expression_grammar,
+# Use PEG parser - https://en.wikipedia.org/wiki/Parsing_expression_grammar,
 # https://pdos.csail.mit.edu/~baford/packrat/thesis/
-# Warth, Douglass & Millstein, "Packrat Parsers Can Support Left Recursion" (2008) https://tinlizzie.org/VPRIPapers/tr2007002_packrat.pdf
 # Left recursion: https://web.cs.ucla.edu/~todd/research/pepm08.pdf
-# Error Detection taken from - https://arxiv.org/abs/1806.11150
-# The Sequil Parser - https://arxiv.org/pdf/2601.05012
+# Error Detection - https://arxiv.org/abs/1806.11150
+# The Squirrel Parser - https://arxiv.org/pdf/2601.05012
+# https://www.jstage.jst.go.jp/article/ipsjjip/29/0/29_174/_pdf
+# https://tratt.net/laurie/research/pubs/papers/tratt__direct_left_recursive_parsing_expression_grammars.pdf
 
 
 ParseFunction = Callable[['Cursor'], syntax.Term]
