@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -41,20 +41,6 @@ class Term:
         return f'{self.__class__.__name__}()'
 
 
-class _EmptyTerm(Term):
-    def children(self) -> Generator[Term, None, None]:
-        yield from ()
-
-    def separate(self, ls):
-        return ls.build(lambda _: self)
-
-    def __repr__(self) -> str:
-        return 'Empty'
-
-
-Empty = _EmptyTerm()
-
-
 @dataclass
 class Layers(Term):
     """Two-layer term `lower : upper`.
@@ -74,105 +60,31 @@ class Layers(Term):
 
 class LayerSeparator:
     def build(self, factory: Callable[[Callable[[Term], Term]], Term]) -> tuple[Term, Term]:
-        # Memorize the order of extract_layer calls to ensure consistent layer processing.
-        memo: list[tuple[Term, tuple[Term, Term]]] = []
-        memo_index = [0]
+        # The factory must call its layer function on the same terms in the same order on both passes,
+        # so the upper pass can reuse the separations computed during the lower pass.
+        separated: list[tuple[Term, tuple[Term, Term]]] = []
 
-        def extract_layer(index: int, term: Term) -> Term:
-            if index == 0:
-                memo.append((term, term.separate(self)))
-            original_term, layers = memo[memo_index[0]]
-            memo_index[0] += 1
-            if original_term is not term:
-                raise RuntimeError('LAYER FUNCTION CALL ORDER IS CHANGED.')
-            return layers[index]
+        def lower_layer(term: Term) -> Term:
+            layers = term.separate(self)
+            separated.append((term, layers))
+            return layers[0]
 
-        def create_extract_layer_fn(index: int) -> Callable[[Term], Term]:
-            return lambda term: extract_layer(index, term)
+        lower = factory(lower_layer)
+        replay = iter(separated)
 
-        memo_index[0] = 0
-        lower = factory(create_extract_layer_fn(0))
-        memo_index[0] = 0
-        upper = factory(create_extract_layer_fn(1))
+        def upper_layer(term: Term) -> Term:
+            original_term, layers = next(replay, (None, None))
+            if original_term is not term or layers is None:
+                raise RuntimeError('Layer function call order changed between the lower and upper passes.')
+            return layers[1]
+
+        upper = factory(upper_layer)
         return (lower, upper)
-
-
-@dataclass
-class BackendSetting:
-    scope_level: int
-
-    def clone(self, scope_level: int | None = None) -> BackendSetting:
-        return BackendSetting(
-            scope_level=scope_level or self.scope_level,
-        )
-
-    @property
-    def scope_name(self) -> str:
-        return f's{self.scope_level}'
-
-    @property
-    def forker_name(self) -> str:
-        return f'f{self.scope_level}'
-
-
-@dataclass
-class BackendSettingChanger(Term):
-    changer: Callable[[BackendSetting], BackendSetting]
-
-    def children(self) -> Generator[Term, None, None]:
-        yield from ()
-
-    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
-        return ls.build(lambda _: BackendSettingChanger(changer=self.changer))
-
-
-@dataclass
-class BackendSettingTerm(Term):
-    backend_setting_changer: Term
-    term: Term
-
-    def children(self) -> Generator[Term, None, None]:
-        yield self.backend_setting_changer
-        yield self.term
-
-    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
-        return ls.build(
-            lambda layer: BackendSettingTerm(
-                backend_setting_changer=layer(self.backend_setting_changer), term=layer(self.term)
-            )
-        )
-
-    def new_setting(self, setting: BackendSetting) -> BackendSetting:
-        if not isinstance(self.backend_setting_changer, BackendSettingChanger):
-            raise TypeError(
-                f'Expected setting to be an instance of {BackendSettingChanger.__name__}, got {type(self.backend_setting_changer).__name__}'
-            )
-        return cast('BackendSettingChanger', self.backend_setting_changer).changer(setting)
-
-
-@dataclass
-class Location:
-    start: int | None = None
-    end: int | None = None
-
-    def __repr__(self) -> str:
-        return f'{self.start if self.start else "-"}:{self.end if self.end else "-"}'
-
-
-@dataclass
-class ErrorTerm(Term):
-    message: str
-    location: Location
-
-    def children(self) -> Generator[Term, None, None]:
-        yield from ()
 
 
 @dataclass
 class TermList(Term):
     terms: list[Term]
-    # True if the statement is a placeholder requiring resolution (e.g., waiting for child chunk parsing).
-    is_placeholder: bool = False
 
     def children(self) -> Generator[Term, None, None]:
         yield from self.terms
@@ -185,26 +97,21 @@ class TermList(Term):
                 yield term
 
     def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
-        if self.is_placeholder:
-            raise RuntimeError('The placeholder list must be resolved before separation.')
-        return ls.build(lambda layer: TermList(terms=[layer(s) for s in self.terms], is_placeholder=False))
+        return ls.build(lambda layer: TermList(terms=[layer(s) for s in self.terms]))
 
 
-def find_placeholder(term: Term) -> TermList | None:
-    placeholder: TermList | None = None
+class _EmptyTerm(Term):
+    def children(self) -> Generator[Term, None, None]:
+        yield from ()
 
-    def loop(t: Term) -> None:
-        nonlocal placeholder
-        if isinstance(t, TermList) and t.is_placeholder:
-            if placeholder is None:
-                placeholder = t
-            else:
-                raise RuntimeError('Multiple placeholders found.')
-        for child in t.children():
-            loop(child)
+    def separate(self, ls):
+        return ls.build(lambda _: self)
 
-    loop(term)
-    return placeholder
+    def __repr__(self) -> str:
+        return 'Empty'
+
+
+Empty = _EmptyTerm()
 
 
 @dataclass
@@ -225,6 +132,24 @@ MODE_TYPECHECK = ModeTerm(typecheck=True, use_scope=True)
 MODE_TYPECHECK_NO_SCOPE = ModeTerm(typecheck=True, use_scope=False)
 MODE_SAFE = Layers(layers=(MODE_EVALUATE, MODE_TYPECHECK))
 MODE_LIFT = Layers(layers=(MODE_EVALUATE, MODE_EVALUATE_WITH_SCOPE))
+
+
+@dataclass
+class Location:
+    start: int | None = None
+    end: int | None = None
+
+    def __repr__(self) -> str:
+        return f'{self.start if self.start else "-"}:{self.end if self.end else "-"}'
+
+
+@dataclass
+class ErrorTerm(Term):
+    message: str
+    location: Location
+
+    def children(self) -> Generator[Term, None, None]:
+        yield from ()
 
 
 def gather_errors(term: Term) -> list[ErrorTerm]:
