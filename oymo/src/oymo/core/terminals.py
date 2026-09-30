@@ -370,6 +370,50 @@ class String(Token):
         return self.make(StringCtx(text, pos, end - pos, start, prefix, text[body_pos:p]))
 
 
+class HexBytesCtx(TokenCtx):
+    __slots__ = ('value',)
+
+    def __init__(self, text, pos, length, token_pos, value):
+        super().__init__(text, pos, length, token_pos)
+        self.value = value
+
+
+class HexBytes(Token):
+    """`open`, zero or more groups of hex digits separated by whitespace (newlines
+    included), then `close`. Each group has an even number of digits and holds any
+    number of bytes, in memory order. The value is `bytes`."""
+
+    def __init__(self, *, open='[', close=']', skip=None, action=None):  # noqa: A002
+        super().__init__(skip=skip, action=action)
+        if not open or not close:
+            raise ValueError('HexBytes needs non-empty open and close delimiters.')
+        self.open, self.close = open, close
+
+    def default_action(self, ctx):
+        return ctx.value
+
+    def match(self, parser, pos):
+        text, start = parser.text, self.skip_trivia(parser, pos)
+        if not text.startswith(self.open, start):
+            return MISMATCH
+        hexdigits, p = _DIGITS[16], start + len(self.open)
+        groups = []
+        while True:
+            while p < len(text) and text[p] in ' \t\r\n':
+                p += 1
+            if text.startswith(self.close, p):
+                break
+            group_start = p
+            while p < len(text) and text[p] in hexdigits:
+                p += 1
+            group = text[group_start:p]
+            if not group or len(group) % 2:
+                return MISMATCH
+            groups.append(group)
+        end = p + len(self.close)
+        return self.make(HexBytesCtx(text, pos, end - pos, start, bytes.fromhex(''.join(groups))))
+
+
 class Newline(Token):
     """A line break: '\\r\\n' or '\\n'."""
 

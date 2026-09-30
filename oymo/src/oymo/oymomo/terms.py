@@ -9,11 +9,11 @@ Term = syntax.Term
 Location = syntax.Location
 
 
-type Form = str | RecordForm
+type Form = str | StructForm
 
 
 @dataclass
-class RecordForm:
+class StructForm:
     fields: list[tuple[str, Form]]
 
 
@@ -57,32 +57,29 @@ class Apply(Term):
 
 
 @dataclass
-class Field(Term):
+class Field:
     label: str
     value: Term
     location: Location
 
-    def children(self) -> Generator[Term, None, None]:
-        yield self.value
-
 
 @dataclass
-class Record(Term):
+class Struct(Term):
     fields: list[Field]
     location: Location
 
     def children(self) -> Generator[Term, None, None]:
-        yield from self.fields
+        yield from (field.value for field in self.fields)
 
 
 @dataclass
-class Select(Term):
-    record: Term
+class FieldAccess(Term):
+    struct: Term
     label: str
     location: Location
 
     def children(self) -> Generator[Term, None, None]:
-        yield self.record
+        yield self.struct
 
 
 @dataclass
@@ -105,26 +102,6 @@ class Fix(Term):
 
     def children(self) -> Generator[Term, None, None]:
         yield self.function
-
-
-@dataclass
-class Integer(Term):
-    value: int
-    form: Form
-    location: Location
-
-    def children(self) -> Generator[Term, None, None]:
-        yield from ()
-
-
-@dataclass
-class String(Term):
-    value: str
-    form: Form
-    location: Location
-
-    def children(self) -> Generator[Term, None, None]:
-        yield from ()
 
 
 @dataclass

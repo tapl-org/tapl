@@ -6,6 +6,7 @@ from oymo.core.terminals import (
     Eof,
     Fixed,
     Float,
+    HexBytes,
     Identifier,
     Integer,
     Newline,
@@ -179,6 +180,43 @@ def test_string_prefixes():
 
 def test_string_single_quote():
     assert parse("'a'", String(quote="'")) == (3, "'a'")
+
+
+# ---- HexBytes --------------------------------------------------------------
+
+
+def test_hex_bytes():
+    assert parse('[2a000000] x', HexBytes()) == (10, b'\x2a\x00\x00\x00')
+    assert parse('[DeadBeef]', HexBytes()) == (10, b'\xde\xad\xbe\xef')
+
+
+def test_hex_bytes_groups():
+    assert parse('[2a 00 00 00]', HexBytes()) == (13, b'\x2a\x00\x00\x00')
+    assert parse('[ 2a00  0000 ]', HexBytes()) == (14, b'\x2a\x00\x00\x00')
+
+
+def test_hex_bytes_multiline():
+    assert parse('[dead\n  beef]', HexBytes()) == (13, b'\xde\xad\xbe\xef')
+    assert parse('[dead\r\n\tbeef\n]', HexBytes()) == (14, b'\xde\xad\xbe\xef')
+
+
+def test_hex_bytes_empty():
+    assert parse('[]', HexBytes()) == (2, b'')
+    assert parse('[ \n ]', HexBytes()) == (5, b'')
+
+
+def test_hex_bytes_rejects_bad_forms():
+    assert parse('[abc]', HexBytes()) is None
+    assert parse('[2a 0]', HexBytes()) is None
+    assert parse('[2g]', HexBytes()) is None
+    assert parse('[2ag]', HexBytes()) is None
+    assert parse('[2a', HexBytes()) is None
+    assert parse('[2a // c\n 00]', HexBytes()) is None
+    assert parse('2a', HexBytes()) is None
+
+
+def test_hex_bytes_custom_delimiters():
+    assert parse('<<ff>>', HexBytes(open='<<', close='>>')) == (6, b'\xff')
 
 
 # ---- trivia, Newline, Eof --------------------------------------------------
