@@ -13,17 +13,29 @@ if TYPE_CHECKING:
 class Term:
     def children(self) -> Generator[Term, None, None]:
         """Yields the child terms of this term for tree traversal or visitor operations."""
-        raise RuntimeError(f'{self.__class__.__name__}.children is not implemented.')
+        raise NotImplementedError(f'{self.__class__.__name__} must override Term.children() to yield its child terms.')
 
-    def separate(self, ls: LayerSeparator) -> list[Term]:
-        """Separate the term into layers based on the number of layers specified by the LayerSeparator."""
+    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
+        """Separates this term into two layers, one for evaluation and one for type checking.
+
+        The LayerSeparator is used to create the two layers. The `lower` layer is evaluated;
+        the `upper` layer is used for type checking.
+        """
         del ls
-        raise RuntimeError(f'The {self.__class__.__name__} class does not support separate.')
+        raise NotImplementedError(
+            f'{self.__class__.__name__} must override Term.separate() to separate the term into layers.'
+        )
 
     def unfold(self) -> Term:
-        """Unfolds the term if it is a wrapper or syntactic sugar, returning the underlying term.
-        If the term is already in its simplest form, it returns itself."""
-        return self
+        """Rewrites this term one step into simpler terms that mean the same thing.
+
+        Wrapper and syntactic-sugar terms return their desugared form, which may itself
+        be unfolded again. Primitive terms that a backend handles directly return `self`;
+        callers use `term.unfold() is term` to detect that no further unfolding is possible.
+        """
+        raise NotImplementedError(
+            f'{self.__class__.__name__} must override Term.unfold() to unfold the term if it is a wrapper or syntactic sugar.'
+        )
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}()'
@@ -43,46 +55,27 @@ class _EmptyTerm(Term):
 Empty = _EmptyTerm()
 
 
-class SiblingTerm(Term):
-    """Represents a term that is a sibling to other terms.
-    Example: An else statement must be integrated into the preceding sibling if statement.
-    """
-
-    def integrate_into(self, previous_siblings: list[Term]) -> None:
-        """Integrates this term into the given previous siblings."""
-        del previous_siblings
-        raise RuntimeError(f'{self.__class__.__name__}.integrate_into is not implemented.')
-
-
 @dataclass
 class Layers(Term):
-    layers: list[Term]
+    """Two-layer term `lower : upper`.
 
-    def _post_init(self) -> None:
-        if len(self.layers) <= 1:
-            raise RuntimeError('Number of layers must be equal or greater than 2.')
+    `lower` (layers[0]) is evaluated; `upper` (layers[1]) is used for type checking.
+    """
+
+    layers: tuple[Term, Term]
 
     def children(self) -> Generator[Term, None, None]:
         yield from self.layers
 
-    def separate(self, ls: LayerSeparator) -> list[Term]:
-        actual_count = len(self.layers)
-        if actual_count != ls.layer_count:
-            raise RuntimeError(
-                f'Mismatched layer lengths, actual_count={actual_count}, expected_count={ls.layer_count}'
-            )
+    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
+        del ls
         return self.layers
 
 
 class LayerSeparator:
-    def __init__(self, layer_count: int) -> None:
-        if layer_count <= 1:
-            raise RuntimeError('layer_count must be equal or greater than 2 to separate.')
-        self.layer_count = layer_count
-
-    def build(self, factory: Callable[[Callable[[Term], Term]], Term]) -> list[Term]:
+    def build(self, factory: Callable[[Callable[[Term], Term]], Term]) -> tuple[Term, Term]:
         # Memorize the order of extract_layer calls to ensure consistent layer processing.
-        memo: list[tuple[Term, list[Term]]] = []
+        memo: list[tuple[Term, tuple[Term, Term]]] = []
         memo_index = [0]
 
         def extract_layer(index: int, term: Term) -> Term:
@@ -97,11 +90,11 @@ class LayerSeparator:
         def create_extract_layer_fn(index: int) -> Callable[[Term], Term]:
             return lambda term: extract_layer(index, term)
 
-        layers: list[Term] = []
-        for i in range(self.layer_count):
-            memo_index[0] = 0
-            layers.append(factory(create_extract_layer_fn(i)))
-        return layers
+        memo_index[0] = 0
+        lower = factory(create_extract_layer_fn(0))
+        memo_index[0] = 0
+        upper = factory(create_extract_layer_fn(1))
+        return (lower, upper)
 
 
 @dataclass
@@ -129,7 +122,7 @@ class BackendSettingChanger(Term):
     def children(self) -> Generator[Term, None, None]:
         yield from ()
 
-    def separate(self, ls: LayerSeparator) -> list[Term]:
+    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
         return ls.build(lambda _: BackendSettingChanger(changer=self.changer))
 
 
@@ -142,7 +135,7 @@ class BackendSettingTerm(Term):
         yield self.backend_setting_changer
         yield self.term
 
-    def separate(self, ls: LayerSeparator) -> list[Term]:
+    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
         return ls.build(
             lambda layer: BackendSettingTerm(
                 backend_setting_changer=layer(self.backend_setting_changer), term=layer(self.term)
@@ -158,29 +151,18 @@ class BackendSettingTerm(Term):
 
 
 @dataclass
-class Position:
-    line: int
-    column: int
-
-    def __repr__(self) -> str:
-        return f'{self.line}:{self.column}'
-
-
-@dataclass
 class Location:
-    start: Position
-    end: Position | None = None
+    start: int | None = None
+    end: int | None = None
 
     def __repr__(self) -> str:
-        start = repr(self.start) if self.start else '-'
-        end = repr(self.end) if self.end else '-'
-        return f'({start},{end})'
+        return f'{self.start if self.start else "-"}:{self.end if self.end else "-"}'
 
 
 @dataclass
 class ErrorTerm(Term):
     message: str
-    location: Location | None = None
+    location: Location
 
     def children(self) -> Generator[Term, None, None]:
         yield from ()
@@ -202,7 +184,7 @@ class TermList(Term):
             else:
                 yield term
 
-    def separate(self, ls: LayerSeparator) -> list[Term]:
+    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
         if self.is_placeholder:
             raise RuntimeError('The placeholder list must be resolved before separation.')
         return ls.build(lambda layer: TermList(terms=[layer(s) for s in self.terms], is_placeholder=False))
@@ -233,7 +215,7 @@ class ModeTerm(Term):
     def children(self) -> Generator[Term, None, None]:
         yield from ()
 
-    def separate(self, ls: LayerSeparator) -> list[Term]:
+    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
         return ls.build(lambda _: self)
 
 
@@ -241,9 +223,8 @@ MODE_EVALUATE = ModeTerm(typecheck=False, use_scope=False)
 MODE_EVALUATE_WITH_SCOPE = ModeTerm(typecheck=False, use_scope=True)
 MODE_TYPECHECK = ModeTerm(typecheck=True, use_scope=True)
 MODE_TYPECHECK_NO_SCOPE = ModeTerm(typecheck=True, use_scope=False)
-MODE_SAFE = Layers(layers=[MODE_EVALUATE, MODE_TYPECHECK])
-MODE_LIFT = Layers(layers=[MODE_EVALUATE, MODE_EVALUATE_WITH_SCOPE])
-SAFE_LAYER_COUNT = len(MODE_SAFE.layers)
+MODE_SAFE = Layers(layers=(MODE_EVALUATE, MODE_TYPECHECK))
+MODE_LIFT = Layers(layers=(MODE_EVALUATE, MODE_EVALUATE_WITH_SCOPE))
 
 
 def gather_errors(term: Term) -> list[ErrorTerm]:
