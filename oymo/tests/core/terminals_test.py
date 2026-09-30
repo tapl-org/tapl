@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from oymo.core.peg import First, Memoized, Parser, Seq, ZeroOrMore
-from oymo.core.tokens import (
+from oymo.core.terminals import (
     Comment,
     Eof,
     Fixed,

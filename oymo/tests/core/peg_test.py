@@ -14,7 +14,7 @@ from oymo.core.peg import (
     ZeroOrMore,
     drop,
 )
-from oymo.core.tokens import Any, Char, Eof, Range, Str
+from oymo.core.terminals import Any, Char, Eof, Range, Str
 
 
 def parse(text, start, rules):

@@ -4,7 +4,7 @@
 # Every rule reference yields (rule_name, value), so results mirror the paper's parse trees.
 
 from oymo.core.peg import First, OneOrMore, Optional, Parser, Ref, Seq, ZeroOrMore
-from oymo.core.tokens import Char, Range, Str
+from oymo.core.terminals import Char, Range, Str
 
 
 def node(name):
