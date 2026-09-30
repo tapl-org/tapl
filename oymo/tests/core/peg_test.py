@@ -13,6 +13,7 @@ from oymo.core.peg import (
     Parser,
     Range,
     Ref,
+    Separated,
     Seq,
     Str,
     ZeroOrMore,
@@ -139,3 +140,46 @@ def test_memoized_mismatch():
 def test_memoized_action():
     rules = {'S': Memoized(Range('a', 'z'), action=lambda c: c.value.upper())}
     assert parse('q', 'S', rules) == (1, 'Q')
+
+
+DIGIT = Range('0', '9', action=lambda c: int(c.text))
+SEPARATED_RULES = {
+    'Strict': Separated(DIGIT, Char(',')),
+    'Trailing': Separated(DIGIT, Char(','), trailing=True),
+    'StrictAll': Seq(Separated(DIGIT, Char(',')), Eof()),
+    'TrailingAll': Seq(Separated(DIGIT, Char(','), trailing=True), Eof()),
+}
+
+
+def test_separated_values_exclude_separators():
+    assert parse('1,2,3', 'Strict', SEPARATED_RULES) == (5, [1, 2, 3])
+
+
+def test_separated_single_item():
+    assert parse('7', 'Strict', SEPARATED_RULES) == (1, [7])
+
+
+def test_separated_zero_items():
+    assert parse('x', 'Strict', SEPARATED_RULES) == (0, [])
+
+
+def test_separated_leaves_trailing_separator_unconsumed():
+    assert parse('1,2,', 'Strict', SEPARATED_RULES) == (3, [1, 2])
+    assert parse('1,2,', 'StrictAll', SEPARATED_RULES) is None
+
+
+def test_separated_consumes_trailing_separator():
+    assert parse('1,2,', 'Trailing', SEPARATED_RULES) == (4, [1, 2])
+    assert parse('1,2,', 'TrailingAll', SEPARATED_RULES) == (4, [[1, 2]])
+
+
+def test_separated_trailing_is_optional():
+    assert parse('1,2', 'TrailingAll', SEPARATED_RULES) == (3, [[1, 2]])
+
+
+def test_separated_trailing_only_one_separator():
+    assert parse('1,,', 'Trailing', SEPARATED_RULES) == (2, [1])
+
+
+def test_separated_lone_separator_is_not_trailing():
+    assert parse(',', 'Trailing', SEPARATED_RULES) == (0, [])

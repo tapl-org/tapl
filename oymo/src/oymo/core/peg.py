@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from __future__ import annotations
+
 
 class Match:
     """Memoized result: how much input was consumed, and the action's value."""
@@ -59,6 +61,24 @@ class MemoEntry:
                 self.in_progress = False
             self.version = parser.version_for_pos[pos]
         return self.match
+
+
+# ---- parser ----------------------------------------------------------------
+
+
+class Parser:
+    def match(self, clause, pos):
+        entry = self.memo.setdefault((clause, pos), MemoEntry())
+        return entry.get(self, clause, pos)
+
+    def parse(self, text: str, start_rule: str, rules: dict[str, Clause]) -> tuple[int, object] | None:
+        """Returns (consumed_length, value), or None on mismatch."""
+        self.input = text
+        self.rules = rules
+        self.version_for_pos = [0] * (len(text) + 1)
+        self.memo = {}
+        m = self.match(rules[start_rule], 0)
+        return None if m is MISMATCH else (m.len, m.value)
 
 
 # ---- clause base -----------------------------------------------------------
@@ -324,6 +344,50 @@ class OneOrMore(_Repeat):
     min_count = 1
 
 
+# ---- Separated -------------------------------------------------------------
+
+
+class SeparatedCtx(Ctx):
+    __slots__ = ('values',)  # item values only (sep values discarded), SKIPs removed
+
+    def __init__(self, text, pos, length, values):
+        super().__init__(text, pos, length)
+        self.values = values
+
+
+class Separated(Clause):
+    """item (sep item)*, matching zero items too. With trailing=True, one sep
+    after the last item is also consumed; otherwise a sep not followed by an
+    item is left unconsumed."""
+
+    def __init__(self, item, sep, *, trailing=False, action=None):
+        super().__init__(action)
+        self.item, self.sep, self.trailing = item, sep, trailing
+
+    def default_action(self, ctx):
+        return ctx.values
+
+    def match(self, parser, pos):
+        values, p = [], pos
+        m = self.item.match(parser, p)
+        while m is not MISMATCH:
+            if m.value is not SKIP:
+                values.append(m.value)
+            p += m.len
+            s = self.sep.match(parser, p)
+            if s is MISMATCH:
+                break
+            m = self.item.match(parser, p + s.len)
+            if m is MISMATCH:
+                if self.trailing:
+                    p += s.len
+                break
+            if s.len + m.len == 0:
+                break  # empty iteration: would loop forever
+            p += s.len
+        return self.make(SeparatedCtx(parser.input, pos, p - pos, values))
+
+
 # ---- Optional --------------------------------------------------------------
 
 
@@ -413,21 +477,3 @@ class Eof(Clause):
         if pos == len(parser.input):
             return self.make(EofCtx(parser.input, pos, 0))
         return MISMATCH
-
-
-# ---- parser ----------------------------------------------------------------
-
-
-class Parser:
-    def match(self, clause, pos):
-        entry = self.memo.setdefault((clause, pos), MemoEntry())
-        return entry.get(self, clause, pos)
-
-    def parse(self, text, start_rule, rules):
-        """Returns (consumed_length, value), or None on mismatch."""
-        self.input = text
-        self.rules = rules
-        self.version_for_pos = [0] * (len(text) + 1)
-        self.memo = {}
-        m = self.match(rules[start_rule], 0)
-        return None if m is MISMATCH else (m.len, m.value)
