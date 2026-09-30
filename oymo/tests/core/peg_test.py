@@ -2,23 +2,19 @@
 
 from oymo.core.peg import (
     And,
-    Any,
-    Char,
-    Eof,
     First,
     Memoized,
     Not,
     OneOrMore,
     Optional,
     Parser,
-    Range,
     Ref,
     Separated,
     Seq,
-    Str,
     ZeroOrMore,
     drop,
 )
+from oymo.core.tokens import Any, Char, Eof, Range, Str
 
 
 def parse(text, start, rules):

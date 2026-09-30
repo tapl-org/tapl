@@ -3,7 +3,8 @@
 # Left recursion cases from Fig. 2 of "The Squirrel Parser" (Hutchison, arXiv:2601.05012).
 # Every rule reference yields (rule_name, value), so results mirror the paper's parse trees.
 
-from oymo.core.peg import Char, First, OneOrMore, Optional, Parser, Range, Ref, Seq, Str, ZeroOrMore
+from oymo.core.peg import First, OneOrMore, Optional, Parser, Ref, Seq, ZeroOrMore
+from oymo.core.tokens import Char, Range, Str
 
 
 def node(name):

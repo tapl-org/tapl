@@ -121,67 +121,6 @@ class Clause:
         raise NotImplementedError
 
 
-# ---- terminals -------------------------------------------------------------
-
-
-class TerminalCtx(Ctx):
-    __slots__ = ()
-
-
-class Char(Clause):
-    def __init__(self, c, action=None):
-        super().__init__(action)
-        self.c = c
-
-    def default_action(self, ctx):
-        return ctx.consumed
-
-    def match(self, parser, pos):
-        if pos < len(parser.text) and parser.text[pos] == self.c:
-            return self.make(TerminalCtx(parser.text, pos, 1))
-        return MISMATCH
-
-
-class Range(Clause):
-    def __init__(self, lo, hi, action=None):
-        super().__init__(action)
-        self.lo, self.hi = lo, hi
-
-    def default_action(self, ctx):
-        return ctx.consumed
-
-    def match(self, parser, pos):
-        if pos < len(parser.text) and self.lo <= parser.text[pos] <= self.hi:
-            return self.make(TerminalCtx(parser.text, pos, 1))
-        return MISMATCH
-
-
-class Str(Clause):
-    def __init__(self, literal, action=None):
-        super().__init__(action)
-        self.literal = literal
-
-    def default_action(self, ctx):
-        return ctx.consumed
-
-    def match(self, parser, pos):
-        if parser.text.startswith(self.literal, pos):
-            return self.make(TerminalCtx(parser.text, pos, len(self.literal)))
-        return MISMATCH
-
-
-class Any(Clause):
-    """Matches any single character."""
-
-    def default_action(self, ctx):
-        return ctx.consumed
-
-    def match(self, parser, pos):
-        if pos < len(parser.text):
-            return self.make(TerminalCtx(parser.text, pos, 1))
-        return MISMATCH
-
-
 # ---- Seq -------------------------------------------------------------------
 
 
@@ -417,7 +356,7 @@ class Optional(Clause):
         return self.make(OptionalCtx(parser.text, pos, m.len, m.value, True))
 
 
-# ---- lookahead and end of text ---------------------------------------------
+# ---- lookahead -------------------------------------------------------------
 
 
 class AndCtx(Ctx):
@@ -462,18 +401,4 @@ class Not(Clause):
     def match(self, parser, pos):
         if self.sub.match(parser, pos) is MISMATCH:
             return self.make(NotCtx(parser.text, pos, 0))
-        return MISMATCH
-
-
-class EofCtx(Ctx):
-    __slots__ = ()
-
-
-class Eof(Clause):
-    def default_action(self, _ctx):
-        return SKIP
-
-    def match(self, parser, pos):
-        if pos == len(parser.text):
-            return self.make(EofCtx(parser.text, pos, 0))
         return MISMATCH
