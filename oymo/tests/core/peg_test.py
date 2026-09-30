@@ -27,7 +27,7 @@ def parse(text, start, rules):
 
 # Left recursion + SKIP: E <- E '+' P / E '-' P / P
 LEFT_RECURSION_RULES = {
-    'N': Range('0', '9', action=lambda c: int(c.text)),
+    'N': Range('0', '9', action=lambda c: int(c.consumed)),
     'Paren': Seq(Char('(', action=drop), Ref('E'), Char(')', action=drop), action=lambda c: c.values[0]),
     'Primary': First(Ref('Paren'), Ref('N')),
     'E': First(
@@ -45,7 +45,7 @@ def test_left_associative_with_parens():
 # Repetition, Optional, Eof:  List <- '[' Ws Items? ']' Eof
 LIST_RULES = {
     'Ws': ZeroOrMore(Char(' ', action=drop), action=drop),
-    'Num': OneOrMore(Range('0', '9'), action=lambda c: int(c.text)),
+    'Num': OneOrMore(Range('0', '9'), action=lambda c: int(c.consumed)),
     'Item': Seq(Ref('Num'), Ref('Ws'), action=lambda c: c.values[0]),
     'Items': Seq(
         Ref('Item'),
@@ -75,15 +75,15 @@ def test_trailing_comma_fails():
     assert parse('[1,]', 'List', LIST_RULES) is None
 
 
-def test_trailing_input_fails_at_eof():
+def test_trailing_text_fails_at_eof():
     assert parse('[1] x', 'List', LIST_RULES) is None
 
 
 LOOKAHEAD_RULES = {
     # Comment <- '#' (!'\n' Any)*
-    'Comment': Seq(Str('#'), ZeroOrMore(Seq(Not(Char('\n')), Any())), action=lambda c: c.text),
+    'Comment': Seq(Str('#'), ZeroOrMore(Seq(Not(Char('\n')), Any())), action=lambda c: c.consumed),
     # Let <- 'let' ![a-z]
-    'Let': Seq(Str('let'), Not(Range('a', 'z')), action=lambda c: c.text),
+    'Let': Seq(Str('let'), Not(Range('a', 'z')), action=lambda c: c.consumed),
     'Peek': Seq(And(Str('ab')), Str('a'), action=lambda c: c.values),
 }
 
@@ -106,7 +106,7 @@ def test_and_consumes_nothing():
 
 def counting_word(calls):
     """[a-z]+ that records the position of every evaluation of its action."""
-    return OneOrMore(Range('a', 'z'), action=lambda c: calls.append(c.pos) or c.text)
+    return OneOrMore(Range('a', 'z'), action=lambda c: calls.append(c.pos) or c.consumed)
 
 
 def test_memoized_sub_evaluated_once_across_backtracking():
@@ -142,7 +142,7 @@ def test_memoized_action():
     assert parse('q', 'S', rules) == (1, 'Q')
 
 
-DIGIT = Range('0', '9', action=lambda c: int(c.text))
+DIGIT = Range('0', '9', action=lambda c: int(c.consumed))
 SEPARATED_RULES = {
     'Strict': Separated(DIGIT, Char(',')),
     'Trailing': Separated(DIGIT, Char(','), trailing=True),

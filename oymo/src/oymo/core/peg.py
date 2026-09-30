@@ -4,7 +4,7 @@ from __future__ import annotations
 
 
 class Match:
-    """Memoized result: how much input was consumed, and the action's value."""
+    """Memoized result: how much text was consumed, and the action's value."""
 
     __slots__ = ('len', 'value')
 
@@ -24,7 +24,7 @@ SKIP = _Skip()  # a clause returning SKIP contributes nothing to a parent Seq's 
 
 
 def drop(_ctx):
-    """Ready-made action: consume input, contribute no value."""
+    """Ready-made action: consume text, contribute no value."""
     return SKIP
 
 
@@ -73,7 +73,7 @@ class Parser:
 
     def parse(self, text: str, start_rule: str, rules: dict[str, Clause]) -> tuple[int, object] | None:
         """Returns (consumed_length, value), or None on mismatch."""
-        self.input = text
+        self.text = text
         self.rules = rules
         self.version_for_pos = [0] * (len(text) + 1)
         self.memo = {}
@@ -85,21 +85,21 @@ class Parser:
 
 
 class Ctx:
-    """Common part of every context. `text` is computed lazily (no slicing cost
-    unless an action asks for it)."""
+    """Common part of every context. `consumed` is the part of the text this clause matched,
+    computed lazily (no slicing cost unless an action asks for it)."""
 
-    __slots__ = ('_input', 'length', 'pos')
+    __slots__ = ('length', 'pos', 'text')
 
     def __init__(self, text, pos, length):
-        self._input, self.pos, self.length = text, pos, length
+        self.text, self.pos, self.length = text, pos, length
 
     @property
     def end(self):
         return self.pos + self.length
 
     @property
-    def text(self):
-        return self._input[self.pos : self.pos + self.length]
+    def consumed(self):
+        return self.text[self.pos : self.pos + self.length]
 
 
 class Clause:
@@ -134,11 +134,11 @@ class Char(Clause):
         self.c = c
 
     def default_action(self, ctx):
-        return ctx.text
+        return ctx.consumed
 
     def match(self, parser, pos):
-        if pos < len(parser.input) and parser.input[pos] == self.c:
-            return self.make(TerminalCtx(parser.input, pos, 1))
+        if pos < len(parser.text) and parser.text[pos] == self.c:
+            return self.make(TerminalCtx(parser.text, pos, 1))
         return MISMATCH
 
 
@@ -148,11 +148,11 @@ class Range(Clause):
         self.lo, self.hi = lo, hi
 
     def default_action(self, ctx):
-        return ctx.text
+        return ctx.consumed
 
     def match(self, parser, pos):
-        if pos < len(parser.input) and self.lo <= parser.input[pos] <= self.hi:
-            return self.make(TerminalCtx(parser.input, pos, 1))
+        if pos < len(parser.text) and self.lo <= parser.text[pos] <= self.hi:
+            return self.make(TerminalCtx(parser.text, pos, 1))
         return MISMATCH
 
 
@@ -162,11 +162,11 @@ class Str(Clause):
         self.literal = literal
 
     def default_action(self, ctx):
-        return ctx.text
+        return ctx.consumed
 
     def match(self, parser, pos):
-        if parser.input.startswith(self.literal, pos):
-            return self.make(TerminalCtx(parser.input, pos, len(self.literal)))
+        if parser.text.startswith(self.literal, pos):
+            return self.make(TerminalCtx(parser.text, pos, len(self.literal)))
         return MISMATCH
 
 
@@ -174,11 +174,11 @@ class Any(Clause):
     """Matches any single character."""
 
     def default_action(self, ctx):
-        return ctx.text
+        return ctx.consumed
 
     def match(self, parser, pos):
-        if pos < len(parser.input):
-            return self.make(TerminalCtx(parser.input, pos, 1))
+        if pos < len(parser.text):
+            return self.make(TerminalCtx(parser.text, pos, 1))
         return MISMATCH
 
 
@@ -210,7 +210,7 @@ class Seq(Clause):
             if m.value is not SKIP:
                 values.append(m.value)
             p += m.len
-        return self.make(SeqCtx(parser.input, pos, p - pos, values))
+        return self.make(SeqCtx(parser.text, pos, p - pos, values))
 
 
 # ---- First -----------------------------------------------------------------
@@ -236,7 +236,7 @@ class First(Clause):
         for i, c in enumerate(self.subs):
             m = c.match(parser, pos)
             if m is not MISMATCH:
-                return self.make(FirstCtx(parser.input, pos, m.len, m.value, i))
+                return self.make(FirstCtx(parser.text, pos, m.len, m.value, i))
         return MISMATCH
 
 
@@ -266,7 +266,7 @@ class Ref(Clause):
         m = parser.match(parser.rules[self.name], pos)
         if m is MISMATCH:
             return MISMATCH
-        return self.make(RefCtx(parser.input, pos, m.len, m.value, self.name))
+        return self.make(RefCtx(parser.text, pos, m.len, m.value, self.name))
 
 
 # ---- Memoized --------------------------------------------------------------
@@ -295,7 +295,7 @@ class Memoized(Clause):
         m = parser.match(self.sub, pos)
         if m is MISMATCH:
             return MISMATCH
-        return self.make(MemoizedCtx(parser.input, pos, m.len, m.value))
+        return self.make(MemoizedCtx(parser.text, pos, m.len, m.value))
 
 
 # ---- repetition ------------------------------------------------------------
@@ -333,7 +333,7 @@ class _Repeat(Clause):
                 break  # empty iteration: counts once, then stop (avoids an infinite loop)
         if count < self.min_count:
             return MISMATCH
-        return self.make(RepeatCtx(parser.input, pos, p - pos, values))
+        return self.make(RepeatCtx(parser.text, pos, p - pos, values))
 
 
 class ZeroOrMore(_Repeat):
@@ -385,7 +385,7 @@ class Separated(Clause):
             if s.len + m.len == 0:
                 break  # empty iteration: would loop forever
             p += s.len
-        return self.make(SeparatedCtx(parser.input, pos, p - pos, values))
+        return self.make(SeparatedCtx(parser.text, pos, p - pos, values))
 
 
 # ---- Optional --------------------------------------------------------------
@@ -413,11 +413,11 @@ class Optional(Clause):
     def match(self, parser, pos):
         m = self.sub.match(parser, pos)
         if m is MISMATCH:
-            return self.make(OptionalCtx(parser.input, pos, 0, None, False))
-        return self.make(OptionalCtx(parser.input, pos, m.len, m.value, True))
+            return self.make(OptionalCtx(parser.text, pos, 0, None, False))
+        return self.make(OptionalCtx(parser.text, pos, m.len, m.value, True))
 
 
-# ---- lookahead and end of input --------------------------------------------
+# ---- lookahead and end of text ---------------------------------------------
 
 
 class AndCtx(Ctx):
@@ -442,7 +442,7 @@ class And(Clause):
         m = self.sub.match(parser, pos)
         if m is MISMATCH:
             return MISMATCH
-        return self.make(AndCtx(parser.input, pos, 0, m.value))
+        return self.make(AndCtx(parser.text, pos, 0, m.value))
 
 
 class NotCtx(Ctx):
@@ -461,7 +461,7 @@ class Not(Clause):
 
     def match(self, parser, pos):
         if self.sub.match(parser, pos) is MISMATCH:
-            return self.make(NotCtx(parser.input, pos, 0))
+            return self.make(NotCtx(parser.text, pos, 0))
         return MISMATCH
 
 
@@ -474,6 +474,6 @@ class Eof(Clause):
         return SKIP
 
     def match(self, parser, pos):
-        if pos == len(parser.input):
-            return self.make(EofCtx(parser.input, pos, 0))
+        if pos == len(parser.text):
+            return self.make(EofCtx(parser.text, pos, 0))
         return MISMATCH
