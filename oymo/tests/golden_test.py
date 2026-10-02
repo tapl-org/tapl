@@ -65,9 +65,7 @@ def run_python_files(base_directory: str, filenames: list[str], output_file: str
     verify(output.getvalue(), namer=ApprovalNamer(filepath))
 
 
-TARGET = llvm_translate.Target(
-    triple='x86_64-unknown-linux-gnu', data_layout='', byte_order='little', prims=llvm_prims.DEFAULT_PRIMS
-)
+TARGET = llvm_translate.Target(triple='x86_64-unknown-linux-gnu', data_layout='', prims=llvm_prims.DEFAULT_PRIMS)
 LANGUAGE_HEADER = 'language oymomo\n'
 
 

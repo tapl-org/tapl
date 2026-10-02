@@ -25,7 +25,7 @@ from oymo.oymomo.banf_terms import (
 from oymo.oymomo.llvm_prims import DEFAULT_PRIMS
 from oymo.oymomo.llvm_translate import LlvmTranslationError, Target, translate
 
-TARGET = Target('x86_64-unknown-linux-gnu', '', 'little', DEFAULT_PRIMS)
+TARGET = Target('x86_64-unknown-linux-gnu', '', DEFAULT_PRIMS)
 POINT = terms.StructForm([('x', 'i32'), ('y', 'i32')])
 ZERO = Const(bytes(4), 'i32')
 ONE = Const(bytes([1, 0, 0, 0]), 'i32')
@@ -196,10 +196,13 @@ def test_rejects_branch_with_same_target_twice():
         translate(Module([function]), TARGET)
 
 
-def test_big_endian_constants():
+def test_constants_are_little_endian_on_a_big_endian_target():
     function = Function('g', 'i16', [Block('entry', [], [], Return(Const(bytes([1, 0]), 'i16')))])
-    big = Target('x86_64-unknown-linux-gnu', '', 'big', DEFAULT_PRIMS)
-    assert 'ret i16 256' in str(translate(Module([function]), big))
+    big = Target('powerpc64-unknown-linux-gnu', 'E-m:e-i64:64-n32:64', DEFAULT_PRIMS)
+    text = str(translate(Module([function]), big))
+    llvm.parse_assembly(text).verify()
+    assert 'target datalayout = "E-m:e-i64:64-n32:64"' in text
+    assert 'ret i16 1' in text
 
 
 def test_rejects_wrong_constant_size():

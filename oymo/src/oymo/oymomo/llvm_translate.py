@@ -5,7 +5,6 @@
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Literal
 
 from llvmlite import ir
 
@@ -26,7 +25,6 @@ class LlvmTranslationError(Exception):
 class Target:
     triple: str
     data_layout: str
-    byte_order: Literal['little', 'big']
     prims: Mapping[str, Callable[[ir.IRBuilder, list[ir.Value]], ir.Value]]
 
 
@@ -39,7 +37,7 @@ def llvm_type(form: terms.Form) -> ir.Type:
     raise LlvmTranslationError(f'Form {banf.show_form(form)} has no LLVM type.')
 
 
-def _const(atom: banf.Const, target: Target) -> ir.Constant:
+def _const(atom: banf.Const) -> ir.Constant:
     match = _INT_FORM.fullmatch(atom.form) if isinstance(atom.form, str) else None
     if match is None:
         raise LlvmTranslationError(
@@ -48,7 +46,9 @@ def _const(atom: banf.Const, target: Target) -> ir.Constant:
     bits = int(match.group(1))
     if len(atom.value) != (bits + 7) // 8:
         raise LlvmTranslationError(f'A {atom.form} constant needs {(bits + 7) // 8} bytes.', atom.location)
-    value = int.from_bytes(atom.value, target.byte_order)
+    # Byte arrays are little-endian on every target. LLVM stores the integer in the
+    # data layout's byte order, so a big-endian target needs no swap here.
+    value = int.from_bytes(atom.value, 'little')
     if value >= 1 << bits:
         raise LlvmTranslationError(f'Constant does not fit in {atom.form}.', atom.location)
     return ir.Constant(ir.IntType(bits), value)
@@ -81,7 +81,7 @@ class _FunctionTranslator:
 
     def value(self, atom, values):
         if isinstance(atom, banf.Const):
-            return _const(atom, self.target)
+            return _const(atom)
         return values[atom.name]
 
     def translate(self):

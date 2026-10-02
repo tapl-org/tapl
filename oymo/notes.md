@@ -30,7 +30,7 @@ Point
 
 Why three words: the kernel (oymomo) and BANF only know forms. Types belong to
 higher layers, and layouts belong to the backend (LLVM). Keeping the words apart
-stops a backend detail like "i32 is 4 bytes, little-endian" from leaking into the
+stops a backend detail like "i32 is 4-byte aligned" from leaking into the
 kernel, where `[2a000000]:i32` only says "these bytes, read as the form i32".
 
 ## Pipeline
@@ -58,11 +58,12 @@ Everything sits in `oymo/src/oymo/oymomo/`:
 Anything LLVM needs that BANF doesn't have is passed to the LLVM translator:
 
 ```python
-Target(triple='x86_64-unknown-linux-gnu', data_layout='', byte_order='little', prims=DEFAULT_PRIMS)
+Target(triple='x86_64-unknown-linux-gnu', data_layout='', prims=DEFAULT_PRIMS)
 ```
 
-- `byte_order` is needed because constants are bytes (`[2a000000]:i32` is 42 only
-  on little-endian).
+- No `byte_order`: byte arrays are always little-endian (see "Byte arrays"), and the
+  target's own byte order comes from `data_layout` (`e` or `E`). A separate field
+  could disagree with it.
 - `prims` maps each prim op name to the LLVM instructions that implement it.
 - Why: how each prim op becomes LLVM instructions is a backend detail, so BANF
   only names the op (`prim.add_i32`) and the target supplies the implementation.
@@ -137,9 +138,19 @@ word.
 
 ### Byte arrays are bracketed hex: `[2a 00 00 00] : i32`
 - The kernel has only byte arrays, so literals are written as bytes, not numbers.
-- Bytes are in memory order: `[2a000000] : i32` is 42 on little-endian. Nothing is
-  reinterpreted, so the source shows exactly what is stored. The LLVM translator
-  reads the bytes using `Target.byte_order`.
+- Bytes are little-endian on every target: `[2a000000] : i32` is 42 everywhere.
+  - Why fixed, not a default: oymomo has no integer literals, so the byte order is
+    what gives a literal its number. With an overridable default, one source would
+    mean two numbers. Same idea as WebAssembly memory and the `.bc` encoding: the
+    encoding is fixed, the machine's byte order is a target detail.
+  - Why: an evaluator (beta reduction plus prims) can run `add_i32` without a
+    target, and it agrees with compiled code, so constant folding is safe.
+  - A big-endian target gets big-endian bytes in memory: the LLVM translator
+    emits the number (`i32 42`) and LLVM lays it out per `data_layout`.
+  - Cost, later: once prims can reinterpret memory (store an `i32`, read bytes),
+    a big-endian target sees bytes in a different order than the literal. Then
+    either byte-swap loads and stores (as WebAssembly does) or call those prims
+    target-dependent.
 - Inside `[]`: groups of hex digits separated by whitespace. A group holds any
   number of bytes but has an even number of digits, so `[2a000000]`,
   `[2a00 0000]` and `[2a 00 00 00]` are the same bytes. `[]` is the empty array.
@@ -556,7 +567,9 @@ else0:
   `%v = phi i32 [%x, %a], [0, %b]`.
 - Unreachable blocks are not emitted, so a phi only has incoming values from
   blocks that exist.
-- Constants: an integer read from the bytes in `Target.byte_order`. An `iN`
+- Constants: an integer read from the bytes as little-endian, emitted as a number
+  (`[2a000000]:i32` is `i32 42`). LLVM stores it in the data layout's byte order,
+  so a big-endian target (`E-...`) needs no swap in the translator. An `iN`
   constant needs `(N + 7) // 8` bytes, so `i1` is one byte holding 0 or 1. Struct
   constants are not supported yet.
 - LLVM value names are the BANF let names (`%t0`), so IR is easy to match against
