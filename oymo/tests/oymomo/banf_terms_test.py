@@ -62,16 +62,16 @@ def test_show_fact():
     verify(module)
     assert show(module) == (
         'fact: i32\n'
-        'entry(n: i32):\n'
-        '  t0 = prim.eq_i32(n, [00000000]:i32)\n'
-        '  branch t0, then0(), else0(n)\n'
-        'then0():\n'
-        '  return [01000000]:i32\n'
-        'else0(n: i32):\n'
-        '  t1 = prim.sub_i32(n, [01000000]:i32)\n'
-        '  t2 = fact(t1)\n'
-        '  t3 = prim.mul_i32(n, t2)\n'
-        '  return t3\n'
+        '  entry(n: i32):\n'
+        '    t0 = prim.eq_i32(n, [00000000]:i32)\n'
+        '    branch t0, then0(), else0(n)\n'
+        '  then0():\n'
+        '    return [01000000]:i32\n'
+        '  else0(n: i32):\n'
+        '    t1 = prim.sub_i32(n, [01000000]:i32)\n'
+        '    t2 = fact(t1)\n'
+        '    t3 = prim.mul_i32(n, t2)\n'
+        '    return t3\n'
     )
 
 
@@ -103,11 +103,11 @@ def test_show_signature_data_and_get_data():
         'errno: i32\n'
         '\n'
         'main: i32\n'
-        'entry():\n'
-        '  t0 = errno\n'
-        '  t1 = putchar([41]:i8)\n'
-        '  t2 = prim.add_i32(t0, t1)\n'
-        '  return t2\n'
+        '  entry():\n'
+        '    t0 = errno\n'
+        '    t1 = putchar([41]:i8)\n'
+        '    t2 = prim.add_i32(t0, t1)\n'
+        '    return t2\n'
     )
 
 
@@ -133,13 +133,13 @@ def test_show_struct_ops_and_jump():
     verify(module)
     assert show(module) == (
         'swap: {x: i32, y: i32}\n'
-        'entry(p: {x: i32, y: i32}):\n'
-        '  jump body(p)\n'
-        'body(p: {x: i32, y: i32}):\n'
-        '  x = p.x\n'
-        '  y = p.y\n'
-        '  q = {x = y, y = x}\n'
-        '  return q\n'
+        '  entry(p: {x: i32, y: i32}):\n'
+        '    jump body(p)\n'
+        '  body(p: {x: i32, y: i32}):\n'
+        '    x = p.x\n'
+        '    y = p.y\n'
+        '    q = {x = y, y = x}\n'
+        '    return q\n'
     )
 
 

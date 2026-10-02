@@ -37,26 +37,26 @@ fact = f -> {
 
 def test_simplest():
     assert banf('main = f -> {entry = args:{a: i32} -> [00000000] : i32}') == (
-        'main: i32\nentry(a: i32):\n  return [00000000]:i32\n'
+        'main: i32\n  entry(a: i32):\n    return [00000000]:i32\n'
     )
 
 
 def test_empty_params():
-    assert banf('main = f -> {entry = args:{} -> [01]:i8}') == 'main: i8\nentry():\n  return [01]:i8\n'
+    assert banf('main = f -> {entry = args:{} -> [01]:i8}') == 'main: i8\n  entry():\n    return [01]:i8\n'
 
 
 def test_param_is_an_atom():
-    assert banf('id = f -> {entry = args:{n: i32} -> args.n}') == 'id: i32\nentry(n: i32):\n  return n\n'
+    assert banf('id = f -> {entry = args:{n: i32} -> args.n}') == 'id: i32\n  entry(n: i32):\n    return n\n'
 
 
 def test_nested_field_access_is_get_field_on_param():
     source = 'get = f -> {entry = args:{p: {x: i32, y: i8}} -> (x -> x) (args.p.x)}'
-    assert banf(source) == 'get: i32\nentry(p: {x: i32, y: i8}):\n  x = p.x\n  return x\n'
+    assert banf(source) == 'get: i32\n  entry(p: {x: i32, y: i8}):\n    x = p.x\n    return x\n'
 
 
 def test_let_with_written_form():
     source = 'g = f -> {entry = args:{n: i32} -> (t0: i1 -> t0) (prim.eq_i32 {a = args.n, b = args.n})}'
-    assert banf(source) == 'g: i1\nentry(n: i32):\n  t0 = prim.eq_i32(n, n)\n  return t0\n'
+    assert banf(source) == 'g: i1\n  entry(n: i32):\n    t0 = prim.eq_i32(n, n)\n    return t0\n'
 
 
 def test_let_with_wrong_written_form():
@@ -72,23 +72,23 @@ def test_call_with_struct_literal_and_forwarded_args():
     """
     assert banf(source) == (
         'add: i32\n'
-        'entry(a: i32, b: i32):\n'
-        '  s = prim.add_i32(a, b)\n'
-        '  return s\n'
+        '  entry(a: i32, b: i32):\n'
+        '    s = prim.add_i32(a, b)\n'
+        '    return s\n'
         '\n'
         'twice: i32\n'
-        'entry(a: i32, b: i32):\n'
-        '  t0 = add(a, b)\n'
-        '  jump next(t0, b)\n'
-        'next(a: i32, b: i32):\n'
-        '  t1 = add(a, b)\n'
-        '  return t1\n'
+        '  entry(a: i32, b: i32):\n'
+        '    t0 = add(a, b)\n'
+        '    jump next(t0, b)\n'
+        '  next(a: i32, b: i32):\n'
+        '    t1 = add(a, b)\n'
+        '    return t1\n'
     )
 
 
 def test_jump_forwards_args():
     source = 'g = f -> {entry = args:{n: i8} -> f.body args, body = args:{n: i8} -> args.n}'
-    assert banf(source) == 'g: i8\nentry(n: i8):\n  jump body(n)\nbody(n: i8):\n  return n\n'
+    assert banf(source) == 'g: i8\n  entry(n: i8):\n    jump body(n)\n  body(n: i8):\n    return n\n'
 
 
 def test_prim_labels():
@@ -108,27 +108,27 @@ def test_prim_wrong_width():
 
 def test_conversion():
     source = 'g = f -> {entry = args:{n: i8} -> (t -> t) (prim.zext_i8_i32 {value = args.n})}'
-    assert banf(source) == 'g: i32\nentry(n: i8):\n  t = prim.zext_i8_i32(n)\n  return t\n'
+    assert banf(source) == 'g: i32\n  entry(n: i8):\n    t = prim.zext_i8_i32(n)\n    return t\n'
 
 
 def test_struct_built_and_read():
     source = 'g = f -> {entry = args:{n: i8} -> (s -> (y -> y) (s.y)) ({x = args.n, y = [01]:i8})}'
-    assert banf(source) == 'g: i8\nentry(n: i8):\n  s = {x = n, y = [01]:i8}\n  y = s.y\n  return y\n'
+    assert banf(source) == 'g: i8\n  entry(n: i8):\n    s = {x = n, y = [01]:i8}\n    y = s.y\n    return y\n'
 
 
 def test_fact():
     assert banf(FACT) == (
         'fact: i32\n'
-        'entry(n: i32):\n'
-        '  t0 = prim.eq_i32(n, [00000000]:i32)\n'
-        '  branch t0, then0(), else0(n)\n'
-        'then0():\n'
-        '  return [01000000]:i32\n'
-        'else0(n: i32):\n'
-        '  t1 = prim.sub_i32(n, [01000000]:i32)\n'
-        '  t2 = fact(t1)\n'
-        '  t3 = prim.mul_i32(n, t2)\n'
-        '  return t3\n'
+        '  entry(n: i32):\n'
+        '    t0 = prim.eq_i32(n, [00000000]:i32)\n'
+        '    branch t0, then0(), else0(n)\n'
+        '  then0():\n'
+        '    return [01000000]:i32\n'
+        '  else0(n: i32):\n'
+        '    t1 = prim.sub_i32(n, [01000000]:i32)\n'
+        '    t2 = fact(t1)\n'
+        '    t3 = prim.mul_i32(n, t2)\n'
+        '    return t3\n'
     )
 
 
@@ -159,21 +159,21 @@ def test_explicit_join_block():
     """
     assert banf(source) == (
         'pick: i32\n'
-        'entry(c: i1, x: i32, y: i32, z: i32):\n'
-        '  branch c, then0(x, z), else0(y, z)\n'
-        'then0(x: i32, z: i32):\n'
-        '  jump join0(x, z)\n'
-        'else0(y: i32, z: i32):\n'
-        '  jump join0(y, z)\n'
-        'join0(v: i32, z: i32):\n'
-        '  t0 = prim.add_i32(v, z)\n'
-        '  return t0\n'
+        '  entry(c: i1, x: i32, y: i32, z: i32):\n'
+        '    branch c, then0(x, z), else0(y, z)\n'
+        '  then0(x: i32, z: i32):\n'
+        '    jump join0(x, z)\n'
+        '  else0(y: i32, z: i32):\n'
+        '    jump join0(y, z)\n'
+        '  join0(v: i32, z: i32):\n'
+        '    t0 = prim.add_i32(v, z)\n'
+        '    return t0\n'
     )
 
 
 def test_first_block_is_entry_whatever_its_name():
     source = 'g = f -> {start = args:{n: i8} -> f.done args, done = args:{n: i8} -> args.n}'
-    assert banf(source) == 'g: i8\nstart(n: i8):\n  jump done(n)\ndone(n: i8):\n  return n\n'
+    assert banf(source) == 'g: i8\n  start(n: i8):\n    jump done(n)\n  done(n: i8):\n    return n\n'
 
 
 @pytest.mark.parametrize(
@@ -270,12 +270,12 @@ def test_imports():
         'cfg: {w: i16, h: i16}\n'
         '\n'
         'main: i32\n'
-        'entry():\n'
-        '  t0 = putchar([41]:i8)\n'
-        '  t1 = errno\n'
-        '  c = cfg\n'
-        '  w = c.w\n'
-        '  return t0\n'
+        '  entry():\n'
+        '    t0 = putchar([41]:i8)\n'
+        '    t1 = errno\n'
+        '    c = cfg\n'
+        '    w = c.w\n'
+        '    return t0\n'
     )
 
 

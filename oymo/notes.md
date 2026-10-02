@@ -338,16 +338,16 @@ and Cranelift.
 
 ```
 fact: i32
-entry(n: i32):
-  t0 = prim.eq_i32(n, [00000000]:i32)
-  branch t0, then0(), else0(n)
-then0():
-  return [01000000]:i32
-else0(n: i32):
-  t1 = prim.sub_i32(n, [01000000]:i32)
-  t2 = fact(t1)
-  t3 = prim.mul_i32(n, t2)
-  return t3
+  entry(n: i32):
+    t0 = prim.eq_i32(n, [00000000]:i32)
+    branch t0, then0(), else0(n)
+  then0():
+    return [01000000]:i32
+  else0(n: i32):
+    t1 = prim.sub_i32(n, [01000000]:i32)
+    t2 = fact(t1)
+    t3 = prim.mul_i32(n, t2)
+    return t3
 ```
 
 ### Why basic blocks, and why block params instead of phi
@@ -433,6 +433,10 @@ Data(name, form)                           # imported data
 - Calls and data reads use the symbol, not `defs.` / `decls.`: `t0 = errno`.
 - Imports print first: `putchar(c: i8): i32` for a `Signature`, `errno: i32` for
   `Data`, then each function as `fact: i32` followed by its blocks.
+- Blocks are indented under their function (labels at 2 spaces, instructions at 4),
+  so the column tells a line's kind. At column 0, the block label `entry(a: i32):`
+  would look like the signature `putchar(c: i8): i32`, and nothing would mark
+  where a function ends. Braces would do that too, but indentation already does.
 
 ## oymomo to BANF: a shape checker, not a normalizer
 

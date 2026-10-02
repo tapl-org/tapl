@@ -364,9 +364,9 @@ def _show_params(params):
 def _show_function(function):
     lines = [f'{show_name(function.name)}: {show_form(function.return_form)}']
     for block in function.blocks:
-        lines.append(f'{show_name(block.label)}{_show_params(block.params)}:')
-        lines.extend(f'  {show_name(let.name)} = {show_op(let.value)}' for let in block.lets)
-        lines.append(f'  {show_terminator(block.terminator)}')
+        lines.append(f'  {show_name(block.label)}{_show_params(block.params)}:')
+        lines.extend(f'    {show_name(let.name)} = {show_op(let.value)}' for let in block.lets)
+        lines.append(f'    {show_terminator(block.terminator)}')
     return '\n'.join(lines)
 
 
