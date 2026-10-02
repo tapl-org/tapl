@@ -9,12 +9,18 @@ Term = syntax.Term
 Location = syntax.Location
 
 
-type Form = str | StructForm
+type Form = str | StructForm | FunctionForm
 
 
 @dataclass
 class StructForm:
     fields: list[tuple[str, Form]]
+
+
+@dataclass
+class FunctionForm:
+    param: Form
+    result: Form
 
 
 @dataclass

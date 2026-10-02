@@ -5,7 +5,7 @@
 import unicodedata
 
 from oymo.core import syntax
-from oymo.core.peg import MISMATCH, First, Memoized, Optional, Parser, Ref, Separated, Seq, ZeroOrMore, drop
+from oymo.core.peg import MISMATCH, Clause, First, Memoized, Optional, Parser, Ref, Separated, Seq, ZeroOrMore, drop
 from oymo.core.terminals import Comment, Eof, Fixed, HexBytes, Identifier, String, Whitespace
 from oymo.oymomo import rule_names as rn
 from oymo.oymomo import terms
@@ -93,10 +93,18 @@ NAME = Memoized(
     )
 )
 
-FORM_OPT = Optional(
-    Seq(_punct(':'), Ref(rn.FORM), action=lambda c: c.values[0]),
-    action=lambda c: c.value if c.matched else UNKNOWN_FORM,
-)
+
+def _form_opt(rule):
+    return Optional(
+        Seq(_punct(':'), Ref(rule), action=lambda c: c.values[0]),
+        action=lambda c: c.value if c.matched else UNKNOWN_FORM,
+    )
+
+
+# An arrow form only appears as a struct-form field or inside parentheses, so that
+# `decls: {...} -> defs -> body` keeps `defs` as a lambda binder.
+FORM_OPT = _form_opt(rn.FORM)
+FIELD_FORM_OPT = _form_opt(rn.ARROW_FORM)
 
 
 def _lambda(c):
@@ -114,7 +122,7 @@ def _field(c):
     return terms.Field(label=label, value=value, location=_location(c))
 
 
-RULES = {
+RULES: dict[str, Clause] = {
     rn.START: Seq(Ref(rn.EXPRESSION), Eof(skip=TRIVIA), action=lambda c: c.values[0]),
     rn.EXPRESSION: First(Ref(rn.LAMBDA), Ref(rn.IF), Ref(rn.APPLY)),
     rn.LAMBDA: Seq(NAME, FORM_OPT, _punct('->', '→'), Ref(rn.EXPRESSION), action=_lambda),
@@ -168,10 +176,22 @@ RULES = {
         Seq(NAME, action=lambda c: c.values[0][0]),
         Seq(
             _punct('{'),
-            Separated(Seq(NAME, FORM_OPT, action=lambda c: (c.values[0][0], c.values[1])), _punct(','), trailing=True),
+            Separated(
+                Seq(NAME, FIELD_FORM_OPT, action=lambda c: (c.values[0][0], c.values[1])), _punct(','), trailing=True
+            ),
             _punct('}'),
             action=lambda c: terms.StructForm(fields=c.values[0]),
         ),
+        Seq(_punct('('), Ref(rn.ARROW_FORM), _punct(')'), action=lambda c: c.values[0]),
+    ),
+    rn.ARROW_FORM: First(
+        Seq(
+            Ref(rn.FORM),
+            _punct('->', '→'),
+            Ref(rn.ARROW_FORM),
+            action=lambda c: terms.FunctionForm(param=c.values[0], result=c.values[1]),
+        ),
+        Ref(rn.FORM),
     ),
 }
 
@@ -180,4 +200,7 @@ def parse(text: str) -> syntax.Term:
     result = Parser().parse(text, rn.START, RULES)
     if result is None:
         return syntax.ErrorTerm(message='Syntax error.', location=syntax.Location(start=0, end=len(text)))
-    return result[1]
+    term = result[1]
+    if isinstance(term, syntax.Term):
+        return term
+    raise RuntimeError(f'Unexpected parse result type: {type(term)}')

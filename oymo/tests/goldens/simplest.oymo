@@ -1,3 +1,3 @@
 language oymomo
 
-realm -> module -> { main = a:i32 -> [00000000] : i32 }
+prim -> decls: {} -> defs -> { main = f -> {entry = args:{a: i32} -> [00000000] : i32} }

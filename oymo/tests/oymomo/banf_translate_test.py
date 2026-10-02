@@ -1,0 +1,329 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+import pytest
+
+from oymo.oymomo import banf_terms, terms
+from oymo.oymomo.banf_translate import TranslationError, translate
+from oymo.oymomo.grammar import parse
+
+
+def program(defs, decls='{}'):
+    return f'prim -> decls: {decls} -> defs -> {{{defs}}}'
+
+
+def banf(defs, decls='{}'):
+    return banf_terms.show(translate(parse(program(defs, decls))))
+
+
+def error(defs, decls='{}'):
+    with pytest.raises(TranslationError) as info:
+        translate(parse(program(defs, decls)))
+    return info.value.message
+
+
+FACT = """
+fact = f -> {
+  entry = args:{n: i32} ->
+    (t0 -> if t0 then f.then0 {} else f.else0 {n = args.n})
+      (prim.eq_i32 {a = args.n, b = [00000000]:i32}),
+  then0 = args:{} -> [01000000]:i32,
+  else0 = args:{n: i32} ->
+    (t1 -> (t2 -> (t3 -> t3) (prim.mul_i32 {a = args.n, b = t2}))
+             (defs.fact {n = t1}))
+      (prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:i32}),
+}
+"""
+
+
+def test_simplest():
+    assert banf('main = f -> {entry = args:{a: i32} -> [00000000] : i32}') == (
+        'main: i32\nentry(a: i32):\n  return [00000000]:i32\n'
+    )
+
+
+def test_empty_params():
+    assert banf('main = f -> {entry = args:{} -> [01]:i8}') == 'main: i8\nentry():\n  return [01]:i8\n'
+
+
+def test_param_is_an_atom():
+    assert banf('id = f -> {entry = args:{n: i32} -> args.n}') == 'id: i32\nentry(n: i32):\n  return n\n'
+
+
+def test_nested_field_access_is_get_field_on_param():
+    source = 'get = f -> {entry = args:{p: {x: i32, y: i8}} -> (x -> x) (args.p.x)}'
+    assert banf(source) == 'get: i32\nentry(p: {x: i32, y: i8}):\n  x = p.x\n  return x\n'
+
+
+def test_let_with_written_form():
+    source = 'g = f -> {entry = args:{n: i32} -> (t0: i1 -> t0) (prim.eq_i32 {a = args.n, b = args.n})}'
+    assert banf(source) == 'g: i1\nentry(n: i32):\n  t0 = prim.eq_i32(n, n)\n  return t0\n'
+
+
+def test_let_with_wrong_written_form():
+    source = 'g = f -> {entry = args:{n: i32} -> (t0: i32 -> t0) (prim.eq_i32 {a = args.n, b = args.n})}'
+    assert error(source) == "Let 't0' is written as i32, but its op gives i1."
+
+
+def test_call_with_struct_literal_and_forwarded_args():
+    source = """
+    add = f -> {entry = args:{a: i32, b: i32} -> (s -> s) (prim.add_i32 {a = args.a, b = args.b})},
+    twice = f -> {entry = args:{a: i32, b: i32} -> (t0 -> f.next {a = t0, b = args.b}) (defs.add args),
+                  next = args:{a: i32, b: i32} -> (t1 -> t1) (defs.add {a = args.a, b = args.b})},
+    """
+    assert banf(source) == (
+        'add: i32\n'
+        'entry(a: i32, b: i32):\n'
+        '  s = prim.add_i32(a, b)\n'
+        '  return s\n'
+        '\n'
+        'twice: i32\n'
+        'entry(a: i32, b: i32):\n'
+        '  t0 = add(a, b)\n'
+        '  jump next(t0, b)\n'
+        'next(a: i32, b: i32):\n'
+        '  t1 = add(a, b)\n'
+        '  return t1\n'
+    )
+
+
+def test_jump_forwards_args():
+    source = 'g = f -> {entry = args:{n: i8} -> f.body args, body = args:{n: i8} -> args.n}'
+    assert banf(source) == 'g: i8\nentry(n: i8):\n  jump body(n)\nbody(n: i8):\n  return n\n'
+
+
+def test_prim_labels():
+    source = 'g = f -> {entry = args:{n: i32} -> (t -> t) (prim.sub_i32 {minuend = args.n, subtrahend = args.n})}'
+    assert 'prim.sub_i32(n, n)' in banf(source)
+
+
+def test_prim_wrong_labels():
+    source = 'g = f -> {entry = args:{n: i32} -> (t -> t) (prim.sub_i32 {a = args.n, b = args.n})}'
+    assert error(source) == 'prim.sub_i32 takes {minuend, subtrahend}, got {a, b}.'
+
+
+def test_prim_wrong_width():
+    source = 'g = f -> {entry = args:{n: i8} -> (t -> t) (prim.add_i32 {a = args.n, b = [00000000]:i32})}'
+    assert error(source) == 'prim.add_i32 expects a: i32, got i8.'
+
+
+def test_conversion():
+    source = 'g = f -> {entry = args:{n: i8} -> (t -> t) (prim.zext_i8_i32 {value = args.n})}'
+    assert banf(source) == 'g: i32\nentry(n: i8):\n  t = prim.zext_i8_i32(n)\n  return t\n'
+
+
+def test_struct_built_and_read():
+    source = 'g = f -> {entry = args:{n: i8} -> (s -> (y -> y) (s.y)) ({x = args.n, y = [01]:i8})}'
+    assert banf(source) == 'g: i8\nentry(n: i8):\n  s = {x = n, y = [01]:i8}\n  y = s.y\n  return y\n'
+
+
+def test_fact():
+    assert banf(FACT) == (
+        'fact: i32\n'
+        'entry(n: i32):\n'
+        '  t0 = prim.eq_i32(n, [00000000]:i32)\n'
+        '  branch t0, then0(), else0(n)\n'
+        'then0():\n'
+        '  return [01000000]:i32\n'
+        'else0(n: i32):\n'
+        '  t1 = prim.sub_i32(n, [01000000]:i32)\n'
+        '  t2 = fact(t1)\n'
+        '  t3 = prim.mul_i32(n, t2)\n'
+        '  return t3\n'
+    )
+
+
+def test_return_form_inferred_through_recursion_only_block():
+    source = """
+    loop = f -> {
+      entry = args:{c: i1} -> if args.c then f.a {} else f.b {},
+      a = args:{} -> (t -> t) (defs.loop {c = [00]:i1}),
+      b = args:{} -> [07]:i8,
+    }
+    """
+    assert banf(source).startswith('loop: i8\n')
+
+
+def test_return_form_cannot_be_inferred():
+    assert error('g = f -> {entry = args:{} -> (t -> t) (defs.g {})}') == "Cannot infer the return form of 'g'."
+
+
+def test_explicit_join_block():
+    source = """
+    pick = f -> {
+      entry = args:{c: i1, x: i32, y: i32, z: i32} ->
+        if args.c then f.then0 {x = args.x, z = args.z} else f.else0 {y = args.y, z = args.z},
+      then0 = args:{x: i32, z: i32} -> f.join0 {v = args.x, z = args.z},
+      else0 = args:{y: i32, z: i32} -> f.join0 {v = args.y, z = args.z},
+      join0 = args:{v: i32, z: i32} -> (t0 -> t0) (prim.add_i32 {a = args.v, b = args.z}),
+    }
+    """
+    assert banf(source) == (
+        'pick: i32\n'
+        'entry(c: i1, x: i32, y: i32, z: i32):\n'
+        '  branch c, then0(x, z), else0(y, z)\n'
+        'then0(x: i32, z: i32):\n'
+        '  jump join0(x, z)\n'
+        'else0(y: i32, z: i32):\n'
+        '  jump join0(y, z)\n'
+        'join0(v: i32, z: i32):\n'
+        '  t0 = prim.add_i32(v, z)\n'
+        '  return t0\n'
+    )
+
+
+def test_first_block_is_entry_whatever_its_name():
+    source = 'g = f -> {start = args:{n: i8} -> f.done args, done = args:{n: i8} -> args.n}'
+    assert banf(source) == 'g: i8\nstart(n: i8):\n  jump done(n)\ndone(n: i8):\n  return n\n'
+
+
+@pytest.mark.parametrize(
+    ('defs', 'message'),
+    [
+        (
+            'g = f -> {entry = args:{n: i32} -> (t -> t) (prim.add_i32 {a = prim.add_i32 {a = args.n, b = args.n}, '
+            'b = args.n})}',
+            'Expected an atom: a byte array, a let name, or args.label.',
+        ),
+        (
+            'g = f -> {entry = args:{n: i32} -> prim.add_i32 {a = args.n, b = args.n}}',
+            'An op in tail position must be bound by a let, as in (t0 -> t0) (op).',
+        ),
+        (
+            'g = f -> {entry = args:{c: i1} -> (t -> t) (if args.c then f.a {} else f.b {}), a = args:{} -> [01]:i8,'
+            ' b = args:{} -> [01]:i8}',
+            'An if must be in tail position.',
+        ),
+        (
+            'g = f -> {entry = args:{c: i1} -> if args.c then [01]:i8 else f.b {}, b = args:{} -> [01]:i8}',
+            'Both branches of an if must be jumps, such as f.then0 {}.',
+        ),
+        (
+            'g = f -> {entry = args:{} -> f.b {}, b = args:{} -> f.entry {}}',
+            'Cannot jump to the entry block.',
+        ),
+        (
+            'g = f -> {entry = args:{c: i1} -> if args.c then f.b {} else f.b {}, b = args:{} -> [01]:i8}',
+            'Both branches of an if jump to the same block.',
+        ),
+        ('g = f -> {entry = args:{} -> f.nowhere {}}', "Unknown block 'nowhere'."),
+        (
+            'g = f -> {entry = args:{n: i8} -> (n -> n) (prim.add_i8 {a = args.n, b = args.n})}',
+            "Let 'n' repeats a block param label.",
+        ),
+        (
+            'g = f -> {entry = args:{n: i8} -> (t -> (t -> t) (prim.add_i8 {a = t, b = t})) '
+            '(prim.add_i8 {a = args.n, b = args.n})}',
+            "Let 't' repeats an earlier let.",
+        ),
+        ('g = f -> {entry = args:{} -> f}', "'f' cannot be used as a value."),
+        ('g = f -> {entry = args:{} -> args}', "'args' cannot be used as a value."),
+        ('g = f -> {entry = args:{} -> (t -> t) (prim)}', "'prim' cannot be used as a value."),
+        ('g = f -> {entry = args:{} -> (t -> t) (fix defs)}', 'fix is not supported; recursion goes through defs.'),
+        ('g = f -> {entry = args:{n: i8} -> (t -> t) (args.n)}', "A let's value must be an op, not an atom."),
+        ('g = f -> {entry = args:{} -> (t -> t) (defs.g)}', 'defs.g must be applied.'),
+        ('g = args:{} -> [01]:i8', "Definition 'g' must be a struct of blocks, such as f -> {entry = args:{} -> ...}."),
+        (
+            'g = f -> {entry = n:i8 -> n}',
+            "Block 'entry' must be a lambda taking a struct, such as args:{n: i32} -> ...",
+        ),
+        ('g = f -> {entry = args:{} -> args.n}', "Block has no param 'n'."),
+        ('g = f -> {entry = args:{} -> [01]}', 'Byte array: form must be known.'),
+        ('g = f -> {entry = args:{} -> (t -> t) (defs.h {})}', "Unknown definition 'h'."),
+        ('g = f -> {entry = args:{} -> (t -> t) (prim.add {})}', "Unknown prim op 'add'."),
+        ('g = f -> {entry = args:{} -> [01]:i8}, g = f -> {entry = args:{} -> [01]:i8}', "Duplicate definition 'g'."),
+    ],
+)
+def test_shape_errors(defs, message):
+    assert error(defs) == message
+
+
+def test_branch_condition_must_be_i1():
+    source = 'g = f -> {entry = args:{c: i8} -> if args.c then f.a {} else f.b {}, a = args:{} -> [01]:i8, b = args:{} -> [01]:i8}'
+    assert error(source) == 'Branch condition must be i1, got i8.'
+
+
+def test_error_location_points_at_source():
+    source = program('g = f -> {entry = args:{} -> f.nowhere {}}')
+    with pytest.raises(TranslationError) as info:
+        translate(parse(source))
+    location = info.value.location
+    assert source[location.start : location.end] == 'f.nowhere {}'
+
+
+DECLS = '{putchar: {c: i8} -> i32, errno: i32, cfg: {w: i16, h: i16}}'
+
+
+def test_imports():
+    source = """
+    main = f -> {entry = args:{} ->
+      (t0 -> (t1 -> (c -> (w -> t0) (c.w)) (decls.cfg)) (decls.errno)) (decls.putchar {c = [41]:i8})},
+    """
+    module = translate(parse(program(source, DECLS)))
+    assert module.bindings[:3] == [
+        banf_terms.Signature('putchar', [('c', 'i8')], 'i32'),
+        banf_terms.Data('errno', 'i32'),
+        banf_terms.Data('cfg', terms.StructForm([('w', 'i16'), ('h', 'i16')])),
+    ]
+    assert banf_terms.show(module) == (
+        'putchar(c: i8): i32\n'
+        'errno: i32\n'
+        'cfg: {w: i16, h: i16}\n'
+        '\n'
+        'main: i32\n'
+        'entry():\n'
+        '  t0 = putchar([41]:i8)\n'
+        '  t1 = errno\n'
+        '  c = cfg\n'
+        '  w = c.w\n'
+        '  return t0\n'
+    )
+
+
+@pytest.mark.parametrize(
+    ('defs', 'decls', 'message'),
+    [
+        (
+            'main = f -> {entry = args:{} -> (t -> t) (decls.putchar {x = [41]:i8})}',
+            DECLS,
+            'decls.putchar takes {c}, got {x}.',
+        ),
+        (
+            'main = f -> {entry = args:{} -> (t -> t) (decls.putchar)}',
+            DECLS,
+            "Imported function 'putchar' must be applied.",
+        ),
+        (
+            'main = f -> {entry = args:{} -> (t -> t) (decls.errno {})}',
+            DECLS,
+            "Imported data 'errno' cannot be applied.",
+        ),
+        (
+            'main = f -> {entry = args:{} -> [01]:i8}',
+            '{libc: {putchar: {c: i8} -> i32}}',
+            "Import 'libc': function forms nested inside other forms are not supported.",
+        ),
+        (
+            'main = f -> {entry = args:{} -> [01]:i8}',
+            '{g: {c: i8} -> {d: i8} -> i32}',
+            "Import 'g': function forms nested inside other forms are not supported.",
+        ),
+        (
+            'main = f -> {entry = args:{} -> [01]:i8}',
+            '{g: i8 -> i32}',
+            "Import 'g': a function form needs a struct form as its param.",
+        ),
+        ('main = f -> {entry = args:{} -> [01]:i8}', '{g: unknown}', "Import 'g': form must be known."),
+        ('main = f -> {entry = args:{} -> [01]:i8}', '{main: i32}', "'main' is in both decls and defs."),
+    ],
+)
+def test_import_errors(defs, decls, message):
+    assert error(defs, decls) == message
+
+
+def test_program_shape_errors():
+    with pytest.raises(TranslationError, match='Expected a program of the shape'):
+        translate(parse('prim -> {}'))
+    with pytest.raises(TranslationError, match='needs a struct form'):
+        translate(parse('prim -> decls -> defs -> {}'))
+    with pytest.raises(TranslationError, match='different names'):
+        translate(parse('p -> p: {} -> defs -> {}'))

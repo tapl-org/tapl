@@ -30,8 +30,11 @@ def show(term):
 
 
 def show_form(form):
-    if isinstance(form, str):
-        return form
+    match form:
+        case str():
+            return form
+        case terms.FunctionForm(param=param, result=result):
+            return f'({show_form(param)} -> {show_form(result)})'
     return '{' + ', '.join(f'{label}: {show_form(f)}' for label, f in form.fields) + '}'
 
 
@@ -117,6 +120,27 @@ def test_nested_struct_forms():
     assert show(parse('p : {x: i32, y: {a: u8,},} -> p')) == '(p:{x: i32, y: {a: u8}} -> p)'
 
 
+def test_function_form_in_struct_form_field():
+    assert show(parse('d: {putchar: {c: i8} -> i32, errno: i32} -> d')) == (
+        '(d:{putchar: ({c: i8} -> i32), errno: i32} -> d)'
+    )
+
+
+def test_parenthesized_function_form():
+    assert show(parse('g: ({c: i8} -> i32) -> g')) == '(g:({c: i8} -> i32) -> g)'
+    assert show(parse('[]: (i8 -> i32)')) == '[]:(i8 -> i32)'
+
+
+def test_function_form_is_right_associative():
+    assert show(parse('d: {f: {a: i8} -> {b: i8} -> i32} -> d')) == '(d:{f: ({a: i8} -> ({b: i8} -> i32))} -> d)'
+    assert show(parse('d: {f: ({a: i8} -> {b: i8}) -> i32} -> d')) == '(d:{f: (({a: i8} -> {b: i8}) -> i32)} -> d)'
+
+
+def test_function_form_does_not_swallow_lambda_binder():
+    source = 'decls: {f: {} -> i32} -> defs -> {}'
+    assert show(parse(source)) == '(decls:{f: ({} -> i32)} -> (defs:unknown -> {}))'
+
+
 def test_quoted_names():
     assert show(parse('"a b"')) == 'a b'
     assert show(parse('"if" -> "if"')) == '(if:unknown -> if)'
@@ -157,5 +181,5 @@ def test_locations_skip_leading_trivia():
 
 
 def test_golden_program():
-    source = 'realm -> module -> {main = a:i32 -> [00000000] : i32}'
-    assert show(parse(source)) == '(realm:unknown -> (module:unknown -> {main = (a:i32 -> [00000000]:i32)}))'
+    source = 'prim -> decls: {} -> defs -> {main = a:i32 -> [00000000] : i32}'
+    assert show(parse(source)) == '(prim:unknown -> (decls:{} -> (defs:unknown -> {main = (a:i32 -> [00000000]:i32)})))'

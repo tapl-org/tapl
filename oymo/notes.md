@@ -119,3 +119,76 @@ Kept after byte arrays moved to `[]`; `#` is now unused.
 
 ### No surface syntax for BruijnIndex
 Name resolution produces it; users write names.
+
+### Function forms: `{c: i8} -> i32`
+- A function form is written with `->` or `→`, like a lambda. It has one param,
+  matching one-argument lambdas, and no param name: the struct form's labels are
+  what callers use.
+- Right-associative: `{a: i8} -> {b: i8} -> i32` is `{a: i8} -> ({b: i8} -> i32)`.
+- An arrow form is allowed only as the form of a struct-form field or inside
+  parentheses: `{putchar: {c: i8} -> i32}`, `x: ({c: i8} -> i32) -> x`. The form
+  after a lambda's or byte array's `:` is a name, a struct form, or a parenthesized form.
+- Why: in `decls: {...} -> defs -> body`, an unrestricted arrow form would parse
+  `{...} -> defs` as one function form and swallow the `defs` binder.
+
+## Program shape
+
+```
+prim -> decls: {putchar: {c: i8} -> i32, errno: i32} -> defs -> {
+  main = f -> {entry = args:{} -> (t0 -> t0) (decls.putchar {c = [41]:i8})},
+}
+```
+
+- `prim` is the struct of machine primitives (arithmetic, logic, comparison,
+  conversions).
+- `decls` is the struct of imports. Its form lists them, and each field can be any
+  form: a function form declares an imported function, any other form declares
+  imported data. The linker provides its value, so it has no body in the source.
+  A module with no imports writes `decls: {}`.
+- `defs` is the module's own struct of definitions, passed back in so its functions
+  call each other by field access: `defs.increment {a = [00]:i8}`.
+- Every `decls` and `defs` field becomes one symbol. A name in both is an error.
+- An oymomo lambda takes exactly one argument. When a program is translated to
+  BANF, every function's argument must be a struct, including every prim op's and
+  every imported function's. Each prim op chooses field names that fit it:
+  `prim.add_i32 {a = x, b = y}`, `prim.sub_i32 {minuend = x, subtrahend = y}`.
+- Prim ops are monomorphic: each unique signature is a separate op, named by its
+  forms (`add_i32`, `eq_i8`, `zext_i8_i32`).
+- The translation to BANF expands the struct one level into multiple BANF
+  parameters, which map one-to-one onto LLVM parameters.
+- Function forms nested inside data forms are rejected for now.
+
+### BANF
+BANF: block-based ANF; SSA with block parameters instead of phi nodes, as in MLIR
+and Cranelift.
+
+The source is already written in BANF's shape; translation checks it and does no
+normalization:
+- A function is a struct of blocks: `f -> {entry = args:{n: i32} -> ..., ...}`.
+  The binder `f` is the function's own blocks, so `f.then0 {...}` jumps to a
+  sibling block. The first field is the entry block, whatever its name. Nothing
+  jumps to the entry block.
+- A block is a lambda taking one struct. Its fields become the block's params.
+  Blocks are closed: a block sees only its own params and lets, so values from
+  another block are passed in through jumps.
+- A let is an applied lambda: `(t0 -> rest) (prim.eq_i32 {a = args.n, b = x})`.
+  Its param form may be omitted.
+- Operands are atoms: byte arrays, let names, or `args.label`. Ops (calls, struct
+  literals, field accesses, imported data) appear only as a let's value.
+- A block ends with a jump `f.label {...}`, a branch
+  `if c then f.a {...} else f.b {...}`, or an atom that is returned.
+- Let names are never renamed, so a let name may not repeat a param label, a
+  binder, or an earlier let in the same block.
+
+```
+fact = f -> {
+  entry = args:{n: i32} ->
+    (t0 -> if t0 then f.then0 {} else f.else0 {n = args.n})
+      (prim.eq_i32 {a = args.n, b = [00000000]:i32}),
+  then0 = args:{} -> [01000000]:i32,
+  else0 = args:{n: i32} ->
+    (t1 -> (t2 -> (t3 -> t3) (prim.mul_i32 {a = args.n, b = t2}))
+             (defs.fact {n = t1}))
+      (prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:i32}),
+}
+```
