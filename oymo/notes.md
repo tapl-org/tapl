@@ -208,6 +208,34 @@ Name resolution produces it; users write names.
   `ARROW_FORM` (`FORM -> ARROW_FORM` or `FORM`). Struct-form fields use
   `ARROW_FORM`.
 
+### Printer: compact for tests, pretty for people
+`printer.show(term)` and `printer.show_form(form)` live in `printer.py`, not in the
+tests, so any stage can print terms. Both print `→`, which reads better than `->`.
+- Compact (default): every lambda, apply, `if` and `fix` is parenthesized, and
+  every form is shown, `unknown` included: `(a:unknown → (b:unknown → (a b)))`.
+  Names are not quoted. Why: a test then shows exactly how the parser nested
+  the term.
+- `pretty=True`: oymomo source that parses back to the same term (a test checks
+  this). Parens only where needed (`f (x → x)`, `(x → x) y`). `: unknown` is
+  omitted. Names are quoted when needed (`"if"`, `"a b"`). Bytes are shown in
+  groups of four (`[deadbeef cafebabe]`).
+- A pretty term wider than `width` columns (default 80) breaks, indenting each
+  level by `indent` spaces (default 2):
+  - a struct puts one field per line, with a trailing comma;
+  - a lambda's body goes on the next line, indented. A body that is a struct or
+    another lambda stays on the same line, so `prim → decls: {} → defs → {`
+    stays together;
+  - an apply's argument goes on the next line, indented, which is how let
+    chains are written by hand:
+    ```
+    entry = args: {n: i32} →
+      (t0 → if t0 then f.then0 {} else f.else0 {n = args.n})
+        (prim.eq_i32 {a = args.n, b = [00000000]: i32}),
+    ```
+  - an `if` puts `then` and `else` on their own lines.
+- A `BruijnIndex` prints as `#0` in both modes. It has no surface syntax, so this
+  is the one case where pretty output doesn't parse back.
+
 ## Program shape
 
 ```
@@ -579,7 +607,7 @@ else0:
 - `GetData` is a `load` from the external global. `GetField` is `extractvalue`.
 
 ## Testing
-- Unit tests per stage: `grammar_test.py`, `banf_prim_test.py`,
+- Unit tests per stage: `grammar_test.py`, `printer_test.py`, `banf_prim_test.py`,
   `banf_terms_test.py`, `banf_translate_test.py`, `llvm_translate_test.py`.
 - BANF tests build modules by hand, so they don't depend on the translator.
 - Every LLVM test parses the IR with `llvmlite.binding` and verifies it.

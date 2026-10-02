@@ -1,0 +1,119 @@
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+import textwrap
+
+import pytest
+
+from oymo.oymomo import terms
+from oymo.oymomo.grammar import parse
+from oymo.oymomo.printer import show, show_form
+
+FACT = """
+prim -> decls: {} -> defs -> {
+fact = f -> {
+  entry = args:{n: i32} ->
+    (t0 -> if t0 then f.then0 {} else f.else0 {n = args.n})
+      (prim.eq_i32 {a = args.n, b = [00000000]:i32}),
+  then0 = args:{} -> [01000000]:i32,
+  else0 = args:{n: i32} ->
+    (t1 -> (t2 -> (t3 -> t3) (prim.mul_i32 {a = args.n, b = t2}))
+             (defs.fact {n = t1}))
+      (prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:i32}),
+}}
+"""
+
+
+def pretty(source):
+    return show(parse(source), pretty=True)
+
+
+def test_compact_is_fully_parenthesized():
+    assert show(parse('f a (b -> b)')) == '((f a) (b:unknown → b))'
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        ('f a b', 'f a b'),
+        ('f (g a) b', 'f (g a) b'),
+        ('(x -> x) y', '(x → x) y'),
+        ('f (x -> x)', 'f (x → x)'),
+        ('(f a).x', '(f a).x'),
+        ('fix f x', 'fix f x'),
+        ('fix (f a)', 'fix (f a)'),
+        ('f (if c then a else b)', 'f (if c then a else b)'),
+        ('if c then x -> x else (y -> y) z', 'if c then x → x else (y → y) z'),
+    ],
+)
+def test_pretty_parenthesizes_only_where_needed(source, expected):
+    assert pretty(source) == expected
+
+
+def test_pretty_omits_unknown_forms():
+    assert pretty('x : unknown -> x') == 'x → x'
+    assert pretty('[2a]') == '[2a]'
+    assert pretty('[]: {x, y: i32}') == '[]: {x, y: i32}'
+
+
+def test_pretty_function_forms_group_only_outside_struct_fields():
+    assert pretty('g: ({c: i8} -> i32) -> g') == 'g: ({c: i8} → i32) → g'
+    assert pretty('[]: {f: {c: i8} -> i32}') == '[]: {f: {c: i8} → i32}'
+    assert pretty('[]: {f: ({a: i8} -> i8) -> i32}') == '[]: {f: ({a: i8} → i8) → i32}'
+
+
+def test_pretty_quotes_names_that_need_it():
+    assert pretty('"if" -> "a b"') == '"if" → "a b"'
+    assert pretty(r'"a\"b\\c"') == r'"a\"b\\c"'
+    assert pretty('s."1st"') == 's."1st"'
+    assert show(terms.Variable('a\nb', terms.Location(0, 0)), pretty=True) == r'"a\u{a}b"'
+
+
+def test_pretty_groups_bytes_by_four():
+    assert pretty('[deadbeefcafebabe00]: i64') == '[deadbeef cafebabe 00]: i64'
+
+
+def test_pretty_breaks_long_terms():
+    assert pretty(FACT) == textwrap.dedent("""\
+        prim → decls: {} → defs → {
+          fact = f → {
+            entry = args: {n: i32} →
+              (t0 → if t0 then f.then0 {} else f.else0 {n = args.n})
+                (prim.eq_i32 {a = args.n, b = [00000000]: i32}),
+            then0 = args: {} → [01000000]: i32,
+            else0 = args: {n: i32} →
+              (t1 →
+                (t2 → (t3 → t3) (prim.mul_i32 {a = args.n, b = t2}))
+                  (defs.fact {n = t1}))
+                (prim.sub_i32 {minuend = args.n, subtrahend = [01000000]: i32}),
+          },
+        }""")
+
+
+def test_width_and_indent_flags():
+    term = parse('defs -> {main = f a, id = x -> x}')
+    assert show(term, pretty=True) == 'defs → {main = f a, id = x → x}'
+    assert show(term, pretty=True, width=20, indent=4) == textwrap.dedent("""\
+        defs → {
+            main = f a,
+            id = x → x,
+        }""")
+
+
+@pytest.mark.parametrize(
+    'source',
+    [
+        FACT,
+        'f a (b -> b) (if c then d else e).x',
+        '"if" -> "a b" -> s."\\u{3bb}"',
+        'd: {putchar: {c: i8} -> i32, errno} -> [] : ({} -> i32)',
+        'if c then if d then a else b else fix f',
+    ],
+)
+def test_pretty_parses_back_to_the_same_term(source):
+    assert show(parse(pretty(source))) == show(parse(source))
+
+
+def test_show_form():
+    form = terms.StructForm([('f', terms.FunctionForm('i8', 'i32')), ('x', 'unknown')])
+    assert show_form(form) == '{f: (i8 → i32), x: unknown}'
+    assert show_form(form, pretty=True) == '{f: i8 → i32, x}'

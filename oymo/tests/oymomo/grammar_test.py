@@ -3,39 +3,7 @@
 from oymo.core import syntax
 from oymo.oymomo import terms
 from oymo.oymomo.grammar import UNKNOWN_FORM, parse
-
-
-def show(term):
-    """Compact rendering that ignores locations, so tests read like the syntax."""
-    match term:
-        case terms.Variable(name=name):
-            return name
-        case terms.Lambda(param_name=name, param_form=form, body=body):
-            return f'({name}:{show_form(form)} -> {show(body)})'
-        case terms.Apply(function=function, argument=argument):
-            return f'({show(function)} {show(argument)})'
-        case terms.Struct(fields=fields):
-            return '{' + ', '.join(f'{f.label} = {show(f.value)}' for f in fields) + '}'
-        case terms.FieldAccess(struct=struct, label=label):
-            return f'{show(struct)}.{label}'
-        case terms.If(condition=c, then_clause=t, else_clause=e):
-            return f'(if {show(c)} then {show(t)} else {show(e)})'
-        case terms.Fix(function=function):
-            return f'(fix {show(function)})'
-        case terms.ByteArray(value=value, form=form):
-            return f'[{value.hex()}]:{show_form(form)}'
-        case syntax.ErrorTerm():
-            return 'error'
-    raise AssertionError(term)
-
-
-def show_form(form):
-    match form:
-        case str():
-            return form
-        case terms.FunctionForm(param=param, result=result):
-            return f'({show_form(param)} -> {show_form(result)})'
-    return '{' + ', '.join(f'{label}: {show_form(f)}' for label, f in form.fields) + '}'
+from oymo.oymomo.printer import show
 
 
 def test_variable():
@@ -43,19 +11,19 @@ def test_variable():
 
 
 def test_lambda():
-    assert show(parse('x : i32 -> x')) == '(x:i32 -> x)'
+    assert show(parse('x : i32 -> x')) == '(x:i32 → x)'
 
 
 def test_lambda_unicode_arrow_is_the_same_term():
-    assert show(parse('x : i32 → x')) == '(x:i32 -> x)'
+    assert show(parse('x : i32 → x')) == '(x:i32 → x)'
 
 
 def test_lambda_extends_right():
-    assert show(parse('a -> b -> a b')) == '(a:unknown -> (b:unknown -> (a b)))'
+    assert show(parse('a -> b -> a b')) == '(a:unknown → (b:unknown → (a b)))'
 
 
 def test_lambda_argument_needs_parens():
-    assert show(parse('f (x -> x)')) == '(f (x:unknown -> x))'
+    assert show(parse('f (x -> x)')) == '(f (x:unknown → x))'
     assert show(parse('f x -> x')) == 'error'
 
 
@@ -78,7 +46,7 @@ def test_struct():
 
 def test_if():
     assert show(parse('if c then a else b')) == '(if c then a else b)'
-    assert show(parse('if c then a else x -> x')) == '(if c then a else (x:unknown -> x))'
+    assert show(parse('if c then a else x -> x')) == '(if c then a else (x:unknown → x))'
 
 
 def test_fix():
@@ -117,36 +85,36 @@ def test_omitted_forms_are_unknown():
 
 
 def test_nested_struct_forms():
-    assert show(parse('p : {x: i32, y: {a: u8,},} -> p')) == '(p:{x: i32, y: {a: u8}} -> p)'
+    assert show(parse('p : {x: i32, y: {a: u8,},} -> p')) == '(p:{x: i32, y: {a: u8}} → p)'
 
 
 def test_function_form_in_struct_form_field():
     assert show(parse('d: {putchar: {c: i8} -> i32, errno: i32} -> d')) == (
-        '(d:{putchar: ({c: i8} -> i32), errno: i32} -> d)'
+        '(d:{putchar: ({c: i8} → i32), errno: i32} → d)'
     )
 
 
 def test_parenthesized_function_form():
-    assert show(parse('g: ({c: i8} -> i32) -> g')) == '(g:({c: i8} -> i32) -> g)'
-    assert show(parse('[]: (i8 -> i32)')) == '[]:(i8 -> i32)'
+    assert show(parse('g: ({c: i8} -> i32) -> g')) == '(g:({c: i8} → i32) → g)'
+    assert show(parse('[]: (i8 -> i32)')) == '[]:(i8 → i32)'
 
 
 def test_function_form_is_right_associative():
-    assert show(parse('d: {f: {a: i8} -> {b: i8} -> i32} -> d')) == '(d:{f: ({a: i8} -> ({b: i8} -> i32))} -> d)'
-    assert show(parse('d: {f: ({a: i8} -> {b: i8}) -> i32} -> d')) == '(d:{f: (({a: i8} -> {b: i8}) -> i32)} -> d)'
+    assert show(parse('d: {f: {a: i8} -> {b: i8} -> i32} -> d')) == '(d:{f: ({a: i8} → ({b: i8} → i32))} → d)'
+    assert show(parse('d: {f: ({a: i8} -> {b: i8}) -> i32} -> d')) == '(d:{f: (({a: i8} → {b: i8}) → i32)} → d)'
 
 
 def test_function_form_does_not_swallow_lambda_binder():
     source = 'decls: {f: {} -> i32} -> defs -> {}'
-    assert show(parse(source)) == '(decls:{f: ({} -> i32)} -> (defs:unknown -> {}))'
+    assert show(parse(source)) == '(decls:{f: ({} → i32)} → (defs:unknown → {}))'
 
 
 def test_quoted_names():
     assert show(parse('"a b"')) == 'a b'
-    assert show(parse('"if" -> "if"')) == '(if:unknown -> if)'
+    assert show(parse('"if" -> "if"')) == '(if:unknown → if)'
     assert show(parse('s."a b"')) == 's.a b'
     assert show(parse('{"x y" = a}')) == '{x y = a}'
-    assert show(parse('x : "my form" -> x')) == '(x:my form -> x)'
+    assert show(parse('x : "my form" -> x')) == '(x:my form → x)'
 
 
 def test_quoted_name_equals_plain_name():
@@ -170,7 +138,7 @@ def test_quoted_name_rejects_bad_forms():
 
 
 def test_comments_and_whitespace():
-    assert show(parse('// id\nx -> // body\n  x // end')) == '(x:unknown -> x)'
+    assert show(parse('// id\nx -> // body\n  x // end')) == '(x:unknown → x)'
 
 
 def test_locations_skip_leading_trivia():
@@ -182,4 +150,4 @@ def test_locations_skip_leading_trivia():
 
 def test_golden_program():
     source = 'prim -> decls: {} -> defs -> {main = a:i32 -> [00000000] : i32}'
-    assert show(parse(source)) == '(prim:unknown -> (decls:{} -> (defs:unknown -> {main = (a:i32 -> [00000000]:i32)})))'
+    assert show(parse(source)) == '(prim:unknown → (decls:{} → (defs:unknown → {main = (a:i32 → [00000000]:i32)})))'
