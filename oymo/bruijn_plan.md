@@ -1,6 +1,6 @@
 ---
 name: Reduce oymomo to BANF
-overview: "Turn the oymomo-to-BANF translator into four passes: resolve names to de Bruijn indices; beta-reduce, unfold fix and project struct literals only where the term doesn't yet have BANF's shape; rename binders that would shadow, using a $level suffix; then convert to BANF, taking names from the binders."
+overview: "Turn the oymomo-to-BANF translator into four passes: resolve names to de Bruijn indices; beta-reduce, unfold fix and project struct literals only where the term doesn't yet have BANF's shape; remove shadowing in one outside-in walk, where a binder whose name is already visible gets the smallest number suffix that isn't (t, t, t becomes t, t1, t2); then convert to BANF, taking names from the binders."
 todos:
   - id: bruijn
     content: Add location to BruijnIndex; write bruijn.py (resolve, shift, substitute, beta, unfold, project) with tests
@@ -9,7 +9,7 @@ todos:
     content: "Write banf_reduce.py: structural 'reduce until constructor' over the 11 positions (beta, fix, projection, fuel; no form or binder-kind checks); tests"
     status: pending
   - id: rename
-    content: "Write banf_rename.py: rename shadowing binders to name$level, never labels; tests"
+    content: "Write banf_rename.py: one outside-in walk; a binder whose name is visible gets the smallest number suffix that isn't (t, t, t becomes t, t1, t2); never labels; tests"
     status: pending
   - id: convert
     content: Rewrite banf_translate.py to convert resolved terms using the binder context; translate() runs all four steps; update tests
@@ -43,7 +43,7 @@ flowchart LR
 ## Golden: the oymomo term in BANF shape
 - [tests/golden_test.py](oymo/tests/golden_test.py): `compile_oymo` calls `shape` and then `convert`. It also returns the shaped term, printed with `printer.show(shaped, pretty=True)` and prefixed with the `language oymomo` header, so the file is a valid oymomo source.
 - `run_golden_test` approves a third file next to `name.banf` and `name.ll`: `tests/goldens/name.shaped.oymo`. Approving `simplest.shaped.oymo` creates the first one.
-- What it shows: the program after reduction and renaming, so a reader sees the inlined helpers, unfolded `fix` and `n$5` renames before they turn into BANF. Feeding it back through `translate` gives the same BANF, and a golden test checks this.
+- What it shows: the program after reduction and renaming, so a reader sees the inlined helpers, unfolded `fix` and renamed binders such as `n1` before they turn into BANF. Feeding it back through `translate` gives the same BANF, and a golden test checks this.
 
 ## 0. Let sugar: parse and print only
 
@@ -135,10 +135,34 @@ Two more rules:
 
 Step 2 only fixes constructors. Step 4 checks the rest, for example that a let's `prim.op` really is on the prim binder, that `blocks.label` exists, and that forms are known.
 
-## 3. Rename shadowing binders: new [oymo/src/oymo/oymomo/banf_rename.py](oymo/src/oymo/oymomo/banf_rename.py)
-- Walk the binders, tracking the visible names: every enclosing binder name, plus the current block's param labels.
-- A `Lambda` whose `param_name` is already visible becomes `f'{name}${level}'`, where `level` is its de Bruijn level (its depth from the program root). Example: `args:{n: i32} -> (n -> ...)`, where the let sits at level 5, renames the let to `n$5`.
-- Struct labels are never renamed. Names only need to avoid shadowing, not be globally unique. `$` can't appear in a plain identifier, so a renamed name never clashes with a user's name. The oymomo pretty printer and BANF print it quoted (`"n$5"`), and so does LLVM (`%"n$5"`). A BruijnIndex prints as `$i` in compact mode, a bare number after the sigil. A renamed binder always has a name before the `$` (`n$5`), so the two can't be confused.
+## 3. Remove shadowing: new [oymo/src/oymo/oymomo/banf_rename.py](oymo/src/oymo/oymomo/banf_rename.py)
+One walk from the outside in, carrying the set of visible names: the enclosing binders' names, as already renamed, plus the block's param labels inside a block body.
+- A binder whose name is in the set gets the smallest number suffix that isn't: `t`, then `t1`, `t2`, … Its new name then joins the set for its body.
+- That's the whole algorithm. Labels are never renamed (struct labels, `FieldAccess` labels and param labels), so a let that repeats a param label is the one renamed. Every binder is handled the same way, not just lets: in `prim -> decls: {} -> prim -> …` the defs binder becomes `prim1`.
+- References are indices, so a rename only changes the binder.
+- Afterwards no binder's name is visible where it is bound. So each BANF block's params and lets have distinct names, the pretty printer can print each `BruijnIndex` as its binder's name and parse back the same term, and a second run renames nothing.
+- Names don't need to be pretty: they only label values in BANF and LLVM IR, and compiled code drops them. So there are no further rules: a user's own `t1` after a renamed `t1` just becomes `t11`, and sibling blocks reuse the same numbers.
+- Examples, with `a`, `b` and `c` standing for any ops:
+  ```
+  let t = a in let t = b t in let t = c t in t
+  becomes
+  let t = a in let t1 = b t in let t2 = c t1 in t2
+  ```
+  A block whose lets repeat its param label twice:
+  ```
+  entry = args: {n: i32} →
+    let n = prim.add_i32 {a = args.n, b = args.n} in
+    let n = prim.mul_i32 {a = n, b = n} in
+    n
+  ```
+  converts to
+  ```
+  entry(n: i32):
+    n1 = prim.add_i32(n, n)
+    n2 = prim.mul_i32(n1, n1)
+    return n2
+  ```
+- Rejected: `name$level` (`n$5`): it needs quotes, and the number means nothing to a reader.
 
 ## 4. Convert to BANF: rewrite [oymo/src/oymo/oymomo/banf_translate.py](oymo/src/oymo/oymomo/banf_translate.py)
 - Same structure as today: `_unwrap`, `_imports`, `_function_header`, `_Translator` (`atom`, `op`, `jump`, `body`), return-form inference, and written-form checks.
@@ -159,7 +183,7 @@ Step 2 only fixes constructors. Step 4 checks the rest, for example that a let's
   - The pretty printer prints a `BruijnIndex` using the name of its binder, tracked on a stack, so resolved and renamed terms still read like source.
   - Compact mode prints a BruijnIndex as `$i`. Today it prints `#i`, so this changes, along with the `#0` in the notes' printer section.
 - [notes.md](oymo/notes.md):
-  - Replace "a shape checker, not a normalizer" and "Let names are never renamed" with the four steps, the fix and fuel rule, and the `$level` renaming.
+  - Replace "a shape checker, not a normalizer" and "Let names are never renamed" with the four steps, the fix and fuel rule, and the renaming rule (smallest number suffix that isn't visible).
   - Remove "No surface syntax for BruijnIndex" as an exception in the printer section.
 - Tests:
   - `bruijn_test.py`: resolve, shift, substitute and beta, including the classic capture case `(x -> y -> x) y`.
@@ -177,7 +201,13 @@ Step 2 only fixes constructors. Step 4 checks the rest, for example that a let's
     - a let-bound struct stays a let;
     - forms are ignored: a lambda written without a form still reduces;
     - the "expected X" error when no step is possible, for example a lambda where a block struct is wanted.
-  - `banf_rename_test.py`: a let shadowing a param label, a let shadowing an earlier let, and nested levels.
+  - `banf_rename_test.py`:
+    - a let that repeats a param label: `n` becomes `n1`;
+    - the chain `t, t, t` becomes `t, t1, t2`;
+    - a user's `t1` after a renamed one: `t, t, t1` becomes `t, t1, t11`;
+    - a binder other than a let: `prim -> decls: {} -> prim -> …` renames the defs binder to `prim1`;
+    - sibling blocks reuse the same numbers;
+    - a binder that shadows nothing keeps its name, and a second run renames nothing.
   - `banf_translate_test.py`: update the tests whose rejections now become renames or reductions. Two need care:
     - `test_imports` ends in `(w -> t0) (c.w)`, which returns an earlier let's variable (`$1`, below `args`). It stays valid as it is.
     - `(t -> t) (args.n)` was rejected with "A let's value must be an op". It now beta-reduces to the `args.n` terminal and is accepted.
