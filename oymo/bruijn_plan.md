@@ -1,18 +1,21 @@
 ---
 name: Reduce oymomo to BANF
-overview: "Turn the oymomo-to-BANF translator into four passes: resolve names to de Bruijn indices; beta-reduce, unfold fix and project struct literals only where the term doesn't yet have BANF's shape; remove shadowing in one outside-in walk, where a binder whose name is already visible gets the smallest number suffix that isn't (t, t, t becomes t, t1, t2); then convert to BANF, taking names from the binders."
+overview: "Turn the oymomo-to-BANF translator into four passes: resolve names to de Bruijn indices; beta-reduce, unfold fix and project struct literals only where the term doesn't yet have BANF's shape, using reduce(term), which takes one step at the term's root or returns the term itself; remove shadowing in one outside-in walk, where a binder whose name is already visible gets the smallest number suffix that isn't (t, t, t becomes t, t1, t2); then convert to BANF, taking names from the binders."
 todos:
   - id: bruijn
     content: Add location to BruijnIndex; write bruijn.py (resolve, shift, substitute, beta, unfold, project) with tests
     status: pending
   - id: reduce
-    content: "Write banf_reduce.py: structural 'reduce until constructor' over the 11 positions (beta, fix, projection, fuel; no form or binder-kind checks); tests"
+    content: "Add reduce(term) to bruijn.py: one step at the term's root (beta, unfold, project, if on [01]/[00]); returns term itself when the root isn't a redex; never raises; tests"
+    status: pending
+  - id: banf-reduce
+    content: "Write banf_reduce.py: over the 11 positions, match on whnf (reduce at the root, else whnf the head), with fuel; keep lets whose value is an op; leave terms that don't match for convert; tests"
     status: pending
   - id: rename
     content: "Write banf_rename.py: one outside-in walk; a binder whose name is visible gets the smallest number suffix that isn't (t, t, t becomes t, t1, t2); never labels; tests"
     status: pending
   - id: convert
-    content: Rewrite banf_translate.py to convert resolved terms using the binder context; translate() runs all four steps; update tests
+    content: Rewrite banf_translate.py to convert resolved terms using the binder context; translate() runs all four passes; update tests
     status: pending
   - id: let-sugar
     content: "Grammar + printer sugar: let x = expr in body parses as (x -> body) expr; printer prints that Apply(Lambda) pattern as let. No new term. Tests and notes."
@@ -33,12 +36,12 @@ isProject: false
 ```mermaid
 flowchart LR
     parsed["parsed term (Variable)"] -->|"1 bruijn.resolve"| resolved["term (BruijnIndex)"]
-    resolved -->|"2 banf_reduce.reduce"| shaped["term in BANF shape"]
-    shaped -->|"3 banf_rename.rename"| renamed["no shadowing binders"]
-    renamed -->|"4 banf_translate.convert"| banf["banf.Module"]
+    resolved -->|"3 banf_reduce (calls 2 reduce)"| shaped["term in BANF shape"]
+    shaped -->|"4 banf_rename.rename"| renamed["no shadowing binders"]
+    renamed -->|"5 banf_translate.convert"| banf["banf.Module"]
 ```
 
-`banf_translate.translate(term)` still runs the whole pipeline. It is split into `banf_translate.shape(term)`, which runs steps 1 to 3 and returns the term in BANF shape, and `banf_translate.convert(shaped)`, which runs step 4. Each step can also be called on its own in tests.
+`banf_translate.translate(term)` still runs the whole pipeline. It is split into `banf_translate.shape(term)`, which runs steps 1 to 4 and returns the term in BANF shape, and `banf_translate.convert(shaped)`, which runs step 5. Step 2, `reduce`, is not a pass of its own: it is one function, and step 3 calls it whenever a term doesn't have BANF's shape yet. Each step can also be called on its own in tests.
 
 ## Golden: the oymomo term in BANF shape
 - [tests/golden_test.py](oymo/tests/golden_test.py): `compile_oymo` calls `shape` and then `convert`. It also returns the shaped term, printed with `printer.show(shaped, pretty=True)` and prefixed with the `language oymomo` header, so the file is a valid oymomo source.
@@ -73,27 +76,48 @@ No new term. `Apply(Lambda(x, body), expr)` is already a let in BANF shape. This
 - `resolve(term)`: replaces each `Variable` with `BruijnIndex(index)`, where the index counts the enclosing `Lambda` binders. Binder names stay on `Lambda.param_name`.
   - An unbound name is an error. Every program is `prim -> decls -> defs -> ...`, so there are no free names.
   - Struct labels and `FieldAccess` labels are not binders, so resolution leaves them alone.
-- Kernel helpers, also usable by a future evaluator:
+- Kernel helpers, used by `reduce` in step 2:
   - `shift(term, by, cutoff)`
   - `substitute(term, index, value)`
   - `beta(lambda_, argument)`, which computes `shift(substitute(body, 0, shift(arg, 1)), -1)`
   - `unfold(fix)`, which turns `fix g` into `g (fix g)`
-  - `project(field_access)`, which turns `{a = e, b = e2}.a` into `e`. A label the struct doesn't have is an error.
+  - `project(field_access)`, which turns `{a = e, b = e2}.a` into `e`. `reduce` calls it only when the struct has the label.
 
-## 2. Reduce until BANF shape: new [oymo/src/oymo/oymomo/banf_reduce.py](oymo/src/oymo/oymomo/banf_reduce.py)
-Structural: each position says which constructors it wants, and the term there is reduced until its top constructor is one of them. Then its subterm positions are visited the same way. Forms are not checked, and binder kinds are not checked; step 4 does both. So this pass needs no context stack.
+## 2. Reduce one step at the root: `reduce` in [oymo/src/oymo/oymomo/bruijn.py](oymo/src/oymo/oymomo/bruijn.py)
+`reduce(term)` takes one resolved term. If the term itself is a redex, it reduces it once and returns the result. If not, it returns `term` itself, the same object, so a caller checks `reduce(t) is t`, as with `Term.unfold()` in [syntax.py](oymo/src/oymo/core/syntax.py). It never raises. Step 3 calls it whenever a term doesn't have the shape it wants yet, and a future evaluator can call it too.
 
-**"Reduce `t` until it is X"**: if `t`'s top constructor is in X, stop. Otherwise take one step and look again:
-- `(x -> body) arg`: beta.
-- `fix g`: unfold to `g (fix g)`.
-- `{a = e, ...}.a`: project to `e`. A label the struct doesn't have is an error.
-- `f a`, where `f` is not a lambda: reduce `f` until it is a Lambda, then beta.
-- `s.a`, where `s` is not a struct literal: reduce `s` until it is a Struct, then project.
-- Anything else, for example a Lambda where a Struct is wanted: error, "expected X".
+**All rules.** `t ~> t'` means `reduce(t)` returns `t'`.
+```
+(x -> body) arg         ~>  beta(x -> body, arg)   -- beta: bruijn.beta
+fix g                   ~>  g (fix g)              -- unfold: bruijn.unfold
+{..., a = e, ...}.a     ~>  e                      -- project: bruijn.project
+if [01] then a else b   ~>  a                      -- if true
+if [00] then a else b   ~>  b                      -- if false
+anything else           ~>  itself
+```
+- Only the root. `reduce` never looks inside the term: arguments, lambda bodies, struct fields and `if` arms stay as they are. So does the head of a term whose root isn't a redex yet: `(fix g) a`, `{p = {a = e}}.p.a` and `if ((x -> x) [01]) then a else b` come back as they are. Step 3 reduces heads.
+- At most one rule applies to any term, so the order of the rules doesn't matter.
+- "Anything else" also covers every Lambda, Struct, ByteArray and BruijnIndex; a call such as `prim.add_i32 {...}` or `$3 x`; a field access such as `args.n`; a projection of a label the struct doesn't have; and an `if` whose condition isn't the one byte `01` or `00`, the two i1 values. The condition's form isn't checked.
+- Prims are not run: `prim` is only a binder here.
+- One call applies at most one rule and doesn't recurse, so it always finishes. Loops come from calling it again and again, so the fuel counter is in step 3.
 
-Two rules about what counts as a match:
-- A redex `(x -> body) arg` counts as an Apply only in a block body, where it is a let.
-- A projection `{...}.a` never counts as a FieldAccess.
+## 3. Reduce until BANF shape: new [oymo/src/oymo/oymomo/banf_reduce.py](oymo/src/oymo/oymomo/banf_reduce.py)
+Structural matching: each position says which constructors it wants, and the term there is reduced with `reduce` (step 2) until it has one of them. Then its subterm positions are visited the same way. Forms are not checked, and binder kinds are not checked except for `args` (see `k` below); step 5 does both. So this pass needs no context stack.
+
+**Heads.** `reduce` only works on the root, but some roots become a redex only after their head is reduced. In `(fix g) a`, `fix g` must first unfold and beta-reduce to a lambda, and only then is the whole term a beta redex. The head of an Apply is its function, of a FieldAccess its struct, and of an If its condition. A Lambda, Struct, ByteArray or BruijnIndex has no head. Step 3 has two small helpers on top of `reduce`:
+```
+step(t) = reduce(t)        if reduce(t) is not t                        -- a step at the root
+        = t with head h'   if t has a head h, and h' = whnf(h) is not h   -- else reduce the head
+        = t                otherwise
+
+whnf(t) = whnf(step(t))    if step(t) is not t
+        = t                otherwise
+```
+`whnf` stops when neither the root nor the head can take a step: at every Lambda, Struct, ByteArray and BruijnIndex, and at stuck terms such as `prim.add_i32 {...}`, `args.n`, `blocks.done {...}` or `if t0 then a else b`.
+
+**"Reduce `t` until it is X"**: replace `t` with `whnf(t)`, then look at its top constructor. Every X below is a shape where `whnf` stops, so this reduces exactly as far as needed. Looking first and reducing only on a mismatch would be wrong: `{f = x -> ...}.f args.n` is already an Apply, but its callee must be reduced before it is a call such as `prim.op {...}`.
+
+**If it doesn't become X**, for example a Lambda where a Struct is wanted, step 3 leaves it as it is and doesn't visit its parts. Step 5 then reports the error with today's message, for example "Both branches of an if must be jumps". So step 3 has no errors of its own except running out of fuel.
 
 **Positions.** Each `<name>` is a position, reduced as described above:
 1. Reduce the term until it is a Lambda: `prim -> <decls>`.
@@ -103,7 +127,7 @@ Two rules about what counts as a match:
 5. Reduce `<func>` until it is a Lambda: `f -> <func_body>`.
 6. Reduce `<func_body>` until it is a Struct: `{entry = <block>, label_i = <block>, ...}`.
 7. Reduce `<block>` until it is a Lambda: `args -> <block_body>`.
-8. `<block_body>` is a chain of lets ending in a terminal:
+8. `<block_body>` is a chain of lets ending in a terminal. A let is a redex that must be kept, so the block body is not reduced with `whnf`:
    ```
    block_body := terminal | (x -> block_body) <value>      -- a let
    terminal   := [bytes]                                    -- return a constant
@@ -112,30 +136,30 @@ Two rules about what counts as a match:
                | blocks.label <op_arg>                      -- jump
                | if <atom> then <jump> else <jump>          -- branch
    ```
-   - `k` is the number of lets between this body and the block's `args` binder, so `args` is `$k` at this point. `$i` is how a BruijnIndex is written, here and in the printer's compact mode. The reducer keeps only this counter. It resets to 0 at each block and adds 1 per let.
-   - `$i` with `i < k` is a let of this block. `$k` is `args` itself, and `$i` with `i > k` would be `blocks`, `f`, `defs`, `decls` or `prim`. Neither is a terminal, so both get the error "expected a let or a terminal".
-   - `args.label` and `blocks.label` are a FieldAccess on any BruijnIndex. Step 4 checks which binder it is.
+   - `k` is the number of lets between this body and the block's `args` binder, so `args` is `$k` at this point. `$i` is how a BruijnIndex is written, here and in the printer's compact mode. The reducer keeps only this counter, to tell `args.label` (`$k.label`) from other field accesses in 8.1. It resets to 0 at each block and adds 1 per let.
+   - `$i` with `i < k` is a let of this block. `$k` is `args` itself, and `$i` with `i > k` would be `blocks`, `f`, `defs`, `decls` or `prim`. Neither is a terminal, so step 3 leaves them and step 5 reports them.
+   - `args.label` and `blocks.label` are a FieldAccess on any BruijnIndex. Step 5 checks which binder it is.
    - Returning an op needs no special case: `(z -> z) <value>` is a let followed by the terminal `$0`.
-   The instruction, repeated until a terminal is reached:
-   1. If `<block_body>` matches a terminal, visit the terminal's own positions (`<value>`, `<op_arg>`, `<atom>`, `<jump>`). Done.
-   2. Else, if it is a let `(x -> rest) <value>`, reduce `<value>` until it is an op: an Apply, Struct or FieldAccess (step 9).
-      - If it becomes one, keep the let and continue with `rest` as the `<block_body>`.
-      - If it can't, because it ends as a Lambda, BruijnIndex, ByteArray or If, beta-reduce the whole let and continue with the result. That covers copy propagation and inlining a helper.
-   3. Else take one step (beta, `fix`, projection, or a step on the head) and go back to 1. If no step is possible, the error is "expected a let or a terminal".
-9. `<value>`, a let's op:
-   - Apply `<callee> <op_arg>`: reduce `<callee>` until it is a FieldAccess, and its base until it is a BruijnIndex, as in `prim.op`, `defs.f` or `decls.f`. Then reduce `<op_arg>` until it is a Struct `{label_i = <atom>, ...}` or a BruijnIndex (forwarding the block's `args`).
+   The instruction, repeated until it stops:
+   1. If `<block_body>` is a let `(x -> rest) <value>`, replace `<value>` with `whnf(<value>)`.
+      - If it is an op, keep the let, visit the op's parts (step 9), and continue with `rest` as the `<block_body>`. An op is an Apply, a Struct, or a FieldAccess other than `args.label`.
+      - Otherwise it is a Lambda, BruijnIndex, ByteArray, `args.label` or If. Beta-reduce the whole let and continue with the result. That covers copy propagation and inlining a helper.
+   2. Else, if `step(<block_body>)` is not `<block_body>`, continue with it. This can make a let: in `(x -> y -> rest) a b`, the head reduces and leaves the let `(y -> rest') b`.
+   3. Else it should be a terminal. Visit the terminal's own positions (`<op_arg>`, `<atom>`, `<jump>`) and stop. Anything else is left for step 5.
+9. `<value>`, a let's op, already reduced by 8.1:
+   - Apply `<callee> <op_arg>`, as in `prim.op`, `defs.f` or `decls.f` applied to an argument. The callee is the head, so `whnf` has already reduced it. Reduce `<op_arg>` until it is a Struct `{label_i = <atom>, ...}` or a BruijnIndex (forwarding the block's `args`).
    - Struct `{label_i = <atom>, ...}`: a `MakeStruct`.
-   - FieldAccess `<s>.label`: reduce `<s>` until it is a BruijnIndex. This is a `GetField`, a `GetData` (`decls.x`), or `args.n`.
+   - FieldAccess `<s>.label`: `<s>` is the head, so `whnf` has already reduced it. This is a `GetField` on an atom, such as a let or a struct param `args.p`, or a `GetData` (`decls.x`).
 10. `<jump>`, an `if` arm: reduce until it is the jump terminal `blocks.label <op_arg>`, then visit `<op_arg>`.
-11. `<atom>`: reduce until it is a ByteArray, a BruijnIndex `$i` with `i < k` (a let of this block), or a FieldAccess whose base reduces to a BruijnIndex (`args.n`). An atom can't be `args` itself, because BANF has no struct-valued param.
+11. `<atom>`: reduce until it is a ByteArray, a BruijnIndex `$i` with `i < k` (a let of this block), or `args.n`. `args` itself is not an atom: BANF passes a block's params one by one, not as one struct.
 
 Two more rules:
-- A fuel counter, about 10,000 steps per program, stops reductions that never terminate (for example omega, or unbounded `fix`). When it runs out, the error is "did not reach BANF shape" with the location.
-- A position that already has a wanted constructor is never reduced further. For example, a let-bound struct `(s -> s.a) ({a = x})` stays a `MakeStruct` followed by a `GetField`.
+- A fuel counter, about 10,000 steps per program, stops reductions that never terminate (for example omega, or unbounded `fix`). Each `reduce` that changes a term uses one step. When it runs out, the error is "did not reach BANF shape" with the location.
+- A position that already has a wanted constructor is never reduced further, because `whnf` stops there. For example, a let-bound struct `(s -> (y -> y) (s.a)) ({a = x})` stays a `MakeStruct` followed by a `GetField`.
 
-Step 2 only fixes constructors. Step 4 checks the rest, for example that a let's `prim.op` really is on the prim binder, that `blocks.label` exists, and that forms are known.
+Step 3 only fixes constructors. Step 5 checks the rest, for example that a let's `prim.op` really is on the prim binder, that `blocks.label` exists, and that forms are known.
 
-## 3. Remove shadowing: new [oymo/src/oymo/oymomo/banf_rename.py](oymo/src/oymo/oymomo/banf_rename.py)
+## 4. Remove shadowing: new [oymo/src/oymo/oymomo/banf_rename.py](oymo/src/oymo/oymomo/banf_rename.py)
 One walk from the outside in, carrying the set of visible names: the enclosing binders' names, as already renamed, plus the block's param labels inside a block body.
 - A binder whose name is in the set gets the smallest number suffix that isn't: `t`, then `t1`, `t2`, … Its new name then joins the set for its body.
 - That's the whole algorithm. Labels are never renamed (struct labels, `FieldAccess` labels and param labels), so a let that repeats a param label is the one renamed. Every binder is handled the same way, not just lets: in `prim -> decls: {} -> prim -> …` the defs binder becomes `prim1`.
@@ -164,7 +188,7 @@ One walk from the outside in, carrying the set of visible names: the enclosing b
   ```
 - Rejected: `name$level` (`n$5`): it needs quotes, and the number means nothing to a reader.
 
-## 4. Convert to BANF: rewrite [oymo/src/oymo/oymomo/banf_translate.py](oymo/src/oymo/oymomo/banf_translate.py)
+## 5. Convert to BANF: rewrite [oymo/src/oymo/oymomo/banf_translate.py](oymo/src/oymo/oymomo/banf_translate.py)
 - Same structure as today: `_unwrap`, `_imports`, `_function_header`, `_Translator` (`atom`, `op`, `jump`, `body`), return-form inference, and written-form checks.
 - The difference is that variables are `BruijnIndex` values resolved through the context stack. A let reference becomes `banf.Var(binder_name)`, and `args.n` becomes `banf.Var('n')`.
 - Errors that become unnecessary are removed:
@@ -172,10 +196,11 @@ One walk from the outside in, carrying the set of visible names: the enclosing b
   - "prim, decls and defs must have different names", and "block binder repeats an outer binder name": indices make these unambiguous.
   - "fix is not supported".
   - "only block and let lambdas are supported": such terms are reduced now.
-- Errors that remain are for shapes that can't be reduced, for example:
+- Errors that remain are for shapes that can't be reduced. Step 3 leaves such terms as they are, so step 5 reports them with today's messages, for example:
   - an op in tail position that isn't bound by a let;
   - an `if` whose arms aren't jumps;
   - a binder such as `prim` or `args` used as a value;
+  - a label that a struct literal doesn't have, as in `{a = x}.b`;
   - unknown prims, defs, imports or blocks.
 
 ## Printer, notes, tests
@@ -183,24 +208,32 @@ One walk from the outside in, carrying the set of visible names: the enclosing b
   - The pretty printer prints a `BruijnIndex` using the name of its binder, tracked on a stack, so resolved and renamed terms still read like source.
   - Compact mode prints a BruijnIndex as `$i`. Today it prints `#i`, so this changes, along with the `#0` in the notes' printer section.
 - [notes.md](oymo/notes.md):
-  - Replace "a shape checker, not a normalizer" and "Let names are never renamed" with the four steps, the fix and fuel rule, and the renaming rule (smallest number suffix that isn't visible).
+  - Replace "a shape checker, not a normalizer" and "Let names are never renamed" with the four passes, the rules of `reduce`, how step 3 uses it (heads, lets, terms left for step 5), the fix and fuel rule, and the renaming rule (smallest number suffix that isn't visible).
   - Remove "No surface syntax for BruijnIndex" as an exception in the printer section.
 - Tests:
-  - `bruijn_test.py`: resolve, shift, substitute and beta, including the classic capture case `(x -> y -> x) y`.
+  - `bruijn_test.py`: resolve, shift, substitute and beta, including the classic capture case `(x -> y -> x) y`. And `reduce`:
+    - each rule as one step: `(x -> x) y` gives `y`, `fix g` gives `g (fix g)`, `{a = e}.a` gives `e`, and `if [01]` and `if [00]` pick their arm;
+    - only one step, and arguments stay unreduced: `(x -> x) ((y -> y) z)` gives `(y -> y) z`, and `(x -> y) omega` gives `y`;
+    - the term itself, checked with `is`, when the root isn't a redex: a lambda, a struct, a byte array, a BruijnIndex, `prim.add_i32 {...}`, `args.n`, `if t0 then a else b`, `if [02] then a else b` and the missing label `{a = e}.b`;
+    - the term itself when only its head could take a step: `{p = {a = e}}.p.a`, `((x -> x) (y -> y)) z`, `(fix g) a` and `if ((x -> x) [01]) then a else b`;
+    - nothing inside is reduced: `x -> (y -> y) x` gives the term itself.
   - `banf_reduce_test.py`:
+    - `step` and `whnf` on the head examples above: `whnf` of `{p = {a = e}}.p.a` gives `e`, and of `(fix (self -> n -> n)) a` gives `a`;
     - helper inlining, for example `(id -> ...) (x -> x)` with `id args.n` as an op argument;
-    - an atom let substituted;
+    - an atom let substituted, including `(t -> t) (args.n)`, which becomes the terminal `args.n`;
     - a def produced by an application;
-    - `fix` unfolding;
-    - projection: `{a = args.n}.a` as an op argument, a nested `{p = {a = e}}.p.a`, projection after beta (`(mk -> (mk args).n) (a -> {n = a.n})`), and a missing label as an error;
+    - `fix` unfolding, applied as in `(fix g) args.n`;
+    - heads: `((a -> {n = a.n}) args).n` in tail position becomes `args.n`; `{f = x -> ...}.f args.n` as a let's value is inlined; and in `(x -> y -> rest) a b` the head reduces, and `(y -> rest') b` is then a let;
+    - projection: `{a = args.n}.a` as an op argument, a nested `{p = {a = e}}.p.a`, and projection after beta (`(mk -> (mk args).n) (a -> {n = a.n})`);
     - running out of fuel;
     - one test per position: a term that becomes a Lambda, Struct, Apply and so on after reduction;
     - a let whose op has a redex operand stays a let, and only the operand is reduced;
     - a let whose value is an atom is beta-reduced as a whole;
-    - every terminal: `[bytes]`, `args.n`, a let variable (`$i`, `i < k`), a jump and an `if`. `args` itself (`$k`) and a variable above it (`$i`, `i > k`, such as `prim`) are rejected;
-    - a let-bound struct stays a let;
+    - every terminal: `[bytes]`, `args.n`, a let variable (`$i`, `i < k`), a jump and an `if`;
+    - a let-bound struct stays a let, and so does a `GetField` on a struct param, `args.p.x`;
     - forms are ignored: a lambda written without a form still reduces;
-    - the "expected X" error when no step is possible, for example a lambda where a block struct is wanted.
+    - a term that can't reach its shape is returned as it is, for step 5 to report: a lambda where a block struct is wanted, the missing label `{a = x}.b`, and `args` itself (`$k`) or a variable above it (`$i`, `i > k`, such as `prim`) in tail position;
+    - a term already in BANF shape comes back unchanged.
   - `banf_rename_test.py`:
     - a let that repeats a param label: `n` becomes `n1`;
     - the chain `t, t, t` becomes `t, t1, t2`;
@@ -209,7 +242,7 @@ One walk from the outside in, carrying the set of visible names: the enclosing b
     - sibling blocks reuse the same numbers;
     - a binder that shadows nothing keeps its name, and a second run renames nothing.
   - `banf_translate_test.py`: update the tests whose rejections now become renames or reductions. Two need care:
-    - `test_imports` ends in `(w -> t0) (c.w)`, which returns an earlier let's variable (`$1`, below `args`). It stays valid as it is.
+    - `test_imports` ends in `(w -> t0) (c.w)`, which returns an earlier let's variable (`$3`, with `k` = 4). It stays valid as it is.
     - `(t -> t) (args.n)` was rejected with "A let's value must be an op". It now beta-reduces to the `args.n` terminal and is accepted.
-    - Beyond those, the expected BANF output for the golden programs stays the same.
+    - Beyond those, the expected BANF output for the golden programs stays the same, and so do the error messages for shapes that can't be reduced, because step 3 leaves those terms for step 5.
   - Golden: `simplest.shaped.oymo` is approved, and parsing it and translating again gives the same `simplest.banf`.
