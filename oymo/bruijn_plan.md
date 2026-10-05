@@ -15,7 +15,7 @@ todos:
     content: "Write banf_rename.py: one outside-in walk; structural binders get fixed names prim, decls, defs, f, a; visible-name set (enclosing binders' names plus the block's param labels), add on the way down, remove on the way up; other binders keep x if not visible, else x_L, x__L, ...; never touches labels; tests"
     status: pending
   - id: convert
-    content: Rewrite banf_translate.py to convert resolved terms using the binder context; translate() runs all four passes; update tests
+    content: "Rewrite banf_translate.py: match the fixed binder names (prim, decls, defs, f, a; error otherwise); drop binder names from _Program/_Block; classify $j by index arithmetic against the block's let count; translate() runs all four passes; update tests"
     status: pending
   - id: let-sugar
     content: "Grammar + printer sugar: let x = expr in body parses as (x -> body) expr; printer prints that Apply(Lambda) pattern as let. No new term. Tests and notes."
@@ -241,19 +241,48 @@ One walk from the outside in. It renames binders only; labels, including block p
   - `name$level` (`n$5`): it needs quotes.
 
 ## 5. Convert to BANF: rewrite [oymo/src/oymo/oymomo/banf_translate.py](oymo/src/oymo/oymomo/banf_translate.py)
-- Same structure as today: `_unwrap`, `_imports`, `_function_header`, `_Translator` (`atom`, `op`, `jump`, `body`), return-form inference, and written-form checks.
-- The difference is that variables are `BruijnIndex` values resolved through the context stack. A let reference becomes `banf.Var(binder_name)`, and `args.n` becomes `banf.Var('n')`.
-- Errors that become unnecessary are removed:
-  - "Let repeats param label, earlier let, or binder name": these are renamed now.
-  - "prim, decls and defs must have different names", and "block binder repeats an outer binder name": indices make these unambiguous.
-  - "fix is not supported".
-  - "only block and let lambdas are supported": such terms are reduced now.
-- Errors that remain are for shapes that can't be reduced. Step 3 leaves such terms as they are, so step 5 reports them with today's messages, for example:
-  - an op in tail position that isn't bound by a let;
-  - an `if` whose arms aren't jumps;
-  - a binder such as `prim` or `args` used as a value;
-  - a label that a struct literal doesn't have, as in `{a = x}.b`;
-  - unknown prims, defs, imports or blocks.
+Step 5 takes the renamed term and trusts step 4's fixed names. It stores no binder names of its own.
+
+**Fixed names, checked by name.** The five names are constants in one place (`PRIM`, `DECLS`, `DEFS`, `BLOCKS = 'f'`, `ARGS = 'a'` in `banf_rename.py`), and step 5 imports them. The program must be exactly:
+```
+prim -> decls: {...} -> defs -> {name = f -> {label = a: {...} -> body, ...}, ...}
+```
+- `_unwrap` matches `Lambda(param_name=PRIM, body=Lambda(param_name=DECLS, ...))` and so on, down to `Lambda(param_name=DEFS, body=Struct)`.
+- `_function_header` matches `Lambda(param_name=BLOCKS, body=Struct)` and each block `Lambda(param_name=ARGS, param_form=StructForm)`.
+- A binder with another name at one of these positions is an error, with today's shape messages, for example "Expected a program of the shape prim -> decls: {...} -> defs -> {...}" or "Definition 'main' must be a struct of blocks". Step 4 only gives a fixed name to a position step 3 shaped, so a wrong name means a wrong shape, and the name check doubles as the shape check.
+
+**No binder names in the translator's state.**
+- `_Program` keeps `imports` and `functions` only. The `prim`, `decls` and `defs` fields go.
+- `_Block` keeps `function` and `params`, plus `lets`, the list of `banf.Let`s built so far for this block. The `blocks_binder` and `args_binder` fields and the `lets` name set go.
+- `binder_error`, `bind_let` and the "Block binder repeats an outer binder name" check go. Step 4 already guarantees that names are distinct.
+
+**References are classified by index, not by name.** Inside a block body with `k` lets so far (`k = len(block.lets)`), the binders above, from the inside out, are always:
+```
+$0 .. $k-1   the lets, newest first
+$k           a       (the block's args)
+$k+1         f       (the function's blocks)
+$k+2         defs
+$k+3         decls
+$k+4         prim
+```
+So one helper, `_binder(index, k)`, returns `('let', i)`, `ARGS`, `BLOCKS`, `DEFS`, `DECLS` or `PRIM`, using only arithmetic:
+- `$j` with `j < k`: an atom, `banf.Var(block.lets[k - 1 - j].name)`. The name comes from the BANF let already built, which is step 4's name.
+- `$k.n` (`a.n`): `banf.Var(n)`, if `n` is a param label.
+- `$k` alone (`a`) as an op argument: forwards the params, as today.
+- `$(k+1).label {...}` (`f.label`): a jump.
+- `$(k+2).g {...}`, `$(k+3).g {...}` / `$(k+3).x`, `$(k+4).op {...}`: `Call` to a def, `Call` to an import / `GetData`, `PrimCall`.
+- Any of `a`, `f`, `defs`, `decls`, `prim` used as a plain value is an error: "'prim' cannot be used as a value". The message uses the constant's name.
+
+**What stays as today:** `_imports`, return-form inference, written-form checks, `banf.verify`, and the messages for shapes step 3 can't fix:
+- an op in tail position that isn't bound by a let;
+- an `if` whose arms aren't jumps;
+- a label that a struct literal doesn't have, as in `{a = x}.b`;
+- unknown prims, defs, imports or blocks.
+
+**Errors that go away:**
+- "Let repeats param label, earlier let, or binder name": step 4 renames these.
+- "prim, decls and defs must have different names", "Block binder repeats an outer binder name": step 4 gives them fixed, distinct names.
+- "fix is not supported", "Only block and let lambdas are supported": step 3 reduces these.
 
 ## Printer, notes, tests
 - [printer.py](oymo/src/oymo/oymomo/printer.py):
