@@ -219,7 +219,19 @@ One walk from the outside in. It renames binders only; labels, including block p
     return n_6
   ```
   More cases:
-  - A user's own `t_6` after the renamed `t_6` above becomes `t__7`.
+  - A user's own `t_6` after the renamed `t_6`: its original is `t_6`, so the first try is `t_6_7`, which is free:
+    ```
+    let t = e1 in let t = e2 t in let t_6 = e3 t in t_6
+    becomes
+    let t = e1 in let t_6 = e2 t in let t_6_7 = e3 t_6 in t_6_7
+    ```
+  - `x__L` only appears when `x_L` is itself visible, which needs a user's binder named `x_L` above:
+    ```
+    let t = e1 in let t_7 = e2 t in let t = e3 t_7 in t
+    becomes
+    let t = e1 in let t_7 = e2 t in let t__7 = e3 t_7 in t__7
+    ```
+    At level 7, `t` is visible (level 5) and `t_7` is visible (level 6), so the third let gets `t__7`.
   - A let named `a` becomes `a_5`, since `a` is the block's binder.
 - Rejected:
   - one set per function, to avoid LLVM's `.1`: it renames lets that clash only with a sibling block, and LLVM names don't matter;
@@ -280,7 +292,7 @@ One walk from the outside in. It renames binders only; labels, including block p
     - the chain `t, t, t` becomes `t, t_6, t_7`, and two lets that repeat a param label `n` become `n_5, n_6`;
     - a let named after a fixed name (`a`, `f`) becomes `a_5`, `f_5`;
     - sibling blocks can both keep `t`;
-    - a user's `t_6` after a renamed `t_6` becomes `t__7`;
+    - a user's `t_6` after a renamed `t_6` becomes `t_6_7`, and `t, t_7, t` becomes `t, t_7, t__7`;
     - param labels are never renamed;
     - a position step 3 left without its shape gets the keep-or-suffix rule, not a fixed name;
     - a second run gives the same term.
