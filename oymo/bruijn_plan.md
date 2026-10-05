@@ -1,6 +1,6 @@
 ---
 name: Reduce oymomo to BANF
-overview: "Turn the oymomo-to-BANF translator into four passes: resolve names to de Bruijn indices; beta-reduce, unfold fix and project struct literals only where the term doesn't yet have BANF's shape, using reduce(term), which takes one step at the term's root or returns the term itself; remove shadowing in one outside-in walk, where a binder whose name is already visible gets the smallest number suffix that isn't (t, t, t becomes t, t1, t2); then convert to BANF, taking names from the binders."
+overview: "Turn the oymomo-to-BANF translator into four passes: resolve names to de Bruijn indices; beta-reduce, unfold fix and project struct literals only where the term doesn't yet have BANF's shape, using reduce(term), which takes one step at the term's root or returns the term itself; rename in one outside-in walk, where the structural binders get fixed names (prim, decls, defs, f for each function, a for each block's args) and every other binder keeps its name unless that name is visible (an enclosing binder's name, or a param label of its block), in which case it becomes x_L, then x__L, and so on, where L is its depth (t, t, t becomes t, t_6, t_7); param labels are never renamed; then convert to BANF, taking names from the binders."
 todos:
   - id: bruijn
     content: Add location to BruijnIndex; write bruijn.py (resolve, shift, substitute, beta, unfold, project) with tests
@@ -12,7 +12,7 @@ todos:
     content: "Write banf_reduce.py: over the 11 positions, match on whnf (reduce at the root, else whnf the head), with fuel; keep lets whose value is an op; leave terms that don't match for convert; tests"
     status: pending
   - id: rename
-    content: "Write banf_rename.py: one outside-in walk; a binder whose name is visible gets the smallest number suffix that isn't (t, t, t becomes t, t1, t2); never labels; tests"
+    content: "Write banf_rename.py: one outside-in walk; structural binders get fixed names prim, decls, defs, f, a; visible-name set (enclosing binders' names plus the block's param labels), add on the way down, remove on the way up; other binders keep x if not visible, else x_L, x__L, ...; never touches labels; tests"
     status: pending
   - id: convert
     content: Rewrite banf_translate.py to convert resolved terms using the binder context; translate() runs all four passes; update tests
@@ -159,18 +159,43 @@ Two more rules:
 
 Step 3 only fixes constructors. Step 5 checks the rest, for example that a let's `prim.op` really is on the prim binder, that `blocks.label` exists, and that forms are known.
 
-## 4. Remove shadowing: new [oymo/src/oymo/oymomo/banf_rename.py](oymo/src/oymo/oymomo/banf_rename.py)
-One walk from the outside in, carrying the set of visible names: the enclosing binders' names, as already renamed, plus the block's param labels inside a block body.
-- A binder whose name is in the set gets the smallest number suffix that isn't: `t`, then `t1`, `t2`, … Its new name then joins the set for its body.
-- That's the whole algorithm. Labels are never renamed (struct labels, `FieldAccess` labels and param labels), so a let that repeats a param label is the one renamed. Every binder is handled the same way, not just lets: in `prim -> decls: {} -> prim -> …` the defs binder becomes `prim1`.
-- References are indices, so a rename only changes the binder.
-- Afterwards no binder's name is visible where it is bound. So each BANF block's params and lets have distinct names, the pretty printer can print each `BruijnIndex` as its binder's name and parse back the same term, and a second run renames nothing.
-- Names don't need to be pretty: they only label values in BANF and LLVM IR, and compiled code drops them. So there are no further rules: a user's own `t1` after a renamed `t1` just becomes `t11`, and sibling blocks reuse the same numbers.
-- Examples, with `a`, `b` and `c` standing for any ops:
+## 4. Rename binders: new [oymo/src/oymo/oymomo/banf_rename.py](oymo/src/oymo/oymomo/banf_rename.py)
+One walk from the outside in. It renames binders only; labels, including block param labels, stay as written.
+- **Structural binders get fixed names.** The walk follows positions 1, 2, 3, 5 and 7 of step 3 and renames those binders, whatever they were called:
+
+  | Position | Binder | Fixed name |
+  |---|---|---|
+  | 1 | the outer lambda | `prim` |
+  | 2 | the second lambda | `decls` |
+  | 3 | the third lambda | `defs` |
+  | 5 | each function's lambda (its blocks) | `f` |
+  | 7 | each block's lambda (its args) | `a` |
+
+  So every shaped program reads `prim -> decls -> defs -> {main = f -> {entry = a -> …}}`, with jumps written `f.label` and params `a.n`. On any path from the root these five names appear once each, so they never clash with each other. A position that step 3 left without its shape (for step 5 to report) is not structural, and its binder follows the rule below.
+- **Visible names.** The walk carries the set of names visible at the current point:
+  - the names already given to the enclosing binders, including the five fixed names;
+  - inside a block body, that block's param labels. They become BANF `Var`s, as in `entry(n: i32)`, so a let must not reuse one.
+
+  No other label goes in the set. Struct labels, `FieldAccess` labels, block labels and function names live in their own namespaces in oymomo and in BANF (`Jump.target`, `Call.function`, `GetData.name` are plain strings, not `Var`s). So a let `n` used as `{n = n}` keeps its name.
+- **Every other binder** (lets, and any lambda step 3 left), with original name `x` and level `L` (the number of binders enclosing it, counted from the root):
+  1. If `x` is not visible, keep `x`.
+  2. Otherwise try `x_L`. If that is visible too, try `x__L`, then `x___L`, and so on. Use the first one that isn't visible.
+
+  The new name joins the set for the binder's body, and leaves it on the way back up. A plain set is enough, because the names on one path are always distinct. The loop stops, because each extra `_` gives a name that wasn't tried before, and the set is finite.
+- **Result:**
+  - No binder hides another one on any path, and no let reuses its block's param labels. So each BANF block's params and lets have distinct names, and the pretty printer can print each `BruijnIndex` as its binder's name and parse back the same term.
+  - Most programs keep every name the user wrote. The current goldens have no shadowing, so their `.banf` and `.ll` files should not change.
+  - Sibling blocks can reuse a name, because BANF scopes names per block. LLVM may then add `.1` in the `.ll` file. That is accepted: only the `.ll` names change, and the code is still correct.
+- **Idempotent:** after one run nothing clashes, so a second run keeps every name.
+- **Cost:** one hash set, with an add on the way down and a remove on the way up. Each binder costs O(1) expected time, and a retry happens only on a clash. The whole pass is O(size of the term).
+- Labels are never renamed: struct labels, `FieldAccess` labels, block labels and param labels all stay as written.
+- References are indices, so a rename only changes the binder. Step 5 keeps the binder names in an array indexed by level, and resolves `$j` at depth `d` to `names[d - 1 - j]` in O(1).
+- The fixed names don't reach BANF: `f.label` becomes a jump target and `a.n` becomes `banf.Var('n')`.
+- Examples, with `e1`, `e2` and `e3` standing for any ops. The lets in a block start at level 5, under `prim`, `decls`, `defs`, `f` and `a`:
   ```
-  let t = a in let t = b t in let t = c t in t
+  let t = e1 in let t = e2 t in let t = e3 t in t
   becomes
-  let t = a in let t1 = b t in let t2 = c t1 in t2
+  let t = e1 in let t_6 = e2 t in let t_7 = e3 t_6 in t_7
   ```
   A block whose lets repeat its param label twice:
   ```
@@ -179,14 +204,29 @@ One walk from the outside in, carrying the set of visible names: the enclosing b
     let n = prim.mul_i32 {a = n, b = n} in
     n
   ```
+  becomes
+  ```
+  entry = a: {n: i32} →
+    let n_5 = prim.add_i32 {a = a.n, b = a.n} in
+    let n_6 = prim.mul_i32 {a = n_5, b = n_5} in
+    n_6
+  ```
   converts to
   ```
   entry(n: i32):
-    n1 = prim.add_i32(n, n)
-    n2 = prim.mul_i32(n1, n1)
-    return n2
+    n_5 = prim.add_i32(n, n)
+    n_6 = prim.mul_i32(n_5, n_5)
+    return n_6
   ```
-- Rejected: `name$level` (`n$5`): it needs quotes, and the number means nothing to a reader.
+  More cases:
+  - A user's own `t_6` after the renamed `t_6` above becomes `t__7`.
+  - A let named `a` becomes `a_5`, since `a` is the block's binder.
+- Rejected:
+  - one set per function, to avoid LLVM's `.1`: it renames lets that clash only with a sibling block, and LLVM names don't matter;
+  - checking every label (struct, field, block, function): those are separate namespaces, and collecting them would need an extra pass;
+  - renaming params: param labels are the labels of the block's form, of `a.n` and of every jump's `{n = …}`, so renaming them means rewriting labels in many places;
+  - `_<level>_<original>` for every binder: unique without a set, but it renames every let, even ones that clash with nothing;
+  - `name$level` (`n$5`): it needs quotes.
 
 ## 5. Convert to BANF: rewrite [oymo/src/oymo/oymomo/banf_translate.py](oymo/src/oymo/oymomo/banf_translate.py)
 - Same structure as today: `_unwrap`, `_imports`, `_function_header`, `_Translator` (`atom`, `op`, `jump`, `body`), return-form inference, and written-form checks.
@@ -208,7 +248,7 @@ One walk from the outside in, carrying the set of visible names: the enclosing b
   - The pretty printer prints a `BruijnIndex` using the name of its binder, tracked on a stack, so resolved and renamed terms still read like source.
   - Compact mode prints a BruijnIndex as `$i`. Today it prints `#i`, so this changes, along with the `#0` in the notes' printer section.
 - [notes.md](oymo/notes.md):
-  - Replace "a shape checker, not a normalizer" and "Let names are never renamed" with the four passes, the rules of `reduce`, how step 3 uses it (heads, lets, terms left for step 5), the fix and fuel rule, and the renaming rule (smallest number suffix that isn't visible).
+  - Replace "a shape checker, not a normalizer" and "Let names are never renamed" with the four passes, the rules of `reduce`, how step 3 uses it (heads, lets, terms left for step 5), the fix and fuel rule, and the renaming rule (fixed structural names; other binders keep their name unless it is visible (enclosing binders, the block's param labels), else `x_L`, `x__L`, …; labels never renamed).
   - Remove "No surface syntax for BruijnIndex" as an exception in the printer section.
 - Tests:
   - `bruijn_test.py`: resolve, shift, substitute and beta, including the classic capture case `(x -> y -> x) y`. And `reduce`:
@@ -235,14 +275,17 @@ One walk from the outside in, carrying the set of visible names: the enclosing b
     - a term that can't reach its shape is returned as it is, for step 5 to report: a lambda where a block struct is wanted, the missing label `{a = x}.b`, and `args` itself (`$k`) or a variable above it (`$i`, `i > k`, such as `prim`) in tail position;
     - a term already in BANF shape comes back unchanged.
   - `banf_rename_test.py`:
-    - a let that repeats a param label: `n` becomes `n1`;
-    - the chain `t, t, t` becomes `t, t1, t2`;
-    - a user's `t1` after a renamed one: `t, t, t1` becomes `t, t1, t11`;
-    - a binder other than a let: `prim -> decls: {} -> prim -> …` renames the defs binder to `prim1`;
-    - sibling blocks reuse the same numbers;
-    - a binder that shadows nothing keeps its name, and a second run renames nothing.
+    - structural binders: `p -> d -> prim -> {main = blocks -> {entry = args -> …}}` becomes `prim -> decls -> defs -> {main = f -> {entry = a -> …}}`;
+    - a let that clashes with nothing keeps its name, and so does a let named like a struct label (`{n = n}`) or a block label;
+    - the chain `t, t, t` becomes `t, t_6, t_7`, and two lets that repeat a param label `n` become `n_5, n_6`;
+    - a let named after a fixed name (`a`, `f`) becomes `a_5`, `f_5`;
+    - sibling blocks can both keep `t`;
+    - a user's `t_6` after a renamed `t_6` becomes `t__7`;
+    - param labels are never renamed;
+    - a position step 3 left without its shape gets the keep-or-suffix rule, not a fixed name;
+    - a second run gives the same term.
   - `banf_translate_test.py`: update the tests whose rejections now become renames or reductions. Two need care:
     - `test_imports` ends in `(w -> t0) (c.w)`, which returns an earlier let's variable (`$3`, with `k` = 4). It stays valid as it is.
     - `(t -> t) (args.n)` was rejected with "A let's value must be an op". It now beta-reduces to the `args.n` terminal and is accepted.
-    - Beyond those, the expected BANF output for the golden programs stays the same, and so do the error messages for shapes that can't be reduced, because step 3 leaves those terms for step 5.
+    - Beyond those, the error messages for shapes that can't be reduced stay the same, because step 3 leaves those terms for step 5. Expected BANF output changes only where a let reused a visible name, which today is an error. So the golden `.banf` and `.ll` files stay the same.
   - Golden: `simplest.shaped.oymo` is approved, and parsing it and translating again gives the same `simplest.banf`.
