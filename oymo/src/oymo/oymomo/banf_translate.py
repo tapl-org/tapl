@@ -352,7 +352,7 @@ def _check_written_forms(module, written_forms):
 
 
 def shape(term: syntax.Term) -> syntax.Term:
-    """Steps 1 to 4: resolves names, reduces to BANF's shape and renames binders."""
+    """Resolves names, reduces to BANF's shape and renames binders."""
     try:
         return banf_rename.rename(banf_reduce.shape(bruijn.resolve(term)))
     except bruijn.BruijnError as error:
@@ -360,7 +360,7 @@ def shape(term: syntax.Term) -> syntax.Term:
 
 
 def convert(term: syntax.Term) -> banf.Module:
-    """Step 5: reads a shaped term into BANF."""
+    """Reads a shaped term into BANF."""
     decls_form, decls_location, defs_struct = _unwrap(term)
     imports = _imports(decls_form, decls_location)
     headers = []

@@ -532,31 +532,98 @@ The golden tests approve the shaped term next to the BANF and LLVM output, as
 - projection: `{a = e, ...}.a` gives `e`. A missing label is not a redex;
 - if: `if [01] then a else b` gives `a`, and `if [00] ...` gives `b`.
 
+- Only the root: arguments, lambda bodies, struct fields and `if` arms stay as
+  they are, and so does a head whose root isn't a redex yet (`(fix g) a`,
+  `{p = {a = e}}.p.a`). `banf_reduce` reduces heads.
+- At most one rule applies to a term, so their order doesn't matter.
+- It never raises and never recurses, so one call always finishes. Loops come
+  from calling it again and again, so the fuel is in `banf_reduce`.
+- Prims are not run (`prim` is only a binder), and an `if` condition's form isn't
+  checked: only the one-byte values `01` and `00` are redexes.
+- The helpers it uses are `shift`, `substitute`, `beta`
+  (`shift(substitute(body, 0, shift(arg, 1)), -1)`), `unfold` and `project`.
+
 ### `banf_reduce`: reduce until each position has its shape
-The program has fixed positions: the three program lambdas, the struct of defs,
-each function's lambda and struct of blocks, each block lambda, and then each
-block body. At a position, the term is put in weak head normal form (`whnf`):
-reduce at the root, else reduce the head (the callee of an apply, the struct of a
-projection, the condition of an if), until neither changes. Then its own
-positions are visited.
-- In a block body, a let `(x -> rest) e` stays a let when `e`'s whnf is an op (an
-  apply, a struct, or a projection other than `args.label`). Otherwise, such as
-  for an atom, a lambda or an `if`, the let is beta-reduced. So helpers are
-  inlined, `let t = args.n in t` becomes `args.n`, and a let-bound `if` lands in
-  tail position.
-- An op's operands, a jump's argument and an if's condition and arms are reduced
-  the same way.
+Each position wants certain constructors. The term there is reduced until it has
+one, then its own positions are visited. Forms and binder kinds aren't checked
+(except `args`, through `k` below); `convert` does that, so this pass needs no
+context.
+
+**Heads.** Some roots become a redex only after their head is reduced: in
+`(fix g) a`, `fix g` must unfold to a lambda first. The head of an apply is its
+callee, of a projection its struct, of an if its condition; other terms have
+none.
+```
+step(t) = reduce(t)        if reduce(t) is not t                        -- a step at the root
+        = t with head h'   if t has a head h, and h' = whnf(h) is not h   -- else reduce the head
+        = t                otherwise
+
+whnf(t) = whnf(step(t))    if step(t) is not t
+        = t                otherwise
+```
+`whnf` stops at every Lambda, Struct, ByteArray and BruijnIndex, and at stuck terms
+such as `prim.add_i32 {...}`, `args.n`, `blocks.done {...}` or `if t0 then a else b`.
+- "Reduce `t` until it is X" means take `whnf(t)`, then look at its constructor.
+  Looking first would be wrong: `{f = x -> ...}.f args.n` is already an apply, but
+  its callee must be reduced before it is a call such as `prim.op {...}`.
+- A position that already has a wanted constructor is not reduced further, since
+  `whnf` stops there. So a let-bound struct stays a `MakeStruct`.
+
+**Positions**, as numbered in `banf_reduce.py`:
+1. The term, until a Lambda: `prim -> <decls>`.
+2. `<decls>`, until a Lambda: `decls -> <defs>`.
+3. `<defs>`, until a Lambda: `defs -> <body>`.
+4. `<body>`, until a Struct: `{label = <func>, ...}`.
+5. `<func>`, until a Lambda: `blocks -> <func_body>`.
+6. `<func_body>`, until a Struct: `{label = <block>, ...}`.
+7. `<block>`, until a Lambda: `args -> <block_body>`.
+8. `<block_body>`, a chain of lets ending in a terminal:
+   ```
+   block_body := terminal | (x -> block_body) <value>      -- a let
+   terminal   := [bytes]                                    -- return a constant
+               | args.label                                 -- return a param
+               | $i, where i < k                            -- return a let
+               | blocks.label <op_arg>                      -- jump
+               | if <atom> then <jump> else <jump>          -- branch
+   ```
+   `k` counts the lets since the block's `args` binder, so `args` is `$k`; it
+   tells `args.label` from other projections. A let isn't reduced with `whnf`,
+   since it is a redex that must be kept. Repeat:
+   1. For a let `(x -> rest) <value>`, take `whnf(<value>)`. If it is an op (an
+      apply, a struct, or a projection other than `args.label`), keep the let,
+      visit the op (9), and go on with `rest`. Otherwise beta-reduce the let and
+      go on with the result.
+   2. Else, if `step` changes the body, go on with that. This can make a let:
+      in `(x -> y -> rest) a b` the head reduces and leaves `(y -> rest') b`.
+   3. Else visit the terminal's positions and stop.
+9. `<value>`, a let's op: an apply's `<op_arg>` becomes a struct of atoms or a
+   BruijnIndex (forwarding `args`); a struct's fields become atoms; a
+   projection's struct is a head, already reduced.
+10. `<jump>`, an `if` arm: until `blocks.label <op_arg>`.
+11. `<atom>`: until a ByteArray, `$i` with `i < k`, or `args.n`. `args` itself is
+    not an atom: BANF passes a block's params one by one.
+
+More rules:
+- Because a let whose value isn't an op is beta-reduced, helpers are inlined,
+  `let t = args.n in t` becomes `args.n`, and a let-bound `if` lands in tail
+  position.
 - A term that can't get its shape is left as it is, for `convert` to report with
-  the usual message.
+  the usual message, so this pass has no errors except running out of fuel.
 - Fuel: each step costs one unit, out of 10,000. A term that keeps reducing, such
   as `fix (self -> self)`, fails with "ran out of reduction steps".
 - Nothing is flattened: a nested call stays nested and is an error, since
   flattening would mean inventing names.
 
 ### Binders get fixed names
-The structural binders are renamed to fixed names, so every shaped program reads
+The structural binders (positions 1, 2, 3, 5 and 7) are renamed to fixed names,
+so every shaped program reads
 `prim -> decls -> defs -> {main = blocks -> {entry = args -> ...}}`. `convert` then
 checks each position by name, and a wrong name means a wrong shape.
+- On any path from the root the five names appear once each, so they never clash.
+- A position `banf_reduce` left without its shape is not structural: its binder
+  follows the rule below, and `convert` reports the shape error.
+- The fixed names don't reach BANF: `blocks.label` becomes a jump target and
+  `args.n` becomes `banf.Var('n')`.
 
 ### Other binders keep their names unless they clash
 A let keeps its name `x` unless `x` is visible: the name of an enclosing binder
@@ -565,14 +632,29 @@ Then it becomes `x_L`, else `x__L`, and so on, where `L` is its level (the numbe
 of enclosing binders; a block's first let is level 5).
 - `let t = ... in let t = ... in let t = ... in t` gives `t, t_6, t_7`.
 - With `args: {n: i8}`, two lets named `n` give `n_5, n_6`, since `n` is a param
-  label.
+  label: param labels become BANF `Var`s, as in `entry(n: i8)`.
 - A user's own `t_6` after a renamed `t_6` gives `t_6_7`; `t, t_7, t` gives
   `t, t_7, t__7`. A let named `args` gives `args_5`.
-- Labels (struct, field, block, function, param) are never renamed. Param labels
-  appear in the block's form, in `args.n` and in every jump's `{n = ...}`.
+- Labels (struct, field, block, function, param) are never renamed, and only
+  param labels count as visible. The others live in their own namespaces in
+  oymomo and in BANF (`Jump.target`, `Call.function` and `GetData.name` are plain
+  strings, not `Var`s), so a let `n` used as `{n = n}` keeps its name.
 - Visible names are per path, so sibling blocks can both have a `t`. In LLVM, two
   values with one name get a `.1` suffix, which is fine.
 - A second run changes nothing: the output has no clashes, so every name is kept.
+- Cost: one set, with an add on the way down and a remove on the way up. The names
+  on one path are distinct, so a plain set is enough, and the pass is linear.
+- Rejected:
+  - one set per function, to avoid LLVM's `.1`: it renames lets that clash only
+    with a sibling block, and LLVM names don't matter;
+  - checking every label: those are separate namespaces, and collecting them
+    would need an extra pass;
+  - renaming params: param labels appear in the block's form, in `args.n` and in
+    every jump's `{n = ...}`, so renaming them means rewriting labels in many
+    places;
+  - `_<level>_<original>` for every binder: unique without a set, but it renames
+    every let, even ones that clash with nothing;
+  - `name$level` (`n$5`): it needs quotes, and `$` now starts a BruijnIndex.
 
 ### `convert` finds binders by index
 Inside a block body with `k` lets so far, the binders above are always, from the

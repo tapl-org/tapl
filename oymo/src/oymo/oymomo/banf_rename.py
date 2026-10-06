@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Renames binders of a term in BANF shape. See bruijn_plan.md, step 4.
+"""Renames binders of a term in BANF shape. See notes.md, "Binders get fixed names".
 
 The structural binders get fixed names, so every shaped program reads
 `prim -> decls -> defs -> {main = blocks -> {entry = args -> ...}}`. Any other binder keeps
@@ -86,7 +86,7 @@ class _Renamer:
         return visit
 
     def other(self, term):
-        """Any term outside the fixed positions: lets, and lambdas step 3 left."""
+        """Any term outside the fixed positions: lets, and lambdas `banf_reduce` left."""
         match term:
             case terms.Lambda(param_name=name):
                 return self.bind(term, fresh(name, self.level, self.visible), self.other)

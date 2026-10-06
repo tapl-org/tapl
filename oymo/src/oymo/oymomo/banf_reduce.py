@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Reduces a resolved oymomo term until it has BANF's shape. See bruijn_plan.md, step 3.
+"""Reduces a resolved oymomo term until it has BANF's shape. See notes.md, `banf_reduce`.
 
 Each position wants certain constructors. The term there is reduced with `whnf` until its
 top constructor is one of them, then its own positions are visited. A term that can't get
