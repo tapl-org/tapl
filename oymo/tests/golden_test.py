@@ -10,7 +10,7 @@ import llvmlite.binding as llvm
 from approvaltests.approvals import verify
 from approvaltests.core.namer import Namer
 
-from oymo.oymomo import banf_terms, banf_translate, grammar, llvm_prims, llvm_translate
+from oymo.oymomo import banf_terms, banf_translate, grammar, llvm_prims, llvm_translate, printer
 
 
 def run_command(command):
@@ -69,19 +69,24 @@ TARGET = llvm_translate.Target(triple='x86_64-unknown-linux-gnu', data_layout=''
 LANGUAGE_HEADER = 'language oymomo\n'
 
 
-def compile_oymo(source: str) -> tuple[str, str]:
-    """Returns the BANF and LLVM IR text of an oymomo program."""
+def compile_oymo(source: str) -> tuple[str, str, str]:
+    """Returns the shaped oymomo source, the BANF and the LLVM IR text of an oymomo program."""
     assert source.startswith(LANGUAGE_HEADER)
-    module = banf_translate.translate(grammar.parse(source.removeprefix(LANGUAGE_HEADER)))
+    shaped = banf_translate.shape(grammar.parse(source.removeprefix(LANGUAGE_HEADER)))
+    module = banf_translate.convert(shaped)
     ir_text = str(llvm_translate.translate(module, TARGET))
     llvm.parse_assembly(ir_text).verify()
-    return banf_terms.show(module), ir_text
+    shaped_text = LANGUAGE_HEADER + printer.show(shaped, pretty=True) + '\n'
+    return shaped_text, banf_terms.show(module), ir_text
 
 
 def run_golden_test(test_name: str) -> None:
     base_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'goldens')
     source = pathlib.Path(os.path.join(base_directory, f'{test_name}.oymo')).read_text()
-    banf_text, ir_text = compile_oymo(source)
+    shaped_text, banf_text, ir_text = compile_oymo(source)
+    verify(shaped_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.shaped.oymo')))
+    # The shaped source is itself a program that gives the same BANF.
+    assert compile_oymo(shaped_text)[1] == banf_text
     verify(banf_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.banf')))
     verify(ir_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.ll')))
 

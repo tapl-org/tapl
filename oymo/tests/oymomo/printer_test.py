@@ -4,7 +4,7 @@ import textwrap
 
 import pytest
 
-from oymo.oymomo import terms
+from oymo.oymomo import bruijn, terms
 from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show, show_form
 
@@ -28,7 +28,7 @@ def pretty(source):
 
 
 def test_compact_is_fully_parenthesized():
-    assert show(parse('f a (b -> b)')) == '((f a) (b:unknown → b))'
+    assert show(parse('f a (b -> b)')) == '((f a) (b → b))'
 
 
 @pytest.mark.parametrize(
@@ -36,13 +36,15 @@ def test_compact_is_fully_parenthesized():
     [
         ('f a b', 'f a b'),
         ('f (g a) b', 'f (g a) b'),
-        ('(x -> x) y', '(x → x) y'),
+        ('(x -> x) y', 'let x = y in x'),
+        ('(let x = y in f) a', '(let x = y in f) a'),
+        ('f (let x = y in x)', 'f (let x = y in x)'),
         ('f (x -> x)', 'f (x → x)'),
         ('(f a).x', '(f a).x'),
         ('fix f x', 'fix f x'),
         ('fix (f a)', 'fix (f a)'),
         ('f (if c then a else b)', 'f (if c then a else b)'),
-        ('if c then x -> x else (y -> y) z', 'if c then x → x else (y → y) z'),
+        ('if c then x -> x else (y -> y) z', 'if c then x → x else let y = z in y'),
     ],
 )
 def test_pretty_parenthesizes_only_where_needed(source, expected):
@@ -77,16 +79,41 @@ def test_pretty_breaks_long_terms():
         prim → decls: {} → defs → {
           fact = f → {
             entry = args: {n: i32} →
-              (t0 → if t0 then f.then0 {} else f.else0 {n = args.n})
-                (prim.eq_i32 {a = args.n, b = [00000000]: i32}),
+              let t0 = prim.eq_i32 {a = args.n, b = [00000000]: i32} in
+              if t0 then f.then0 {} else f.else0 {n = args.n},
             then0 = args: {} → [01000000]: i32,
             else0 = args: {n: i32} →
-              (t1 →
-                (t2 → (t3 → t3) (prim.mul_i32 {a = args.n, b = t2}))
-                  (defs.fact {n = t1}))
-                (prim.sub_i32 {minuend = args.n, subtrahend = [01000000]: i32}),
+              let t1 = prim.sub_i32 {minuend = args.n, subtrahend = [01000000]: i32} in
+              let t2 = defs.fact {n = t1} in
+              let t3 = prim.mul_i32 {a = args.n, b = t2} in t3,
           },
         }""")
+
+
+def test_compact_let():
+    assert show(parse('let x: i8 = e in x')) == '(let x:i8 = e in x)'
+    assert show(parse('let x = e in x')) == '(let x = e in x)'
+
+
+def test_pretty_let_keeps_written_form():
+    assert pretty('let t0: i1 = f a in t0') == 'let t0: i1 = f a in t0'
+
+
+def test_pretty_breaks_let_chain_one_per_line():
+    assert pretty('let a = f x in let b = g a in let c = h b in c') == 'let a = f x in let b = g a in let c = h b in c'
+    assert show(parse('let a = f x in let b = g a in let c = h b in c'), pretty=True, width=20) == textwrap.dedent(
+        """\
+        let a = f x in
+        let b = g a in
+        let c = h b in c"""
+    )
+
+
+def test_bruijn_index():
+    term = bruijn.resolve(parse('a -> b -> let x = a in b x'))
+    assert show(term) == '(a → (b → (let x = $1 in ($1 $0))))'
+    assert show(term, pretty=True) == 'a → b → let x = a in b x'
+    assert show(terms.BruijnIndex(0), pretty=True) == '$0'
 
 
 def test_width_and_indent_flags():
@@ -107,6 +134,7 @@ def test_width_and_indent_flags():
         '"if" -> "a b" -> s."\\u{3bb}"',
         'd: {putchar: {c: i8} -> i32, errno} -> [] : ({} -> i32)',
         'if c then if d then a else b else fix f',
+        'let x: i8 = let y = e in y in f (let z = x in z)',
     ],
 )
 def test_pretty_parses_back_to_the_same_term(source):
@@ -115,5 +143,5 @@ def test_pretty_parses_back_to_the_same_term(source):
 
 def test_show_form():
     form = terms.StructForm([('f', terms.FunctionForm('i8', 'i32')), ('x', 'unknown')])
-    assert show_form(form) == '{f: (i8 → i32), x: unknown}'
+    assert show_form(form) == '{f: (i8 → i32), x}'
     assert show_form(form, pretty=True) == '{f: i8 → i32, x}'

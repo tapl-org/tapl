@@ -226,6 +226,58 @@ def test_first_block_is_entry_whatever_its_name():
     """)
 
 
+def test_lets_repeating_a_param_label_are_renamed():
+    source = """
+    g = f -> {entry = args:{n: i8} ->
+      (n -> (n -> n) (prim.mul_i8 {a = n, b = n})) (prim.add_i8 {a = args.n, b = args.n})}
+    """
+    assert banf(source) == text("""
+        g: i8
+          entry(n: i8):
+            n_5 = prim.add_i8(n, n)
+            n_6 = prim.mul_i8(n_5, n_5)
+            return n_6
+    """)
+
+
+def test_repeated_let_is_renamed():
+    source = """
+    g = f -> {entry = args:{n: i8} ->
+      (t -> (t -> t) (prim.add_i8 {a = t, b = t})) (prim.add_i8 {a = args.n, b = args.n})}
+    """
+    assert banf(source) == text("""
+        g: i8
+          entry(n: i8):
+            t = prim.add_i8(n, n)
+            t_6 = prim.add_i8(t, t)
+            return t_6
+    """)
+
+
+def test_atom_let_is_substituted():
+    assert banf('g = f -> {entry = args:{n: i8} -> (t -> t) (args.n)}') == text("""
+        g: i8
+          entry(n: i8):
+            return n
+    """)
+
+
+def test_let_bound_if_is_substituted_into_tail():
+    source = """
+    g = f -> {entry = args:{c: i1} -> (t -> t) (if args.c then f.a {} else f.b {}),
+              a = args:{} -> [01]:i8, b = args:{} -> [02]:i8}
+    """
+    assert banf(source) == text("""
+        g: i8
+          entry(c: i1):
+            branch c, a(), b()
+          a():
+            return [01]:i8
+          b():
+            return [02]:i8
+    """)
+
+
 @pytest.mark.parametrize(
     ('defs', 'message'),
     [
@@ -236,16 +288,11 @@ def test_first_block_is_entry_whatever_its_name():
         ),
         (
             'g = f -> {entry = args:{n: i32} -> prim.add_i32 {a = args.n, b = args.n}}',
-            'An op in tail position must be bound by a let, as in (t0 -> t0) (op).',
-        ),
-        (
-            'g = f -> {entry = args:{c: i1} -> (t -> t) (if args.c then f.a {} else f.b {}), a = args:{} -> [01]:i8,'
-            ' b = args:{} -> [01]:i8}',
-            'An if must be in tail position.',
+            'An op in tail position must be bound by a let, as in let t = op in t.',
         ),
         (
             'g = f -> {entry = args:{c: i1} -> if args.c then [01]:i8 else f.b {}, b = args:{} -> [01]:i8}',
-            'Both branches of an if must be jumps, such as f.then0 {}.',
+            'Both branches of an if must be jumps, such as blocks.then0 {}.',
         ),
         (
             'g = f -> {entry = args:{} -> f.b {}, b = args:{} -> f.entry {}}',
@@ -256,22 +303,18 @@ def test_first_block_is_entry_whatever_its_name():
             'Both branches of an if jump to the same block.',
         ),
         ('g = f -> {entry = args:{} -> f.nowhere {}}', "Unknown block 'nowhere'."),
-        (
-            'g = f -> {entry = args:{n: i8} -> (n -> n) (prim.add_i8 {a = args.n, b = args.n})}',
-            "Let 'n' repeats a block param label.",
-        ),
-        (
-            'g = f -> {entry = args:{n: i8} -> (t -> (t -> t) (prim.add_i8 {a = t, b = t})) '
-            '(prim.add_i8 {a = args.n, b = args.n})}',
-            "Let 't' repeats an earlier let.",
-        ),
-        ('g = f -> {entry = args:{} -> f}', "'f' cannot be used as a value."),
+        ('g = f -> {entry = args:{} -> f}', "'blocks' cannot be used as a value."),
         ('g = f -> {entry = args:{} -> args}', "'args' cannot be used as a value."),
         ('g = f -> {entry = args:{} -> (t -> t) (prim)}', "'prim' cannot be used as a value."),
-        ('g = f -> {entry = args:{} -> (t -> t) (fix defs)}', 'fix is not supported; recursion goes through defs.'),
-        ('g = f -> {entry = args:{n: i8} -> (t -> t) (args.n)}', "A let's value must be an op, not an atom."),
+        (
+            'g = f -> {entry = args:{} -> (t -> t) (fix defs)}',
+            'Expected an op: prim.op {...}, defs.f {...}, decls.f {...}, a struct or a field access.',
+        ),
         ('g = f -> {entry = args:{} -> (t -> t) (defs.g)}', 'defs.g must be applied.'),
-        ('g = args:{} -> [01]:i8', "Definition 'g' must be a struct of blocks, such as f -> {entry = args:{} -> ...}."),
+        (
+            'g = args:{} -> [01]:i8',
+            "Definition 'g' must be a struct of blocks, such as blocks -> {entry = args:{} -> ...}.",
+        ),
         (
             'g = f -> {entry = n:i8 -> n}',
             "Block 'entry' must be a lambda taking a struct, such as args:{n: i32} -> ...",
@@ -375,5 +418,7 @@ def test_program_shape_errors():
         translate(parse('prim -> {}'))
     with pytest.raises(TranslationError, match='needs a struct form'):
         translate(parse('prim -> decls -> defs -> {}'))
-    with pytest.raises(TranslationError, match='different names'):
-        translate(parse('p -> p: {} -> defs -> {}'))
+
+
+def test_program_binders_are_renamed():
+    assert translate(parse('p -> p: {} -> defs -> {}')).bindings == []

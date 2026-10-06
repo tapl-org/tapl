@@ -10,7 +10,7 @@ from oymo.core.terminals import Comment, Eof, Fixed, HexBytes, Identifier, Strin
 from oymo.oymomo import rule_names as rn
 from oymo.oymomo import terms
 
-RESERVED = frozenset({'if', 'then', 'else', 'fix'})
+RESERVED = frozenset({'if', 'then', 'else', 'fix', 'let', 'in'})
 UNKNOWN_FORM = 'unknown'
 
 TRIVIA = Memoized(ZeroOrMore(First(Whitespace(' \t\r\n'), Comment('//'))))
@@ -117,6 +117,14 @@ def _if(c):
     return terms.If(condition=condition, then_clause=then_clause, else_clause=else_clause, location=_location(c))
 
 
+def _let(c):
+    """`let x = e in body` is `(x -> body) e`."""
+    (name, _), form, value, body = c.values
+    location = _location(c)
+    function = terms.Lambda(param_name=name, param_form=form, body=body, location=location)
+    return terms.Apply(function=function, argument=value, location=location)
+
+
 def _field(c):
     (label, _), value = c.values
     return terms.Field(label=label, value=value, location=_location(c))
@@ -124,7 +132,7 @@ def _field(c):
 
 RULES: dict[str, Clause] = {
     rn.START: Seq(Ref(rn.EXPRESSION), Eof(skip=TRIVIA), action=lambda c: c.values[0]),
-    rn.EXPRESSION: First(Ref(rn.LAMBDA), Ref(rn.IF), Ref(rn.APPLY)),
+    rn.EXPRESSION: First(Ref(rn.LAMBDA), Ref(rn.IF), Ref(rn.LET), Ref(rn.APPLY)),
     rn.LAMBDA: Seq(NAME, FORM_OPT, _punct('->', '→'), Ref(rn.EXPRESSION), action=_lambda),
     rn.IF: Seq(
         _punct('if'),
@@ -134,6 +142,16 @@ RULES: dict[str, Clause] = {
         _punct('else'),
         Ref(rn.EXPRESSION),
         action=_if,
+    ),
+    rn.LET: Seq(
+        _punct('let'),
+        NAME,
+        FORM_OPT,
+        _punct('='),
+        Ref(rn.EXPRESSION),
+        _punct('in'),
+        Ref(rn.EXPRESSION),
+        action=_let,
     ),
     rn.APPLY: First(
         Seq(

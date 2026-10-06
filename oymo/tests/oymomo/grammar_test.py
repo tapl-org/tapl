@@ -19,11 +19,11 @@ def test_lambda_unicode_arrow_is_the_same_term():
 
 
 def test_lambda_extends_right():
-    assert show(parse('a -> b -> a b')) == '(a:unknown → (b:unknown → (a b)))'
+    assert show(parse('a -> b -> a b')) == '(a → (b → (a b)))'
 
 
 def test_lambda_argument_needs_parens():
-    assert show(parse('f (x -> x)')) == '(f (x:unknown → x))'
+    assert show(parse('f (x -> x)')) == '(f (x → x))'
     assert show(parse('f x -> x')) == 'error'
 
 
@@ -44,9 +44,32 @@ def test_struct():
     assert show(parse('{,}')) == 'error'
 
 
+def test_let():
+    assert show(parse('let x = e in x')) == '(let x = e in x)'
+    assert show(parse('let t0: i1 = f a in t0')) == '(let t0:i1 = (f a) in t0)'
+    assert show(parse('let x = e in f x')) == '(let x = e in (f x))'
+    assert show(parse('let x = e1 in let y = e2 in y')) == '(let x = e1 in (let y = e2 in y))'
+    assert show(parse('f (let x = e in x)')) == '(f (let x = e in x))'
+
+
+def test_let_is_an_apply_of_a_lambda():
+    term = parse('let x = e in x')
+    assert isinstance(term, terms.Apply)
+    assert isinstance(term.function, terms.Lambda)
+    assert term.function.param_name == 'x'
+
+
+def test_let_and_in_are_reserved():
+    assert show(parse('let -> let')) == 'error'
+    assert show(parse('in')) == 'error'
+    assert show(parse('f let')) == 'error'
+    assert show(parse('"let" -> "in"')) == '(let → in)'
+    assert show(parse('letter -> inner')) == '(letter → inner)'
+
+
 def test_if():
     assert show(parse('if c then a else b')) == '(if c then a else b)'
-    assert show(parse('if c then a else x -> x')) == '(if c then a else (x:unknown → x))'
+    assert show(parse('if c then a else x -> x')) == '(if c then a else (x → x))'
 
 
 def test_fix():
@@ -75,13 +98,13 @@ def test_byte_array_empty():
 
 
 def test_byte_array_as_argument():
-    assert show(parse('f [01] : u8 [02]')) == '((f [01]:u8) [02]:unknown)'
+    assert show(parse('f [01] : u8 [02]')) == '((f [01]:u8) [02])'
 
 
 def test_omitted_forms_are_unknown():
     assert parse('x -> x').param_form == UNKNOWN_FORM
     assert parse('[2a]').form == UNKNOWN_FORM
-    assert show(parse('[00] : {x, y: i32}')) == '[00]:{x: unknown, y: i32}'
+    assert parse('[00] : {x, y: i32}').form == terms.StructForm([('x', UNKNOWN_FORM), ('y', 'i32')])
 
 
 def test_nested_struct_forms():
@@ -106,12 +129,12 @@ def test_function_form_is_right_associative():
 
 def test_function_form_does_not_swallow_lambda_binder():
     source = 'decls: {f: {} -> i32} -> defs -> {}'
-    assert show(parse(source)) == '(decls:{f: ({} → i32)} → (defs:unknown → {}))'
+    assert show(parse(source)) == '(decls:{f: ({} → i32)} → (defs → {}))'
 
 
 def test_quoted_names():
     assert show(parse('"a b"')) == 'a b'
-    assert show(parse('"if" -> "if"')) == '(if:unknown → if)'
+    assert show(parse('"if" -> "if"')) == '(if → if)'
     assert show(parse('s."a b"')) == 's.a b'
     assert show(parse('{"x y" = a}')) == '{x y = a}'
     assert show(parse('x : "my form" -> x')) == '(x:my form → x)'
@@ -138,7 +161,7 @@ def test_quoted_name_rejects_bad_forms():
 
 
 def test_comments_and_whitespace():
-    assert show(parse('// id\nx -> // body\n  x // end')) == '(x:unknown → x)'
+    assert show(parse('// id\nx -> // body\n  x // end')) == '(x → x)'
 
 
 def test_locations_skip_leading_trivia():
@@ -150,4 +173,4 @@ def test_locations_skip_leading_trivia():
 
 def test_golden_program():
     source = 'prim -> decls: {} -> defs -> {main = a:i32 -> [00000000] : i32}'
-    assert show(parse(source)) == '(prim:unknown → (decls:{} → (defs:unknown → {main = (a:i32 → [00000000]:i32)})))'
+    assert show(parse(source)) == '(prim → (decls:{} → (defs → {main = (a:i32 → [00000000]:i32)})))'

@@ -35,6 +35,7 @@ class Variable(Term):
 @dataclass
 class BruijnIndex(Term):
     index: int
+    location: Location | None = None
 
     def children(self) -> Generator[Term, None, None]:
         yield from ()

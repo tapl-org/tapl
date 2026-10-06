@@ -39,6 +39,12 @@ kernel, where `[2a000000]:i32` only says "these bytes, read as the form i32".
 oymomo source --parse--> oymomo terms --banf_translate--> BANF --llvm_translate--> LLVM IR
 ```
 
+`banf_translate` is itself a pipeline (see "oymomo to BANF" below):
+```
+terms --bruijn.resolve--> BruijnIndex terms --banf_reduce.shape--> BANF-shaped term
+      --banf_rename.rename--> no shadowing --banf_translate.convert--> BANF
+```
+
 - oymomo: the lambda-calculus kernel language. Surface syntax in `grammar.py`,
   terms in `terms.py`.
 - BANF: a first-order IR shaped like LLVM, with block params instead of phi nodes
@@ -47,7 +53,8 @@ oymomo source --parse--> oymomo terms --banf_translate--> BANF --llvm_translate-
 
 ### Files are flat, with prefixes
 Everything sits in `oymo/src/oymo/oymomo/`:
-`banf_terms.py`, `banf_prim.py`, `banf_translate.py`, `llvm_prims.py`,
+`bruijn.py`, `banf_terms.py`, `banf_prim.py`, `banf_reduce.py`, `banf_rename.py`,
+`banf_translate.py`, `llvm_prims.py`,
 `llvm_translate.py`, and tests use the same names in `tests/oymomo/`.
 - Why flat: the stages are small, and a prefix shows the stage as clearly as a
   subpackage without the extra `__init__.py` files and import paths.
@@ -88,6 +95,7 @@ f a b                        Apply
 {x = e1, y = e2}             Struct
 s.x                          FieldAccess
 if c then a else b           If
+let x = e in body            sugar for (x -> body) e
 fix f                        Fix
 [2a 00 00 00] : i32          ByteArray
 {c: i8} -> i32               FunctionForm (in form position)
@@ -133,7 +141,7 @@ the same as writing `: unknown`. `unknown` is an ordinary form name, not a reser
 word.
 - Why: quick sketches stay short, and each later stage decides what it can infer.
   BANF translation, for example, infers a let's form from its op, so
-  `(t0 -> t0) (prim.eq_i32 {...})` needs no `t0: i1`. It rejects an unknown form
+  `let t0 = prim.eq_i32 {...} in t0` needs no `t0: i1`. It rejects an unknown form
   where nothing can infer it, as in a byte array `[01]` with no form.
 
 ### Byte arrays are bracketed hex: `[2a 00 00 00] : i32`
@@ -171,7 +179,7 @@ word.
 
 ### Identifiers: plain or double quoted
 Plain identifiers match `[A-Za-z_][A-Za-z0-9_]*`, excluding the reserved words
-`if then else fix`. Any other non-empty string is written in double quotes:
+`if then else fix let in`. Any other non-empty string is written in double quotes:
 `"a b"`, `"if"`, `"main.1"`.
 - LLVM does the same (`@main` vs `@"foo bar"`), so kernel names map directly to
   symbols, including mangled names from higher-level languages. SQL also uses `"..."`.
@@ -189,8 +197,16 @@ Plain identifiers match `[A-Za-z_][A-Za-z0-9_]*`, excluding the reserved words
 ### Comments use `//`
 Kept after byte arrays moved to `[]`; `#` is now unused.
 
-### No surface syntax for BruijnIndex
-Name resolution produces it; users write names.
+### `let x = e in body` is sugar for `(x -> body) e`
+- No new term: the parser builds `Apply(Lambda(x, body), e)`, and the printer prints
+  every apply of a lambda as a `let`. The optional form goes on the name, as on a
+  lambda param: `let t0: i1 = prim.eq_i32 {...} in t0`.
+- Like a lambda, a let extends as far right as possible: `let x = e in a b` is
+  `let x = e in (a b)`, and an argument needs parens: `f (let x = e in x)`.
+- Why: the applied-lambda let `(t0 -> rest) (op)` puts the value after the whole
+  rest of the block, far from its name. With `let`, a chain of lets reads top to
+  bottom, as BANF does.
+- `let` and `in` are reserved words.
 
 ### Function forms: `{c: i8} -> i32`
 - A function form is written with `->` or `→`, like a lambda. It has one param,
@@ -211,13 +227,12 @@ Name resolution produces it; users write names.
 ### Printer: compact for tests, pretty for people
 `printer.show(term)` and `printer.show_form(form)` live in `printer.py`, not in the
 tests, so any stage can print terms. Both print `→`, which reads better than `->`.
-- Compact (default): every lambda, apply, `if` and `fix` is parenthesized, and
-  every form is shown, `unknown` included: `(a:unknown → (b:unknown → (a b)))`.
-  Names are not quoted. Why: a test then shows exactly how the parser nested
+- Compact (default): every lambda, apply, `if` and `fix` is parenthesized:
+  `(a → (b → (a b)))`. Written forms are shown (`(x:i32 → x)`), but an `unknown`
+  form never is, in either mode. Names are not quoted. Why: a test then shows exactly how the parser nested
   the term.
 - `pretty=True`: oymomo source that parses back to the same term (a test checks
-  this). Parens only where needed (`f (x → x)`, `(x → x) y`). `: unknown` is
-  omitted. Names are quoted when needed (`"if"`, `"a b"`). Bytes are shown in
+  this). Parens only where needed (`f (x → x)`, `(let x = e in f) a`). Names are quoted when needed (`"if"`, `"a b"`). Bytes are shown in
   groups of four (`[deadbeef cafebabe]`).
 - A pretty term wider than `width` columns (default 80) breaks, indenting each
   level by `indent` spaces (default 2):
@@ -225,22 +240,26 @@ tests, so any stage can print terms. Both print `→`, which reads better than `
   - a lambda's body goes on the next line, indented. A body that is a struct or
     another lambda stays on the same line, so `prim → decls: {} → defs → {`
     stays together;
-  - an apply's argument goes on the next line, indented, which is how let
-    chains are written by hand:
+  - an apply's argument goes on the next line, indented;
+  - a `let` puts its body on the next line, at the `let`'s own indentation, so a
+    chain of lets reads one let per line:
     ```
     entry = args: {n: i32} →
-      (t0 → if t0 then f.then0 {} else f.else0 {n = args.n})
-        (prim.eq_i32 {a = args.n, b = [00000000]: i32}),
+      let t0 = prim.eq_i32 {a = args.n, b = [00000000]: i32} in
+      if t0 then f.then0 {} else f.else0 {n = args.n},
     ```
   - an `if` puts `then` and `else` on their own lines.
-- A `BruijnIndex` prints as `#0` in both modes. It has no surface syntax, so this
-  is the one case where pretty output doesn't parse back.
+- An apply of a lambda prints as `let` in both modes: compact
+  `(let x = e in body)`, pretty `let x = e in body`.
+- A `BruijnIndex` prints as `$0` in compact mode. Pretty mode prints the name of
+  its binder, so a resolved term still reads like source. After `banf_rename` no
+  binder shadows another, so the pretty output parses back to the same term.
 
 ## Program shape
 
 ```
 prim -> decls: {putchar: {c: i8} -> i32, errno: i32} -> defs -> {
-  main = f -> {entry = args:{} -> (t0 -> t0) (decls.putchar {c = [41]:i8})},
+  main = f -> {entry = args:{} -> let t0 = decls.putchar {c = [41]:i8} in t0},
 }
 ```
 
@@ -274,7 +293,8 @@ source, because the linker provides it. Each field can be any form:
 `defs` is the struct the program's body builds, passed back in so its functions
 call each other by field access: `defs.fact {n = t1}`.
 - Why: recursion and mutual recursion work without `fix`, just as LLVM functions
-  call each other by symbol. The translator rejects `fix`.
+  call each other by symbol. A `fix` in the source is only unfolded while reducing
+  to BANF's shape (see "oymomo to BANF"); it never becomes a loop or a call.
 
 ### Symbols
 Every `decls` and `defs` field becomes one LLVM symbol, named after its label. A
@@ -286,19 +306,20 @@ Each `defs` field is a function written as a struct of blocks:
 ```
 fact = f -> {
   entry = args:{n: i32} ->
-    (t0 -> if t0 then f.then0 {} else f.else0 {n = args.n})
-      (prim.eq_i32 {a = args.n, b = [00000000]:i32}),
+    let t0 = prim.eq_i32 {a = args.n, b = [00000000]:i32} in
+    if t0 then f.then0 {} else f.else0 {n = args.n},
   then0 = args:{} -> [01000000]:i32,
   else0 = args:{n: i32} ->
-    (t1 -> (t2 -> (t3 -> t3) (prim.mul_i32 {a = args.n, b = t2}))
-             (defs.fact {n = t1}))
-      (prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:i32}),
+    let t1 = prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:i32} in
+    let t2 = defs.fact {n = t1} in
+    let t3 = prim.mul_i32 {a = args.n, b = t2} in
+    t3,
 }
 ```
 
 - The binder (`f` here, any name) is the function's own blocks, so `f.then0 {}`
   jumps to a sibling block. It is the same self-reference trick as `defs`, one
-  level down.
+  level down. Renaming calls it `blocks` (see "Binders get fixed names").
 - Each block is a lambda taking one struct (`args:{n: i32} -> ...`). The binder
   (`args` here, any name) is the block's param struct.
 - The first field is the entry block, whatever its name.
@@ -477,25 +498,85 @@ Data(name, form)                           # imported data
   would look like the signature `putchar(c: i8): i32`, and nothing would mark
   where a function ends. Braces would do that too, but indentation already does.
 
-## oymomo to BANF: a shape checker, not a normalizer
+## oymomo to BANF: reduce, rename, convert
 
-The source must already be in BANF's shape. The translator only matches it,
-expands struct arguments, infers return forms, and raises `TranslationError` with
-a source location on any mismatch. It generates no blocks, renames nothing, and
-invents no names.
-- Why: the kernel stays a direct, readable spelling of the IR, and the translator
-  stays small and predictable, since every BANF line comes from one source term.
-  Normalizing arbitrary expressions (nested calls, `if` in operand position) is a
-  job for a higher layer that emits oymomo in this shape.
+`banf_translate.translate(term)` runs four passes. `shape(term)` runs the first
+three and returns an oymomo term in BANF's shape; `convert(shaped)` runs the last.
+1. `bruijn.resolve`: each `Variable` becomes a `BruijnIndex`, counting enclosing
+   lambdas. Binder names stay on `Lambda.param_name`. An unbound name is an error.
+2. `banf_reduce.shape`: reduces only where the term doesn't have BANF's shape yet.
+3. `banf_rename.rename`: gives binders names that don't shadow each other.
+4. `banf_translate.convert`: reads the shaped term into BANF, infers return forms,
+   and raises `TranslationError` with a source location on any mismatch.
+
+The golden tests approve the shaped term next to the BANF and LLVM output, as
+`name.shaped.oymo`, and check that it translates to the same BANF.
+
+### `reduce`: one step at the root
+`bruijn.reduce(term)` takes one step if the root is a redex, and otherwise returns
+`term` itself (so `reduce(t) is t` says "not a redex"). It never looks inside.
+- beta: `(x -> body) e` gives `body` with `e` put in for `x`;
+- fix: `fix g` gives `g (fix g)`;
+- projection: `{a = e, ...}.a` gives `e`. A missing label is not a redex;
+- if: `if [01] then a else b` gives `a`, and `if [00] ...` gives `b`.
+
+### `banf_reduce`: reduce until each position has its shape
+The program has fixed positions: the three program lambdas, the struct of defs,
+each function's lambda and struct of blocks, each block lambda, and then each
+block body. At a position, the term is put in weak head normal form (`whnf`):
+reduce at the root, else reduce the head (the callee of an apply, the struct of a
+field access, the condition of an if), until neither changes. Then its own
+positions are visited.
+- In a block body, a let `(x -> rest) e` stays a let when `e`'s whnf is an op (an
+  apply, a struct, or a field access other than `args.label`). Otherwise, such as
+  for an atom, a lambda or an `if`, the let is beta-reduced. So helpers are
+  inlined, `let t = args.n in t` becomes `args.n`, and a let-bound `if` lands in
+  tail position.
+- An op's operands, a jump's argument and an if's condition and arms are reduced
+  the same way.
+- A term that can't get its shape is left as it is, for `convert` to report with
+  the usual message.
+- Fuel: each step costs one unit, out of 10,000. A term that keeps reducing, such
+  as `fix (self -> self)`, fails with "ran out of reduction steps".
+- Nothing is flattened: a nested call stays nested and is an error, since
+  flattening would mean inventing names.
+
+### Binders get fixed names
+The structural binders are renamed to fixed names, so every shaped program reads
+`prim -> decls -> defs -> {main = blocks -> {entry = args -> ...}}`. `convert` then
+checks each position by name, and a wrong name means a wrong shape.
+
+### Other binders keep their names unless they clash
+A let keeps its name `x` unless `x` is visible: the name of an enclosing binder
+(after renaming, so the five fixed names count), or a param label of its block.
+Then it becomes `x_L`, else `x__L`, and so on, where `L` is its level (the number
+of enclosing binders; a block's first let is level 5).
+- `let t = ... in let t = ... in let t = ... in t` gives `t, t_6, t_7`.
+- With `args: {n: i8}`, two lets named `n` give `n_5, n_6`, since `n` is a param
+  label.
+- A user's own `t_6` after a renamed `t_6` gives `t_6_7`; `t, t_7, t` gives
+  `t, t_7, t__7`. A let named `args` gives `args_5`.
+- Labels (struct, field, block, function, param) are never renamed. Param labels
+  appear in the block's form, in `args.n` and in every jump's `{n = ...}`.
+- Visible names are per path, so sibling blocks can both have a `t`. In LLVM, two
+  values with one name get a `.1` suffix, which is fine.
+- A second run changes nothing: the output has no clashes, so every name is kept.
+
+### `convert` finds binders by index
+Inside a block body with `k` lets so far, the binders above are always, from the
+inside out: the lets (`$0` to `$k-1`), then `args` (`$k`), `blocks`, `defs`,
+`decls`, `prim` (`$k+4`). So `convert` classifies each `BruijnIndex` by
+arithmetic and keeps no binder names of its own. A let reference becomes a
+`banf.Var` named after the BANF let already built.
 
 ### What the shape is
-- **Let**: an applied lambda, `(x -> rest) (op)`. The param form may be omitted;
-  if written, it must equal the op's form:
-  `(t0: i32 -> t0) (prim.eq_i32 {...})` is an error, since `eq_i32` gives `i1`.
+- **Let**: `let x = op in rest`, which is `(x -> rest) (op)`. The form may be
+  omitted; if written, it must equal the op's form:
+  `let t0: i32 = prim.eq_i32 {...} in t0` is an error, since `eq_i32` gives `i1`.
 - **Atoms**: a byte array with a known form, a let name, or `args.label`.
 - **Ops**, only as a let's value: `prim.op {...}`, `defs.g {...}`, `decls.g {...}`,
   a struct literal of atoms (`MakeStruct`), a field access on an atom
-  (`(x -> ...) (args.p.x)` is a `GetField` on param `p`), or `decls.g` for
+  (`let x = args.p.x in ...` is a `GetField` on param `p`), or `decls.g` for
   imported data (`GetData`).
 - **Terminators**, only in tail position:
   - `f.label {...}` is a jump.
@@ -509,31 +590,24 @@ with a let first.
   temporary names. That is normalization.
 
 ### An op in tail position must be bound first
-`main = f -> {entry = args:{} -> (t0 -> t0) (decls.putchar {c = [41]:i8})}`,
+`main = f -> {entry = args:{} -> let t0 = decls.putchar {c = [41]:i8} in t0}`,
 not `... args:{} -> decls.putchar {c = [41]:i8}`.
 - Why: a BANF `Return` takes an atom. Accepting a tail op would make the
-  translator invent a name for the result; the explicit `(t0 -> t0)` keeps every
+  translator invent a name for the result; the explicit `let t0` keeps every
   name in the source.
 
 ### `if` only in tail position, with jumps in both arms, to different blocks
-`(t -> ...) (if c then ...)` is an error, and so is
-`if c then [01]:i8 else f.b {}`.
+`if c then [01]:i8 else f.b {}` is an error. A let-bound `if` is substituted, so
+`let t = if c then f.a {} else f.b {} in t` is fine, but an `if` that ends up as
+an operand is an error.
 - Why: a BANF `Branch` is a terminator with two targets. An `if` whose value is
   used needs a join block, and the source writes that block explicitly.
 - Why different targets: `if c then f.a {} else f.a {}` would give `a` two
   incoming edges from the same block, and an LLVM phi can't tell those edges apart.
 
-### Let names are never renamed
-A let name may not repeat a block param label, a binder (`f`, `args`, `prim`,
-`decls`, `defs`), or an earlier let in the same block. These are errors:
-- `args:{n: i8} -> (n -> n) (...)`: `n` is also a param label.
-- `(t -> (t -> t) (...)) (...)`: shadows an earlier `t`.
-- Why: BANF names are the source names. Without renaming, any shadowing would put
-  two values under one BANF name, so it is rejected.
-
 ### Binders can't be used as values
-`f`, `args`, `prim`, `decls` and `defs` used on their own are errors
-(`'args' cannot be used as a value.`), except `args` forwarded as a whole call or
+`blocks`, `args`, `prim`, `decls` and `defs` used on their own are errors
+(`'args' cannot be used as a value.`; the message uses the fixed name), except `args` forwarded as a whole call or
 jump argument. So are `defs.g` and `decls.putchar` without an argument.
 - Why: they have no runtime value. `prim` is not a struct anything could build.
 
@@ -545,13 +619,13 @@ result resolves through another block:
 ```
 loop = f -> {
   entry = args:{c: i1} -> if args.c then f.a {} else f.b {},
-  a = args:{} -> (t -> t) (defs.loop {c = [00]:i1}),
+  a = args:{} -> let t = defs.loop {c = [00]:i1} in t,
   b = args:{} -> [07]:i8,
 }
 ```
 
 `a`'s return depends on `loop`'s, which `b` fixes as `i8`. A function with no
-base case, like `g = f -> {entry = args:{} -> (t -> t) (defs.g {})}`, is an error.
+base case, like `g = f -> {entry = args:{} -> let t = defs.g {} in t}`, is an error.
 - Why infer instead of requiring a written return form: block params and constants
   already carry forms, so the return form follows from them.
 
@@ -566,8 +640,9 @@ Unknown forms in `decls` (`{g: unknown}`) are rejected too, since nothing can in
 an import's form.
 
 ### First-order only
-No closures and no escaping lambdas: the only lambdas are the program binders,
-function, block and let lambdas. Everything else is an error.
+No closures and no escaping lambdas: after reduction, the only lambdas are the
+program binders, function, block and let lambdas. A helper lambda that reduction
+inlines is fine; one that is left over is an error.
 
 ## BANF to LLVM
 
@@ -608,11 +683,12 @@ else0:
 
 ## Testing
 - Unit tests per stage: `grammar_test.py`, `printer_test.py`, `banf_prim_test.py`,
-  `banf_terms_test.py`, `banf_translate_test.py`, `llvm_translate_test.py`.
+  `banf_terms_test.py`, `bruijn_test.py`, `banf_reduce_test.py`,
+  `banf_rename_test.py`, `banf_translate_test.py`, `llvm_translate_test.py`.
 - BANF tests build modules by hand, so they don't depend on the translator.
 - Every LLVM test parses the IR with `llvmlite.binding` and verifies it.
-- Golden tests (`tests/goldens/`): each `name.oymo` produces approved `name.banf`
-  and `name.ll` files.
+- Golden tests (`tests/goldens/`): each `name.oymo` produces approved
+  `name.shaped.oymo`, `name.banf` and `name.ll` files.
 
 ## Not yet decided / not done
 - Nested function forms (in data forms, or as a function form's param or result).

@@ -3,13 +3,17 @@
 """Renders oymomo terms and forms as text.
 
 The default rendering is compact and fully parenthesized, so tests can see how a
-term nests. With `pretty=True` the result is oymomo source that parses back to the
-same term: parentheses only where needed, omitted `unknown` forms, and quoted names
-where needed. A term that doesn't fit in `width` columns breaks: a struct puts one
+term nests. Neither mode prints an `unknown` form. With `pretty=True` the result is
+oymomo source that parses back to the same term: parentheses only where needed, and
+quoted names where needed. A term that doesn't fit in `width` columns breaks: a struct puts one
 field per line, a lambda puts its body on the next line (unless the body is a struct
 or another lambda, so `prim → decls → defs → {` stays on one line),
 an apply puts its argument on the next line, and an `if` puts `then` and `else` on
 their own lines.
+
+An apply of a lambda, `(x → body) e`, prints as `let x = e in body`; a broken let puts
+its body on the next line, so a chain of lets reads one let per line. A BruijnIndex
+prints as `$i` in compact output; pretty output prints the name of its binder.
 """
 
 from oymo.core import syntax
@@ -23,7 +27,7 @@ _EXPRESSION, _APPLY, _FIELD_ACCESS = range(3)
 
 def show(term: syntax.Term, *, pretty: bool = False, width: int = 80, indent: int = 2) -> str:
     """`width` (columns) and `indent` (spaces per level) only affect pretty output."""
-    return _pretty(term, _EXPRESSION, 0, 0, width, indent) if pretty else _compact(term)
+    return _pretty(term, _EXPRESSION, 0, 0, width, indent, ()) if pretty else _compact(term)
 
 
 def show_form(form: terms.Form, *, pretty: bool = False) -> str:
@@ -35,9 +39,11 @@ def _compact(term):
         case terms.Variable(name=name):
             return name
         case terms.BruijnIndex(index=index):
-            return f'#{index}'
+            return f'${index}'
         case terms.Lambda(param_name=name, param_form=form, body=body):
-            return f'({name}:{_compact_form(form)} → {_compact(body)})'
+            return f'({name}{_compact_suffix(form)} → {_compact(body)})'
+        case terms.Apply(function=terms.Lambda(param_name=name, param_form=form, body=body), argument=argument):
+            return f'(let {name}{_compact_suffix(form)} = {_compact(argument)} in {_compact(body)})'
         case terms.Apply(function=function, argument=argument):
             return f'({_compact(function)} {_compact(argument)})'
         case terms.Struct(fields=fields):
@@ -49,10 +55,15 @@ def _compact(term):
         case terms.Fix(function=function):
             return f'(fix {_compact(function)})'
         case terms.ByteArray(value=value, form=form):
-            return f'[{value.hex()}]:{_compact_form(form)}'
+            return f'[{value.hex()}]{_compact_suffix(form)}'
         case syntax.ErrorTerm():
             return 'error'
     raise AssertionError(term)
+
+
+def _compact_suffix(form, sep=':'):
+    """`:form` after a name or byte array; nothing for an unknown form."""
+    return '' if form == UNKNOWN_FORM else sep + _compact_form(form)
 
 
 def _compact_form(form):
@@ -62,38 +73,50 @@ def _compact_form(form):
         case terms.FunctionForm(param=param, result=result):
             return f'({_compact_form(param)} → {_compact_form(result)})'
         case terms.StructForm(fields=fields):
-            return '{' + ', '.join(f'{label}: {_compact_form(f)}' for label, f in fields) + '}'
+            return '{' + ', '.join(f'{label}{_compact_suffix(f, sep=": ")}' for label, f in fields) + '}'
     raise AssertionError(form)
 
 
 def _loosest(term):
     """The loosest level `term` can be printed at without parentheses."""
     match term:
-        case terms.Lambda() | terms.If():
+        case terms.Lambda() | terms.If() | terms.Apply(function=terms.Lambda()):
             return _EXPRESSION
         case terms.Apply() | terms.Fix():
             return _APPLY
     return _FIELD_ACCESS
 
 
-def _flat(term, level):
+def _bruijn_name(index, names):
+    """The name of the binder `index` lambdas out; `$index` if `names` doesn't reach it."""
+    return _name(names[-1 - index]) if index < len(names) else f'${index}'
+
+
+def _flat(term, level, names):
+    """`names` holds the binder names in scope, innermost last, for printing BruijnIndex."""
     match term:
         case terms.Variable(name=name):
             text = _name(name)
         case terms.BruijnIndex(index=index):
-            text = f'#{index}'
+            text = _bruijn_name(index, names)
         case terms.Lambda(param_name=name, param_form=form, body=body):
-            text = f'{_name(name)}{_form_suffix(form)} → {_flat(body, _EXPRESSION)}'
+            text = f'{_name(name)}{_form_suffix(form)} → {_flat(body, _EXPRESSION, (*names, name))}'
+        case terms.Apply(function=terms.Lambda(param_name=name, param_form=form, body=body), argument=argument):
+            value = _flat(argument, _EXPRESSION, names)
+            text = f'let {_name(name)}{_form_suffix(form)} = {value} in {_flat(body, _EXPRESSION, (*names, name))}'
         case terms.Apply(function=function, argument=argument):
-            text = f'{_flat(function, _APPLY)} {_flat(argument, _FIELD_ACCESS)}'
+            text = f'{_flat(function, _APPLY, names)} {_flat(argument, _FIELD_ACCESS, names)}'
         case terms.Struct(fields=fields):
-            text = '{' + ', '.join(f'{_name(f.label)} = {_flat(f.value, _EXPRESSION)}' for f in fields) + '}'
+            text = '{' + ', '.join(f'{_name(f.label)} = {_flat(f.value, _EXPRESSION, names)}' for f in fields) + '}'
         case terms.FieldAccess(struct=struct, label=label):
-            text = f'{_flat(struct, _FIELD_ACCESS)}.{_name(label)}'
+            text = f'{_flat(struct, _FIELD_ACCESS, names)}.{_name(label)}'
         case terms.If(condition=c, then_clause=t, else_clause=e):
-            text = f'if {_flat(c, _EXPRESSION)} then {_flat(t, _EXPRESSION)} else {_flat(e, _EXPRESSION)}'
+            text = (
+                f'if {_flat(c, _EXPRESSION, names)} then {_flat(t, _EXPRESSION, names)}'
+                f' else {_flat(e, _EXPRESSION, names)}'
+            )
         case terms.Fix(function=function):
-            text = f'fix {_flat(function, _FIELD_ACCESS)}'
+            text = f'fix {_flat(function, _FIELD_ACCESS, names)}'
         case terms.ByteArray(value=value, form=form):
             hex_groups = ' '.join(value[i : i + 4].hex() for i in range(0, len(value), 4))
             text = f'[{hex_groups}]{_form_suffix(form)}'
@@ -104,13 +127,13 @@ def _flat(term, level):
     return f'({text})' if level > _loosest(term) else text
 
 
-def _pretty(term, level, depth, column, width, indent):
+def _pretty(term, level, depth, column, width, indent, names):
     """`depth` counts indentation steps for new lines; `column` is where the term starts on the current line."""
 
-    def sub(child, child_level, child_depth, child_column):
-        return _pretty(child, child_level, child_depth, child_column, width, indent)
+    def sub(child, child_level, child_depth, child_column, child_names=names):
+        return _pretty(child, child_level, child_depth, child_column, width, indent, child_names)
 
-    flat = _flat(term, level)
+    flat = _flat(term, level, names)
     if column + len(flat) <= width:
         return flat
     grouped = level > _loosest(term)
@@ -120,10 +143,15 @@ def _pretty(term, level, depth, column, width, indent):
     match term:
         case terms.Lambda(param_name=name, param_form=form, body=body):
             header = f'{_name(name)}{_form_suffix(form)} →'
+            body_names = (*names, name)
             if isinstance(body, terms.Lambda) or (isinstance(body, terms.Struct) and body.fields):
-                text = f'{header} {sub(body, _EXPRESSION, depth, column + len(header) + 1)}'
+                text = f'{header} {sub(body, _EXPRESSION, depth, column + len(header) + 1, body_names)}'
             else:
-                text = f'{header}\n{inner}{sub(body, _EXPRESSION, depth + 1, len(inner))}'
+                text = f'{header}\n{inner}{sub(body, _EXPRESSION, depth + 1, len(inner), body_names)}'
+        case terms.Apply(function=terms.Lambda(param_name=name, param_form=form, body=body), argument=argument):
+            header = f'let {_name(name)}{_form_suffix(form)} = '
+            value = sub(argument, _EXPRESSION, depth, column + len(header))
+            text = f'{header}{value} in\n{pad}{sub(body, _EXPRESSION, depth, len(pad), (*names, name))}'
         case terms.Apply(function=function, argument=argument):
             text = (
                 f'{sub(function, _APPLY, depth, column)}\n{inner}{sub(argument, _FIELD_ACCESS, depth + 1, len(inner))}'
