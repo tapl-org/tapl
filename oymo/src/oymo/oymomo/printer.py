@@ -2,8 +2,8 @@
 
 """Renders oymomo terms and forms as text.
 
-The default rendering is compact and fully parenthesized, so tests can see how a
-term nests. Neither mode prints an `unknown` form. With `pretty=True` the result is
+The default rendering is compact: one line, with parentheses only where the grammar
+needs them. Neither mode prints an `unknown` form. With `pretty=True` the result is
 oymomo source that parses back to the same term: parentheses only where needed, and
 quoted names where needed. A term that doesn't fit in `width` columns breaks: a struct puts one
 field per line, a lambda puts its body on the next line (unless the body is a struct
@@ -34,47 +34,56 @@ def show_form(form: terms.Form, *, pretty: bool = False) -> str:
     return _pretty_form(form, arrow=True) if pretty else _compact_form(form)
 
 
-def _compact(term):
+def _compact(term, level=_EXPRESSION):
+    """Like `_flat`, but `$i` for a BruijnIndex, `:form` without a space, and bytes ungrouped."""
     match term:
         case terms.Variable(name=name):
-            return name
+            text = _name(name)
         case terms.BruijnIndex(index=index):
-            return f'${index}'
+            text = f'${index}'
         case terms.Lambda(param_name=name, param_form=form, body=body):
-            return f'({name}{_compact_suffix(form)} → {_compact(body)})'
+            text = f'{_name(name)}{_compact_suffix(form)} → {_compact(body)}'
         case terms.Apply(function=terms.Lambda(param_name=name, param_form=form, body=body), argument=argument):
-            return f'(let {name}{_compact_suffix(form)} = {_compact(argument)} in {_compact(body)})'
+            text = f'let {_name(name)}{_compact_suffix(form)} = {_compact(argument)} in {_compact(body)}'
         case terms.Apply(function=function, argument=argument):
-            return f'({_compact(function)} {_compact(argument)})'
+            text = f'{_compact(function, _APPLY)} {_compact(argument, _FIELD_ACCESS)}'
         case terms.Struct(fields=fields):
-            return '{' + ', '.join(f'{f.label} = {_compact(f.value)}' for f in fields) + '}'
+            text = '{' + ', '.join(f'{_name(f.label)} = {_compact(f.value)}' for f in fields) + '}'
         case terms.FieldAccess(struct=struct, label=label):
-            return f'{_compact(struct)}.{label}'
+            text = f'{_compact(struct, _FIELD_ACCESS)}.{_name(label)}'
         case terms.If(condition=c, then_clause=t, else_clause=e):
-            return f'(if {_compact(c)} then {_compact(t)} else {_compact(e)})'
+            text = f'if {_compact(c)} then {_compact(t)} else {_compact(e)}'
         case terms.Fix(function=function):
-            return f'(fix {_compact(function)})'
+            text = f'fix {_compact(function, _FIELD_ACCESS)}'
         case terms.ByteArray(value=value, form=form):
-            return f'[{value.hex()}]{_compact_suffix(form)}'
+            text = f'[{value.hex()}]{_compact_suffix(form)}'
         case syntax.ErrorTerm():
-            return 'error'
-    raise AssertionError(term)
+            text = 'error'
+        case _:
+            raise AssertionError(term)
+    return f'({text})' if level > _loosest(term) else text
 
 
-def _compact_suffix(form, sep=':'):
-    """`:form` after a name or byte array; nothing for an unknown form."""
-    return '' if form == UNKNOWN_FORM else sep + _compact_form(form)
+def _compact_suffix(form):
+    """`:form` after a name or byte array; nothing for an unknown form. An arrow form needs parentheses here."""
+    return '' if form == UNKNOWN_FORM else ':' + _compact_form(form, arrow=False)
 
 
-def _compact_form(form):
+def _compact_form(form, *, arrow=True):
     match form:
         case str():
-            return form
+            return _name(form)
         case terms.FunctionForm(param=param, result=result):
-            return f'({_compact_form(param)} → {_compact_form(result)})'
+            text = f'{_compact_form(param, arrow=False)} → {_compact_form(result)}'
+            return text if arrow else f'({text})'
         case terms.StructForm(fields=fields):
-            return '{' + ', '.join(f'{label}{_compact_suffix(f, sep=": ")}' for label, f in fields) + '}'
+            return '{' + ', '.join(f'{_name(label)}{_compact_field_suffix(f)}' for label, f in fields) + '}'
     raise AssertionError(form)
+
+
+def _compact_field_suffix(form):
+    """A struct-form field takes an arrow form without parentheses."""
+    return '' if form == UNKNOWN_FORM else ': ' + _compact_form(form)
 
 
 def _loosest(term):

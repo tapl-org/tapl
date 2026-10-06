@@ -11,28 +11,29 @@ def test_variable():
 
 
 def test_lambda():
-    assert show(parse('x : i32 -> x')) == '(x:i32 → x)'
+    assert show(parse('x : i32 -> x')) == 'x:i32 → x'
 
 
 def test_lambda_unicode_arrow_is_the_same_term():
-    assert show(parse('x : i32 → x')) == '(x:i32 → x)'
+    assert show(parse('x : i32 → x')) == 'x:i32 → x'
 
 
 def test_lambda_extends_right():
-    assert show(parse('a -> b -> a b')) == '(a → (b → (a b)))'
+    assert show(parse('a -> b -> a b')) == show(parse('a -> (b -> (a b))'))
 
 
 def test_lambda_argument_needs_parens():
-    assert show(parse('f (x -> x)')) == '(f (x → x))'
+    assert show(parse('f (x -> x)')) == 'f (x → x)'
     assert show(parse('f x -> x')) == 'error'
 
 
 def test_apply_is_left_associative():
-    assert show(parse('f a b')) == '((f a) b)'
+    assert show(parse('f a b')) == show(parse('(f a) b'))
+    assert show(parse('f (a b)')) == 'f (a b)'
 
 
 def test_field_access_binds_tighter_than_apply():
-    assert show(parse('f a.x b')) == '((f a.x) b)'
+    assert show(parse('f a.x b')) == show(parse('(f (a.x)) b'))
     assert show(parse('s.a.b')) == 's.a.b'
     assert show(parse('(f a).x')) == '(f a).x'
 
@@ -45,11 +46,11 @@ def test_struct():
 
 
 def test_let():
-    assert show(parse('let x = e in x')) == '(let x = e in x)'
-    assert show(parse('let t0: i1 = f a in t0')) == '(let t0:i1 = (f a) in t0)'
-    assert show(parse('let x = e in f x')) == '(let x = e in (f x))'
-    assert show(parse('let x = e1 in let y = e2 in y')) == '(let x = e1 in (let y = e2 in y))'
-    assert show(parse('f (let x = e in x)')) == '(f (let x = e in x))'
+    assert show(parse('let x = e in x')) == 'let x = e in x'
+    assert show(parse('let t0: i1 = f a in t0')) == 'let t0:i1 = f a in t0'
+    assert show(parse('let x = e in f x')) == show(parse('let x = e in (f x)'))
+    assert show(parse('let x = e1 in let y = e2 in y')) == show(parse('let x = e1 in (let y = e2 in y)'))
+    assert show(parse('f (let x = e in x)')) == 'f (let x = e in x)'
 
 
 def test_let_is_an_apply_of_a_lambda():
@@ -63,19 +64,19 @@ def test_let_and_in_are_reserved():
     assert show(parse('let -> let')) == 'error'
     assert show(parse('in')) == 'error'
     assert show(parse('f let')) == 'error'
-    assert show(parse('"let" -> "in"')) == '(let → in)'
-    assert show(parse('letter -> inner')) == '(letter → inner)'
+    assert show(parse('"let" -> "in"')) == '"let" → "in"'
+    assert show(parse('letter -> inner')) == 'letter → inner'
 
 
 def test_if():
-    assert show(parse('if c then a else b')) == '(if c then a else b)'
-    assert show(parse('if c then a else x -> x')) == '(if c then a else (x → x))'
+    assert show(parse('if c then a else b')) == 'if c then a else b'
+    assert show(parse('if c then a else x -> x')) == show(parse('if c then a else (x -> x)'))
 
 
 def test_fix():
-    assert show(parse('fix f')) == '(fix f)'
-    assert show(parse('fix f x')) == '((fix f) x)'
-    assert show(parse('fix s.f')) == '(fix s.f)'
+    assert show(parse('fix f')) == 'fix f'
+    assert show(parse('fix f x')) == show(parse('(fix f) x'))
+    assert show(parse('fix s.f')) == 'fix s.f'
 
 
 def test_reserved_words_are_not_names():
@@ -98,7 +99,7 @@ def test_byte_array_empty():
 
 
 def test_byte_array_as_argument():
-    assert show(parse('f [01] : u8 [02]')) == '((f [01]:u8) [02])'
+    assert show(parse('f [01] : u8 [02]')) == show(parse('(f ([01] : u8)) [02]'))
 
 
 def test_omitted_forms_are_unknown():
@@ -108,36 +109,38 @@ def test_omitted_forms_are_unknown():
 
 
 def test_nested_struct_forms():
-    assert show(parse('p : {x: i32, y: {a: u8,},} -> p')) == '(p:{x: i32, y: {a: u8}} → p)'
+    assert show(parse('p : {x: i32, y: {a: u8,},} -> p')) == 'p:{x: i32, y: {a: u8}} → p'
 
 
 def test_function_form_in_struct_form_field():
     assert show(parse('d: {putchar: {c: i8} -> i32, errno: i32} -> d')) == (
-        '(d:{putchar: ({c: i8} → i32), errno: i32} → d)'
+        'd:{putchar: {c: i8} → i32, errno: i32} → d'
     )
 
 
 def test_parenthesized_function_form():
-    assert show(parse('g: ({c: i8} -> i32) -> g')) == '(g:({c: i8} → i32) → g)'
+    assert show(parse('g: ({c: i8} -> i32) -> g')) == 'g:({c: i8} → i32) → g'
     assert show(parse('[]: (i8 -> i32)')) == '[]:(i8 → i32)'
 
 
 def test_function_form_is_right_associative():
-    assert show(parse('d: {f: {a: i8} -> {b: i8} -> i32} -> d')) == '(d:{f: ({a: i8} → ({b: i8} → i32))} → d)'
-    assert show(parse('d: {f: ({a: i8} -> {b: i8}) -> i32} -> d')) == '(d:{f: (({a: i8} → {b: i8}) → i32)} → d)'
+    assert show(parse('d: {f: {a: i8} -> {b: i8} -> i32} -> d')) == show(
+        parse('d: {f: {a: i8} -> ({b: i8} -> i32)} -> d')
+    )
+    assert show(parse('d: {f: ({a: i8} -> {b: i8}) -> i32} -> d')) == 'd:{f: ({a: i8} → {b: i8}) → i32} → d'
 
 
 def test_function_form_does_not_swallow_lambda_binder():
     source = 'decls: {f: {} -> i32} -> defs -> {}'
-    assert show(parse(source)) == '(decls:{f: ({} → i32)} → (defs → {}))'
+    assert show(parse(source)) == 'decls:{f: {} → i32} → defs → {}'
 
 
 def test_quoted_names():
-    assert show(parse('"a b"')) == 'a b'
-    assert show(parse('"if" -> "if"')) == '(if → if)'
-    assert show(parse('s."a b"')) == 's.a b'
-    assert show(parse('{"x y" = a}')) == '{x y = a}'
-    assert show(parse('x : "my form" -> x')) == '(x:my form → x)'
+    assert show(parse('"a b"')) == '"a b"'
+    assert show(parse('"if" -> "if"')) == '"if" → "if"'
+    assert show(parse('s."a b"')) == 's."a b"'
+    assert show(parse('{"x y" = a}')) == '{"x y" = a}'
+    assert show(parse('x : "my form" -> x')) == 'x:"my form" → x'
 
 
 def test_quoted_name_equals_plain_name():
@@ -161,7 +164,7 @@ def test_quoted_name_rejects_bad_forms():
 
 
 def test_comments_and_whitespace():
-    assert show(parse('// id\nx -> // body\n  x // end')) == '(x → x)'
+    assert show(parse('// id\nx -> // body\n  x // end')) == 'x → x'
 
 
 def test_locations_skip_leading_trivia():
@@ -173,4 +176,4 @@ def test_locations_skip_leading_trivia():
 
 def test_golden_program():
     source = 'prim -> decls: {} -> defs -> {main = a:i32 -> [00000000] : i32}'
-    assert show(parse(source)) == '(prim → (decls:{} → (defs → {main = (a:i32 → [00000000]:i32)})))'
+    assert show(parse(source)) == 'prim → decls:{} → defs → {main = a:i32 → [00000000]:i32}'

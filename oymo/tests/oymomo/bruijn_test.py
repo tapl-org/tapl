@@ -16,13 +16,13 @@ def resolved(source, free=()):
 
 
 def test_resolve():
-    assert show(resolved('x -> y -> x')) == '(x → (y → $1))'
-    assert show(resolved('x -> y -> y')) == '(x → (y → $0))'
-    assert show(resolved('x -> x -> x')) == '(x → (x → $0))'
+    assert show(resolved('x -> y -> x')) == 'x → y → $1'
+    assert show(resolved('x -> y -> y')) == 'x → y → $0'
+    assert show(resolved('x -> x -> x')) == 'x → x → $0'
 
 
 def test_resolve_keeps_labels():
-    assert show(resolved('s -> {a = s}.a')) == '(s → {a = $0}.a)'
+    assert show(resolved('s -> {a = s}.a')) == 's → {a = $0}.a'
 
 
 def test_resolve_keeps_location():
@@ -39,22 +39,22 @@ def test_resolve_unknown_name():
 
 def test_shift():
     term = resolved('x -> a b x', free=('a', 'b'))
-    assert show(term) == '(x → (($2 $1) $0))'
-    assert show(bruijn.shift(term, 1)) == '(x → (($3 $2) $0))'
-    assert show(bruijn.shift(term, 1, cutoff=1)) == '(x → (($3 $1) $0))'
+    assert show(term) == 'x → $2 $1 $0'
+    assert show(bruijn.shift(term, 1)) == 'x → $3 $2 $0'
+    assert show(bruijn.shift(term, 1, cutoff=1)) == 'x → $3 $1 $0'
 
 
 def test_substitute():
     term = resolved('x -> a b x', free=('a', 'b'))
     # Replaces b (index 0 from the root, $1 under x) with $5, shifted under x to $6.
-    assert show(bruijn.substitute(term, 0, terms.BruijnIndex(5))) == '(x → (($2 $6) $0))'
-    assert show(bruijn.substitute(term, 1, terms.BruijnIndex(5))) == '(x → (($6 $1) $0))'
+    assert show(bruijn.substitute(term, 0, terms.BruijnIndex(5))) == 'x → $2 $6 $0'
+    assert show(bruijn.substitute(term, 1, terms.BruijnIndex(5))) == 'x → $6 $1 $0'
 
 
 def test_beta_avoids_capture():
     # (x -> y -> x) y gives y' -> y, where y is the free y, not the inner binder.
     apply = resolved('(x -> y -> x) y', free=('y',))
-    assert show(bruijn.beta(apply.function, apply.argument)) == '(y → $1)'
+    assert show(bruijn.beta(apply.function, apply.argument)) == 'y → $1'
 
 
 @pytest.mark.parametrize(

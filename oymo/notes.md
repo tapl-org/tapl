@@ -227,10 +227,12 @@ Kept after byte arrays moved to `[]`; `#` is now unused.
 ### Printer: compact for tests, pretty for people
 `printer.show(term)` and `printer.show_form(form)` live in `printer.py`, not in the
 tests, so any stage can print terms. Both print `→`, which reads better than `->`.
-- Compact (default): every lambda, apply, `if` and `fix` is parenthesized:
-  `(a → (b → (a b)))`. Written forms are shown (`(x:i32 → x)`), but an `unknown`
-  form never is, in either mode. Names are not quoted. Why: a test then shows exactly how the parser nested
-  the term.
+- Compact (default): one line, with parentheses only where the grammar needs
+  them, so it isn't ambiguous: `a → b → a b`, `f (x → x)`, `(f a).x`. Written
+  forms are shown without a space (`x:i32 → x`), but an `unknown` form never is,
+  in either mode. Names are quoted when needed. Why: tests read like source and
+  stay short; a grammar test that checks nesting compares against the
+  parenthesized source, e.g. `show(parse('f a b')) == show(parse('(f a) b'))`.
 - `pretty=True`: oymomo source that parses back to the same term (a test checks
   this). Parens only where needed (`f (x → x)`, `(let x = e in f) a`). Names are quoted when needed (`"if"`, `"a b"`). Bytes are shown in
   groups of four (`[deadbeef cafebabe]`).
@@ -250,7 +252,7 @@ tests, so any stage can print terms. Both print `→`, which reads better than `
     ```
   - an `if` puts `then` and `else` on their own lines.
 - An apply of a lambda prints as `let` in both modes: compact
-  `(let x = e in body)`, pretty `let x = e in body`.
+  `let x:i8 = e in body`, pretty `let x: i8 = e in body`.
 - A `BruijnIndex` prints as `$0` in compact mode. Pretty mode prints the name of
   its binder, so a resolved term still reads like source. After `banf_rename` no
   binder shadows another, so the pretty output parses back to the same term.

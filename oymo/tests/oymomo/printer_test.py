@@ -27,8 +27,9 @@ def pretty(source):
     return show(parse(source), pretty=True)
 
 
-def test_compact_is_fully_parenthesized():
-    assert show(parse('f a (b -> b)')) == '((f a) (b → b))'
+def test_compact_is_one_line_with_parens_only_where_needed():
+    assert show(parse('f a (b -> b)')) == 'f a (b → b)'
+    assert show(parse(FACT)).count('\n') == 0
 
 
 @pytest.mark.parametrize(
@@ -91,8 +92,8 @@ def test_pretty_breaks_long_terms():
 
 
 def test_compact_let():
-    assert show(parse('let x: i8 = e in x')) == '(let x:i8 = e in x)'
-    assert show(parse('let x = e in x')) == '(let x = e in x)'
+    assert show(parse('let x: i8 = e in x')) == 'let x:i8 = e in x'
+    assert show(parse('let x = e in x')) == 'let x = e in x'
 
 
 def test_pretty_let_keeps_written_form():
@@ -111,7 +112,7 @@ def test_pretty_breaks_let_chain_one_per_line():
 
 def test_bruijn_index():
     term = bruijn.resolve(parse('a -> b -> let x = a in b x'))
-    assert show(term) == '(a → (b → (let x = $1 in ($1 $0))))'
+    assert show(term) == 'a → b → let x = $1 in $1 $0'
     assert show(term, pretty=True) == 'a → b → let x = a in b x'
     assert show(terms.BruijnIndex(0), pretty=True) == '$0'
 
@@ -137,11 +138,12 @@ def test_width_and_indent_flags():
         'let x: i8 = let y = e in y in f (let z = x in z)',
     ],
 )
-def test_pretty_parses_back_to_the_same_term(source):
+def test_output_parses_back_to_the_same_term(source):
     assert show(parse(pretty(source))) == show(parse(source))
+    assert show(parse(show(parse(source))), pretty=True) == pretty(source)
 
 
 def test_show_form():
     form = terms.StructForm([('f', terms.FunctionForm('i8', 'i32')), ('x', 'unknown')])
-    assert show_form(form) == '{f: (i8 → i32), x}'
+    assert show_form(form) == '{f: i8 → i32, x}'
     assert show_form(form, pretty=True) == '{f: i8 → i32, x}'
