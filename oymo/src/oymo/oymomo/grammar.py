@@ -6,7 +6,7 @@ import unicodedata
 
 from oymo.core import syntax
 from oymo.core.peg import MISMATCH, Clause, First, Memoized, Optional, Parser, Ref, Separated, Seq, ZeroOrMore, drop
-from oymo.core.terminals import Comment, Eof, Fixed, HexBytes, Identifier, String, Whitespace
+from oymo.core.terminals import Comment, Eof, Fixed, HexBytes, Identifier, Integer, String, Whitespace
 from oymo.oymomo import rule_names as rn
 from oymo.oymomo import terms
 
@@ -176,8 +176,14 @@ RULES: dict[str, Clause] = {
         ),
         Ref(rn.PRIMARY),
     ),
-    rn.PRIMARY: First(Ref(rn.BYTE_ARRAY), Ref(rn.STRUCT), Ref(rn.GROUP), Ref(rn.VARIABLE)),
+    rn.PRIMARY: First(Ref(rn.BYTE_ARRAY), Ref(rn.STRUCT), Ref(rn.GROUP), Ref(rn.BRUIJN_INDEX), Ref(rn.VARIABLE)),
     rn.VARIABLE: Seq(NAME, action=lambda c: terms.Variable(name=c.values[0][0], location=c.values[0][1])),
+    # `$i`, as the printer writes a BruijnIndex. No trivia between `$` and the digits.
+    rn.BRUIJN_INDEX: Seq(
+        _punct('$'),
+        Integer(bases=(), separator=''),
+        action=lambda c: terms.BruijnIndex(index=c.values[0], location=_location(c)),
+    ),
     rn.STRUCT: Seq(
         _punct('{'),
         Separated(Seq(NAME, _punct('='), Ref(rn.EXPRESSION), action=_field), _punct(','), trailing=True),

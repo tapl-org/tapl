@@ -113,8 +113,31 @@ def test_pretty_breaks_let_chain_one_per_line():
 def test_bruijn_index():
     term = bruijn.resolve(parse('a -> b -> let x = a in b x'))
     assert show(term) == 'a → b → let x = $1 in $1 $0'
-    assert show(term, pretty=True) == 'a → b → let x = a in b x'
-    assert show(terms.BruijnIndex(0), pretty=True) == '$0'
+    assert show(term, pretty=True) == 'a → b → let x = $1 in $1 $0'
+    assert show(parse(show(term))) == show(term)
+
+
+def test_bruijn_index_and_variable_print_as_they_are():
+    term = parse('x -> f $1 x')
+    assert show(term) == 'x → f $1 x'
+    assert show(term, name_indices=True) == 'x → f $1 x'
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        ('a -> b -> let x = a in b x', 'a → b → let x = a in b x'),
+        ('x -> x -> $1', 'x → x → $1'),
+        ('x -> y -> x -> f -> f $2 x', 'x → y → x → f → f y x'),
+        ('x -> $4 x', 'x → $4 x'),
+    ],
+)
+def test_name_indices_where_safe(source, expected):
+    term = bruijn.resolve(parse(source))
+    for pretty in (False, True):
+        named = show(term, pretty=pretty, name_indices=True)
+        assert named == expected
+        assert show(bruijn.resolve(parse(named))) == show(term)
 
 
 def test_width_and_indent_flags():

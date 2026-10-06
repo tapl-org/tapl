@@ -10,6 +10,15 @@ def test_variable():
     assert parse('x') == terms.Variable(name='x', location=syntax.Location(0, 1))
 
 
+def test_bruijn_index():
+    assert parse('$12') == terms.BruijnIndex(index=12, location=syntax.Location(0, 3))
+    assert show(parse('x -> f $1 $0.a')) == 'x → f $1 $0.a'
+    assert show(parse('$ 0')) == 'error'
+    assert show(parse('$')) == 'error'
+    assert show(parse('$1a')) == 'error'
+    assert show(parse('$0x1')) == 'error'
+
+
 def test_lambda():
     assert show(parse('x : i32 -> x')) == 'x:i32 → x'
 

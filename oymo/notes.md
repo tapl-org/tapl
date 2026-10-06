@@ -253,9 +253,15 @@ tests, so any stage can print terms. Both print `→`, which reads better than `
   - an `if` puts `then` and `else` on their own lines.
 - An apply of a lambda prints as `let` in both modes: compact
   `let x:i8 = e in body`, pretty `let x: i8 = e in body`.
-- A `BruijnIndex` prints as `$0` in compact mode. Pretty mode prints the name of
-  its binder, so a resolved term still reads like source. After `banf_rename` no
-  binder shadows another, so the pretty output parses back to the same term.
+- A `BruijnIndex` prints as `$0` and a `Variable` as its name, in both modes:
+  the printer shows the term as it is. The parser reads `$0` back as a
+  `BruijnIndex` (no space after `$`), so the output of a resolved term parses
+  back to the same term.
+- `name_indices=True` (either mode) prints a `BruijnIndex` as its binder's name,
+  so a resolved term reads like source. It keeps `$i` where an inner binder
+  shadows that name (`x → x → $1`) or no binder is in scope, so the output still
+  parses and resolves back to the same term. The shaped golden and the rename
+  tests use it.
 
 ## Program shape
 

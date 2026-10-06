@@ -76,7 +76,7 @@ def compile_oymo(source: str) -> tuple[str, str, str]:
     module = banf_translate.convert(shaped)
     ir_text = str(llvm_translate.translate(module, TARGET))
     llvm.parse_assembly(ir_text).verify()
-    shaped_text = LANGUAGE_HEADER + printer.show(shaped, pretty=True) + '\n'
+    shaped_text = LANGUAGE_HEADER + printer.show(shaped, pretty=True, name_indices=True) + '\n'
     return shaped_text, banf_terms.show(module), ir_text
 
 

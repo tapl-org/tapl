@@ -12,7 +12,7 @@ def renamed(source):
 
 
 def pretty(source):
-    return show(renamed(source), pretty=True, width=200)
+    return show(renamed(source), pretty=True, name_indices=True, width=200)
 
 
 def program(defs):
@@ -107,12 +107,12 @@ def test_a_second_run_changes_nothing():
     once = renamed(source)
     twice = banf_rename.rename(once)
     assert show(twice) == show(once)
-    assert show(twice, pretty=True) == show(once, pretty=True)
+    assert show(twice, pretty=True, name_indices=True) == show(once, pretty=True, name_indices=True)
 
 
 def test_shows_as_source():
     source = program('main = f -> {entry = args: {n: i8} -> let n = prim.add_i8 {a = args.n, b = args.n} in n}')
-    assert show(renamed(source), pretty=True, width=60) == textwrap.dedent("""\
+    assert show(renamed(source), pretty=True, name_indices=True, width=60) == textwrap.dedent("""\
         prim → decls: {} → defs → {
           main = blocks → {
             entry = args: {n: i8} →
