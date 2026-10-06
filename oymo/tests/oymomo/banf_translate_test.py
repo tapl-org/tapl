@@ -66,7 +66,7 @@ def test_param_is_an_atom():
     """)
 
 
-def test_nested_field_access_is_get_field_on_param():
+def test_nested_projection_is_get_field_on_param():
     source = 'get = f -> {entry = args:{p: {x: i32, y: i8}} -> (x -> x) (args.p.x)}'
     assert banf(source) == text("""
         get: i32
@@ -308,7 +308,7 @@ def test_let_bound_if_is_substituted_into_tail():
         ('g = f -> {entry = args:{} -> (t -> t) (prim)}', "'prim' cannot be used as a value."),
         (
             'g = f -> {entry = args:{} -> (t -> t) (fix defs)}',
-            'Expected an op: prim.op {...}, defs.f {...}, decls.f {...}, a struct or a field access.',
+            'Expected an op: prim.op {...}, defs.f {...}, decls.f {...}, a struct or a projection.',
         ),
         ('g = f -> {entry = args:{} -> (t -> t) (defs.g)}', 'defs.g must be applied.'),
         (

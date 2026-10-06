@@ -24,7 +24,7 @@ from oymo.oymomo import terms
 from oymo.oymomo.grammar import RESERVED, UNKNOWN_FORM
 
 # Binding levels, loosest first. A term printed where a tighter level is needed gets parentheses.
-_EXPRESSION, _APPLY, _FIELD_ACCESS = range(3)
+_EXPRESSION, _APPLY, _PROJECT = range(3)
 
 
 def show(
@@ -53,15 +53,15 @@ def _compact(term, names, level=_EXPRESSION):
             value = _compact(argument, names)
             text = f'let {_name(name)}{_compact_suffix(form)} = {value} in {_compact(body, _bind(names, name))}'
         case terms.Apply(function=function, argument=argument):
-            text = f'{_compact(function, names, _APPLY)} {_compact(argument, names, _FIELD_ACCESS)}'
+            text = f'{_compact(function, names, _APPLY)} {_compact(argument, names, _PROJECT)}'
         case terms.Struct(fields=fields):
             text = '{' + ', '.join(f'{_name(f.label)} = {_compact(f.value, names)}' for f in fields) + '}'
-        case terms.FieldAccess(struct=struct, label=label):
-            text = f'{_compact(struct, names, _FIELD_ACCESS)}.{_name(label)}'
+        case terms.Project(struct=struct, label=label):
+            text = f'{_compact(struct, names, _PROJECT)}.{_name(label)}'
         case terms.If(condition=c, then_clause=t, else_clause=e):
             text = f'if {_compact(c, names)} then {_compact(t, names)} else {_compact(e, names)}'
         case terms.Fix(function=function):
-            text = f'fix {_compact(function, names, _FIELD_ACCESS)}'
+            text = f'fix {_compact(function, names, _PROJECT)}'
         case terms.ByteArray(value=value, form=form):
             text = f'[{value.hex()}]{_compact_suffix(form)}'
         case syntax.ErrorTerm():
@@ -100,7 +100,7 @@ def _loosest(term):
             return _EXPRESSION
         case terms.Apply() | terms.Fix():
             return _APPLY
-    return _FIELD_ACCESS
+    return _PROJECT
 
 
 def _bind(names, name):
@@ -130,18 +130,18 @@ def _flat(term, level, names):
             value = _flat(argument, _EXPRESSION, names)
             text = f'let {_name(name)}{_form_suffix(form)} = {value} in {_flat(body, _EXPRESSION, _bind(names, name))}'
         case terms.Apply(function=function, argument=argument):
-            text = f'{_flat(function, _APPLY, names)} {_flat(argument, _FIELD_ACCESS, names)}'
+            text = f'{_flat(function, _APPLY, names)} {_flat(argument, _PROJECT, names)}'
         case terms.Struct(fields=fields):
             text = '{' + ', '.join(f'{_name(f.label)} = {_flat(f.value, _EXPRESSION, names)}' for f in fields) + '}'
-        case terms.FieldAccess(struct=struct, label=label):
-            text = f'{_flat(struct, _FIELD_ACCESS, names)}.{_name(label)}'
+        case terms.Project(struct=struct, label=label):
+            text = f'{_flat(struct, _PROJECT, names)}.{_name(label)}'
         case terms.If(condition=c, then_clause=t, else_clause=e):
             text = (
                 f'if {_flat(c, _EXPRESSION, names)} then {_flat(t, _EXPRESSION, names)}'
                 f' else {_flat(e, _EXPRESSION, names)}'
             )
         case terms.Fix(function=function):
-            text = f'fix {_flat(function, _FIELD_ACCESS, names)}'
+            text = f'fix {_flat(function, _PROJECT, names)}'
         case terms.ByteArray(value=value, form=form):
             hex_groups = ' '.join(value[i : i + 4].hex() for i in range(0, len(value), 4))
             text = f'[{hex_groups}]{_form_suffix(form)}'
@@ -178,17 +178,15 @@ def _pretty(term, level, depth, column, width, indent, names):
             value = sub(argument, _EXPRESSION, depth, column + len(header))
             text = f'{header}{value} in\n{pad}{sub(body, _EXPRESSION, depth, len(pad), _bind(names, name))}'
         case terms.Apply(function=function, argument=argument):
-            text = (
-                f'{sub(function, _APPLY, depth, column)}\n{inner}{sub(argument, _FIELD_ACCESS, depth + 1, len(inner))}'
-            )
+            text = f'{sub(function, _APPLY, depth, column)}\n{inner}{sub(argument, _PROJECT, depth + 1, len(inner))}'
         case terms.Struct(fields=fields):
             lines = []
             for f in fields:
                 head = f'{inner}{_name(f.label)} = '
                 lines.append(f'{head}{sub(f.value, _EXPRESSION, depth + 1, len(head))},')
             text = '{\n' + '\n'.join(lines) + '\n' + pad + '}'
-        case terms.FieldAccess(struct=struct, label=label):
-            text = f'{sub(struct, _FIELD_ACCESS, depth, column)}.{_name(label)}'
+        case terms.Project(struct=struct, label=label):
+            text = f'{sub(struct, _PROJECT, depth, column)}.{_name(label)}'
         case terms.If(condition=c, then_clause=t, else_clause=e):
             text = (
                 f'if {sub(c, _EXPRESSION, depth, column + 3)}\n'
@@ -196,7 +194,7 @@ def _pretty(term, level, depth, column, width, indent, names):
                 f'{pad}else {sub(e, _EXPRESSION, depth, len(pad) + 5)}'
             )
         case terms.Fix(function=function):
-            text = f'fix {sub(function, _FIELD_ACCESS, depth, column + 4)}'
+            text = f'fix {sub(function, _PROJECT, depth, column + 4)}'
         case _:
             return flat
     return f'({text})' if grouped else text

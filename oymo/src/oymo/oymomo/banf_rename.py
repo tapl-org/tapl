@@ -95,7 +95,7 @@ class _Renamer:
                 return replace(term, function=self.other(function), argument=argument)
             case terms.Struct(fields=fields):
                 return replace(term, fields=[replace(f, value=self.other(f.value)) for f in fields])
-            case terms.FieldAccess(struct=struct):
+            case terms.Project(struct=struct):
                 return replace(term, struct=self.other(struct))
             case terms.If(condition=c, then_clause=t, else_clause=e):
                 return replace(term, condition=self.other(c), then_clause=self.other(t), else_clause=self.other(e))

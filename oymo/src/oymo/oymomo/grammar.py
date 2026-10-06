@@ -156,23 +156,23 @@ RULES: dict[str, Clause] = {
     rn.APPLY: First(
         Seq(
             Ref(rn.APPLY),
-            Ref(rn.FIELD_ACCESS),
+            Ref(rn.PROJECT),
             action=lambda c: terms.Apply(function=c.values[0], argument=c.values[1], location=_location(c)),
         ),
         Ref(rn.FIX),
-        Ref(rn.FIELD_ACCESS),
+        Ref(rn.PROJECT),
     ),
     rn.FIX: Seq(
         _punct('fix'),
-        Ref(rn.FIELD_ACCESS),
+        Ref(rn.PROJECT),
         action=lambda c: terms.Fix(function=c.values[0], location=_location(c)),
     ),
-    rn.FIELD_ACCESS: First(
+    rn.PROJECT: First(
         Seq(
-            Ref(rn.FIELD_ACCESS),
+            Ref(rn.PROJECT),
             _punct('.'),
             NAME,
-            action=lambda c: terms.FieldAccess(struct=c.values[0], label=c.values[1][0], location=_location(c)),
+            action=lambda c: terms.Project(struct=c.values[0], label=c.values[1][0], location=_location(c)),
         ),
         Ref(rn.PRIMARY),
     ),

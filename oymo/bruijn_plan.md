@@ -75,7 +75,7 @@ No new term. `Apply(Lambda(x, body), expr)` is already a let in BANF shape. This
 - `BruijnIndex` in [terms.py](oymo/src/oymo/oymomo/terms.py) gets only a `location`, which error messages need. It does not get a name.
 - `resolve(term)`: replaces each `Variable` with `BruijnIndex(index)`, where the index counts the enclosing `Lambda` binders. Binder names stay on `Lambda.param_name`.
   - An unbound name is an error. Every program is `prim -> decls -> defs -> ...`, so there are no free names.
-  - Struct labels and `FieldAccess` labels are not binders, so resolution leaves them alone.
+  - Struct labels and `Project` labels are not binders, so resolution leaves them alone.
 - Kernel helpers, used by `reduce` in step 2:
   - `shift(term, by, cutoff)`
   - `substitute(term, index, value)`
@@ -104,7 +104,7 @@ anything else           ~>  itself
 ## 3. Reduce until BANF shape: new [oymo/src/oymo/oymomo/banf_reduce.py](oymo/src/oymo/oymomo/banf_reduce.py)
 Structural matching: each position says which constructors it wants, and the term there is reduced with `reduce` (step 2) until it has one of them. Then its subterm positions are visited the same way. Forms are not checked, and binder kinds are not checked except for `args` (see `k` below); step 5 does both. So this pass needs no context stack.
 
-**Heads.** `reduce` only works on the root, but some roots become a redex only after their head is reduced. In `(fix g) a`, `fix g` must first unfold and beta-reduce to a lambda, and only then is the whole term a beta redex. The head of an Apply is its function, of a FieldAccess its struct, and of an If its condition. A Lambda, Struct, ByteArray or BruijnIndex has no head. Step 3 has two small helpers on top of `reduce`:
+**Heads.** `reduce` only works on the root, but some roots become a redex only after their head is reduced. In `(fix g) a`, `fix g` must first unfold and beta-reduce to a lambda, and only then is the whole term a beta redex. The head of an Apply is its function, of a Project its struct, and of an If its condition. A Lambda, Struct, ByteArray or BruijnIndex has no head. Step 3 has two small helpers on top of `reduce`:
 ```
 step(t) = reduce(t)        if reduce(t) is not t                        -- a step at the root
         = t with head h'   if t has a head h, and h' = whnf(h) is not h   -- else reduce the head
@@ -138,18 +138,18 @@ whnf(t) = whnf(step(t))    if step(t) is not t
    ```
    - `k` is the number of lets between this body and the block's `args` binder, so `args` is `$k` at this point. `$i` is how a BruijnIndex is written, here and in the printer's compact mode. The reducer keeps only this counter, to tell `args.label` (`$k.label`) from other field accesses in 8.1. It resets to 0 at each block and adds 1 per let.
    - `$i` with `i < k` is a let of this block. `$k` is `args` itself, and `$i` with `i > k` would be `blocks`, `defs`, `decls` or `prim`. Neither is a terminal, so step 3 leaves them and step 5 reports them.
-   - `args.label` and `blocks.label` are a FieldAccess on any BruijnIndex. Step 5 checks which binder it is.
+   - `args.label` and `blocks.label` are a Project on any BruijnIndex. Step 5 checks which binder it is.
    - Returning an op needs no special case: `(z -> z) <value>` is a let followed by the terminal `$0`.
    The instruction, repeated until it stops:
    1. If `<block_body>` is a let `(x -> rest) <value>`, replace `<value>` with `whnf(<value>)`.
-      - If it is an op, keep the let, visit the op's parts (step 9), and continue with `rest` as the `<block_body>`. An op is an Apply, a Struct, or a FieldAccess other than `args.label`.
+      - If it is an op, keep the let, visit the op's parts (step 9), and continue with `rest` as the `<block_body>`. An op is an Apply, a Struct, or a Project other than `args.label`.
       - Otherwise it is a Lambda, BruijnIndex, ByteArray, `args.label` or If. Beta-reduce the whole let and continue with the result. That covers copy propagation and inlining a helper.
    2. Else, if `step(<block_body>)` is not `<block_body>`, continue with it. This can make a let: in `(x -> y -> rest) a b`, the head reduces and leaves the let `(y -> rest') b`.
    3. Else it should be a terminal. Visit the terminal's own positions (`<op_arg>`, `<atom>`, `<jump>`) and stop. Anything else is left for step 5.
 9. `<value>`, a let's op, already reduced by 8.1:
    - Apply `<callee> <op_arg>`, as in `prim.op`, `defs.f` or `decls.f` applied to an argument. The callee is the head, so `whnf` has already reduced it. Reduce `<op_arg>` until it is a Struct `{label_i = <atom>, ...}` or a BruijnIndex (forwarding the block's `args`).
    - Struct `{label_i = <atom>, ...}`: a `MakeStruct`.
-   - FieldAccess `<s>.label`: `<s>` is the head, so `whnf` has already reduced it. This is a `GetField` on an atom, such as a let or a struct param `args.p`, or a `GetData` (`decls.x`).
+   - Project `<s>.label`: `<s>` is the head, so `whnf` has already reduced it. This is a `GetField` on an atom, such as a let or a struct param `args.p`, or a `GetData` (`decls.x`).
 10. `<jump>`, an `if` arm: reduce until it is the jump terminal `blocks.label <op_arg>`, then visit `<op_arg>`.
 11. `<atom>`: reduce until it is a ByteArray, a BruijnIndex `$i` with `i < k` (a let of this block), or `args.n`. `args` itself is not an atom: BANF passes a block's params one by one, not as one struct.
 
@@ -176,7 +176,7 @@ One walk from the outside in. It renames binders only; labels, including block p
   - the names already given to the enclosing binders, including the five fixed names;
   - inside a block body, that block's param labels. They become BANF `Var`s, as in `entry(n: i32)`, so a let must not reuse one.
 
-  No other label goes in the set. Struct labels, `FieldAccess` labels, block labels and function names live in their own namespaces in oymomo and in BANF (`Jump.target`, `Call.function`, `GetData.name` are plain strings, not `Var`s). So a let `n` used as `{n = n}` keeps its name.
+  No other label goes in the set. Struct labels, `Project` labels, block labels and function names live in their own namespaces in oymomo and in BANF (`Jump.target`, `Call.function`, `GetData.name` are plain strings, not `Var`s). So a let `n` used as `{n = n}` keeps its name.
 - **Every other binder** (lets, and any lambda step 3 left), with original name `x` and level `L` (the number of binders enclosing it, counted from the root):
   1. If `x` is not visible, keep `x`.
   2. Otherwise try `x_L`. If that is visible too, try `x__L`, then `x___L`, and so on. Use the first one that isn't visible.
@@ -188,7 +188,7 @@ One walk from the outside in. It renames binders only; labels, including block p
   - Sibling blocks can reuse a name, because BANF scopes names per block. LLVM may then add `.1` in the `.ll` file. That is accepted: only the `.ll` names change, and the code is still correct.
 - **Idempotent:** after one run nothing clashes, so a second run keeps every name.
 - **Cost:** one hash set, with an add on the way down and a remove on the way up. Each binder costs O(1) expected time, and a retry happens only on a clash. The whole pass is O(size of the term).
-- Labels are never renamed: struct labels, `FieldAccess` labels, block labels and param labels all stay as written.
+- Labels are never renamed: struct labels, `Project` labels, block labels and param labels all stay as written.
 - References are indices, so a rename only changes the binder. Step 5 keeps the binder names in an array indexed by level, and resolves `$j` at depth `d` to `names[d - 1 - j]` in O(1).
 - The fixed names don't reach BANF: `blocks.label` becomes a jump target and `args.n` becomes `banf.Var('n')`.
 - Examples, with `e1`, `e2` and `e3` standing for any ops. The lets in a block start at level 5, under `prim`, `decls`, `defs`, `blocks` and `args`:

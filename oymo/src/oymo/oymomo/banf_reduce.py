@@ -101,7 +101,7 @@ class _Reducer:
 
     def terminal(self, term):
         match term:
-            case terms.Apply(function=terms.FieldAccess(struct=terms.BruijnIndex()), argument=argument):
+            case terms.Apply(function=terms.Project(struct=terms.BruijnIndex()), argument=argument):
                 return replace(term, argument=self.op_arg(argument))  # blocks.label <op_arg>
             case terms.If(condition=condition, then_clause=then_clause, else_clause=else_clause):
                 return replace(
@@ -134,7 +134,7 @@ class _Reducer:
     def jump(self, term):
         term = self.whnf(term)
         match term:
-            case terms.Apply(function=terms.FieldAccess(struct=terms.BruijnIndex()), argument=argument):
+            case terms.Apply(function=terms.Project(struct=terms.BruijnIndex()), argument=argument):
                 return replace(term, argument=self.op_arg(argument))
         return term
 
@@ -149,7 +149,7 @@ def _location(term):
 
 def _head(term):
     match term:
-        case terms.Apply(function=head) | terms.FieldAccess(struct=head) | terms.If(condition=head):
+        case terms.Apply(function=head) | terms.Project(struct=head) | terms.If(condition=head):
             return head
     return None
 
@@ -158,7 +158,7 @@ def _with_head(term, head):
     match term:
         case terms.Apply():
             return replace(term, function=head)
-        case terms.FieldAccess():
+        case terms.Project():
             return replace(term, struct=head)
         case terms.If():
             return replace(term, condition=head)
@@ -166,13 +166,13 @@ def _with_head(term, head):
 
 
 def _is_op(term, k):
-    """An Apply, a Struct, or a FieldAccess other than `args.label` (`$k.label`)."""
+    """An Apply, a Struct, or a Project other than `args.label` (`$k.label`)."""
     match term:
         case terms.Apply() | terms.Struct():
             return True
-        case terms.FieldAccess(struct=terms.BruijnIndex(index=index)):
+        case terms.Project(struct=terms.BruijnIndex(index=index)):
             return index != k
-        case terms.FieldAccess():
+        case terms.Project():
             return True
     return False
 

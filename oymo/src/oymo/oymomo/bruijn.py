@@ -47,7 +47,7 @@ def _map_children(term, f):
             return replace(term, function=f(function), argument=f(argument))
         case terms.Struct(fields=fields):
             return replace(term, fields=[replace(field, value=f(field.value)) for field in fields])
-        case terms.FieldAccess(struct=struct):
+        case terms.Project(struct=struct):
             return replace(term, struct=f(struct))
         case terms.If(condition=c, then_clause=t, else_clause=e):
             return replace(term, condition=f(c), then_clause=f(t), else_clause=f(e))
@@ -99,12 +99,12 @@ def unfold(fix: terms.Fix) -> syntax.Term:
     return terms.Apply(function=fix.function, argument=fix, location=fix.location)
 
 
-def project(field_access: terms.FieldAccess) -> syntax.Term | None:
+def project(term: terms.Project) -> syntax.Term | None:
     """`{a = e, ...}.a` becomes `e`. None if the struct has no such label."""
-    struct = field_access.struct
+    struct = term.struct
     if not isinstance(struct, terms.Struct):
         return None
-    return next((field.value for field in struct.fields if field.label == field_access.label), None)
+    return next((field.value for field in struct.fields if field.label == term.label), None)
 
 
 _TRUE, _FALSE = b'\x01', b'\x00'
@@ -120,7 +120,7 @@ def reduce(term: syntax.Term) -> syntax.Term:
             return beta(lambda_, argument)
         case terms.Fix():
             return unfold(term)
-        case terms.FieldAccess(struct=terms.Struct()):
+        case terms.Project(struct=terms.Struct()):
             projected = project(term)
             return term if projected is None else projected
         case terms.If(condition=terms.ByteArray(value=value), then_clause=then_clause, else_clause=else_clause):

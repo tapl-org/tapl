@@ -80,7 +80,7 @@ class Struct(Term):
 
 
 @dataclass
-class FieldAccess(Term):
+class Project(Term):
     struct: Term
     label: str
     location: Location

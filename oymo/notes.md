@@ -93,7 +93,7 @@ Surface syntax of the oymomo kernel lambda calculus:
 x : i32 -> body              Lambda
 f a b                        Apply
 {x = e1, y = e2}             Struct
-s.x                          FieldAccess
+s.x                          Project
 if c then a else b           If
 let x = e in body            sugar for (x -> body) e
 fix f                        Fix
@@ -114,15 +114,19 @@ share `{}` and are told apart by `=` (term) vs `:` (form):
 `{x = [01]:i8}` is a value, `{x: i8}` is its form. This replaces the earlier plan
 to use `[]`, which freed `[]` for byte arrays.
 
-### FieldAccess for `s.x`
-It pairs with the `Field` class and is what C, Rust, and Java call `s.x`. We first
-kept `Select` to stay with one-word verbs like `Apply` and `Fix`, then chose clarity
-over that preference.
-Rejected: `Select` (unclear), `Project`/`Proj` (type-theory jargon), `Access`
-and `Read` (sound like memory operations next to LLVM), `Field` (taken by the
-`Field` class), `Member` (C++ flavored, suggests methods), `Get` (reads like a
-function call), `Dot` (names the syntax, not the meaning), and `Pick`, `Take`,
-`Pluck`, `Extract`, `Lookup`, `Focus`.
+### Project for `s.x`
+It is a one-word verb like `Apply` and `Fix`, and it is TAPL's name for `t.l` on
+records (projection, E-ProjRcd); the reducer already called its step `project`.
+We first chose `Select`, then `FieldAccess` (it pairs with the `Field` class and
+is what C, Rust, and Java call `s.x`), and rejected `Project` as type-theory
+jargon. We came back to it because this is a lambda calculus, and every other
+term is named after its operation, not after what it looks like.
+Rejected: `Select` (unclear), `FieldAccess` (names the syntax and breaks the verb
+pattern), `Access` and `Read` (sound like memory operations next to LLVM),
+`Field` (taken by the `Field` class), `Member` (C++ flavored, suggests methods),
+`Get` (reads like a function call), `Dot` (names the syntax, not the meaning),
+`Projection` (a noun among verbs), and `Pick`, `Take`, `Pluck`, `Extract`,
+`Lookup`, `Focus`.
 
 ### Lambda as `x : form -> body`
 - The arrow can be written `->` or `→` (U+2192); both mean the same. `→` reads like
@@ -131,7 +135,7 @@ function call), `Dot` (names the syntax, not the meaning), and `Pick`, `Take`,
 - Lambda and `if` extend as far right as possible: `a -> b -> a b` is
   `a -> (b -> (a b))`. So a lambda argument needs parens: `f (x -> x)`, while
   `f x -> x` is a syntax error.
-- Application is left-associative and binds looser than field access:
+- Application is left-associative and binds looser than projection:
   `f a.x b` is `(f a.x) b`.
 
 ### Forms are optional; omitted means "unknown"
@@ -186,7 +190,7 @@ Plain identifiers match `[A-Za-z_][A-Za-z0-9_]*`, excluding the reserved words
 - `"x"` and `x` are the same name; the parser stores the decoded string.
 - Escapes: `\"`, `\\`, `\u{hex}`. No raw newlines. `""` is rejected.
 - Quotes work everywhere a name appears: variables, lambda parameters, struct
-  labels, field access labels (`s."a b"`), and form names.
+  labels, projection labels (`s."a b"`), and form names.
 - A printer quotes a name only when it is not a plain identifier. The BANF printer
   does too: `Data('my data', 'i8')` prints as `"my data": i8`.
 - Plain identifiers stay ASCII; other names use quotes. This avoids Unicode
@@ -299,7 +303,7 @@ source, because the linker provides it. Each field can be any form:
 
 ### `defs`: the module's own definitions
 `defs` is the struct the program's body builds, passed back in so its functions
-call each other by field access: `defs.fact {n = t1}`.
+call each other by projection: `defs.fact {n = t1}`.
 - Why: recursion and mutual recursion work without `fix`, just as LLVM functions
   call each other by symbol. A `fix` in the source is only unfolded while reducing
   to BANF's shape (see "oymomo to BANF"); it never becomes a loop or a call.
@@ -533,10 +537,10 @@ The program has fixed positions: the three program lambdas, the struct of defs,
 each function's lambda and struct of blocks, each block lambda, and then each
 block body. At a position, the term is put in weak head normal form (`whnf`):
 reduce at the root, else reduce the head (the callee of an apply, the struct of a
-field access, the condition of an if), until neither changes. Then its own
+projection, the condition of an if), until neither changes. Then its own
 positions are visited.
 - In a block body, a let `(x -> rest) e` stays a let when `e`'s whnf is an op (an
-  apply, a struct, or a field access other than `args.label`). Otherwise, such as
+  apply, a struct, or a projection other than `args.label`). Otherwise, such as
   for an atom, a lambda or an `if`, the let is beta-reduced. So helpers are
   inlined, `let t = args.n in t` becomes `args.n`, and a let-bound `if` lands in
   tail position.
@@ -583,7 +587,7 @@ arithmetic and keeps no binder names of its own. A let reference becomes a
   `let t0: i32 = prim.eq_i32 {...} in t0` is an error, since `eq_i32` gives `i1`.
 - **Atoms**: a byte array with a known form, a let name, or `args.label`.
 - **Ops**, only as a let's value: `prim.op {...}`, `defs.g {...}`, `decls.g {...}`,
-  a struct literal of atoms (`MakeStruct`), a field access on an atom
+  a struct literal of atoms (`MakeStruct`), a projection on an atom
   (`let x = args.p.x in ...` is a `GetField` on param `p`), or `decls.g` for
   imported data (`GetData`).
 - **Terminators**, only in tail position:

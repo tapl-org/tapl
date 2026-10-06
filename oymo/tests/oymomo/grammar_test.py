@@ -41,7 +41,7 @@ def test_apply_is_left_associative():
     assert show(parse('f (a b)')) == 'f (a b)'
 
 
-def test_field_access_binds_tighter_than_apply():
+def test_projection_binds_tighter_than_apply():
     assert show(parse('f a.x b')) == show(parse('(f (a.x)) b'))
     assert show(parse('s.a.b')) == 's.a.b'
     assert show(parse('(f a).x')) == '(f a).x'

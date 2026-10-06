@@ -162,7 +162,7 @@ class _Translator:
                         return banf.Var(name, location)
                     case str() as name:
                         raise _not_a_value(name, location)
-            case terms.FieldAccess(struct=struct, label=label) if block.binder(struct) == ARGS:
+            case terms.Project(struct=struct, label=label) if block.binder(struct) == ARGS:
                 if any(param == label for param, _ in block.params):
                     return banf.Var(label, location)
                 raise TranslationError(f'Block has no param {label!r}.', location)
@@ -196,7 +196,7 @@ class _Translator:
         location = _location(term)
         program = self.program
         match term:
-            case terms.Apply(function=terms.FieldAccess(struct=struct, label=name), argument=arg):
+            case terms.Apply(function=terms.Project(struct=struct, label=name), argument=arg):
                 base = block.binder(struct)
                 if base == PRIM:
                     if name not in banf_prim.PRIMS:
@@ -222,18 +222,18 @@ class _Translator:
                 if len(set(labels)) != len(labels):
                     raise TranslationError('Duplicate field labels.', location)
                 return banf.MakeStruct([(f.label, self.atom(f.value, block)) for f in fields], location)
-            case terms.FieldAccess(struct=struct, label=name) if block.binder(struct) == DECLS:
+            case terms.Project(struct=struct, label=name) if block.binder(struct) == DECLS:
                 binding = program.imports.get(name)
                 if binding is None:
                     raise TranslationError(f'Unknown import {name!r}.', location)
                 if isinstance(binding, banf.Signature):
                     raise TranslationError(f'Imported function {name!r} must be applied.', location)
                 return banf.GetData(name, location)
-            case terms.FieldAccess(struct=struct, label=name) if block.binder(struct) in (DEFS, PRIM):
+            case terms.Project(struct=struct, label=name) if block.binder(struct) in (DEFS, PRIM):
                 raise TranslationError(f'{block.binder(struct)}.{name} must be applied.', location)
-            case terms.FieldAccess(struct=struct) if block.binder(struct) == ARGS:
+            case terms.Project(struct=struct) if block.binder(struct) == ARGS:
                 self.atom(term, block)
-            case terms.FieldAccess(struct=struct, label=label):
+            case terms.Project(struct=struct, label=label):
                 return banf.GetField(self.atom(struct, block), label, location)
             case terms.BruijnIndex() if isinstance(name := block.binder(term), str):
                 raise _not_a_value(name, location)
@@ -242,13 +242,13 @@ class _Translator:
         if self.is_atom(term, block):
             raise TranslationError("A let's value must be an op, not an atom.", location)
         raise TranslationError(
-            'Expected an op: prim.op {...}, defs.f {...}, decls.f {...}, a struct or a field access.', location
+            'Expected an op: prim.op {...}, defs.f {...}, decls.f {...}, a struct or a projection.', location
         )
 
     def jump(self, term, block):
         location = _location(term)
         match term:
-            case terms.Apply(function=terms.FieldAccess(struct=struct, label=label), argument=arg) if (
+            case terms.Apply(function=terms.Project(struct=struct, label=label), argument=arg) if (
                 block.binder(struct) == BLOCKS
             ):
                 targets = {b.label: b for b in block.function.blocks}
@@ -285,7 +285,7 @@ class _Translator:
                 return banf.Jump(*jump, location)
             if self.is_atom(term, block):
                 return banf.Return(self.atom(term, block), location)
-            if isinstance(term, terms.Apply | terms.Struct | terms.FieldAccess):
+            if isinstance(term, terms.Apply | terms.Struct | terms.Project):
                 self.op(term, block)
                 raise TranslationError(
                     'An op in tail position must be bound by a let, as in let t = op in t.', location
