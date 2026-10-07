@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Renames binders of a term in BANF shape. See notes.md, "Binders get fixed names".
+"""Renames binders of a term in BANF shape. See docs/notes.md, "Binders get fixed names".
 
 The structural binders get fixed names, so every shaped program reads
 `prim -> decls -> defs -> {main = blocks -> {entry = args -> ...}}`. Any other binder keeps

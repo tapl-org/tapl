@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Surface syntax of the oymomo kernel. See notes.md for the design decisions."""
+"""Surface syntax of the oymomo kernel. See docs/notes.md for the design decisions."""
 
 import unicodedata
 
