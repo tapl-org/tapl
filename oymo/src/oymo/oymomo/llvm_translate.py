@@ -28,29 +28,29 @@ class Target:
     prims: Mapping[str, Callable[[ir.IRBuilder, list[ir.Value]], ir.Value]]
 
 
-def llvm_type(form: terms.Form) -> ir.Type:
-    match form:
-        case str() if match := _INT_FORM.fullmatch(form):
-            return ir.IntType(int(match.group(1)))
-        case terms.StructForm(fields=fields):
-            return ir.LiteralStructType([llvm_type(field_form) for _, field_form in fields])
+def llvm_type(form: terms.Term) -> ir.Type:
+    if (name := terms.form_name(form)) is not None and (match := _INT_FORM.fullmatch(name)):
+        return ir.IntType(int(match.group(1)))
+    if (fields := terms.struct_fields(form)) is not None:
+        return ir.LiteralStructType([llvm_type(field_form) for _, field_form in fields])
     raise LlvmTranslationError(f'Form {banf.show_form(form)} has no LLVM type.')
 
 
 def _const(atom: banf.Const) -> ir.Constant:
-    match = _INT_FORM.fullmatch(atom.form) if isinstance(atom.form, str) else None
+    name = terms.form_name(atom.form)
+    match = _INT_FORM.fullmatch(name) if name is not None else None
     if match is None:
         raise LlvmTranslationError(
             f'Only integer constants are supported, got {banf.show_form(atom.form)}.', atom.location
         )
     bits = int(match.group(1))
     if len(atom.value) != (bits + 7) // 8:
-        raise LlvmTranslationError(f'A {atom.form} constant needs {(bits + 7) // 8} bytes.', atom.location)
+        raise LlvmTranslationError(f'A {name} constant needs {(bits + 7) // 8} bytes.', atom.location)
     # Byte arrays are little-endian on every target. LLVM stores the integer in the
     # data layout's byte order, so a big-endian target needs no swap here.
     value = int.from_bytes(atom.value, 'little')
     if value >= 1 << bits:
-        raise LlvmTranslationError(f'Constant does not fit in {atom.form}.', atom.location)
+        raise LlvmTranslationError(f'Constant does not fit in {name}.', atom.location)
     return ir.Constant(ir.IntType(bits), value)
 
 

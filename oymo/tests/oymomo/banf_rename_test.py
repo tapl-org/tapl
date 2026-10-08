@@ -19,7 +19,7 @@ def program(defs):
     return f'prim -> decls: {{}} -> defs -> {{{defs}}}'
 
 
-def body(source, params='{n: i8}'):
+def body(source, params="{n = 'i8'}"):
     """The pretty-printed body of the one block of `main`, after renaming."""
     text = pretty(program(f'main = f -> {{entry = args: {params} -> {source}}}'))
     prefix = f'prim → decls: {{}} → defs → {{main = blocks → {{entry = args: {params} → '
@@ -34,21 +34,23 @@ def test_fresh():
 
 
 def test_structural_binders_get_fixed_names():
-    assert pretty('p -> d: {} -> pr -> {main = b -> {entry = x: {} -> [01]: i8}}') == (
-        'prim → decls: {} → defs → {main = blocks → {entry = args: {} → [01]: i8}}'
+    assert pretty("p -> d: {} -> pr -> {main = b -> {entry = x: {} -> [01]: 'i8'}}") == (
+        "prim → decls: {} → defs → {main = blocks → {entry = args: {} → [01]: 'i8'}}"
     )
 
 
 def test_references_follow_their_binders():
-    source = 'p -> d: {} -> pr -> {main = b -> {entry = x: {n: i8} -> let t = p.add_i8 {a = x.n, b = x.n} in b.next t}}'
+    source = (
+        "p -> d: {} -> pr -> {main = b -> {entry = x: {n = 'i8'} -> let t = p.add_i8 {a = x.n, b = x.n} in b.next t}}"
+    )
     assert pretty(source) == (
-        'prim → decls: {} → defs → {main = blocks → {entry = args: {n: i8} → '
+        "prim → decls: {} → defs → {main = blocks → {entry = args: {n = 'i8'} → "
         'let t = prim.add_i8 {a = args.n, b = args.n} in blocks.next t}}'
     )
 
 
 def test_a_let_that_clashes_with_nothing_keeps_its_name():
-    assert body('let t = {n = args.m} in t', '{m: i8}') == 'let t = {n = args.m} in t'
+    assert body('let t = {n = args.m} in t', "{m = 'i8'}") == 'let t = {n = args.m} in t'
     assert body('let entry = {} in entry') == 'let entry = {} in entry'
 
 
@@ -99,9 +101,9 @@ def test_unshaped_position_keeps_or_suffixes():
 def test_a_second_run_changes_nothing():
     source = program("""
     main = f -> {
-      entry = args: {n: i8} ->
+      entry = args: {n = 'i8'} ->
         let n = {a = args.n} in let t = {b = n} in let t = {c = t} in let t_7 = {d = t} in f.next t_7,
-      next = args: {} -> [01]: i8,
+      next = args: {} -> [01]: 'i8',
     }
     """)
     once = renamed(source)
@@ -111,11 +113,11 @@ def test_a_second_run_changes_nothing():
 
 
 def test_shows_as_source():
-    source = program('main = f -> {entry = args: {n: i8} -> let n = prim.add_i8 {a = args.n, b = args.n} in n}')
+    source = program("main = f -> {entry = args: {n = 'i8'} -> let n = prim.add_i8 {a = args.n, b = args.n} in n}")
     assert show(renamed(source), pretty=True, name_indices=True, width=60) == textwrap.dedent("""\
         prim → decls: {} → defs → {
           main = blocks → {
-            entry = args: {n: i8} →
+            entry = args: {n = 'i8'} →
               let n_5 = prim.add_i8 {a = args.n, b = args.n} in n_5,
           },
         }""")

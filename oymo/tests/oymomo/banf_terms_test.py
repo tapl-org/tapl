@@ -26,26 +26,28 @@ from oymo.oymomo.banf_terms import (
     verify,
 )
 
-ZERO = Const(bytes(4), 'i32')
-ONE = Const(bytes([1, 0, 0, 0]), 'i32')
-POINT = terms.StructForm([('x', 'i32'), ('y', 'i32')])
+I1, I8, I16, I32, I64 = (terms.name_form(name) for name in ('i1', 'i8', 'i16', 'i32', 'i64'))
+
+ZERO = Const(bytes(4), I32)
+ONE = Const(bytes([1, 0, 0, 0]), I32)
+POINT = terms.struct_form([('x', I32), ('y', I32)])
 
 
 def fact():
     return Function(
         'fact',
-        'i32',
+        I32,
         [
             Block(
                 'entry',
-                [('n', 'i32')],
+                [('n', I32)],
                 [Let('t0', PrimCall('eq_i32', [Var('n'), ZERO]))],
                 Branch(Var('t0'), 'then0', [], 'else0', [Var('n')]),
             ),
             Block('then0', [], [], Return(ONE)),
             Block(
                 'else0',
-                [('n', 'i32')],
+                [('n', I32)],
                 [
                     Let('t1', PrimCall('sub_i32', [Var('n'), ONE])),
                     Let('t2', Call('fact', [Var('t1')])),
@@ -78,21 +80,21 @@ def test_show_fact():
 def imports_module():
     main = Function(
         'main',
-        'i32',
+        I32,
         [
             Block(
                 'entry',
                 [],
                 [
                     Let('t0', GetData('errno')),
-                    Let('t1', Call('putchar', [Const(bytes([0x41]), 'i8')])),
+                    Let('t1', Call('putchar', [Const(bytes([0x41]), I8)])),
                     Let('t2', PrimCall('add_i32', [Var('t0'), Var('t1')])),
                 ],
                 Return(Var('t2')),
             )
         ],
     )
-    return Module([Signature('putchar', [('c', 'i8')], 'i32'), Data('errno', 'i32'), main])
+    return Module([Signature('putchar', [('c', I8)], I32), Data('errno', I32), main])
 
 
 def test_show_signature_data_and_get_data():
@@ -144,21 +146,21 @@ def test_show_struct_ops_and_jump():
 
 
 def test_show_quotes_names():
-    module = Module([Data('my data', 'i8')])
+    module = Module([Data('my data', I8)])
     assert show(module) == '"my data": i8\n'
 
 
 def test_form_of_each_op():
     module = imports_module()
-    forms = {'n': 'i32', 'p': POINT}
-    assert form_of(PrimCall('eq_i32', [Var('n'), ZERO]), forms, module) == 'i1'
-    assert form_of(PrimCall('zext_i8_i32', [Const(b'\x01', 'i8')]), forms, module) == 'i32'
-    assert form_of(Call('putchar', [Const(b'\x41', 'i8')]), forms, module) == 'i32'
-    assert form_of(MakeStruct([('a', Var('n')), ('b', Var('p'))]), forms, module) == terms.StructForm(
-        [('a', 'i32'), ('b', POINT)]
+    forms = {'n': I32, 'p': POINT}
+    assert form_of(PrimCall('eq_i32', [Var('n'), ZERO]), forms, module) == I1
+    assert form_of(PrimCall('zext_i8_i32', [Const(b'\x01', I8)]), forms, module) == I32
+    assert form_of(Call('putchar', [Const(b'\x41', I8)]), forms, module) == I32
+    assert form_of(MakeStruct([('a', Var('n')), ('b', Var('p'))]), forms, module) == terms.struct_form(
+        [('a', I32), ('b', POINT)]
     )
-    assert form_of(GetField(Var('p'), 'y'), forms, module) == 'i32'
-    assert form_of(GetData('errno'), forms, module) == 'i32'
+    assert form_of(GetField(Var('p'), 'y'), forms, module) == I32
+    assert form_of(GetData('errno'), forms, module) == I32
 
 
 def test_form_of_errors():
@@ -173,12 +175,12 @@ def test_form_of_errors():
         form_of(Call('errno', []), {}, module)
 
 
-def one_block(lets, terminator, params=(), return_form='i32'):
+def one_block(lets, terminator, params=(), return_form=I32):
     return Module([Function('f', return_form, [Block('entry', list(params), lets, terminator)])])
 
 
 def test_verify_rejects_wrong_prim_operand_form():
-    module = one_block([Let('t0', PrimCall('add_i32', [Const(b'\x01', 'i8'), ZERO]))], Return(Var('t0')))
+    module = one_block([Let('t0', PrimCall('add_i32', [Const(b'\x01', I8), ZERO]))], Return(Var('t0')))
     with pytest.raises(FormError, match=r'prim.add_i32 expects a: i32, got i8'):
         verify(module)
 
@@ -191,7 +193,7 @@ def test_verify_rejects_wrong_argument_count():
 
 def test_verify_rejects_wrong_return_form():
     with pytest.raises(FormError, match="'f' returns i32, got i8"):
-        verify(one_block([], Return(Const(b'\x01', 'i8'))))
+        verify(one_block([], Return(Const(b'\x01', I8))))
 
 
 def test_verify_rejects_non_i1_condition():
@@ -208,6 +210,6 @@ def test_verify_rejects_jump_to_entry_and_unknown_block():
 
 def test_verify_rejects_duplicate_names_and_closed_block_violation():
     with pytest.raises(FormError, match="Duplicate name 'n'"):
-        verify(one_block([Let('n', GetData('x'))], Return(ZERO), params=[('n', 'i32')]))
+        verify(one_block([Let('n', GetData('x'))], Return(ZERO), params=[('n', I32)]))
     with pytest.raises(FormError, match="Unknown name 'n'"):
         verify(one_block([], Return(Var('n'))))

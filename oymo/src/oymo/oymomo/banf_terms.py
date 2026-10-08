@@ -6,7 +6,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from oymo.oymomo import banf_prim, terms
+from oymo.oymomo import banf_prim, printer, terms
 
 Location = terms.Location
 
@@ -20,7 +20,7 @@ class Var:
 @dataclass
 class Const:
     value: bytes
-    form: terms.Form
+    form: terms.Term
     location: Location | None = field(default=None, compare=False)
 
 
@@ -99,7 +99,7 @@ type Terminator = Jump | Branch | Return
 @dataclass
 class Block:
     label: str
-    params: list[tuple[str, terms.Form]]
+    params: list[tuple[str, terms.Term]]
     lets: list[Let]
     terminator: Terminator
     location: Location | None = field(default=None, compare=False)
@@ -108,27 +108,27 @@ class Block:
 @dataclass
 class Function:
     name: str
-    return_form: terms.Form
+    return_form: terms.Term
     blocks: list[Block]
     location: Location | None = field(default=None, compare=False)
 
     @property
-    def params(self) -> list[tuple[str, terms.Form]]:
+    def params(self) -> list[tuple[str, terms.Term]]:
         return self.blocks[0].params
 
 
 @dataclass
 class Signature:
     name: str
-    params: list[tuple[str, terms.Form]]
-    return_form: terms.Form
+    params: list[tuple[str, terms.Term]]
+    return_form: terms.Term
     location: Location | None = field(default=None, compare=False)
 
 
 @dataclass
 class Data:
     name: str
-    form: terms.Form
+    form: terms.Term
     location: Location | None = field(default=None, compare=False)
 
 
@@ -150,7 +150,7 @@ class FormError(Exception):
         self.location = location
 
 
-def atom_form(atom: Atom, forms: Mapping[str, terms.Form]) -> terms.Form:
+def atom_form(atom: Atom, forms: Mapping[str, terms.Term]) -> terms.Term:
     match atom:
         case Const(form=form):
             return form
@@ -168,7 +168,7 @@ def callee(op: Call, module: Module) -> Function | Signature:
     return binding
 
 
-def form_of(op: Op, forms: Mapping[str, terms.Form], module: Module) -> terms.Form:
+def form_of(op: Op, forms: Mapping[str, terms.Term], module: Module) -> terms.Term:
     """The result form of `op`, given the forms of the names in scope."""
     match op:
         case PrimCall(op=name):
@@ -178,13 +178,12 @@ def form_of(op: Op, forms: Mapping[str, terms.Form], module: Module) -> terms.Fo
         case Call():
             return callee(op, module).return_form
         case MakeStruct(fields=fields):
-            return terms.StructForm([(label, atom_form(atom, forms)) for label, atom in fields])
+            return terms.struct_form([(label, atom_form(atom, forms)) for label, atom in fields])
         case GetField(struct=struct, label=label):
             struct_form = atom_form(struct, forms)
-            if isinstance(struct_form, terms.StructForm):
-                for field_label, field_form in struct_form.fields:
-                    if field_label == label:
-                        return field_form
+            for field_label, field_form in terms.struct_fields(struct_form) or []:
+                if field_label == label:
+                    return field_form
             raise FormError(f'Form {show_form(struct_form)} has no field {label!r}.', op.location)
         case GetData(name=name):
             binding = module.lookup(name)
@@ -194,11 +193,10 @@ def form_of(op: Op, forms: Mapping[str, terms.Form], module: Module) -> terms.Fo
     raise AssertionError(op)
 
 
-def field_index(form: terms.Form, label: str) -> int:
-    if isinstance(form, terms.StructForm):
-        for index, (field_label, _) in enumerate(form.fields):
-            if field_label == label:
-                return index
+def field_index(form: terms.Term, label: str) -> int:
+    for index, (field_label, _) in enumerate(terms.struct_fields(form) or []):
+        if field_label == label:
+            return index
     raise FormError(f'Form {show_form(form)} has no field {label!r}.')
 
 
@@ -259,7 +257,7 @@ def _verify_function(function, module):
                 _check_jump(function, target, args, forms, jump.location)
             case Branch() as branch:
                 condition_form = atom_form(branch.condition, forms)
-                if condition_form != 'i1':
+                if condition_form != terms.name_form('i1'):
                     raise FormError(f'Branch condition must be i1, got {show_form(condition_form)}.', branch.location)
                 _check_jump(function, branch.then_target, branch.then_args, forms, branch.location)
                 _check_jump(function, branch.else_target, branch.else_args, forms, branch.location)
@@ -297,20 +295,23 @@ def show_name(name: str) -> str:
     return f'"{escaped}"'
 
 
-def show_form(form: terms.Form) -> str:
-    match form:
-        case str():
-            return show_name(form)
-        case terms.StructForm(fields=fields):
-            return '{' + ', '.join(f'{show_name(label)}: {_show_field_form(f)}' for label, f in fields) + '}'
-        case terms.FunctionForm():
-            return f'({_show_field_form(form)})'
-    raise AssertionError(form)
+def show_form(form: terms.Term) -> str:
+    """BANF's own form syntax: `i32`, `{a: i32}`, `(A => B)`. `unknown` for an omitted form,
+    and oymomo syntax in parentheses for any other term."""
+    if (name := terms.form_name(form)) is not None:
+        return show_name(name)
+    if terms.is_function_form(form):
+        return f'({_show_field_form(form)})'
+    if (fields := terms.struct_fields(form)) is not None:
+        return '{' + ', '.join(f'{show_name(label)}: {_show_field_form(f)}' for label, f in fields) + '}'
+    if form is terms.Empty:
+        return 'unknown'
+    return f'({printer.show(form)})'
 
 
 def _show_field_form(form):
-    if isinstance(form, terms.FunctionForm):
-        return f'{show_form(form.param)} => {_show_field_form(form.result)}'
+    if terms.is_function_form(form):
+        return f'{show_form(terms.function_param(form))} => {_show_field_form(terms.function_result(form))}'
     return show_form(form)
 
 

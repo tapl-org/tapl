@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from llvmlite import ir
 
-from oymo.oymomo import banf_prim
+from oymo.oymomo import banf_prim, terms
 
 type PrimImpl = Callable[[ir.IRBuilder, list[ir.Value]], ir.Value]
 
@@ -62,7 +62,10 @@ def _impl(signature: banf_prim.PrimSignature) -> PrimImpl:
         return _binary(_BINARY[template])
     if template in _COMPARE:
         return _compare(*_COMPARE[template])
-    return _convert(_CONVERT[template], signature.result)
+    result = terms.form_name(signature.result)
+    if result is None:
+        raise ValueError(f'Prim {signature.name!r} has no named result form.')
+    return _convert(_CONVERT[template], result)
 
 
 DEFAULT_PRIMS: dict[str, PrimImpl] = {name: _impl(signature) for name, signature in banf_prim.PRIMS.items()}

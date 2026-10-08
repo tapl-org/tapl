@@ -11,7 +11,6 @@ from oymo.oymomo import rule_names as rn
 from oymo.oymomo import terms
 
 RESERVED = frozenset({'if', 'then', 'else', 'fix', 'let', 'in'})
-UNKNOWN_FORM = 'unknown'
 
 TRIVIA = Memoized(ZeroOrMore(First(Whitespace(' \t\r\n'), Comment('//'))))
 
@@ -115,16 +114,18 @@ NAME = Memoized(
 )
 
 
-def _form_opt(rule):
-    return Optional(
-        Seq(_punct(':'), Ref(rule), action=lambda c: c.values[0]),
-        action=lambda c: c.value if c.matched else UNKNOWN_FORM,
-    )
+# `: form` after a lambda param, a let name or a byte array; omitted means `Empty`.
+# A form is any term. A struct, a byte array or a function form is written as it is;
+# any other term needs parentheses. So in `x: 'i32' -> x` the form stops at `->`.
+FORM_OPT = Optional(
+    Seq(_punct(':'), Ref(rn.FORM), action=lambda c: c.values[0]),
+    action=lambda c: c.value if c.matched else terms.Empty,
+)
 
 
-# Any `: form` may be an arrow form: `=>` is not a lambda's `->`, so in
-# `decls: {...} => i32 -> defs -> body` the `defs` binder stays a lambda.
-FORM_OPT = _form_opt(rn.ARROW_FORM)
+def _function_form(c):
+    param, result = c.values
+    return terms.function_form(param, result, _location(c))
 
 
 def _lambda(c):
@@ -152,7 +153,7 @@ def _field(c):
 
 RULES: dict[str, Clause] = {
     rn.START: Seq(Ref(rn.EXPRESSION), Eof(skip=TRIVIA), action=lambda c: c.values[0]),
-    rn.EXPRESSION: First(Ref(rn.LAMBDA), Ref(rn.IF), Ref(rn.LET), Ref(rn.APPLY)),
+    rn.EXPRESSION: First(Ref(rn.LAMBDA), Ref(rn.IF), Ref(rn.LET), Ref(rn.ARROW)),
     rn.LAMBDA: Seq(NAME, FORM_OPT, _punct('->', '→'), Ref(rn.EXPRESSION), action=_lambda),
     rn.IF: Seq(
         _punct('if'),
@@ -172,6 +173,13 @@ RULES: dict[str, Clause] = {
         _punct('in'),
         Ref(rn.EXPRESSION),
         action=_let,
+    ),
+    # `P => R` is sugar for the function form `{tag = ' => ', param = P, result = R}`. It binds
+    # looser than apply and tighter than `->`, so `decls: {} => 'i32' -> defs -> body` keeps
+    # `defs` as a lambda binder.
+    rn.ARROW: First(
+        Seq(Ref(rn.APPLY), _punct('=>', '⇒'), Ref(rn.ARROW), action=_function_form),
+        Ref(rn.APPLY),
     ),
     rn.APPLY: First(
         Seq(
@@ -217,24 +225,10 @@ RULES: dict[str, Clause] = {
     ),
     rn.GROUP: Seq(_punct('('), Ref(rn.EXPRESSION), _punct(')'), action=lambda c: c.values[0]),
     rn.FORM: First(
-        Seq(NAME, action=lambda c: c.values[0][0]),
-        Seq(
-            _punct('{'),
-            Separated(Seq(NAME, FORM_OPT, action=lambda c: (c.values[0][0], c.values[1])), _punct(','), trailing=True),
-            _punct('}'),
-            action=lambda c: terms.StructForm(fields=c.values[0]),
-        ),
-        Seq(_punct('('), Ref(rn.ARROW_FORM), _punct(')'), action=lambda c: c.values[0]),
+        Seq(Ref(rn.FORM_ATOM), _punct('=>', '⇒'), Ref(rn.FORM), action=_function_form),
+        Ref(rn.FORM_ATOM),
     ),
-    rn.ARROW_FORM: First(
-        Seq(
-            Ref(rn.FORM),
-            _punct('=>', '⇒'),
-            Ref(rn.ARROW_FORM),
-            action=lambda c: terms.FunctionForm(param=c.values[0], result=c.values[1]),
-        ),
-        Ref(rn.FORM),
-    ),
+    rn.FORM_ATOM: First(Ref(rn.STRUCT), Ref(rn.BYTE_ARRAY), Ref(rn.GROUP)),
 }
 
 

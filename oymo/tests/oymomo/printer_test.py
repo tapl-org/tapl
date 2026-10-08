@@ -11,14 +11,14 @@ from oymo.oymomo.printer import show, show_form
 FACT = """
 prim -> decls: {} -> defs -> {
 fact = f -> {
-  entry = args:{n: i32} ->
+  entry = args:{n = 'i32'} ->
     (t0 -> if t0 then f.then0 {} else f.else0 {n = args.n})
-      (prim.eq_i32 {a = args.n, b = [00000000]:i32}),
-  then0 = args:{} -> [01000000]:i32,
-  else0 = args:{n: i32} ->
+      (prim.eq_i32 {a = args.n, b = [00000000]:'i32'}),
+  then0 = args:{} -> [01000000]:'i32',
+  else0 = args:{n = 'i32'} ->
     (t1 -> (t2 -> (t3 -> t3) (prim.mul_i32 {a = args.n, b = t2}))
              (defs.fact {n = t1}))
-      (prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:i32}),
+      (prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'}),
 }}
 """
 
@@ -52,16 +52,31 @@ def test_pretty_parenthesizes_only_where_needed(source, expected):
     assert pretty(source) == expected
 
 
-def test_pretty_omits_unknown_forms():
-    assert pretty('x : unknown -> x') == 'x → x'
+def test_pretty_omits_empty_forms():
+    assert pretty('x -> x') == 'x → x'
     assert pretty('[00]') == '[00]'
-    assert pretty('[]: {x, y: i32}') == '[]: {x, y: i32}'
+
+
+def test_unknown_is_an_ordinary_form_name():
+    assert pretty("x : 'unknown' -> x") == "x: 'unknown' → x"
+
+
+def test_forms_other_than_struct_byte_array_or_function_print_in_parens():
+    assert pretty('x: (i32) -> x') == 'x: (i32) → x'
+    assert pretty('x: (a -> b) -> c') == 'x: (a → b) → c'
+    assert pretty("[00]: (f 'i8')") == "[00]: (f 'i8')"
+    assert pretty('x: (i8) => (s.f) -> x') == 'x: (i8) ⇒ (s.f) → x'
+
+
+def test_hand_written_function_form_prints_as_arrow():
+    assert pretty("x: {tag = ' => ', param = {c = 'i8'}, result = 'i32'} -> x") == "x: {c = 'i8'} ⇒ 'i32' → x"
+    assert pretty("{tag = '=>', param = 'i8', result = 'i32'}") == "{tag = '=>', param = 'i8', result = 'i32'}"
 
 
 def test_pretty_function_forms_group_only_as_params():
-    assert pretty('g: ({c: i8} => i32) -> g') == 'g: {c: i8} ⇒ i32 → g'
-    assert pretty('[]: {f: {c: i8} => i32}') == '[]: {f: {c: i8} ⇒ i32}'
-    assert pretty('[]: {f: ({a: i8} => i8) => i32}') == '[]: {f: ({a: i8} ⇒ i8) ⇒ i32}'
+    assert pretty("g: ({c = 'i8'} => 'i32') -> g") == "g: {c = 'i8'} ⇒ 'i32' → g"
+    assert pretty("[]: {f = {c = 'i8'} => 'i32'}") == "[]: {f = {c = 'i8'} ⇒ 'i32'}"
+    assert pretty("[]: {f = ({a = 'i8'} => 'i8') => 'i32'}") == "[]: {f = ({a = 'i8'} ⇒ 'i8') ⇒ 'i32'}"
 
 
 def test_pretty_quotes_names_that_need_it():
@@ -72,7 +87,7 @@ def test_pretty_quotes_names_that_need_it():
 
 
 def test_pretty_groups_bytes_by_four():
-    assert pretty('[deadbeefcafebabe00]: i64') == '[deadbeef cafebabe 00]: i64'
+    assert pretty("[deadbeefcafebabe00]: 'i64'") == "[deadbeef cafebabe 00]: 'i64'"
 
 
 @pytest.mark.parametrize(
@@ -85,8 +100,8 @@ def test_pretty_groups_bytes_by_four():
         ('[486900]', '[486900]'),  # 00 is not text
         ('[4127]', '[4127]'),  # no escapes, so `'` stays hex
         ('[415c]', '[415c]'),  # and so does `\`
-        ('[4869]: i8', '[4869]:i8'),  # a written form keeps hex
-        ("'Hi': i8", '[4869]:i8'),
+        ("[4869]: 'i8'", "[4869]:'i8'"),  # a written form keeps hex
+        ("'Hi': 'i8'", "[4869]:'i8'"),
         ('[]: {}', '[]:{}'),
     ],
 )
@@ -105,12 +120,12 @@ def test_pretty_breaks_long_terms():
     assert pretty(FACT) == textwrap.dedent("""\
         prim → decls: {} → defs → {
           fact = f → {
-            entry = args: {n: i32} →
-              let t0 = prim.eq_i32 {a = args.n, b = [00000000]: i32} in
+            entry = args: {n = 'i32'} →
+              let t0 = prim.eq_i32 {a = args.n, b = [00000000]: 'i32'} in
               if t0 then f.then0 {} else f.else0 {n = args.n},
-            then0 = args: {} → [01000000]: i32,
-            else0 = args: {n: i32} →
-              let t1 = prim.sub_i32 {minuend = args.n, subtrahend = [01000000]: i32} in
+            then0 = args: {} → [01000000]: 'i32',
+            else0 = args: {n = 'i32'} →
+              let t1 = prim.sub_i32 {minuend = args.n, subtrahend = [01000000]: 'i32'} in
               let t2 = defs.fact {n = t1} in
               let t3 = prim.mul_i32 {a = args.n, b = t2} in t3,
           },
@@ -118,12 +133,12 @@ def test_pretty_breaks_long_terms():
 
 
 def test_compact_let():
-    assert show(parse('let x: i8 = e in x')) == 'let x:i8 = e in x'
+    assert show(parse("let x: 'i8' = e in x")) == "let x:'i8' = e in x"
     assert show(parse('let x = e in x')) == 'let x = e in x'
 
 
 def test_pretty_let_keeps_written_form():
-    assert pretty('let t0: i1 = f a in t0') == 'let t0: i1 = f a in t0'
+    assert pretty("let t0: 'i1' = f a in t0") == "let t0: 'i1' = f a in t0"
 
 
 def test_pretty_breaks_let_chain_one_per_line():
@@ -182,18 +197,27 @@ def test_width_and_indent_flags():
         FACT,
         'f a (b -> b) (if c then d else e).x',
         '"if" -> "a b" -> s."\\u{3bb}"',
-        'd: {putchar: {c: i8} => i32, errno} -> [] : ({} => i32)',
+        "d: {putchar = {c = 'i8'} => 'i32', errno = 'i32'} -> [] : ({} => 'i32')",
+        "{f = {a = 'i8'} => 'i32', g = (f a) => (g => h) => i}",
+        "x: ([00]: 'i8') => 'i32' -> f ([01]: 'i8') => g [02]: 'i8'",
+        'x: (y) -> [00]: (f x) => {}',
+        "'tag'",
         'if c then if d then a else b else fix f',
-        'let x: i8 = let y = e in y in f (let z = x in z)',
-        "f 'Hello world' [48656c6c6f]: i8 '' [00]",
+        "let x: 'i8' = let y = e in y in f (let z = x in z)",
+        "f 'Hello world' [48656c6c6f]: 'i8' '' [00]",
     ],
 )
 def test_output_parses_back_to_the_same_term(source):
+    assert parse(pretty(source)) == parse(source)
+    assert parse(show(parse(source))) == parse(source)
     assert show(parse(pretty(source))) == show(parse(source))
     assert show(parse(show(parse(source))), pretty=True) == pretty(source)
 
 
 def test_show_form():
-    form = terms.StructForm([('f', terms.FunctionForm('i8', 'i32')), ('x', 'unknown')])
-    assert show_form(form) == '{f: i8 ⇒ i32, x}'
-    assert show_form(form, pretty=True) == '{f: i8 ⇒ i32, x}'
+    i8, i32 = terms.name_form('i8'), terms.name_form('i32')
+    form = terms.struct_form([('f', terms.function_form(i8, i32)), ('x', terms.name_form('unknown'))])
+    assert show_form(form) == "{f = 'i8' ⇒ 'i32', x = 'unknown'}"
+    assert show_form(form, pretty=True) == "{f = 'i8' ⇒ 'i32', x = 'unknown'}"
+    assert show_form(terms.function_form(form, i32)) == "{f = 'i8' ⇒ 'i32', x = 'unknown'} ⇒ 'i32'"
+    assert show_form(terms.Variable('i32')) == '(i32)'

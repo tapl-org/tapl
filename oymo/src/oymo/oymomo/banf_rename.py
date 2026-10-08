@@ -73,7 +73,7 @@ class _Renamer:
     def block_body_of(self, block):
         """Visits a block body with the block's param labels visible."""
         form = block.param_form if isinstance(block, terms.Lambda) else None
-        labels = [label for label, _ in form.fields] if isinstance(form, terms.StructForm) else []
+        labels = [label for label, _ in (terms.struct_fields(form) or [])] if form is not None else []
 
         def visit(body):
             added = [label for label in labels if label not in self.visible]

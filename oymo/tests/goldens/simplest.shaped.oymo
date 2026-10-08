@@ -1,4 +1,4 @@
 language oymomo
 prim → decls: {} → defs → {
-  main = blocks → {entry = args: {a: i32} → [00000000]: i32},
+  main = blocks → {entry = args: {a = 'i32'} → [00000000]: 'i32'},
 }

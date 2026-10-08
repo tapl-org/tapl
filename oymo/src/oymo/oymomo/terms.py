@@ -1,32 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from collections.abc import Generator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from oymo.core import syntax
 
 Term = syntax.Term
 Location = syntax.Location
 
-
-type Form = str | StructForm | FunctionForm
-
-
-@dataclass
-class StructForm:
-    fields: list[tuple[str, Form]]
+# An omitted form: the form is unknown.
+Empty = syntax.Empty
 
 
-@dataclass
-class FunctionForm:
-    param: Form
-    result: Form
-
-
+# Every `location` is left out of `==`, so a parsed form equals the same form built in code.
 @dataclass
 class Variable(Term):
     name: str
-    location: Location
+    location: Location | None = field(default=None, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield from ()
@@ -35,7 +25,7 @@ class Variable(Term):
 @dataclass
 class BruijnIndex(Term):
     index: int
-    location: Location | None = None
+    location: Location | None = field(default=None, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield from ()
@@ -44,11 +34,12 @@ class BruijnIndex(Term):
 @dataclass
 class Lambda(Term):
     param_name: str
-    param_form: Form
+    param_form: Term
     body: Term
-    location: Location
+    location: Location | None = field(default=None, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
+        yield self.param_form
         yield self.body
 
 
@@ -56,7 +47,7 @@ class Lambda(Term):
 class Apply(Term):
     function: Term
     argument: Term
-    location: Location
+    location: Location | None = field(default=None, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield self.function
@@ -67,23 +58,23 @@ class Apply(Term):
 class Field:
     label: str
     value: Term
-    location: Location
+    location: Location | None = field(default=None, compare=False)
 
 
 @dataclass
 class Struct(Term):
     fields: list[Field]
-    location: Location
+    location: Location | None = field(default=None, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
-        yield from (field.value for field in self.fields)
+        yield from (f.value for f in self.fields)
 
 
 @dataclass
 class Project(Term):
     struct: Term
     label: str
-    location: Location
+    location: Location | None = field(default=None, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield self.struct
@@ -94,7 +85,7 @@ class If(Term):
     condition: Term
     then_clause: Term
     else_clause: Term
-    location: Location
+    location: Location | None = field(default=None, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield self.condition
@@ -105,7 +96,7 @@ class If(Term):
 @dataclass
 class Fix(Term):
     function: Term
-    location: Location
+    location: Location | None = field(default=None, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield self.function
@@ -114,8 +105,61 @@ class Fix(Term):
 @dataclass
 class ByteArray(Term):
     value: bytes
-    form: Form
-    location: Location
+    form: Term
+    location: Location | None = field(default=None, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
-        yield from ()
+        yield self.form
+
+
+# Forms are terms. A named form such as `i32` is the byte array `'i32'` with an empty form.
+# A function form `P => R` is the struct `{tag = ' => ', param = P, result = R}`; the spaces
+# around `=>` make it unlikely that a user writes the tag by accident.
+FUNCTION_TAG_LABEL = 'tag'
+FUNCTION_TAG = ByteArray(b' => ', form=Empty)
+
+
+def name_form(name: str) -> ByteArray:
+    return ByteArray(name.encode('ascii'), form=Empty)
+
+
+def form_name(form: Term) -> str | None:
+    """The name of a named form: the text of a byte array with an empty form. None otherwise."""
+    if isinstance(form, ByteArray) and form.form is Empty:
+        try:
+            return form.value.decode('ascii')
+        except UnicodeDecodeError:
+            return None
+    return None
+
+
+def struct_form(fields: list[tuple[str, Term]], location: Location | None = None) -> Struct:
+    return Struct([Field(label, form) for label, form in fields], location)
+
+
+def function_form(param: Term, result: Term, location: Location | None = None) -> Struct:
+    return struct_form([(FUNCTION_TAG_LABEL, FUNCTION_TAG), ('param', param), ('result', result)], location)
+
+
+def is_function_form(form: Term) -> bool:
+    """A struct with exactly the fields `tag`, `param`, `result`, in that order, tagged `FUNCTION_TAG`."""
+    return (
+        isinstance(form, Struct)
+        and [f.label for f in form.fields] == [FUNCTION_TAG_LABEL, 'param', 'result']
+        and form.fields[0].value == FUNCTION_TAG
+    )
+
+
+def function_param(form: Struct) -> Term:
+    return form.fields[1].value
+
+
+def function_result(form: Struct) -> Term:
+    return form.fields[2].value
+
+
+def struct_fields(form: Term) -> list[tuple[str, Term]] | None:
+    """The `(label, form)` pairs of a struct form that is not a function form. None otherwise."""
+    if isinstance(form, Struct) and not is_function_form(form):
+        return [(f.label, f.value) for f in form.fields]
+    return None

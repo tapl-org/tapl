@@ -14,24 +14,24 @@ A type may have several forms, and a form may have several layouts.
 ```
 Bool
   type: Bool
-  form: i1
+  form: 'i1'
   LLVM layout: i1
 
 Int32
   type: Int
-  form: i32
+  form: 'i32'
   LLVM layout: i32
 
 Point
   type: Point(x: Int, y: Int)
-  form: {x: i32, y: i32}
+  form: {x = 'i32', y = 'i32'}
   LLVM layout: { i32, i32 }
 ```
 
 Why three words: the kernel (oymomo) and BANF only know forms. Types belong to
 higher layers, and layouts belong to the backend (LLVM). Keeping the words apart
 stops a backend detail like "i32 is 4-byte aligned" from leaking into the
-kernel, where `[2a000000]:i32` only says "these bytes, read as the form i32".
+kernel, where `[2a000000]: 'i32'` only says "these bytes, read as the form i32".
 
 ## Pipeline
 
@@ -78,7 +78,7 @@ Target(triple='x86_64-unknown-linux-gnu', data_layout='', prims=DEFAULT_PRIMS)
 ## Punctuation
 
 ```
-{}  structs (ordered fields): terms {x = 1} and forms {x: i32}
+{}  structs (ordered fields): {x = e}, also struct forms {x = 'i32'}
 ()  grouping only
 []  byte arrays [2a 00 00 00]
 ''  text byte arrays 'Hello'
@@ -91,29 +91,29 @@ Why each bracket has one job: the parser never has to guess. `(` always groups,
 
 Surface syntax of the oymomo kernel lambda calculus:
 ```
-x : i32 -> body              Lambda
+x : 'i32' -> body            Lambda
 f a b                        Apply
 {x = e1, y = e2}             Struct
 s.x                          Project
 if c then a else b           If
 let x = e in body            sugar for (x -> body) e
 fix f                        Fix
-[2a 00 00 00] : i32          ByteArray
-{c: i8} => i32               FunctionForm (in form position)
+[2a 00 00 00] : 'i32'        ByteArray
+{c = 'i8'} => 'i32'          sugar for the function form {tag = ' => ', param = {c = 'i8'}, result = 'i32'}
 // comment                   line comment
 ```
 
 ### Struct, not record
 Fields keep their declaration order, and the order matters for layout:
-`{x: i32, y: i8}` and `{y: i8, x: i32}` are different forms with different LLVM
+`{x = 'i32', y = 'i8'}` and `{y = 'i8', x = 'i32'}` are different forms with different LLVM
 types (`{i32, i8}` vs `{i8, i32}`). "Struct" says that; "record" suggests an
 unordered set of labels.
 
 ### {} for structs, not []
-Structs are written with braces, as in C and Rust. A struct term and a struct form
-share `{}` and are told apart by `=` (term) vs `:` (form):
-`{x = [01]:i8}` is a value, `{x: i8}` is its form. This replaces the earlier plan
-to use `[]`, which freed `[]` for byte arrays.
+Structs are written with braces, as in C and Rust: `{label = e, ...}`. A struct
+form is an ordinary struct too: `{x = [01]: 'i8'}` is a value, `{x = 'i8'}` is its
+form (see "Forms are terms"). Every field has a value. This replaces the earlier
+plan to use `[]`, which freed `[]` for byte arrays.
 
 ### Project for `s.x`
 It is a one-word verb like `Apply` and `Fix`, and it is TAPL's name for `t.l` on
@@ -139,19 +139,39 @@ pattern), `Access` and `Read` (sound like memory operations next to LLVM),
 - Application is left-associative and binds looser than projection:
   `f a.x b` is `(f a.x) b`.
 
-### Forms are optional; omitted means "unknown"
-Every `: form` may be left out: lambda params (`x -> body`), byte arrays (`[2a]`),
-and struct form fields (`{x, y: i32}`). An omitted form is the string `'unknown'`,
-the same as writing `: unknown`. `unknown` is an ordinary form name, not a reserved
-word.
+### Forms are terms
+There is no separate form syntax or form class: a form is an ordinary term.
+- A named form is a byte array with an omitted form: `'i32'` is the form i32
+  (`ByteArray(b'i32', form=Empty)`). A bare `i32` is a variable, not a form name.
+- A struct form is a struct: `{x = 'i32', y = 'i8'}`.
+- A function form is a struct tagged in its first field:
+  `{tag = ' => ', param = P, result = R}`, written `P => R` (see "Function forms").
+- Any term may be a form. After `:`, a struct, a byte array or a function form is
+  written as it is; any other term needs parentheses: `x: (i32) -> x`,
+  `x: (a -> b) -> c`. `x: i32 -> x` is a syntax error. The grammar rules are
+  `FORM` (`FORM_ATOM => FORM` or `FORM_ATOM`) and `FORM_ATOM` (struct, byte array,
+  or parenthesized expression).
+- Forms are resolved like other terms: a variable in a lambda param's form is
+  looked up outside the lambda, so `x: (x) -> x` refers to an outer `x`. BANF
+  translation needs literal forms (named forms and structs of them) and rejects
+  others with "form must be a literal".
+- Locations are left out of `==` on every term, so a parsed form equals the same
+  form built in code (`terms.name_form('i32')`, `terms.struct_form(...)`).
+- Why: one syntax and one set of terms for values and forms; later stages can
+  compute forms with the same machinery as values.
+
+### Forms are optional; omitted means unknown
+Every `: form` may be left out: lambda params (`x -> body`), lets, and byte arrays
+(`[2a]`). An omitted form is `syntax.Empty`. `unknown` is not special:
+`: 'unknown'` is the form named unknown.
 - Why: quick sketches stay short, and each later stage decides what it can infer.
   BANF translation, for example, infers a let's form from its op, so
-  `let t0 = prim.eq_i32 {...} in t0` needs no `t0: i1`. It rejects an unknown form
+  `let t0 = prim.eq_i32 {...} in t0` needs no `t0: 'i1'`. It rejects an unknown form
   where nothing can infer it, as in a byte array `[01]` with no form.
 
-### Byte arrays are bracketed hex: `[2a 00 00 00] : i32`
+### Byte arrays are bracketed hex: `[2a 00 00 00] : 'i32'`
 - The kernel has only byte arrays, so literals are written as bytes, not numbers.
-- Bytes are little-endian on every target: `[2a000000] : i32` is 42 everywhere.
+- Bytes are little-endian on every target: `[2a000000] : 'i32'` is 42 everywhere.
   - Why fixed, not a default: oymomo has no integer literals, so the byte order is
     what gives a literal its number. With an overridable default, one source would
     mean two numbers. Same idea as WebAssembly memory and the `.bc` encoding: the
@@ -170,13 +190,13 @@ word.
 - Newlines are whitespace, so long arrays split without any continuation rule:
   ```
   [deadbeef cafebabe
-   00112233 44556677] : {lo: i64, hi: i64}
+   00112233 44556677] : {lo = 'i64', hi = 'i64'}
   ```
 - Comments are not allowed inside the brackets.
 - `[]` was freed when structs took `{}`, and the brackets bound the literal, so no
   prefix and no quotes are needed.
-- The form after `:` is optional (omitted means `unknown`), since the same bytes
-  can have many forms: `[01000000]` could be `i32` 1, or `{a: i16, b: i16}`.
+- The form after `:` is optional (omitted means unknown), since the same bytes
+  can have many forms: `[01000000]` could be `'i32'` 1, or `{a = 'i16', b = 'i16'}`.
 - Rejected: a prefix sigil (`#2a000000`, also `%`, `$`, `@`), which needed `_`
   separators and a `_` line continuation; `0x...`, which reads as an integer and
   hides the byte order; backticks, which look like quoting; juxtaposing literals,
@@ -185,14 +205,14 @@ word.
 ### Text byte arrays: `'Hello'`
 - A byte array whose bytes are all printable ASCII can be written in single
   quotes: `'Hello'` is the same term as `[48656c6c 6f]`. The form suffix works as
-  for hex: `'Hi' : i16`.
+  for hex: `'Hi' : 'i16'`. A named form such as `'i32'` is a text byte array.
 - Allowed characters: `0x20..0x7e` except `'` and `\`. No escapes, so bytes with
   `'`, `\`, or anything non-printable are written in hex. Keeping `\` out leaves
   room for escapes later. Single line only. `''` is the empty array.
 - `'` was unused, and `"` is taken by quoted names.
-- The printer uses `'...'` only when the form is `unknown`, every byte is text,
+- The printer uses `'...'` only when the form is omitted, every byte is text,
   and the array is at most 128 bytes; otherwise hex. Why: a written form
-  (`[41]:i8`) usually means a number, so hex stays; a long blob reads better as
+  (`[41]: 'i8'`) usually means a number, so hex stays; a long blob reads better as
   grouped hex. The limit is fixed, not `width`, so output doesn't depend on
   layout settings.
 
@@ -205,9 +225,9 @@ Plain identifiers match `[A-Za-z_][A-Za-z0-9_]*`, excluding the reserved words
 - `"x"` and `x` are the same name; the parser stores the decoded string.
 - Escapes: `\"`, `\\`, `\u{hex}`. No raw newlines. `""` is rejected.
 - Quotes work everywhere a name appears: variables, lambda parameters, struct
-  labels, projection labels (`s."a b"`), and form names.
+  labels, and projection labels (`s."a b"`). Form names are byte arrays (`'a b'`).
 - A printer quotes a name only when it is not a plain identifier. The BANF printer
-  does too: `Data('my data', 'i8')` prints as `"my data": i8`.
+  does too: `Data('my data', name_form('i8'))` prints as `"my data": i8`.
 - Plain identifiers stay ASCII; other names use quotes. This avoids Unicode
   identifier rules and confusable characters.
 - Cost: `"` is not available for string literals. The kernel has none.
@@ -219,7 +239,7 @@ Kept after byte arrays moved to `[]`; `#` is now unused.
 ### `let x = e in body` is sugar for `(x -> body) e`
 - No new term: the parser builds `Apply(Lambda(x, body), e)`, and the printer prints
   every apply of a lambda as a `let`. The optional form goes on the name, as on a
-  lambda param: `let t0: i1 = prim.eq_i32 {...} in t0`.
+  lambda param: `let t0: 'i1' = prim.eq_i32 {...} in t0`.
 - Like a lambda, a let extends as far right as possible: `let x = e in a b` is
   `let x = e in (a b)`, and an argument needs parens: `f (let x = e in x)`.
 - Why: the applied-lambda let `(t0 -> rest) (op)` puts the value after the whole
@@ -227,25 +247,35 @@ Kept after byte arrays moved to `[]`; `#` is now unused.
   bottom, as BANF does.
 - `let` and `in` are reserved words.
 
-### Function forms: `{c: i8} => i32`
-- A function form is written with `=>` or `⇒` (U+21D2); printers emit `⇒` (the
-  BANF printer `=>`). It has one param, matching one-argument lambdas, and no
-  param name: the struct form's labels are what callers use
-  (`decls.putchar {c = [41]:i8}`).
+### Function forms: `{c = 'i8'} => 'i32'`
+- A function form is a struct whose first field is a tag:
+  `{tag = ' => ', param = {c = 'i8'}, result = 'i32'}`. `P => R` (or `P ⇒ R`,
+  U+21D2) is sugar for it; printers emit `⇒` (the BANF printer `=>`). It has one
+  param, matching one-argument lambdas, and no param name: the struct form's
+  labels are what callers use (`decls.putchar {c = [41]: 'i8'}`).
+- The tag is the byte array `' => '`, with a space on each side, so a user is
+  unlikely to write it by accident. A struct with exactly the fields `tag`,
+  `param`, `result`, in that order, and that tag is a function form, even when
+  written by hand; the printer shows it as `P ⇒ R`. `'=>'` without spaces is an
+  ordinary byte array. Rejected: an empty `""` label (users couldn't write it),
+  a tag member on `Struct` (nominal typing; maybe later), `Lambda` as a Π type
+  (keeps `Lambda` free for form constructors), and a dedicated `Arrow` term.
 - Why not `->` like a lambda: a different arrow tells a form from a term at a
-  glance, in `decls: {putchar: {c: i8} => i32} -> defs -> ...` the `=>` is in a
+  glance, in `decls: {putchar = {c = 'i8'} => 'i32'} -> defs -> ...` the `=>` is in a
   form and each `->` binds a lambda.
-- Right-associative: `{a: i8} => {b: i8} => i32` is `{a: i8} => ({b: i8} => i32)`.
-  Parens group the other way: `({a: i8} => {b: i8}) => i32`.
-- An arrow form may follow any `:` without parentheses: `x: {c: i8} => i32 -> x`,
-  `{putchar: {c: i8} => i32}`, `[]: i8 => i32`. Parentheses are only needed for
-  an arrow form as a param: `({a: i8} => i8) => i32`.
+- Right-associative: `{a = 'i8'} => {b = 'i8'} => 'i32'` is
+  `{a = 'i8'} => ({b = 'i8'} => 'i32')`. Parens group the other way.
+- `=>` is an expression operator too, so a function form can be a struct field
+  value: `{putchar = {c = 'i8'} => 'i32'}`. It binds looser than application and
+  tighter than `->`, `if` and `let`: `f a => g b` is `(f a) => (g b)`.
+- After `:`, the operands of `=>` are form atoms (struct, byte array, or
+  parenthesized): `x: {c = 'i8'} => 'i32' -> x`, `[]: 'i8' => 'i32'`.
 - Why this is safe: `=>` is not a lambda's `->`, so in
-  `decls: {} => i32 -> defs -> body` the form ends at `->` and `defs` stays a
-  lambda binder. (When function forms shared `->`, an arrow form was allowed only
-  in struct-form fields and parentheses, to avoid swallowing `defs`.) The grammar
-  has two rules: `FORM` (name, struct form, or parenthesized `ARROW_FORM`) and
-  `ARROW_FORM` (`FORM => ARROW_FORM` or `FORM`); every `: form` uses `ARROW_FORM`.
+  `decls: {} => 'i32' -> defs -> body` the form ends at `->` and `defs` stays a
+  lambda binder.
+- A byte array keeps the `=>` that follows its own `: form`: `[00]: 'i8' => 'i32'`
+  is a byte array whose form is a function form. So a param that ends with a
+  written form needs parentheses: `([00]: 'i8') => 'i32'`. The printer adds them.
 
 ### Printer: compact for tests, pretty for people
 `printer.show(term)` and `printer.show_form(form)` live in `printer.py`, not in the
@@ -253,8 +283,8 @@ tests, so any stage can print terms. Both print `→`, which reads better than `
 and `⇒` for function forms.
 - Compact (default): one line, with parentheses only where the grammar needs
   them, so it isn't ambiguous: `a → b → a b`, `f (x → x)`, `(f a).x`. Written
-  forms are shown without a space (`x:i32 → x`), but an `unknown` form never is,
-  in either mode. Names are quoted when needed. Why: tests read like source and
+  forms are shown without a space (`x:'i32' → x`), and an omitted form isn't
+  shown in either mode. Names are quoted when needed. Why: tests read like source and
   stay short; a grammar test that checks nesting compares against the
   parenthesized source, e.g. `show(parse('f a b')) == show(parse('(f a) b'))`.
 - `pretty=True`: oymomo source that parses back to the same term (a test checks
@@ -270,13 +300,13 @@ and `⇒` for function forms.
   - a `let` puts its body on the next line, at the `let`'s own indentation, so a
     chain of lets reads one let per line:
     ```
-    entry = args: {n: i32} →
-      let t0 = prim.eq_i32 {a = args.n, b = [00000000]: i32} in
+    entry = args: {n = 'i32'} →
+      let t0 = prim.eq_i32 {a = args.n, b = [00000000]: 'i32'} in
       if t0 then f.then0 {} else f.else0 {n = args.n},
     ```
   - an `if` puts `then` and `else` on their own lines.
 - An apply of a lambda prints as `let` in both modes: compact
-  `let x:i8 = e in body`, pretty `let x: i8 = e in body`.
+  `let x:'i8' = e in body`, pretty `let x: 'i8' = e in body`.
 - A `BruijnIndex` prints as `$0` and a `Variable` as its name, in both modes:
   the printer shows the term as it is. The parser reads `$0` back as a
   `BruijnIndex` (no space after `$`), so the output of a resolved term parses
@@ -290,8 +320,8 @@ and `⇒` for function forms.
 ## Program shape
 
 ```
-prim -> decls: {putchar: {c: i8} => i32, errno: i32} -> defs -> {
-  main = f -> {entry = args:{} -> let t0 = decls.putchar {c = [41]:i8} in t0},
+prim -> decls: {putchar = {c = 'i8'} => 'i32', errno = 'i32'} -> defs -> {
+  main = f -> {entry = args:{} -> let t0 = decls.putchar {c = [41]:'i8'} in t0},
 }
 ```
 
@@ -309,14 +339,14 @@ conversions): `prim.add_i32 {a = x, b = y}`.
 `decls` is the struct of imports. Its form lists them; it has no value in the
 source, because the linker provides it. Each field can be any form:
 - A function form declares an imported function:
-  `putchar: {c: i8} => i32` becomes `declare i32 @putchar(i8 %c)`.
+  `putchar = {c = 'i8'} => 'i32'` becomes `declare i32 @putchar(i8 %c)`.
 - Any other form declares imported data:
-  `errno: i32` becomes `@errno = external global i32`.
+  `errno = 'i32'` becomes `@errno = external global i32`.
 - A module with no imports writes `decls: {}`. The `{}` form is required, so the
   translator always knows the import list.
 - Why imports are separate from definitions: an earlier idea was to mix
   declarations into `defs`, with an empty byte array as a "no body" sentinel
-  (`putchar = {c: i8} -> []:i32`). That mixes two kinds of things in one struct and
+  (`putchar = {c: i8} -> []:i32`, in the old form syntax). That mixes two kinds of things in one struct and
   needs a magic value. A typed binder says the same thing with no sentinel.
 - Why not cross-module calls by name: every external symbol goes through `decls`,
   so a module lists everything it needs from outside, and the linker resolves it.
@@ -330,19 +360,19 @@ call each other by projection: `defs.fact {n = t1}`.
 
 ### Symbols
 Every `decls` and `defs` field becomes one LLVM symbol, named after its label. A
-name in both is an error: `decls: {main: i32} -> defs -> {main = ...}`.
+name in both is an error: `decls: {main = 'i32'} -> defs -> {main = ...}`.
 
 ### Functions as structs of blocks
 Each `defs` field is a function written as a struct of blocks:
 
 ```
 fact = f -> {
-  entry = args:{n: i32} ->
-    let t0 = prim.eq_i32 {a = args.n, b = [00000000]:i32} in
+  entry = args:{n = 'i32'} ->
+    let t0 = prim.eq_i32 {a = args.n, b = [00000000]:'i32'} in
     if t0 then f.then0 {} else f.else0 {n = args.n},
-  then0 = args:{} -> [01000000]:i32,
-  else0 = args:{n: i32} ->
-    let t1 = prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:i32} in
+  then0 = args:{} -> [01000000]:'i32',
+  else0 = args:{n = 'i32'} ->
+    let t1 = prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'} in
     let t2 = defs.fact {n = t1} in
     let t3 = prim.mul_i32 {a = args.n, b = t2} in
     t3,
@@ -352,7 +382,7 @@ fact = f -> {
 - The binder (`f` here, any name) is the function's own blocks, so `f.then0 {}`
   jumps to a sibling block. It is the same self-reference trick as `defs`, one
   level down. Renaming calls it `blocks` (see "Binders get fixed names").
-- Each block is a lambda taking one struct (`args:{n: i32} -> ...`). The binder
+- Each block is a lambda taking one struct (`args:{n = 'i32'} -> ...`). The binder
   (`args` here, any name) is the block's param struct.
 - The first field is the entry block, whatever its name.
 - Why this shape: it is plain oymomo (lambdas, structs, application), so no new
@@ -369,11 +399,11 @@ imported function's.
 - The translation to BANF expands the struct one level into multiple params, which
   map one-to-one onto LLVM params:
   ```
-  oymomo: fact = f -> {entry = args:{n: i32} -> ...}
+  oymomo: fact = f -> {entry = args:{n = 'i32'} -> ...}
   BANF:   entry(n: i32)
   LLVM:   define i32 @fact(i32 %n)
   ```
-- Only one level: `args:{p: {x: i32, y: i32}}` gives one param `p` whose form is a
+- Only one level: `args:{p = {x = 'i32', y = 'i32'}}` gives one param `p` whose form is a
   struct, which is one LLVM struct argument `{i32, i32} %p`. A deeper expansion
   would have to invent names like `p.x`, and LLVM passes struct values anyway.
 - Why the expansion happens in oymomo-to-BANF, not BANF-to-LLVM: BANF is meant to
@@ -392,7 +422,7 @@ Each unique signature (param forms plus result form) is its own op:
   from its callee's signature. Nothing needs width inference, and conversions don't
   need a stored target form: `zext_i8_i32` always returns `i32`.
 - Cost: many op names. They are generated from templates, not written by hand.
-- Strict widths: `prim.add_i32 {a = [01]:i8, b = ...}` is an error
+- Strict widths: `prim.add_i32 {a = [01]:'i8', b = ...}` is an error
   (`prim.add_i32 expects a: i32, got i8.`). Convert explicitly with `zext_i8_i32`.
 
 ### Naming
@@ -651,7 +681,7 @@ A let keeps its name `x` unless `x` is visible: the name of an enclosing binder
 Then it becomes `x_L`, else `x__L`, and so on, where `L` is its level (the number
 of enclosing binders; a block's first let is level 5).
 - `let t = ... in let t = ... in let t = ... in t` gives `t, t_6, t_7`.
-- With `args: {n: i8}`, two lets named `n` give `n_5, n_6`, since `n` is a param
+- With `args: {n = 'i8'}`, two lets named `n` give `n_5, n_6`, since `n` is a param
   label: param labels become BANF `Var`s, as in `entry(n: i8)`.
 - A user's own `t_6` after a renamed `t_6` gives `t_6_7`; `t, t_7, t` gives
   `t, t_7, t__7`. A let named `args` gives `args_5`.
@@ -686,7 +716,7 @@ arithmetic and keeps no binder names of its own. A let reference becomes a
 ### What the shape is
 - **Let**: `let x = op in rest`, which is `(x -> rest) (op)`. The form may be
   omitted; if written, it must equal the op's form:
-  `let t0: i32 = prim.eq_i32 {...} in t0` is an error, since `eq_i32` gives `i1`.
+  `let t0: 'i32' = prim.eq_i32 {...} in t0` is an error, since `eq_i32` gives `i1`.
 - **Atoms**: a byte array with a known form, a let name, or `args.label`.
 - **Ops**, only as a let's value: `prim.op {...}`, `defs.g {...}`, `decls.g {...}`,
   a struct literal of atoms (`MakeStruct`), a projection on an atom
@@ -704,14 +734,14 @@ with a let first.
   temporary names. That is normalization.
 
 ### An op in tail position must be bound first
-`main = f -> {entry = args:{} -> let t0 = decls.putchar {c = [41]:i8} in t0}`,
-not `... args:{} -> decls.putchar {c = [41]:i8}`.
+`main = f -> {entry = args:{} -> let t0 = decls.putchar {c = [41]:'i8'} in t0}`,
+not `... args:{} -> decls.putchar {c = [41]:'i8'}`.
 - Why: a BANF `Return` takes an atom. Accepting a tail op would make the
   translator invent a name for the result; the explicit `let t0` keeps every
   name in the source.
 
 ### `if` only in tail position, with jumps in both arms, to different blocks
-`if c then [01]:i8 else f.b {}` is an error. A let-bound `if` is substituted, so
+`if c then [01]:'i8' else f.b {}` is an error. A let-bound `if` is substituted, so
 `let t = if c then f.a {} else f.b {} in t` is fine, but an `if` that ends up as
 an operand is an error.
 - Why: a BANF `Branch` is a terminator with two targets. An `if` whose value is
@@ -732,9 +762,9 @@ result resolves through another block:
 
 ```
 loop = f -> {
-  entry = args:{c: i1} -> if args.c then f.a {} else f.b {},
-  a = args:{} -> let t = defs.loop {c = [00]:i1} in t,
-  b = args:{} -> [07]:i8,
+  entry = args:{c = 'i1'} -> if args.c then f.a {} else f.b {},
+  a = args:{} -> let t = defs.loop {c = [00]:'i1'} in t,
+  b = args:{} -> [07]:'i8',
 }
 ```
 

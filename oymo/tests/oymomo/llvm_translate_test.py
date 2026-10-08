@@ -25,27 +25,29 @@ from oymo.oymomo.banf_terms import (
 from oymo.oymomo.llvm_prims import DEFAULT_PRIMS
 from oymo.oymomo.llvm_translate import LlvmTranslationError, Target, translate
 
+I1, I8, I16, I32, I64 = (terms.name_form(name) for name in ('i1', 'i8', 'i16', 'i32', 'i64'))
+
 TARGET = Target('x86_64-unknown-linux-gnu', '', DEFAULT_PRIMS)
-POINT = terms.StructForm([('x', 'i32'), ('y', 'i32')])
-ZERO = Const(bytes(4), 'i32')
-ONE = Const(bytes([1, 0, 0, 0]), 'i32')
+POINT = terms.struct_form([('x', I32), ('y', I32)])
+ZERO = Const(bytes(4), I32)
+ONE = Const(bytes([1, 0, 0, 0]), I32)
 
 
 def fact():
     return Function(
         'fact',
-        'i32',
+        I32,
         [
             Block(
                 'entry',
-                [('n', 'i32')],
+                [('n', I32)],
                 [Let('t0', PrimCall('eq_i32', [Var('n'), ZERO]))],
                 Branch(Var('t0'), 'then0', [], 'else0', [Var('n')]),
             ),
             Block('then0', [], [], Return(ONE)),
             Block(
                 'else0',
-                [('n', 'i32')],
+                [('n', I32)],
                 [
                     Let('t1', PrimCall('sub_i32', [Var('n'), ONE])),
                     Let('t2', Call('fact', [Var('t1')])),
@@ -60,11 +62,11 @@ def fact():
 def imports_module():
     lets = [
         Let('t0', GetData('errno')),
-        Let('t1', Call('putchar', [Const(bytes([0x41]), 'i8')])),
+        Let('t1', Call('putchar', [Const(bytes([0x41]), I8)])),
         Let('t2', PrimCall('add_i32', [Var('t0'), Var('t1')])),
     ]
-    main = Function('main', 'i32', [Block('entry', [], lets, Return(Var('t2')))])
-    return Module([Signature('putchar', [('c', 'i8')], 'i32'), Data('errno', 'i32'), main])
+    main = Function('main', I32, [Block('entry', [], lets, Return(Var('t2')))])
+    return Module([Signature('putchar', [('c', I8)], I32), Data('errno', I32), main])
 
 
 HEADER = '; ModuleID = ""\ntarget triple = "x86_64-unknown-linux-gnu"\ntarget datalayout = ""\n\n'
@@ -149,14 +151,14 @@ def pick():
     """Both branches jump to join0, which therefore gets a phi per param."""
     return Function(
         'pick',
-        'i32',
+        I32,
         [
-            Block('entry', [('c', 'i1'), ('x', 'i32'), ('z', 'i32')], [], Branch(Var('c'), 'a', [Var('x')], 'b', [])),
-            Block('a', [('x', 'i32')], [], Jump('join0', [Var('x'), Var('x')])),
-            Block('b', [], [], Jump('join0', [Const(bytes(4), 'i32'), Const(bytes([7, 0, 0, 0]), 'i32')])),
+            Block('entry', [('c', I1), ('x', I32), ('z', I32)], [], Branch(Var('c'), 'a', [Var('x')], 'b', [])),
+            Block('a', [('x', I32)], [], Jump('join0', [Var('x'), Var('x')])),
+            Block('b', [], [], Jump('join0', [Const(bytes(4), I32), Const(bytes([7, 0, 0, 0]), I32)])),
             Block(
                 'join0',
-                [('v', 'i32'), ('w', 'i32')],
+                [('v', I32), ('w', I32)],
                 [Let('t0', PrimCall('add_i32', [Var('v'), Var('w')]))],
                 Return(Var('t0')),
             ),
@@ -186,10 +188,10 @@ def test_single_predecessor_binds_params_and_multiple_predecessors_get_phis():
 def test_rejects_branch_with_same_target_twice():
     function = Function(
         'g',
-        'i8',
+        I8,
         [
-            Block('entry', [('c', 'i1')], [], Branch(Var('c'), 'a', [], 'a', [])),
-            Block('a', [], [], Return(Const(b'\x01', 'i8'))),
+            Block('entry', [('c', I1)], [], Branch(Var('c'), 'a', [], 'a', [])),
+            Block('a', [], [], Return(Const(b'\x01', I8))),
         ],
     )
     with pytest.raises(LlvmTranslationError, match='same block as both targets'):
@@ -197,7 +199,7 @@ def test_rejects_branch_with_same_target_twice():
 
 
 def test_constants_are_little_endian_on_a_big_endian_target():
-    function = Function('g', 'i16', [Block('entry', [], [], Return(Const(bytes([1, 0]), 'i16')))])
+    function = Function('g', I16, [Block('entry', [], [], Return(Const(bytes([1, 0]), I16)))])
     big = Target('powerpc64-unknown-linux-gnu', 'E-m:e-i64:64-n32:64', DEFAULT_PRIMS)
     text = str(translate(Module([function]), big))
     llvm.parse_assembly(text).verify()
@@ -206,6 +208,6 @@ def test_constants_are_little_endian_on_a_big_endian_target():
 
 
 def test_rejects_wrong_constant_size():
-    function = Function('g', 'i32', [Block('entry', [], [], Return(Const(b'\x01', 'i32')))])
+    function = Function('g', I32, [Block('entry', [], [], Return(Const(b'\x01', I32)))])
     with pytest.raises(LlvmTranslationError, match='needs 4 bytes'):
         translate(Module([function]), TARGET)

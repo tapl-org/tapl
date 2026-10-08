@@ -2,16 +2,20 @@
 
 from oymo.core import syntax
 from oymo.oymomo import terms
-from oymo.oymomo.grammar import UNKNOWN_FORM, parse
+from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show
 
 
 def test_variable():
-    assert parse('x') == terms.Variable(name='x', location=syntax.Location(0, 1))
+    term = parse('x')
+    assert term == terms.Variable(name='x')
+    assert term.location == syntax.Location(0, 1)
 
 
 def test_bruijn_index():
-    assert parse('$12') == terms.BruijnIndex(index=12, location=syntax.Location(0, 3))
+    term = parse('$12')
+    assert term == terms.BruijnIndex(index=12)
+    assert term.location == syntax.Location(0, 3)
     assert show(parse('x -> f $1 $0.a')) == 'x → f $1 $0.a'
     assert show(parse('$ 0')) == 'error'
     assert show(parse('$')) == 'error'
@@ -20,11 +24,11 @@ def test_bruijn_index():
 
 
 def test_lambda():
-    assert show(parse('x : i32 -> x')) == 'x:i32 → x'
+    assert show(parse("x : 'i32' -> x")) == "x:'i32' → x"
 
 
 def test_lambda_unicode_arrow_is_the_same_term():
-    assert show(parse('x : i32 → x')) == 'x:i32 → x'
+    assert show(parse("x : 'i32' → x")) == "x:'i32' → x"
 
 
 def test_lambda_extends_right():
@@ -56,7 +60,7 @@ def test_struct():
 
 def test_let():
     assert show(parse('let x = e in x')) == 'let x = e in x'
-    assert show(parse('let t0: i1 = f a in t0')) == 'let t0:i1 = f a in t0'
+    assert show(parse("let t0: 'i1' = f a in t0")) == "let t0:'i1' = f a in t0"
     assert show(parse('let x = e in f x')) == show(parse('let x = e in (f x)'))
     assert show(parse('let x = e1 in let y = e2 in y')) == show(parse('let x = e1 in (let y = e2 in y)'))
     assert show(parse('f (let x = e in x)')) == 'f (let x = e in x)'
@@ -94,13 +98,13 @@ def test_reserved_words_are_not_names():
 
 
 def test_byte_array():
-    assert show(parse('[2a000000] : i32')) == '[2a000000]:i32'
-    assert show(parse('[2a 00 00 00]:i32')) == '[2a000000]:i32'
+    assert show(parse("[2a000000] : 'i32'")) == "[2a000000]:'i32'"
+    assert show(parse("[2a 00 00 00]:'i32'")) == "[2a000000]:'i32'"
 
 
 def test_byte_array_multiline():
-    source = '[deadbeef cafebabe\n 00112233 44556677] : {lo: i64, hi: i64}'
-    assert show(parse(source)) == '[deadbeefcafebabe0011223344556677]:{lo: i64, hi: i64}'
+    source = "[deadbeef cafebabe\n 00112233 44556677] : {lo = 'i64', hi = 'i64'}"
+    assert show(parse(source)) == "[deadbeefcafebabe0011223344556677]:{lo = 'i64', hi = 'i64'}"
 
 
 def test_byte_array_empty():
@@ -108,8 +112,10 @@ def test_byte_array_empty():
 
 
 def test_text_byte_array():
-    assert parse("'Hi there'") == terms.ByteArray(value=b'Hi there', form=UNKNOWN_FORM, location=syntax.Location(0, 10))
-    assert show(parse("'Hi' : i16")) == '[4869]:i16'
+    term = parse("'Hi there'")
+    assert term == terms.ByteArray(value=b'Hi there', form=terms.Empty)
+    assert term.location == syntax.Location(0, 10)
+    assert show(parse("'Hi' : 'i16'")) == "[4869]:'i16'"
     assert show(parse("''")) == "''"
     assert show(parse("f 'a' 'b'")) == show(parse("(f 'a') 'b'"))
 
@@ -124,43 +130,100 @@ def test_text_byte_array_rejects_non_text():
 
 
 def test_byte_array_as_argument():
-    assert show(parse('f [01] : u8 [02]')) == show(parse('(f ([01] : u8)) [02]'))
+    assert show(parse("f [01] : 'u8' [02]")) == show(parse("(f ([01] : 'u8')) [02]"))
 
 
-def test_omitted_forms_are_unknown():
-    assert parse('x -> x').param_form == UNKNOWN_FORM
-    assert parse('[2a]').form == UNKNOWN_FORM
-    assert parse('[00] : {x, y: i32}').form == terms.StructForm([('x', UNKNOWN_FORM), ('y', 'i32')])
+def test_omitted_forms_are_empty():
+    assert parse('x -> x').param_form is terms.Empty
+    assert parse('[2a]').form is terms.Empty
+    assert parse('let x = e in x').function.param_form is terms.Empty
+
+
+def test_forms_are_terms():
+    assert parse("[00] : {x = 'i8', y = 'i32'}").form == terms.struct_form(
+        [('x', terms.name_form('i8')), ('y', terms.name_form('i32'))]
+    )
+    assert parse("x: 'i32' -> x").param_form == terms.name_form('i32')
+    assert parse('x: [69 33 32] -> x').param_form == terms.name_form('i32')
+
+
+def test_every_struct_field_needs_a_value():
+    assert show(parse("[00] : {x, y = 'i32'}")) == 'error'
+    assert show(parse("[00] : {x: 'i8'}")) == 'error'
+
+
+def test_unknown_is_an_ordinary_form_name():
+    assert parse("x: 'unknown' -> x").param_form == terms.name_form('unknown')
+
+
+def test_form_other_than_struct_byte_array_or_function_needs_parens():
+    assert show(parse('x: (i32) -> x')) == 'x:(i32) → x'
+    assert parse('x: (i32) -> x').param_form == terms.Variable('i32')
+    assert show(parse('x: (a -> b) -> c')) == 'x:(a → b) → c'
+    assert isinstance(parse('x: (a -> b) -> c').param_form, terms.Lambda)
+    assert show(parse('x: (s.f) -> x')) == 'x:(s.f) → x'
+    assert show(parse('x: i32 -> x')) == 'error'
+    assert show(parse('x: a -> b -> c')) == 'error'
+
+
+def test_byte_array_form_stops_before_an_argument():
+    assert show(parse("f [00]: 'i32' y")) == show(parse("(f ([00]: 'i32')) y"))
 
 
 def test_nested_struct_forms():
-    assert show(parse('p : {x: i32, y: {a: u8,},} -> p')) == 'p:{x: i32, y: {a: u8}} → p'
+    assert show(parse("p : {x = 'i32', y = {a = 'u8'}} -> p")) == "p:{x = 'i32', y = {a = 'u8'}} → p"
 
 
 def test_function_form_in_struct_form_field():
-    assert show(parse('d: {putchar: {c: i8} => i32, errno: i32} -> d')) == (
-        'd:{putchar: {c: i8} ⇒ i32, errno: i32} → d'
+    assert show(parse("d: {putchar = {c = 'i8'} => 'i32', errno = 'i32'} -> d")) == (
+        "d:{putchar = {c = 'i8'} ⇒ 'i32', errno = 'i32'} → d"
     )
 
 
 def test_function_form_after_colon_needs_no_parens():
-    assert show(parse('g: {c: i8} => i32 -> g')) == 'g:{c: i8} ⇒ i32 → g'
-    assert show(parse('g: ({c: i8} => i32) -> g')) == 'g:{c: i8} ⇒ i32 → g'
-    assert show(parse('[]: i8 => i32')) == '[]:i8 ⇒ i32'
-    assert show(parse('let f: i8 => i32 = g in f')) == 'let f:i8 ⇒ i32 = g in f'
+    assert show(parse("g: {c = 'i8'} => 'i32' -> g")) == "g:{c = 'i8'} ⇒ 'i32' → g"
+    assert show(parse("g: ({c = 'i8'} => 'i32') -> g")) == "g:{c = 'i8'} ⇒ 'i32' → g"
+    assert show(parse("[]: 'i8' => 'i32'")) == "[]:'i8' ⇒ 'i32'"
+    assert show(parse("let f: 'i8' => 'i32' = g in f")) == "let f:'i8' ⇒ 'i32' = g in f"
 
 
 def test_function_form_is_right_associative():
-    assert show(parse('d: {f: {a: i8} => {b: i8} => i32} -> d')) == show(
-        parse('d: {f: {a: i8} => ({b: i8} => i32)} -> d')
+    assert show(parse("d: {f = {a = 'i8'} => {b = 'i8'} => 'i32'} -> d")) == show(
+        parse("d: {f = {a = 'i8'} => ({b = 'i8'} => 'i32')} -> d")
     )
-    assert show(parse('d: {f: ({a: i8} => {b: i8}) => i32} -> d')) == 'd:{f: ({a: i8} ⇒ {b: i8}) ⇒ i32} → d'
+    assert (
+        show(parse("d: {f = ({a = 'i8'} => {b = 'i8'}) => 'i32'} -> d"))
+        == "d:{f = ({a = 'i8'} ⇒ {b = 'i8'}) ⇒ 'i32'} → d"
+    )
+
+
+def test_function_form_is_a_tagged_struct():
+    sugar = parse("{c = 'i8'} => 'i32'")
+    assert sugar == terms.function_form(terms.struct_form([('c', terms.name_form('i8'))]), terms.name_form('i32'))
+    assert sugar == parse("{tag = ' => ', param = {c = 'i8'}, result = 'i32'}")
+    assert terms.is_function_form(sugar)
+    assert not terms.is_function_form(parse("{tag = '=>', param = {c = 'i8'}, result = 'i32'}"))
+
+
+def test_function_form_is_an_expression():
+    assert show(parse("{f = {a = 'i8'} => 'i32'}")) == "{f = {a = 'i8'} ⇒ 'i32'}"
+    assert show(parse("let f = 'i8' => 'i32' in f")) == "let f = 'i8' ⇒ 'i32' in f"
+    assert show(parse('f a => g b')) == show(parse('(f a) => (g b)'))
+    assert show(parse('x -> a => b')) == show(parse('x -> (a => b)'))
+    assert show(parse('(f => g) x')) == '(f ⇒ g) x'
+
+
+def test_function_form_param_with_a_form_needs_parens():
+    term = parse("([00]: 'i8') => 'i32'")
+    assert terms.function_param(term) == terms.ByteArray(b'\x00', terms.name_form('i8'))
+    assert show(term) == "([00]:'i8') ⇒ 'i32'"
+    assert parse("[00]: 'i8' => 'i32'").form == parse("'i8' => 'i32'")
 
 
 def test_function_form_does_not_swallow_lambda_binder():
-    source = 'decls: {f: {} => i32} -> defs -> {}'
-    assert show(parse(source)) == 'decls:{f: {} ⇒ i32} → defs → {}'
-    assert show(parse('decls: {} => i32 -> defs -> {}')) == 'decls:{} ⇒ i32 → defs → {}'
+    source = "decls: {f = {} => 'i32'} -> defs -> {}"
+    assert show(parse(source)) == "decls:{f = {} ⇒ 'i32'} → defs → {}"
+    assert show(parse("decls: {} => 'i32' -> defs -> {}")) == "decls:{} ⇒ 'i32' → defs → {}"
 
 
 def test_quoted_names():
@@ -168,7 +231,7 @@ def test_quoted_names():
     assert show(parse('"if" -> "if"')) == '"if" → "if"'
     assert show(parse('s."a b"')) == 's."a b"'
     assert show(parse('{"x y" = a}')) == '{"x y" = a}'
-    assert show(parse('x : "my form" -> x')) == 'x:"my form" → x'
+    assert show(parse("x : 'my form' -> x")) == "x:'my form' → x"
 
 
 def test_quoted_name_equals_plain_name():
@@ -203,5 +266,5 @@ def test_locations_skip_leading_trivia():
 
 
 def test_golden_program():
-    source = 'prim -> decls: {} -> defs -> {main = a:i32 -> [00000000] : i32}'
-    assert show(parse(source)) == 'prim → decls:{} → defs → {main = a:i32 → [00000000]:i32}'
+    source = "prim -> decls: {} -> defs -> {main = a:'i32' -> [00000000] : 'i32'}"
+    assert show(parse(source)) == "prim → decls:{} → defs → {main = a:'i32' → [00000000]:'i32'}"

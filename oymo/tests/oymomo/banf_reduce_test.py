@@ -19,7 +19,7 @@ def same(defs):
     return show(bruijn.resolve(parse(program(defs))))
 
 
-def block(body, params='{n: i8}'):
+def block(body, params="{n = 'i8'}"):
     return f'main = f -> {{entry = args: {params} -> {body}}}'
 
 
@@ -99,13 +99,13 @@ def test_block_body(body, expected):
 
 
 def test_get_field_on_struct_param_stays_a_let():
-    source = block('let x = args.p.x in x', '{p: {x: i8}}')
+    source = block('let x = args.p.x in x', "{p = {x = 'i8'}}")
     assert shaped(source) == same(source)
 
 
 def test_a_def_produced_by_an_application():
-    assert shaped('main = (x -> x) (f -> {entry = args: {} -> [01]: i8})') == same(
-        'main = f -> {entry = args: {} -> [01]: i8}'
+    assert shaped("main = (x -> x) (f -> {entry = args: {} -> [01]: 'i8'})") == same(
+        "main = f -> {entry = args: {} -> [01]: 'i8'}"
     )
 
 
@@ -118,16 +118,16 @@ def test_a_def_produced_by_an_application():
             'prim -> decls: {} -> defs -> {}',
         ),
         (
-            'prim -> (x -> x) (decls: {} -> defs -> {main = f -> {entry = args: {} -> [01]: i8}})',
-            'prim -> decls: {} -> defs -> {main = f -> {entry = args: {} -> [01]: i8}}',
+            "prim -> (x -> x) (decls: {} -> defs -> {main = f -> {entry = args: {} -> [01]: 'i8'}})",
+            "prim -> decls: {} -> defs -> {main = f -> {entry = args: {} -> [01]: 'i8'}}",
         ),
         (
             'prim -> decls: {} -> {d = defs -> {}}.d',
             'prim -> decls: {} -> defs -> {}',
         ),
         (
-            'prim -> decls: {} -> defs -> (x -> x) {main = f -> (x -> x) {entry = (x -> x) (args: {} -> [01]: i8)}}',
-            'prim -> decls: {} -> defs -> {main = f -> {entry = args: {} -> [01]: i8}}',
+            "prim -> decls: {} -> defs -> (x -> x) {main = f -> (x -> x) {entry = (x -> x) (args: {} -> [01]: 'i8')}}",
+            "prim -> decls: {} -> defs -> {main = f -> {entry = args: {} -> [01]: 'i8'}}",
         ),
     ],
 )
@@ -142,7 +142,7 @@ def test_forms_are_ignored():
 @pytest.mark.parametrize(
     'body',
     [
-        '[01]: i8',
+        "[01]: 'i8'",
         'args.n',
         'let t = prim.add_i8 {a = args.n, b = args.n} in t',
         'f.a {}',
@@ -169,12 +169,12 @@ def test_terms_that_cannot_reach_the_shape_are_left(defs):
 def test_already_shaped_is_unchanged():
     source = """
     fact = f -> {
-      entry = args:{n: i32} ->
-        let t0 = prim.eq_i32 {a = args.n, b = [00000000]:i32} in
+      entry = args:{n = 'i32'} ->
+        let t0 = prim.eq_i32 {a = args.n, b = [00000000]:'i32'} in
         if t0 then f.then0 {} else f.else0 {n = args.n},
-      then0 = args:{} -> [01000000]:i32,
-      else0 = args:{n: i32} ->
-        let t1 = prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:i32} in
+      then0 = args:{} -> [01000000]:'i32',
+      else0 = args:{n = 'i32'} ->
+        let t1 = prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'} in
         let t2 = defs.fact {n = t1} in
         let t3 = prim.mul_i32 {a = args.n, b = t2} in
         t3,

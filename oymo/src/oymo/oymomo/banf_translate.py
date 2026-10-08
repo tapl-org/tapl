@@ -12,7 +12,6 @@ from oymo.core import syntax
 from oymo.oymomo import banf_prim, banf_reduce, banf_rename, bruijn, terms
 from oymo.oymomo import banf_terms as banf
 from oymo.oymomo.banf_rename import ARGS, BLOCKS, DECLS, DEFS, PRIM
-from oymo.oymomo.grammar import UNKNOWN_FORM
 
 
 class TranslationError(Exception):
@@ -27,18 +26,20 @@ def _location(term):
 
 
 def _check_data_form(form, location, what):
-    """A data form has no unknown parts and no function forms."""
-    match form:
-        case terms.FunctionForm():
-            raise TranslationError(f'{what}: function forms nested inside other forms are not supported.', location)
-        case terms.StructForm(fields=fields):
-            labels = [label for label, _ in fields]
-            if len(set(labels)) != len(labels):
-                raise TranslationError(f'{what}: duplicate field labels in {banf.show_form(form)}.', location)
-            for _, field_form in fields:
-                _check_data_form(field_form, location, what)
-        case str() if form == UNKNOWN_FORM:
-            raise TranslationError(f'{what}: form must be known.', location)
+    """A data form is a named form or a struct of data forms: no unknown parts, no function forms,
+    and no other terms."""
+    if terms.is_function_form(form):
+        raise TranslationError(f'{what}: function forms nested inside other forms are not supported.', location)
+    if (fields := terms.struct_fields(form)) is not None:
+        labels = [label for label, _ in fields]
+        if len(set(labels)) != len(labels):
+            raise TranslationError(f'{what}: duplicate field labels in {banf.show_form(form)}.', location)
+        for _, field_form in fields:
+            _check_data_form(field_form, location, what)
+    elif form is terms.Empty:
+        raise TranslationError(f'{what}: form must be known.', location)
+    elif terms.form_name(form) is None:
+        raise TranslationError(f'{what}: form must be a literal, got {banf.show_form(form)}.', location)
 
 
 @dataclass
@@ -52,7 +53,7 @@ class _Block:
     """What the body matcher knows about the block it is in."""
 
     function: banf.Function
-    params: list[tuple[str, terms.Form]]
+    params: list[tuple[str, terms.Term]]
     lets: list[banf.Let]
 
     def binder(self, term):
@@ -84,7 +85,7 @@ def _unwrap(term):
                 body=terms.Lambda(param_name=defs_name, body=terms.Struct() as defs_struct),
             ) as decls_lambda,
         ) if (prim_name, decls_name, defs_name) == (PRIM, DECLS, DEFS):
-            if not isinstance(decls_form, terms.StructForm):
+            if terms.struct_fields(decls_form) is None:
                 raise TranslationError(
                     'The decls binder needs a struct form, such as decls: {}.', decls_lambda.location
                 )
@@ -94,16 +95,18 @@ def _unwrap(term):
 
 def _imports(decls_form, location):
     imports = {}
-    for label, form in decls_form.fields:
+    for label, form in terms.struct_fields(decls_form) or []:
         if label in imports:
             raise TranslationError(f'Duplicate import {label!r}.', location)
         what = f'Import {label!r}'
-        if isinstance(form, terms.FunctionForm):
-            if not isinstance(form.param, terms.StructForm):
+        if terms.is_function_form(form):
+            param, result = terms.function_param(form), terms.function_result(form)
+            params = terms.struct_fields(param)
+            if params is None:
                 raise TranslationError(f'{what}: a function form needs a struct form as its param.', location)
-            _check_data_form(form.param, location, what)
-            _check_data_form(form.result, location, what)
-            imports[label] = banf.Signature(label, list(form.param.fields), form.result, location)
+            _check_data_form(param, location, what)
+            _check_data_form(result, location, what)
+            imports[label] = banf.Signature(label, params, result, location)
         else:
             _check_data_form(form, location, what)
             imports[label] = banf.Data(label, form, location)
@@ -122,23 +125,25 @@ def _function_header(field, imports):
             pass
         case _:
             raise TranslationError(
-                f'Definition {name!r} must be a struct of blocks, such as blocks -> {{entry = args:{{}} -> ...}}.',
+                f'Definition {name!r} must be a struct of blocks, such as blocks -> {{entry = args: {{}} -> ...}}.',
                 _location(field.value),
             )
     blocks = []
     for block_field in block_fields:
         match block_field.value:
-            case terms.Lambda(param_name=binder, param_form=terms.StructForm(fields=params) as form) if binder == ARGS:
+            case terms.Lambda(param_name=binder, param_form=form) if (
+                binder == ARGS and (params := terms.struct_fields(form)) is not None
+            ):
                 _check_data_form(form, block_field.location, f'Block {block_field.label!r}')
             case _:
                 raise TranslationError(
-                    f'Block {block_field.label!r} must be a lambda taking a struct, such as args:{{n: i32}} -> ...',
+                    f"Block {block_field.label!r} must be a lambda taking a struct, such as args: {{n = 'i32'}} -> ...",
                     _location(block_field.value),
                 )
         if any(block.label == block_field.label for block in blocks):
             raise TranslationError(f'Duplicate block {block_field.label!r}.', block_field.location)
-        blocks.append(banf.Block(block_field.label, list(params), [], banf.Return(banf.Var('')), block_field.location))
-    return banf.Function(name, UNKNOWN_FORM, blocks, field.location), block_fields
+        blocks.append(banf.Block(block_field.label, params, [], banf.Return(banf.Var('')), block_field.location))
+    return banf.Function(name, terms.Empty, blocks, field.location), block_fields
 
 
 def _not_a_value(name, location):
@@ -148,7 +153,7 @@ def _not_a_value(name, location):
 class _Translator:
     def __init__(self, program: _Program) -> None:
         self.program = program
-        self.written_forms: list[tuple[banf.Let, terms.Form]] = []
+        self.written_forms: list[tuple[banf.Let, terms.Term]] = []
 
     def atom(self, term, block):
         location = _location(term)
@@ -265,7 +270,7 @@ class _Translator:
             match term:
                 case terms.Apply(function=terms.Lambda(param_name=name, param_form=form, body=rest), argument=value):
                     let = banf.Let(name, self.op(value, block), location)
-                    if form != UNKNOWN_FORM:
+                    if form is not terms.Empty:
                         self.written_forms.append((let, form))
                     block.lets.append(let)
                     term = rest
@@ -309,7 +314,7 @@ def _known_return_form(block, module):
             form = banf.form_of(let.value, forms, module)
         except banf.FormError:
             continue
-        if form != UNKNOWN_FORM:
+        if form is not terms.Empty:
             forms[let.name] = form
     try:
         return banf.atom_form(block.terminator.value, forms)
@@ -323,7 +328,7 @@ def _infer_return_forms(module, functions):
     while changed:
         changed = False
         for function in functions:
-            if function.return_form != UNKNOWN_FORM:
+            if function.return_form is not terms.Empty:
                 continue
             for block in function.blocks:
                 form = _known_return_form(block, module)
@@ -332,7 +337,7 @@ def _infer_return_forms(module, functions):
                     changed = True
                     break
     for function in functions:
-        if function.return_form == UNKNOWN_FORM:
+        if function.return_form is terms.Empty:
             raise TranslationError(f'Cannot infer the return form of {function.name!r}.', function.location)
 
 

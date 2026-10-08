@@ -3,7 +3,7 @@
 """Renders oymomo terms and forms as text.
 
 The default rendering is compact: one line, with parentheses only where the grammar
-needs them. Neither mode prints an `unknown` form. With `pretty=True` the result is
+needs them. Neither mode prints an omitted (`Empty`) form. With `pretty=True` the result is
 oymomo source that parses back to the same term: parentheses only where needed, and
 quoted names where needed. A term that doesn't fit in `width` columns breaks: a struct puts one
 field per line, a lambda puts its body on the next line (unless the body is a struct
@@ -21,10 +21,10 @@ scope; there it stays `$i`, so the output still resolves back to the same term.
 from oymo.core import syntax
 from oymo.core.terminals import IDENT_CONTINUE, IDENT_START
 from oymo.oymomo import terms
-from oymo.oymomo.grammar import ASCII_TEXT, RESERVED, UNKNOWN_FORM
+from oymo.oymomo.grammar import ASCII_TEXT, RESERVED
 
 # Binding levels, loosest first. A term printed where a tighter level is needed gets parentheses.
-_EXPRESSION, _APPLY, _PROJECT = range(3)
+_EXPRESSION, _ARROW, _APPLY, _PROJECT = range(4)
 
 # A byte array longer than this prints as hex even if its bytes are text.
 _MAX_TEXT_BYTES = 128
@@ -39,8 +39,9 @@ def show(
     return _pretty(term, _EXPRESSION, 0, 0, width, indent, names) if pretty else _compact(term, names)
 
 
-def show_form(form: terms.Form, *, pretty: bool = False) -> str:
-    return _pretty_form(form, arrow=True) if pretty else _compact_form(form)
+def show_form(form: syntax.Term, *, pretty: bool = False) -> str:
+    """`form` as it is written after `:`."""
+    return _form_text(form, None, compact=not pretty)
 
 
 def _compact(term, names, level=_EXPRESSION):
@@ -51,12 +52,16 @@ def _compact(term, names, level=_EXPRESSION):
         case terms.BruijnIndex(index=index):
             text = _bruijn_name(index, names)
         case terms.Lambda(param_name=name, param_form=form, body=body):
-            text = f'{_name(name)}{_compact_suffix(form)} → {_compact(body, _bind(names, name))}'
+            text = f'{_name(name)}{_compact_suffix(form, names)} → {_compact(body, _bind(names, name))}'
         case terms.Apply(function=terms.Lambda(param_name=name, param_form=form, body=body), argument=argument):
             value = _compact(argument, names)
-            text = f'let {_name(name)}{_compact_suffix(form)} = {value} in {_compact(body, _bind(names, name))}'
+            suffix = _compact_suffix(form, names)
+            text = f'let {_name(name)}{suffix} = {value} in {_compact(body, _bind(names, name))}'
         case terms.Apply(function=function, argument=argument):
             text = f'{_compact(function, names, _APPLY)} {_compact(argument, names, _PROJECT)}'
+        case terms.Struct() if terms.is_function_form(term):
+            param = _arrow_param(terms.function_param(term), lambda t, level: _compact(t, names, level))
+            text = f'{param} ⇒ {_compact(terms.function_result(term), names, _ARROW)}'
         case terms.Struct(fields=fields):
             text = '{' + ', '.join(f'{_name(f.label)} = {_compact(f.value, names)}' for f in fields) + '}'
         case terms.Project(struct=struct, label=label):
@@ -66,7 +71,7 @@ def _compact(term, names, level=_EXPRESSION):
         case terms.Fix(function=function):
             text = f'fix {_compact(function, names, _PROJECT)}'
         case terms.ByteArray(value=value, form=form):
-            text = f'{_bytes_text(value, form, grouped=False)}{_compact_suffix(form)}'
+            text = f'{_bytes_text(value, form, grouped=False)}{_compact_suffix(form, names)}'
         case syntax.ErrorTerm():
             text = 'error'
         case _:
@@ -77,33 +82,57 @@ def _compact(term, names, level=_EXPRESSION):
 def _bytes_text(value, form, *, grouped):
     """`'text'` for a byte array with an unknown form, at most `_MAX_TEXT_BYTES` long, whose
     bytes are all ASCII text; otherwise `[hex]`, in groups of four if `grouped`."""
-    if form == UNKNOWN_FORM and len(value) <= _MAX_TEXT_BYTES and all(chr(b) in ASCII_TEXT for b in value):
+    if form is terms.Empty and len(value) <= _MAX_TEXT_BYTES and all(chr(b) in ASCII_TEXT for b in value):
         return "'" + value.decode('ascii') + "'"
     if grouped:
         return '[' + ' '.join(value[i : i + 4].hex() for i in range(0, len(value), 4)) + ']'
     return f'[{value.hex()}]'
 
 
-def _compact_suffix(form):
-    """`:form` after a name or byte array; nothing for an unknown form."""
-    return '' if form == UNKNOWN_FORM else ':' + _compact_form(form)
+def _compact_suffix(form, names):
+    """`:form` after a name or byte array; nothing for an omitted form."""
+    return '' if form is terms.Empty else ':' + _form_text(form, names, compact=True)
 
 
-def _compact_form(form, *, arrow=True):
-    match form:
-        case str():
-            return _name(form)
-        case terms.FunctionForm(param=param, result=result):
-            text = f'{_compact_form(param, arrow=False)} ⇒ {_compact_form(result)}'
-            return text if arrow else f'({text})'
-        case terms.StructForm(fields=fields):
-            return '{' + ', '.join(f'{_name(label)}{_compact_field_suffix(f)}' for label, f in fields) + '}'
-    raise AssertionError(form)
+def _form_text(form, names, *, compact):
+    """`form` as written after `:`. A struct, a byte array or a function form is written as it is;
+    any other term goes in parentheses."""
+
+    def show(term, level):
+        return _compact(term, names, level) if compact else _flat(term, level, names)
+
+    if terms.is_function_form(form):
+        param = terms.function_param(form)
+        param_text = _form_atom_text(param, show)
+        if _ends_with_form(param) and not param_text.startswith('('):
+            param_text = f'({param_text})'
+        return f'{param_text} ⇒ {_form_text(terms.function_result(form), names, compact=compact)}'
+    return _form_atom_text(form, show)
 
 
-def _compact_field_suffix(form):
-    """`: form` after a struct-form field label; nothing for an unknown form."""
-    return '' if form == UNKNOWN_FORM else ': ' + _compact_form(form)
+def _form_atom_text(form, show):
+    if isinstance(form, (terms.Struct, terms.ByteArray)) and not terms.is_function_form(form):
+        return show(form, _PROJECT)
+    return f'({show(form, _EXPRESSION)})'
+
+
+def _arrow_param(param, show):
+    """The `P` of `P ⇒ R`, in parentheses if a trailing `: form` would swallow the `⇒`."""
+    if _ends_with_form(param) and _loosest(param) >= _APPLY:
+        return f'({show(param, _EXPRESSION)})'
+    return show(param, _APPLY)
+
+
+def _ends_with_form(term):
+    """Whether `term`, printed at apply level or tighter, ends with a byte array's `: form`."""
+    match term:
+        case terms.ByteArray(form=form):
+            return form is not terms.Empty
+        case terms.Apply(function=function, argument=argument) if not isinstance(function, terms.Lambda):
+            return _ends_with_form(argument)
+        case terms.Fix(function=function):
+            return _ends_with_form(function)
+    return False
 
 
 def _loosest(term):
@@ -111,6 +140,8 @@ def _loosest(term):
     match term:
         case terms.Lambda() | terms.If() | terms.Apply(function=terms.Lambda()):
             return _EXPRESSION
+        case terms.Struct() if terms.is_function_form(term):
+            return _ARROW
         case terms.Apply() | terms.Fix():
             return _APPLY
     return _PROJECT
@@ -138,12 +169,16 @@ def _flat(term, level, names):
         case terms.BruijnIndex(index=index):
             text = _bruijn_name(index, names)
         case terms.Lambda(param_name=name, param_form=form, body=body):
-            text = f'{_name(name)}{_form_suffix(form)} → {_flat(body, _EXPRESSION, _bind(names, name))}'
+            text = f'{_name(name)}{_form_suffix(form, names)} → {_flat(body, _EXPRESSION, _bind(names, name))}'
         case terms.Apply(function=terms.Lambda(param_name=name, param_form=form, body=body), argument=argument):
             value = _flat(argument, _EXPRESSION, names)
-            text = f'let {_name(name)}{_form_suffix(form)} = {value} in {_flat(body, _EXPRESSION, _bind(names, name))}'
+            suffix = _form_suffix(form, names)
+            text = f'let {_name(name)}{suffix} = {value} in {_flat(body, _EXPRESSION, _bind(names, name))}'
         case terms.Apply(function=function, argument=argument):
             text = f'{_flat(function, _APPLY, names)} {_flat(argument, _PROJECT, names)}'
+        case terms.Struct() if terms.is_function_form(term):
+            param = _arrow_param(terms.function_param(term), lambda t, level: _flat(t, level, names))
+            text = f'{param} ⇒ {_flat(terms.function_result(term), _ARROW, names)}'
         case terms.Struct(fields=fields):
             text = '{' + ', '.join(f'{_name(f.label)} = {_flat(f.value, _EXPRESSION, names)}' for f in fields) + '}'
         case terms.Project(struct=struct, label=label):
@@ -156,7 +191,7 @@ def _flat(term, level, names):
         case terms.Fix(function=function):
             text = f'fix {_flat(function, _PROJECT, names)}'
         case terms.ByteArray(value=value, form=form):
-            text = f'{_bytes_text(value, form, grouped=True)}{_form_suffix(form)}'
+            text = f'{_bytes_text(value, form, grouped=True)}{_form_suffix(form, names)}'
         case syntax.ErrorTerm():
             text = 'error'
         case _:
@@ -179,18 +214,20 @@ def _pretty(term, level, depth, column, width, indent, names):
     inner = ' ' * (indent * (depth + 1))
     match term:
         case terms.Lambda(param_name=name, param_form=form, body=body):
-            header = f'{_name(name)}{_form_suffix(form)} →'
+            header = f'{_name(name)}{_form_suffix(form, names)} →'
             body_names = _bind(names, name)
             if isinstance(body, terms.Lambda) or (isinstance(body, terms.Struct) and body.fields):
                 text = f'{header} {sub(body, _EXPRESSION, depth, column + len(header) + 1, body_names)}'
             else:
                 text = f'{header}\n{inner}{sub(body, _EXPRESSION, depth + 1, len(inner), body_names)}'
         case terms.Apply(function=terms.Lambda(param_name=name, param_form=form, body=body), argument=argument):
-            header = f'let {_name(name)}{_form_suffix(form)} = '
+            header = f'let {_name(name)}{_form_suffix(form, names)} = '
             value = sub(argument, _EXPRESSION, depth, column + len(header))
             text = f'{header}{value} in\n{pad}{sub(body, _EXPRESSION, depth, len(pad), _bind(names, name))}'
         case terms.Apply(function=function, argument=argument):
             text = f'{sub(function, _APPLY, depth, column)}\n{inner}{sub(argument, _PROJECT, depth + 1, len(inner))}'
+        case terms.Struct() if terms.is_function_form(term):
+            return flat
         case terms.Struct(fields=fields):
             lines = []
             for f in fields:
@@ -212,24 +249,9 @@ def _pretty(term, level, depth, column, width, indent, names):
     return f'({text})' if grouped else text
 
 
-def _form_suffix(form):
-    """`: form` after a lambda param or byte array."""
-    return '' if form == UNKNOWN_FORM else ': ' + _pretty_form(form, arrow=True)
-
-
-def _pretty_form(form, *, arrow):
-    match form:
-        case str():
-            return _name(form)
-        case terms.FunctionForm(param=param, result=result):
-            text = f'{_pretty_form(param, arrow=False)} ⇒ {_pretty_form(result, arrow=True)}'
-            return text if arrow else f'({text})'
-        case terms.StructForm(fields=fields):
-            parts = (
-                _name(label) + ('' if f == UNKNOWN_FORM else ': ' + _pretty_form(f, arrow=True)) for label, f in fields
-            )
-            return '{' + ', '.join(parts) + '}'
-    raise AssertionError(form)
+def _form_suffix(form, names):
+    """`: form` after a lambda param or byte array; nothing for an omitted form."""
+    return '' if form is terms.Empty else ': ' + _form_text(form, names, compact=False)
 
 
 def _name(name):

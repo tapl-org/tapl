@@ -31,10 +31,12 @@ def _resolve(term, names):
                 if bound == name:
                     return terms.BruijnIndex(distance, location)
             raise BruijnError(f'Unknown name {name!r}.', location)
-        case terms.Lambda(param_name=name, body=body):
+        case terms.Lambda(param_name=name, param_form=form, body=body):
+            # The param's form is outside the param's scope.
+            form = _resolve(form, names)
             names.append(name)
             try:
-                return replace(term, body=_resolve(body, names))
+                return replace(term, param_form=form, body=_resolve(body, names))
             finally:
                 names.pop()
     return _map_children(term, lambda child: _resolve(child, names))
@@ -53,6 +55,8 @@ def _map_children(term, f):
             return replace(term, condition=f(c), then_clause=f(t), else_clause=f(e))
         case terms.Fix(function=function):
             return replace(term, function=f(function))
+        case terms.ByteArray(form=form):
+            return replace(term, form=f(form))
     return term
 
 
@@ -62,8 +66,12 @@ def _map_indices(term, on_index, depth=0):
     match term:
         case terms.BruijnIndex():
             return on_index(term, depth)
-        case terms.Lambda(body=body):
-            return replace(term, body=_map_indices(body, on_index, depth + 1))
+        case terms.Lambda(param_form=form, body=body):
+            return replace(
+                term,
+                param_form=_map_indices(form, on_index, depth),
+                body=_map_indices(body, on_index, depth + 1),
+            )
     return _map_children(term, lambda child: _map_indices(child, on_index, depth))
 
 
