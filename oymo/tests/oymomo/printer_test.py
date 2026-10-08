@@ -54,7 +54,7 @@ def test_pretty_parenthesizes_only_where_needed(source, expected):
 
 def test_pretty_omits_unknown_forms():
     assert pretty('x : unknown -> x') == 'x → x'
-    assert pretty('[2a]') == '[2a]'
+    assert pretty('[00]') == '[00]'
     assert pretty('[]: {x, y: i32}') == '[]: {x, y: i32}'
 
 
@@ -73,6 +73,32 @@ def test_pretty_quotes_names_that_need_it():
 
 def test_pretty_groups_bytes_by_four():
     assert pretty('[deadbeefcafebabe00]: i64') == '[deadbeef cafebabe 00]: i64'
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        ('[48656c6c6f20776f726c64]', "'Hello world'"),
+        ('[2a]', "'*'"),
+        ('[]', "''"),
+        ("'Hello'", "'Hello'"),
+        ('[486900]', '[486900]'),  # 00 is not text
+        ('[4127]', '[4127]'),  # no escapes, so `'` stays hex
+        ('[415c]', '[415c]'),  # and so does `\`
+        ('[4869]: i8', '[4869]:i8'),  # a written form keeps hex
+        ("'Hi': i8", '[4869]:i8'),
+        ('[]: {}', '[]:{}'),
+    ],
+)
+def test_text_bytes_print_quoted_when_form_is_unknown(source, expected):
+    assert show(parse(source)) == expected
+    assert show(parse(source), pretty=True) == expected.replace(':', ': ')
+
+
+def test_text_bytes_print_quoted_only_up_to_128_bytes():
+    assert show(parse("'" + 'a' * 128 + "'")) == "'" + 'a' * 128 + "'"
+    assert show(parse("'" + 'a' * 129 + "'")) == '[' + '61' * 129 + ']'
+    assert show(parse("'abcd'"), pretty=True, width=4) == "'abcd'"  # width does not matter
 
 
 def test_pretty_breaks_long_terms():
@@ -159,6 +185,7 @@ def test_width_and_indent_flags():
         'd: {putchar: {c: i8} -> i32, errno} -> [] : ({} -> i32)',
         'if c then if d then a else b else fix f',
         'let x: i8 = let y = e in y in f (let z = x in z)',
+        "f 'Hello world' [48656c6c6f]: i8 '' [00]",
     ],
 )
 def test_output_parses_back_to_the_same_term(source):

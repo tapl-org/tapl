@@ -85,6 +85,27 @@ class _QuotedName(String):
         return MISMATCH if m.value is None else m
 
 
+# Bytes a single-quoted byte array may hold: printable ASCII, except `'` and `\`
+# (no escapes, so `\` is kept free for adding them later).
+ASCII_TEXT = frozenset(chr(b) for b in range(0x20, 0x7F)) - {"'", '\\'}
+
+
+class _AsciiBytes(String):
+    """`'text'` as the bytes of its printable-ASCII characters."""
+
+    def __init__(self, *, skip):
+        super().__init__(
+            quote="'",
+            escapes=False,
+            skip=skip,
+            action=lambda c: c.body.encode('ascii') if all(ch in ASCII_TEXT for ch in c.body) else None,
+        )
+
+    def match(self, parser, pos):
+        m = super().match(parser, pos)
+        return MISMATCH if m.value is None else m
+
+
 # (name, Location) for a plain or a double-quoted identifier.
 NAME = Memoized(
     First(
@@ -191,7 +212,7 @@ RULES: dict[str, Clause] = {
         action=lambda c: terms.Struct(fields=c.values[0], location=_location(c)),
     ),
     rn.BYTE_ARRAY: Seq(
-        HexBytes(skip=TRIVIA),
+        First(HexBytes(skip=TRIVIA), _AsciiBytes(skip=TRIVIA)),
         FORM_OPT,
         action=lambda c: terms.ByteArray(value=c.values[0], form=c.values[1], location=_location(c)),
     ),

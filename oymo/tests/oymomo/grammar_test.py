@@ -107,6 +107,22 @@ def test_byte_array_empty():
     assert show(parse('[] : {}')) == '[]:{}'
 
 
+def test_text_byte_array():
+    assert parse("'Hi there'") == terms.ByteArray(value=b'Hi there', form=UNKNOWN_FORM, location=syntax.Location(0, 10))
+    assert show(parse("'Hi' : i16")) == '[4869]:i16'
+    assert show(parse("''")) == "''"
+    assert show(parse("f 'a' 'b'")) == show(parse("(f 'a') 'b'"))
+
+
+def test_text_byte_array_rejects_non_text():
+    assert show(parse("'a\\'b'")) == 'error'  # no escapes
+    assert show(parse("'a\\b'")) == 'error'
+    assert show(parse("'a\nb'")) == 'error'
+    assert show(parse("'a\tb'")) == 'error'
+    assert show(parse("'λ'")) == 'error'
+    assert show(parse("'abc")) == 'error'
+
+
 def test_byte_array_as_argument():
     assert show(parse('f [01] : u8 [02]')) == show(parse('(f ([01] : u8)) [02]'))
 

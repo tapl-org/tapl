@@ -21,10 +21,13 @@ scope; there it stays `$i`, so the output still resolves back to the same term.
 from oymo.core import syntax
 from oymo.core.terminals import IDENT_CONTINUE, IDENT_START
 from oymo.oymomo import terms
-from oymo.oymomo.grammar import RESERVED, UNKNOWN_FORM
+from oymo.oymomo.grammar import ASCII_TEXT, RESERVED, UNKNOWN_FORM
 
 # Binding levels, loosest first. A term printed where a tighter level is needed gets parentheses.
 _EXPRESSION, _APPLY, _PROJECT = range(3)
+
+# A byte array longer than this prints as hex even if its bytes are text.
+_MAX_TEXT_BYTES = 128
 
 
 def show(
@@ -63,12 +66,22 @@ def _compact(term, names, level=_EXPRESSION):
         case terms.Fix(function=function):
             text = f'fix {_compact(function, names, _PROJECT)}'
         case terms.ByteArray(value=value, form=form):
-            text = f'[{value.hex()}]{_compact_suffix(form)}'
+            text = f'{_bytes_text(value, form, grouped=False)}{_compact_suffix(form)}'
         case syntax.ErrorTerm():
             text = 'error'
         case _:
             raise AssertionError(term)
     return f'({text})' if level > _loosest(term) else text
+
+
+def _bytes_text(value, form, *, grouped):
+    """`'text'` for a byte array with an unknown form, at most `_MAX_TEXT_BYTES` long, whose
+    bytes are all ASCII text; otherwise `[hex]`, in groups of four if `grouped`."""
+    if form == UNKNOWN_FORM and len(value) <= _MAX_TEXT_BYTES and all(chr(b) in ASCII_TEXT for b in value):
+        return "'" + value.decode('ascii') + "'"
+    if grouped:
+        return '[' + ' '.join(value[i : i + 4].hex() for i in range(0, len(value), 4)) + ']'
+    return f'[{value.hex()}]'
 
 
 def _compact_suffix(form):
@@ -143,8 +156,7 @@ def _flat(term, level, names):
         case terms.Fix(function=function):
             text = f'fix {_flat(function, _PROJECT, names)}'
         case terms.ByteArray(value=value, form=form):
-            hex_groups = ' '.join(value[i : i + 4].hex() for i in range(0, len(value), 4))
-            text = f'[{hex_groups}]{_form_suffix(form)}'
+            text = f'{_bytes_text(value, form, grouped=True)}{_form_suffix(form)}'
         case syntax.ErrorTerm():
             text = 'error'
         case _:

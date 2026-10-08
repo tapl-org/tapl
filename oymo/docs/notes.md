@@ -81,6 +81,7 @@ Target(triple='x86_64-unknown-linux-gnu', data_layout='', prims=DEFAULT_PRIMS)
 {}  structs (ordered fields): terms {x = 1} and forms {x: i32}
 ()  grouping only
 []  byte arrays [2a 00 00 00]
+''  text byte arrays 'Hello'
 ```
 
 Why each bracket has one job: the parser never has to guess. `(` always groups,
@@ -181,6 +182,20 @@ word.
   hides the byte order; backticks, which look like quoting; juxtaposing literals,
   because juxtaposition is already application.
 
+### Text byte arrays: `'Hello'`
+- A byte array whose bytes are all printable ASCII can be written in single
+  quotes: `'Hello'` is the same term as `[48656c6c 6f]`. The form suffix works as
+  for hex: `'Hi' : i16`.
+- Allowed characters: `0x20..0x7e` except `'` and `\`. No escapes, so bytes with
+  `'`, `\`, or anything non-printable are written in hex. Keeping `\` out leaves
+  room for escapes later. Single line only. `''` is the empty array.
+- `'` was unused, and `"` is taken by quoted names.
+- The printer uses `'...'` only when the form is `unknown`, every byte is text,
+  and the array is at most 128 bytes; otherwise hex. Why: a written form
+  (`[41]:i8`) usually means a number, so hex stays; a long blob reads better as
+  grouped hex. The limit is fixed, not `width`, so output doesn't depend on
+  layout settings.
+
 ### Identifiers: plain or double quoted
 Plain identifiers match `[A-Za-z_][A-Za-z0-9_]*`, excluding the reserved words
 `if then else fix let in`. Any other non-empty string is written in double quotes:
@@ -239,7 +254,7 @@ tests, so any stage can print terms. Both print `→`, which reads better than `
   parenthesized source, e.g. `show(parse('f a b')) == show(parse('(f a) b'))`.
 - `pretty=True`: oymomo source that parses back to the same term (a test checks
   this). Parens only where needed (`f (x → x)`, `(let x = e in f) a`). Names are quoted when needed (`"if"`, `"a b"`). Bytes are shown in
-  groups of four (`[deadbeef cafebabe]`).
+  groups of four (`[deadbeef cafebabe]`), or as `'text'` (see "Text byte arrays").
 - A pretty term wider than `width` columns (default 80) breaks, indenting each
   level by `indent` spaces (default 2):
   - a struct puts one field per line, with a trailing comma;
