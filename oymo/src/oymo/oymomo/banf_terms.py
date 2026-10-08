@@ -310,7 +310,7 @@ def show_form(form: terms.Form) -> str:
 
 def _show_field_form(form):
     if isinstance(form, terms.FunctionForm):
-        return f'{show_form(form.param)} -> {_show_field_form(form.result)}'
+        return f'{show_form(form.param)} => {_show_field_form(form.result)}'
     return show_form(form)
 
 

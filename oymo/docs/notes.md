@@ -99,7 +99,7 @@ if c then a else b           If
 let x = e in body            sugar for (x -> body) e
 fix f                        Fix
 [2a 00 00 00] : i32          ByteArray
-{c: i8} -> i32               FunctionForm (in form position)
+{c: i8} => i32               FunctionForm (in form position)
 // comment                   line comment
 ```
 
@@ -227,25 +227,30 @@ Kept after byte arrays moved to `[]`; `#` is now unused.
   bottom, as BANF does.
 - `let` and `in` are reserved words.
 
-### Function forms: `{c: i8} -> i32`
-- A function form is written with `->` or `→`, like a lambda. It has one param,
-  matching one-argument lambdas, and no param name: the struct form's labels are
-  what callers use (`decls.putchar {c = [41]:i8}`).
-- Right-associative: `{a: i8} -> {b: i8} -> i32` is `{a: i8} -> ({b: i8} -> i32)`.
-  Parens group the other way: `({a: i8} -> {b: i8}) -> i32`.
-- An arrow form is allowed only as the form of a struct-form field or inside
-  parentheses: `{putchar: {c: i8} -> i32}`, `x: ({c: i8} -> i32) -> x`. The form
-  after a lambda's or byte array's `:` is a name, a struct form, or a parenthesized
-  form.
-- Why: in `decls: {...} -> defs -> body`, an unrestricted arrow form would parse
-  `{...} -> defs` as one function form and swallow the `defs` binder. The grammar
+### Function forms: `{c: i8} => i32`
+- A function form is written with `=>` or `⇒` (U+21D2); printers emit `⇒` (the
+  BANF printer `=>`). It has one param, matching one-argument lambdas, and no
+  param name: the struct form's labels are what callers use
+  (`decls.putchar {c = [41]:i8}`).
+- Why not `->` like a lambda: a different arrow tells a form from a term at a
+  glance, in `decls: {putchar: {c: i8} => i32} -> defs -> ...` the `=>` is in a
+  form and each `->` binds a lambda.
+- Right-associative: `{a: i8} => {b: i8} => i32` is `{a: i8} => ({b: i8} => i32)`.
+  Parens group the other way: `({a: i8} => {b: i8}) => i32`.
+- An arrow form may follow any `:` without parentheses: `x: {c: i8} => i32 -> x`,
+  `{putchar: {c: i8} => i32}`, `[]: i8 => i32`. Parentheses are only needed for
+  an arrow form as a param: `({a: i8} => i8) => i32`.
+- Why this is safe: `=>` is not a lambda's `->`, so in
+  `decls: {} => i32 -> defs -> body` the form ends at `->` and `defs` stays a
+  lambda binder. (When function forms shared `->`, an arrow form was allowed only
+  in struct-form fields and parentheses, to avoid swallowing `defs`.) The grammar
   has two rules: `FORM` (name, struct form, or parenthesized `ARROW_FORM`) and
-  `ARROW_FORM` (`FORM -> ARROW_FORM` or `FORM`). Struct-form fields use
-  `ARROW_FORM`.
+  `ARROW_FORM` (`FORM => ARROW_FORM` or `FORM`); every `: form` uses `ARROW_FORM`.
 
 ### Printer: compact for tests, pretty for people
 `printer.show(term)` and `printer.show_form(form)` live in `printer.py`, not in the
-tests, so any stage can print terms. Both print `→`, which reads better than `->`.
+tests, so any stage can print terms. Both print `→`, which reads better than `->`,
+and `⇒` for function forms.
 - Compact (default): one line, with parentheses only where the grammar needs
   them, so it isn't ambiguous: `a → b → a b`, `f (x → x)`, `(f a).x`. Written
   forms are shown without a space (`x:i32 → x`), but an `unknown` form never is,
@@ -285,7 +290,7 @@ tests, so any stage can print terms. Both print `→`, which reads better than `
 ## Program shape
 
 ```
-prim -> decls: {putchar: {c: i8} -> i32, errno: i32} -> defs -> {
+prim -> decls: {putchar: {c: i8} => i32, errno: i32} -> defs -> {
   main = f -> {entry = args:{} -> let t0 = decls.putchar {c = [41]:i8} in t0},
 }
 ```
@@ -304,7 +309,7 @@ conversions): `prim.add_i32 {a = x, b = y}`.
 `decls` is the struct of imports. Its form lists them; it has no value in the
 source, because the linker provides it. Each field can be any form:
 - A function form declares an imported function:
-  `putchar: {c: i8} -> i32` becomes `declare i32 @putchar(i8 %c)`.
+  `putchar: {c: i8} => i32` becomes `declare i32 @putchar(i8 %c)`.
 - Any other form declares imported data:
   `errno: i32` becomes `@errno = external global i32`.
 - A module with no imports writes `decls: {}`. The `{}` form is required, so the
@@ -402,8 +407,8 @@ add mul and or xor           {a: T, b: T} -> T          order doesn't matter
 sub                          {minuend: T, subtrahend: T} -> T
 sdiv udiv srem urem          {dividend: T, divisor: T} -> T
 shl lshr ashr                {value: T, amount: T} -> T
-eq ne                        {a: T, b: T} -> i1
-slt sle sgt sge ult ule ugt uge   {lhs: T, rhs: T} -> i1
+eq ne                        {a: T, b: T} => i1
+slt sle sgt sge ult ule ugt uge   {lhs: T, rhs: T} => i1
 zext sext                    {value: F} -> T            for each wider T
 trunc                        {value: F} -> T            for each narrower T
 ```
@@ -741,9 +746,9 @@ base case, like `g = f -> {entry = args:{} -> let t = defs.g {} in t}`, is an er
 ### Nested function forms are rejected, for now
 A function form is accepted only as a `decls` field's whole form. These are
 rejected until it's decided what they mean:
-- inside a data form: `decls: {libc: {putchar: {c: i8} -> i32}}`,
-- as a param or result: `decls: {g: {c: i8} -> {d: i8} -> i32}`,
-- with a non-struct param: `decls: {g: i8 -> i32}`.
+- inside a data form: `decls: {libc: {putchar: {c: i8} => i32}}`,
+- as a param or result: `decls: {g: {c: i8} => {d: i8} => i32}`,
+- with a non-struct param: `decls: {g: i8 => i32}`.
 
 Unknown forms in `decls` (`{g: unknown}`) are rejected too, since nothing can infer
 an import's form.

@@ -58,10 +58,10 @@ def test_pretty_omits_unknown_forms():
     assert pretty('[]: {x, y: i32}') == '[]: {x, y: i32}'
 
 
-def test_pretty_function_forms_group_only_outside_struct_fields():
-    assert pretty('g: ({c: i8} -> i32) -> g') == 'g: ({c: i8} → i32) → g'
-    assert pretty('[]: {f: {c: i8} -> i32}') == '[]: {f: {c: i8} → i32}'
-    assert pretty('[]: {f: ({a: i8} -> i8) -> i32}') == '[]: {f: ({a: i8} → i8) → i32}'
+def test_pretty_function_forms_group_only_as_params():
+    assert pretty('g: ({c: i8} => i32) -> g') == 'g: {c: i8} ⇒ i32 → g'
+    assert pretty('[]: {f: {c: i8} => i32}') == '[]: {f: {c: i8} ⇒ i32}'
+    assert pretty('[]: {f: ({a: i8} => i8) => i32}') == '[]: {f: ({a: i8} ⇒ i8) ⇒ i32}'
 
 
 def test_pretty_quotes_names_that_need_it():
@@ -182,7 +182,7 @@ def test_width_and_indent_flags():
         FACT,
         'f a (b -> b) (if c then d else e).x',
         '"if" -> "a b" -> s."\\u{3bb}"',
-        'd: {putchar: {c: i8} -> i32, errno} -> [] : ({} -> i32)',
+        'd: {putchar: {c: i8} => i32, errno} -> [] : ({} => i32)',
         'if c then if d then a else b else fix f',
         'let x: i8 = let y = e in y in f (let z = x in z)',
         "f 'Hello world' [48656c6c6f]: i8 '' [00]",
@@ -195,5 +195,5 @@ def test_output_parses_back_to_the_same_term(source):
 
 def test_show_form():
     form = terms.StructForm([('f', terms.FunctionForm('i8', 'i32')), ('x', 'unknown')])
-    assert show_form(form) == '{f: i8 → i32, x}'
-    assert show_form(form, pretty=True) == '{f: i8 → i32, x}'
+    assert show_form(form) == '{f: i8 ⇒ i32, x}'
+    assert show_form(form, pretty=True) == '{f: i8 ⇒ i32, x}'

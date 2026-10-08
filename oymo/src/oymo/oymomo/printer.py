@@ -85,8 +85,8 @@ def _bytes_text(value, form, *, grouped):
 
 
 def _compact_suffix(form):
-    """`:form` after a name or byte array; nothing for an unknown form. An arrow form needs parentheses here."""
-    return '' if form == UNKNOWN_FORM else ':' + _compact_form(form, arrow=False)
+    """`:form` after a name or byte array; nothing for an unknown form."""
+    return '' if form == UNKNOWN_FORM else ':' + _compact_form(form)
 
 
 def _compact_form(form, *, arrow=True):
@@ -94,7 +94,7 @@ def _compact_form(form, *, arrow=True):
         case str():
             return _name(form)
         case terms.FunctionForm(param=param, result=result):
-            text = f'{_compact_form(param, arrow=False)} → {_compact_form(result)}'
+            text = f'{_compact_form(param, arrow=False)} ⇒ {_compact_form(result)}'
             return text if arrow else f'({text})'
         case terms.StructForm(fields=fields):
             return '{' + ', '.join(f'{_name(label)}{_compact_field_suffix(f)}' for label, f in fields) + '}'
@@ -102,7 +102,7 @@ def _compact_form(form, *, arrow=True):
 
 
 def _compact_field_suffix(form):
-    """A struct-form field takes an arrow form without parentheses."""
+    """`: form` after a struct-form field label; nothing for an unknown form."""
     return '' if form == UNKNOWN_FORM else ': ' + _compact_form(form)
 
 
@@ -213,8 +213,8 @@ def _pretty(term, level, depth, column, width, indent, names):
 
 
 def _form_suffix(form):
-    """`: form` after a lambda param or byte array, where an arrow form needs parentheses."""
-    return '' if form == UNKNOWN_FORM else ': ' + _pretty_form(form, arrow=False)
+    """`: form` after a lambda param or byte array."""
+    return '' if form == UNKNOWN_FORM else ': ' + _pretty_form(form, arrow=True)
 
 
 def _pretty_form(form, *, arrow):
@@ -222,7 +222,7 @@ def _pretty_form(form, *, arrow):
         case str():
             return _name(form)
         case terms.FunctionForm(param=param, result=result):
-            text = f'{_pretty_form(param, arrow=False)} → {_pretty_form(result, arrow=True)}'
+            text = f'{_pretty_form(param, arrow=False)} ⇒ {_pretty_form(result, arrow=True)}'
             return text if arrow else f'({text})'
         case terms.StructForm(fields=fields):
             parts = (

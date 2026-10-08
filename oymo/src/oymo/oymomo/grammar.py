@@ -122,10 +122,9 @@ def _form_opt(rule):
     )
 
 
-# An arrow form only appears as a struct-form field or inside parentheses, so that
-# `decls: {...} -> defs -> body` keeps `defs` as a lambda binder.
-FORM_OPT = _form_opt(rn.FORM)
-FIELD_FORM_OPT = _form_opt(rn.ARROW_FORM)
+# Any `: form` may be an arrow form: `=>` is not a lambda's `->`, so in
+# `decls: {...} => i32 -> defs -> body` the `defs` binder stays a lambda.
+FORM_OPT = _form_opt(rn.ARROW_FORM)
 
 
 def _lambda(c):
@@ -221,9 +220,7 @@ RULES: dict[str, Clause] = {
         Seq(NAME, action=lambda c: c.values[0][0]),
         Seq(
             _punct('{'),
-            Separated(
-                Seq(NAME, FIELD_FORM_OPT, action=lambda c: (c.values[0][0], c.values[1])), _punct(','), trailing=True
-            ),
+            Separated(Seq(NAME, FORM_OPT, action=lambda c: (c.values[0][0], c.values[1])), _punct(','), trailing=True),
             _punct('}'),
             action=lambda c: terms.StructForm(fields=c.values[0]),
         ),
@@ -232,7 +229,7 @@ RULES: dict[str, Clause] = {
     rn.ARROW_FORM: First(
         Seq(
             Ref(rn.FORM),
-            _punct('->', '→'),
+            _punct('=>', '⇒'),
             Ref(rn.ARROW_FORM),
             action=lambda c: terms.FunctionForm(param=c.values[0], result=c.values[1]),
         ),

@@ -343,7 +343,7 @@ def test_error_location_points_at_source():
     assert source[location.start : location.end] == 'f.nowhere {}'
 
 
-DECLS = '{putchar: {c: i8} -> i32, errno: i32, cfg: {w: i16, h: i16}}'
+DECLS = '{putchar: {c: i8} => i32, errno: i32, cfg: {w: i16, h: i16}}'
 
 
 def test_imports():
@@ -392,17 +392,17 @@ def test_imports():
         ),
         (
             'main = f -> {entry = args:{} -> [01]:i8}',
-            '{libc: {putchar: {c: i8} -> i32}}',
+            '{libc: {putchar: {c: i8} => i32}}',
             "Import 'libc': function forms nested inside other forms are not supported.",
         ),
         (
             'main = f -> {entry = args:{} -> [01]:i8}',
-            '{g: {c: i8} -> {d: i8} -> i32}',
+            '{g: {c: i8} => {d: i8} => i32}',
             "Import 'g': function forms nested inside other forms are not supported.",
         ),
         (
             'main = f -> {entry = args:{} -> [01]:i8}',
-            '{g: i8 -> i32}',
+            '{g: i8 => i32}',
             "Import 'g': a function form needs a struct form as its param.",
         ),
         ('main = f -> {entry = args:{} -> [01]:i8}', '{g: unknown}', "Import 'g': form must be known."),

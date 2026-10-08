@@ -138,26 +138,29 @@ def test_nested_struct_forms():
 
 
 def test_function_form_in_struct_form_field():
-    assert show(parse('d: {putchar: {c: i8} -> i32, errno: i32} -> d')) == (
-        'd:{putchar: {c: i8} → i32, errno: i32} → d'
+    assert show(parse('d: {putchar: {c: i8} => i32, errno: i32} -> d')) == (
+        'd:{putchar: {c: i8} ⇒ i32, errno: i32} → d'
     )
 
 
-def test_parenthesized_function_form():
-    assert show(parse('g: ({c: i8} -> i32) -> g')) == 'g:({c: i8} → i32) → g'
-    assert show(parse('[]: (i8 -> i32)')) == '[]:(i8 → i32)'
+def test_function_form_after_colon_needs_no_parens():
+    assert show(parse('g: {c: i8} => i32 -> g')) == 'g:{c: i8} ⇒ i32 → g'
+    assert show(parse('g: ({c: i8} => i32) -> g')) == 'g:{c: i8} ⇒ i32 → g'
+    assert show(parse('[]: i8 => i32')) == '[]:i8 ⇒ i32'
+    assert show(parse('let f: i8 => i32 = g in f')) == 'let f:i8 ⇒ i32 = g in f'
 
 
 def test_function_form_is_right_associative():
-    assert show(parse('d: {f: {a: i8} -> {b: i8} -> i32} -> d')) == show(
-        parse('d: {f: {a: i8} -> ({b: i8} -> i32)} -> d')
+    assert show(parse('d: {f: {a: i8} => {b: i8} => i32} -> d')) == show(
+        parse('d: {f: {a: i8} => ({b: i8} => i32)} -> d')
     )
-    assert show(parse('d: {f: ({a: i8} -> {b: i8}) -> i32} -> d')) == 'd:{f: ({a: i8} → {b: i8}) → i32} → d'
+    assert show(parse('d: {f: ({a: i8} => {b: i8}) => i32} -> d')) == 'd:{f: ({a: i8} ⇒ {b: i8}) ⇒ i32} → d'
 
 
 def test_function_form_does_not_swallow_lambda_binder():
-    source = 'decls: {f: {} -> i32} -> defs -> {}'
-    assert show(parse(source)) == 'decls:{f: {} → i32} → defs → {}'
+    source = 'decls: {f: {} => i32} -> defs -> {}'
+    assert show(parse(source)) == 'decls:{f: {} ⇒ i32} → defs → {}'
+    assert show(parse('decls: {} => i32 -> defs -> {}')) == 'decls:{} ⇒ i32 → defs → {}'
 
 
 def test_quoted_names():
