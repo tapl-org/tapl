@@ -112,6 +112,18 @@ class ByteArray(Term):
         yield self.form
 
 
+# `term : form`: `term`, formed as `form`.
+@dataclass
+class Formed(Term):
+    term: Term
+    form: Term
+    location: Location | None = field(default=None, compare=False)
+
+    def children(self) -> Generator[Term, None, None]:
+        yield self.term
+        yield self.form
+
+
 # `P => R`: the form of a function from `P` to `R`.
 @dataclass
 class FunctionForm(Term):

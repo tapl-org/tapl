@@ -224,3 +224,27 @@ def test_show_form():
     assert show_form(form, pretty=True) == "{f = 'i8' ⇒ 'i32', x = 'unknown'}"
     assert show_form(terms.FunctionForm(form, i32)) == "{f = 'i8' ⇒ 'i32', x = 'unknown'} ⇒ 'i32'"
     assert show_form(terms.Variable('i32')) == '(i32)'
+
+
+def test_formed():
+    # No syntax builds a Formed yet, so these are built in code.
+    a, b, c, f, x, y = (terms.Variable(name) for name in 'abcfxy')
+    byte = terms.ByteArray(b'\x01', terms.Void)
+    assert show(terms.Formed(y, x)) == 'y:x'
+    assert show(terms.Formed(y, x), pretty=True) == 'y: x'
+    assert show(terms.Formed(byte, terms.name_to_form('i1'))) == "[01]:'i1'"
+    assert show(terms.Formed(terms.Apply(f, y), terms.Apply(f, x))) == 'f y:f x'
+    assert show(terms.Apply(f, terms.Formed(y, x))) == 'f (y:x)'
+    assert show(terms.Lambda('x', terms.Void, terms.Formed(y, x))) == 'x → y:x'
+    assert show(terms.Formed(y, terms.Lambda('a', terms.Void, b))) == 'y:(a → b)'
+    assert show(terms.Formed(y, terms.FunctionForm(a, b))) == 'y:a ⇒ b'
+    assert show(terms.FunctionForm(terms.Formed(a, b), c)) == '(a:b) ⇒ c'
+    assert show(terms.Formed(a, terms.Formed(b, c))) == 'a:b:c'
+    assert show(terms.Formed(terms.Formed(a, b), c)) == '(a:b):c'
+    assert show(terms.Formed(terms.Project(y, 'p'), x)) == 'y.p:x'
+
+
+def test_formed_keeps_a_byte_array_form_apart():
+    # `[01]:'i8':'i16'` would read as `[01] : ('i8' : 'i16')`.
+    i8, i16 = terms.name_to_form('i8'), terms.name_to_form('i16')
+    assert show(terms.Formed(terms.ByteArray(b'\x01', i8), i16)) == "([01]:'i8'):'i16'"

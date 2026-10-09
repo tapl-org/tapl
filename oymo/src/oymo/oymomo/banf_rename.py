@@ -103,4 +103,6 @@ class _Renamer:
                 return replace(term, function=self.other(function))
             case terms.FunctionForm(param=param, result=result):
                 return replace(term, param=self.other(param), result=self.other(result))
+            case terms.Formed(term=inner, form=form):
+                return replace(term, term=self.other(inner), form=self.other(form))
         return term

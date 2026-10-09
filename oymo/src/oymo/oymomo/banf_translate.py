@@ -161,6 +161,11 @@ class _Translator:
             case terms.ByteArray(value=value, form=form):
                 _check_data_form(form, location, 'Byte array')
                 return banf.Const(value, form, location)
+            case terms.Formed(term=terms.ByteArray(value=value, form=terms.Void), form=form):
+                _check_data_form(form, location, 'Byte array')
+                return banf.Const(value, form, location)
+            case terms.Formed():
+                raise TranslationError('Only a byte array without a form can be given a form.', location)
             case terms.BruijnIndex():
                 match block.binder(term):
                     case ('let', name):

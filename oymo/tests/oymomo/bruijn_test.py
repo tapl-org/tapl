@@ -122,3 +122,25 @@ def test_reduce_one_step(source, expected):
 def test_reduce_returns_the_term_itself(source):
     term = resolved(source, ('a', 'b', 'e', 'g', 'prim', 'args'))
     assert bruijn.reduce(term) is term
+
+
+def test_shift_and_substitute_reach_formed():
+    term = terms.Formed(terms.BruijnIndex(0), terms.BruijnIndex(1))
+    assert bruijn.shift(term, 1) == terms.Formed(terms.BruijnIndex(1), terms.BruijnIndex(2))
+    assert bruijn.substitute(term, 1, terms.BruijnIndex(5)) == terms.Formed(terms.BruijnIndex(0), terms.BruijnIndex(5))
+
+
+def test_resolve_reaches_formed():
+    term = bruijn.resolve(
+        terms.Lambda(
+            'x', terms.Void, terms.Lambda('y', terms.Void, terms.Formed(terms.Variable('y'), terms.Variable('x')))
+        )
+    )
+    assert show(term) == 'x → y → $0:$1'
+
+
+@pytest.mark.parametrize(('value', 'expected'), [(b'\x01', 'a'), (b'\x00', 'b')])
+def test_reduce_if_sees_through_a_form(value, expected):
+    a, b = terms.BruijnIndex(1), terms.BruijnIndex(0)
+    condition = terms.Formed(terms.ByteArray(value, terms.Void), terms.name_to_form('i1'))
+    assert bruijn.reduce(terms.If(condition, a, b)) == {'a': a, 'b': b}[expected]

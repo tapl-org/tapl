@@ -57,6 +57,8 @@ def _map_children(term, f):
             return replace(term, function=f(function))
         case terms.ByteArray(form=form):
             return replace(term, form=f(form))
+        case terms.Formed(term=inner, form=form):
+            return replace(term, term=f(inner), form=f(form))
         case terms.FunctionForm(param=param, result=result):
             return replace(term, param=f(param), result=f(result))
     return term
@@ -133,7 +135,12 @@ def reduce(term: syntax.Term) -> syntax.Term:
         case terms.Project(struct=terms.Struct()):
             projected = project(term)
             return term if projected is None else projected
-        case terms.If(condition=terms.ByteArray(value=value), then_clause=then_clause, else_clause=else_clause):
+        case terms.If(
+            condition=terms.ByteArray(value=value) | terms.Formed(term=terms.ByteArray(value=value)),
+            then_clause=then_clause,
+            else_clause=else_clause,
+        ):
+            # A form on the condition, as in `if [01]:'i1' then ...`, doesn't change which branch.
             if value == _TRUE:
                 return then_clause
             if value == _FALSE:

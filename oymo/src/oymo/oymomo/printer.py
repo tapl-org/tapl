@@ -24,7 +24,7 @@ from oymo.oymomo import terms
 from oymo.oymomo.grammar import ASCII_TEXT, RESERVED
 
 # Binding levels, loosest first. A term printed where a tighter level is needed gets parentheses.
-_EXPRESSION, _APPLY, _ARROW, _PROJECT = range(4)
+_EXPRESSION, _FORMED, _APPLY, _ARROW, _PROJECT = range(5)
 
 # A byte array longer than this prints as hex even if its bytes are text.
 _MAX_TEXT_BYTES = 128
@@ -72,6 +72,9 @@ def _compact(term, names, level=_EXPRESSION):
             text = f'fix {_compact(function, names, _ARROW)}'
         case terms.ByteArray(value=value, form=form):
             text = f'{_bytes_text(value, form, grouped=False)}{_compact_suffix(form, names)}'
+        case terms.Formed(term=inner, form=form):
+            inner_text = _formed_term(inner, lambda t, level: _compact(t, names, level))
+            text = f'{inner_text}:{_compact(form, names, _FORMED)}'
         case syntax.ErrorTerm():
             text = 'error'
         case _:
@@ -122,6 +125,13 @@ def _arrow_param(param, show):
     return show(param, _PROJECT)
 
 
+def _formed_term(term, show):
+    """The `t` of `t : form`, in parentheses if its own trailing `: form` would take the `:`."""
+    if _ends_with_form(term):
+        return f'({show(term, _EXPRESSION)})'
+    return show(term, _APPLY)
+
+
 def _ends_with_form(term):
     """Whether `term`, printed at apply level or tighter, ends with a byte array's `: form`."""
     match term:
@@ -139,6 +149,8 @@ def _loosest(term):
     match term:
         case terms.Lambda() | terms.If() | terms.Apply(function=terms.Lambda()):
             return _EXPRESSION
+        case terms.Formed():
+            return _FORMED
         case terms.FunctionForm():
             return _ARROW
         case terms.Apply() | terms.Fix():
@@ -191,6 +203,9 @@ def _flat(term, level, names):
             text = f'fix {_flat(function, _ARROW, names)}'
         case terms.ByteArray(value=value, form=form):
             text = f'{_bytes_text(value, form, grouped=True)}{_form_suffix(form, names)}'
+        case terms.Formed(term=inner, form=form):
+            inner_text = _formed_term(inner, lambda t, level: _flat(t, level, names))
+            text = f'{inner_text}: {_flat(form, _FORMED, names)}'
         case syntax.ErrorTerm():
             text = 'error'
         case _:

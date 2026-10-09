@@ -169,6 +169,18 @@ Every `: form` may be left out: lambda params (`x -> body`), lets, and byte arra
   `let t0 = prim.eq_i32 {...} in t0` needs no `t0: 'i1'`. It rejects a void form
   where nothing can infer it, as in a byte array `[01]` with no form.
 
+### `Formed(term, form)`: any term with a form
+`Formed` is `term : form`, "`term`, formed as `form`". It lets the form of any term come
+from an expression, so a byte array's form can be a variable:
+`(x -> y -> y : x) 'i1' [01]` evaluates to `[01] : 'i1'`. See `plan_annotation.md`.
+- `Formed` itself never reduces. `whnf` reduces inside `Formed.term`, and an `if` sees
+  through a form on its condition.
+- BANF translation turns a formed byte array with no form of its own into a constant.
+  It rejects any other `Formed`.
+- The printer gives `:` its own level, between `->`/`if`/`let` and application:
+  `f y:f x` is `(f y) : (f x)`, `f (y:x)` needs parentheses, and `a:b:c` is `a : (b : c)`.
+- Not parsed yet: for now `Formed` is only built in code.
+
 ### Byte arrays are bracketed hex: `[2a 00 00 00] : 'i32'`
 - The kernel has only byte arrays, so literals are written as bytes, not numbers.
 - Bytes are little-endian on every target: `[2a000000] : 'i32'` is 42 everywhere.

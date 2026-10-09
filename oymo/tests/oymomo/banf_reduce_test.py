@@ -2,7 +2,7 @@
 
 import pytest
 
-from oymo.oymomo import banf_reduce, bruijn
+from oymo.oymomo import banf_reduce, bruijn, terms
 from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show
 
@@ -187,3 +187,23 @@ def test_runs_out_of_fuel():
     term = bruijn.resolve(parse(program(block('(fix (self -> self)) args.n'))))
     with pytest.raises(bruijn.BruijnError, match='ran out of reduction steps'):
         banf_reduce.shape(term, fuel=100)
+
+
+def test_whnf_reduces_inside_formed():
+    i1 = terms.name_to_form('i1')
+    one = terms.ByteArray(b'\x01', terms.Void)
+    identity = terms.Lambda('x', terms.Void, terms.BruijnIndex(0))
+    reduced = banf_reduce.whnf(terms.Formed(terms.Apply(identity, one), i1))
+    assert reduced == terms.Formed(one, i1)
+
+
+def test_dynamic_byte_array_form():
+    # (x -> y -> y : x) 'i1' [01], built in code until `e : F` parses.
+    i1 = terms.name_to_form('i1')
+    one = terms.ByteArray(b'\x01', terms.Void)
+    function = terms.Lambda(
+        'x', terms.Void, terms.Lambda('y', terms.Void, terms.Formed(terms.BruijnIndex(0), terms.BruijnIndex(1)))
+    )
+    term = terms.Apply(terms.Apply(function, i1), one)
+    assert banf_reduce.whnf(term) == terms.Formed(one, i1)
+    assert show(banf_reduce.whnf(term)) == "[01]:'i1'"

@@ -149,7 +149,9 @@ def _location(term):
 
 def _head(term):
     match term:
-        case terms.Apply(function=head) | terms.Project(struct=head) | terms.If(condition=head):
+        case (
+            terms.Apply(function=head) | terms.Project(struct=head) | terms.If(condition=head) | terms.Formed(term=head)
+        ):
             return head
     return None
 
@@ -162,6 +164,8 @@ def _with_head(term, head):
             return replace(term, struct=head)
         case terms.If():
             return replace(term, condition=head)
+        case terms.Formed():
+            return replace(term, term=head)
     raise AssertionError(term)
 
 

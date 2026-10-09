@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import dataclasses
 import textwrap
 
 import pytest
@@ -438,3 +439,48 @@ def test_program_shape_errors():
 
 def test_program_binders_are_renamed():
     assert translate(parse('p -> p: {} -> defs -> {}')).bindings == []
+
+
+MARK = b'\x2a'
+
+
+def formed_mark(term, form):
+    """`term` with the byte array `[2a]` replaced by `[2a] : form`. No syntax builds a Formed yet."""
+    if isinstance(term, terms.ByteArray) and term.value == MARK:
+        return terms.Formed(term, form)
+    if isinstance(term, list):
+        return [formed_mark(item, form) for item in term]
+    if dataclasses.is_dataclass(term) and not isinstance(term, type):
+        changes = {f.name: formed_mark(getattr(term, f.name), form) for f in dataclasses.fields(term) if f.compare}
+        return dataclasses.replace(term, **changes)
+    return term
+
+
+def translate_formed(defs, form):
+    return translate(formed_mark(parse(program(defs)), form))
+
+
+def test_formed_byte_array_is_a_constant():
+    module = translate_formed('main = f -> {entry = args:{} -> [2a]}', I8)
+    assert banf_terms.show(module) == text("""
+        main: i8
+          entry():
+            return [2a]:i8
+    """)
+
+
+@pytest.mark.parametrize(
+    ('defs', 'form', 'message'),
+    [
+        ("main = f -> {entry = args:{} -> [2a]:'i8'}", I16, 'Only a byte array without a form can be given a form.'),
+        (
+            'main = f -> {entry = args:{} -> [2a]}',
+            terms.FunctionForm(I8, I8),
+            'Byte array: function forms nested inside other forms are not supported.',
+        ),
+    ],
+)
+def test_formed_errors(defs, form, message):
+    with pytest.raises(TranslationError) as info:
+        translate_formed(defs, form)
+    assert info.value.message == message
