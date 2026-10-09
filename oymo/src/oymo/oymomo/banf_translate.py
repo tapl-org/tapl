@@ -28,7 +28,7 @@ def _location(term):
 def _check_data_form(form, location, what):
     """A data form is a named form or a struct of data forms: no unknown parts, no function forms,
     and no other terms."""
-    if terms.is_function_form(form):
+    if isinstance(form, terms.FunctionForm):
         raise TranslationError(f'{what}: function forms nested inside other forms are not supported.', location)
     if (fields := terms.struct_fields(form)) is not None:
         labels = [label for label, _ in fields]
@@ -99,8 +99,8 @@ def _imports(decls_form, location):
         if label in imports:
             raise TranslationError(f'Duplicate import {label!r}.', location)
         what = f'Import {label!r}'
-        if terms.is_function_form(form):
-            param, result = terms.function_param(form), terms.function_result(form)
+        if isinstance(form, terms.FunctionForm):
+            param, result = form.param, form.result
             params = terms.struct_fields(param)
             if params is None:
                 raise TranslationError(f'{what}: a function form needs a struct form as its param.', location)

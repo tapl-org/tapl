@@ -25,6 +25,10 @@ def test_resolve_keeps_labels():
     assert show(resolved('s -> {a = s}.a')) == 's → {a = $0}.a'
 
 
+def test_resolve_inside_function_form():
+    assert show(resolved('a -> b -> x: (a => b) -> x')) == 'a → b → x:($1) ⇒ ($0) → $0'
+
+
 def test_resolve_keeps_location():
     term = bruijn.resolve(parse('x -> x'))
     assert term.body == terms.BruijnIndex(0)

@@ -125,7 +125,7 @@ FORM_OPT = Optional(
 
 def _function_form(c):
     param, result = c.values
-    return terms.function_form(param, result, _location(c))
+    return terms.FunctionForm(param=param, result=result, location=_location(c))
 
 
 def _lambda(c):
@@ -174,9 +174,8 @@ RULES: dict[str, Clause] = {
         Ref(rn.EXPRESSION),
         action=_let,
     ),
-    # `P => R` is sugar for the function form `{tag = ' => ', param = P, result = R}`. It binds
-    # looser than apply and tighter than `->`, so `decls: {} => 'i32' -> defs -> body` keeps
-    # `defs` as a lambda binder.
+    # `P => R` is a FunctionForm. It binds looser than apply and tighter than `->`, so
+    # `decls: {} => 'i32' -> defs -> body` keeps `defs` as a lambda binder.
     rn.ARROW: First(
         Seq(Ref(rn.APPLY), _punct('=>', '⇒'), Ref(rn.ARROW), action=_function_form),
         Ref(rn.APPLY),

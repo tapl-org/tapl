@@ -59,9 +59,9 @@ def _compact(term, names, level=_EXPRESSION):
             text = f'let {_name(name)}{suffix} = {value} in {_compact(body, _bind(names, name))}'
         case terms.Apply(function=function, argument=argument):
             text = f'{_compact(function, names, _APPLY)} {_compact(argument, names, _PROJECT)}'
-        case terms.Struct() if terms.is_function_form(term):
-            param = _arrow_param(terms.function_param(term), lambda t, level: _compact(t, names, level))
-            text = f'{param} ⇒ {_compact(terms.function_result(term), names, _ARROW)}'
+        case terms.FunctionForm(param=param, result=result):
+            param_text = _arrow_param(param, lambda t, level: _compact(t, names, level))
+            text = f'{param_text} ⇒ {_compact(result, names, _ARROW)}'
         case terms.Struct(fields=fields):
             text = '{' + ', '.join(f'{_name(f.label)} = {_compact(f.value, names)}' for f in fields) + '}'
         case terms.Project(struct=struct, label=label):
@@ -101,17 +101,16 @@ def _form_text(form, names, *, compact):
     def show(term, level):
         return _compact(term, names, level) if compact else _flat(term, level, names)
 
-    if terms.is_function_form(form):
-        param = terms.function_param(form)
-        param_text = _form_atom_text(param, show)
-        if _ends_with_form(param) and not param_text.startswith('('):
+    if isinstance(form, terms.FunctionForm):
+        param_text = _form_atom_text(form.param, show)
+        if _ends_with_form(form.param) and not param_text.startswith('('):
             param_text = f'({param_text})'
-        return f'{param_text} ⇒ {_form_text(terms.function_result(form), names, compact=compact)}'
+        return f'{param_text} ⇒ {_form_text(form.result, names, compact=compact)}'
     return _form_atom_text(form, show)
 
 
 def _form_atom_text(form, show):
-    if isinstance(form, (terms.Struct, terms.ByteArray)) and not terms.is_function_form(form):
+    if isinstance(form, (terms.Struct, terms.ByteArray)):
         return show(form, _PROJECT)
     return f'({show(form, _EXPRESSION)})'
 
@@ -140,7 +139,7 @@ def _loosest(term):
     match term:
         case terms.Lambda() | terms.If() | terms.Apply(function=terms.Lambda()):
             return _EXPRESSION
-        case terms.Struct() if terms.is_function_form(term):
+        case terms.FunctionForm():
             return _ARROW
         case terms.Apply() | terms.Fix():
             return _APPLY
@@ -176,9 +175,9 @@ def _flat(term, level, names):
             text = f'let {_name(name)}{suffix} = {value} in {_flat(body, _EXPRESSION, _bind(names, name))}'
         case terms.Apply(function=function, argument=argument):
             text = f'{_flat(function, _APPLY, names)} {_flat(argument, _PROJECT, names)}'
-        case terms.Struct() if terms.is_function_form(term):
-            param = _arrow_param(terms.function_param(term), lambda t, level: _flat(t, level, names))
-            text = f'{param} ⇒ {_flat(terms.function_result(term), _ARROW, names)}'
+        case terms.FunctionForm(param=param, result=result):
+            param_text = _arrow_param(param, lambda t, level: _flat(t, level, names))
+            text = f'{param_text} ⇒ {_flat(result, _ARROW, names)}'
         case terms.Struct(fields=fields):
             text = '{' + ', '.join(f'{_name(f.label)} = {_flat(f.value, _EXPRESSION, names)}' for f in fields) + '}'
         case terms.Project(struct=struct, label=label):
@@ -226,8 +225,6 @@ def _pretty(term, level, depth, column, width, indent, names):
             text = f'{header}{value} in\n{pad}{sub(body, _EXPRESSION, depth, len(pad), _bind(names, name))}'
         case terms.Apply(function=function, argument=argument):
             text = f'{sub(function, _APPLY, depth, column)}\n{inner}{sub(argument, _PROJECT, depth + 1, len(inner))}'
-        case terms.Struct() if terms.is_function_form(term):
-            return flat
         case terms.Struct(fields=fields):
             lines = []
             for f in fields:

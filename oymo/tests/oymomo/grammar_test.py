@@ -197,12 +197,11 @@ def test_function_form_is_right_associative():
     )
 
 
-def test_function_form_is_a_tagged_struct():
+def test_function_form_is_its_own_term():
     sugar = parse("{c = 'i8'} => 'i32'")
-    assert sugar == terms.function_form(terms.struct_form([('c', terms.name_form('i8'))]), terms.name_form('i32'))
-    assert sugar == parse("{tag = ' => ', param = {c = 'i8'}, result = 'i32'}")
-    assert terms.is_function_form(sugar)
-    assert not terms.is_function_form(parse("{tag = '=>', param = {c = 'i8'}, result = 'i32'}"))
+    assert sugar == terms.FunctionForm(terms.struct_form([('c', terms.name_form('i8'))]), terms.name_form('i32'))
+    assert sugar == parse("{c = 'i8'} ⇒ 'i32'")
+    assert isinstance(parse("{tag = ' => ', param = {c = 'i8'}, result = 'i32'}"), terms.Struct)
 
 
 def test_function_form_is_an_expression():
@@ -215,7 +214,7 @@ def test_function_form_is_an_expression():
 
 def test_function_form_param_with_a_form_needs_parens():
     term = parse("([00]: 'i8') => 'i32'")
-    assert terms.function_param(term) == terms.ByteArray(b'\x00', terms.name_form('i8'))
+    assert term.param == terms.ByteArray(b'\x00', terms.name_form('i8'))
     assert show(term) == "([00]:'i8') ⇒ 'i32'"
     assert parse("[00]: 'i8' => 'i32'").form == parse("'i8' => 'i32'")
 

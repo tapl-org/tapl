@@ -99,7 +99,7 @@ if c then a else b           If
 let x = e in body            sugar for (x -> body) e
 fix f                        Fix
 [2a 00 00 00] : 'i32'        ByteArray
-{c = 'i8'} => 'i32'          sugar for the function form {tag = ' => ', param = {c = 'i8'}, result = 'i32'}
+{c = 'i8'} => 'i32'          FunctionForm
 // comment                   line comment
 ```
 
@@ -144,8 +144,8 @@ There is no separate form syntax or form class: a form is an ordinary term.
 - A named form is a byte array with an omitted form: `'i32'` is the form i32
   (`ByteArray(b'i32', form=Empty)`). A bare `i32` is a variable, not a form name.
 - A struct form is a struct: `{x = 'i32', y = 'i8'}`.
-- A function form is a struct tagged in its first field:
-  `{tag = ' => ', param = P, result = R}`, written `P => R` (see "Function forms").
+- A function form is a `FunctionForm(param, result)` term, written `P => R`
+  (see "Function forms").
 - Any term may be a form. After `:`, a struct, a byte array or a function form is
   written as it is; any other term needs parentheses: `x: (i32) -> x`,
   `x: (a -> b) -> c`. `x: i32 -> x` is a syntax error. The grammar rules are
@@ -248,18 +248,18 @@ Kept after byte arrays moved to `[]`; `#` is now unused.
 - `let` and `in` are reserved words.
 
 ### Function forms: `{c = 'i8'} => 'i32'`
-- A function form is a struct whose first field is a tag:
-  `{tag = ' => ', param = {c = 'i8'}, result = 'i32'}`. `P => R` (or `P ⇒ R`,
-  U+21D2) is sugar for it; printers emit `⇒` (the BANF printer `=>`). It has one
+- A function form is its own term, `FunctionForm(param, result)`. `P => R` (or
+  `P ⇒ R`, U+21D2) writes it; printers emit `⇒` (the BANF printer `=>`). It has one
   param, matching one-argument lambdas, and no param name: the struct form's
   labels are what callers use (`decls.putchar {c = [41]: 'i8'}`).
-- The tag is the byte array `' => '`, with a space on each side, so a user is
-  unlikely to write it by accident. A struct with exactly the fields `tag`,
-  `param`, `result`, in that order, and that tag is a function form, even when
-  written by hand; the printer shows it as `P ⇒ R`. `'=>'` without spaces is an
-  ordinary byte array. Rejected: an empty `""` label (users couldn't write it),
-  a tag member on `Struct` (nominal typing; maybe later), `Lambda` as a Π type
-  (keeps `Lambda` free for form constructors), and a dedicated `Arrow` term.
+- Why a dedicated term: it used to be a tagged struct
+  `{tag = ' => ', param = P, result = R}`. Every consumer then had to tell it
+  from a plain struct (shape, field order and tag checks), a hand-written struct
+  could turn into a function form by accident, and BANF output and errors showed
+  the encoding. A struct is now always a struct. Rejected: a tag member on
+  `Struct` (nominal typing; maybe later) and `Lambda` as a Π type (keeps
+  `Lambda` free for form constructors). Named `FunctionForm`, not `Arrow`: it
+  names the meaning and leaves room for a separate function type.
 - Why not `->` like a lambda: a different arrow tells a form from a term at a
   glance, in `decls: {putchar = {c = 'i8'} => 'i32'} -> defs -> ...` the `=>` is in a
   form and each `->` binds a lambda.

@@ -68,9 +68,10 @@ def test_forms_other_than_struct_byte_array_or_function_print_in_parens():
     assert pretty('x: (i8) => (s.f) -> x') == 'x: (i8) ⇒ (s.f) → x'
 
 
-def test_hand_written_function_form_prints_as_arrow():
-    assert pretty("x: {tag = ' => ', param = {c = 'i8'}, result = 'i32'} -> x") == "x: {c = 'i8'} ⇒ 'i32' → x"
-    assert pretty("{tag = '=>', param = 'i8', result = 'i32'}") == "{tag = '=>', param = 'i8', result = 'i32'}"
+def test_struct_shaped_like_a_function_form_prints_as_a_struct():
+    assert pretty("x: {tag = ' => ', param = {c = 'i8'}, result = 'i32'} -> x") == (
+        "x: {tag = ' => ', param = {c = 'i8'}, result = 'i32'} → x"
+    )
 
 
 def test_pretty_function_forms_group_only_as_params():
@@ -216,8 +217,8 @@ def test_output_parses_back_to_the_same_term(source):
 
 def test_show_form():
     i8, i32 = terms.name_form('i8'), terms.name_form('i32')
-    form = terms.struct_form([('f', terms.function_form(i8, i32)), ('x', terms.name_form('unknown'))])
+    form = terms.struct_form([('f', terms.FunctionForm(i8, i32)), ('x', terms.name_form('unknown'))])
     assert show_form(form) == "{f = 'i8' ⇒ 'i32', x = 'unknown'}"
     assert show_form(form, pretty=True) == "{f = 'i8' ⇒ 'i32', x = 'unknown'}"
-    assert show_form(terms.function_form(form, i32)) == "{f = 'i8' ⇒ 'i32', x = 'unknown'} ⇒ 'i32'"
+    assert show_form(terms.FunctionForm(form, i32)) == "{f = 'i8' ⇒ 'i32', x = 'unknown'} ⇒ 'i32'"
     assert show_form(terms.Variable('i32')) == '(i32)'

@@ -57,6 +57,8 @@ def _map_children(term, f):
             return replace(term, function=f(function))
         case terms.ByteArray(form=form):
             return replace(term, form=f(form))
+        case terms.FunctionForm(param=param, result=result):
+            return replace(term, param=f(param), result=f(result))
     return term
 
 

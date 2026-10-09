@@ -23,6 +23,9 @@ There is no separate form grammar: a form is written with the same syntax as any
 
 ## Decision 1: how to tag a function form
 
+> Superseded: a function form is now its own `FunctionForm(param, result)` term.
+> See docs/notes.md, "Function forms".
+
 A function form is an ordinary `Struct` whose first field is a `tag` field:
 
 ```python

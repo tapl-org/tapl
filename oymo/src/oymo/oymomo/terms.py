@@ -112,11 +112,19 @@ class ByteArray(Term):
         yield self.form
 
 
+# `P => R`: the form of a function from `P` to `R`.
+@dataclass
+class FunctionForm(Term):
+    param: Term
+    result: Term
+    location: Location | None = field(default=None, compare=False)
+
+    def children(self) -> Generator[Term, None, None]:
+        yield self.param
+        yield self.result
+
+
 # Forms are terms. A named form such as `i32` is the byte array `'i32'` with an empty form.
-# A function form `P => R` is the struct `{tag = ' => ', param = P, result = R}`; the spaces
-# around `=>` make it unlikely that a user writes the tag by accident.
-FUNCTION_TAG_LABEL = 'tag'
-FUNCTION_TAG = ByteArray(b' => ', form=Empty)
 
 
 def name_form(name: str) -> ByteArray:
@@ -137,29 +145,8 @@ def struct_form(fields: list[tuple[str, Term]], location: Location | None = None
     return Struct([Field(label, form) for label, form in fields], location)
 
 
-def function_form(param: Term, result: Term, location: Location | None = None) -> Struct:
-    return struct_form([(FUNCTION_TAG_LABEL, FUNCTION_TAG), ('param', param), ('result', result)], location)
-
-
-def is_function_form(form: Term) -> bool:
-    """A struct with exactly the fields `tag`, `param`, `result`, in that order, tagged `FUNCTION_TAG`."""
-    return (
-        isinstance(form, Struct)
-        and [f.label for f in form.fields] == [FUNCTION_TAG_LABEL, 'param', 'result']
-        and form.fields[0].value == FUNCTION_TAG
-    )
-
-
-def function_param(form: Struct) -> Term:
-    return form.fields[1].value
-
-
-def function_result(form: Struct) -> Term:
-    return form.fields[2].value
-
-
 def struct_fields(form: Term) -> list[tuple[str, Term]] | None:
-    """The `(label, form)` pairs of a struct form that is not a function form. None otherwise."""
-    if isinstance(form, Struct) and not is_function_form(form):
+    """The `(label, form)` pairs of a struct form. None otherwise."""
+    if isinstance(form, Struct):
         return [(f.label, f.value) for f in form.fields]
     return None

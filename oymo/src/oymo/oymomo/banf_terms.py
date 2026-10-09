@@ -300,7 +300,7 @@ def show_form(form: terms.Term) -> str:
     and oymomo syntax in parentheses for any other term."""
     if (name := terms.form_name(form)) is not None:
         return show_name(name)
-    if terms.is_function_form(form):
+    if isinstance(form, terms.FunctionForm):
         return f'({_show_field_form(form)})'
     if (fields := terms.struct_fields(form)) is not None:
         return '{' + ', '.join(f'{show_name(label)}: {_show_field_form(f)}' for label, f in fields) + '}'
@@ -310,8 +310,8 @@ def show_form(form: terms.Term) -> str:
 
 
 def _show_field_form(form):
-    if terms.is_function_form(form):
-        return f'{show_form(terms.function_param(form))} => {_show_field_form(terms.function_result(form))}'
+    if isinstance(form, terms.FunctionForm):
+        return f'{show_form(form.param)} => {_show_field_form(form.result)}'
     return show_form(form)
 
 
