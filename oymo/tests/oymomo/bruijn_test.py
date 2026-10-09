@@ -86,6 +86,29 @@ def test_beta_avoids_capture():
 @pytest.mark.parametrize(
     ('source', 'expected'),
     [
+        # The lambda's form goes with the argument.
+        ("(x : 'i8' -> x) [01]", "[01]:'i8'"),
+        # The lambda's form replaces the argument's own form.
+        ("(x : 'i8' -> x) [01]:'i16'", "[01]:'i8'"),
+        # Only the outer form is replaced: a form inside the term or the form stays.
+        ("(x:'i8'->x) ([01]:'i16'):'i32'", "([01]:'i16'):'i8'"),
+        ("(x:'i8'->x) [01]:('i16':'i32')", "[01]:'i8'"),
+        ('(x : t -> f x) y', 'f (y:t)'),
+        # No form on the lambda: the argument goes in as it is, with its own form if any.
+        ('(x -> x) [01]', '[01]'),
+        ("(x -> x) [01]:'i16'", "[01]:'i16'"),
+        ("let x : 'i1' = [01] in x", "[01]:'i1'"),
+    ],
+)
+def test_beta_propagates_form(source, expected):
+    free = ('f', 't', 'y')
+    apply = resolved(source, free)
+    assert bruijn.beta(apply.function, apply.argument) == resolved(expected, free)
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
         ('(x -> x) y', 'y'),
         ('fix g', 'g (fix g)'),
         ('{a = e}.a', 'e'),

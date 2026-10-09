@@ -612,7 +612,10 @@ The golden tests approve the shaped term next to the BANF and LLVM output, as
 ### `reduce`: one step at the root
 `bruijn.reduce(term)` takes one step if the root is a redex, and otherwise returns
 `term` itself (so `reduce(t) is t` says "not a redex"). It never looks inside.
-- beta: `(x -> body) e` gives `body` with `e` put in for `x`;
+- beta: `(x -> body) e` gives `body` with `e` put in for `x`. With a form,
+  `(x : F -> body) e` puts in `e : F`, and drops `e`'s own form (`e : G` goes in
+  as `e : F`). Without one, `e` goes in as it is, so it keeps its own form, if it
+  has one;
 - fix: `fix g` gives `g (fix g)`;
 - projection: `{a = e, ...}.a` gives `e`. A missing label is not a redex;
 - if: `if [01] then a else b` gives `a`, and `if [00] ...` gives `b`.
