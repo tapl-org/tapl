@@ -1,6 +1,6 @@
 # Plan: no enforced parentheses, and `expression : expression`
 
-Status: **in progress**. Steps 1 to 3 are done. Open questions below.
+Status: **implemented**. Open questions below.
 
 ## Steps
 
@@ -11,7 +11,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [x] 3. Remove `ByteArray.form`, breaking (`oymomo: a byte array is only bytes; its form is Formed`)
 - [x] 4. `:` binds tighter than application, breaking (`oymomo: : binds tighter than application`)
 - [x] 5. Binder forms are ordinary expressions (`oymomo: binder forms are ordinary expressions`)
-- [ ] 6. Wrap up (`docs: plan_annotation implemented`)
+- [x] 6. Wrap up (`docs: plan_annotation implemented`)
 
 Steps 1 to 5 must be done in order.
 
@@ -293,15 +293,15 @@ No new reduction rule. `Formed` itself never reduces. Two existing things learn 
 | Module | Change |
 |---|---|
 | `terms.py` | add `Formed`. `ByteArray` loses `form`. `name_to_form` and `form_to_name` simplify (done) |
-| `rule_names.py` | add `FORMED` (done), remove `FORM` and `FORM_ATOM` |
+| `rule_names.py` | add `FORMED`, remove `FORM` and `FORM_ATOM` (done) |
 | `grammar.py` | A1–A2: `FORMED` above `APPLY` and below `ARROW`, binder forms at formed level, `BYTE_ARRAY` without a form (done) |
-| `printer.py` | levels in A1 order: `_EXPRESSION, _APPLY, _FORMED, _ARROW, _PROJECT`. An apply argument and a `fix` operand print at `_FORMED`. `Formed(t, f)` prints `t:f` (compact) or `t: f` (pretty), with `t` at `_ARROW` and `f` at `_FORMED`. Binder forms at `_FORMED` (`x:(i32)` → `x:i32`). `_form_text` and `_form_atom_text` go away |
+| `printer.py` | levels in A1 order: `_EXPRESSION, _APPLY, _FORMED, _ARROW, _PROJECT`. An apply argument and a `fix` operand print at `_FORMED`. `Formed(t, f)` prints `t:f` (compact) or `t: f` (pretty), with `t` at `_ARROW` and `f` at `_FORMED`. Binder forms at `_FORMED` (`x:(i32)` → `x:i32`). `_form_text` and `_form_atom_text` go away (done) |
 | `bruijn.py` | `Formed` in `_map_children`, C2 in `reduce` (done) |
 | `banf_reduce.py` | C1: `Formed.term` is a head position (done) |
 | `banf_rename.py` | `other` walks into both sides of `Formed` (done) |
 | `banf_translate.py` | `atom`: `Formed(ByteArray(v), F)` → `banf.Const(v, F)` (done) |
 | `banf_terms.py`, `llvm_translate.py` | none: `banf.Const` keeps its own `value` and `form` |
-| `docs/notes.md` | both goals, the precedence table and its rule, `Formed`, a byte array is only bytes |
+| `docs/notes.md` | both goals, the precedence table and its rule, `Formed`, a byte array is only bytes (done) |
 
 Sketch of the final grammar:
 
@@ -370,7 +370,7 @@ graph LR
   S3 --> S4["4. : above apply"] --> S5["5. binder forms"] --> S6["6. wrap up"]
 ```
 
-Steps 1 to 3 are goal 2 and are done. Steps 4 and 5 put `:` in its final place and make
+Steps 1 to 3 are goal 2. Steps 4 and 5 put `:` in its final place and make
 binder forms use it, so they must be done in order.
 
 ### Step 1: add the `Formed` term, with no syntax yet (done)
@@ -409,7 +409,7 @@ Commit: `oymomo: parse e : F as Formed`
 
 Commit: `oymomo: a byte array is only bytes; its form is Formed`
 
-### Step 4: `:` binds tighter than application (breaking)
+### Step 4: `:` binds tighter than application (done, breaking)
 
 - `grammar.py`: `FORMED` moves between `APPLY` and `ARROW`:
   `APPLY: APPLY FORMED | FIX | FORMED`, `FIX: 'fix' FORMED`,
@@ -427,7 +427,7 @@ Commit: `oymomo: a byte array is only bytes; its form is Formed`
 
 Commit: `oymomo: : binds tighter than application`
 
-### Step 5: binder forms are ordinary expressions (goal 1)
+### Step 5: binder forms are ordinary expressions (done, goal 1)
 
 - `grammar.py`: remove `FORM` and `FORM_ATOM`. A lambda binder form is `FORMED`, so it
   ends at the first `->`. A `let` binder form is `FORMED`.
@@ -441,7 +441,7 @@ Commit: `oymomo: : binds tighter than application`
 
 Commit: `oymomo: binder forms are ordinary expressions`
 
-### Step 6: wrap up
+### Step 6: wrap up (done)
 
 - The binder-form entries of the problem 3 table parse, and the operand entries stay
   errors (a single test lists them all).

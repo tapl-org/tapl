@@ -283,6 +283,26 @@ def test_precedence_order():
             assert parse(source) == parse(grouped), source
 
 
+def test_parentheses_only_override_precedence():
+    """Code that was an error only for lacking parentheses has a meaning (plan_annotation.md, problem 3)."""
+    y, x = terms.Variable('y'), terms.Variable('x')
+    assert parse('y : x') == terms.Formed(y, x)
+    assert parse('x: i32 -> x') == terms.Lambda('x', terms.Variable('i32'), x)
+    assert parse('x: s.f -> x') == terms.Lambda('x', terms.Project(terms.Variable('s'), 'f'), x)
+    # A lambda, `if`, `let` or `fix` binds looser than any operand, so as an operand it needs parentheses.
+    operands = [
+        ('f x -> x', 'f (x -> x)'),
+        ('f if c then a else b', 'f (if c then a else b)'),
+        ('f let x = a in x', 'f (let x = a in x)'),
+        ('a => x -> x', 'a => (x -> x)'),
+        ('fix x -> b', 'fix (x -> b)'),
+        ('f fix g', 'f (fix g)'),
+    ]
+    for bare, parenthesized in operands:
+        assert show(parse(bare)) == 'error', bare
+        assert show(parse(parenthesized)) != 'error', parenthesized
+
+
 def test_formed():
     y, x = terms.Variable('y'), terms.Variable('x')
     term = parse('y : x')
