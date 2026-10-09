@@ -108,7 +108,7 @@ def test_pretty_groups_bytes_by_four():
         ('[]: {}', '[]:{}'),
     ],
 )
-def test_text_bytes_print_quoted_when_form_is_void(source, expected):
+def test_text_bytes_print_quoted_without_a_form(source, expected):
     assert show(parse(source)) == expected
     assert show(parse(source), pretty=True) == expected.replace(':', ': ')
 
@@ -262,8 +262,8 @@ def test_formed():
     assert show(terms.Apply(terms.Formed(f, x), y)) == 'f:x y'
     assert show(terms.Fix(terms.Formed(f, x))) == 'fix f:x'
     assert show(terms.Formed(terms.Fix(f), x)) == '(fix f):x'
-    assert show(terms.Lambda('x', terms.Void, terms.Formed(y, x))) == 'x → y:x'
-    assert show(terms.Formed(y, terms.Lambda('a', terms.Void, b))) == 'y:(a → b)'
+    assert show(terms.Lambda('x', terms.Empty, terms.Formed(y, x))) == 'x → y:x'
+    assert show(terms.Formed(y, terms.Lambda('a', terms.Empty, b))) == 'y:(a → b)'
     assert show(terms.Formed(y, terms.FunctionForm(a, b))) == 'y:a ⇒ b'
     assert show(terms.FunctionForm(terms.Formed(a, b), c)) == '(a:b) ⇒ c'
     assert show(terms.Formed(a, terms.Formed(b, c))) == 'a:b:c'

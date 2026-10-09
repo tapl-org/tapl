@@ -298,7 +298,7 @@ def show_name(name: str) -> str:
 
 
 def show_form(form: terms.Term) -> str:
-    """BANF's own form syntax: `i32`, `{a: i32}`, `(A => B)`. `void` for an omitted form,
+    """BANF's own form syntax: `i32`, `{a: i32}`, `(A => B)`. Nothing for an omitted form,
     and oymomo syntax in parentheses for any other term."""
     if (name := terms.form_to_name(form)) is not None:
         return show_name(name)
@@ -306,14 +306,15 @@ def show_form(form: terms.Term) -> str:
         return f'({_show_field_form(form)})'
     if isinstance(form, terms.Struct):
         return '{' + ', '.join(f'{show_name(f.label)}: {_show_field_form(f.value)}' for f in form.fields) + '}'
-    if form is terms.Void:
-        return 'void'
+    if form is terms.Empty:
+        return ''
     return f'({printer.show(form)})'
 
 
 def _show_field_form(form):
     if isinstance(form, terms.FunctionForm):
-        return f'{show_form(form.param)} => {_show_field_form(form.result)}'
+        result = f'=> {_show_field_form(form.result)}'
+        return result if form.param is terms.Empty else f'{show_form(form.param)} {result}'
     return show_form(form)
 
 

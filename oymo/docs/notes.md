@@ -167,14 +167,16 @@ There is no separate form syntax or form class: a form is an ordinary term.
 - Why: one syntax and one set of terms for values and forms; later stages can
   compute forms with the same machinery as values.
 
-### Forms are optional; omitted means void
+### Forms are optional; omitted means `Empty`
 Every binder `: form` may be left out: lambda params (`x -> body`) and lets. An
-omitted form is void (`terms.Void`). `void` is not special: `: 'void'` is the form
-named void. A byte array has no form of its own; `[2a]` is just bytes.
-- Why: quick sketches stay short, and each later stage decides what it can infer.
-  BANF translation, for example, infers a let's form from its op, so
-  `let t0 = prim.eq_i32 {...} in t0` needs no `t0: 'i1'`. It rejects a byte array
-  where nothing gives it a form, as in `[01]` with no `: form`.
+omitted form is `Empty` (`terms.Empty`): not written. It is not a void form; there is
+none, and `: 'void'` is just the form named void. A byte array has no form of its own;
+`[2a]` is just bytes.
+- Why: quick sketches stay short. `Empty` has no default meaning: each position says
+  what `Empty` means there, or rejects it. A BANF let, for example, has no form of its
+  own, so `let t0 = prim.eq_i32 {...} in t0` needs no `t0: 'i1'`: the let's form is
+  its op's. BANF translation rejects a byte array where nothing gives it a form, as in
+  `[01]` with no `: form` ("form must be written").
 
 ### `Formed(term, form)`: any term with a form
 `Formed` is `term : form`, "`term`, formed as `form`". It lets the form of any term come
@@ -818,7 +820,7 @@ rejected until it's decided what they mean:
 - as a param or result: `decls: {g: {c: i8} => {d: i8} => i32}`,
 - with a non-struct param: `decls: {g: i8 => i32}`.
 
-Void forms in `decls` are rejected too, since nothing can infer
+`Empty` forms in `decls` are rejected too ("form must be written"), since nothing can infer
 an import's form.
 
 ### First-order only

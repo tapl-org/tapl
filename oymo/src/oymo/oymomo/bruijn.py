@@ -106,7 +106,7 @@ def beta(lambda_: terms.Lambda, argument: syntax.Term) -> syntax.Term:
     It replaces `a`'s own form: `(x : F -> body) a : G` puts in `a : F`, too.
     A lambda without a form puts in `a` as it is, so `a` keeps its own form, if it has one.
     """
-    if lambda_.param_form is not terms.Void:
+    if lambda_.param_form is not terms.Empty:
         if isinstance(argument, terms.Formed):
             argument = argument.term
         argument = terms.Formed(term=argument, form=lambda_.param_form, location=getattr(argument, 'location', None))

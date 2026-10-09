@@ -322,7 +322,7 @@ def test_let_bound_if_is_substituted_into_tail():
             "Block 'entry' must be a lambda taking a struct, such as args: {n = 'i32'} -> ...",
         ),
         ('g = f -> {entry = args:{} -> args.n}', "Block has no param 'n'."),
-        ('g = f -> {entry = args:{} -> [01]}', 'Byte array: form must be known.'),
+        ('g = f -> {entry = args:{} -> [01]}', 'Byte array: form must be written.'),
         ('g = f -> {entry = args:{} -> (t -> t) (defs.h {})}', "Unknown definition 'h'."),
         ('g = f -> {entry = args:{} -> (t -> t) (prim.add {})}', "Unknown prim op 'add'."),
         (
@@ -426,7 +426,7 @@ def test_forms_must_be_literals():
 
 
 def test_form_must_be_known():
-    assert error('main = f -> {entry = args: {} -> [01]}') == 'Byte array: form must be known.'
+    assert error('main = f -> {entry = args: {} -> [01]}') == 'Byte array: form must be written.'
 
 
 def test_program_shape_errors():

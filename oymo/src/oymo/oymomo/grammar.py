@@ -114,13 +114,13 @@ NAME = Memoized(
 )
 
 
-# `: form` after a lambda param or a let name; omitted means `Void`.
+# `: form` after a lambda param or a let name; omitted means `Empty`.
 # A form is an ordinary formed-level expression, as after any other `:`. It never holds a
 # lambda, so in `x: 'i32' -> x` the form stops at `->`. An application needs parentheses:
 # `x: (f a) -> x`.
 FORM_OPT = Optional(
     Seq(_punct(':'), Ref(rn.FORMED), action=lambda c: c.values[0]),
-    action=lambda c: c.value if c.matched else terms.Void,
+    action=lambda c: c.value if c.matched else terms.Empty,
 )
 
 

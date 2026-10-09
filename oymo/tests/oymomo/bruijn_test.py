@@ -156,7 +156,7 @@ def test_shift_and_substitute_reach_formed():
 def test_resolve_reaches_formed():
     term = bruijn.resolve(
         terms.Lambda(
-            'x', terms.Void, terms.Lambda('y', terms.Void, terms.Formed(terms.Variable('y'), terms.Variable('x')))
+            'x', terms.Empty, terms.Lambda('y', terms.Empty, terms.Formed(terms.Variable('y'), terms.Variable('x')))
         )
     )
     assert show(term) == 'x → y → $0:$1'

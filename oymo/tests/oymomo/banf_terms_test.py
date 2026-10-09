@@ -152,12 +152,12 @@ def test_show_quotes_names():
 
 
 def test_show_form():
-    assert show_form(terms.Void) == 'void'
+    assert show_form(terms.Empty) == ''
     assert show_form(I32) == 'i32'
     assert show_form(POINT) == '{x: i32, y: i32}'
     assert show_form(terms.FunctionForm(I8, I32)) == '(i8 => i32)'
-    assert show_form(terms.Struct([terms.Field('f', terms.FunctionForm(terms.Void, I32))])) == '{f: void => i32}'
-    assert show(Module([Data('g', terms.Void)])) == 'g: void\n'
+    assert show_form(terms.FunctionForm(terms.Empty, I32)) == '(=> i32)'
+    assert show_form(terms.Struct([terms.Field('f', terms.FunctionForm(terms.Empty, I32))])) == '{f: => i32}'
 
 
 def test_form_of_each_op():

@@ -3,7 +3,7 @@
 """Renders oymomo terms and forms as text.
 
 The default rendering is compact: one line, with parentheses only where the grammar
-needs them. Neither mode prints an omitted (`Void`) form. With `pretty=True` the result is
+needs them. Neither mode prints an omitted (`Empty`) form. With `pretty=True` the result is
 oymomo source that parses back to the same term: parentheses only where needed, and
 quoted names where needed. A term that doesn't fit in `width` columns breaks: a struct puts one
 field per line, a lambda puts its body on the next line (unless the body is a struct
@@ -93,7 +93,7 @@ def _bytes_text(value, *, grouped, text=True):
 
 def _compact_suffix(form, names):
     """`:form` after a name; nothing for an omitted form."""
-    return '' if form is terms.Void else ':' + _compact(form, names, _FORMED)
+    return '' if form is terms.Empty else ':' + _compact(form, names, _FORMED)
 
 
 def _formed_term(term, show, *, grouped):
@@ -221,7 +221,7 @@ def _pretty(term, level, depth, column, width, indent, names):
 
 def _form_suffix(form, names):
     """`: form` after a lambda param or let name; nothing for an omitted form."""
-    return '' if form is terms.Void else ': ' + _flat(form, _FORMED, names)
+    return '' if form is terms.Empty else ': ' + _flat(form, _FORMED, names)
 
 
 def _name(name):

@@ -8,8 +8,8 @@ from oymo.core import syntax
 Term = syntax.Term
 Location = syntax.Location
 
-# An omitted form: the form is void.
-Void = syntax.Empty
+# An omitted form: not written.
+Empty = syntax.Empty
 
 
 # Every `location` is left out of `==`, so a parsed form equals the same form built in code.

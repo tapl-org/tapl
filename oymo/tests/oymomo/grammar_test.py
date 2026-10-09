@@ -140,9 +140,9 @@ def test_byte_array_as_argument():
     )
 
 
-def test_omitted_forms_are_void():
-    assert parse('x -> x').param_form is terms.Void
-    assert parse('let x = e in x').function.param_form is terms.Void
+def test_omitted_forms_are_empty():
+    assert parse('x -> x').param_form is terms.Empty
+    assert parse('let x = e in x').function.param_form is terms.Empty
 
 
 def test_forms_are_terms():
@@ -172,7 +172,7 @@ def test_binder_form_is_an_ordinary_expression():
     # The form never holds a lambda, so it ends at the first `->`.
     term = parse('x: a -> b -> c')
     assert term.param_form == terms.Variable('a')
-    assert term.body == terms.Lambda('b', terms.Void, terms.Variable('c'))
+    assert term.body == terms.Lambda('b', terms.Empty, terms.Variable('c'))
     # A lambda or an application in a form needs parentheses.
     assert show(parse('x: (a -> b) -> c')) == 'x:(a → b) → c'
     assert isinstance(parse('x: (a -> b) -> c').param_form, terms.Lambda)

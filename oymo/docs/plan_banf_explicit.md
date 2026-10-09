@@ -1,12 +1,12 @@
 # Plan: BANF translation has no defaults
 
-Status: **proposed**.
+Status: **in progress**.
 
 ## Steps
 
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
-- [ ] 1. `terms.Void` goes back to `terms.Empty` (`oymomo: an omitted form is Empty, not void`)
+- [x] 1. `terms.Void` goes back to `terms.Empty` (`oymomo: an omitted form is Empty, not void`)
 - [ ] 2. A let's form replaces its op's form (`oymomo: a let's form replaces its op's form`)
 - [ ] 3. A formed atom has the written form (`oymomo: any atom can be formed`)
 - [ ] 4. `=> R`: a function form without params (`oymomo: a function form's param may be omitted`)
@@ -79,7 +79,7 @@ message. The source fixes it explicitly.
 
 | Where | Today | After |
 |---|---|---|
-| `terms.Void` | an omitted form is called void; `show_form` prints `void` | `terms.Empty`; `show_form` prints `empty` (only in error messages) |
+| `terms.Void` | an omitted form is called void; `show_form` prints `void` | `terms.Empty`; `show_form` prints nothing for it |
 | structural binders | renamed to `prim`, `decls`, `defs`, `blocks`, `args` | renamed to `prim`, `module`, `blocks`, `args` |
 | clashing lets | renamed to `t_6`, `t__6`, ... | same |
 | written let form | must equal the op's form | replaces the op's form |
@@ -203,10 +203,10 @@ Each step leaves `hatch run full-check` green and updates `docs/notes.md` for it
 
 - `terms.py`: `Empty = syntax.Empty`, comment "An omitted form: not written."
 - `grammar.py`, `printer.py`, `bruijn.py`, `banf_terms.py`, `banf_translate.py`: rename
-  every use. `show_form(Empty)` prints `empty`.
+  every use. `show_form(Empty)` prints nothing, as the oymomo printer does.
 - `_check_data_form`: "form must be written" instead of "form must be known".
 - Tests: `grammar_test.py`, `bruijn_test.py`, `banf_reduce_test.py`, `printer_test.py`,
-  `banf_terms_test.py` (`'void'` → `'empty'`, e.g. `g: empty`).
+  `banf_terms_test.py` (`show_form(Empty) == ''`, `{f: => i32}`).
 - `notes.md`: "Forms are optional; omitted means void" becomes "omitted means `Empty`",
   without "each later stage decides what it can infer".
 
