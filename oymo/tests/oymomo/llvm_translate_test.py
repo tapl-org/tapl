@@ -25,10 +25,10 @@ from oymo.oymomo.banf_terms import (
 from oymo.oymomo.llvm_prims import DEFAULT_PRIMS
 from oymo.oymomo.llvm_translate import LlvmTranslationError, Target, translate
 
-I1, I8, I16, I32, I64 = (terms.name_form(name) for name in ('i1', 'i8', 'i16', 'i32', 'i64'))
+I1, I8, I16, I32, I64 = (terms.name_to_form(name) for name in ('i1', 'i8', 'i16', 'i32', 'i64'))
 
 TARGET = Target('x86_64-unknown-linux-gnu', '', DEFAULT_PRIMS)
-POINT = terms.struct_form([('x', I32), ('y', I32)])
+POINT = terms.Struct([terms.Field('x', I32), terms.Field('y', I32)])
 ZERO = Const(bytes(4), I32)
 ONE = Const(bytes([1, 0, 0, 0]), I32)
 

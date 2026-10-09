@@ -116,8 +116,8 @@ and fix it only if something breaks.
   `field(default=None, compare=False)` (Decision 2).
 - `Lambda.children()` yields `param_form` then `body`. `ByteArray.children()` yields `form`.
 - Add helpers, so callers never build the encoding by hand:
-  - `name_form(name: str) -> ByteArray`. ASCII bytes, `form=Empty`.
-  - `form_name(form) -> str | None`. Returns the text of a `ByteArray` with an `Empty` form.
+  - `name_to_form(name: str) -> ByteArray`. ASCII bytes, `form=Empty`.
+  - `form_to_name(form) -> str | None`. Returns the text of a `ByteArray` with an `Empty` form.
   - `struct_form(fields: list[tuple[str, Term]]) -> Struct`
   - `function_form(param, result) -> Struct` and `is_function_form(form) -> bool`
 - Order matters: check `is_function_form` **before** treating a `Struct` as a struct form, in every `match`.
@@ -147,9 +147,9 @@ and fix it only if something breaks.
 ### [banf_terms.py](file:///usr/local/google/home/orti/github/tapl/oymo/src/oymo/oymomo/banf_terms.py)
 - Change `terms.Form` annotations to `terms.Term`.
 - `form_of` (MakeStruct) uses `struct_form`. The project lookup and `field_index` iterate `Struct.fields`.
-- `!= 'i1'` becomes `!= name_form('i1')`.
+- `!= 'i1'` becomes `!= name_to_form('i1')`.
 - `show_form` keeps BANF's own text syntax (`i32`, `{a: i32}`, `A => B`), so the BANF golden is unchanged.
-  It reads the new terms through `form_name`, `is_function_form` and `Struct.fields`.
+  It reads the new terms through `form_to_name`, `is_function_form` and `Struct.fields`.
 
 ### [banf_translate.py](file:///usr/local/google/home/orti/github/tapl/oymo/src/oymo/oymomo/banf_translate.py)
 - `_check_data_form`: reject a function form first, then recurse into struct fields.
@@ -159,11 +159,11 @@ and fix it only if something breaks.
 - Update the `StructForm` / `FunctionForm` `isinstance` checks and the `Lambda(... param_form=StructForm(...))` pattern.
 
 ### [banf_rename.py](file:///usr/local/google/home/orti/github/tapl/oymo/src/oymo/oymomo/banf_rename.py), [banf_reduce.py](file:///usr/local/google/home/orti/github/tapl/oymo/src/oymo/oymomo/banf_reduce.py), [llvm_translate.py](file:///usr/local/google/home/orti/github/tapl/oymo/src/oymo/oymomo/llvm_translate.py)
-- Get labels from `Struct.fields`. `llvm_type` matches an int name through `form_name`.
+- Get labels from `Struct.fields`. `llvm_type` matches an int name through `form_to_name`.
 - Check any pass that rebuilds `Lambda` / `ByteArray` keeps or maps the form.
 
 ### [banf_prim.py](file:///usr/local/google/home/orti/github/tapl/oymo/src/oymo/oymomo/banf_prim.py), [llvm_prims.py](file:///usr/local/google/home/orti/github/tapl/oymo/src/oymo/oymomo/llvm_prims.py)
-- Keep `INT_FORMS` as strings for naming prims (`add_i32`). Wrap them with `name_form`
+- Keep `INT_FORMS` as strings for naming prims (`add_i32`). Wrap them with `name_to_form`
   in `PrimSignature.params` / `result`. `int_bits` keeps taking a string.
 
 ### Tests (about 240 lines use the old form syntax)
@@ -180,7 +180,7 @@ and fix it only if something breaks.
   Add a round-trip case for the hand-written `{tag = ' => ', ...}` printing as `⇒`.
 - `banf_translate_test.py:408`: `{g: unknown}` becomes a test where `g` has no form.
   Add a "form must be a literal" test (for example `x: (i32) -> ...`).
-- `banf_terms_test.py`, `llvm_translate_test.py`: `POINT` and the others use `struct_form` / `name_form`.
+- `banf_terms_test.py`, `llvm_translate_test.py`: `POINT` and the others use `struct_form` / `name_to_form`.
 - Goldens: update `simplest.oymo` and `simplest.shaped.oymo` to the new syntax
   (`args: {a = 'i32'} → [00000000]: 'i32'`). `simplest.banf` and `simplest.ll` should not change.
 

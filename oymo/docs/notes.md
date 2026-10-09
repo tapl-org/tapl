@@ -156,7 +156,7 @@ There is no separate form syntax or form class: a form is an ordinary term.
   translation needs literal forms (named forms and structs of them) and rejects
   others with "form must be a literal".
 - Locations are left out of `==` on every term, so a parsed form equals the same
-  form built in code (`terms.name_form('i32')`, `terms.struct_form(...)`).
+  form built in code (`terms.name_to_form('i32')`, `terms.struct_form(...)`).
 - Why: one syntax and one set of terms for values and forms; later stages can
   compute forms with the same machinery as values.
 
@@ -227,7 +227,7 @@ Plain identifiers match `[A-Za-z_][A-Za-z0-9_]*`, excluding the reserved words
 - Quotes work everywhere a name appears: variables, lambda parameters, struct
   labels, and projection labels (`s."a b"`). Form names are byte arrays (`'a b'`).
 - A printer quotes a name only when it is not a plain identifier. The BANF printer
-  does too: `Data('my data', name_form('i8'))` prints as `"my data": i8`.
+  does too: `Data('my data', name_to_form('i8'))` prints as `"my data": i8`.
 - Plain identifiers stay ASCII; other names use quotes. This avoids Unicode
   identifier rules and confusable characters.
 - Cost: `"` is not available for string literals. The kernel has none.

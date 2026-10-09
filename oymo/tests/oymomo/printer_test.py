@@ -216,8 +216,10 @@ def test_output_parses_back_to_the_same_term(source):
 
 
 def test_show_form():
-    i8, i32 = terms.name_form('i8'), terms.name_form('i32')
-    form = terms.struct_form([('f', terms.FunctionForm(i8, i32)), ('x', terms.name_form('unknown'))])
+    i8, i32 = terms.name_to_form('i8'), terms.name_to_form('i32')
+    form = terms.Struct(
+        [terms.Field('f', terms.FunctionForm(i8, i32)), terms.Field('x', terms.name_to_form('unknown'))]
+    )
     assert show_form(form) == "{f = 'i8' ⇒ 'i32', x = 'unknown'}"
     assert show_form(form, pretty=True) == "{f = 'i8' ⇒ 'i32', x = 'unknown'}"
     assert show_form(terms.FunctionForm(form, i32)) == "{f = 'i8' ⇒ 'i32', x = 'unknown'} ⇒ 'i32'"

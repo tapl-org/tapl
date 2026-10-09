@@ -8,7 +8,7 @@ from oymo.oymomo import banf_terms, terms
 from oymo.oymomo.banf_translate import TranslationError, translate
 from oymo.oymomo.grammar import parse
 
-I8, I16, I32 = (terms.name_form(name) for name in ('i8', 'i16', 'i32'))
+I8, I16, I32 = (terms.name_to_form(name) for name in ('i8', 'i16', 'i32'))
 
 
 def program(defs, decls='{}'):
@@ -360,7 +360,7 @@ def test_imports():
     assert module.bindings[:3] == [
         banf_terms.Signature('putchar', [('c', I8)], I32),
         banf_terms.Data('errno', I32),
-        banf_terms.Data('cfg', terms.struct_form([('w', I16), ('h', I16)])),
+        banf_terms.Data('cfg', terms.Struct([terms.Field('w', I16), terms.Field('h', I16)])),
     ]
     assert banf_terms.show(module) == text("""
         putchar(c: i8): i32

@@ -29,15 +29,15 @@ class Target:
 
 
 def llvm_type(form: terms.Term) -> ir.Type:
-    if (name := terms.form_name(form)) is not None and (match := _INT_FORM.fullmatch(name)):
+    if (name := terms.form_to_name(form)) is not None and (match := _INT_FORM.fullmatch(name)):
         return ir.IntType(int(match.group(1)))
-    if (fields := terms.struct_fields(form)) is not None:
-        return ir.LiteralStructType([llvm_type(field_form) for _, field_form in fields])
+    if isinstance(form, terms.Struct):
+        return ir.LiteralStructType([llvm_type(f.value) for f in form.fields])
     raise LlvmTranslationError(f'Form {banf.show_form(form)} has no LLVM type.')
 
 
 def _const(atom: banf.Const) -> ir.Constant:
-    name = terms.form_name(atom.form)
+    name = terms.form_to_name(atom.form)
     match = _INT_FORM.fullmatch(name) if name is not None else None
     if match is None:
         raise LlvmTranslationError(

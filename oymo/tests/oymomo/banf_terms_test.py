@@ -26,11 +26,11 @@ from oymo.oymomo.banf_terms import (
     verify,
 )
 
-I1, I8, I16, I32, I64 = (terms.name_form(name) for name in ('i1', 'i8', 'i16', 'i32', 'i64'))
+I1, I8, I16, I32, I64 = (terms.name_to_form(name) for name in ('i1', 'i8', 'i16', 'i32', 'i64'))
 
 ZERO = Const(bytes(4), I32)
 ONE = Const(bytes([1, 0, 0, 0]), I32)
-POINT = terms.struct_form([('x', I32), ('y', I32)])
+POINT = terms.Struct([terms.Field('x', I32), terms.Field('y', I32)])
 
 
 def fact():
@@ -156,8 +156,8 @@ def test_form_of_each_op():
     assert form_of(PrimCall('eq_i32', [Var('n'), ZERO]), forms, module) == I1
     assert form_of(PrimCall('zext_i8_i32', [Const(b'\x01', I8)]), forms, module) == I32
     assert form_of(Call('putchar', [Const(b'\x41', I8)]), forms, module) == I32
-    assert form_of(MakeStruct([('a', Var('n')), ('b', Var('p'))]), forms, module) == terms.struct_form(
-        [('a', I32), ('b', POINT)]
+    assert form_of(MakeStruct([('a', Var('n')), ('b', Var('p'))]), forms, module) == terms.Struct(
+        [terms.Field('a', I32), terms.Field('b', POINT)]
     )
     assert form_of(GetField(Var('p'), 'y'), forms, module) == I32
     assert form_of(GetData('errno'), forms, module) == I32

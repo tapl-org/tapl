@@ -178,12 +178,13 @@ def form_of(op: Op, forms: Mapping[str, terms.Term], module: Module) -> terms.Te
         case Call():
             return callee(op, module).return_form
         case MakeStruct(fields=fields):
-            return terms.struct_form([(label, atom_form(atom, forms)) for label, atom in fields])
+            return terms.Struct([terms.Field(label, atom_form(atom, forms)) for label, atom in fields])
         case GetField(struct=struct, label=label):
             struct_form = atom_form(struct, forms)
-            for field_label, field_form in terms.struct_fields(struct_form) or []:
-                if field_label == label:
-                    return field_form
+            if isinstance(struct_form, terms.Struct):
+                for f in struct_form.fields:
+                    if f.label == label:
+                        return f.value
             raise FormError(f'Form {show_form(struct_form)} has no field {label!r}.', op.location)
         case GetData(name=name):
             binding = module.lookup(name)
@@ -194,9 +195,10 @@ def form_of(op: Op, forms: Mapping[str, terms.Term], module: Module) -> terms.Te
 
 
 def field_index(form: terms.Term, label: str) -> int:
-    for index, (field_label, _) in enumerate(terms.struct_fields(form) or []):
-        if field_label == label:
-            return index
+    if isinstance(form, terms.Struct):
+        for index, f in enumerate(form.fields):
+            if f.label == label:
+                return index
     raise FormError(f'Form {show_form(form)} has no field {label!r}.')
 
 
@@ -257,7 +259,7 @@ def _verify_function(function, module):
                 _check_jump(function, target, args, forms, jump.location)
             case Branch() as branch:
                 condition_form = atom_form(branch.condition, forms)
-                if condition_form != terms.name_form('i1'):
+                if condition_form != terms.name_to_form('i1'):
                     raise FormError(f'Branch condition must be i1, got {show_form(condition_form)}.', branch.location)
                 _check_jump(function, branch.then_target, branch.then_args, forms, branch.location)
                 _check_jump(function, branch.else_target, branch.else_args, forms, branch.location)
@@ -298,12 +300,12 @@ def show_name(name: str) -> str:
 def show_form(form: terms.Term) -> str:
     """BANF's own form syntax: `i32`, `{a: i32}`, `(A => B)`. `unknown` for an omitted form,
     and oymomo syntax in parentheses for any other term."""
-    if (name := terms.form_name(form)) is not None:
+    if (name := terms.form_to_name(form)) is not None:
         return show_name(name)
     if isinstance(form, terms.FunctionForm):
         return f'({_show_field_form(form)})'
-    if (fields := terms.struct_fields(form)) is not None:
-        return '{' + ', '.join(f'{show_name(label)}: {_show_field_form(f)}' for label, f in fields) + '}'
+    if isinstance(form, terms.Struct):
+        return '{' + ', '.join(f'{show_name(f.label)}: {_show_field_form(f.value)}' for f in form.fields) + '}'
     if form is terms.Empty:
         return 'unknown'
     return f'({printer.show(form)})'

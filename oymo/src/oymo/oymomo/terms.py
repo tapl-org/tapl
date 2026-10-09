@@ -127,26 +127,15 @@ class FunctionForm(Term):
 # Forms are terms. A named form such as `i32` is the byte array `'i32'` with an empty form.
 
 
-def name_form(name: str) -> ByteArray:
+def name_to_form(name: str) -> ByteArray:
     return ByteArray(name.encode('ascii'), form=Empty)
 
 
-def form_name(form: Term) -> str | None:
+def form_to_name(form: Term) -> str | None:
     """The name of a named form: the text of a byte array with an empty form. None otherwise."""
     if isinstance(form, ByteArray) and form.form is Empty:
         try:
             return form.value.decode('ascii')
         except UnicodeDecodeError:
             return None
-    return None
-
-
-def struct_form(fields: list[tuple[str, Term]], location: Location | None = None) -> Struct:
-    return Struct([Field(label, form) for label, form in fields], location)
-
-
-def struct_fields(form: Term) -> list[tuple[str, Term]] | None:
-    """The `(label, form)` pairs of a struct form. None otherwise."""
-    if isinstance(form, Struct):
-        return [(f.label, f.value) for f in form.fields]
     return None

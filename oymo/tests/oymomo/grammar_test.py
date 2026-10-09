@@ -140,11 +140,11 @@ def test_omitted_forms_are_empty():
 
 
 def test_forms_are_terms():
-    assert parse("[00] : {x = 'i8', y = 'i32'}").form == terms.struct_form(
-        [('x', terms.name_form('i8')), ('y', terms.name_form('i32'))]
+    assert parse("[00] : {x = 'i8', y = 'i32'}").form == terms.Struct(
+        [terms.Field('x', terms.name_to_form('i8')), terms.Field('y', terms.name_to_form('i32'))]
     )
-    assert parse("x: 'i32' -> x").param_form == terms.name_form('i32')
-    assert parse('x: [69 33 32] -> x').param_form == terms.name_form('i32')
+    assert parse("x: 'i32' -> x").param_form == terms.name_to_form('i32')
+    assert parse('x: [69 33 32] -> x').param_form == terms.name_to_form('i32')
 
 
 def test_every_struct_field_needs_a_value():
@@ -153,7 +153,7 @@ def test_every_struct_field_needs_a_value():
 
 
 def test_unknown_is_an_ordinary_form_name():
-    assert parse("x: 'unknown' -> x").param_form == terms.name_form('unknown')
+    assert parse("x: 'unknown' -> x").param_form == terms.name_to_form('unknown')
 
 
 def test_form_other_than_struct_byte_array_or_function_needs_parens():
@@ -199,7 +199,9 @@ def test_function_form_is_right_associative():
 
 def test_function_form_is_its_own_term():
     sugar = parse("{c = 'i8'} => 'i32'")
-    assert sugar == terms.FunctionForm(terms.struct_form([('c', terms.name_form('i8'))]), terms.name_form('i32'))
+    assert sugar == terms.FunctionForm(
+        terms.Struct([terms.Field('c', terms.name_to_form('i8'))]), terms.name_to_form('i32')
+    )
     assert sugar == parse("{c = 'i8'} ⇒ 'i32'")
     assert isinstance(parse("{tag = ' => ', param = {c = 'i8'}, result = 'i32'}"), terms.Struct)
 
@@ -214,7 +216,7 @@ def test_function_form_is_an_expression():
 
 def test_function_form_param_with_a_form_needs_parens():
     term = parse("([00]: 'i8') => 'i32'")
-    assert term.param == terms.ByteArray(b'\x00', terms.name_form('i8'))
+    assert term.param == terms.ByteArray(b'\x00', terms.name_to_form('i8'))
     assert show(term) == "([00]:'i8') ⇒ 'i32'"
     assert parse("[00]: 'i8' => 'i32'").form == parse("'i8' => 'i32'")
 

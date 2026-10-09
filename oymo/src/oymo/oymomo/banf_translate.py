@@ -30,15 +30,15 @@ def _check_data_form(form, location, what):
     and no other terms."""
     if isinstance(form, terms.FunctionForm):
         raise TranslationError(f'{what}: function forms nested inside other forms are not supported.', location)
-    if (fields := terms.struct_fields(form)) is not None:
-        labels = [label for label, _ in fields]
+    if isinstance(form, terms.Struct):
+        labels = [f.label for f in form.fields]
         if len(set(labels)) != len(labels):
             raise TranslationError(f'{what}: duplicate field labels in {banf.show_form(form)}.', location)
-        for _, field_form in fields:
-            _check_data_form(field_form, location, what)
+        for f in form.fields:
+            _check_data_form(f.value, location, what)
     elif form is terms.Empty:
         raise TranslationError(f'{what}: form must be known.', location)
-    elif terms.form_name(form) is None:
+    elif terms.form_to_name(form) is None:
         raise TranslationError(f'{what}: form must be a literal, got {banf.show_form(form)}.', location)
 
 
@@ -85,7 +85,7 @@ def _unwrap(term):
                 body=terms.Lambda(param_name=defs_name, body=terms.Struct() as defs_struct),
             ) as decls_lambda,
         ) if (prim_name, decls_name, defs_name) == (PRIM, DECLS, DEFS):
-            if terms.struct_fields(decls_form) is None:
+            if not isinstance(decls_form, terms.Struct):
                 raise TranslationError(
                     'The decls binder needs a struct form, such as decls: {}.', decls_lambda.location
                 )
@@ -95,15 +95,16 @@ def _unwrap(term):
 
 def _imports(decls_form, location):
     imports = {}
-    for label, form in terms.struct_fields(decls_form) or []:
+    for decl in decls_form.fields:
+        label, form = decl.label, decl.value
         if label in imports:
             raise TranslationError(f'Duplicate import {label!r}.', location)
         what = f'Import {label!r}'
         if isinstance(form, terms.FunctionForm):
             param, result = form.param, form.result
-            params = terms.struct_fields(param)
-            if params is None:
+            if not isinstance(param, terms.Struct):
                 raise TranslationError(f'{what}: a function form needs a struct form as its param.', location)
+            params = [(f.label, f.value) for f in param.fields]
             _check_data_form(param, location, what)
             _check_data_form(result, location, what)
             imports[label] = banf.Signature(label, params, result, location)
@@ -131,9 +132,8 @@ def _function_header(field, imports):
     blocks = []
     for block_field in block_fields:
         match block_field.value:
-            case terms.Lambda(param_name=binder, param_form=form) if (
-                binder == ARGS and (params := terms.struct_fields(form)) is not None
-            ):
+            case terms.Lambda(param_name=binder, param_form=terms.Struct() as form) if binder == ARGS:
+                params = [(f.label, f.value) for f in form.fields]
                 _check_data_form(form, block_field.location, f'Block {block_field.label!r}')
             case _:
                 raise TranslationError(
