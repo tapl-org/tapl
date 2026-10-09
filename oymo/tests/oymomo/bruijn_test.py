@@ -32,7 +32,7 @@ def test_resolve_keeps_labels():
 
 
 def test_resolve_inside_function_form():
-    assert show(resolved('a -> b -> x: (a => b) -> x')) == 'a → b → x:($1) ⇒ ($0) → $0'
+    assert show(resolved('a -> b -> x: (a => b) -> x')) == 'a → b → x:$1 ⇒ $0 → $0'
 
 
 def test_resolve_keeps_location():
@@ -50,7 +50,7 @@ def test_resolve_unknown_name():
 
 def test_resolve_forms_in_the_outer_scope():
     # A param's form can't see the param itself; it sees the binders around the lambda.
-    assert show(resolved('x: (a) -> x: (x) -> x', free=('a',))) == 'x:($0) → x:($0) → $0'
+    assert show(resolved('x: (a) -> x: (x) -> x', free=('a',))) == 'x:$0 → x:$0 → $0'
     assert show(resolved('[00]: {f = (a)} => (a)', free=('a',))) == '[00]:{f = $0} ⇒ $0'
     with pytest.raises(bruijn.BruijnError, match="Unknown name 'x'"):
         bruijn.resolve(parse('x: (x) -> x'))
@@ -58,9 +58,9 @@ def test_resolve_forms_in_the_outer_scope():
 
 def test_shift_and_substitute_reach_forms():
     term = resolved('x: (a) -> [00]: (x)', free=('a',))
-    assert show(term) == 'x:($0) → [00]:$0'
-    assert show(bruijn.shift(term, 1)) == 'x:($1) → [00]:$0'
-    assert show(bruijn.substitute(term, 0, terms.BruijnIndex(5))) == 'x:($5) → [00]:$0'
+    assert show(term) == 'x:$0 → [00]:$0'
+    assert show(bruijn.shift(term, 1)) == 'x:$1 → [00]:$0'
+    assert show(bruijn.substitute(term, 0, terms.BruijnIndex(5))) == 'x:$5 → [00]:$0'
 
 
 def test_shift():

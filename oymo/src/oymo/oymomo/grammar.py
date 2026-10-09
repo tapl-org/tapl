@@ -115,11 +115,11 @@ NAME = Memoized(
 
 
 # `: form` after a lambda param or a let name; omitted means `Void`.
-# A form is any term. A struct, a byte array (optionally with its own `: form`) or a function
-# form is written as it is; any other term needs parentheses. So in `x: 'i32' -> x` the form
-# stops at `->`.
+# A form is an ordinary formed-level expression, as after any other `:`. It never holds a
+# lambda, so in `x: 'i32' -> x` the form stops at `->`. An application needs parentheses:
+# `x: (f a) -> x`.
 FORM_OPT = Optional(
-    Seq(_punct(':'), Ref(rn.FORM), action=lambda c: c.values[0]),
+    Seq(_punct(':'), Ref(rn.FORMED), action=lambda c: c.values[0]),
     action=lambda c: c.value if c.matched else terms.Void,
 )
 
@@ -236,17 +236,6 @@ RULES: dict[str, Clause] = {
         action=lambda c: terms.ByteArray(value=c.values[0], location=_location(c)),
     ),
     rn.GROUP: Seq(_punct('('), Ref(rn.EXPRESSION), _punct(')'), action=lambda c: c.values[0]),
-    rn.FORM: First(
-        Seq(Ref(rn.FORM_ATOM), _punct('=>', '⇒'), Ref(rn.FORM), action=_function_form),
-        Ref(rn.FORM_ATOM),
-    ),
-    # A byte array in a binder form may have its own `: form`, as in `x: [00]: 'i8' -> x`.
-    rn.FORM_ATOM: First(
-        Ref(rn.STRUCT),
-        Seq(Ref(rn.BYTE_ARRAY), _punct(':'), Ref(rn.FORM), action=_formed),
-        Ref(rn.BYTE_ARRAY),
-        Ref(rn.GROUP),
-    ),
 }
 
 

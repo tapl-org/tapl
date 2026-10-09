@@ -41,7 +41,7 @@ def show(
 
 def show_form(form: syntax.Term, *, pretty: bool = False) -> str:
     """`form` as it is written after `:`."""
-    return _form_text(form, None, compact=not pretty)
+    return _flat(form, _FORMED, None) if pretty else _compact(form, None, _FORMED)
 
 
 def _compact(term, names, level=_EXPRESSION):
@@ -93,35 +93,7 @@ def _bytes_text(value, *, grouped, text=True):
 
 def _compact_suffix(form, names):
     """`:form` after a name; nothing for an omitted form."""
-    return '' if form is terms.Void else ':' + _form_text(form, names, compact=True)
-
-
-def _form_text(form, names, *, compact):
-    """`form` as written after a binder's `:`. A struct, a byte array (with its own form or not)
-    or a function form is written as it is; any other term goes in parentheses."""
-    if isinstance(form, terms.FunctionForm):
-        if _is_formed_byte_array(form.param):
-            # `[00]:'i8' ⇒ R` would read as `[00] : ('i8' ⇒ R)`.
-            param = form.param
-            show = _compact(param, names) if compact else _flat(param, _EXPRESSION, names)
-            param_text = f'({show})'
-        else:
-            param_text = _form_atom_text(form.param, names, compact=compact)
-        return f'{param_text} ⇒ {_form_text(form.result, names, compact=compact)}'
-    return _form_atom_text(form, names, compact=compact)
-
-
-def _form_atom_text(form, names, *, compact):
-    if _is_formed_byte_array(form):
-        bytes_text = _bytes_text(form.term.value, grouped=not compact, text=False)
-        return f'{bytes_text}{":" if compact else ": "}{_form_text(form.form, names, compact=compact)}'
-    if isinstance(form, (terms.Struct, terms.ByteArray)):
-        return _compact(form, names, _PROJECT) if compact else _flat(form, _PROJECT, names)
-    return f'({_compact(form, names) if compact else _flat(form, _EXPRESSION, names)})'
-
-
-def _is_formed_byte_array(term):
-    return isinstance(term, terms.Formed) and isinstance(term.term, terms.ByteArray)
+    return '' if form is terms.Void else ':' + _compact(form, names, _FORMED)
 
 
 def _formed_term(term, show, *, grouped):
@@ -248,8 +220,8 @@ def _pretty(term, level, depth, column, width, indent, names):
 
 
 def _form_suffix(form, names):
-    """`: form` after a lambda param; nothing for an omitted form."""
-    return '' if form is terms.Void else ': ' + _form_text(form, names, compact=False)
+    """`: form` after a lambda param or let name; nothing for an omitted form."""
+    return '' if form is terms.Void else ': ' + _flat(form, _FORMED, names)
 
 
 def _name(name):

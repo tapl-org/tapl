@@ -61,11 +61,13 @@ def test_void_is_an_ordinary_form_name():
     assert pretty("x : 'void' -> x") == "x: 'void' → x"
 
 
-def test_forms_other_than_struct_byte_array_or_function_print_in_parens():
-    assert pretty('x: (i32) -> x') == 'x: (i32) → x'
+def test_binder_forms_print_at_the_formed_level():
+    assert pretty('x: (i32) -> x') == 'x: i32 → x'
     assert pretty('x: (a -> b) -> c') == 'x: (a → b) → c'
     assert pretty("[00]: (f 'i8')") == "[00]: (f 'i8')"  # `:` binds tighter than apply
-    assert pretty('x: (i8) => (s.f) -> x') == 'x: (i8) ⇒ (s.f) → x'
+    assert pretty('x: (i8) => (s.f) -> x') == 'x: i8 ⇒ s.f → x'
+    assert pretty('x: (f a) -> x') == 'x: (f a) → x'
+    assert pretty("x: ([00]: 'i8') => 'i32' -> x") == "x: ([00]: 'i8') ⇒ 'i32' → x"
 
 
 def test_struct_shaped_like_a_function_form_prints_as_a_struct():
@@ -245,7 +247,8 @@ def test_show_form():
     assert show_form(form) == "{f = 'i8' ⇒ 'i32', x = 'unknown'}"
     assert show_form(form, pretty=True) == "{f = 'i8' ⇒ 'i32', x = 'unknown'}"
     assert show_form(terms.FunctionForm(form, i32)) == "{f = 'i8' ⇒ 'i32', x = 'unknown'} ⇒ 'i32'"
-    assert show_form(terms.Variable('i32')) == '(i32)'
+    assert show_form(terms.Variable('i32')) == 'i32'
+    assert show_form(terms.Apply(terms.Variable('f'), i32)) == "(f 'i32')"
 
 
 def test_formed():

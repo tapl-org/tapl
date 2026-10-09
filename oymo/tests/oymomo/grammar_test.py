@@ -162,14 +162,23 @@ def test_void_is_an_ordinary_form_name():
     assert parse("x: 'void' -> x").param_form == terms.name_to_form('void')
 
 
-def test_form_other_than_struct_byte_array_or_function_needs_parens():
-    assert show(parse('x: (i32) -> x')) == 'x:(i32) → x'
-    assert parse('x: (i32) -> x').param_form == terms.Variable('i32')
+def test_binder_form_is_an_ordinary_expression():
+    assert parse('x: i32 -> x').param_form == terms.Variable('i32')
+    assert show(parse('x: i32 -> x')) == 'x:i32 → x'
+    assert show(parse('x: (i32) -> x')) == 'x:i32 → x'
+    assert parse('x: s.f -> x').param_form == terms.Project(terms.Variable('s'), 'f')
+    assert show(parse('x: decls.t -> x')) == 'x:decls.t → x'
+    assert show(parse('let x: decls.t = v in x')) == 'let x:decls.t = v in x'
+    # The form never holds a lambda, so it ends at the first `->`.
+    term = parse('x: a -> b -> c')
+    assert term.param_form == terms.Variable('a')
+    assert term.body == terms.Lambda('b', terms.Void, terms.Variable('c'))
+    # A lambda or an application in a form needs parentheses.
     assert show(parse('x: (a -> b) -> c')) == 'x:(a → b) → c'
     assert isinstance(parse('x: (a -> b) -> c').param_form, terms.Lambda)
-    assert show(parse('x: (s.f) -> x')) == 'x:(s.f) → x'
-    assert show(parse('x: i32 -> x')) == 'error'
-    assert show(parse('x: a -> b -> c')) == 'error'
+    assert parse('x: (f a) -> x').param_form == terms.Apply(terms.Variable('f'), terms.Variable('a'))
+    assert show(parse('x: (f a) -> x')) == 'x:(f a) → x'
+    assert show(parse("x: 'i8' : 'i16' -> x")) == "x:[6938]:'i16' → x"  # a formed byte array is hex
 
 
 def test_byte_array_form_stops_before_an_argument():
@@ -294,7 +303,6 @@ def test_formed_leaves_binder_forms_alone():
     assert parse("[01] : 'i8'") == terms.Formed(terms.ByteArray(b'\x01'), terms.name_to_form('i8'))
     assert parse('[01] : y') == terms.Formed(terms.ByteArray(b'\x01'), terms.Variable('y'))
     assert parse("[01] : 'i8'").location == syntax.Location(0, 11)
-    assert show(parse('x: i32 -> x')) == 'error'
 
 
 def test_byte_array_with_a_form_in_a_binder_form():

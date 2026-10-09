@@ -10,7 +10,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [x] 2. Parse `e : F` as `Formed`, not breaking (`oymomo: parse e : F as Formed`)
 - [x] 3. Remove `ByteArray.form`, breaking (`oymomo: a byte array is only bytes; its form is Formed`)
 - [x] 4. `:` binds tighter than application, breaking (`oymomo: : binds tighter than application`)
-- [ ] 5. Binder forms are ordinary expressions (`oymomo: binder forms are ordinary expressions`)
+- [x] 5. Binder forms are ordinary expressions (`oymomo: binder forms are ordinary expressions`)
 - [ ] 6. Wrap up (`docs: plan_annotation implemented`)
 
 Steps 1 to 5 must be done in order.

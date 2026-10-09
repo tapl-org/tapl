@@ -152,11 +152,12 @@ There is no separate form syntax or form class: a form is an ordinary term.
 - A struct form is a struct: `{x = 'i32', y = 'i8'}`.
 - A function form is a `FunctionForm(param, result)` term, written `P => R`
   (see "Function forms").
-- Any term may be a form. After a binder's `:`, a struct, a byte array (with or
-  without its own `: form`) or a function form is written as it is; any other term
-  needs parentheses: `x: (i32) -> x`, `x: (a -> b) -> c`. `x: i32 -> x` is a syntax
-  error. The grammar rules are `FORM` (`FORM_ATOM => FORM` or `FORM_ATOM`) and
-  `FORM_ATOM` (struct, byte array, or parenthesized expression).
+- Any term may be a form. A binder's form (`x : F -> b`, `let x : F = v in b`) is an
+  ordinary formed-level expression, the same as the `F` of `e : F`: `x: i32 -> x`,
+  `x: decls.T -> x`, `x: 'i8' => 'i32' -> x`, `x: [00]: 'i8' -> x`. It never holds a
+  lambda, so it ends at the first `->`: `x : a -> b -> c` is the lambda `x : a` with
+  body `b -> c`. A lambda or an application needs parentheses: `x: (a -> b) -> c`,
+  `x: (f a) -> x`. There is no separate form grammar rule.
 - Forms are resolved like other terms: a variable in a lambda param's form is
   looked up outside the lambda, so `x: (x) -> x` refers to an outer `x`. BANF
   translation needs literal forms (named forms and structs of them) and rejects
@@ -302,8 +303,8 @@ Kept after byte arrays moved to `[]`; `#` is now unused.
 - `=>` is an expression operator too, so a function form can be a struct field
   value: `{putchar = {c = 'i8'} => 'i32'}`. It binds tighter than application and
   looser than `.`: `f a => g b` is `f (a => g) b`.
-- After a binder's `:`, the operands of `=>` are form atoms (struct, byte array, or
-  parenthesized): `x: {c = 'i8'} => 'i32' -> x`.
+- A binder form follows the same precedence: `x: {c = 'i8'} => 'i32' -> x`,
+  `x: i8 => s.f -> x`.
 - Why this is safe: `=>` is not a lambda's `->`, so in
   `decls: {} => 'i32' -> defs -> body` the form ends at `->` and `defs` stays a
   lambda binder.
