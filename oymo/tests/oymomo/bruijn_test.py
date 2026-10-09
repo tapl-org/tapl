@@ -3,7 +3,7 @@
 import pytest
 
 from oymo.oymomo import bruijn, terms
-from oymo.oymomo.grammar import parse
+from oymo.oymomo.grammar import RESERVED, parse
 from oymo.oymomo.printer import show
 
 
@@ -19,6 +19,12 @@ def test_resolve():
     assert show(resolved('x -> y -> x')) == 'x → y → $1'
     assert show(resolved('x -> y -> y')) == 'x → y → $0'
     assert show(resolved('x -> x -> x')) == 'x → x → $0'
+
+
+@pytest.mark.parametrize('word', sorted(RESERVED))
+def test_resolve_quoted_keyword(word):
+    assert show(resolved(f'"{word}" -> "{word}"')) == f'"{word}" → $0'
+    assert show(resolved(f'x -> "{word}" x', free=(f'"{word}"',))) == 'x → $1 $0'
 
 
 def test_resolve_keeps_labels():

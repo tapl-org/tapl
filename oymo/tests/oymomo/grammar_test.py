@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import pytest
+
 from oymo.core import syntax
 from oymo.oymomo import terms
-from oymo.oymomo.grammar import parse
+from oymo.oymomo.grammar import RESERVED, parse
 from oymo.oymomo.printer import show
 
 
@@ -270,6 +272,15 @@ def test_quoted_names():
     assert show(parse('s."a b"')) == 's."a b"'
     assert show(parse('{"x y" = a}')) == '{"x y" = a}'
     assert show(parse("x : 'my form' -> x")) == "x:'my form' → x"
+
+
+@pytest.mark.parametrize('word', sorted(RESERVED))
+def test_quoted_keyword_is_a_name(word):
+    assert show(parse(f'{word} -> {word}')) == 'error'
+    assert show(parse(f'f {word}')) == 'error'
+    assert show(parse(f'"{word}" -> "{word}"')) == f'"{word}" → "{word}"'
+    assert show(parse(f'f "{word}"')) == f'f "{word}"'
+    assert show(parse(f'{{"{word}" = a}}."{word}"')) == f'{{"{word}" = a}}."{word}"'
 
 
 def test_quoted_name_equals_plain_name():
