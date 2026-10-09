@@ -152,8 +152,8 @@ def test_every_struct_field_needs_a_value():
     assert show(parse("[00] : {x: 'i8'}")) == 'error'
 
 
-def test_unknown_is_an_ordinary_form_name():
-    assert parse("x: 'unknown' -> x").param_form == terms.name_to_form('unknown')
+def test_void_is_an_ordinary_form_name():
+    assert parse("x: 'void' -> x").param_form == terms.name_to_form('void')
 
 
 def test_form_other_than_struct_byte_array_or_function_needs_parens():

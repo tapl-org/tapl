@@ -57,8 +57,8 @@ def test_pretty_omits_empty_forms():
     assert pretty('[00]') == '[00]'
 
 
-def test_unknown_is_an_ordinary_form_name():
-    assert pretty("x : 'unknown' -> x") == "x: 'unknown' → x"
+def test_void_is_an_ordinary_form_name():
+    assert pretty("x : 'void' -> x") == "x: 'void' → x"
 
 
 def test_forms_other_than_struct_byte_array_or_function_print_in_parens():
@@ -106,7 +106,7 @@ def test_pretty_groups_bytes_by_four():
         ('[]: {}', '[]:{}'),
     ],
 )
-def test_text_bytes_print_quoted_when_form_is_unknown(source, expected):
+def test_text_bytes_print_quoted_when_form_is_void(source, expected):
     assert show(parse(source)) == expected
     assert show(parse(source), pretty=True) == expected.replace(':', ': ')
 

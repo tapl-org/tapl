@@ -162,8 +162,8 @@ There is no separate form syntax or form class: a form is an ordinary term.
 
 ### Forms are optional; omitted means void
 Every `: form` may be left out: lambda params (`x -> body`), lets, and byte arrays
-(`[2a]`). An omitted form is void (`terms.Void`). `unknown` is not special:
-`: 'unknown'` is the form named unknown.
+(`[2a]`). An omitted form is void (`terms.Void`). `void` is not special:
+`: 'void'` is the form named void.
 - Why: quick sketches stay short, and each later stage decides what it can infer.
   BANF translation, for example, infers a let's form from its op, so
   `let t0 = prim.eq_i32 {...} in t0` needs no `t0: 'i1'`. It rejects a void form
