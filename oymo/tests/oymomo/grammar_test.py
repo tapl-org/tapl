@@ -113,7 +113,7 @@ def test_byte_array_empty():
 
 def test_text_byte_array():
     term = parse("'Hi there'")
-    assert term == terms.ByteArray(value=b'Hi there', form=terms.Empty)
+    assert term == terms.ByteArray(value=b'Hi there', form=terms.Void)
     assert term.location == syntax.Location(0, 10)
     assert show(parse("'Hi' : 'i16'")) == "[4869]:'i16'"
     assert show(parse("''")) == "''"
@@ -133,10 +133,10 @@ def test_byte_array_as_argument():
     assert show(parse("f [01] : 'u8' [02]")) == show(parse("(f ([01] : 'u8')) [02]"))
 
 
-def test_omitted_forms_are_empty():
-    assert parse('x -> x').param_form is terms.Empty
-    assert parse('[2a]').form is terms.Empty
-    assert parse('let x = e in x').function.param_form is terms.Empty
+def test_omitted_forms_are_void():
+    assert parse('x -> x').param_form is terms.Void
+    assert parse('[2a]').form is terms.Void
+    assert parse('let x = e in x').function.param_form is terms.Void
 
 
 def test_forms_are_terms():

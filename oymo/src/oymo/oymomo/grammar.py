@@ -114,12 +114,12 @@ NAME = Memoized(
 )
 
 
-# `: form` after a lambda param, a let name or a byte array; omitted means `Empty`.
+# `: form` after a lambda param, a let name or a byte array; omitted means `Void`.
 # A form is any term. A struct, a byte array or a function form is written as it is;
 # any other term needs parentheses. So in `x: 'i32' -> x` the form stops at `->`.
 FORM_OPT = Optional(
     Seq(_punct(':'), Ref(rn.FORM), action=lambda c: c.values[0]),
-    action=lambda c: c.value if c.matched else terms.Empty,
+    action=lambda c: c.value if c.matched else terms.Void,
 )
 
 

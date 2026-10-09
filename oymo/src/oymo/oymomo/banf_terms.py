@@ -306,7 +306,7 @@ def show_form(form: terms.Term) -> str:
         return f'({_show_field_form(form)})'
     if isinstance(form, terms.Struct):
         return '{' + ', '.join(f'{show_name(f.label)}: {_show_field_form(f.value)}' for f in form.fields) + '}'
-    if form is terms.Empty:
+    if form is terms.Void:
         return 'void'
     return f'({printer.show(form)})'
 

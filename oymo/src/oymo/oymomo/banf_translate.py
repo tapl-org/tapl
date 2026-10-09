@@ -26,7 +26,7 @@ def _location(term):
 
 
 def _check_data_form(form, location, what):
-    """A data form is a named form or a struct of data forms: no unknown parts, no function forms,
+    """A data form is a named form or a struct of data forms: no void parts, no function forms,
     and no other terms."""
     if isinstance(form, terms.FunctionForm):
         raise TranslationError(f'{what}: function forms nested inside other forms are not supported.', location)
@@ -36,7 +36,7 @@ def _check_data_form(form, location, what):
             raise TranslationError(f'{what}: duplicate field labels in {banf.show_form(form)}.', location)
         for f in form.fields:
             _check_data_form(f.value, location, what)
-    elif form is terms.Empty:
+    elif form is terms.Void:
         raise TranslationError(f'{what}: form must be known.', location)
     elif terms.form_to_name(form) is None:
         raise TranslationError(f'{what}: form must be a literal, got {banf.show_form(form)}.', location)
@@ -143,7 +143,7 @@ def _function_header(field, imports):
         if any(block.label == block_field.label for block in blocks):
             raise TranslationError(f'Duplicate block {block_field.label!r}.', block_field.location)
         blocks.append(banf.Block(block_field.label, params, [], banf.Return(banf.Var('')), block_field.location))
-    return banf.Function(name, terms.Empty, blocks, field.location), block_fields
+    return banf.Function(name, terms.Void, blocks, field.location), block_fields
 
 
 def _not_a_value(name, location):
@@ -270,7 +270,7 @@ class _Translator:
             match term:
                 case terms.Apply(function=terms.Lambda(param_name=name, param_form=form, body=rest), argument=value):
                     let = banf.Let(name, self.op(value, block), location)
-                    if form is not terms.Empty:
+                    if form is not terms.Void:
                         self.written_forms.append((let, form))
                     block.lets.append(let)
                     term = rest
@@ -314,7 +314,7 @@ def _known_return_form(block, module):
             form = banf.form_of(let.value, forms, module)
         except banf.FormError:
             continue
-        if form is not terms.Empty:
+        if form is not terms.Void:
             forms[let.name] = form
     try:
         return banf.atom_form(block.terminator.value, forms)
@@ -328,7 +328,7 @@ def _infer_return_forms(module, functions):
     while changed:
         changed = False
         for function in functions:
-            if function.return_form is not terms.Empty:
+            if function.return_form is not terms.Void:
                 continue
             for block in function.blocks:
                 form = _known_return_form(block, module)
@@ -337,7 +337,7 @@ def _infer_return_forms(module, functions):
                     changed = True
                     break
     for function in functions:
-        if function.return_form is terms.Empty:
+        if function.return_form is terms.Void:
             raise TranslationError(f'Cannot infer the return form of {function.name!r}.', function.location)
 
 

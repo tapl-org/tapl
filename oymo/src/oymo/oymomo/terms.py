@@ -8,8 +8,8 @@ from oymo.core import syntax
 Term = syntax.Term
 Location = syntax.Location
 
-# An omitted form: the form is unknown.
-Empty = syntax.Empty
+# An omitted form: the form is void.
+Void = syntax.Empty
 
 
 # Every `location` is left out of `==`, so a parsed form equals the same form built in code.
@@ -128,12 +128,12 @@ class FunctionForm(Term):
 
 
 def name_to_form(name: str) -> ByteArray:
-    return ByteArray(name.encode('ascii'), form=Empty)
+    return ByteArray(name.encode('ascii'), form=Void)
 
 
 def form_to_name(form: Term) -> str | None:
     """The name of a named form: the text of a byte array with an empty form. None otherwise."""
-    if isinstance(form, ByteArray) and form.form is Empty:
+    if isinstance(form, ByteArray) and form.form is Void:
         try:
             return form.value.decode('ascii')
         except UnicodeDecodeError:

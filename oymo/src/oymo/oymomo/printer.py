@@ -3,7 +3,7 @@
 """Renders oymomo terms and forms as text.
 
 The default rendering is compact: one line, with parentheses only where the grammar
-needs them. Neither mode prints an omitted (`Empty`) form. With `pretty=True` the result is
+needs them. Neither mode prints an omitted (`Void`) form. With `pretty=True` the result is
 oymomo source that parses back to the same term: parentheses only where needed, and
 quoted names where needed. A term that doesn't fit in `width` columns breaks: a struct puts one
 field per line, a lambda puts its body on the next line (unless the body is a struct
@@ -80,9 +80,9 @@ def _compact(term, names, level=_EXPRESSION):
 
 
 def _bytes_text(value, form, *, grouped):
-    """`'text'` for a byte array with an unknown form, at most `_MAX_TEXT_BYTES` long, whose
+    """`'text'` for a byte array with a void form, at most `_MAX_TEXT_BYTES` long, whose
     bytes are all ASCII text; otherwise `[hex]`, in groups of four if `grouped`."""
-    if form is terms.Empty and len(value) <= _MAX_TEXT_BYTES and all(chr(b) in ASCII_TEXT for b in value):
+    if form is terms.Void and len(value) <= _MAX_TEXT_BYTES and all(chr(b) in ASCII_TEXT for b in value):
         return "'" + value.decode('ascii') + "'"
     if grouped:
         return '[' + ' '.join(value[i : i + 4].hex() for i in range(0, len(value), 4)) + ']'
@@ -91,7 +91,7 @@ def _bytes_text(value, form, *, grouped):
 
 def _compact_suffix(form, names):
     """`:form` after a name or byte array; nothing for an omitted form."""
-    return '' if form is terms.Empty else ':' + _form_text(form, names, compact=True)
+    return '' if form is terms.Void else ':' + _form_text(form, names, compact=True)
 
 
 def _form_text(form, names, *, compact):
@@ -126,7 +126,7 @@ def _ends_with_form(term):
     """Whether `term`, printed at apply level or tighter, ends with a byte array's `: form`."""
     match term:
         case terms.ByteArray(form=form):
-            return form is not terms.Empty
+            return form is not terms.Void
         case terms.Apply(function=function, argument=argument) if not isinstance(function, terms.Lambda):
             return _ends_with_form(argument)
         case terms.Fix(function=function):
@@ -248,7 +248,7 @@ def _pretty(term, level, depth, column, width, indent, names):
 
 def _form_suffix(form, names):
     """`: form` after a lambda param or byte array; nothing for an omitted form."""
-    return '' if form is terms.Empty else ': ' + _form_text(form, names, compact=False)
+    return '' if form is terms.Void else ': ' + _form_text(form, names, compact=False)
 
 
 def _name(name):

@@ -160,13 +160,13 @@ There is no separate form syntax or form class: a form is an ordinary term.
 - Why: one syntax and one set of terms for values and forms; later stages can
   compute forms with the same machinery as values.
 
-### Forms are optional; omitted means unknown
+### Forms are optional; omitted means void
 Every `: form` may be left out: lambda params (`x -> body`), lets, and byte arrays
-(`[2a]`). An omitted form is `syntax.Empty`. `unknown` is not special:
+(`[2a]`). An omitted form is void (`terms.Void`). `unknown` is not special:
 `: 'unknown'` is the form named unknown.
 - Why: quick sketches stay short, and each later stage decides what it can infer.
   BANF translation, for example, infers a let's form from its op, so
-  `let t0 = prim.eq_i32 {...} in t0` needs no `t0: 'i1'`. It rejects an unknown form
+  `let t0 = prim.eq_i32 {...} in t0` needs no `t0: 'i1'`. It rejects a void form
   where nothing can infer it, as in a byte array `[01]` with no form.
 
 ### Byte arrays are bracketed hex: `[2a 00 00 00] : 'i32'`
@@ -195,7 +195,7 @@ Every `: form` may be left out: lambda params (`x -> body`), lets, and byte arra
 - Comments are not allowed inside the brackets.
 - `[]` was freed when structs took `{}`, and the brackets bound the literal, so no
   prefix and no quotes are needed.
-- The form after `:` is optional (omitted means unknown), since the same bytes
+- The form after `:` is optional (omitted means void), since the same bytes
   can have many forms: `[01000000]` could be `'i32'` 1, or `{a = 'i16', b = 'i16'}`.
 - Rejected: a prefix sigil (`#2a000000`, also `%`, `$`, `@`), which needed `_`
   separators and a `_` line continuation; `0x...`, which reads as an integer and
@@ -780,7 +780,7 @@ rejected until it's decided what they mean:
 - as a param or result: `decls: {g: {c: i8} => {d: i8} => i32}`,
 - with a non-struct param: `decls: {g: i8 => i32}`.
 
-Unknown forms in `decls` (`{g: unknown}`) are rejected too, since nothing can infer
+Void forms in `decls` are rejected too, since nothing can infer
 an import's form.
 
 ### First-order only
