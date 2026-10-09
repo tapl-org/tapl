@@ -158,10 +158,9 @@ class _Translator:
     def atom(self, term, block):
         location = _location(term)
         match term:
-            case terms.ByteArray(value=value, form=form):
-                _check_data_form(form, location, 'Byte array')
-                return banf.Const(value, form, location)
-            case terms.Formed(term=terms.ByteArray(value=value, form=terms.Void), form=form):
+            case terms.ByteArray():
+                raise TranslationError('Byte array: form must be known.', location)
+            case terms.Formed(term=terms.ByteArray(value=value), form=form):
                 _check_data_form(form, location, 'Byte array')
                 return banf.Const(value, form, location)
             case terms.Formed():

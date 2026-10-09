@@ -191,7 +191,7 @@ def test_runs_out_of_fuel():
 
 def test_whnf_reduces_inside_formed():
     i1 = terms.name_to_form('i1')
-    one = terms.ByteArray(b'\x01', terms.Void)
+    one = terms.ByteArray(b'\x01')
     identity = terms.Lambda('x', terms.Void, terms.BruijnIndex(0))
     reduced = banf_reduce.whnf(terms.Formed(terms.Apply(identity, one), i1))
     assert reduced == terms.Formed(one, i1)
@@ -199,6 +199,5 @@ def test_whnf_reduces_inside_formed():
 
 def test_dynamic_byte_array_form():
     reduced = banf_reduce.whnf(bruijn.resolve(parse("(x -> y -> y : x) 'i1' [01]")))
-    assert reduced == terms.Formed(terms.ByteArray(b'\x01', terms.Void), terms.name_to_form('i1'))
-    # `[01]:'i1'` still parses to a ByteArray with its own form, so compare the printed text.
+    assert reduced == parse("[01]:'i1'")
     assert show(reduced) == "[01]:'i1'"

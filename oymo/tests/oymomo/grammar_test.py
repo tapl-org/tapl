@@ -115,7 +115,7 @@ def test_byte_array_empty():
 
 def test_text_byte_array():
     term = parse("'Hi there'")
-    assert term == terms.ByteArray(value=b'Hi there', form=terms.Void)
+    assert term == terms.ByteArray(value=b'Hi there')
     assert term.location == syntax.Location(0, 10)
     assert show(parse("'Hi' : 'i16'")) == "[4869]:'i16'"
     assert show(parse("''")) == "''"
@@ -132,12 +132,13 @@ def test_text_byte_array_rejects_non_text():
 
 
 def test_byte_array_as_argument():
-    assert show(parse("f [01] : 'u8' [02]")) == show(parse("(f ([01] : 'u8')) [02]"))
+    # `:` binds looser than apply, so a byte array with a form needs parens as an argument.
+    assert parse("f [01] : 'u8' [02]") == parse("(f [01]) : ('u8' [02])")
+    assert show(parse("f ([01] : 'u8') [02]")) == "f ([01]:'u8') [02]"
 
 
 def test_omitted_forms_are_void():
     assert parse('x -> x').param_form is terms.Void
-    assert parse('[2a]').form is terms.Void
     assert parse('let x = e in x').function.param_form is terms.Void
 
 
@@ -168,8 +169,8 @@ def test_form_other_than_struct_byte_array_or_function_needs_parens():
     assert show(parse('x: a -> b -> c')) == 'error'
 
 
-def test_byte_array_form_stops_before_an_argument():
-    assert show(parse("f [00]: 'i32' y")) == show(parse("(f ([00]: 'i32')) y"))
+def test_byte_array_form_takes_the_rest_of_the_apply():
+    assert parse("f [00]: 'i32' y") == parse("(f [00]) : ('i32' y)")
 
 
 def test_nested_struct_forms():
@@ -279,19 +280,26 @@ def test_formed():
     )
 
 
-def test_formed_leaves_binder_and_byte_array_forms_alone():
-    # A lambda is tried first, and a byte array literal takes its own `: form`.
+def test_formed_leaves_binder_forms_alone():
+    # A lambda is tried first. A byte array is only bytes, so its `: form` is a Formed.
     assert isinstance(parse("x : 'i8' -> x"), terms.Lambda)
     assert parse("x : 'i8'") == terms.Formed(terms.Variable('x'), terms.name_to_form('i8'))
-    assert parse("[01] : 'i8'") == terms.ByteArray(b'\x01', terms.name_to_form('i8'))
-    assert parse('[01] : y') == terms.Formed(terms.ByteArray(b'\x01', terms.Void), terms.Variable('y'))
-    assert show(parse("f [01] : 'u8' [02]")) == show(parse("f ([01] : 'u8') [02]"))
+    assert parse("[01] : 'i8'") == terms.Formed(terms.ByteArray(b'\x01'), terms.name_to_form('i8'))
+    assert parse('[01] : y') == terms.Formed(terms.ByteArray(b'\x01'), terms.Variable('y'))
+    assert parse("[01] : 'i8'").location == syntax.Location(0, 11)
     assert show(parse('x: i32 -> x')) == 'error'
+
+
+def test_byte_array_with_a_form_in_a_binder_form():
+    i8 = terms.name_to_form('i8')
+    assert parse("x: [00]: 'i8' -> x").param_form == terms.Formed(terms.ByteArray(b'\x00'), i8)
+    assert show(parse("x: [00]: 'i8' -> x")) == "x:[00]:'i8' → x"
+    assert show(parse("x: ([00]: 'i8') => 'i32' -> x")) == "x:([00]:'i8') ⇒ 'i32' → x"
 
 
 def test_function_form_param_with_a_form_needs_parens():
     term = parse("([00]: 'i8') => 'i32'")
-    assert term.param == terms.ByteArray(b'\x00', terms.name_to_form('i8'))
+    assert term.param == terms.Formed(terms.ByteArray(b'\x00'), terms.name_to_form('i8'))
     assert show(term) == "([00]:'i8') ⇒ 'i32'"
     assert parse("[00]: 'i8' => 'i32'").form == parse("'i8' => 'i32'")
 

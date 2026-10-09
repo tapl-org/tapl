@@ -98,7 +98,8 @@ s.x                          Project
 if c then a else b           If
 let x = e in body            sugar for (x -> body) e
 fix f                        Fix
-[2a 00 00 00] : 'i32'        ByteArray
+[2a 00 00 00]                ByteArray
+e : 'i32'                    Formed
 {c = 'i8'} => 'i32'          FunctionForm
 // comment                   line comment
 ```
@@ -141,16 +142,16 @@ pattern), `Access` and `Read` (sound like memory operations next to LLVM),
 
 ### Forms are terms
 There is no separate form syntax or form class: a form is an ordinary term.
-- A named form is a byte array with an omitted form: `'i32'` is the form i32
-  (`ByteArray(b'i32', form=Empty)`). A bare `i32` is a variable, not a form name.
+- A named form is a byte array: `'i32'` is the form i32 (`ByteArray(b'i32')`).
+  A bare `i32` is a variable, not a form name.
 - A struct form is a struct: `{x = 'i32', y = 'i8'}`.
 - A function form is a `FunctionForm(param, result)` term, written `P => R`
   (see "Function forms").
-- Any term may be a form. After `:`, a struct, a byte array or a function form is
-  written as it is; any other term needs parentheses: `x: (i32) -> x`,
-  `x: (a -> b) -> c`. `x: i32 -> x` is a syntax error. The grammar rules are
-  `FORM` (`FORM_ATOM => FORM` or `FORM_ATOM`) and `FORM_ATOM` (struct, byte array,
-  or parenthesized expression).
+- Any term may be a form. After a binder's `:`, a struct, a byte array (with or
+  without its own `: form`) or a function form is written as it is; any other term
+  needs parentheses: `x: (i32) -> x`, `x: (a -> b) -> c`. `x: i32 -> x` is a syntax
+  error. The grammar rules are `FORM` (`FORM_ATOM => FORM` or `FORM_ATOM`) and
+  `FORM_ATOM` (struct, byte array, or parenthesized expression).
 - Forms are resolved like other terms: a variable in a lambda param's form is
   looked up outside the lambda, so `x: (x) -> x` refers to an outer `x`. BANF
   translation needs literal forms (named forms and structs of them) and rejects
@@ -161,30 +162,31 @@ There is no separate form syntax or form class: a form is an ordinary term.
   compute forms with the same machinery as values.
 
 ### Forms are optional; omitted means void
-Every `: form` may be left out: lambda params (`x -> body`), lets, and byte arrays
-(`[2a]`). An omitted form is void (`terms.Void`). `void` is not special:
-`: 'void'` is the form named void.
+Every binder `: form` may be left out: lambda params (`x -> body`) and lets. An
+omitted form is void (`terms.Void`). `void` is not special: `: 'void'` is the form
+named void. A byte array has no form of its own; `[2a]` is just bytes.
 - Why: quick sketches stay short, and each later stage decides what it can infer.
   BANF translation, for example, infers a let's form from its op, so
-  `let t0 = prim.eq_i32 {...} in t0` needs no `t0: 'i1'`. It rejects a void form
-  where nothing can infer it, as in a byte array `[01]` with no form.
+  `let t0 = prim.eq_i32 {...} in t0` needs no `t0: 'i1'`. It rejects a byte array
+  where nothing gives it a form, as in `[01]` with no `: form`.
 
 ### `Formed(term, form)`: any term with a form
 `Formed` is `term : form`, "`term`, formed as `form`". It lets the form of any term come
 from an expression, so a byte array's form can be a variable:
 `(x -> y -> y : x) 'i1' [01]` evaluates to `[01] : 'i1'`. See `plan_annotation.md`.
+- A byte array is only its bytes: `[01] : 'i8'` is `Formed(ByteArray([01]), 'i8')`, just
+  like `y : 'i8'` is `Formed(y, 'i8')`. So every `:` that isn't on a binder is one term
+  with one meaning, and beta reduction alone gives a dynamic form.
 - `Formed` itself never reduces. `whnf` reduces inside `Formed.term`, and an `if` sees
   through a form on its condition.
-- BANF translation turns a formed byte array with no form of its own into a constant.
-  It rejects any other `Formed`.
+- BANF translation turns a formed byte array into a constant. It rejects any other
+  `Formed`, including a form on a formed byte array (`([01]:'i8'):'i16'`).
 - `:` has its own precedence level, between `->`/`if`/`let` and application, and is
   right associative: `f a : g b` is `(f a) : (g b)`, `a : b : c` is `a : (b : c)`,
-  `x -> y : t` is `x -> (y : t)`, and an argument needs parentheses: `f (y : x)`.
-- Two older uses of `:` come first, so they keep their meaning. A lambda is tried
-  first, so `x : F -> body` is still a lambda with a param form. A byte array literal
-  still takes its own `: form`, so `[01] : 'i8'` is a `ByteArray` with a form, and
-  `f [01] : 'u8' [02]` is `f ([01] : 'u8') [02]`. Step 3 of `plan_annotation.md`
-  removes the byte array's own form.
+  `x -> y : t` is `x -> (y : t)`, and an argument needs parentheses: `f (y : x)`,
+  `f ([01] : 'u8') [02]`. Without them, `f [01] : 'u8' [02]` is
+  `(f [01]) : ('u8' [02])`.
+- A lambda is tried first, so `x : F -> body` is still a lambda with a param form.
 
 ### Byte arrays are bracketed hex: `[2a 00 00 00] : 'i32'`
 - The kernel has only byte arrays, so literals are written as bytes, not numbers.
@@ -212,8 +214,9 @@ from an expression, so a byte array's form can be a variable:
 - Comments are not allowed inside the brackets.
 - `[]` was freed when structs took `{}`, and the brackets bound the literal, so no
   prefix and no quotes are needed.
-- The form after `:` is optional (omitted means void), since the same bytes
-  can have many forms: `[01000000]` could be `'i32'` 1, or `{a = 'i16', b = 'i16'}`.
+- The `: form` is optional, and it is an ordinary `Formed`, not part of the literal,
+  since the same bytes can have many forms: `[01000000]` could be `'i32'` 1, or
+  `{a = 'i16', b = 'i16'}`.
 - Rejected: a prefix sigil (`#2a000000`, also `%`, `$`, `@`), which needed `_`
   separators and a `_` line continuation; `0x...`, which reads as an integer and
   hides the byte order; backticks, which look like quoting; juxtaposing literals,
@@ -227,11 +230,11 @@ from an expression, so a byte array's form can be a variable:
   `'`, `\`, or anything non-printable are written in hex. Keeping `\` out leaves
   room for escapes later. Single line only. `''` is the empty array.
 - `'` was unused, and `"` is taken by quoted names.
-- The printer uses `'...'` only when the form is omitted, every byte is text,
-  and the array is at most 128 bytes; otherwise hex. Why: a written form
-  (`[41]: 'i8'`) usually means a number, so hex stays; a long blob reads better as
-  grouped hex. The limit is fixed, not `width`, so output doesn't depend on
-  layout settings.
+- The printer uses `'...'` only for a byte array without a form (not the `t` of a
+  `t : form`), every byte is text, and the array is at most 128 bytes; otherwise hex.
+  Why: a written form (`[41]: 'i8'`) usually means a number, so hex stays; a long
+  blob reads better as grouped hex. The limit is fixed, not `width`, so output
+  doesn't depend on layout settings.
 
 ### Identifiers: plain or double quoted
 Plain identifiers match `[A-Za-z_][A-Za-z0-9_]*`, excluding the reserved words
@@ -285,14 +288,14 @@ Kept after byte arrays moved to `[]`; `#` is now unused.
 - `=>` is an expression operator too, so a function form can be a struct field
   value: `{putchar = {c = 'i8'} => 'i32'}`. It binds tighter than application and
   looser than `.`: `f a => g b` is `f (a => g) b`.
-- After `:`, the operands of `=>` are form atoms (struct, byte array, or
-  parenthesized): `x: {c = 'i8'} => 'i32' -> x`, `[]: 'i8' => 'i32'`.
+- After a binder's `:`, the operands of `=>` are form atoms (struct, byte array, or
+  parenthesized): `x: {c = 'i8'} => 'i32' -> x`.
 - Why this is safe: `=>` is not a lambda's `->`, so in
   `decls: {} => 'i32' -> defs -> body` the form ends at `->` and `defs` stays a
   lambda binder.
-- A byte array keeps the `=>` that follows its own `: form`: `[00]: 'i8' => 'i32'`
-  is a byte array whose form is a function form. So a param that ends with a
-  written form needs parentheses: `([00]: 'i8') => 'i32'`. The printer adds them.
+- `=>` binds tighter than `:`, so `[00]: 'i8' => 'i32'` is a byte array whose form
+  is a function form. So a param with a form needs parentheses:
+  `([00]: 'i8') => 'i32'`. The printer adds them.
 
 ### Printer: compact for tests, pretty for people
 `printer.show(term)` and `printer.show_form(form)` live in `printer.py`, not in the
@@ -734,7 +737,7 @@ arithmetic and keeps no binder names of its own. A let reference becomes a
 - **Let**: `let x = op in rest`, which is `(x -> rest) (op)`. The form may be
   omitted; if written, it must equal the op's form:
   `let t0: 'i32' = prim.eq_i32 {...} in t0` is an error, since `eq_i32` gives `i1`.
-- **Atoms**: a byte array with a known form, a let name, or `args.label`.
+- **Atoms**: a byte array with a literal form (`[01] : 'i8'`), a let name, or `args.label`.
 - **Ops**, only as a let's value: `prim.op {...}`, `defs.g {...}`, `decls.g {...}`,
   a struct literal of atoms (`MakeStruct`), a projection on an atom
   (`let x = args.p.x in ...` is a `GetField` on param `p`), or `decls.g` for

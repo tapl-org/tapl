@@ -60,8 +60,7 @@ def _compact(term, names, level=_EXPRESSION):
         case terms.Apply(function=function, argument=argument):
             text = f'{_compact(function, names, _APPLY)} {_compact(argument, names, _ARROW)}'
         case terms.FunctionForm(param=param, result=result):
-            param_text = _arrow_param(param, lambda t, level: _compact(t, names, level))
-            text = f'{param_text} ⇒ {_compact(result, names, _ARROW)}'
+            text = f'{_compact(param, names, _PROJECT)} ⇒ {_compact(result, names, _ARROW)}'
         case terms.Struct(fields=fields):
             text = '{' + ', '.join(f'{_name(f.label)} = {_compact(f.value, names)}' for f in fields) + '}'
         case terms.Project(struct=struct, label=label):
@@ -70,10 +69,10 @@ def _compact(term, names, level=_EXPRESSION):
             text = f'if {_compact(c, names)} then {_compact(t, names)} else {_compact(e, names)}'
         case terms.Fix(function=function):
             text = f'fix {_compact(function, names, _ARROW)}'
-        case terms.ByteArray(value=value, form=form):
-            text = f'{_bytes_text(value, form, grouped=False)}{_compact_suffix(form, names)}'
+        case terms.ByteArray(value=value):
+            text = _bytes_text(value, grouped=False)
         case terms.Formed(term=inner, form=form):
-            inner_text = _formed_term(inner, lambda t, level: _compact(t, names, level))
+            inner_text = _formed_term(inner, lambda t, level: _compact(t, names, level), grouped=False)
             text = f'{inner_text}:{_compact(form, names, _FORMED)}'
         case syntax.ErrorTerm():
             text = 'error'
@@ -82,10 +81,10 @@ def _compact(term, names, level=_EXPRESSION):
     return f'({text})' if level > _loosest(term) else text
 
 
-def _bytes_text(value, form, *, grouped):
-    """`'text'` for a byte array with a void form, at most `_MAX_TEXT_BYTES` long, whose
-    bytes are all ASCII text; otherwise `[hex]`, in groups of four if `grouped`."""
-    if form is terms.Void and len(value) <= _MAX_TEXT_BYTES and all(chr(b) in ASCII_TEXT for b in value):
+def _bytes_text(value, *, grouped, text=True):
+    """`'text'` if `text`, at most `_MAX_TEXT_BYTES` long, and all bytes are ASCII text;
+    otherwise `[hex]`, in groups of four if `grouped`."""
+    if text and len(value) <= _MAX_TEXT_BYTES and all(chr(b) in ASCII_TEXT for b in value):
         return "'" + value.decode('ascii') + "'"
     if grouped:
         return '[' + ' '.join(value[i : i + 4].hex() for i in range(0, len(value), 4)) + ']'
@@ -93,55 +92,43 @@ def _bytes_text(value, form, *, grouped):
 
 
 def _compact_suffix(form, names):
-    """`:form` after a name or byte array; nothing for an omitted form."""
+    """`:form` after a name; nothing for an omitted form."""
     return '' if form is terms.Void else ':' + _form_text(form, names, compact=True)
 
 
 def _form_text(form, names, *, compact):
-    """`form` as written after `:`. A struct, a byte array or a function form is written as it is;
-    any other term goes in parentheses."""
-
-    def show(term, level):
-        return _compact(term, names, level) if compact else _flat(term, level, names)
-
+    """`form` as written after a binder's `:`. A struct, a byte array (with its own form or not)
+    or a function form is written as it is; any other term goes in parentheses."""
     if isinstance(form, terms.FunctionForm):
-        param_text = _form_atom_text(form.param, show)
-        if _ends_with_form(form.param) and not param_text.startswith('('):
-            param_text = f'({param_text})'
+        if _is_formed_byte_array(form.param):
+            # `[00]:'i8' ⇒ R` would read as `[00] : ('i8' ⇒ R)`.
+            param = form.param
+            show = _compact(param, names) if compact else _flat(param, _EXPRESSION, names)
+            param_text = f'({show})'
+        else:
+            param_text = _form_atom_text(form.param, names, compact=compact)
         return f'{param_text} ⇒ {_form_text(form.result, names, compact=compact)}'
-    return _form_atom_text(form, show)
+    return _form_atom_text(form, names, compact=compact)
 
 
-def _form_atom_text(form, show):
+def _form_atom_text(form, names, *, compact):
+    if _is_formed_byte_array(form):
+        bytes_text = _bytes_text(form.term.value, grouped=not compact, text=False)
+        return f'{bytes_text}{":" if compact else ": "}{_form_text(form.form, names, compact=compact)}'
     if isinstance(form, (terms.Struct, terms.ByteArray)):
-        return show(form, _PROJECT)
-    return f'({show(form, _EXPRESSION)})'
+        return _compact(form, names, _PROJECT) if compact else _flat(form, _PROJECT, names)
+    return f'({_compact(form, names) if compact else _flat(form, _EXPRESSION, names)})'
 
 
-def _arrow_param(param, show):
-    """The `P` of `P ⇒ R`, in parentheses if a trailing `: form` would swallow the `⇒`."""
-    if _ends_with_form(param) and _loosest(param) >= _PROJECT:
-        return f'({show(param, _EXPRESSION)})'
-    return show(param, _PROJECT)
+def _is_formed_byte_array(term):
+    return isinstance(term, terms.Formed) and isinstance(term.term, terms.ByteArray)
 
 
-def _formed_term(term, show):
-    """The `t` of `t : form`, in parentheses if its own trailing `: form` would take the `:`."""
-    if _ends_with_form(term):
-        return f'({show(term, _EXPRESSION)})'
+def _formed_term(term, show, *, grouped):
+    """The `t` of `t : form`. A byte array with a form prints its bytes as hex."""
+    if isinstance(term, terms.ByteArray):
+        return _bytes_text(term.value, grouped=grouped, text=False)
     return show(term, _APPLY)
-
-
-def _ends_with_form(term):
-    """Whether `term`, printed at apply level or tighter, ends with a byte array's `: form`."""
-    match term:
-        case terms.ByteArray(form=form):
-            return form is not terms.Void
-        case terms.Apply(function=function, argument=argument) if not isinstance(function, terms.Lambda):
-            return _ends_with_form(argument)
-        case terms.Fix(function=function):
-            return _ends_with_form(function)
-    return False
 
 
 def _loosest(term):
@@ -188,8 +175,7 @@ def _flat(term, level, names):
         case terms.Apply(function=function, argument=argument):
             text = f'{_flat(function, _APPLY, names)} {_flat(argument, _ARROW, names)}'
         case terms.FunctionForm(param=param, result=result):
-            param_text = _arrow_param(param, lambda t, level: _flat(t, level, names))
-            text = f'{param_text} ⇒ {_flat(result, _ARROW, names)}'
+            text = f'{_flat(param, _PROJECT, names)} ⇒ {_flat(result, _ARROW, names)}'
         case terms.Struct(fields=fields):
             text = '{' + ', '.join(f'{_name(f.label)} = {_flat(f.value, _EXPRESSION, names)}' for f in fields) + '}'
         case terms.Project(struct=struct, label=label):
@@ -201,10 +187,10 @@ def _flat(term, level, names):
             )
         case terms.Fix(function=function):
             text = f'fix {_flat(function, _ARROW, names)}'
-        case terms.ByteArray(value=value, form=form):
-            text = f'{_bytes_text(value, form, grouped=True)}{_form_suffix(form, names)}'
+        case terms.ByteArray(value=value):
+            text = _bytes_text(value, grouped=True)
         case terms.Formed(term=inner, form=form):
-            inner_text = _formed_term(inner, lambda t, level: _flat(t, level, names))
+            inner_text = _formed_term(inner, lambda t, level: _flat(t, level, names), grouped=True)
             text = f'{inner_text}: {_flat(form, _FORMED, names)}'
         case syntax.ErrorTerm():
             text = 'error'
@@ -262,7 +248,7 @@ def _pretty(term, level, depth, column, width, indent, names):
 
 
 def _form_suffix(form, names):
-    """`: form` after a lambda param or byte array; nothing for an omitted form."""
+    """`: form` after a lambda param; nothing for an omitted form."""
     return '' if form is terms.Void else ': ' + _form_text(form, names, compact=False)
 
 

@@ -114,9 +114,10 @@ NAME = Memoized(
 )
 
 
-# `: form` after a lambda param, a let name or a byte array; omitted means `Void`.
-# A form is any term. A struct, a byte array or a function form is written as it is;
-# any other term needs parentheses. So in `x: 'i32' -> x` the form stops at `->`.
+# `: form` after a lambda param or a let name; omitted means `Void`.
+# A form is any term. A struct, a byte array (optionally with its own `: form`) or a function
+# form is written as it is; any other term needs parentheses. So in `x: 'i32' -> x` the form
+# stops at `->`.
 FORM_OPT = Optional(
     Seq(_punct(':'), Ref(rn.FORM), action=lambda c: c.values[0]),
     action=lambda c: c.value if c.matched else terms.Void,
@@ -181,8 +182,8 @@ RULES: dict[str, Clause] = {
     ),
     # `e : F` is a Formed. It binds looser than apply and tighter than `->`, `if` and `let`, and
     # it is right associative: `f a : g b` is `(f a) : (g b)`, `a : b : c` is `a : (b : c)`.
-    # A lambda is tried first, so `x : F -> body` is still a lambda with a param form, and a
-    # byte array literal still takes its own `: form`.
+    # A lambda is tried first, so `x : F -> body` is still a lambda with a param form. A byte
+    # array is only bytes, so `[01] : 'i8'` is a Formed too.
     rn.FORMED: First(
         Seq(Ref(rn.APPLY), _punct(':'), Ref(rn.FORMED), action=_formed),
         Ref(rn.APPLY),
@@ -232,15 +233,20 @@ RULES: dict[str, Clause] = {
     ),
     rn.BYTE_ARRAY: Seq(
         First(HexBytes(skip=TRIVIA), _AsciiBytes(skip=TRIVIA)),
-        FORM_OPT,
-        action=lambda c: terms.ByteArray(value=c.values[0], form=c.values[1], location=_location(c)),
+        action=lambda c: terms.ByteArray(value=c.values[0], location=_location(c)),
     ),
     rn.GROUP: Seq(_punct('('), Ref(rn.EXPRESSION), _punct(')'), action=lambda c: c.values[0]),
     rn.FORM: First(
         Seq(Ref(rn.FORM_ATOM), _punct('=>', '⇒'), Ref(rn.FORM), action=_function_form),
         Ref(rn.FORM_ATOM),
     ),
-    rn.FORM_ATOM: First(Ref(rn.STRUCT), Ref(rn.BYTE_ARRAY), Ref(rn.GROUP)),
+    # A byte array in a binder form may have its own `: form`, as in `x: [00]: 'i8' -> x`.
+    rn.FORM_ATOM: First(
+        Ref(rn.STRUCT),
+        Seq(Ref(rn.BYTE_ARRAY), _punct(':'), Ref(rn.FORM), action=_formed),
+        Ref(rn.BYTE_ARRAY),
+        Ref(rn.GROUP),
+    ),
 }
 
 

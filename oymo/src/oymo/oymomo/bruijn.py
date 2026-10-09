@@ -55,8 +55,6 @@ def _map_children(term, f):
             return replace(term, condition=f(c), then_clause=f(t), else_clause=f(e))
         case terms.Fix(function=function):
             return replace(term, function=f(function))
-        case terms.ByteArray(form=form):
-            return replace(term, form=f(form))
         case terms.Formed(term=inner, form=form):
             return replace(term, term=f(inner), form=f(form))
         case terms.FunctionForm(param=param, result=result):

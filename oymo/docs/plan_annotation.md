@@ -1,6 +1,6 @@
 # Plan: no enforced parentheses, and `expression : expression`
 
-Status: **in progress**. Steps 1 and 2 are done. Open questions below.
+Status: **in progress**. Steps 1 to 3 are done. Open questions below.
 
 ## Steps
 
@@ -8,7 +8,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 
 - [x] 1. Add the `Formed` term, with no syntax yet (`oymomo: add Formed term`)
 - [x] 2. Parse `e : F` as `Formed`, not breaking (`oymomo: parse e : F as Formed`)
-- [ ] 3. Remove `ByteArray.form`, breaking (`oymomo: a byte array is only bytes; its form is Formed`)
+- [x] 3. Remove `ByteArray.form`, breaking (`oymomo: a byte array is only bytes; its form is Formed`)
 - [ ] 4. Binder forms are ordinary expressions (`oymomo: binder forms are ordinary expressions`)
 - [ ] 5. Lambda, `if` and `let` as a last operand (`oymomo: lambda, if and let can be a last operand`)
 - [ ] 6. Wrap up (`docs: plan_annotation implemented`)

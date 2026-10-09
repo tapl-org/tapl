@@ -64,7 +64,7 @@ def test_void_is_an_ordinary_form_name():
 def test_forms_other_than_struct_byte_array_or_function_print_in_parens():
     assert pretty('x: (i32) -> x') == 'x: (i32) → x'
     assert pretty('x: (a -> b) -> c') == 'x: (a → b) → c'
-    assert pretty("[00]: (f 'i8')") == "[00]: (f 'i8')"
+    assert pretty("[00]: (f 'i8')") == "[00]: f 'i8'"  # a byte array's form is an ordinary Formed form
     assert pretty('x: (i8) => (s.f) -> x') == 'x: (i8) ⇒ (s.f) → x'
 
 
@@ -242,9 +242,8 @@ def test_show_form():
 
 
 def test_formed():
-    # No syntax builds a Formed yet, so these are built in code.
     a, b, c, f, x, y = (terms.Variable(name) for name in 'abcfxy')
-    byte = terms.ByteArray(b'\x01', terms.Void)
+    byte = terms.ByteArray(b'\x01')
     assert show(terms.Formed(y, x)) == 'y:x'
     assert show(terms.Formed(y, x), pretty=True) == 'y: x'
     assert show(terms.Formed(byte, terms.name_to_form('i1'))) == "[01]:'i1'"
@@ -259,7 +258,10 @@ def test_formed():
     assert show(terms.Formed(terms.Project(y, 'p'), x)) == 'y.p:x'
 
 
-def test_formed_keeps_a_byte_array_form_apart():
+def test_formed_byte_array_in_parens_where_needed():
     # `[01]:'i8':'i16'` would read as `[01] : ('i8' : 'i16')`.
     i8, i16 = terms.name_to_form('i8'), terms.name_to_form('i16')
-    assert show(terms.Formed(terms.ByteArray(b'\x01', i8), i16)) == "([01]:'i8'):'i16'"
+    byte = terms.ByteArray(b'\x01')
+    assert show(terms.Formed(terms.Formed(byte, i8), i16)) == "([01]:'i8'):'i16'"
+    assert show(terms.Apply(terms.Variable('f'), terms.Formed(byte, i8))) == "f ([01]:'i8')"
+    assert show(terms.Formed(byte, terms.Formed(i8, i16))) == "[01]:[6938]:'i16'"
