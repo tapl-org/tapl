@@ -64,7 +64,7 @@ def test_void_is_an_ordinary_form_name():
 def test_forms_other_than_struct_byte_array_or_function_print_in_parens():
     assert pretty('x: (i32) -> x') == 'x: (i32) → x'
     assert pretty('x: (a -> b) -> c') == 'x: (a → b) → c'
-    assert pretty("[00]: (f 'i8')") == "[00]: f 'i8'"  # a byte array's form is an ordinary Formed form
+    assert pretty("[00]: (f 'i8')") == "[00]: (f 'i8')"  # `:` binds tighter than apply
     assert pretty('x: (i8) => (s.f) -> x') == 'x: (i8) ⇒ (s.f) → x'
 
 
@@ -221,6 +221,13 @@ def test_width_and_indent_flags():
         "let x: 'i8' = v : t in x : t",
         '[01] : y',
         "([01] : 'i8') : 'i16'",
+        'y : (f a)',
+        '(f a) : t',
+        'f y : x z',
+        'fix f : t',
+        '(fix f) : t',
+        'x : decls.t',
+        "f [01] : 'u8' [02]",
     ],
 )
 def test_output_parses_back_to_the_same_term(source):
@@ -247,8 +254,11 @@ def test_formed():
     assert show(terms.Formed(y, x)) == 'y:x'
     assert show(terms.Formed(y, x), pretty=True) == 'y: x'
     assert show(terms.Formed(byte, terms.name_to_form('i1'))) == "[01]:'i1'"
-    assert show(terms.Formed(terms.Apply(f, y), terms.Apply(f, x))) == 'f y:f x'
-    assert show(terms.Apply(f, terms.Formed(y, x))) == 'f (y:x)'
+    assert show(terms.Formed(terms.Apply(f, y), terms.Apply(f, x))) == '(f y):(f x)'
+    assert show(terms.Apply(f, terms.Formed(y, x))) == 'f y:x'
+    assert show(terms.Apply(terms.Formed(f, x), y)) == 'f:x y'
+    assert show(terms.Fix(terms.Formed(f, x))) == 'fix f:x'
+    assert show(terms.Formed(terms.Fix(f), x)) == '(fix f):x'
     assert show(terms.Lambda('x', terms.Void, terms.Formed(y, x))) == 'x → y:x'
     assert show(terms.Formed(y, terms.Lambda('a', terms.Void, b))) == 'y:(a → b)'
     assert show(terms.Formed(y, terms.FunctionForm(a, b))) == 'y:a ⇒ b'
@@ -263,5 +273,5 @@ def test_formed_byte_array_in_parens_where_needed():
     i8, i16 = terms.name_to_form('i8'), terms.name_to_form('i16')
     byte = terms.ByteArray(b'\x01')
     assert show(terms.Formed(terms.Formed(byte, i8), i16)) == "([01]:'i8'):'i16'"
-    assert show(terms.Apply(terms.Variable('f'), terms.Formed(byte, i8))) == "f ([01]:'i8')"
+    assert show(terms.Apply(terms.Variable('f'), terms.Formed(byte, i8))) == "f [01]:'i8'"
     assert show(terms.Formed(byte, terms.Formed(i8, i16))) == "[01]:[6938]:'i16'"

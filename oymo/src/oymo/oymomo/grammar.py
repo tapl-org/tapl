@@ -159,7 +159,7 @@ def _field(c):
 
 RULES: dict[str, Clause] = {
     rn.START: Seq(Ref(rn.EXPRESSION), Eof(skip=TRIVIA), action=lambda c: c.values[0]),
-    rn.EXPRESSION: First(Ref(rn.LAMBDA), Ref(rn.IF), Ref(rn.LET), Ref(rn.FORMED)),
+    rn.EXPRESSION: First(Ref(rn.LAMBDA), Ref(rn.IF), Ref(rn.LET), Ref(rn.APPLY)),
     rn.LAMBDA: Seq(NAME, FORM_OPT, _punct('->', '→'), Ref(rn.EXPRESSION), action=_lambda),
     rn.IF: Seq(
         _punct('if'),
@@ -180,27 +180,27 @@ RULES: dict[str, Clause] = {
         Ref(rn.EXPRESSION),
         action=_let,
     ),
-    # `e : F` is a Formed. It binds looser than apply and tighter than `->`, `if` and `let`, and
-    # it is right associative: `f a : g b` is `(f a) : (g b)`, `a : b : c` is `a : (b : c)`.
-    # A lambda is tried first, so `x : F -> body` is still a lambda with a param form. A byte
-    # array is only bytes, so `[01] : 'i8'` is a Formed too.
-    rn.FORMED: First(
-        Seq(Ref(rn.APPLY), _punct(':'), Ref(rn.FORMED), action=_formed),
-        Ref(rn.APPLY),
-    ),
     rn.APPLY: First(
         Seq(
             Ref(rn.APPLY),
-            Ref(rn.ARROW),
+            Ref(rn.FORMED),
             action=lambda c: terms.Apply(function=c.values[0], argument=c.values[1], location=_location(c)),
         ),
         Ref(rn.FIX),
-        Ref(rn.ARROW),
+        Ref(rn.FORMED),
     ),
     rn.FIX: Seq(
         _punct('fix'),
-        Ref(rn.ARROW),
+        Ref(rn.FORMED),
         action=lambda c: terms.Fix(function=c.values[0], location=_location(c)),
+    ),
+    # `e : F` is a Formed. Like `=>`, it builds a value, so it binds tighter than apply; it
+    # binds looser than `=>`. It is right associative: `f a : g b` is `f (a : g) b`,
+    # `x : A => B` is `x : (A => B)`, `a : b : c` is `a : (b : c)`. A lambda is tried first,
+    # so `x : F -> body` is still a lambda with a param form.
+    rn.FORMED: First(
+        Seq(Ref(rn.ARROW), _punct(':'), Ref(rn.FORMED), action=_formed),
+        Ref(rn.ARROW),
     ),
     # `P => R` is a FunctionForm. It binds tighter than apply and looser than `.`, so
     # `f a => g b` is `f (a => g) b`. It is right associative.

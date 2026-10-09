@@ -132,9 +132,12 @@ def test_text_byte_array_rejects_non_text():
 
 
 def test_byte_array_as_argument():
-    # `:` binds looser than apply, so a byte array with a form needs parens as an argument.
-    assert parse("f [01] : 'u8' [02]") == parse("(f [01]) : ('u8' [02])")
-    assert show(parse("f ([01] : 'u8') [02]")) == "f ([01]:'u8') [02]"
+    # `:` binds tighter than apply, so a byte array with a form is an argument as it is.
+    assert parse("f [01] : 'u8' [02]") == parse("f ([01] : 'u8') [02]")
+    assert show(parse("f ([01] : 'u8') [02]")) == "f [01]:'u8' [02]"
+    assert parse("(f [01]) : 'u8'") == terms.Formed(
+        terms.Apply(terms.Variable('f'), terms.ByteArray(b'\x01')), terms.name_to_form('u8')
+    )
 
 
 def test_omitted_forms_are_void():
@@ -169,8 +172,8 @@ def test_form_other_than_struct_byte_array_or_function_needs_parens():
     assert show(parse('x: a -> b -> c')) == 'error'
 
 
-def test_byte_array_form_takes_the_rest_of_the_apply():
-    assert parse("f [00]: 'i32' y") == parse("(f [00]) : ('i32' y)")
+def test_byte_array_form_stops_before_an_argument():
+    assert parse("f [00]: 'i32' y") == parse("(f ([00]: 'i32')) y")
 
 
 def test_nested_struct_forms():
@@ -220,7 +223,7 @@ def test_function_form_is_an_expression():
 
 
 def test_precedence_order():
-    """Loosest to tightest: `->`/`if`/`let`, `:`, apply and `fix`, `=>`, `.`. Each pair, then each associativity."""
+    """Loosest to tightest: `->`/`if`/`let`, apply and `fix`, `:`, `=>`, `.`. Each pair, then each associativity."""
     cases = [
         # `->`, `if`, `let` take everything to their right.
         ('x -> y : t', 'x -> (y : t)'),
@@ -231,15 +234,14 @@ def test_precedence_order():
         ('x -> fix f', 'x -> (fix f)'),
         ('x -> a => b', 'x -> (a => b)'),
         ('x -> s.a', 'x -> (s.a)'),
+        ('x -> f a : t', 'x -> (f (a : t))'),
         ('if c then a else f a => b', 'if c then a else (f (a => b))'),
         ('let x = f a in g x => s.b', 'let x = (f a) in (g (x => (s.b)))'),
-        # `:` against apply, `fix`, `=>` and `.`.
-        ('f a : g b', '(f a) : (g b)'),
-        ('fix f : t', '(fix f) : t'),
-        ('x : a => b', 'x : (a => b)'),
-        ('a => b : c', '(a => b) : c'),
-        ('s.a : t.b', '(s.a) : (t.b)'),
-        # apply and `fix` against `=>` and `.`.
+        # apply and `fix` against `:`, `=>` and `.`.
+        ('f a : g b', 'f (a : g) b'),
+        ('f y : x z', 'f (y : x) z'),
+        ('y : f a', '(y : f) a'),
+        ('fix f : t', 'fix (f : t)'),
         ('fix f a', '(fix f) a'),
         ('f fix', 'error'),
         ('f a => b', 'f (a => b)'),
@@ -247,16 +249,21 @@ def test_precedence_order():
         ('fix a => b', 'fix (a => b)'),
         ('f s.a', 'f (s.a)'),
         ('fix s.a', 'fix (s.a)'),
+        # `:` against `=>` and `.`.
+        ('x : a => b', 'x : (a => b)'),
+        ('a => b : c', '(a => b) : c'),
+        ('s.a : t.b', '(s.a) : (t.b)'),
+        ('x : decls.t', 'x : (decls.t)'),
         # `=>` against `.`.
         ('s.a => t.b', '(s.a) => (t.b)'),
-        # Associativity: `:` right, apply left, `=>` right, `.` left.
-        ('a : b : c', 'a : (b : c)'),
+        # Associativity: apply left, `:` right, `=>` right, `.` left.
         ('f a b', '(f a) b'),
+        ('a : b : c', 'a : (b : c)'),
         ('a => b => c', 'a => (b => c)'),
         ('s.a.b', '(s.a).b'),
         # All levels at once.
         ('x -> fix f a => s.b c.d => e g', 'x -> ((((fix f) (a => (s.b))) ((c.d) => e)) g)'),
-        ('x -> f a.b => c : g d => e : h', 'x -> ((f ((a.b) => c)) : ((g (d => e)) : h))'),
+        ('x -> f a.b => c : g d => e : h', 'x -> ((f (((a.b) => c) : g)) ((d => e) : h))'),
     ]
     for source, grouped in cases:
         if grouped == 'error':

@@ -24,7 +24,7 @@ from oymo.oymomo import terms
 from oymo.oymomo.grammar import ASCII_TEXT, RESERVED
 
 # Binding levels, loosest first. A term printed where a tighter level is needed gets parentheses.
-_EXPRESSION, _FORMED, _APPLY, _ARROW, _PROJECT = range(5)
+_EXPRESSION, _APPLY, _FORMED, _ARROW, _PROJECT = range(5)
 
 # A byte array longer than this prints as hex even if its bytes are text.
 _MAX_TEXT_BYTES = 128
@@ -58,7 +58,7 @@ def _compact(term, names, level=_EXPRESSION):
             suffix = _compact_suffix(form, names)
             text = f'let {_name(name)}{suffix} = {value} in {_compact(body, _bind(names, name))}'
         case terms.Apply(function=function, argument=argument):
-            text = f'{_compact(function, names, _APPLY)} {_compact(argument, names, _ARROW)}'
+            text = f'{_compact(function, names, _APPLY)} {_compact(argument, names, _FORMED)}'
         case terms.FunctionForm(param=param, result=result):
             text = f'{_compact(param, names, _PROJECT)} ⇒ {_compact(result, names, _ARROW)}'
         case terms.Struct(fields=fields):
@@ -68,7 +68,7 @@ def _compact(term, names, level=_EXPRESSION):
         case terms.If(condition=c, then_clause=t, else_clause=e):
             text = f'if {_compact(c, names)} then {_compact(t, names)} else {_compact(e, names)}'
         case terms.Fix(function=function):
-            text = f'fix {_compact(function, names, _ARROW)}'
+            text = f'fix {_compact(function, names, _FORMED)}'
         case terms.ByteArray(value=value):
             text = _bytes_text(value, grouped=False)
         case terms.Formed(term=inner, form=form):
@@ -128,7 +128,7 @@ def _formed_term(term, show, *, grouped):
     """The `t` of `t : form`. A byte array with a form prints its bytes as hex."""
     if isinstance(term, terms.ByteArray):
         return _bytes_text(term.value, grouped=grouped, text=False)
-    return show(term, _APPLY)
+    return show(term, _ARROW)
 
 
 def _loosest(term):
@@ -173,7 +173,7 @@ def _flat(term, level, names):
             suffix = _form_suffix(form, names)
             text = f'let {_name(name)}{suffix} = {value} in {_flat(body, _EXPRESSION, _bind(names, name))}'
         case terms.Apply(function=function, argument=argument):
-            text = f'{_flat(function, _APPLY, names)} {_flat(argument, _ARROW, names)}'
+            text = f'{_flat(function, _APPLY, names)} {_flat(argument, _FORMED, names)}'
         case terms.FunctionForm(param=param, result=result):
             text = f'{_flat(param, _PROJECT, names)} ⇒ {_flat(result, _ARROW, names)}'
         case terms.Struct(fields=fields):
@@ -186,7 +186,7 @@ def _flat(term, level, names):
                 f' else {_flat(e, _EXPRESSION, names)}'
             )
         case terms.Fix(function=function):
-            text = f'fix {_flat(function, _ARROW, names)}'
+            text = f'fix {_flat(function, _FORMED, names)}'
         case terms.ByteArray(value=value):
             text = _bytes_text(value, grouped=True)
         case terms.Formed(term=inner, form=form):
@@ -225,7 +225,7 @@ def _pretty(term, level, depth, column, width, indent, names):
             value = sub(argument, _EXPRESSION, depth, column + len(header))
             text = f'{header}{value} in\n{pad}{sub(body, _EXPRESSION, depth, len(pad), _bind(names, name))}'
         case terms.Apply(function=function, argument=argument):
-            text = f'{sub(function, _APPLY, depth, column)}\n{inner}{sub(argument, _ARROW, depth + 1, len(inner))}'
+            text = f'{sub(function, _APPLY, depth, column)}\n{inner}{sub(argument, _FORMED, depth + 1, len(inner))}'
         case terms.Struct(fields=fields):
             lines = []
             for f in fields:
@@ -241,7 +241,7 @@ def _pretty(term, level, depth, column, width, indent, names):
                 f'{pad}else {sub(e, _EXPRESSION, depth, len(pad) + 5)}'
             )
         case terms.Fix(function=function):
-            text = f'fix {sub(function, _ARROW, depth, column + 4)}'
+            text = f'fix {sub(function, _FORMED, depth, column + 4)}'
         case _:
             return flat
     return f'({text})' if grouped else text

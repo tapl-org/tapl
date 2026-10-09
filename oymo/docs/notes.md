@@ -33,6 +33,11 @@ higher layers, and layouts belong to the backend (LLVM). Keeping the words apart
 stops a backend detail like "i32 is 4-byte aligned" from leaking into the
 kernel, where `[2a000000]: 'i32'` only says "these bytes, read as the form i32".
 
+The difference between Form and Type
+- Form does not have form-check like type-check. Valid application example: (x:Int->x) 'hello':'Str'. This evaluates to 'hello':'Int'.
+- Function param form is used just to replace passed arguments form, nothing else.
+- Form is useful when generating machine code.
+
 ## Pipeline
 
 ```
@@ -181,11 +186,20 @@ from an expression, so a byte array's form can be a variable:
   through a form on its condition.
 - BANF translation turns a formed byte array into a constant. It rejects any other
   `Formed`, including a form on a formed byte array (`([01]:'i8'):'i16'`).
-- `:` has its own precedence level, between `->`/`if`/`let` and application, and is
-  right associative: `f a : g b` is `(f a) : (g b)`, `a : b : c` is `a : (b : c)`,
-  `x -> y : t` is `x -> (y : t)`, and an argument needs parentheses: `f (y : x)`,
-  `f ([01] : 'u8') [02]`. Without them, `f [01] : 'u8' [02]` is
-  `(f [01]) : ('u8' [02])`.
+- Precedence, highest first: atom, project `.`, `=>`, `:`, apply and `fix`,
+  `->`/`if`/`let`. The rule: values bind tighter than reducibles. `Formed` and
+  `FunctionForm` never reduce, so `:` and `=>` bind tighter than application; `.` binds
+  tighter still, since `decls.T` and `args.n` read as paths. `:` is right associative
+  and looser than `=>`.
+  - `f [01] : 'u8' [02]` is `f ([01] : 'u8') [02]`, `f a : g b` is `f (a : g) b`,
+    `fix f : t` is `fix (f : t)`.
+  - `x : A => B` is `x : (A => B)`, `A => B : C` is `(A => B) : C`,
+    `a : b : c` is `a : (b : c)`, `x : decls.T` is `x : (decls.T)`.
+  - An application inside `:` needs parentheses: `y : (f a)`, `(f a) : t`.
+    `y : f a` is `(y : f) a`.
+  - Rejected: `:` below application, as in Haskell, OCaml and Lean
+    (`f a : g b` = `(f a) : (g b)`). It made `:` the only value operator looser than
+    application. See `plan_annotation.md`.
 - A lambda is tried first, so `x : F -> body` is still a lambda with a param form.
 
 ### Byte arrays are bracketed hex: `[2a 00 00 00] : 'i32'`
