@@ -1,6 +1,19 @@
 # Plan: no enforced parentheses, and `expression : expression`
 
-Status: **in progress**. Step 1 is done. Open questions below.
+Status: **in progress**. Steps 1 and 2 are done. Open questions below.
+
+## Steps
+
+One commit each. Details are in [Implementation steps](#implementation-steps).
+
+- [x] 1. Add the `Formed` term, with no syntax yet (`oymomo: add Formed term`)
+- [x] 2. Parse `e : F` as `Formed`, not breaking (`oymomo: parse e : F as Formed`)
+- [ ] 3. Remove `ByteArray.form`, breaking (`oymomo: a byte array is only bytes; its form is Formed`)
+- [ ] 4. Binder forms are ordinary expressions (`oymomo: binder forms are ordinary expressions`)
+- [ ] 5. Lambda, `if` and `let` as a last operand (`oymomo: lambda, if and let can be a last operand`)
+- [ ] 6. Wrap up (`docs: plan_annotation implemented`)
+
+Steps 1 to 3 must be done in order. Steps 4 and 5 can be done at any point.
 
 ## Goals
 
@@ -244,6 +257,7 @@ Removing `ByteArray.form` touches 15 references in 7 files. I listed them with `
 | `printer.py` | `_FORMED` level. `Formed(t, f)` prints `t:f` (compact) or `t: f` (pretty), with the left side at `_APPLY` and the right side at `_FORMED`. `Formed(ByteArray, f)` prints its bytes as hex, like a formed byte array does today (`'Hi': 'i8'` → `[4869]:'i8'`). A bare `ByteArray` uses the `'text'` rule. Track trailing position for lambda/`if`/`let`. Binder forms at formed level (`x:(i32)` → `x:i32`). `_form_text`, `_form_atom_text`, `_arrow_param`, `_ends_with_form` and the `ByteArray(form=…)` cases simplify or go away |
 | `bruijn.py` | in `_map_children`, the `ByteArray(form=…)` case becomes a `Formed` case. C2 in `reduce` |
 | `banf_reduce.py` | C1: `Formed.term` is a head position |
+| `banf_rename.py` | `other` walks into both sides of `Formed` |
 | `banf_translate.py` | `atom`: `Formed(ByteArray(v), F)` → `banf.Const(v, F)`, with `_check_data_form(F)`. A bare `ByteArray` raises `Byte array: form must be known.` as today. Any other `Formed` raises a `TranslationError` |
 | `banf_terms.py`, `llvm_translate.py` | none: `banf.Const` keeps its own `value` and `form` |
 | `docs/notes.md` | both goals, the precedence table, trailing expressions, `Formed`, a byte array is only bytes |

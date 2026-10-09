@@ -177,9 +177,14 @@ from an expression, so a byte array's form can be a variable:
   through a form on its condition.
 - BANF translation turns a formed byte array with no form of its own into a constant.
   It rejects any other `Formed`.
-- The printer gives `:` its own level, between `->`/`if`/`let` and application:
-  `f y:f x` is `(f y) : (f x)`, `f (y:x)` needs parentheses, and `a:b:c` is `a : (b : c)`.
-- Not parsed yet: for now `Formed` is only built in code.
+- `:` has its own precedence level, between `->`/`if`/`let` and application, and is
+  right associative: `f a : g b` is `(f a) : (g b)`, `a : b : c` is `a : (b : c)`,
+  `x -> y : t` is `x -> (y : t)`, and an argument needs parentheses: `f (y : x)`.
+- Two older uses of `:` come first, so they keep their meaning. A lambda is tried
+  first, so `x : F -> body` is still a lambda with a param form. A byte array literal
+  still takes its own `: form`, so `[01] : 'i8'` is a `ByteArray` with a form, and
+  `f [01] : 'u8' [02]` is `f ([01] : 'u8') [02]`. Step 3 of `plan_annotation.md`
+  removes the byte array's own form.
 
 ### Byte arrays are bracketed hex: `[2a 00 00 00] : 'i32'`
 - The kernel has only byte arrays, so literals are written as bytes, not numbers.

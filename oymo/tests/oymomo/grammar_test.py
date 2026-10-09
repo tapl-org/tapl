@@ -219,15 +219,25 @@ def test_function_form_is_an_expression():
 
 
 def test_precedence_order():
-    """Loosest to tightest: `->`/`if`/`let`, apply and `fix`, `=>`, `.`. Each pair, then each associativity."""
+    """Loosest to tightest: `->`/`if`/`let`, `:`, apply and `fix`, `=>`, `.`. Each pair, then each associativity."""
     cases = [
         # `->`, `if`, `let` take everything to their right.
+        ('x -> y : t', 'x -> (y : t)'),
+        ('if c then a else b : t', 'if c then a else (b : t)'),
+        ('let x = v : t in b', 'let x = (v : t) in b'),
+        ('{a = e : t}', '{a = (e : t)}'),
         ('x -> f a', 'x -> (f a)'),
         ('x -> fix f', 'x -> (fix f)'),
         ('x -> a => b', 'x -> (a => b)'),
         ('x -> s.a', 'x -> (s.a)'),
         ('if c then a else f a => b', 'if c then a else (f (a => b))'),
         ('let x = f a in g x => s.b', 'let x = (f a) in (g (x => (s.b)))'),
+        # `:` against apply, `fix`, `=>` and `.`.
+        ('f a : g b', '(f a) : (g b)'),
+        ('fix f : t', '(fix f) : t'),
+        ('x : a => b', 'x : (a => b)'),
+        ('a => b : c', '(a => b) : c'),
+        ('s.a : t.b', '(s.a) : (t.b)'),
         # apply and `fix` against `=>` and `.`.
         ('fix f a', '(fix f) a'),
         ('f fix', 'error'),
@@ -238,12 +248,14 @@ def test_precedence_order():
         ('fix s.a', 'fix (s.a)'),
         # `=>` against `.`.
         ('s.a => t.b', '(s.a) => (t.b)'),
-        # Associativity: apply left, `=>` right, `.` left.
+        # Associativity: `:` right, apply left, `=>` right, `.` left.
+        ('a : b : c', 'a : (b : c)'),
         ('f a b', '(f a) b'),
         ('a => b => c', 'a => (b => c)'),
         ('s.a.b', '(s.a).b'),
         # All levels at once.
         ('x -> fix f a => s.b c.d => e g', 'x -> ((((fix f) (a => (s.b))) ((c.d) => e)) g)'),
+        ('x -> f a.b => c : g d => e : h', 'x -> ((f ((a.b) => c)) : ((g (d => e)) : h))'),
     ]
     for source, grouped in cases:
         if grouped == 'error':
@@ -251,6 +263,30 @@ def test_precedence_order():
         else:
             assert show(parse(source)) != 'error', source
             assert show(parse(source)) == show(parse(grouped)), source
+            assert parse(source) == parse(grouped), source
+
+
+def test_formed():
+    y, x = terms.Variable('y'), terms.Variable('x')
+    term = parse('y : x')
+    assert term == terms.Formed(y, x)
+    assert term.location == syntax.Location(0, 5)
+    assert parse('(x -> y -> y : x) a b').function.function.body.body == terms.Formed(
+        terms.Variable('y'), terms.Variable('x')
+    )
+    assert parse("y : 'i8' => 'i32'") == terms.Formed(
+        y, terms.FunctionForm(terms.name_to_form('i8'), terms.name_to_form('i32'))
+    )
+
+
+def test_formed_leaves_binder_and_byte_array_forms_alone():
+    # A lambda is tried first, and a byte array literal takes its own `: form`.
+    assert isinstance(parse("x : 'i8' -> x"), terms.Lambda)
+    assert parse("x : 'i8'") == terms.Formed(terms.Variable('x'), terms.name_to_form('i8'))
+    assert parse("[01] : 'i8'") == terms.ByteArray(b'\x01', terms.name_to_form('i8'))
+    assert parse('[01] : y') == terms.Formed(terms.ByteArray(b'\x01', terms.Void), terms.Variable('y'))
+    assert show(parse("f [01] : 'u8' [02]")) == show(parse("f ([01] : 'u8') [02]"))
+    assert show(parse('x: i32 -> x')) == 'error'
 
 
 def test_function_form_param_with_a_form_needs_parens():

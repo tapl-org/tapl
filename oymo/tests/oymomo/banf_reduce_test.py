@@ -198,12 +198,7 @@ def test_whnf_reduces_inside_formed():
 
 
 def test_dynamic_byte_array_form():
-    # (x -> y -> y : x) 'i1' [01], built in code until `e : F` parses.
-    i1 = terms.name_to_form('i1')
-    one = terms.ByteArray(b'\x01', terms.Void)
-    function = terms.Lambda(
-        'x', terms.Void, terms.Lambda('y', terms.Void, terms.Formed(terms.BruijnIndex(0), terms.BruijnIndex(1)))
-    )
-    term = terms.Apply(terms.Apply(function, i1), one)
-    assert banf_reduce.whnf(term) == terms.Formed(one, i1)
-    assert show(banf_reduce.whnf(term)) == "[01]:'i1'"
+    reduced = banf_reduce.whnf(bruijn.resolve(parse("(x -> y -> y : x) 'i1' [01]")))
+    assert reduced == terms.Formed(terms.ByteArray(b'\x01', terms.Void), terms.name_to_form('i1'))
+    # `[01]:'i1'` still parses to a ByteArray with its own form, so compare the printed text.
+    assert show(reduced) == "[01]:'i1'"

@@ -128,6 +128,11 @@ def _function_form(c):
     return terms.FunctionForm(param=param, result=result, location=_location(c))
 
 
+def _formed(c):
+    term, form = c.values
+    return terms.Formed(term=term, form=form, location=_location(c))
+
+
 def _lambda(c):
     (name, _), form, body = c.values
     return terms.Lambda(param_name=name, param_form=form, body=body, location=_location(c))
@@ -153,7 +158,7 @@ def _field(c):
 
 RULES: dict[str, Clause] = {
     rn.START: Seq(Ref(rn.EXPRESSION), Eof(skip=TRIVIA), action=lambda c: c.values[0]),
-    rn.EXPRESSION: First(Ref(rn.LAMBDA), Ref(rn.IF), Ref(rn.LET), Ref(rn.APPLY)),
+    rn.EXPRESSION: First(Ref(rn.LAMBDA), Ref(rn.IF), Ref(rn.LET), Ref(rn.FORMED)),
     rn.LAMBDA: Seq(NAME, FORM_OPT, _punct('->', '→'), Ref(rn.EXPRESSION), action=_lambda),
     rn.IF: Seq(
         _punct('if'),
@@ -173,6 +178,14 @@ RULES: dict[str, Clause] = {
         _punct('in'),
         Ref(rn.EXPRESSION),
         action=_let,
+    ),
+    # `e : F` is a Formed. It binds looser than apply and tighter than `->`, `if` and `let`, and
+    # it is right associative: `f a : g b` is `(f a) : (g b)`, `a : b : c` is `a : (b : c)`.
+    # A lambda is tried first, so `x : F -> body` is still a lambda with a param form, and a
+    # byte array literal still takes its own `: form`.
+    rn.FORMED: First(
+        Seq(Ref(rn.APPLY), _punct(':'), Ref(rn.FORMED), action=_formed),
+        Ref(rn.APPLY),
     ),
     rn.APPLY: First(
         Seq(
