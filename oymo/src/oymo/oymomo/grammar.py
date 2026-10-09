@@ -153,7 +153,7 @@ def _field(c):
 
 RULES: dict[str, Clause] = {
     rn.START: Seq(Ref(rn.EXPRESSION), Eof(skip=TRIVIA), action=lambda c: c.values[0]),
-    rn.EXPRESSION: First(Ref(rn.LAMBDA), Ref(rn.IF), Ref(rn.LET), Ref(rn.ARROW)),
+    rn.EXPRESSION: First(Ref(rn.LAMBDA), Ref(rn.IF), Ref(rn.LET), Ref(rn.APPLY)),
     rn.LAMBDA: Seq(NAME, FORM_OPT, _punct('->', '→'), Ref(rn.EXPRESSION), action=_lambda),
     rn.IF: Seq(
         _punct('if'),
@@ -174,25 +174,25 @@ RULES: dict[str, Clause] = {
         Ref(rn.EXPRESSION),
         action=_let,
     ),
-    # `P => R` is a FunctionForm. It binds looser than apply and tighter than `->`, so
-    # `decls: {} => 'i32' -> defs -> body` keeps `defs` as a lambda binder.
-    rn.ARROW: First(
-        Seq(Ref(rn.APPLY), _punct('=>', '⇒'), Ref(rn.ARROW), action=_function_form),
-        Ref(rn.APPLY),
-    ),
     rn.APPLY: First(
         Seq(
             Ref(rn.APPLY),
-            Ref(rn.PROJECT),
+            Ref(rn.ARROW),
             action=lambda c: terms.Apply(function=c.values[0], argument=c.values[1], location=_location(c)),
         ),
         Ref(rn.FIX),
-        Ref(rn.PROJECT),
+        Ref(rn.ARROW),
     ),
     rn.FIX: Seq(
         _punct('fix'),
-        Ref(rn.PROJECT),
+        Ref(rn.ARROW),
         action=lambda c: terms.Fix(function=c.values[0], location=_location(c)),
+    ),
+    # `P => R` is a FunctionForm. It binds tighter than apply and looser than `.`, so
+    # `f a => g b` is `f (a => g) b`. It is right associative.
+    rn.ARROW: First(
+        Seq(Ref(rn.PROJECT), _punct('=>', '⇒'), Ref(rn.ARROW), action=_function_form),
+        Ref(rn.PROJECT),
     ),
     rn.PROJECT: First(
         Seq(

@@ -209,9 +209,46 @@ def test_function_form_is_its_own_term():
 def test_function_form_is_an_expression():
     assert show(parse("{f = {a = 'i8'} => 'i32'}")) == "{f = {a = 'i8'} ⇒ 'i32'}"
     assert show(parse("let f = 'i8' => 'i32' in f")) == "let f = 'i8' ⇒ 'i32' in f"
-    assert show(parse('f a => g b')) == show(parse('(f a) => (g b)'))
+    assert show(parse('f a => g b')) == show(parse('f (a => g) b'))
+    assert show(parse('(f a) => (g b)')) == '(f a) ⇒ (g b)'
     assert show(parse('x -> a => b')) == show(parse('x -> (a => b)'))
-    assert show(parse('(f => g) x')) == '(f ⇒ g) x'
+    assert show(parse('(f => g) x')) == 'f ⇒ g x'
+    assert show(parse('f (a => b)')) == 'f a ⇒ b'
+
+
+def test_precedence_order():
+    """Loosest to tightest: `->`/`if`/`let`, apply and `fix`, `=>`, `.`. Each pair, then each associativity."""
+    cases = [
+        # `->`, `if`, `let` take everything to their right.
+        ('x -> f a', 'x -> (f a)'),
+        ('x -> fix f', 'x -> (fix f)'),
+        ('x -> a => b', 'x -> (a => b)'),
+        ('x -> s.a', 'x -> (s.a)'),
+        ('if c then a else f a => b', 'if c then a else (f (a => b))'),
+        ('let x = f a in g x => s.b', 'let x = (f a) in (g (x => (s.b)))'),
+        # apply and `fix` against `=>` and `.`.
+        ('fix f a', '(fix f) a'),
+        ('f fix', 'error'),
+        ('f a => b', 'f (a => b)'),
+        ('a => b c', '(a => b) c'),
+        ('fix a => b', 'fix (a => b)'),
+        ('f s.a', 'f (s.a)'),
+        ('fix s.a', 'fix (s.a)'),
+        # `=>` against `.`.
+        ('s.a => t.b', '(s.a) => (t.b)'),
+        # Associativity: apply left, `=>` right, `.` left.
+        ('f a b', '(f a) b'),
+        ('a => b => c', 'a => (b => c)'),
+        ('s.a.b', '(s.a).b'),
+        # All levels at once.
+        ('x -> fix f a => s.b c.d => e g', 'x -> ((((fix f) (a => (s.b))) ((c.d) => e)) g)'),
+    ]
+    for source, grouped in cases:
+        if grouped == 'error':
+            assert show(parse(source)) == 'error', source
+        else:
+            assert show(parse(source)) != 'error', source
+            assert show(parse(source)) == show(parse(grouped)), source
 
 
 def test_function_form_param_with_a_form_needs_parens():

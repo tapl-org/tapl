@@ -266,8 +266,8 @@ Kept after byte arrays moved to `[]`; `#` is now unused.
 - Right-associative: `{a = 'i8'} => {b = 'i8'} => 'i32'` is
   `{a = 'i8'} => ({b = 'i8'} => 'i32')`. Parens group the other way.
 - `=>` is an expression operator too, so a function form can be a struct field
-  value: `{putchar = {c = 'i8'} => 'i32'}`. It binds looser than application and
-  tighter than `->`, `if` and `let`: `f a => g b` is `(f a) => (g b)`.
+  value: `{putchar = {c = 'i8'} => 'i32'}`. It binds tighter than application and
+  looser than `.`: `f a => g b` is `f (a => g) b`.
 - After `:`, the operands of `=>` are form atoms (struct, byte array, or
   parenthesized): `x: {c = 'i8'} => 'i32' -> x`, `[]: 'i8' => 'i32'`.
 - Why this is safe: `=>` is not a lambda's `->`, so in
