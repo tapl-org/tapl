@@ -23,6 +23,7 @@ from oymo.oymomo.banf_terms import (
     Var,
     form_of,
     show,
+    show_form,
     verify,
 )
 
@@ -148,6 +149,15 @@ def test_show_struct_ops_and_jump():
 def test_show_quotes_names():
     module = Module([Data('my data', I8)])
     assert show(module) == '"my data": i8\n'
+
+
+def test_show_form():
+    assert show_form(terms.Empty) == 'void'
+    assert show_form(I32) == 'i32'
+    assert show_form(POINT) == '{x: i32, y: i32}'
+    assert show_form(terms.FunctionForm(I8, I32)) == '(i8 => i32)'
+    assert show_form(terms.Struct([terms.Field('f', terms.FunctionForm(terms.Empty, I32))])) == '{f: void => i32}'
+    assert show(Module([Data('g', terms.Empty)])) == 'g: void\n'
 
 
 def test_form_of_each_op():
