@@ -1,6 +1,6 @@
 # Plan: no enforced parentheses, and `expression : expression`
 
-Status: **implemented**. Open questions below.
+Status: **implemented**.
 
 ## Steps
 
@@ -126,7 +126,7 @@ These already had a meaning without parentheses:
 | **Form of any expression, including a byte array from a variable** (`y : x`) | **no** (only on literals) | **yes** |
 | `=>` param and result, struct field values, operands of `if`, apply, `fix`, project | yes | yes |
 | Bytes of a byte array | no | no: they are literal data |
-| Struct labels, project labels, binder names | no | no: they are names, not terms (open question 2) |
+| Struct labels, project labels, binder names | no | no: they are names, not terms. A label can be picked dynamically by a struct apply (`s l`, see `plan_struct_apply.md`) |
 
 ---
 
@@ -348,14 +348,17 @@ rn.PRIMARY: First(BYTE_ARRAY, STRUCT, GROUP, BRUIJN_INDEX, VARIABLE),
 
 ---
 
-## Open questions
+## Resolved questions
 
-> [!IMPORTANT]
-> 1. **A form on a formed byte array in BANF**, as in `([01]:'i8') : 'i16'`. It's a fine
->    term (`Formed(Formed(…))`). `banf_translate` rejects it today. Should it use the
->    outer form instead?
-> 2. **Goal 2 scope.** Labels and binder names stay names. Should dynamic labels
->    (`s.(e)`, `{(e) = v}`) be a separate plan?
+1. **A form on a formed byte array in BANF**, as in `([01]:'i8') : 'i16'`. It's a fine
+   term (`Formed(Formed(…))`), but BANF accepts only its own shapes, and a constant has
+   one literal form. So `banf_translate` keeps rejecting it ("Only a byte array without
+   a form can be given a form.", tested in `banf_translate_test.py`). If BANF's shape
+   rules ever allow nested forms, the translation follows them.
+2. **Goal 2 scope.** Struct and project syntax keep static labels: no `s.(e)` or
+   `{(e) = v}`. A label is picked dynamically by applying a struct to the label's UTF-8
+   bytes instead: `{a = '23'} 'a'` evaluates to `'23'`. See
+   [plan_struct_apply.md](plan_struct_apply.md).
 
 ---
 
