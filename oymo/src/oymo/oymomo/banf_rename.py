@@ -3,7 +3,7 @@
 """Renames binders of a term in BANF shape. See docs/notes.md, "Binders get fixed names".
 
 The structural binders get fixed names, so every shaped program reads
-`prim -> decls -> defs -> {main = blocks -> {entry = args -> ...}}`. Any other binder keeps
+`prim -> module -> {main = blocks -> {entry = args -> ...}}`. Any other binder keeps
 its name unless that name is visible (an enclosing binder's name, or a param label of its
 block); then it becomes `x_L`, `x__L`, ..., where `L` is its level. Labels are never renamed.
 """
@@ -14,8 +14,7 @@ from oymo.core import syntax
 from oymo.oymomo import terms
 
 PRIM = 'prim'
-DECLS = 'decls'
-DEFS = 'defs'
+MODULE = 'module'
 BLOCKS = 'blocks'
 ARGS = 'args'
 
@@ -55,9 +54,7 @@ class _Renamer:
         return self.other(term)
 
     def program(self, term):
-        return self.fixed(
-            term, PRIM, lambda decls: self.fixed(decls, DECLS, lambda defs: self.fixed(defs, DEFS, self.module_body))
-        )
+        return self.fixed(term, PRIM, lambda module: self.fixed(module, MODULE, self.module_body))
 
     def module_body(self, term):
         return self.struct_of(term, lambda func: self.fixed(func, BLOCKS, self.function_body))

@@ -396,14 +396,17 @@ def _show_let(let):
 
 def show(module: Module) -> str:
     parts = []
+    after_function = False
     for binding in module.bindings:
+        is_function = isinstance(binding, Function)
+        if parts and (is_function or after_function):
+            parts.append('')
         match binding:
             case Signature(name=name, params=params, return_form=return_form):
                 parts.append(f'{show_name(name)}{_show_params(params)}: {show_form(return_form)}')
             case Data(name=name, form=form):
                 parts.append(f'{show_name(name)}: {show_form(form)}')
             case Function():
-                if parts:
-                    parts.append('')
                 parts.append(_show_function(binding))
+        after_function = is_function
     return '\n'.join(parts) + '\n'

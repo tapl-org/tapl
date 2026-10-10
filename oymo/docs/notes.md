@@ -154,7 +154,7 @@ There is no separate form syntax or form class: a form is an ordinary term.
   (see "Function forms").
 - Any term may be a form. A binder's form (`x : F -> b`, `let x : F = v in b`) is an
   ordinary formed-level expression, the same as the `F` of `e : F`: `x: i32 -> x`,
-  `x: decls.T -> x`, `x: 'i8' => 'i32' -> x`, `x: [00]: 'i8' -> x`. It never holds a
+  `x: module.T -> x`, `x: 'i8' => 'i32' -> x`, `x: [00]: 'i8' -> x`. It never holds a
   lambda, so it ends at the first `->`: `x : a -> b -> c` is the lambda `x : a` with
   body `b -> c`. A lambda or an application needs parentheses: `x: (a -> b) -> c`,
   `x: (f a) -> x`. There is no separate form grammar rule.
@@ -195,12 +195,12 @@ from an expression, so a byte array's form can be a variable:
 - Precedence, highest first: atom, project `.`, `=>`, `:`, apply and `fix`,
   `->`/`if`/`let`. The rule: values bind tighter than reducibles. `Formed` and
   `FunctionForm` never reduce, so `:` and `=>` bind tighter than application; `.` binds
-  tighter still, since `decls.T` and `args.n` read as paths. `:` is right associative
+  tighter still, since `module.T` and `args.n` read as paths. `:` is right associative
   and looser than `=>`.
   - `f [01] : 'u8' [02]` is `f ([01] : 'u8') [02]`, `f a : g b` is `f (a : g) b`,
     `fix f : t` is `fix (f : t)`.
   - `x : A => B` is `x : (A => B)`, `A => B : C` is `(A => B) : C`,
-    `a : b : c` is `a : (b : c)`, `x : decls.T` is `x : (decls.T)`.
+    `a : b : c` is `a : (b : c)`, `x : module.T` is `x : (module.T)`.
   - An application inside `:` needs parentheses: `y : (f a)`, `(f a) : t`.
     `y : f a` is `(y : f) a`.
   - Rejected: `:` below application, as in Haskell, OCaml and Lean
@@ -291,7 +291,7 @@ Kept after byte arrays moved to `[]`; `#` is now unused.
 - A function form is its own term, `FunctionForm(param, result)`. `P => R` (or
   `P ⇒ R`, U+21D2) writes it; printers emit `⇒` (the BANF printer `=>`). It has one
   param, matching one-argument lambdas, and no param name: the struct form's
-  labels are what callers use (`decls.putchar {c = [41]: 'i8'}`).
+  labels are what callers use (`module.putchar {c = [41]: 'i8'}`).
 - Why a dedicated term: it used to be a tagged struct
   `{tag = ' => ', param = P, result = R}`. Every consumer then had to tell it
   from a plain struct (shape, field order and tag checks), a hand-written struct
@@ -301,7 +301,7 @@ Kept after byte arrays moved to `[]`; `#` is now unused.
   `Lambda` free for form constructors). Named `FunctionForm`, not `Arrow`: it
   names the meaning and leaves room for a separate function type.
 - Why not `->` like a lambda: a different arrow tells a form from a term at a
-  glance, in `decls: {putchar = {c = 'i8'} => 'i32'} -> defs -> ...` the `=>` is in a
+  glance, in `module: {putchar = {c = 'i8'} => 'i32'} -> {...}` the `=>` is in a
   form and each `->` binds a lambda.
 - Right-associative: `{a = 'i8'} => {b = 'i8'} => 'i32'` is
   `{a = 'i8'} => ({b = 'i8'} => 'i32')`. Parens group the other way.
@@ -311,8 +311,7 @@ Kept after byte arrays moved to `[]`; `#` is now unused.
 - A binder form follows the same precedence: `x: {c = 'i8'} => 'i32' -> x`,
   `x: i8 => s.f -> x`.
 - Why this is safe: `=>` is not a lambda's `->`, so in
-  `decls: {} => 'i32' -> defs -> body` the form ends at `->` and `defs` stays a
-  lambda binder.
+  `module: {} => 'i32' -> body` the form ends at `->`.
 - `=>` binds tighter than `:`, so `[00]: 'i8' => 'i32'` is a byte array whose form
   is a function form. So a param with a form needs parentheses:
   `([00]: 'i8') => 'i32'`. The printer adds them.
@@ -320,8 +319,8 @@ Kept after byte arrays moved to `[]`; `#` is now unused.
   param is a struct with no fields. `=> => R` is `=> (=> R)`. With something on its
   left, `=>` takes that as the param, so `f => b` is `(f) => b`; as an apply argument
   it needs parentheses, `f (=> b)`, which the printer adds. The BANF printer shows
-  `(=> R)`. BANF translation rejects it in `decls`: it declares a defined function, and
-  `decls` has no definition ("definition is not found").
+  `(=> R)`. In the `module` binder's form it declares a function the body defines
+  (see "`module`").
 
 ### Printer: compact for tests, pretty for people
 `printer.show(term)` and `printer.show_form(form)` live in `printer.py`, not in the
@@ -340,7 +339,7 @@ and `⇒` for function forms.
   level by `indent` spaces (default 2):
   - a struct puts one field per line, with a trailing comma;
   - a lambda's body goes on the next line, indented. A body that is a struct or
-    another lambda stays on the same line, so `prim → decls: {} → defs → {`
+    another lambda stays on the same line, so `prim → module: {...} → {`
     stays together;
   - an apply's argument goes on the next line, indented;
   - a `let` puts its body on the next line, at the `let`'s own indentation, so a
@@ -366,50 +365,67 @@ and `⇒` for function forms.
 ## Program shape
 
 ```
-prim -> decls: {putchar = {c = 'i8'} => 'i32', errno = 'i32'} -> defs -> {
-  main = f -> {entry = args:{} -> let t0 = decls.putchar {c = [41]:'i8'} in t0},
+prim -> module: {putchar = {c = 'i8'} => 'i32', errno = 'i32', main = => 'i32'} -> {
+  main = f -> {entry = args:{} -> let t0 = module.putchar {c = [41]:'i8'} in t0},
 }
 ```
 
-A program is three nested lambdas around a struct of definitions.
+A program is two nested lambdas around a struct of definitions.
 
 ### `prim`: the machine primitives
 `prim` is the struct of machine primitives (arithmetic, logic, comparison,
 conversions): `prim.add_i32 {a = x, b = y}`.
 - Why a separate binder: it separates machine-provided instructions from symbols.
   `prim.add_i32` is an instruction the machine provides, so it never becomes an
-  LLVM symbol, while every `decls` and `defs` field does (`@putchar`, `@fact`).
+  LLVM symbol, while every symbol in `module` does (`@putchar`, `@fact`).
   BANF keeps the split too: `PrimCall` for prims, `Call` for symbols.
 
-### `decls`: imports, declared by the binder's form
-`decls` is the struct of imports. Its form lists them; it has no value in the
-source, because the linker provides it. Each field can be any form:
-- A function form declares an imported function:
-  `putchar = {c = 'i8'} => 'i32'` becomes `declare i32 @putchar(i8 %c)`.
-- Any other form declares imported data:
-  `errno = 'i32'` becomes `@errno = external global i32`.
-- A module with no imports writes `decls: {}`. The `{}` form is required, so the
-  translator always knows the import list.
-- Why imports are separate from definitions: an earlier idea was to mix
-  declarations into `defs`, with an empty byte array as a "no body" sentinel
-  (`putchar = {c: i8} -> []:i32`, in the old form syntax). That mixes two kinds of things in one struct and
-  needs a magic value. A typed binder says the same thing with no sentinel.
-- Why not cross-module calls by name: every external symbol goes through `decls`,
-  so a module lists everything it needs from outside, and the linker resolves it.
+### `module`: every symbol, declared by the binder's form
+`module`'s form declares every symbol of the module, imported or defined, in one
+struct. The program's body is the struct of definitions, passed back in as `module`
+so functions call each other and imports the same way: `module.fact {n = t1}`,
+`module.putchar {c = [41]:'i8'}`, `module.errno`. The shape of each declaration
+says whether the body defines it:
 
-### `defs`: the module's own definitions
-`defs` is the struct the program's body builds, passed back in so its functions
-call each other by projection: `defs.fact {n = t1}`.
-- Why: recursion and mutual recursion work without `fix`, just as LLVM functions
-  call each other by symbol. A `fix` in the source is only unfolded while reducing
-  to BANF's shape (see "oymomo to BANF"); it never becomes a loop or a call.
+| Declaration | Defined in the body | Result |
+|---|---|---|
+| `=> R` | as a function | `banf.Function`: params from its entry block, return form `R` |
+| `=> R` | no | error: "'main' declares no params, so it must be defined." |
+| `{...} => R` | no | imported function, `banf.Signature`: `declare i32 @putchar(i8 %c)` |
+| `{...} => R` | yes | error: "'putchar' declares its params; a definition takes them from its entry block." |
+| data form `F` | no | imported data, `banf.Data`: `@errno = external global i32` |
+| data form `F` | yes | error, until data can be defined |
+
+- A body label must be declared: "'f' is defined but not declared."
+- Every parameter list is written once: a defined function's comes only from its
+  entry block, an imported function's only from its declaration.
+- Every return form is written, in the declaration (see "Return forms are
+  declared").
+- A forgotten definition is caught: a function meant to be defined is declared as
+  `=> R`, so leaving it out is a translation error, not a link error.
+- A module with no symbols writes `module: {}`. The form is required, so the
+  translator always knows the symbol list.
+- BANF bindings are in declaration order.
+- Why one binder, not `decls` for imports and `defs` for definitions: with two, a
+  defined function's return form had nowhere to be written, so it was inferred;
+  calls went through `decls.f` or `defs.f` depending on where `f` lived; and a
+  name in both was an extra error. With one, the form lists every symbol with its
+  return form, and the declaration's shape says which ones are imported.
+- Why not an empty byte array as a "no body" sentinel for imports (an earlier
+  idea): it needs a magic value. The declaration's shape says the same thing.
+- Why recursion needs no `fix`: functions call each other by projection on
+  `module`, just as LLVM functions call each other by symbol. A `fix` in the
+  source is only unfolded while reducing to BANF's shape (see "oymomo to BANF"); it
+  never becomes a loop or a call.
+- Why not cross-module calls by name: every external symbol is declared in
+  `module`, so a module lists everything it needs from outside, and the linker
+  resolves it.
 
 ### Symbols
-Every `decls` and `defs` field becomes one LLVM symbol, named after its label. A
-name in both is an error: `decls: {main = 'i32'} -> defs -> {main = ...}`.
+Every declaration in `module` becomes one LLVM symbol, named after its label.
 
 ### Functions as structs of blocks
-Each `defs` field is a function written as a struct of blocks:
+Each field of the body is a function written as a struct of blocks:
 
 ```
 fact = f -> {
@@ -419,14 +435,14 @@ fact = f -> {
   then0 = args:{} -> [01000000]:'i32',
   else0 = args:{n = 'i32'} ->
     let t1 = prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'} in
-    let t2 = defs.fact {n = t1} in
+    let t2 = module.fact {n = t1} in
     let t3 = prim.mul_i32 {a = args.n, b = t2} in
     t3,
 }
 ```
 
 - The binder (`f` here, any name) is the function's own blocks, so `f.then0 {}`
-  jumps to a sibling block. It is the same self-reference trick as `defs`, one
+  jumps to a sibling block. It is the same self-reference trick as `module`, one
   level down. Renaming calls it `blocks` (see "Binders get fixed names").
 - Each block is a lambda taking one struct (`args:{n = 'i32'} -> ...`). The binder
   (`args` here, any name) is the block's param struct.
@@ -456,7 +472,7 @@ imported function's.
   be LLVM-shaped, so BANF-to-LLVM stays one-to-one with no expansion of its own.
 - A call or jump argument is a struct literal of atoms whose labels match the
   callee's params in order, or the block's own `args` forwarded as-is:
-  `defs.add args` or `f.body args`.
+  `module.add args` or `f.body args`.
 
 ## Prim ops
 
@@ -541,7 +557,7 @@ passes it: `branch t0, then0(), else0(n)`.
   know what is in scope. Names are scoped to their block, so a passed-in value can
   keep its name (`else0(n: i32)`).
 - In oymomo this holds by construction: a block lambda's scope only holds its
-  `args`, its lets, and the outer binders `f`, `prim`, `decls`, `defs`.
+  `args`, its lets, and the outer binders `f`, `module`, `prim`.
 
 ### The entry block cannot be jumped to
 The entry block's params are the function's params, as in Cranelift.
@@ -561,7 +577,8 @@ signature's return form, and on each `Data`. Ops carry no form, as in Cranelift
 (`v0 = iadd v1, v2`), and a `Let` carries one only if the source wrote it.
 - Why a `Const` has one: the same bytes can have many forms.
 - Why a block param has one: a block has to declare what its jumps pass in.
-- Why return forms are stored: calls read them, including recursive calls.
+- Why return forms are stored: calls read them, including recursive calls. They
+  come from the `module` declarations.
 - Why it's optional on `Let`: `form_of(op, forms, module)` computes it, and a stored
   form would be verbose. A `MakeStruct` result would repeat a full struct form such as
   `{x: i32, y: {lo: i64, hi: i64}}` on every line that builds or reads one. A written
@@ -599,9 +616,10 @@ Data(name, form)                           # imported data
   keyword (`jump`, `branch`, `return`).
 - Calls print with parentheses and commas (`fact(t1)`), so they don't read like
   oymomo's one-argument application.
-- Calls and data reads use the symbol, not `defs.` / `decls.`: `t0 = errno`.
-- Imports print first: `putchar(c: i8): i32` for a `Signature`, `errno: i32` for
-  `Data`, then each function as `fact: i32` followed by its blocks.
+- Calls and data reads use the symbol, not `module.`: `t0 = errno`.
+- Bindings print in declaration order: `putchar(c: i8): i32` for a `Signature`,
+  `errno: i32` for `Data`, and each function as `fact: i32` followed by its blocks,
+  with a blank line around each function.
 - Blocks are indented under their function (labels at 2 spaces, instructions at 4),
   so the column tells a line's kind. At column 0, the block label `entry(a: i32):`
   would look like the signature `putchar(c: i8): i32`, and nothing would mark
@@ -615,8 +633,7 @@ three and returns an oymomo term in BANF's shape; `convert(shaped)` runs the las
    lambdas. Binder names stay on `Lambda.param_name`. An unbound name is an error.
 2. `banf_reduce.shape`: reduces only where the term doesn't have BANF's shape yet.
 3. `banf_rename.rename`: gives binders names that don't shadow each other.
-4. `banf_translate.convert`: reads the shaped term into BANF, infers return forms,
-   and raises `TranslationError` with a source location on any mismatch.
+4. `banf_translate.convert`: reads the shaped term into BANF, and raises `TranslationError` with a source location on any mismatch.
 
 The golden tests approve the shaped term next to the BANF and LLVM output, as
 `name.shaped.oymo`, and check that it translates to the same BANF.
@@ -670,14 +687,13 @@ such as `prim.add_i32 {...}`, `args.n`, `blocks.done {...}` or `if t0 then a els
   `whnf` stops there. So a let-bound struct stays a `MakeStruct`.
 
 **Positions**, as numbered in `banf_reduce.py`:
-1. The term, until a Lambda: `prim -> <decls>`.
-2. `<decls>`, until a Lambda: `decls -> <defs>`.
-3. `<defs>`, until a Lambda: `defs -> <body>`.
-4. `<body>`, until a Struct: `{label = <func>, ...}`.
-5. `<func>`, until a Lambda: `blocks -> <func_body>`.
-6. `<func_body>`, until a Struct: `{label = <block>, ...}`.
-7. `<block>`, until a Lambda: `args -> <block_body>`.
-8. `<block_body>`, a chain of lets ending in a terminal:
+1. The term, until a Lambda: `prim -> <module>`.
+2. `<module>`, until a Lambda: `module -> <body>`.
+3. `<body>`, until a Struct: `{label = <func>, ...}`.
+4. `<func>`, until a Lambda: `blocks -> <func_body>`.
+5. `<func_body>`, until a Struct: `{label = <block>, ...}`.
+6. `<block>`, until a Lambda: `args -> <block_body>`.
+7. `<block_body>`, a chain of lets ending in a terminal:
    ```
    block_body := terminal | (x -> block_body) <value>      -- a let
    terminal   := [bytes]                                    -- return a constant
@@ -691,16 +707,16 @@ such as `prim.add_i32 {...}`, `args.n`, `blocks.done {...}` or `if t0 then a els
    since it is a redex that must be kept. Repeat:
    1. For a let `(x -> rest) <value>`, take `whnf(<value>)`. If it is an op (an
       apply, a struct, or a projection other than `args.label`), keep the let,
-      visit the op (9), and go on with `rest`. Otherwise beta-reduce the let and
+      visit the op (8), and go on with `rest`. Otherwise beta-reduce the let and
       go on with the result.
    2. Else, if `step` changes the body, go on with that. This can make a let:
       in `(x -> y -> rest) a b` the head reduces and leaves `(y -> rest') b`.
    3. Else visit the terminal's positions and stop.
-9. `<value>`, a let's op: an apply's `<op_arg>` becomes a struct of atoms or a
+8. `<value>`, a let's op: an apply's `<op_arg>` becomes a struct of atoms or a
    BruijnIndex (forwarding `args`); a struct's fields become atoms; a
    projection's struct is a head, already reduced.
-10. `<jump>`, an `if` arm: until `blocks.label <op_arg>`.
-11. `<atom>`: until a ByteArray, `$i` with `i < k`, or `args.n`. `args` itself is
+9. `<jump>`, an `if` arm: until `blocks.label <op_arg>`.
+10. `<atom>`: until a ByteArray, `$i` with `i < k`, or `args.n`. `args` itself is
     not an atom: BANF passes a block's params one by one.
 
 More rules:
@@ -715,11 +731,11 @@ More rules:
   flattening would mean inventing names.
 
 ### Binders get fixed names
-The structural binders (positions 1, 2, 3, 5 and 7) are renamed to fixed names,
+The structural binders (positions 1, 2, 4 and 6) are renamed to fixed names,
 so every shaped program reads
-`prim -> decls -> defs -> {main = blocks -> {entry = args -> ...}}`. `convert` then
+`prim -> module -> {main = blocks -> {entry = args -> ...}}`. `convert` then
 checks each position by name, and a wrong name means a wrong shape.
-- On any path from the root the five names appear once each, so they never clash.
+- On any path from the root the four names appear once each, so they never clash.
 - A position `banf_reduce` left without its shape is not structural: its binder
   follows the rule below, and `convert` reports the shape error.
 - The fixed names don't reach BANF: `blocks.label` becomes a jump target and
@@ -727,14 +743,14 @@ checks each position by name, and a wrong name means a wrong shape.
 
 ### Other binders keep their names unless they clash
 A let keeps its name `x` unless `x` is visible: the name of an enclosing binder
-(after renaming, so the five fixed names count), or a param label of its block.
+(after renaming, so the four fixed names count), or a param label of its block.
 Then it becomes `x_L`, else `x__L`, and so on, where `L` is its level (the number
-of enclosing binders; a block's first let is level 5).
-- `let t = ... in let t = ... in let t = ... in t` gives `t, t_6, t_7`.
-- With `args: {n = 'i8'}`, two lets named `n` give `n_5, n_6`, since `n` is a param
+of enclosing binders; a block's first let is level 4).
+- `let t = ... in let t = ... in let t = ... in t` gives `t, t_5, t_6`.
+- With `args: {n = 'i8'}`, two lets named `n` give `n_4, n_5`, since `n` is a param
   label: param labels become BANF `Var`s, as in `entry(n: i8)`.
-- A user's own `t_6` after a renamed `t_6` gives `t_6_7`; `t, t_7, t` gives
-  `t, t_7, t__7`. A let named `args` gives `args_5`.
+- A user's own `t_5` after a renamed `t_5` gives `t_5_6`; `t, t_6, t` gives
+  `t, t_6, t__6`. A let named `args` gives `args_4`.
 - Labels (struct, field, block, function, param) are never renamed, and only
   param labels count as visible. The others live in their own namespaces in
   oymomo and in BANF (`Jump.target`, `Call.function` and `GetData.name` are plain
@@ -754,12 +770,12 @@ of enclosing binders; a block's first let is level 5).
     places;
   - `_<level>_<original>` for every binder: unique without a set, but it renames
     every let, even ones that clash with nothing;
-  - `name$level` (`n$5`): it needs quotes, and `$` now starts a BruijnIndex.
+  - `name$level` (`n$4`): it needs quotes, and `$` now starts a BruijnIndex.
 
 ### `convert` finds binders by index
 Inside a block body with `k` lets so far, the binders above are always, from the
-inside out: the lets (`$0` to `$k-1`), then `args` (`$k`), `blocks`, `defs`,
-`decls`, `prim` (`$k+4`). So `convert` classifies each `BruijnIndex` by
+inside out: the lets (`$0` to `$k-1`), then `args` (`$k`), `blocks` (`$k+1`),
+`module` (`$k+2`), `prim` (`$k+3`). So `convert` classifies each `BruijnIndex` by
 arithmetic and keeps no binder names of its own. A let reference becomes a
 `banf.Var` named after the BANF let already built.
 
@@ -774,10 +790,10 @@ arithmetic and keeps no binder names of its own. A let reference becomes a
   Any atom can be given a literal form, which replaces its own (`args.n : 'i32'`,
   `t : 'i8'`). `let m: 'i32' = args.n in m` isn't a let in BANF: its value isn't an op,
   so it's beta-reduced, and beta carries the form, giving `args.n : 'i32'`.
-- **Ops**, only as a let's value: `prim.op {...}`, `defs.g {...}`, `decls.g {...}`,
-  a struct literal of atoms (`MakeStruct`), a projection on an atom
-  (`let x = args.p.x in ...` is a `GetField` on param `p`), or `decls.g` for
-  imported data (`GetData`).
+- **Ops**, only as a let's value: `prim.op {...}`, `module.g {...}` (a `Call`, whether
+  `g` is imported or defined), a struct literal of atoms (`MakeStruct`), a projection
+  on an atom (`let x = args.p.x in ...` is a `GetField` on param `p`), or
+  `module.errno` for data (`GetData`).
 - **Terminators**, only in tail position:
   - `f.label {...}` is a jump.
   - `if c then f.a {...} else f.b {...}` is a branch. Both arms must be jumps.
@@ -790,8 +806,8 @@ with a let first.
   temporary names. That is normalization.
 
 ### An op in tail position must be bound first
-`main = f -> {entry = args:{} -> let t0 = decls.putchar {c = [41]:'i8'} in t0}`,
-not `... args:{} -> decls.putchar {c = [41]:'i8'}`.
+`main = f -> {entry = args:{} -> let t0 = module.putchar {c = [41]:'i8'} in t0}`,
+not `... args:{} -> module.putchar {c = [41]:'i8'}`.
 - Why: a BANF `Return` takes an atom. Accepting a tail op would make the
   translator invent a name for the result; the explicit `let t0` keeps every
   name in the source.
@@ -806,38 +822,41 @@ an operand is an error.
   incoming edges from the same block, and an LLVM phi can't tell those edges apart.
 
 ### Binders can't be used as values
-`blocks`, `args`, `prim`, `decls` and `defs` used on their own are errors
+`blocks`, `args`, `prim` and `module` used on their own are errors
 (`'args' cannot be used as a value.`; the message uses the fixed name), except `args` forwarded as a whole call or
-jump argument. So are `defs.g` and `decls.putchar` without an argument.
+jump argument. So are `module.g` and `prim.add_i8` without an argument.
 - Why: they have no runtime value. `prim` is not a struct anything could build.
 
-### Return forms are inferred, to a fixed point
-A function's return form is the form of its returned atoms, which must all agree.
-It is iterated over the whole module, so a block returning a recursive call's
-result resolves through another block:
+### Return forms are declared
+Every function's return form, imported or defined, is written in its `module`
+declaration (`main = => 'i32'`). Each return is checked against it. Recursion needs
+nothing special:
 
 ```
-loop = f -> {
-  entry = args:{c = 'i1'} -> if args.c then f.a {} else f.b {},
-  a = args:{} -> let t = defs.loop {c = [00]:'i1'} in t,
-  b = args:{} -> [07]:'i8',
+prim -> module: {loop = => 'i8'} -> {
+  loop = f -> {
+    entry = args:{c = 'i1'} -> if args.c then f.a {} else f.b {},
+    a = args:{} -> let t = module.loop {c = [00]:'i1'} in t,
+    b = args:{} -> [07]:'i8',
+  },
 }
 ```
 
-`a`'s return depends on `loop`'s, which `b` fixes as `i8`. A function with no
-base case, like `g = f -> {entry = args:{} -> let t = defs.g {} in t}`, is an error.
-- Why infer instead of requiring a written return form: block params and constants
-  already carry forms, so the return form follows from them.
+- Why declare instead of infer: the form is written once, where the symbol is
+  declared, and nothing is computed. Inference had to iterate over the whole module
+  to a fixed point, and a function with no base case
+  (`entry = args:{} -> let t = module.g {} in t`) had no return form at all.
 
 ### Nested function forms are rejected, for now
-A function form is accepted only as a `decls` field's whole form. These are
+A function form is accepted only as a `module` declaration's whole form. These are
 rejected until it's decided what they mean:
-- inside a data form: `decls: {libc: {putchar: {c: i8} => i32}}`,
-- as a param or result: `decls: {g: {c: i8} => {d: i8} => i32}`,
-- with a non-struct param: `decls: {g: i8 => i32}`.
+- inside a data form: `module: {libc = {putchar = {c = 'i8'} => 'i32'}}`,
+- as a param or result: `module: {g = {c = 'i8'} => {d = 'i8'} => 'i32'}`, `main = => => 'i32'`,
+- with a non-struct param: `module: {g = 'i8' => 'i32'}`.
 
-`Empty` forms in `decls` are rejected too ("form must be written"), since nothing can infer
-an import's form.
+`Empty` forms inside a declaration are rejected too ("form must be written"), since
+nothing infers a form. `Empty` alone (`main = `) can't be written, since a struct field
+needs a value.
 
 ### First-order only
 No closures and no escaping lambdas: after reduction, the only lambdas are the

@@ -8,7 +8,7 @@ from oymo.oymomo.printer import show
 
 
 def program(defs):
-    return f'prim -> decls: {{}} -> defs -> {{{defs}}}'
+    return f'prim -> module: {{}} -> {{{defs}}}'
 
 
 def shaped(defs):
@@ -114,20 +114,20 @@ def test_a_def_produced_by_an_application():
     [
         # Each position, reached after reduction.
         (
-            '(p -> p) (prim -> decls: {} -> defs -> {})',
-            'prim -> decls: {} -> defs -> {}',
+            '(p -> p) (prim -> module: {} -> {})',
+            'prim -> module: {} -> {}',
         ),
         (
-            "prim -> (x -> x) (decls: {} -> defs -> {main = f -> {entry = args: {} -> [01]: 'i8'}})",
-            "prim -> decls: {} -> defs -> {main = f -> {entry = args: {} -> [01]: 'i8'}}",
+            "prim -> (x -> x) (module: {} -> {main = f -> {entry = args: {} -> [01]: 'i8'}})",
+            "prim -> module: {} -> {main = f -> {entry = args: {} -> [01]: 'i8'}}",
         ),
         (
-            'prim -> decls: {} -> {d = defs -> {}}.d',
-            'prim -> decls: {} -> defs -> {}',
+            'prim -> {d = module: {} -> {}}.d',
+            'prim -> module: {} -> {}',
         ),
         (
-            "prim -> decls: {} -> defs -> (x -> x) {main = f -> (x -> x) {entry = (x -> x) (args: {} -> [01]: 'i8')}}",
-            "prim -> decls: {} -> defs -> {main = f -> {entry = args: {} -> [01]: 'i8'}}",
+            "prim -> module: {} -> (x -> x) {main = f -> (x -> x) {entry = (x -> x) (args: {} -> [01]: 'i8')}}",
+            "prim -> module: {} -> {main = f -> {entry = args: {} -> [01]: 'i8'}}",
         ),
     ],
 )
@@ -175,7 +175,7 @@ def test_already_shaped_is_unchanged():
       then0 = args:{} -> [01000000]:'i32',
       else0 = args:{n = 'i32'} ->
         let t1 = prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'} in
-        let t2 = defs.fact {n = t1} in
+        let t2 = module.fact {n = t1} in
         let t3 = prim.mul_i32 {a = args.n, b = t2} in
         t3,
     }

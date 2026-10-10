@@ -7,7 +7,7 @@ needs them. Neither mode prints an omitted (`Empty`) form. With `pretty=True` th
 oymomo source that parses back to the same term: parentheses only where needed, and
 quoted names where needed. A term that doesn't fit in `width` columns breaks: a struct puts one
 field per line, a lambda puts its body on the next line (unless the body is a struct
-or another lambda, so `prim → decls → defs → {` stays on one line),
+or another lambda, so `prim → module → {` stays on one line),
 an apply puts its argument on the next line, and an `if` puts `then` and `else` on
 their own lines.
 

@@ -11,7 +11,7 @@ from dataclasses import dataclass, replace
 from oymo.core import syntax
 from oymo.oymomo import banf_prim, banf_reduce, banf_rename, bruijn, terms
 from oymo.oymomo import banf_terms as banf
-from oymo.oymomo.banf_rename import ARGS, BLOCKS, DECLS, DEFS, PRIM
+from oymo.oymomo.banf_rename import ARGS, BLOCKS, MODULE, PRIM
 
 
 class TranslationError(Exception):
@@ -44,8 +44,9 @@ def _check_data_form(form, location, what):
 
 @dataclass
 class _Program:
-    imports: dict[str, banf.Signature | banf.Data]
-    functions: dict[str, banf.Function]
+    """Every declared symbol, by name. A function declared as `=> R` is a `banf.Function`."""
+
+    bindings: dict[str, banf.Binding]
 
 
 @dataclass
@@ -57,9 +58,9 @@ class _Block:
     lets: list[banf.Let]
 
     def binder(self, term):
-        """For a BruijnIndex in the block body: ('let', name), or one of ARGS, BLOCKS, DEFS, DECLS, PRIM.
+        """For a BruijnIndex in the block body: ('let', name), or one of ARGS, BLOCKS, MODULE, PRIM.
 
-        Above the body, from the inside out, are the lets so far, then args, blocks, defs, decls, prim.
+        Above the body, from the inside out, are the lets so far, then args, blocks, module, prim.
         None for anything else.
         """
         if not isinstance(term, terms.BruijnIndex):
@@ -67,7 +68,7 @@ class _Block:
         k = len(self.lets)
         if term.index < k:
             return ('let', self.lets[k - 1 - term.index].name)
-        fixed = (ARGS, BLOCKS, DEFS, DECLS, PRIM)
+        fixed = (ARGS, BLOCKS, MODULE, PRIM)
         if term.index - k < len(fixed):
             return fixed[term.index - k]
         return None
@@ -80,49 +81,63 @@ def _unwrap(term):
         case terms.Lambda(
             param_name=prim_name,
             body=terms.Lambda(
-                param_name=decls_name,
-                param_form=decls_form,
-                body=terms.Lambda(param_name=defs_name, body=terms.Struct() as defs_struct),
-            ) as decls_lambda,
-        ) if (prim_name, decls_name, defs_name) == (PRIM, DECLS, DEFS):
-            if not isinstance(decls_form, terms.Struct):
+                param_name=module_name, param_form=module_form, body=terms.Struct() as body
+            ) as module_lambda,
+        ) if (prim_name, module_name) == (PRIM, MODULE):
+            if not isinstance(module_form, terms.Struct):
                 raise TranslationError(
-                    'The decls binder needs a struct form, such as decls: {}.', decls_lambda.location
+                    'The module binder needs a struct form, such as module: {}.', module_lambda.location
                 )
-            return decls_form, decls_lambda.location, defs_struct
-    raise TranslationError('Expected a program of the shape prim -> decls: {...} -> defs -> {...}.', _location(term))
+            return module_form, module_lambda.location, body
+    raise TranslationError('Expected a program of the shape prim -> module: {...} -> {...}.', _location(term))
 
 
-def _imports(decls_form, location):
-    imports = {}
-    for decl in decls_form.fields:
+def _declarations(module_form, location):
+    """One binding per declared symbol, in declaration order. A function declared as `=> R` is a
+    `banf.Function` without blocks yet; its definition gives them."""
+    declarations = {}
+    for decl in module_form.fields:
         label, form = decl.label, decl.value
-        if label in imports:
-            raise TranslationError(f'Duplicate import {label!r}.', location)
-        what = f'Import {label!r}'
+        decl_location = decl.location or location
+        if label in declarations:
+            raise TranslationError(f'Duplicate declaration {label!r}.', decl_location)
+        what = f'Declaration {label!r}'
         if isinstance(form, terms.FunctionForm):
             param, result = form.param, form.result
+            _check_data_form(result, decl_location, what)
             if param is terms.Empty:
-                raise TranslationError(
-                    f'{what}: definition is not found; a function form without params needs one.', location
-                )
+                declarations[label] = banf.Function(label, result, [], decl_location)
+                continue
             if not isinstance(param, terms.Struct):
-                raise TranslationError(f'{what}: a function form needs a struct form as its param.', location)
+                raise TranslationError(f'{what}: a function form needs a struct form as its param.', decl_location)
+            _check_data_form(param, decl_location, what)
             params = [(f.label, f.value) for f in param.fields]
-            _check_data_form(param, location, what)
-            _check_data_form(result, location, what)
-            imports[label] = banf.Signature(label, params, result, location)
+            declarations[label] = banf.Signature(label, params, result, decl_location)
         else:
-            _check_data_form(form, location, what)
-            imports[label] = banf.Data(label, form, location)
-    return imports
+            _check_data_form(form, decl_location, what)
+            declarations[label] = banf.Data(label, form, decl_location)
+    return declarations
 
 
-def _function_header(field, imports):
-    """Builds a Function whose blocks have params but no bodies yet."""
+def _check_definition(field, declarations):
+    """The declaration a body field defines; it must be a function declared as `=> R`."""
     name = field.label
-    if name in imports:
-        raise TranslationError(f'{name!r} is in both decls and defs.', field.location)
+    declaration = declarations.get(name)
+    match declaration:
+        case None:
+            raise TranslationError(f'{name!r} is defined but not declared.', field.location)
+        case banf.Signature():
+            raise TranslationError(
+                f'{name!r} declares its params; a definition takes them from its entry block.', field.location
+            )
+        case banf.Data():
+            raise TranslationError(f'{name!r} is declared as data; data cannot be defined yet.', field.location)
+    return declaration
+
+
+def _blocks(field):
+    """The blocks of a function definition, with params but no bodies yet, and their fields."""
+    name = field.label
     match field.value:
         case terms.Lambda(param_name=binder, body=terms.Struct(fields=block_fields)) if (
             binder == BLOCKS and block_fields
@@ -147,7 +162,7 @@ def _function_header(field, imports):
         if any(block.label == block_field.label for block in blocks):
             raise TranslationError(f'Duplicate block {block_field.label!r}.', block_field.location)
         blocks.append(banf.Block(block_field.label, params, [], banf.Return(banf.Var('')), block_field.location))
-    return banf.Function(name, terms.Empty, blocks, field.location), block_fields
+    return blocks, block_fields
 
 
 def _not_a_value(name, location):
@@ -206,9 +221,14 @@ class _Translator:
             raise TranslationError(f'{what} takes {{{", ".join(expected)}}}, got {{{", ".join(got)}}}.', location)
         return atoms
 
+    def symbol(self, name, location):
+        binding = self.program.bindings.get(name)
+        if binding is None:
+            raise TranslationError(f'{name!r} is not declared.', location)
+        return binding
+
     def op(self, term, block):
         location = _location(term)
-        program = self.program
         match term:
             case terms.Apply(function=terms.Project(struct=struct, label=name), argument=arg):
                 base = block.binder(struct)
@@ -217,18 +237,12 @@ class _Translator:
                         raise TranslationError(f'Unknown prim op {name!r}.', location)
                     params = banf_prim.PRIMS[name].params
                     return banf.PrimCall(name, self.args(arg, params, f'prim.{name}', block), location)
-                if base == DEFS:
-                    if name not in program.functions:
-                        raise TranslationError(f'Unknown definition {name!r}.', location)
-                    params = program.functions[name].params
-                    return banf.Call(name, self.args(arg, params, f'defs.{name}', block), location)
-                if base == DECLS:
-                    binding = program.imports.get(name)
-                    if binding is None:
-                        raise TranslationError(f'Unknown import {name!r}.', location)
+                if base == MODULE:
+                    # An imported function's params are declared; a defined one's come from its entry block.
+                    binding = self.symbol(name, location)
                     if isinstance(binding, banf.Data):
-                        raise TranslationError(f'Imported data {name!r} cannot be applied.', location)
-                    return banf.Call(name, self.args(arg, binding.params, f'decls.{name}', block), location)
+                        raise TranslationError(f'module.{name} is data, so it cannot be applied.', location)
+                    return banf.Call(name, self.args(arg, binding.params, f'module.{name}', block), location)
                 if base == BLOCKS:
                     raise TranslationError('A jump must be in tail position.', location)
             case terms.Struct(fields=fields):
@@ -236,15 +250,12 @@ class _Translator:
                 if len(set(labels)) != len(labels):
                     raise TranslationError('Duplicate field labels.', location)
                 return banf.MakeStruct([(f.label, self.atom(f.value, block)) for f in fields], location)
-            case terms.Project(struct=struct, label=name) if block.binder(struct) == DECLS:
-                binding = program.imports.get(name)
-                if binding is None:
-                    raise TranslationError(f'Unknown import {name!r}.', location)
-                if isinstance(binding, banf.Signature):
-                    raise TranslationError(f'Imported function {name!r} must be applied.', location)
-                return banf.GetData(name, location)
-            case terms.Project(struct=struct, label=name) if block.binder(struct) in (DEFS, PRIM):
-                raise TranslationError(f'{block.binder(struct)}.{name} must be applied.', location)
+            case terms.Project(struct=struct, label=name) if block.binder(struct) == MODULE:
+                if isinstance(self.symbol(name, location), banf.Data):
+                    return banf.GetData(name, location)
+                raise TranslationError(f'module.{name} must be applied.', location)
+            case terms.Project(struct=struct, label=name) if block.binder(struct) == PRIM:
+                raise TranslationError(f'prim.{name} must be applied.', location)
             case terms.Project(struct=struct) if block.binder(struct) == ARGS:
                 self.atom(term, block)
             case terms.Project(struct=struct, label=label):
@@ -256,7 +267,7 @@ class _Translator:
         if self.is_atom(term, block):
             raise TranslationError("A let's value must be an op, not an atom.", location)
         raise TranslationError(
-            'Expected an op: prim.op {...}, defs.f {...}, decls.f {...}, a struct or a projection.', location
+            'Expected an op: prim.op {...}, module.f {...}, module.data, a struct or a projection.', location
         )
 
     def jump(self, term, block):
@@ -313,43 +324,6 @@ class _Translator:
             banf_block.terminator = self.body(block_field.value.body, block)
 
 
-def _known_return_form(block, module):
-    """The form of the block's returned atom, or None if it depends on a return form not inferred yet."""
-    if not isinstance(block.terminator, banf.Return):
-        return None
-    forms = dict(block.params)
-    for let in block.lets:
-        try:
-            form = banf.let_form(let, forms, module)
-        except banf.FormError:
-            continue
-        if form is not terms.Empty:
-            forms[let.name] = form
-    try:
-        return banf.atom_form(block.terminator.value, forms)
-    except banf.FormError:
-        return None
-
-
-def _infer_return_forms(module, functions):
-    """Iterates return forms to a fixed point, so a recursive call resolves through another block's return."""
-    changed = True
-    while changed:
-        changed = False
-        for function in functions:
-            if function.return_form is not terms.Empty:
-                continue
-            for block in function.blocks:
-                form = _known_return_form(block, module)
-                if form is not None:
-                    function.return_form = form
-                    changed = True
-                    break
-    for function in functions:
-        if function.return_form is terms.Empty:
-            raise TranslationError(f'Cannot infer the return form of {function.name!r}.', function.location)
-
-
 def shape(term: syntax.Term) -> syntax.Term:
     """Resolves names, reduces to BANF's shape and renames binders."""
     try:
@@ -360,21 +334,24 @@ def shape(term: syntax.Term) -> syntax.Term:
 
 def convert(term: syntax.Term) -> banf.Module:
     """Reads a shaped term into BANF."""
-    decls_form, decls_location, defs_struct = _unwrap(term)
-    imports = _imports(decls_form, decls_location)
-    headers = []
-    for field in defs_struct.fields:
-        if any(header[0].name == field.label for header in headers):
+    module_form, module_location, body = _unwrap(term)
+    declarations = _declarations(module_form, module_location)
+    definitions = []
+    for field in body.fields:
+        if any(function.name == field.label for function, _ in definitions):
             raise TranslationError(f'Duplicate definition {field.label!r}.', field.location)
-        headers.append(_function_header(field, imports))
-    functions = [header[0] for header in headers]
-    program = _Program(imports, {function.name: function for function in functions})
-    translator = _Translator(program)
-    for header in headers:
-        translator.function(*header)
-    module = banf.Module([*imports.values(), *functions])
+        function = _check_definition(field, declarations)
+        function.blocks, block_fields = _blocks(field)
+        function.location = field.location
+        definitions.append((function, block_fields))
+    for binding in declarations.values():
+        if isinstance(binding, banf.Function) and not binding.blocks:
+            raise TranslationError(f'{binding.name!r} declares no params, so it must be defined.', binding.location)
+    translator = _Translator(_Program(declarations))
+    for function, block_fields in definitions:
+        translator.function(function, block_fields)
+    module = banf.Module(list(declarations.values()))
     try:
-        _infer_return_forms(module, functions)
         banf.verify(module)
     except banf.FormError as error:
         raise TranslationError(error.message, error.location) from error

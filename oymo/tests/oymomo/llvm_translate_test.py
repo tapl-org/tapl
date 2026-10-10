@@ -15,19 +15,19 @@ TARGET = Target('x86_64-unknown-linux-gnu', '', DEFAULT_PRIMS)
 HEADER = '; ModuleID = ""\ntarget triple = "x86_64-unknown-linux-gnu"\ntarget datalayout = ""\n\n'
 
 
-def banf(defs, decls='{}'):
-    """The BANF module of an oymomo program, written as its `decls` form and `defs` fields."""
-    return banf_translate.translate(parse(f'prim -> decls: {decls} -> defs -> {{{defs}}}'))
+def banf(defs, decls):
+    """The BANF module of an oymomo program, written as its `module` form's fields and its body's fields."""
+    return banf_translate.translate(parse(f'prim -> module: {{{decls}}} -> {{{defs}}}'))
 
 
-def ir_text(defs, decls='{}'):
+def ir_text(defs, decls):
     text = str(translate(banf(defs, decls), TARGET))
     llvm.parse_assembly(text).verify()
     assert text.startswith(HEADER)
     return text.removeprefix(HEADER)
 
 
-def ir_error(defs, decls='{}'):
+def ir_error(defs, decls):
     with pytest.raises(LlvmTranslationError) as info:
         translate(banf(defs, decls), TARGET)
     return info.value.message
@@ -51,12 +51,12 @@ def test_fact():
       then0 = args: {} -> [01000000]:'i32',
       else0 = args: {n = 'i32'} ->
         let t1 = prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'} in
-        let t2 = defs.fact {n = t1} in
+        let t2 = module.fact {n = t1} in
         let t3 = prim.mul_i32 {a = args.n, b = t2} in
         t3,
     }
     """
-    assert ir_text(source) == text("""
+    assert ir_text(source, "fact = => 'i32'") == text("""
         define i32 @"fact"(i32 %"n")
         {
         entry:
@@ -74,12 +74,12 @@ def test_fact():
 
 
 def test_signature_data_and_get_data():
-    decls = "{putchar = {c = 'i8'} => 'i32', errno = 'i32'}"
+    decls = "putchar = {c = 'i8'} => 'i32', errno = 'i32', main = => 'i32'"
     source = """
     main = blocks -> {
       entry = args: {} ->
-        let t0 = decls.errno in
-        let t1 = decls.putchar {c = [41]:'i8'} in
+        let t0 = module.errno in
+        let t1 = module.putchar {c = [41]:'i8'} in
         let t2 = prim.add_i32 {a = t0, b = t1} in
         t2,
     }
@@ -109,7 +109,7 @@ def test_struct_param_make_struct_and_get_field():
         q,
     }
     """
-    assert ir_text(source) == text("""
+    assert ir_text(source, "swap = => {x = 'i32', y = 'i32'}") == text("""
         define {i32, i32} @"swap"({i32, i32} %"p")
         {
         entry:
@@ -132,7 +132,7 @@ def test_single_predecessor_binds_params_and_multiple_predecessors_get_phis():
       join0 = args: {v = 'i32', w = 'i32'} -> let t0 = prim.add_i32 {a = args.v, b = args.w} in t0,
     }
     """
-    assert ir_text(source) == text("""
+    assert ir_text(source, "pick = => 'i32'") == text("""
         define i32 @"pick"(i1 %"c", i32 %"x", i32 %"z")
         {
         entry:
@@ -166,7 +166,7 @@ def test_rejects_branch_with_same_target_twice():
 
 
 def test_constants_are_little_endian_on_a_big_endian_target():
-    module = banf("g = blocks -> {entry = args: {} -> [0100]:'i16'}")
+    module = banf("g = blocks -> {entry = args: {} -> [0100]:'i16'}", "g = => 'i16'")
     big = Target('powerpc64-unknown-linux-gnu', 'E-m:e-i64:64-n32:64', DEFAULT_PRIMS)
     ir = str(translate(module, big))
     llvm.parse_assembly(ir).verify()
@@ -175,7 +175,7 @@ def test_constants_are_little_endian_on_a_big_endian_target():
 
 
 def test_rejects_wrong_constant_size():
-    assert ir_error("g = blocks -> {entry = args: {} -> [01]:'i32'}") == 'A i32 constant needs 4 bytes.'
+    assert ir_error("g = blocks -> {entry = args: {} -> [01]:'i32'}", "g = => 'i32'") == 'A i32 constant needs 4 bytes.'
 
 
 def test_let_form_with_the_same_llvm_type_is_used_as_it_is():
@@ -184,7 +184,7 @@ def test_let_form_with_the_same_llvm_type_is_used_as_it_is():
       entry = args: {v = 'i32', w = 'i32'} -> let q: {a = 'i32', b = 'i32'} = {x = args.v, y = args.w} in q,
     }
     """
-    assert 'ret {i32, i32} %"q"' in ir_text(source)
+    assert 'ret {i32, i32} %"q"' in ir_text(source, "g = => {a = 'i32', b = 'i32'}")
 
 
 def test_rejects_let_form_with_another_llvm_type():
@@ -194,13 +194,13 @@ def test_rejects_let_form_with_another_llvm_type():
       entry = args: {n = 'i32'} -> let t0: 'i32' = prim.eq_i32 {a = args.n, b = [00000000]:'i32'} in t0,
     }
     """
-    assert ir_error(source) == "Let 't0' is formed as i32, but its op gives i1."
+    assert ir_error(source, "g = => 'i32'") == "Let 't0' is formed as i32, but its op gives i1."
 
 
 def test_formed_var_with_the_same_llvm_type_is_used_as_it_is():
-    assert 'ret i32 %"n"' in ir_text("g = blocks -> {entry = args: {n = 'i32'} -> args.n:'i32'}")
+    assert 'ret i32 %"n"' in ir_text("g = blocks -> {entry = args: {n = 'i32'} -> args.n:'i32'}", "g = => 'i32'")
 
 
 def test_rejects_formed_var_with_another_llvm_type():
     source = "g = blocks -> {entry = args: {n = 'i8'} -> args.n:'i32'}"
-    assert ir_error(source) == "'n' is formed as i32, but its LLVM type is i8."
+    assert ir_error(source, "g = => 'i32'") == "'n' is formed as i32, but its LLVM type is i8."
