@@ -58,7 +58,7 @@ def test_pretty_omits_empty_forms():
 
 
 def test_void_is_an_ordinary_form_name():
-    assert pretty("x : 'void' -> x") == "x: 'void' → x"
+    assert pretty("x: 'void' -> x") == "x: 'void' → x"
 
 
 def test_binder_forms_print_at_the_formed_level():
@@ -83,8 +83,8 @@ def test_binder_forms_print_at_the_formed_level():
         ('f (=> b)', 'f (⇒ b)'),
         ('f ((=> a):x)', 'f (⇒ a:x)'),
         ('(=> a) b', '⇒ a b'),
-        ('y : => a', 'y:⇒ a'),
-        ('x : => a -> x', 'x:⇒ a → x'),
+        ('y: => a', 'y:⇒ a'),
+        ('x: => a -> x', 'x:⇒ a → x'),
     ],
 )
 def test_function_form_without_param(source, expected):
@@ -223,7 +223,7 @@ def test_width_and_indent_flags():
         FACT,
         'f a (b -> b) (if c then d else e).x',
         '"if" -> "a b" -> s."\\u{3bb}"',
-        "d: {putchar = {c = 'i8'} => 'i32', errno = 'i32'} -> [] : ({} => 'i32')",
+        "d: {putchar = {c = 'i8'} => 'i32', errno = 'i32'} -> []: ({} => 'i32')",
         "{f = {a = 'i8'} => 'i32', g = (f a) => (g => h) => i}",
         "x: ([00]: 'i8') => 'i32' -> f ([01]: 'i8') => g [02]: 'i8'",
         'x: (y) -> [00]: (f x) => {}',
@@ -231,28 +231,28 @@ def test_width_and_indent_flags():
         'if c then if d then a else b else fix f',
         "let x: 'i8' = let y = e in y in f (let z = x in z)",
         "f 'Hello world' [48656c6c6f]: 'i8' '' [00]",
-        'y : x',
-        'f a : g b',
-        'a : b : c',
-        '(a : b) : c',
-        'x -> y -> y : x',
-        'f (y : x) z',
-        '(f : g) x',
-        'y : (a -> b)',
-        'y : a => b',
-        '(a : b) => c',
-        '{a = e : t}',
-        'if c : t then a : t else b : t',
-        "let x: 'i8' = v : t in x : t",
-        '[01] : y',
-        "([01] : 'i8') : 'i16'",
-        'y : (f a)',
-        '(f a) : t',
-        'f y : x z',
-        'fix f : t',
-        '(fix f) : t',
-        'x : decls.t',
-        "f [01] : 'u8' [02]",
+        'y: x',
+        'f a: g b',
+        'a: b: c',
+        '(a: b): c',
+        'x -> y -> y: x',
+        'f (y: x) z',
+        '(f: g) x',
+        'y: (a -> b)',
+        'y: a => b',
+        '(a: b) => c',
+        '{a = e: t}',
+        'if c: t then a: t else b: t',
+        "let x: 'i8' = v: t in x: t",
+        '[01]: y',
+        "([01]: 'i8'): 'i16'",
+        'y: (f a)',
+        '(f a): t',
+        'f y: x z',
+        'fix f: t',
+        '(fix f): t',
+        'x: decls.t',
+        "f [01]: 'u8' [02]",
     ],
 )
 def test_output_parses_back_to_the_same_term(source):
@@ -293,7 +293,7 @@ def test_formed():
 
 
 def test_formed_byte_array_in_parens_where_needed():
-    # `[01]:'i8':'i16'` would read as `[01] : ('i8' : 'i16')`.
+    # `[01]:'i8':'i16'` would read as `[01]: ('i8': 'i16')`.
     i8, i16 = terms.ByteArray(b'i8'), terms.ByteArray(b'i16')
     byte = terms.ByteArray(b'\x01')
     assert show(terms.Formed(terms.Formed(byte, i8), i16)) == "([01]:'i8'):'i16'"

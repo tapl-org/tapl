@@ -198,10 +198,10 @@ RULES: dict[str, Clause] = {
         Ref(rn.FORMED),
         action=lambda c: terms.Fix(function=c.values[0], location=_location(c)),
     ),
-    # `e : F` is a Formed. Like `=>`, it builds a value, so it binds tighter than apply; it
-    # binds looser than `=>`. It is right associative: `f a : g b` is `f (a : g) b`,
-    # `x : A => B` is `x : (A => B)`, `a : b : c` is `a : (b : c)`. A lambda is tried first,
-    # so `x : F -> body` is still a lambda with a param form.
+    # `e: F` is a Formed. Like `=>`, it builds a value, so it binds tighter than apply; it
+    # binds looser than `=>`. It is right associative: `f a: g b` is `f (a: g) b`,
+    # `x: A => B` is `x: (A => B)`, `a: b: c` is `a: (b: c)`. A lambda is tried first,
+    # so `x: F -> body` is still a lambda with a param form.
     rn.FORMED: First(
         Seq(Ref(rn.ARROW), _punct(':'), Ref(rn.FORMED), action=_formed),
         Ref(rn.ARROW),

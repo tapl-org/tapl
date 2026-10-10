@@ -102,7 +102,7 @@ class Fix(Term):
         yield self.function
 
 
-# Only bytes. `[01] : 'i8'` is `Formed(ByteArray([01]), 'i8')`.
+# Only bytes. `[01]: 'i8'` is `Formed(ByteArray([01]), 'i8')`.
 # Forms are terms. A named form such as `i32` is the byte array `'i32'`.
 @dataclass
 class ByteArray(Term):
@@ -126,7 +126,7 @@ class ByteArray(Term):
         yield from ()
 
 
-# `term : form`: `term`, formed as `form`.
+# `term: form`: `term`, formed as `form`.
 @dataclass
 class Formed(Term):
     term: Term

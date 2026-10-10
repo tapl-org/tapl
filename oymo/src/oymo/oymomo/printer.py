@@ -97,7 +97,7 @@ def _compact_suffix(form, names):
 
 
 def _formed_term(term, show, *, grouped):
-    """The `t` of `t : form`. A byte array with a form prints its bytes as hex."""
+    """The `t` of `t: form`. A byte array with a form prints its bytes as hex."""
     if isinstance(term, terms.ByteArray):
         return _bytes_text(term.value, grouped=grouped, text=False)
     return show(term, _ARROW)

@@ -198,6 +198,6 @@ def test_whnf_reduces_inside_formed():
 
 
 def test_dynamic_byte_array_form():
-    reduced = banf_reduce.whnf(bruijn.resolve(parse("(x -> y -> y : x) 'i1' [01]")))
+    reduced = banf_reduce.whnf(bruijn.resolve(parse("(x -> y -> y: x) 'i1' [01]")))
     assert reduced == parse("[01]:'i1'")
     assert show(reduced) == "[01]:'i1'"

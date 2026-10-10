@@ -96,7 +96,7 @@ Why each bracket has one job: the parser never has to guess. `(` always groups,
 
 Surface syntax of the oymomo kernel lambda calculus:
 ```
-x : 'i32' -> body            Lambda
+x: 'i32' -> body            Lambda
 f a b                        Apply
 {x = e1, y = e2}             Struct
 s.x                          Project
@@ -104,7 +104,7 @@ if c then a else b           If
 let x = e in body            sugar for (x -> body) e
 fix f                        Fix
 [2a 00 00 00]                ByteArray
-e : 'i32'                    Formed
+e: 'i32'                    Formed
 {c = 'i8'} => 'i32'          FunctionForm
 // comment                   line comment
 ```
@@ -135,7 +135,7 @@ pattern), `Access` and `Read` (sound like memory operations next to LLVM),
 `Projection` (a noun among verbs), and `Pick`, `Take`, `Pluck`, `Extract`,
 `Lookup`, `Focus`.
 
-### Lambda as `x : form -> body`
+### Lambda as `x: form -> body`
 - The arrow can be written `->` or `→` (U+2192); both mean the same. `→` reads like
   the math notation, and `->` is easy to type on any keyboard. A printer emits `->`,
   so generated code is plain ASCII.
@@ -152,10 +152,10 @@ There is no separate form syntax or form class: a form is an ordinary term.
 - A struct form is a struct: `{x = 'i32', y = 'i8'}`.
 - A function form is a `FunctionForm(param, result)` term, written `P => R`
   (see "Function forms").
-- Any term may be a form. A binder's form (`x : F -> b`, `let x : F = v in b`) is an
-  ordinary formed-level expression, the same as the `F` of `e : F`: `x: i32 -> x`,
+- Any term may be a form. A binder's form (`x: F -> b`, `let x: F = v in b`) is an
+  ordinary formed-level expression, the same as the `F` of `e: F`: `x: i32 -> x`,
   `x: module.T -> x`, `x: 'i8' => 'i32' -> x`, `x: [00]: 'i8' -> x`. It never holds a
-  lambda, so it ends at the first `->`: `x : a -> b -> c` is the lambda `x : a` with
+  lambda, so it ends at the first `->`: `x: a -> b -> c` is the lambda `x: a` with
   body `b -> c`. A lambda or an application needs parentheses: `x: (a -> b) -> c`,
   `x: (f a) -> x`. There is no separate form grammar rule.
 - Forms are resolved like other terms: a variable in a lambda param's form is
@@ -163,7 +163,7 @@ There is no separate form syntax or form class: a form is an ordinary term.
   translation needs literal forms (named forms and structs of them) and rejects
   others with "form must be a literal".
 - Locations are left out of `==` on every term, so a parsed form equals the same
-  form built in code (`terms.name_to_form('i32')`, `terms.struct_form(...)`).
+  form built in code (`terms.ByteArray(b'i32')`, `terms.struct_form(...)`).
 - Why: one syntax and one set of terms for values and forms; later stages can
   compute forms with the same machinery as values.
 
@@ -179,11 +179,11 @@ none, and `: 'void'` is just the form named void. A byte array has no form of it
   `[01]` with no `: form` ("form must be written").
 
 ### `Formed(term, form)`: any term with a form
-`Formed` is `term : form`, "`term`, formed as `form`". It lets the form of any term come
+`Formed` is `term: form`, "`term`, formed as `form`". It lets the form of any term come
 from an expression, so a byte array's form can be a variable:
-`(x -> y -> y : x) 'i1' [01]` evaluates to `[01] : 'i1'`. See `plan_annotation.md`.
-- A byte array is only its bytes: `[01] : 'i8'` is `Formed(ByteArray([01]), 'i8')`, just
-  like `y : 'i8'` is `Formed(y, 'i8')`. So every `:` that isn't on a binder is one term
+`(x -> y -> y: x) 'i1' [01]` evaluates to `[01]: 'i1'`. See `plan_annotation.md`.
+- A byte array is only its bytes: `[01]: 'i8'` is `Formed(ByteArray([01]), 'i8')`, just
+  like `y: 'i8'` is `Formed(y, 'i8')`. So every `:` that isn't on a binder is one term
   with one meaning, and beta reduction alone gives a dynamic form.
 - `Formed` itself never reduces. `whnf` reduces inside `Formed.term`, and an `if` sees
   through a form on its condition.
@@ -197,20 +197,20 @@ from an expression, so a byte array's form can be a variable:
   `FunctionForm` never reduce, so `:` and `=>` bind tighter than application; `.` binds
   tighter still, since `module.T` and `args.n` read as paths. `:` is right associative
   and looser than `=>`.
-  - `f [01] : 'u8' [02]` is `f ([01] : 'u8') [02]`, `f a : g b` is `f (a : g) b`,
-    `fix f : t` is `fix (f : t)`.
-  - `x : A => B` is `x : (A => B)`, `A => B : C` is `(A => B) : C`,
-    `a : b : c` is `a : (b : c)`, `x : module.T` is `x : (module.T)`.
-  - An application inside `:` needs parentheses: `y : (f a)`, `(f a) : t`.
-    `y : f a` is `(y : f) a`.
+  - `f [01]: 'u8' [02]` is `f ([01]: 'u8') [02]`, `f a: g b` is `f (a: g) b`,
+    `fix f: t` is `fix (f: t)`.
+  - `x: A => B` is `x: (A => B)`, `A => B: C` is `(A => B): C`,
+    `a: b: c` is `a: (b: c)`, `x: module.T` is `x: (module.T)`.
+  - An application inside `:` needs parentheses: `y: (f a)`, `(f a): t`.
+    `y: f a` is `(y: f) a`.
   - Rejected: `:` below application, as in Haskell, OCaml and Lean
-    (`f a : g b` = `(f a) : (g b)`). It made `:` the only value operator looser than
+    (`f a: g b` = `(f a): (g b)`). It made `:` the only value operator looser than
     application. See `plan_annotation.md`.
-- A lambda is tried first, so `x : F -> body` is still a lambda with a param form.
+- A lambda is tried first, so `x: F -> body` is still a lambda with a param form.
 
-### Byte arrays are bracketed hex: `[2a 00 00 00] : 'i32'`
+### Byte arrays are bracketed hex: `[2a 00 00 00]: 'i32'`
 - The kernel has only byte arrays, so literals are written as bytes, not numbers.
-- Bytes are little-endian on every target: `[2a000000] : 'i32'` is 42 everywhere.
+- Bytes are little-endian on every target: `[2a000000]: 'i32'` is 42 everywhere.
   - Why fixed, not a default: oymomo has no integer literals, so the byte order is
     what gives a literal its number. With an overridable default, one source would
     mean two numbers. Same idea as WebAssembly memory and the `.bc` encoding: the
@@ -229,7 +229,7 @@ from an expression, so a byte array's form can be a variable:
 - Newlines are whitespace, so long arrays split without any continuation rule:
   ```
   [deadbeef cafebabe
-   00112233 44556677] : {lo = 'i64', hi = 'i64'}
+   00112233 44556677]: {lo = 'i64', hi = 'i64'}
   ```
 - Comments are not allowed inside the brackets.
 - `[]` was freed when structs took `{}`, and the brackets bound the literal, so no
@@ -245,13 +245,13 @@ from an expression, so a byte array's form can be a variable:
 ### Text byte arrays: `'Hello'`
 - A byte array whose bytes are all printable ASCII can be written in single
   quotes: `'Hello'` is the same term as `[48656c6c 6f]`. The form suffix works as
-  for hex: `'Hi' : 'i16'`. A named form such as `'i32'` is a text byte array.
+  for hex: `'Hi': 'i16'`. A named form such as `'i32'` is a text byte array.
 - Allowed characters: `0x20..0x7e` except `'` and `\`. No escapes, so bytes with
   `'`, `\`, or anything non-printable are written in hex. Keeping `\` out leaves
   room for escapes later. Single line only. `''` is the empty array.
 - `'` was unused, and `"` is taken by quoted names.
 - The printer uses `'...'` only for a byte array without a form (not the `t` of a
-  `t : form`), every byte is text, and the array is at most 128 bytes; otherwise hex.
+  `t: form`), every byte is text, and the array is at most 128 bytes; otherwise hex.
   Why: a written form (`[41]: 'i8'`) usually means a number, so hex stays; a long
   blob reads better as grouped hex. The limit is fixed, not `width`, so output
   doesn't depend on layout settings.
@@ -669,8 +669,8 @@ The golden tests approve the shaped term next to the BANF and LLVM output, as
 `bruijn.reduce(term)` takes one step if the root is a redex, and otherwise returns
 `term` itself (so `reduce(t) is t` says "not a redex"). It never looks inside.
 - beta: `(x -> body) e` gives `body` with `e` put in for `x`. With a form,
-  `(x : F -> body) e` puts in `e : F`, and drops `e`'s own form (`e : G` goes in
-  as `e : F`). Without one, `e` goes in as it is, so it keeps its own form, if it
+  `(x: F -> body) e` puts in `e: F`, and drops `e`'s own form (`e: G` goes in
+  as `e: F`). Without one, `e` goes in as it is, so it keeps its own form, if it
   has one;
 - fix: `fix g` gives `g (fix g)`;
 - projection: `{a = e, ...}.a` gives `e`. A missing label is not a redex;
@@ -813,10 +813,10 @@ arithmetic and keeps no binder names of its own. A let reference becomes a
   type: `let t0: 'i32' = prim.eq_i32 {...} in t0` gives `t0` the form `i32`, though
   `eq_i32` gives `i1`. BANF prints it as `t0: i32 = prim.eq_i32(...)`. LLVM translation
   rejects it, since the LLVM types differ (see "BANF to LLVM").
-- **Atoms**: a byte array with a literal form (`[01] : 'i8'`), a let name, or `args.label`.
-  Any atom can be given a literal form, which replaces its own (`args.n : 'i32'`,
-  `t : 'i8'`). `let m: 'i32' = args.n in m` isn't a let in BANF: its value isn't an op,
-  so it's beta-reduced, and beta carries the form, giving `args.n : 'i32'`.
+- **Atoms**: a byte array with a literal form (`[01]: 'i8'`), a let name, or `args.label`.
+  Any atom can be given a literal form, which replaces its own (`args.n: 'i32'`,
+  `t: 'i8'`). `let m: 'i32' = args.n in m` isn't a let in BANF: its value isn't an op,
+  so it's beta-reduced, and beta carries the form, giving `args.n: 'i32'`.
 - **Ops**, only as a let's value: `prim.op {...}`, `module.g {...}` (a `Call`, whether
   `g` is imported or defined), a struct literal of atoms (`MakeStruct`), a projection
   on an atom (`let x = args.p.x in ...` is a `GetField` on param `p`), or

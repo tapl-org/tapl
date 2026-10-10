@@ -102,8 +102,8 @@ def substitute(term: syntax.Term, index: int, value: syntax.Term) -> syntax.Term
 def beta(lambda_: terms.Lambda, argument: syntax.Term) -> syntax.Term:
     """`(x -> body) argument` with `argument` put in for `x`.
 
-    The lambda's form goes with the argument: `(x : F -> body) a` puts `a : F` in for `x`.
-    It replaces `a`'s own form: `(x : F -> body) a : G` puts in `a : F`, too.
+    The lambda's form goes with the argument: `(x: F -> body) a` puts `a: F` in for `x`.
+    It replaces `a`'s own form: `(x: F -> body) a: G` puts in `a: F`, too.
     A lambda without a form puts in `a` as it is, so `a` keeps its own form, if it has one.
     """
     if lambda_.param_form is not terms.Empty:

@@ -46,7 +46,7 @@ fact = f -> {
 
 
 def test_simplest():
-    assert banf("main = f -> {entry = args:{a = 'i32'} -> [00000000] : 'i32'}", "main = => 'i32'") == text("""
+    assert banf("main = f -> {entry = args:{a = 'i32'} -> [00000000]: 'i32'}", "main = => 'i32'") == text("""
         main: i32
           entry(a: i32):
             return [00000000]:i32
@@ -561,7 +561,7 @@ def test_formed_let_name():
 
 
 def test_let_with_a_form_and_an_atom_reduces_to_a_formed_atom():
-    # The let isn't an op, so it's beta-reduced, and beta carries its form: args.n : 'i32'.
+    # The let isn't an op, so it's beta-reduced, and beta carries its form: args.n: 'i32'.
     source = "main = f -> {entry = args:{n = 'i32'} -> let m: 'i32' = args.n in m}"
     assert banf(source, "main = => 'i32'") == text("""
         main: i32
