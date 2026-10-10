@@ -1,6 +1,6 @@
 # Plan: BANF translation has no defaults
 
-Status: **in progress**.
+Status: **implemented**.
 
 ## Steps
 
@@ -12,7 +12,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [x] 4. `=> R`: a function form without params (`oymomo: a function form's param may be omitted`)
 - [x] 5. One `module` binder declares every symbol (`oymomo: merge decls and defs into module`)
 - [x] 6. Data defined in the module body (`oymomo: module data can be defined`)
-- [ ] 7. Wrap up (`docs: plan_banf_explicit implemented`)
+- [x] 7. Wrap up (`docs: plan_banf_explicit implemented`)
 
 Step 1 comes first. Step 4 comes before step 5, and step 5 before step 6. Steps 2 and 3
 don't depend on the others.

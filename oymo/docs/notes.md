@@ -639,7 +639,28 @@ three and returns an oymomo term in BANF's shape; `convert(shaped)` runs the las
    lambdas. Binder names stay on `Lambda.param_name`. An unbound name is an error.
 2. `banf_reduce.shape`: reduces only where the term doesn't have BANF's shape yet.
 3. `banf_rename.rename`: gives binders names that don't shadow each other.
-4. `banf_translate.convert`: reads the shaped term into BANF, and raises `TranslationError` with a source location on any mismatch.
+4. `banf_translate.convert`: reads the shaped term into BANF, and raises
+   `TranslationError` with a source location on any mismatch.
+
+**Translation only reduces terms.** `shape` runs term reductions (beta, fix, project,
+`if`) until each position has BANF's shape, then renames binders. `convert` only reads
+the result:
+- No default values: an omitted form is `Empty`, and `Empty` is never read as `void`
+  or as anything else. A position that needs a form rejects it ("form must be
+  written").
+- Nothing inferred: every form BANF stores is written in the source, return forms
+  included (see "Return forms are declared"), and every parameter list and form is
+  written once.
+- Unneeded forms are dropped: a form written where BANF has no slot for it (on the
+  `prim` or `blocks` binder, or on a data definition) is dropped, not rejected.
+- A form is not a type: a written form is never checked against a computed one; it
+  replaces it (a let's form, a formed atom). `banf.verify` still checks arguments,
+  branch conditions and returns against the forms they're *required* to have, and
+  `llvm_translate` rejects a replaced form whose LLVM type differs.
+
+A term that doesn't have BANF's shape after reduction is rejected with the usual
+message, and the source fixes it explicitly. See `plan_banf_explicit.md` for the
+decisions behind this.
 
 The golden tests approve the shaped term next to the BANF and LLVM output, as
 `name.shaped.oymo`, and check that it translates to the same BANF.
