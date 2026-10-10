@@ -6,7 +6,7 @@
 (`banf_rename`). `convert` then reads the shaped term into BANF; it does no normalization.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from oymo.core import syntax
 from oymo.oymomo import banf_prim, banf_reduce, banf_rename, bruijn, terms
@@ -162,17 +162,19 @@ class _Translator:
             case terms.Formed(term=terms.ByteArray(value=value), form=form):
                 _check_data_form(form, location, 'Byte array')
                 return banf.Const(value, form, location)
-            case terms.Formed():
-                raise TranslationError('Only a byte array without a form can be given a form.', location)
+            case terms.Formed(term=inner, form=form):
+                # The written form replaces the inner atom's form, which may itself be written.
+                _check_data_form(form, location, 'Formed atom')
+                return replace(self.atom(inner, block), form=form, location=location)
             case terms.BruijnIndex():
                 match block.binder(term):
                     case ('let', name):
-                        return banf.Var(name, location)
+                        return banf.Var(name, location=location)
                     case str() as name:
                         raise _not_a_value(name, location)
             case terms.Project(struct=struct, label=label) if block.binder(struct) == ARGS:
                 if any(param == label for param, _ in block.params):
-                    return banf.Var(label, location)
+                    return banf.Var(label, location=location)
                 raise TranslationError(f'Block has no param {label!r}.', location)
         raise TranslationError('Expected an atom: a byte array, a let name, or args.label.', location)
 
@@ -190,7 +192,7 @@ class _Translator:
         match argument:
             case terms.BruijnIndex() if block.binder(argument) == ARGS:
                 got = [label for label, _ in block.params]
-                atoms = [banf.Var(label, location) for label in got]
+                atoms = [banf.Var(label, location=location) for label in got]
             case terms.Struct(fields=fields):
                 got = [f.label for f in fields]
                 atoms = [self.atom(f.value, block) for f in fields]
@@ -274,7 +276,7 @@ class _Translator:
                 case terms.Apply(function=terms.Lambda(param_name=name, param_form=form, body=rest), argument=value):
                     if form is not terms.Empty:
                         _check_data_form(form, location, f'Let {name!r}')
-                    let = banf.Let(name, self.op(value, block), form, location)
+                    let = banf.Let(name, self.op(value, block), form, location=location)
                     block.lets.append(let)
                     term = rest
                     continue

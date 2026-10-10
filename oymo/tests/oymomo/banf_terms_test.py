@@ -21,6 +21,7 @@ from oymo.oymomo.banf_terms import (
     Return,
     Signature,
     Var,
+    atom_form,
     form_of,
     let_form,
     show,
@@ -217,6 +218,17 @@ def test_verify_rejects_jump_to_entry_and_unknown_block():
         verify(one_block([], Jump('entry', [])))
     with pytest.raises(FormError, match="Unknown block 'nowhere'"):
         verify(one_block([], Jump('nowhere', [])))
+
+
+def test_formed_var_has_the_written_form():
+    # n is i8; n:i32 is i32, unchecked, so it can be passed where i32 is expected.
+    assert atom_form(Var('n', I32), {'n': I8}) == I32
+    assert atom_form(Var('n'), {'n': I8}) == I8
+    with pytest.raises(FormError, match="Unknown name 'm'"):
+        atom_form(Var('m', I32), {})
+    module = one_block([Let('t0', PrimCall('add_i32', [Var('n', I32), ZERO]))], Return(Var('t0')), params=[('n', I8)])
+    verify(module)
+    assert show(module).splitlines()[2] == '    t0 = prim.add_i32(n:i32, [00000000]:i32)'
 
 
 def test_let_form_replaces_op_form():

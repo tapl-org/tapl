@@ -459,14 +459,42 @@ def test_formed_byte_array_is_a_constant():
     """)
 
 
+def test_formed_atom_has_the_written_form():
+    # A form is not a type: the written form replaces the atom's form, unchecked.
+    assert banf("main = f -> {entry = args:{n = 'i8'} -> args.n:'i32'}") == text("""
+        main: i32
+          entry(n: i8):
+            return n:i32
+    """)
+    assert banf("main = f -> {entry = args:{} -> ([2a]:'i8'):'i16'}") == text("""
+        main: i16
+          entry():
+            return [2a]:i16
+    """)
+
+
+def test_formed_let_name():
+    source = "main = f -> {entry = args:{n = 'i32'} -> let t = prim.add_i32 {a = args.n, b = args.n} in t:'i8'}"
+    assert banf(source) == text("""
+        main: i8
+          entry(n: i32):
+            t = prim.add_i32(n, n)
+            return t:i8
+    """)
+
+
+def test_let_with_a_form_and_an_atom_reduces_to_a_formed_atom():
+    # The let isn't an op, so it's beta-reduced, and beta carries its form: args.n : 'i32'.
+    assert banf("main = f -> {entry = args:{n = 'i32'} -> let m: 'i32' = args.n in m}") == text("""
+        main: i32
+          entry(n: i32):
+            return n:i32
+    """)
+
+
 @pytest.mark.parametrize(
     ('defs', 'message'),
     [
-        ("main = f -> {entry = args:{} -> ([2a]:'i8'):'i16'}", 'Only a byte array without a form can be given a form.'),
-        (
-            "main = f -> {entry = args:{n = 'i8'} -> args.n:'i8'}",
-            'Only a byte array without a form can be given a form.',
-        ),
         (
             "main = f -> {entry = args:{} -> [2a]:'i8' => 'i8'}",
             'Byte array: function forms nested inside other forms are not supported.',

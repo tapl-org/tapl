@@ -187,8 +187,11 @@ from an expression, so a byte array's form can be a variable:
   with one meaning, and beta reduction alone gives a dynamic form.
 - `Formed` itself never reduces. `whnf` reduces inside `Formed.term`, and an `if` sees
   through a form on its condition.
-- BANF translation turns a formed byte array into a constant. It rejects any other
-  `Formed`, including a form on a formed byte array (`([01]:'i8'):'i16'`).
+- BANF translation turns a formed byte array into a constant, and any other formed
+  atom into that atom with the written form. The written form replaces the atom's
+  own form, unchecked: `([01]:'i8'):'i16'` is the constant `[01]:i16`, and `args.n:'i32'`
+  is `n:i32` in BANF even when `n` is `i8`. LLVM translation rejects a formed name whose
+  LLVM type differs from the name's.
 - Precedence, highest first: atom, project `.`, `=>`, `:`, apply and `fix`,
   `->`/`if`/`let`. The rule: values bind tighter than reducibles. `Formed` and
   `FunctionForm` never reduce, so `:` and `=>` bind tighter than application; `.` binds
@@ -762,6 +765,9 @@ arithmetic and keeps no binder names of its own. A let reference becomes a
   `eq_i32` gives `i1`. BANF prints it as `t0: i32 = prim.eq_i32(...)`. LLVM translation
   rejects it, since the LLVM types differ (see "BANF to LLVM").
 - **Atoms**: a byte array with a literal form (`[01] : 'i8'`), a let name, or `args.label`.
+  Any atom can be given a literal form, which replaces its own (`args.n : 'i32'`,
+  `t : 'i8'`). `let m: 'i32' = args.n in m` isn't a let in BANF: its value isn't an op,
+  so it's beta-reduced, and beta carries the form, giving `args.n : 'i32'`.
 - **Ops**, only as a let's value: `prim.op {...}`, `defs.g {...}`, `decls.g {...}`,
   a struct literal of atoms (`MakeStruct`), a projection on an atom
   (`let x = args.p.x in ...` is a `GetField` on param `p`), or `decls.g` for
@@ -868,6 +874,8 @@ else0:
   intermediate values are named after the let and field (`%q.x`) instead of
   llvmlite's numbering.
 - `GetData` is a `load` from the external global. `GetField` is `extractvalue`.
+- A formed name (`n:i32`) is checked the same way: used as it is if the LLVM types are
+  equal, otherwise rejected ("'n' is formed as i32, but its LLVM type is i8.").
 - A let with a written form: if the form's LLVM type equals the op's value type (for
   example, a struct form with other labels and the same field types), the value is
   used as it is. Otherwise it's rejected ("Let 't0' is formed as i32, but its op gives

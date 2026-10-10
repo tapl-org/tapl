@@ -82,7 +82,14 @@ class _FunctionTranslator:
     def value(self, atom, values):
         if isinstance(atom, banf.Const):
             return _const(atom)
-        return values[atom.name]
+        value = values[atom.name]
+        if atom.form is not terms.Empty and llvm_type(atom.form) != value.type:
+            # A form isn't a type, so BANF accepts any atom form. LLVM can't: it never converts.
+            raise LlvmTranslationError(
+                f'{atom.name!r} is formed as {banf.show_form(atom.form)}, but its LLVM type is {value.type}.',
+                atom.location,
+            )
+        return value
 
     def translate(self):
         entry = self.function.blocks[0]

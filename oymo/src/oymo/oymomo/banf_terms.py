@@ -13,7 +13,10 @@ Location = terms.Location
 
 @dataclass
 class Var:
+    """A name. A written `form` replaces the name's form; `Empty` means the name's own form."""
+
     name: str
+    form: terms.Term = terms.Empty
     location: Location | None = field(default=None, compare=False)
 
 
@@ -157,10 +160,11 @@ def atom_form(atom: Atom, forms: Mapping[str, terms.Term]) -> terms.Term:
     match atom:
         case Const(form=form):
             return form
-        case Var(name=name):
+        case Var(name=name, form=form):
             if name not in forms:
                 raise FormError(f'Unknown name {name!r}.', atom.location)
-            return forms[name]
+            # A written form replaces the name's form; the two are not compared.
+            return forms[name] if form is terms.Empty else form
     raise AssertionError(atom)
 
 
@@ -331,8 +335,8 @@ def _show_field_form(form):
 
 def show_atom(atom: Atom) -> str:
     match atom:
-        case Var(name=name):
-            return show_name(name)
+        case Var(name=name, form=form):
+            return show_name(name) if form is terms.Empty else f'{show_name(name)}:{show_form(form)}'
         case Const(value=value, form=form):
             return f'[{value.hex()}]:{show_form(form)}'
     raise AssertionError(atom)
