@@ -171,7 +171,7 @@ def _flat(term, level, names):
         case terms.FunctionForm(param=param, result=result):
             text = _arrow_text(param, result, lambda t, level: _flat(t, level, names))
         case terms.Struct(fields=fields):
-            text = '{' + ', '.join(f'{_name(f.label)} = {_flat(f.value, _EXPRESSION, names)}' for f in fields) + '}'
+            text = '{' + ', '.join(f'{_name(f.label)}= {_flat(f.value, _EXPRESSION, names)}' for f in fields) + '}'
         case terms.Project(struct=struct, label=label):
             text = f'{_flat(struct, _PROJECT, names)}.{_name(label)}'
         case terms.If(condition=c, then_clause=t, else_clause=e):
@@ -224,7 +224,7 @@ def _pretty(term, level, depth, column, width, indent, names):
         case terms.Struct(fields=fields):
             lines = []
             for f in fields:
-                head = f'{inner}{_name(f.label)} = '
+                head = f'{inner}{_name(f.label)}= '
                 lines.append(f'{head}{sub(f.value, _EXPRESSION, depth + 1, len(head))},')
             text = '{\n' + '\n'.join(lines) + '\n' + pad + '}'
         case terms.Project(struct=struct, label=label):

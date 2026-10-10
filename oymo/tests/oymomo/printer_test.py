@@ -95,14 +95,14 @@ def test_function_form_without_param(source, expected):
 
 def test_struct_shaped_like_a_function_form_prints_as_a_struct():
     assert pretty("x: {tag = ' => ', param = {c = 'i8'}, result = 'i32'} -> x") == (
-        "x: {tag = ' => ', param = {c = 'i8'}, result = 'i32'} → x"
+        "x: {tag= ' => ', param= {c= 'i8'}, result= 'i32'} → x"
     )
 
 
 def test_pretty_function_forms_group_only_as_params():
-    assert pretty("g: ({c = 'i8'} => 'i32') -> g") == "g: {c = 'i8'} ⇒ 'i32' → g"
-    assert pretty("[]: {f = {c = 'i8'} => 'i32'}") == "[]: {f = {c = 'i8'} ⇒ 'i32'}"
-    assert pretty("[]: {f = ({a = 'i8'} => 'i8') => 'i32'}") == "[]: {f = ({a = 'i8'} ⇒ 'i8') ⇒ 'i32'}"
+    assert pretty("g: ({c = 'i8'} => 'i32') -> g") == "g: {c= 'i8'} ⇒ 'i32' → g"
+    assert pretty("[]: {f = {c = 'i8'} => 'i32'}") == "[]: {f= {c= 'i8'} ⇒ 'i32'}"
+    assert pretty("[]: {f = ({a = 'i8'} => 'i8') => 'i32'}") == "[]: {f= ({a= 'i8'} ⇒ 'i8') ⇒ 'i32'}"
 
 
 def test_pretty_quotes_names_that_need_it():
@@ -145,15 +145,15 @@ def test_text_bytes_print_quoted_only_up_to_128_bytes():
 def test_pretty_breaks_long_terms():
     assert pretty(FACT) == textwrap.dedent("""\
         prim → decls: {} → defs → {
-          fact = f → {
-            entry = args: {n = 'i32'} →
-              let t0 = prim.eq_i32 {a = args.n, b = [00000000]: 'i32'} in
-              if t0 then f.then0 {} else f.else0 {n = args.n},
-            then0 = args: {} → [01000000]: 'i32',
-            else0 = args: {n = 'i32'} →
-              let t1 = prim.sub_i32 {minuend = args.n, subtrahend = [01000000]: 'i32'} in
-              let t2 = defs.fact {n = t1} in
-              let t3 = prim.mul_i32 {a = args.n, b = t2} in t3,
+          fact= f → {
+            entry= args: {n= 'i32'} →
+              let t0 = prim.eq_i32 {a= args.n, b= [00000000]: 'i32'} in
+              if t0 then f.then0 {} else f.else0 {n= args.n},
+            then0= args: {} → [01000000]: 'i32',
+            else0= args: {n= 'i32'} →
+              let t1 = prim.sub_i32 {minuend= args.n, subtrahend= [01000000]: 'i32'} in
+              let t2 = defs.fact {n= t1} in
+              let t3 = prim.mul_i32 {a= args.n, b= t2} in t3,
           },
         }""")
 
@@ -209,11 +209,11 @@ def test_name_indices_where_safe(source, expected):
 
 def test_width_and_indent_flags():
     term = parse('defs -> {main = f a, id = x -> x}')
-    assert show(term, pretty=True) == 'defs → {main = f a, id = x → x}'
+    assert show(term, pretty=True) == 'defs → {main= f a, id= x → x}'
     assert show(term, pretty=True, width=20, indent=4) == textwrap.dedent("""\
         defs → {
-            main = f a,
-            id = x → x,
+            main= f a,
+            id= x → x,
         }""")
 
 
@@ -266,7 +266,7 @@ def test_show_form():
     i8, i32 = terms.ByteArray(b'i8'), terms.ByteArray(b'i32')
     form = terms.Struct([terms.Field('f', terms.FunctionForm(i8, i32)), terms.Field('x', terms.ByteArray(b'unknown'))])
     assert show_form(form) == "{f = 'i8' ⇒ 'i32', x = 'unknown'}"
-    assert show_form(form, pretty=True) == "{f = 'i8' ⇒ 'i32', x = 'unknown'}"
+    assert show_form(form, pretty=True) == "{f= 'i8' ⇒ 'i32', x= 'unknown'}"
     assert show_form(terms.FunctionForm(form, i32)) == "{f = 'i8' ⇒ 'i32', x = 'unknown'} ⇒ 'i32'"
     assert show_form(terms.Variable('i32')) == 'i32'
     assert show_form(terms.Apply(terms.Variable('f'), i32)) == "(f 'i32')"
