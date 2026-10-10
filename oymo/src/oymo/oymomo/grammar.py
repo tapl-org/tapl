@@ -129,6 +129,10 @@ def _function_form(c):
     return terms.FunctionForm(param=param, result=result, location=_location(c))
 
 
+def _function_form_without_param(c):
+    return terms.FunctionForm(param=terms.Empty, result=c.values[0], location=_location(c))
+
+
 def _formed(c):
     term, form = c.values
     return terms.Formed(term=term, form=form, location=_location(c))
@@ -203,9 +207,11 @@ RULES: dict[str, Clause] = {
         Ref(rn.ARROW),
     ),
     # `P => R` is a FunctionForm. It binds tighter than apply and looser than `.`, so
-    # `f a => g b` is `f (a => g) b`. It is right associative.
+    # `f a => g b` is `f (a => g) b`. It is right associative. `=> R` leaves the param out
+    # (`Empty`), which differs from `{} => R`, a param struct with no fields.
     rn.ARROW: First(
         Seq(Ref(rn.PROJECT), _punct('=>', '⇒'), Ref(rn.ARROW), action=_function_form),
+        Seq(_punct('=>', '⇒'), Ref(rn.ARROW), action=_function_form_without_param),
         Ref(rn.PROJECT),
     ),
     rn.PROJECT: First(

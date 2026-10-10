@@ -9,7 +9,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [x] 1. `terms.Void` goes back to `terms.Empty` (`oymomo: an omitted form is Empty, not void`)
 - [x] 2. A let's form replaces its op's form (`oymomo: a let's form replaces its op's form`)
 - [x] 3. A formed atom has the written form (`oymomo: any atom can be formed`)
-- [ ] 4. `=> R`: a function form without params (`oymomo: a function form's param may be omitted`)
+- [x] 4. `=> R`: a function form without params (`oymomo: a function form's param may be omitted`)
 - [ ] 5. One `module` binder declares every symbol (`oymomo: merge decls and defs into module`)
 - [ ] 6. Data defined in the module body (`oymomo: module data can be defined`)
 - [ ] 7. Wrap up (`docs: plan_banf_explicit implemented`)
@@ -246,7 +246,7 @@ Each step leaves `hatch run full-check` green and updates `docs/notes.md` for it
   argument it gets parentheses.
 - `banf_terms.show_form`: `(=> R)`.
 - `banf_translate`: until step 5, a `decls` function form with an `Empty` param is
-  rejected ("an import needs its params").
+  rejected ("definition is not found").
 - Tests: parse and print `=> 'i1'`, `=> => 'i1'`, `{} => 'i1'`, `f => b`, `f (=> b)`.
 - `notes.md`: "Function forms".
 

@@ -58,9 +58,9 @@ def _compact(term, names, level=_EXPRESSION):
             suffix = _compact_suffix(form, names)
             text = f'let {_name(name)}{suffix} = {value} in {_compact(body, _bind(names, name))}'
         case terms.Apply(function=function, argument=argument):
-            text = f'{_compact(function, names, _APPLY)} {_compact(argument, names, _FORMED)}'
+            text = f'{_compact(function, names, _APPLY)} {_compact(argument, names, _argument_level(argument))}'
         case terms.FunctionForm(param=param, result=result):
-            text = f'{_compact(param, names, _PROJECT)} ⇒ {_compact(result, names, _ARROW)}'
+            text = _arrow_text(param, result, lambda t, level: _compact(t, names, level))
         case terms.Struct(fields=fields):
             text = '{' + ', '.join(f'{_name(f.label)} = {_compact(f.value, names)}' for f in fields) + '}'
         case terms.Project(struct=struct, label=label):
@@ -101,6 +101,28 @@ def _formed_term(term, show, *, grouped):
     if isinstance(term, terms.ByteArray):
         return _bytes_text(term.value, grouped=grouped, text=False)
     return show(term, _ARROW)
+
+
+def _arrow_text(param, result, show):
+    """`P ⇒ R`, or `⇒ R` when the param is omitted."""
+    result_text = show(result, _ARROW)
+    return f'⇒ {result_text}' if param is terms.Empty else f'{show(param, _PROJECT)} ⇒ {result_text}'
+
+
+def _starts_with_arrow(term):
+    """Whether `term`, printed without parentheses, starts with `⇒` (an omitted param)."""
+    match term:
+        case terms.FunctionForm(param=param):
+            return param is terms.Empty
+        case terms.Formed(term=inner):
+            return not isinstance(inner, terms.ByteArray) and _loosest(inner) >= _ARROW and _starts_with_arrow(inner)
+    return False
+
+
+def _argument_level(argument):
+    """An apply argument prints at `_FORMED`. One starting with `⇒` needs parentheses, since
+    `f ⇒ b` would read as `f` being the param: `f (⇒ b)`."""
+    return _PROJECT if _starts_with_arrow(argument) else _FORMED
 
 
 def _loosest(term):
@@ -145,9 +167,9 @@ def _flat(term, level, names):
             suffix = _form_suffix(form, names)
             text = f'let {_name(name)}{suffix} = {value} in {_flat(body, _EXPRESSION, _bind(names, name))}'
         case terms.Apply(function=function, argument=argument):
-            text = f'{_flat(function, _APPLY, names)} {_flat(argument, _FORMED, names)}'
+            text = f'{_flat(function, _APPLY, names)} {_flat(argument, _argument_level(argument), names)}'
         case terms.FunctionForm(param=param, result=result):
-            text = f'{_flat(param, _PROJECT, names)} ⇒ {_flat(result, _ARROW, names)}'
+            text = _arrow_text(param, result, lambda t, level: _flat(t, level, names))
         case terms.Struct(fields=fields):
             text = '{' + ', '.join(f'{_name(f.label)} = {_flat(f.value, _EXPRESSION, names)}' for f in fields) + '}'
         case terms.Project(struct=struct, label=label):
@@ -197,7 +219,8 @@ def _pretty(term, level, depth, column, width, indent, names):
             value = sub(argument, _EXPRESSION, depth, column + len(header))
             text = f'{header}{value} in\n{pad}{sub(body, _EXPRESSION, depth, len(pad), _bind(names, name))}'
         case terms.Apply(function=function, argument=argument):
-            text = f'{sub(function, _APPLY, depth, column)}\n{inner}{sub(argument, _FORMED, depth + 1, len(inner))}'
+            argument_text = sub(argument, _argument_level(argument), depth + 1, len(inner))
+            text = f'{sub(function, _APPLY, depth, column)}\n{inner}{argument_text}'
         case terms.Struct(fields=fields):
             lines = []
             for f in fields:

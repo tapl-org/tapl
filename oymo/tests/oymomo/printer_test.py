@@ -70,6 +70,29 @@ def test_binder_forms_print_at_the_formed_level():
     assert pretty("x: ([00]: 'i8') => 'i32' -> x") == "x: ([00]: 'i8') ⇒ 'i32' → x"
 
 
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        ("=> 'i1'", "⇒ 'i1'"),
+        ("=> => 'i1'", "⇒ ⇒ 'i1'"),
+        ("{} => 'i1'", "{} ⇒ 'i1'"),
+        ("{main = => 'i1'}", "{main = ⇒ 'i1'}"),
+        ('a => => b', 'a ⇒ ⇒ b'),
+        ('(=> a) => b', '(⇒ a) ⇒ b'),
+        # As an apply argument, `⇒ b` needs parens, or `f` would read as its param.
+        ('f (=> b)', 'f (⇒ b)'),
+        ('f ((=> a):x)', 'f (⇒ a:x)'),
+        ('(=> a) b', '⇒ a b'),
+        ('y : => a', 'y:⇒ a'),
+        ('x : => a -> x', 'x:⇒ a → x'),
+    ],
+)
+def test_function_form_without_param(source, expected):
+    assert show(parse(source)) == expected
+    assert parse(expected) == parse(source)
+    assert parse(pretty(source)) == parse(source)
+
+
 def test_struct_shaped_like_a_function_form_prints_as_a_struct():
     assert pretty("x: {tag = ' => ', param = {c = 'i8'}, result = 'i32'} -> x") == (
         "x: {tag = ' => ', param = {c = 'i8'}, result = 'i32'} → x"

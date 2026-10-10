@@ -421,6 +421,11 @@ def test_imports():
             "{g = 'i8' => 'i32'}",
             "Import 'g': a function form needs a struct form as its param.",
         ),
+        (
+            "main = f -> {entry = args:{} -> [01]:'i8'}",
+            "{g = => 'i32'}",
+            "Import 'g': definition is not found; a function form without params needs one.",
+        ),
         ("main = f -> {entry = args:{} -> [01]:'i8'}", '{g = (prim)}', "Import 'g': form must be a literal, got ($0)."),
         ("main = f -> {entry = args:{} -> [01]:'i8'}", "{main = 'i32'}", "'main' is in both decls and defs."),
     ],

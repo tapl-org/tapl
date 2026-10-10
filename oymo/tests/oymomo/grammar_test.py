@@ -221,6 +221,21 @@ def test_function_form_is_its_own_term():
     assert isinstance(parse("{tag = ' => ', param = {c = 'i8'}, result = 'i32'}"), terms.Struct)
 
 
+def test_function_form_without_param():
+    i1 = terms.name_to_form('i1')
+    assert parse("=> 'i1'") == terms.FunctionForm(terms.Empty, i1)
+    assert parse("⇒ 'i1'") == terms.FunctionForm(terms.Empty, i1)
+    assert parse("=> => 'i1'") == terms.FunctionForm(terms.Empty, terms.FunctionForm(terms.Empty, i1))
+    # `{} => R` declares zero params; `=> R` leaves the param out.
+    assert parse("{} => 'i1'") == terms.FunctionForm(terms.Struct([]), i1)
+    assert parse("{main = => 'i1'}") == terms.Struct([terms.Field('main', terms.FunctionForm(terms.Empty, i1))])
+    # With something on its left, `=>` takes it as the param; as an argument it needs parens.
+    f, b = terms.Variable('f'), terms.Variable('b')
+    assert parse('f => b') == terms.FunctionForm(f, b)
+    assert parse('f (=> b)') == terms.Apply(f, terms.FunctionForm(terms.Empty, b))
+    assert parse("a => => 'i1'") == terms.FunctionForm(terms.Variable('a'), terms.FunctionForm(terms.Empty, i1))
+
+
 def test_function_form_is_an_expression():
     assert show(parse("{f = {a = 'i8'} => 'i32'}")) == "{f = {a = 'i8'} ⇒ 'i32'}"
     assert show(parse("let f = 'i8' => 'i32' in f")) == "let f = 'i8' ⇒ 'i32' in f"

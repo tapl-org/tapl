@@ -102,6 +102,10 @@ def _imports(decls_form, location):
         what = f'Import {label!r}'
         if isinstance(form, terms.FunctionForm):
             param, result = form.param, form.result
+            if param is terms.Empty:
+                raise TranslationError(
+                    f'{what}: definition is not found; a function form without params needs one.', location
+                )
             if not isinstance(param, terms.Struct):
                 raise TranslationError(f'{what}: a function form needs a struct form as its param.', location)
             params = [(f.label, f.value) for f in param.fields]

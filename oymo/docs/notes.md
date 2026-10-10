@@ -316,6 +316,12 @@ Kept after byte arrays moved to `[]`; `#` is now unused.
 - `=>` binds tighter than `:`, so `[00]: 'i8' => 'i32'` is a byte array whose form
   is a function form. So a param with a form needs parentheses:
   `([00]: 'i8') => 'i32'`. The printer adds them.
+- `=> R` leaves the param out: `FunctionForm(Empty, R)`. It is not `{} => R`, whose
+  param is a struct with no fields. `=> => R` is `=> (=> R)`. With something on its
+  left, `=>` takes that as the param, so `f => b` is `(f) => b`; as an apply argument
+  it needs parentheses, `f (=> b)`, which the printer adds. The BANF printer shows
+  `(=> R)`. BANF translation rejects it in `decls`: it declares a defined function, and
+  `decls` has no definition ("definition is not found").
 
 ### Printer: compact for tests, pretty for people
 `printer.show(term)` and `printer.show_form(form)` live in `printer.py`, not in the
