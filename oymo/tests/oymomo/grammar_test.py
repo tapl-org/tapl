@@ -136,7 +136,7 @@ def test_byte_array_as_argument():
     assert parse("f [01] : 'u8' [02]") == parse("f ([01] : 'u8') [02]")
     assert show(parse("f ([01] : 'u8') [02]")) == "f [01]:'u8' [02]"
     assert parse("(f [01]) : 'u8'") == terms.Formed(
-        terms.Apply(terms.Variable('f'), terms.ByteArray(b'\x01')), terms.name_to_form('u8')
+        terms.Apply(terms.Variable('f'), terms.ByteArray(b'\x01')), terms.ByteArray(b'u8')
     )
 
 
@@ -147,10 +147,10 @@ def test_omitted_forms_are_empty():
 
 def test_forms_are_terms():
     assert parse("[00] : {x = 'i8', y = 'i32'}").form == terms.Struct(
-        [terms.Field('x', terms.name_to_form('i8')), terms.Field('y', terms.name_to_form('i32'))]
+        [terms.Field('x', terms.ByteArray(b'i8')), terms.Field('y', terms.ByteArray(b'i32'))]
     )
-    assert parse("x: 'i32' -> x").param_form == terms.name_to_form('i32')
-    assert parse('x: [69 33 32] -> x').param_form == terms.name_to_form('i32')
+    assert parse("x: 'i32' -> x").param_form == terms.ByteArray(b'i32')
+    assert parse('x: [69 33 32] -> x').param_form == terms.ByteArray(b'i32')
 
 
 def test_every_struct_field_needs_a_value():
@@ -159,7 +159,7 @@ def test_every_struct_field_needs_a_value():
 
 
 def test_void_is_an_ordinary_form_name():
-    assert parse("x: 'void' -> x").param_form == terms.name_to_form('void')
+    assert parse("x: 'void' -> x").param_form == terms.ByteArray(b'void')
 
 
 def test_binder_form_is_an_ordinary_expression():
@@ -215,14 +215,14 @@ def test_function_form_is_right_associative():
 def test_function_form_is_its_own_term():
     sugar = parse("{c = 'i8'} => 'i32'")
     assert sugar == terms.FunctionForm(
-        terms.Struct([terms.Field('c', terms.name_to_form('i8'))]), terms.name_to_form('i32')
+        terms.Struct([terms.Field('c', terms.ByteArray(b'i8'))]), terms.ByteArray(b'i32')
     )
     assert sugar == parse("{c = 'i8'} ⇒ 'i32'")
     assert isinstance(parse("{tag = ' => ', param = {c = 'i8'}, result = 'i32'}"), terms.Struct)
 
 
 def test_function_form_without_param():
-    i1 = terms.name_to_form('i1')
+    i1 = terms.ByteArray(b'i1')
     assert parse("=> 'i1'") == terms.FunctionForm(terms.Empty, i1)
     assert parse("⇒ 'i1'") == terms.FunctionForm(terms.Empty, i1)
     assert parse("=> => 'i1'") == terms.FunctionForm(terms.Empty, terms.FunctionForm(terms.Empty, i1))
@@ -327,21 +327,21 @@ def test_formed():
         terms.Variable('y'), terms.Variable('x')
     )
     assert parse("y : 'i8' => 'i32'") == terms.Formed(
-        y, terms.FunctionForm(terms.name_to_form('i8'), terms.name_to_form('i32'))
+        y, terms.FunctionForm(terms.ByteArray(b'i8'), terms.ByteArray(b'i32'))
     )
 
 
 def test_formed_leaves_binder_forms_alone():
     # A lambda is tried first. A byte array is only bytes, so its `: form` is a Formed.
     assert isinstance(parse("x : 'i8' -> x"), terms.Lambda)
-    assert parse("x : 'i8'") == terms.Formed(terms.Variable('x'), terms.name_to_form('i8'))
-    assert parse("[01] : 'i8'") == terms.Formed(terms.ByteArray(b'\x01'), terms.name_to_form('i8'))
+    assert parse("x : 'i8'") == terms.Formed(terms.Variable('x'), terms.ByteArray(b'i8'))
+    assert parse("[01] : 'i8'") == terms.Formed(terms.ByteArray(b'\x01'), terms.ByteArray(b'i8'))
     assert parse('[01] : y') == terms.Formed(terms.ByteArray(b'\x01'), terms.Variable('y'))
     assert parse("[01] : 'i8'").location == syntax.Location(0, 11)
 
 
 def test_byte_array_with_a_form_in_a_binder_form():
-    i8 = terms.name_to_form('i8')
+    i8 = terms.ByteArray(b'i8')
     assert parse("x: [00]: 'i8' -> x").param_form == terms.Formed(terms.ByteArray(b'\x00'), i8)
     assert show(parse("x: [00]: 'i8' -> x")) == "x:[00]:'i8' → x"
     assert show(parse("x: ([00]: 'i8') => 'i32' -> x")) == "x:([00]:'i8') ⇒ 'i32' → x"
@@ -349,7 +349,7 @@ def test_byte_array_with_a_form_in_a_binder_form():
 
 def test_function_form_param_with_a_form_needs_parens():
     term = parse("([00]: 'i8') => 'i32'")
-    assert term.param == terms.Formed(terms.ByteArray(b'\x00'), terms.name_to_form('i8'))
+    assert term.param == terms.Formed(terms.ByteArray(b'\x00'), terms.ByteArray(b'i8'))
     assert show(term) == "([00]:'i8') ⇒ 'i32'"
     assert parse("[00]: 'i8' => 'i32'").form == parse("'i8' => 'i32'")
 

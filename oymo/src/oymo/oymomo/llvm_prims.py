@@ -62,7 +62,7 @@ def _impl(signature: banf_prim.PrimSignature) -> PrimImpl:
         return _binary(_BINARY[template])
     if template in _COMPARE:
         return _compare(*_COMPARE[template])
-    result = terms.form_to_name(signature.result)
+    result = signature.result.as_str if isinstance(signature.result, terms.ByteArray) else None
     if result is None:
         raise ValueError(f'Prim {signature.name!r} has no named result form.')
     return _convert(_CONVERT[template], result)

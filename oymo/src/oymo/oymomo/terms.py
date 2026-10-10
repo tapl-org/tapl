@@ -103,10 +103,24 @@ class Fix(Term):
 
 
 # Only bytes. `[01] : 'i8'` is `Formed(ByteArray([01]), 'i8')`.
+# Forms are terms. A named form such as `i32` is the byte array `'i32'`.
 @dataclass
 class ByteArray(Term):
     value: bytes
     location: Location | None = field(default=None, compare=False)
+
+    @classmethod
+    def from_str(cls, text: str) -> 'ByteArray':
+        """The UTF-8 bytes of `text`."""
+        return cls(text.encode('utf-8'))
+
+    @property
+    def as_str(self) -> str | None:
+        """The bytes decoded as UTF-8. None if they aren't valid UTF-8."""
+        try:
+            return self.value.decode('utf-8')
+        except UnicodeDecodeError:
+            return None
 
     def children(self) -> Generator[Term, None, None]:
         yield from ()
@@ -134,20 +148,3 @@ class FunctionForm(Term):
     def children(self) -> Generator[Term, None, None]:
         yield self.param
         yield self.result
-
-
-# Forms are terms. A named form such as `i32` is the byte array `'i32'`.
-
-
-def name_to_form(name: str) -> ByteArray:
-    return ByteArray(name.encode('ascii'))
-
-
-def form_to_name(form: Term) -> str | None:
-    """The name of a named form: the text of a byte array. None otherwise."""
-    if isinstance(form, ByteArray):
-        try:
-            return form.value.decode('ascii')
-        except UnicodeDecodeError:
-            return None
-    return None

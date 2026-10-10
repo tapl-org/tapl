@@ -152,7 +152,7 @@ def test_single_predecessor_binds_params_and_multiple_predecessors_get_phis():
 
 def test_rejects_branch_with_same_target_twice():
     # oymomo translation already rejects this, so the module is built directly.
-    i1, i8 = terms.name_to_form('i1'), terms.name_to_form('i8')
+    i1, i8 = terms.ByteArray(b'i1'), terms.ByteArray(b'i8')
     function = Function(
         'g',
         i8,

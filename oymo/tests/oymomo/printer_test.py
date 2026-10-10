@@ -263,10 +263,8 @@ def test_output_parses_back_to_the_same_term(source):
 
 
 def test_show_form():
-    i8, i32 = terms.name_to_form('i8'), terms.name_to_form('i32')
-    form = terms.Struct(
-        [terms.Field('f', terms.FunctionForm(i8, i32)), terms.Field('x', terms.name_to_form('unknown'))]
-    )
+    i8, i32 = terms.ByteArray(b'i8'), terms.ByteArray(b'i32')
+    form = terms.Struct([terms.Field('f', terms.FunctionForm(i8, i32)), terms.Field('x', terms.ByteArray(b'unknown'))])
     assert show_form(form) == "{f = 'i8' ⇒ 'i32', x = 'unknown'}"
     assert show_form(form, pretty=True) == "{f = 'i8' ⇒ 'i32', x = 'unknown'}"
     assert show_form(terms.FunctionForm(form, i32)) == "{f = 'i8' ⇒ 'i32', x = 'unknown'} ⇒ 'i32'"
@@ -279,7 +277,7 @@ def test_formed():
     byte = terms.ByteArray(b'\x01')
     assert show(terms.Formed(y, x)) == 'y:x'
     assert show(terms.Formed(y, x), pretty=True) == 'y: x'
-    assert show(terms.Formed(byte, terms.name_to_form('i1'))) == "[01]:'i1'"
+    assert show(terms.Formed(byte, terms.ByteArray(b'i1'))) == "[01]:'i1'"
     assert show(terms.Formed(terms.Apply(f, y), terms.Apply(f, x))) == '(f y):(f x)'
     assert show(terms.Apply(f, terms.Formed(y, x))) == 'f y:x'
     assert show(terms.Apply(terms.Formed(f, x), y)) == 'f:x y'
@@ -296,7 +294,7 @@ def test_formed():
 
 def test_formed_byte_array_in_parens_where_needed():
     # `[01]:'i8':'i16'` would read as `[01] : ('i8' : 'i16')`.
-    i8, i16 = terms.name_to_form('i8'), terms.name_to_form('i16')
+    i8, i16 = terms.ByteArray(b'i8'), terms.ByteArray(b'i16')
     byte = terms.ByteArray(b'\x01')
     assert show(terms.Formed(terms.Formed(byte, i8), i16)) == "([01]:'i8'):'i16'"
     assert show(terms.Apply(terms.Variable('f'), terms.Formed(byte, i8))) == "f [01]:'i8'"

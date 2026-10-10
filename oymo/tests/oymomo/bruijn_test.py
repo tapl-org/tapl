@@ -165,5 +165,5 @@ def test_resolve_reaches_formed():
 @pytest.mark.parametrize(('value', 'expected'), [(b'\x01', 'a'), (b'\x00', 'b')])
 def test_reduce_if_sees_through_a_form(value, expected):
     a, b = terms.BruijnIndex(1), terms.BruijnIndex(0)
-    condition = terms.Formed(terms.ByteArray(value), terms.name_to_form('i1'))
+    condition = terms.Formed(terms.ByteArray(value), terms.ByteArray(b'i1'))
     assert bruijn.reduce(terms.If(condition, a, b)) == {'a': a, 'b': b}[expected]

@@ -8,7 +8,7 @@ from oymo.oymomo import banf_terms, terms
 from oymo.oymomo.banf_translate import TranslationError, translate
 from oymo.oymomo.grammar import parse
 
-I8, I16, I32 = (terms.name_to_form(name) for name in ('i8', 'i16', 'i32'))
+I8, I16, I32 = (terms.ByteArray(name) for name in (b'i8', b'i16', b'i32'))
 
 
 def program(defs, decls):

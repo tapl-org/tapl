@@ -29,7 +29,8 @@ class Target:
 
 
 def llvm_type(form: terms.Term) -> ir.Type:
-    if (name := terms.form_to_name(form)) is not None and (match := _INT_FORM.fullmatch(name)):
+    name = form.as_str if isinstance(form, terms.ByteArray) else None
+    if name is not None and (match := _INT_FORM.fullmatch(name)):
         return ir.IntType(int(match.group(1)))
     if isinstance(form, terms.Struct):
         return ir.LiteralStructType([llvm_type(f.value) for f in form.fields])
@@ -37,7 +38,7 @@ def llvm_type(form: terms.Term) -> ir.Type:
 
 
 def _const(atom: banf.Const) -> ir.Constant:
-    name = terms.form_to_name(atom.form)
+    name = atom.form.as_str if isinstance(atom.form, terms.ByteArray) else None
     match = _INT_FORM.fullmatch(name) if name is not None else None
     if match is None:
         raise LlvmTranslationError(

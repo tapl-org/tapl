@@ -190,7 +190,7 @@ def test_runs_out_of_fuel():
 
 
 def test_whnf_reduces_inside_formed():
-    i1 = terms.name_to_form('i1')
+    i1 = terms.ByteArray(b'i1')
     one = terms.ByteArray(b'\x01')
     identity = terms.Lambda('x', terms.Empty, terms.BruijnIndex(0))
     reduced = banf_reduce.whnf(terms.Formed(terms.Apply(identity, one), i1))

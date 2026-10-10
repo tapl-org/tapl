@@ -29,7 +29,7 @@ from oymo.oymomo.banf_terms import (
     verify,
 )
 
-I1, I8, I16, I32, I64 = (terms.name_to_form(name) for name in ('i1', 'i8', 'i16', 'i32', 'i64'))
+I1, I8, I16, I32, I64 = (terms.ByteArray(name) for name in (b'i1', b'i8', b'i16', b'i32', b'i64'))
 
 ZERO = Const(bytes(4), I32)
 ONE = Const(bytes([1, 0, 0, 0]), I32)

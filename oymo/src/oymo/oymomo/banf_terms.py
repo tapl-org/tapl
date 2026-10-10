@@ -277,7 +277,7 @@ def _verify_function(function, module):
                 _check_jump(function, target, args, forms, jump.location)
             case Branch() as branch:
                 condition_form = atom_form(branch.condition, forms)
-                if condition_form != terms.name_to_form('i1'):
+                if condition_form != terms.ByteArray(b'i1'):
                     raise FormError(f'Branch condition must be i1, got {show_form(condition_form)}.', branch.location)
                 _check_jump(function, branch.then_target, branch.then_args, forms, branch.location)
                 _check_jump(function, branch.else_target, branch.else_args, forms, branch.location)
@@ -318,7 +318,7 @@ def show_name(name: str) -> str:
 def show_form(form: terms.Term) -> str:
     """BANF's own form syntax: `i32`, `{a: i32}`, `(A => B)`. Nothing for an omitted form,
     and oymomo syntax in parentheses for any other term."""
-    if (name := terms.form_to_name(form)) is not None:
+    if isinstance(form, terms.ByteArray) and (name := form.as_str) is not None:
         return show_name(name)
     if isinstance(form, terms.FunctionForm):
         return f'({_show_field_form(form)})'

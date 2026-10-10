@@ -26,8 +26,8 @@ def _same_form(templates, labels, *, result=None, include_i1):
         for form in INT_FORMS:
             if form == 'i1' and not include_i1:
                 continue
-            params = tuple((label, terms.name_to_form(form)) for label in labels)
-            yield PrimSignature(f'{template}_{form}', template, params, terms.name_to_form(result or form))
+            params = tuple((label, terms.ByteArray.from_str(form)) for label in labels)
+            yield PrimSignature(f'{template}_{form}', template, params, terms.ByteArray.from_str(result or form))
 
 
 def _conversions(templates, *, widening):
@@ -36,8 +36,10 @@ def _conversions(templates, *, widening):
             for target in INT_FORMS:
                 wider = int_bits(target) > int_bits(source)
                 if source != target and wider == widening:
-                    params = (('value', terms.name_to_form(source)),)
-                    yield PrimSignature(f'{template}_{source}_{target}', template, params, terms.name_to_form(target))
+                    params = (('value', terms.ByteArray.from_str(source)),)
+                    yield PrimSignature(
+                        f'{template}_{source}_{target}', template, params, terms.ByteArray.from_str(target)
+                    )
 
 
 def _generate():

@@ -38,7 +38,7 @@ def _check_data_form(form, location, what):
             _check_data_form(f.value, location, what)
     elif form is terms.Empty:
         raise TranslationError(f'{what}: form must be written.', location)
-    elif terms.form_to_name(form) is None:
+    elif not isinstance(form, terms.ByteArray) or form.as_str is None:
         raise TranslationError(f'{what}: form must be a literal, got {banf.show_form(form)}.', location)
 
 
