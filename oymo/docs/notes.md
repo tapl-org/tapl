@@ -548,14 +548,15 @@ The entry block's params are the function's params, as in Cranelift.
 
 ### Forms are stored only where they can't be worked out
 Forms appear on each `Const`, on each block param, on each function's and
-signature's return form, and on each `Data`. Ops and `Let`s carry no form, as in
-Cranelift (`v0 = iadd v1, v2`).
+signature's return form, and on each `Data`. Ops carry no form, as in Cranelift
+(`v0 = iadd v1, v2`), and a `Let` carries one only if the source wrote it.
 - Why a `Const` has one: the same bytes can have many forms.
 - Why a block param has one: a block has to declare what its jumps pass in.
 - Why return forms are stored: calls read them, including recursive calls.
-- Why not on `Let`: `form_of(op, forms, module)` computes it, and a stored form
-  would be verbose. A `MakeStruct` result would repeat a full struct form such as
-  `{x: i32, y: {lo: i64, hi: i64}}` on every line that builds or reads one.
+- Why it's optional on `Let`: `form_of(op, forms, module)` computes it, and a stored
+  form would be verbose. A `MakeStruct` result would repeat a full struct form such as
+  `{x: i32, y: {lo: i64, hi: i64}}` on every line that builds or reads one. A written
+  let form replaces the op's form (`Let.form`; `Empty` when not written).
 
 `form_of` works out each op's result form:
 - `PrimCall`: the op's result form from `banf_prim.py`.
@@ -564,8 +565,8 @@ Cranelift (`v0 = iadd v1, v2`).
 - `GetField`: that field's form inside the struct atom's form.
 - `GetData`: the `Data` binding's form.
 
-The printer, the verifier and the LLVM translator all use it while walking a
-block, adding each let's form to the block's name table.
+The verifier and the LLVM translator use `let_form` while walking a block: the
+let's written form, or else `form_of` its op. They add it to the block's name table.
 
 ### Module = bindings, each with a name
 ```python
@@ -755,8 +756,11 @@ arithmetic and keeps no binder names of its own. A let reference becomes a
 
 ### What the shape is
 - **Let**: `let x = op in rest`, which is `(x -> rest) (op)`. The form may be
-  omitted; if written, it must equal the op's form:
-  `let t0: 'i32' = prim.eq_i32 {...} in t0` is an error, since `eq_i32` gives `i1`.
+  omitted, and then the let's form is the op's. A written form must be a literal,
+  and it replaces the op's form without being compared to it, since a form is not a
+  type: `let t0: 'i32' = prim.eq_i32 {...} in t0` gives `t0` the form `i32`, though
+  `eq_i32` gives `i1`. BANF prints it as `t0: i32 = prim.eq_i32(...)`. LLVM translation
+  rejects it, since the LLVM types differ (see "BANF to LLVM").
 - **Atoms**: a byte array with a literal form (`[01] : 'i8'`), a let name, or `args.label`.
 - **Ops**, only as a let's value: `prim.op {...}`, `defs.g {...}`, `decls.g {...}`,
   a struct literal of atoms (`MakeStruct`), a projection on an atom
@@ -864,6 +868,10 @@ else0:
   intermediate values are named after the let and field (`%q.x`) instead of
   llvmlite's numbering.
 - `GetData` is a `load` from the external global. `GetField` is `extractvalue`.
+- A let with a written form: if the form's LLVM type equals the op's value type (for
+  example, a struct form with other labels and the same field types), the value is
+  used as it is. Otherwise it's rejected ("Let 't0' is formed as i32, but its op gives
+  i1."). Nothing is converted: no `bitcast`, no widening, no narrowing.
 
 ## Testing
 - Unit tests per stage: `grammar_test.py`, `printer_test.py`, `banf_prim_test.py`,

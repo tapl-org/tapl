@@ -153,7 +153,6 @@ def _not_a_value(name, location):
 class _Translator:
     def __init__(self, program: _Program) -> None:
         self.program = program
-        self.written_forms: list[tuple[banf.Let, terms.Term]] = []
 
     def atom(self, term, block):
         location = _location(term)
@@ -273,9 +272,9 @@ class _Translator:
             location = _location(term)
             match term:
                 case terms.Apply(function=terms.Lambda(param_name=name, param_form=form, body=rest), argument=value):
-                    let = banf.Let(name, self.op(value, block), location)
                     if form is not terms.Empty:
-                        self.written_forms.append((let, form))
+                        _check_data_form(form, location, f'Let {name!r}')
+                    let = banf.Let(name, self.op(value, block), form, location)
                     block.lets.append(let)
                     term = rest
                     continue
@@ -315,7 +314,7 @@ def _known_return_form(block, module):
     forms = dict(block.params)
     for let in block.lets:
         try:
-            form = banf.form_of(let.value, forms, module)
+            form = banf.let_form(let, forms, module)
         except banf.FormError:
             continue
         if form is not terms.Empty:
@@ -345,21 +344,6 @@ def _infer_return_forms(module, functions):
             raise TranslationError(f'Cannot infer the return form of {function.name!r}.', function.location)
 
 
-def _check_written_forms(module, written_forms):
-    pending = {id(let): (let, form) for let, form in written_forms}
-    for function in (b for b in module.bindings if isinstance(b, banf.Function)):
-        for block in function.blocks:
-            forms = dict(block.params)
-            for let in block.lets:
-                forms[let.name] = banf.form_of(let.value, forms, module)
-                if id(let) in pending and forms[let.name] != pending[id(let)][1]:
-                    written = banf.show_form(pending[id(let)][1])
-                    raise TranslationError(
-                        f'Let {let.name!r} is written as {written}, but its op gives {banf.show_form(forms[let.name])}.',
-                        let.location,
-                    )
-
-
 def shape(term: syntax.Term) -> syntax.Term:
     """Resolves names, reduces to BANF's shape and renames binders."""
     try:
@@ -385,7 +369,6 @@ def convert(term: syntax.Term) -> banf.Module:
     module = banf.Module([*imports.values(), *functions])
     try:
         _infer_return_forms(module, functions)
-        _check_written_forms(module, translator.written_forms)
         banf.verify(module)
     except banf.FormError as error:
         raise TranslationError(error.message, error.location) from error

@@ -126,7 +126,15 @@ class _FunctionTranslator:
             values[let.name] = self.op(builder, let, values, forms)
             if isinstance(values[let.name], ir.Instruction):
                 values[let.name].name = let.name
-            forms[let.name] = banf.form_of(let.value, forms, self.module)
+            if let.form is not terms.Empty and llvm_type(let.form) != values[let.name].type:
+                # A form isn't a type, so BANF accepts any let form. LLVM can't: it never converts.
+                op_form = banf.form_of(let.value, forms, self.module)
+                raise LlvmTranslationError(
+                    f'Let {let.name!r} is formed as {banf.show_form(let.form)}, '
+                    f'but its op gives {banf.show_form(op_form)}.',
+                    let.location,
+                )
+            forms[let.name] = banf.let_form(let, forms, self.module)
         return self.terminator(builder, block.terminator, values)
 
     def op(self, builder, let, values, forms):

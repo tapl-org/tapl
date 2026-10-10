@@ -7,7 +7,7 @@ Status: **in progress**.
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
 - [x] 1. `terms.Void` goes back to `terms.Empty` (`oymomo: an omitted form is Empty, not void`)
-- [ ] 2. A let's form replaces its op's form (`oymomo: a let's form replaces its op's form`)
+- [x] 2. A let's form replaces its op's form (`oymomo: a let's form replaces its op's form`)
 - [ ] 3. A formed atom has the written form (`oymomo: any atom can be formed`)
 - [ ] 4. `=> R`: a function form without params (`oymomo: a function form's param may be omitted`)
 - [ ] 5. One `module` binder declares every symbol (`oymomo: merge decls and defs into module`)

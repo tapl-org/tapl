@@ -22,6 +22,7 @@ from oymo.oymomo.banf_terms import (
     Signature,
     Var,
     form_of,
+    let_form,
     show,
     show_form,
     verify,
@@ -216,6 +217,16 @@ def test_verify_rejects_jump_to_entry_and_unknown_block():
         verify(one_block([], Jump('entry', [])))
     with pytest.raises(FormError, match="Unknown block 'nowhere'"):
         verify(one_block([], Jump('nowhere', [])))
+
+
+def test_let_form_replaces_op_form():
+    # eq_i32 gives i1; the written i32 replaces it, and the return is checked against i32.
+    let = Let('t0', PrimCall('eq_i32', [ZERO, ZERO]), I32)
+    module = one_block([let], Return(Var('t0')))
+    verify(module)
+    assert let_form(let, {}, module) == I32
+    assert let_form(Let('t0', PrimCall('eq_i32', [ZERO, ZERO])), {}, module) == I1
+    assert show(module).splitlines()[2] == '    t0: i32 = prim.eq_i32([00000000]:i32, [00000000]:i32)'
 
 
 def test_verify_rejects_duplicate_names_and_closed_block_violation():

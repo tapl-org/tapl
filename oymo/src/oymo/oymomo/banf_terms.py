@@ -65,8 +65,11 @@ type Op = PrimCall | Call | MakeStruct | GetField | GetData
 
 @dataclass
 class Let:
+    """`name = value`. A written `form` replaces the op's form; `Empty` means the op's form."""
+
     name: str
     value: Op
+    form: terms.Term = terms.Empty
     location: Location | None = field(default=None, compare=False)
 
 
@@ -194,6 +197,14 @@ def form_of(op: Op, forms: Mapping[str, terms.Term], module: Module) -> terms.Te
     raise AssertionError(op)
 
 
+def let_form(let: Let, forms: Mapping[str, terms.Term], module: Module) -> terms.Term:
+    """The form of the name `let` binds: its written form, or else its op's form. The written
+    form replaces the op's; the two are not compared."""
+    if let.form is not terms.Empty:
+        return let.form
+    return form_of(let.value, forms, module)
+
+
 def field_index(form: terms.Term, label: str) -> int:
     if isinstance(form, terms.Struct):
         for index, f in enumerate(form.fields):
@@ -253,7 +264,7 @@ def _verify_function(function, module):
             if let.name in forms:
                 raise FormError(f'Duplicate name {let.name!r}.', let.location)
             _check_op(let.value, forms, module)
-            forms[let.name] = form_of(let.value, forms, module)
+            forms[let.name] = let_form(let, forms, module)
         match block.terminator:
             case Jump(target=target, args=args) as jump:
                 _check_jump(function, target, args, forms, jump.location)
@@ -369,9 +380,14 @@ def _show_function(function):
     lines = [f'{show_name(function.name)}: {show_form(function.return_form)}']
     for block in function.blocks:
         lines.append(f'  {show_name(block.label)}{_show_params(block.params)}:')
-        lines.extend(f'    {show_name(let.name)} = {show_op(let.value)}' for let in block.lets)
+        lines.extend(f'    {_show_let(let)}' for let in block.lets)
         lines.append(f'    {show_terminator(block.terminator)}')
     return '\n'.join(lines)
+
+
+def _show_let(let):
+    form = '' if let.form is terms.Empty else f': {show_form(let.form)}'
+    return f'{show_name(let.name)}{form} = {show_op(let.value)}'
 
 
 def show(module: Module) -> str:

@@ -211,3 +211,18 @@ def test_rejects_wrong_constant_size():
     function = Function('g', I32, [Block('entry', [], [], Return(Const(b'\x01', I32)))])
     with pytest.raises(LlvmTranslationError, match='needs 4 bytes'):
         translate(Module([function]), TARGET)
+
+
+def test_let_form_with_the_same_llvm_type_is_used_as_it_is():
+    ab = terms.Struct([terms.Field('a', I32), terms.Field('b', I32)])
+    let = Let('q', MakeStruct([('x', Var('v')), ('y', Var('w'))]), ab)
+    function = Function('g', ab, [Block('entry', [('v', I32), ('w', I32)], [let], Return(Var('q')))])
+    assert 'ret {i32, i32} %"q"' in ir_text(Module([function]))
+
+
+def test_rejects_let_form_with_another_llvm_type():
+    # BANF accepts any let form, but LLVM never converts: no bitcast, no widening.
+    let = Let('t0', PrimCall('eq_i32', [Var('n'), ZERO]), I32)
+    function = Function('g', I32, [Block('entry', [('n', I32)], [let], Return(Var('t0')))])
+    with pytest.raises(LlvmTranslationError, match=r"Let 't0' is formed as i32, but its op gives i1\."):
+        translate(Module([function]), TARGET)

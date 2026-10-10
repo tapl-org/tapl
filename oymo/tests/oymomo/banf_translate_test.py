@@ -83,14 +83,25 @@ def test_let_with_written_form():
     assert banf(source) == text("""
         g: i1
           entry(n: i32):
-            t0 = prim.eq_i32(n, n)
+            t0: i1 = prim.eq_i32(n, n)
             return t0
     """)
 
 
-def test_let_with_wrong_written_form():
+def test_let_form_replaces_op_form():
+    # A form is not a type: the written form isn't checked against the op's i1, it replaces it.
     source = "g = f -> {entry = args:{n = 'i32'} -> (t0: 'i32' -> t0) (prim.eq_i32 {a = args.n, b = args.n})}"
-    assert error(source) == "Let 't0' is written as i32, but its op gives i1."
+    assert banf(source) == text("""
+        g: i32
+          entry(n: i32):
+            t0: i32 = prim.eq_i32(n, n)
+            return t0
+    """)
+
+
+def test_let_form_must_be_a_literal():
+    source = "g = f -> {entry = args:{n = 'i32'} -> (t0: args.n -> t0) (prim.eq_i32 {a = args.n, b = args.n})}"
+    assert error(source) == "Let 't0': form must be a literal, got ($0.n)."
 
 
 def test_call_with_struct_literal_and_forwarded_args():
