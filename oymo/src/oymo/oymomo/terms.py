@@ -139,6 +139,7 @@ class Formed(Term):
 
 
 # `P => R`: the form of a function from `P` to `R`.
+# Unlike a Lambda's body, `R` is not under a binder, so `P => R` needs its own term class.
 @dataclass
 class FunctionForm(Term):
     param: Term
