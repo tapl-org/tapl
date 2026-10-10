@@ -204,3 +204,30 @@ def test_formed_var_with_the_same_llvm_type_is_used_as_it_is():
 def test_rejects_formed_var_with_another_llvm_type():
     source = "g = blocks -> {entry = args: {n = 'i8'} -> args.n:'i32'}"
     assert ir_error(source, "g = => 'i32'") == "'n' is formed as i32, but its LLVM type is i8."
+
+
+def test_defined_data_is_a_writable_global_with_an_initializer():
+    source = """
+    answer = [2a000000],
+    main = blocks -> {entry = args: {} -> let t = module.answer in t},
+    """
+    assert ir_text(source, "answer = 'i32', main = => 'i32'") == text("""
+        @"answer" = global i32 42
+        define i32 @"main"()
+        {
+        entry:
+          %"t" = load i32, i32* @"answer"
+          ret i32 %"t"
+        }
+    """)
+
+
+def test_rejects_defined_data_with_a_wrong_byte_count():
+    assert ir_error('answer = [2a]', "answer = 'i32'") == 'A i32 constant needs 4 bytes.'
+
+
+def test_rejects_defined_data_with_a_struct_form():
+    assert (
+        ir_error('p = [0102]', "p = {x = 'i8', y = 'i8'}")
+        == 'Only integer constants are supported, got {x: i8, y: i8}.'
+    )

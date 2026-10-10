@@ -394,9 +394,14 @@ says whether the body defines it:
 | `{...} => R` | no | imported function, `banf.Signature`: `declare i32 @putchar(i8 %c)` |
 | `{...} => R` | yes | error: "'putchar' declares its params; a definition takes them from its entry block." |
 | data form `F` | no | imported data, `banf.Data`: `@errno = external global i32` |
-| data form `F` | yes | error, until data can be defined |
+| data form `F` | as a byte array | defined data, `banf.Data` with a value: `@answer = global i32 42` |
 
 - A body label must be declared: "'f' is defined but not declared."
+- A definition must fit its declaration: `=> R` needs `blocks -> {...}`, and a data
+  declaration needs a byte array ("'answer' is declared as data, so its definition
+  must be a byte array."). The body field is taken to whnf, so
+  `answer = (x -> x) [2a]` is fine. Its form is the declared one: a form written on
+  the byte array (`[2a]: 'i16'`) is dropped, since BANF has no slot for it.
 - Every parameter list is written once: a defined function's comes only from its
   entry block, an imported function's only from its declaration.
 - Every return form is written, in the declaration (see "Return forms are
@@ -599,14 +604,15 @@ let's written form, or else `form_of` its op. They add it to the block's name ta
 Module(bindings: list[Function | Signature | Data])
 Function(name, return_form, blocks)       # blocks[0] is the entry block
 Signature(name, params, return_form)       # imported function
-Data(name, form)                           # imported data
+Data(name, form, value=None)               # data: imported (None) or defined (bytes)
 ```
 - `name` is the LLVM symbol (`@fact`, `@putchar`, `@errno`). It lives on the
   binding instead of in `(name, binding)` tuples, which is simpler to carry around
   and to print.
 - `Signature` needs its own `params` because it has no entry block to hold them.
-- `Data` is read-only (oymomo has no assignment) but re-read on every use with
-  `GetData`, because a value like `errno` can change outside the program. Not named
+- `Data` is read-only in oymomo (it has no assignment) but re-read on every use with
+  `GetData`, because a value like `errno` can change outside the program. Defined
+  data is read the same way, with `module.answer`. Not named
   `Global`, because every binding becomes an LLVM global.
 
 ### Printer
@@ -618,7 +624,7 @@ Data(name, form)                           # imported data
   oymomo's one-argument application.
 - Calls and data reads use the symbol, not `module.`: `t0 = errno`.
 - Bindings print in declaration order: `putchar(c: i8): i32` for a `Signature`,
-  `errno: i32` for `Data`, and each function as `fact: i32` followed by its blocks,
+  `errno: i32` for imported `Data`, `answer: i32 = [2a000000]` for defined `Data`, and each function as `fact: i32` followed by its blocks,
   with a blank line around each function.
 - Blocks are indented under their function (labels at 2 spaces, instructions at 4),
   so the column tells a line's kind. At column 0, the block label `entry(a: i32):`
@@ -898,7 +904,12 @@ else0:
   BANF. A `MakeStruct` builds its value with one `insertvalue` per field, and the
   intermediate values are named after the let and field (`%q.x`) instead of
   llvmlite's numbering.
-- `GetData` is a `load` from the external global. `GetField` is `extractvalue`.
+- `GetData` is a `load` from the global. `GetField` is `extractvalue`.
+- Defined data is a writable `global` (not `constant`) with an initializer,
+  `@answer = global i32 42`; imported data is an `external global`. The initializer
+  follows the constant rules, so it needs an integer form and the right byte count
+  ("A i32 constant needs 4 bytes."), and struct data forms are rejected for now.
+  Constness will come later with the data's form.
 - A formed name (`n:i32`) is checked the same way: used as it is if the LLVM types are
   equal, otherwise rejected ("'n' is formed as i32, but its LLVM type is i8.").
 - A let with a written form: if the form's LLVM type equals the op's value type (for
@@ -918,7 +929,7 @@ else0:
 ## Not yet decided / not done
 - Nested function forms (in data forms, or as a function form's param or result).
 - Closures and higher-order functions.
-- Struct constants in LLVM.
+- Struct constants in LLVM, including struct data initializers.
 - The `language oymomo` header at the top of `.oymo` files is checked and stripped
   by the golden test; the parser doesn't handle layers yet.
 - Void functions: every function returns a value.

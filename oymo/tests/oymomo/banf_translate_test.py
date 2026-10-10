@@ -461,11 +461,47 @@ MAIN = "main = f -> {entry = args:{} -> [01]:'i8'}"
             "main = {} => 'i8'",
             "'main' declares its params; a definition takes them from its entry block.",
         ),
-        (MAIN, "main = 'i8'", "'main' is declared as data; data cannot be defined yet."),
+        (MAIN, "main = 'i8'", "'main' is declared as data, so its definition must be a byte array."),
+        (
+            "main = [2a]:'i8'",
+            "main = => 'i8'",
+            "Definition 'main' must be a struct of blocks, such as blocks -> {entry = args: {} -> ...}.",
+        ),
+        (
+            'answer = [2a], answer = [2a]',
+            "answer = 'i8'",
+            "Duplicate definition 'answer'.",
+        ),
     ],
 )
 def test_module_errors(defs, decls, message):
     assert error(defs, decls) == message
+
+
+def test_defined_data():
+    source = """
+    answer = [2a000000],
+    main = f -> {entry = args:{} -> let t = module.answer in t},
+    """
+    module = translate(parse(program(source, "answer = 'i32', main = => 'i32'")))
+    assert module.bindings[0] == banf_terms.Data('answer', I32, b'\x2a\x00\x00\x00')
+    assert banf_terms.show(module) == text("""
+        answer: i32 = [2a000000]
+
+        main: i32
+          entry():
+            t = answer
+            return t
+    """)
+
+
+def test_defined_data_drops_a_written_form():
+    # The data's form is the declared one; a form written on the definition has no slot (decision 2).
+    assert banf("answer = [2a]:'i16'", "answer = 'i8'") == 'answer: i8 = [2a]\n'
+
+
+def test_defined_data_is_reduced():
+    assert banf('answer = (x -> x) [2a]', "answer = 'i8'") == 'answer: i8 = [2a]\n'
 
 
 def test_forms_must_be_literals():

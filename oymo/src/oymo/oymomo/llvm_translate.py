@@ -204,8 +204,12 @@ def translate(module: banf.Module, target: Target) -> ir.Module:
     globals_: dict[str, ir.GlobalValue] = {}
     for binding in module.bindings:
         match binding:
-            case banf.Data(name=name, form=form):
-                globals_[name] = ir.GlobalVariable(llvm_module, llvm_type(form), name)
+            case banf.Data(name=name, form=form, value=value):
+                variable = ir.GlobalVariable(llvm_module, llvm_type(form), name)
+                if value is not None:
+                    # Writable, not `constant`; constness will come later with the data's form.
+                    variable.initializer = _const(banf.Const(value, form, binding.location))
+                globals_[name] = variable
             case (
                 banf.Signature(name=name, params=params, return_form=return_form)
                 | banf.Function(name=name, params=params, return_form=return_form)

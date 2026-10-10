@@ -133,8 +133,11 @@ class Signature:
 
 @dataclass
 class Data:
+    """Module data. `value` is its initial bytes if the module defines it, or `None` if it's imported."""
+
     name: str
     form: terms.Term
+    value: bytes | None = None
     location: Location | None = field(default=None, compare=False)
 
 
@@ -196,7 +199,7 @@ def form_of(op: Op, forms: Mapping[str, terms.Term], module: Module) -> terms.Te
         case GetData(name=name):
             binding = module.lookup(name)
             if not isinstance(binding, Data):
-                raise FormError(f'{name!r} is not imported data.', op.location)
+                raise FormError(f'{name!r} is not data.', op.location)
             return binding.form
     raise AssertionError(op)
 
@@ -404,8 +407,9 @@ def show(module: Module) -> str:
         match binding:
             case Signature(name=name, params=params, return_form=return_form):
                 parts.append(f'{show_name(name)}{_show_params(params)}: {show_form(return_form)}')
-            case Data(name=name, form=form):
-                parts.append(f'{show_name(name)}: {show_form(form)}')
+            case Data(name=name, form=form, value=value):
+                initializer = '' if value is None else f' = [{value.hex()}]'
+                parts.append(f'{show_name(name)}: {show_form(form)}{initializer}')
             case Function():
                 parts.append(_show_function(binding))
         after_function = is_function

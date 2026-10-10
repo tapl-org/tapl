@@ -115,12 +115,12 @@ def _declarations(module_form, location):
             declarations[label] = banf.Signature(label, params, result, decl_location)
         else:
             _check_data_form(form, decl_location, what)
-            declarations[label] = banf.Data(label, form, decl_location)
+            declarations[label] = banf.Data(label, form, location=decl_location)
     return declarations
 
 
 def _check_definition(field, declarations):
-    """The declaration a body field defines; it must be a function declared as `=> R`."""
+    """The declaration a body field defines: a function declared as `=> R`, or data."""
     name = field.label
     declaration = declarations.get(name)
     match declaration:
@@ -130,9 +130,17 @@ def _check_definition(field, declarations):
             raise TranslationError(
                 f'{name!r} declares its params; a definition takes them from its entry block.', field.location
             )
-        case banf.Data():
-            raise TranslationError(f'{name!r} is declared as data; data cannot be defined yet.', field.location)
     return declaration
+
+
+def _data_value(field):
+    """The bytes of a data definition. Its form is the declared one, so a form written here is dropped."""
+    match field.value:
+        case terms.ByteArray(value=value) | terms.Formed(term=terms.ByteArray(value=value)):
+            return value
+    raise TranslationError(
+        f'{field.label!r} is declared as data, so its definition must be a byte array.', _location(field.value)
+    )
 
 
 def _blocks(field):
@@ -337,13 +345,18 @@ def convert(term: syntax.Term) -> banf.Module:
     module_form, module_location, body = _unwrap(term)
     declarations = _declarations(module_form, module_location)
     definitions = []
+    defined = set()
     for field in body.fields:
-        if any(function.name == field.label for function, _ in definitions):
+        if field.label in defined:
             raise TranslationError(f'Duplicate definition {field.label!r}.', field.location)
-        function = _check_definition(field, declarations)
-        function.blocks, block_fields = _blocks(field)
-        function.location = field.location
-        definitions.append((function, block_fields))
+        defined.add(field.label)
+        declaration = _check_definition(field, declarations)
+        if isinstance(declaration, banf.Data):
+            declaration.value = _data_value(field)
+            continue
+        declaration.blocks, block_fields = _blocks(field)
+        declaration.location = field.location
+        definitions.append((declaration, block_fields))
     for binding in declarations.values():
         if isinstance(binding, banf.Function) and not binding.blocks:
             raise TranslationError(f'{binding.name!r} declares no params, so it must be defined.', binding.location)

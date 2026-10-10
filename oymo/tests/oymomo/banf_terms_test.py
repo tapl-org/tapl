@@ -153,6 +153,10 @@ def test_show_quotes_names():
     assert show(module) == '"my data": i8\n'
 
 
+def test_show_defined_data():
+    assert show(Module([Data('answer', I32, b'\x2a\x00\x00\x00')])) == 'answer: i32 = [2a000000]\n'
+
+
 def test_show_form():
     assert show_form(terms.Empty) == ''
     assert show_form(I32) == 'i32'
@@ -181,7 +185,7 @@ def test_form_of_errors():
         form_of(GetField(Var('p'), 'z'), {'p': POINT}, module)
     with pytest.raises(FormError, match="Unknown name 'q'"):
         form_of(GetField(Var('q'), 'x'), {}, module)
-    with pytest.raises(FormError, match="'putchar' is not imported data"):
+    with pytest.raises(FormError, match="'putchar' is not data"):
         form_of(GetData('putchar'), {}, module)
     with pytest.raises(FormError, match="'errno' is not a function"):
         form_of(Call('errno', []), {}, module)

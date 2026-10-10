@@ -71,7 +71,8 @@ class _Reducer:
         return term
 
     def function(self, term):
-        return self.lambda_then(term, lambda body: self.struct_then(body, self.block))  # 4., 5.
+        # 4., 5. A data definition, such as a byte array, isn't a lambda: it's only taken to whnf.
+        return self.lambda_then(term, lambda body: self.struct_then(body, self.block))
 
     def block(self, term):
         return self.lambda_then(term, lambda body: self.block_body(body, 0))  # 6. args -> <block_body>
