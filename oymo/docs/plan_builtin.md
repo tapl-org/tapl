@@ -1,6 +1,6 @@
 # Plan: built-ins are global constants written `$name`
 
-Status: **in progress**; steps 1 to 4 done.
+Status: **implemented**.
 
 ## Steps
 
@@ -10,7 +10,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [x] 2. `$name` built-ins replace the `prim` binder, breaking (`oymomo: prims are $name built-ins`)
 - [x] 3. Built-ins can have a reduction rule, and `fix` is `$fix`, breaking (`oymomo: fix is $fix`)
 - [x] 4. A strict built-in's argument is a head in `banf_reduce` (`oymomo: banf_reduce reduces a strict built-in's argument`)
-- [ ] 5. Write the constant folding plan and update plan_struct_pack, docs only (`oymomo: plan constant folding; struct pack on built-ins`)
+- [x] 5. Write the constant folding plan and update plan_struct_pack, docs only (`oymomo: plan constant folding; struct pack on built-ins`)
 
 Step 1 is independent of the rest; it comes first so that steps 2 to 4 have no dynamic
 prims to carry along. [plan_struct_pack.md](plan_struct_pack.md) builds on step 4:
