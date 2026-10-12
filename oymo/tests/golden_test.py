@@ -80,9 +80,24 @@ def compile_oymo(source: str) -> tuple[str, str, str]:
     return shaped_text, banf_terms.show(module), ir_text
 
 
+def pretty_oymo(source: str) -> str:
+    """The oymomo source, parsed and pretty-printed, before shaping."""
+    assert source.startswith(LANGUAGE_HEADER)
+    parsed = grammar.parse(source.removeprefix(LANGUAGE_HEADER))
+    return LANGUAGE_HEADER + printer.show(parsed, pretty=True, name_indices=True) + '\n'
+
+
 def run_golden_test(test_name: str) -> None:
     base_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'goldens')
-    source = pathlib.Path(os.path.join(base_directory, f'{test_name}.oymo')).read_text()
+    source_path = pathlib.Path(os.path.join(base_directory, f'{test_name}.oymo'))
+    source = source_path.read_text()
+    pretty_text = pretty_oymo(source)
+    if source != pretty_text:
+        # The source is kept pretty-printed: replace it by its pretty form, which must give the same BANF.
+        assert compile_oymo(pretty_text)[1] == compile_oymo(source)[1]
+        source_path.write_text(pretty_text)
+        source = pretty_text
+    assert pretty_oymo(source) == source
     shaped_text, banf_text, ir_text = compile_oymo(source)
     verify(shaped_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.shaped.oymo')))
     # The shaped source is itself a program that gives the same BANF.
