@@ -154,6 +154,12 @@ def test_whnf_leaves_a_struct_apply_or_an_argument(source):
             'if (x -> x) args.n then (x -> f.a x) {} else f.b ((x -> x) {})',
             'if args.n then f.a {} else f.b {}',
         ),
+        # The same, written as a struct applied to the condition: `{else, then} c`.
+        ('let t = {f.b {}, f.a {}} args.n in t', '{f.b {}, f.a {}} args.n'),
+        (
+            '{f.b ((x -> x) {}), (x -> f.a x) {}} ((x -> x) args.n)',
+            '{f.b {}, f.a {}} args.n',
+        ),
         # A jump's argument.
         ('f.a ((x -> {m = x}) args.n)', 'f.a {m = args.n}'),
     ],
@@ -207,6 +213,8 @@ def test_forms_are_ignored():
         'let t = $add_i8 {a = args.n, b = args.n} in t',
         'f.a {}',
         'if args.n then f.a {} else f.b {}',
+        '{f.b {}, f.a {}} args.n',
+        '{x = f.b {}, y = f.a {}} args.n',
     ],
 )
 def test_terminals_stay(body):

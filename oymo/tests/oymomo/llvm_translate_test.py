@@ -192,6 +192,23 @@ def test_single_predecessor_binds_params_and_multiple_predecessors_get_phis():
     """)
 
 
+def test_struct_branch_lowers_like_if():
+    def pick(entry_body):
+        return f"""
+        pick = blocks -> {{
+          entry = args: {{c = 'i1', x = 'i32', z = 'i32'}} -> {entry_body},
+          a = args: {{x = 'i32'}} -> blocks.join0 {{v = args.x, w = args.x}},
+          b = args: {{}} -> blocks.join0 {{v = [00000000]:'i32', w = [07000000]:'i32'}},
+          join0 = args: {{v = 'i32', w = 'i32'}} -> let t0 = $add_i32 {{a = args.v, b = args.w}} in t0,
+        }}
+        """
+
+    struct_ir = ir_text(pick('{blocks.b {}, blocks.a {x = args.x}} args.c'), "pick = => 'i32'")
+    if_ir = ir_text(pick('if args.c then blocks.a {x = args.x} else blocks.b {}'), "pick = => 'i32'")
+    assert struct_ir == if_ir
+    assert 'br i1 %"c", label %"a", label %"b"' in struct_ir
+
+
 def test_rejects_branch_with_same_target_twice():
     # oymomo translation already rejects this, so the module is built directly.
     i1, i8 = terms.ByteArray(b'i1'), terms.ByteArray(b'i8')

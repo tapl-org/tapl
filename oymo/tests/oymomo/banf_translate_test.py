@@ -395,6 +395,61 @@ def test_let_bound_if_is_substituted_into_tail():
     """)
 
 
+BRANCH_BLOCKS = "a = args:{} -> [01]:'i8', b = args:{} -> [02]:'i8'"
+
+
+def branch_defs(body, condition_form="'i1'"):
+    return f'g = f -> {{entry = args:{{c = {condition_form}}} -> {body}, {BRANCH_BLOCKS}}}'
+
+
+@pytest.mark.parametrize(
+    'body',
+    [
+        '{f.b {}, f.a {}} args.c',
+        # Let-bound: substituted into the tail.
+        '(t -> t) ({f.b {}, f.a {}} args.c)',
+        # Labels are ignored: only the position picks the arm.
+        '{x = f.b {}, y = f.a {}} args.c',
+    ],
+)
+def test_struct_applied_to_a_condition_is_a_branch(body):
+    # `{e, t} c` is `if c then t else e`: field 0 is else, field 1 is then.
+    expected = banf(branch_defs('if args.c then f.a {} else f.b {}'), "g = => 'i8'")
+    assert banf(branch_defs(body), "g = => 'i8'") == expected
+    assert 'branch c, a(), b()' in expected
+
+
+def test_struct_branch_to_an_explicit_join_block():
+    source = """
+    pick = f -> {
+      entry = args:{c = 'i1', x = 'i32', y = 'i32', z = 'i32'} ->
+        {f.else0 {y = args.y, z = args.z}, f.then0 {x = args.x, z = args.z}} args.c,
+      then0 = args:{x = 'i32', z = 'i32'} -> f.join0 {v = args.x, z = args.z},
+      else0 = args:{y = 'i32', z = 'i32'} -> f.join0 {v = args.y, z = args.z},
+      join0 = args:{v = 'i32', z = 'i32'} -> (t0 -> t0) ($add_i32 {a = args.v, b = args.z}),
+    }
+    """
+    assert '    branch c, then0(x, z), else0(y, z)\n' in banf(source, "pick = => 'i32'")
+
+
+@pytest.mark.parametrize(
+    ('body', 'message'),
+    [
+        ('{f.a {}, f.b {}, f.a {}} args.c', 'A branch needs two fields, {else, then}.'),
+        ("{f.b {}, [01]:'i8'} args.c", 'Both branches of an if must be jumps, such as blocks.then0 {}.'),
+        ('{f.b {}, f.b {}} args.c', 'Both branches of an if jump to the same block.'),
+    ],
+)
+def test_struct_branch_errors(body, message):
+    assert error(branch_defs(body), "g = => 'i8'") == message
+
+
+def test_struct_branch_condition_must_be_i1():
+    assert (
+        error(branch_defs('{f.b {}, f.a {}} args.c', "'i8'"), "g = => 'i8'") == 'Branch condition must be i1, got i8.'
+    )
+
+
 @pytest.mark.parametrize(
     ('defs', 'message'),
     [

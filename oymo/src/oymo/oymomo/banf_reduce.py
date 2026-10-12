@@ -105,6 +105,13 @@ class _Reducer:
                     then_clause=self.jump(then_clause),
                     else_clause=self.jump(else_clause),
                 )
+            case terms.Apply(function=terms.Struct(fields=fields) as struct, argument=condition):
+                # A branch, `{e, t} c`: `c` didn't reduce to an index, so it's a run-time condition.
+                return replace(
+                    term,
+                    function=replace(struct, fields=[replace(f, value=self.jump(f.value)) for f in fields]),
+                    argument=self.atom(condition),
+                )
         return term  # [bytes], args.label, $i, or a term left for convert.
 
     # Positions 7 to 9.
@@ -186,8 +193,13 @@ def _with_head(term, head):
 
 
 def _is_op(term, k):
-    """An Apply, a Struct, or a Project other than `args.label` (`$k.label`)."""
+    """An Apply, a Struct, or a Project other than `args.label` (`$k.label`).
+
+    A struct literal applied to a condition (`{e, t} c`) is a branch, not an op.
+    """
     match term:
+        case terms.Apply(function=terms.Struct()):
+            return False
         case terms.Apply() | terms.Struct():
             return True
         case terms.Project(struct=terms.BruijnIndex(index=index)):

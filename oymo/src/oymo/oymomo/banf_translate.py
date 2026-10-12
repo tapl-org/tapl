@@ -296,7 +296,7 @@ class _Translator:
                 return banf.GetField(self.atom(struct, block), label, location)
             case terms.BruijnIndex() if isinstance(name := block.binder(term), str):
                 raise _not_a_value(name, location)
-            case terms.If():
+            case terms.If() | terms.Apply(function=terms.Struct()):
                 raise TranslationError('An if must be in tail position.', location)
         if self.is_atom(term, block):
             raise TranslationError("A let's value must be an op, not an atom.", location)
@@ -340,6 +340,21 @@ class _Translator:
                     if then_jump[0] == else_jump[0]:
                         raise TranslationError('Both branches of an if jump to the same block.', location)
                     return banf.Branch(atom, *then_jump, *else_jump, location)
+                case terms.Apply(function=terms.Struct(fields=[else_field, then_field]), argument=condition):
+                    # `{e, t} c`: `[00]` picks field 0, so field 0 is else and field 1 is then.
+                    # Labels are ignored, as struct apply ignores them.
+                    atom = self.atom(condition, block)
+                    else_jump = self.jump(else_field.value, block)
+                    then_jump = self.jump(then_field.value, block)
+                    if then_jump is None or else_jump is None:
+                        raise TranslationError(
+                            'Both branches of an if must be jumps, such as blocks.then0 {}.', location
+                        )
+                    if then_jump[0] == else_jump[0]:
+                        raise TranslationError('Both branches of an if jump to the same block.', location)
+                    return banf.Branch(atom, *then_jump, *else_jump, location)
+                case terms.Apply(function=terms.Struct()):
+                    raise TranslationError('A branch needs two fields, {else, then}.', location)
             if (jump := self.jump(term, block)) is not None:
                 return banf.Jump(*jump, location)
             if self.is_atom(term, block):

@@ -9,7 +9,7 @@ Each plan is one design change, carried out in steps of one commit each. A plan 
 | Plan | Status | Description |
 |---|---|---|
 | [plan_struct_pack.md](plan_struct_pack.md) | proposed, with open questions; 0 of 2 steps | `$unpack s` turns a struct into a list of fields and `$pack l` turns one back, so a struct can be built dynamically: labels and number of fields computed by oymomo code. Two entries in `bruijn.BUILTIN_RULES`, with no new term or reserved word. |
-| [plan_if_as_struct_apply.md](plan_if_as_struct_apply.md) | in progress; 1 of 4 steps | `if c then t else e` is sugar for `{e, t} c`: a struct applied to the condition, which the kernel already reduces. The printer prints a two-field unlabeled struct apply as `if`. In BANF, a struct literal applied to an atom in tail position is a `Branch`. The `If` term goes; the syntax stays. The last step writes a plan for an N-way switch. |
+| [plan_if_as_struct_apply.md](plan_if_as_struct_apply.md) | in progress; 2 of 4 steps | `if c then t else e` is sugar for `{e, t} c`: a struct applied to the condition, which the kernel already reduces. The printer prints a two-field unlabeled struct apply as `if`. In BANF, a struct literal applied to an atom in tail position is a `Branch`. The `If` term goes; the syntax stays. The last step writes a plan for an N-way switch. |
 | [plan_constant_folding.md](plan_constant_folding.md) | proposed, with open questions; 0 of 4 steps | An opcode whose operands are all literals reduces to its result (`$add_i32` on `[01000000]` and `[02000000]` is `[03000000]: 'i32'`), with the bytes LLVM would compute and nothing folded where LLVM has no defined result. Each opcode gets a rule in `bruijn.BUILTIN_RULES`. |
 
 ## Closed

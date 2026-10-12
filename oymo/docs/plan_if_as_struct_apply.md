@@ -1,13 +1,13 @@
 # Plan: `if` is sugar for a struct applied to a condition
 
-Status: **in progress**; 1 of 4 steps.
+Status: **in progress**; 2 of 4 steps.
 
 ## Steps
 
 One commit each. Each step leaves `hatch run full-check` green.
 
 - [x] 1. Write the plan, docs only (`oymomo: plan if as struct apply`)
-- [ ] 2. BANF accepts `{e, t} c` as a branch, additive (`oymomo: a struct applied to an atom is a branch`)
+- [x] 2. BANF accepts `{e, t} c` as a branch, additive (`oymomo: a struct applied to an atom is a branch`)
 - [ ] 3. `if` parses to `{e, t} c`, and `If` goes (`oymomo: if is sugar for {else, then} c`)
 - [ ] 4. Write the switch plan, docs only (`oymomo: plan switch`)
 
@@ -130,17 +130,17 @@ if c then t else e           parses to   {e, t} c
    as `else`:
 
    ```python
-   case terms.Apply(function=terms.Struct(fields=fields), argument=condition):
-       if len(fields) != 2:
-           raise TranslationError('A branch needs two fields, {else, then}.', location)
+   case terms.Apply(function=terms.Struct(fields=[else_field, then_field]), argument=condition):
        atom = self.atom(condition, block)
-       else_jump = self.jump(fields[0].value, block)
-       then_jump = self.jump(fields[1].value, block)
+       else_jump = self.jump(else_field.value, block)
+       then_jump = self.jump(then_field.value, block)
        if then_jump is None or else_jump is None:
            raise TranslationError('Both branches of an if must be jumps, such as blocks.then0 {}.', location)
        if then_jump[0] == else_jump[0]:
            raise TranslationError('Both branches of an if jump to the same block.', location)
        return banf.Branch(atom, *then_jump, *else_jump, location)
+   case terms.Apply(function=terms.Struct()):
+       raise TranslationError('A branch needs two fields, {else, then}.', location)
    ```
 
    It must come before the `isinstance(term, terms.Apply | ...)` fallback. In `op`, a
