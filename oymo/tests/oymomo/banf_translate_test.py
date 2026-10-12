@@ -213,42 +213,61 @@ def test_binders_are_not_structs(body):
 
 
 @pytest.mark.parametrize('param_form', ["{x = 'i32', y = 'i8'}", "{'i32', 'i8'}"])
-def test_prim_extractvalue_on_a_param(param_form):
-    source = f"g = f -> {{entry = args:{{p = {param_form}}} -> let x = prim.extractvalue {{struct = args.p, index = [01]:'i8'}} in x}}"
+def test_get_index_on_a_param(param_form):
+    source = f'g = f -> {{entry = args:{{p = {param_form}}} -> let y = args.p [01] in y}}'
     module = translate(parse(program(source, "g = => 'i8'")))
     let = module.bindings[0].blocks[0].lets[0]
-    assert let.value == banf_terms.PrimCall('extractvalue', [banf_terms.Var('p'), banf_terms.Const(b'\x01', I8)])
-    assert 'x = prim.extractvalue(p, [01]:i8)' in banf_terms.show(module)
+    assert let.value == banf_terms.GetIndex(banf_terms.Var('p'), 1)
+    assert 'y = p.1' in banf_terms.show(module)
 
 
-def test_prim_extractvalue_on_a_let():
+def test_get_index_on_a_let():
     source = """
     g = f -> {entry = args:{n = 'i8'} ->
       let s = {[00000000]:'i32', args.n} in
-      let x = prim.extractvalue {struct = s, index = [01]:'i8'} in x}
+      let y = s [01] in y}
     """
     assert banf(source, "g = => 'i8'") == text("""
         g: i8
           entry(n: i8):
             s = {[00000000]:i32, n}
-            x = prim.extractvalue(s, [01]:i8)
-            return x
+            y = s.1
+            return y
     """)
 
 
 @pytest.mark.parametrize(
-    ('arg', 'message'),
+    'index',
     [
-        ("{s = args.p, index = [00]:'i8'}", 'prim.extractvalue takes {struct, index}, got {s, index}.'),
-        ("{struct = args.n, index = [00]:'i8'}", 'prim.extractvalue: struct must have a struct form.'),
-        ('{struct = args.p, index = args.n}', "prim.extractvalue needs a literal index, such as [00]: 'i8'."),
-        ("{struct = args.p, index = '':'i8'}", "prim.extractvalue needs a literal index, such as [00]: 'i8'."),
-        ("{struct = args.p, index = [00]:{'i8'}}", 'prim.extractvalue: the index form must be one of i1, ..., i64.'),
-        ("{struct = args.p, index = [02]:'i8'}", 'prim.extractvalue: the struct has no field at index 2.'),
+        '[01]',
+        '[0100]',
+        "[01]: 'i8'",
+        '((i -> i) [01])',
     ],
 )
-def test_prim_extractvalue_errors(arg, message):
-    source = f"g = f -> {{entry = args:{{n = 'i8', p = {{'i32', 'i8'}}}} -> let x = prim.extractvalue {arg} in x}}"
+def test_get_index_reads_any_byte_array_literal(index):
+    source = f"g = f -> {{entry = args:{{p = {{'i32', 'i8'}}}} -> let y = args.p {index} in y}}"
+    assert 'y = p.1' in banf(source, "g = => 'i8'")
+
+
+def test_get_index_through_an_atom_let():
+    source = "g = f -> {entry = args:{p = {'i32', 'i8'}} -> let i = [01] in let y = args.p i in y}"
+    assert 'y = p.1' in banf(source, "g = => 'i8'")
+
+
+@pytest.mark.parametrize(
+    ('body', 'message'),
+    [
+        ('let y = args.p args.n in y', 'An index must be a byte array literal, such as [01].'),
+        ('let t = {args.n} in let y = args.p t in y', 'An index must be a byte array literal, such as [01].'),
+        ("let y = args.p '' in y", 'An index must be a byte array literal, such as [01].'),
+        ('let y = args.p [02] in y', 'Form {i32, i8} has no field at index 2.'),
+        ('let y = args.n [00] in y', 'Form i32 has no field at index 0.'),
+        ('args.p [01]', 'An op in tail position must be bound by a let, as in let t = op in t.'),
+    ],
+)
+def test_get_index_errors(body, message):
+    source = f"g = f -> {{entry = args:{{n = 'i32', p = {{'i32', 'i8'}}}} -> {body}}}"
     assert error(source, "g = => 'i8'") == message
 
 

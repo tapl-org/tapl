@@ -58,12 +58,21 @@ class GetField:
 
 
 @dataclass
+class GetIndex:
+    """`s [01]`: the field at a position, labeled or not. Printed `s.1`."""
+
+    struct: Atom
+    index: int
+    location: Location | None = field(default=None, compare=False)
+
+
+@dataclass
 class GetData:
     name: str
     location: Location | None = field(default=None, compare=False)
 
 
-type Op = PrimCall | Call | MakeStruct | GetField | GetData
+type Op = PrimCall | Call | MakeStruct | GetField | GetIndex | GetData
 
 
 @dataclass
@@ -181,9 +190,7 @@ def callee(op: Call, module: Module) -> Function | Signature:
 def form_of(op: Op, forms: Mapping[str, terms.Term], module: Module) -> terms.Term:
     """The result form of `op`, given the forms of the names in scope."""
     match op:
-        case PrimCall(op=name, args=args):
-            if name in banf_prim.DYNAMIC_PRIMS:
-                return _dynamic_form(op, banf_prim.DYNAMIC_PRIMS[name], args, forms)
+        case PrimCall(op=name):
             if name not in banf_prim.PRIMS:
                 raise FormError(f'Unknown prim op {name!r}.', op.location)
             return banf_prim.PRIMS[name].result
@@ -198,6 +205,11 @@ def form_of(op: Op, forms: Mapping[str, terms.Term], module: Module) -> terms.Te
                     if f.label == label:
                         return f.value
             raise FormError(f'Form {show_form(struct_form)} has no field {label!r}.', op.location)
+        case GetIndex(struct=struct, index=index):
+            struct_form = atom_form(struct, forms)
+            if isinstance(struct_form, terms.Struct) and 0 <= index < len(struct_form.fields):
+                return struct_form.fields[index].value
+            raise FormError(f'Form {show_form(struct_form)} has no field at index {index}.', op.location)
         case GetData(name=name):
             binding = module.lookup(name)
             if not isinstance(binding, Data):
@@ -222,18 +234,6 @@ def field_index(form: terms.Term, label: str) -> int:
     raise FormError(f'Form {show_form(form)} has no field {label!r}.')
 
 
-def _dynamic_form(op, prim, args, forms):
-    """A dynamic prim's result form: its `result_form` on the arguments' forms and constant bytes."""
-    if len(args) != len(prim.labels):
-        raise FormError(f'prim.{prim.name} takes {len(prim.labels)} arguments, got {len(args)}.', op.location)
-    arg_forms = [atom_form(arg, forms) for arg in args]
-    values = [arg.value if isinstance(arg, Const) else None for arg in args]
-    try:
-        return prim.result_form(arg_forms, values)
-    except banf_prim.PrimFormError as error:
-        raise FormError(str(error), op.location) from error
-
-
 # Verifier
 
 
@@ -251,9 +251,6 @@ def _check_args(what, params, args, forms, location):
 
 def _check_op(op, forms, module):
     match op:
-        case PrimCall(op=name) if name in banf_prim.DYNAMIC_PRIMS:
-            # The argument count and the arguments themselves are checked by its result form.
-            form_of(op, forms, module)
         case PrimCall(op=name, args=args):
             form_of(op, forms, module)
             _check_args(f'prim.{name}', banf_prim.PRIMS[name].params, args, forms, op.location)
@@ -381,6 +378,9 @@ def show_op(op: Op) -> str:
             return '{' + ', '.join(_show_label(label, ' = ') + show_atom(atom) for label, atom in fields) + '}'
         case GetField(struct=struct, label=label):
             return f'{show_atom(struct)}.{show_name(label)}'
+        case GetIndex(struct=struct, index=index):
+            # A label written as digits is quoted (`p."1"`), so `p.1` is never a label.
+            return f'{show_atom(struct)}.{index}'
         case GetData(name=name):
             return show_name(name)
     raise AssertionError(op)

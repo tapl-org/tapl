@@ -13,6 +13,7 @@ from oymo.oymomo.banf_terms import (
     Function,
     GetData,
     GetField,
+    GetIndex,
     Jump,
     Let,
     MakeStruct,
@@ -195,29 +196,42 @@ def test_form_of_errors():
 XY = terms.Struct([terms.Field('x', I32), terms.Field('y', I8)])
 
 
-def test_form_of_extractvalue():
-    op = PrimCall('extractvalue', [Var('p'), Const(b'\x01', I8)])
-    assert form_of(op, {'p': XY}, imports_module()) == I8
-    assert show_op(op) == 'prim.extractvalue(p, [01]:i8)'
+def test_form_of_get_index():
+    assert form_of(GetIndex(Var('p'), 1), {'p': XY}, imports_module()) == I8
+    assert form_of(GetIndex(Var('p'), 0), {'p': XY}, imports_module()) == I32
+    # Unlabeled fields are reached the same way.
+    unlabeled = terms.Struct([terms.Field('', I8), terms.Field('', I64)])
+    assert form_of(GetIndex(Var('p'), 1), {'p': unlabeled}, imports_module()) == I64
 
 
-def test_extractvalue_errors_are_form_errors():
+def test_show_get_index():
+    assert show_op(GetIndex(Var('p'), 1)) == 'p.1'
+    # A label written as digits is quoted, so the two never print the same.
+    assert show_op(GetField(Var('p'), '1')) == 'p."1"'
+
+
+@pytest.mark.parametrize(
+    ('form', 'index', 'message'),
+    [
+        (XY, 2, 'Form {x: i32, y: i8} has no field at index 2.'),
+        (I32, 0, 'Form i32 has no field at index 0.'),
+    ],
+)
+def test_get_index_errors_are_form_errors(form, index, message):
     location = terms.Location(3, 9)
-    op = PrimCall('extractvalue', [Var('p'), Const(b'\x02', I8)], location)
     with pytest.raises(FormError) as info:
-        form_of(op, {'p': XY}, imports_module())
-    assert info.value.message == 'prim.extractvalue: the struct has no field at index 2.'
+        form_of(GetIndex(Var('p'), index, location), {'p': form}, imports_module())
+    assert info.value.message == message
     assert info.value.location == location
-    with pytest.raises(FormError, match=r'prim\.extractvalue takes 2 arguments, got 1'):
-        form_of(PrimCall('extractvalue', [Var('p')]), {'p': XY}, imports_module())
 
 
-def test_verify_checks_extractvalue():
+def test_verify_checks_get_index():
     params = [('p', XY)]
-    good = one_block([Let('t0', PrimCall('extractvalue', [Var('p'), Const(b'\x00', I8)]))], Return(Var('t0')), params)
-    verify(good)
-    with pytest.raises(FormError, match='needs a literal index'):
-        verify(one_block([Let('t0', PrimCall('extractvalue', [Var('p'), Var('p')]))], Return(Var('t0')), params))
+    verify(one_block([Let('t0', GetIndex(Var('p'), 0))], Return(Var('t0')), params))
+    with pytest.raises(FormError, match='has no field at index 2'):
+        verify(one_block([Let('t0', GetIndex(Var('p'), 2))], Return(Var('t0')), params))
+    with pytest.raises(FormError, match='returns i32, got i8'):
+        verify(one_block([Let('t0', GetIndex(Var('p'), 1))], Return(Var('t0')), params))
 
 
 def one_block(lets, terminator, params=(), return_form=I32):

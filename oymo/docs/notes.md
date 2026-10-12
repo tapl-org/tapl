@@ -150,6 +150,9 @@ included: `{a = '1', a = '2'} [01]` gives `'2'`, which `s.a` can't reach.
 - A missing field is stuck, as for projection: an index past the last field, `''`,
   or an argument that isn't a byte array.
 - `Project` stays its own term: BANF's shapes and the printer match on it.
+- In BANF, a value struct applied to an index is the op `GetIndex` (`let y = args.p [01]
+  in y` prints `y = p.1`). There the index must reduce to a byte array literal, since
+  LLVM's `extractvalue` needs a constant (see "What the shape is").
 - Precedence is application's: `s [00] [01]` is `(s [00]) [01]`, `f s [00]` is
   `(f s) [00]`, and `s [00] : t` is `s ([00] : t)`.
 
@@ -552,29 +555,6 @@ trunc                        {value: F} -> T            for each narrower T
   `icmp_signed('<')`, `zext_i8_i32` to `zext(value, i32)`). A test checks that the
   two tables have the same op names.
 
-### Dynamic prims: `prim.extractvalue`
-Some prims' result form depends on their arguments, so they can't be a
-`PrimSignature`. A `banf_prim.DynamicPrim` has the param labels and a `result_form`
-function, which gets each argument's form and, for a constant, its bytes (None for a
-name), and returns the result form or raises `PrimFormError`. They live in their own
-table, `DYNAMIC_PRIMS`, which shares no name with `PRIMS`. In BANF a dynamic prim is
-still a `PrimCall`.
-
-`prim.extractvalue {struct = s, index = [01]: 'i8'}` is the field at position 1 of the
-value struct `s`, labeled or not, so it reaches unlabeled and duplicate fields:
-- `struct` must have a struct form: a let-bound struct or a param such as `args.p`.
-- `index` must be a byte array literal with an integer form (`i1` to `i64`), read as
-  a struct apply's index (unsigned little-endian), since LLVM's `extractvalue` needs
-  a constant index. A let name as index, `''`, or another form is an error.
-- An index past the last field is an error
-  (`prim.extractvalue: the struct has no field at index 2.`).
-- `banf_translate` checks only the labels (`prim.extractvalue takes {struct, index},
-  got {...}.`); the rest is checked by `result_form` when `banf.verify` runs, and
-  reported as a `TranslationError` like every `FormError`.
-- It is not a struct apply: `prim`, `module`, `blocks` and `args` are binders, read
-  only by label, so `args [00]` stays an error. A struct apply whose struct and index
-  are known reduces away before BANF.
-
 ## BANF
 
 BANF: block-based ANF; SSA with block parameters instead of phi nodes, as in MLIR
@@ -645,12 +625,12 @@ signature's return form, and on each `Data`. Ops carry no form, as in Cranelift
   let form replaces the op's form (`Let.form`; `Empty` when not written).
 
 `form_of` works out each op's result form:
-- `PrimCall`: the op's result form from `banf_prim.py`. For a dynamic prim, its
-  `result_form` on the arguments' forms and constant bytes; a `PrimFormError`
-  becomes a `FormError` at the op's location.
+- `PrimCall`: the op's result form from `banf_prim.py`.
 - `Call`: the callee's `return_form`, whether it is a `Function` or a `Signature`.
 - `MakeStruct`: each label paired with its field atom's form.
 - `GetField`: that field's form inside the struct atom's form.
+- `GetIndex`: the form of the field at that position in the struct atom's form,
+  labeled or not (`Form {x: i32} has no field at index 2.`).
 - `GetData`: the `Data` binding's form.
 
 The verifier and the LLVM translator use `let_form` while walking a block: the
@@ -680,6 +660,8 @@ Data(name, form, value=None)               # data: imported (None) or defined (b
 - Calls print with parentheses and commas (`fact(t1)`), so they don't read like
   oymomo's one-argument application.
 - Calls and data reads use the symbol, not `module.`: `t0 = errno`.
+- A `GetIndex` prints as `p.1`. A label written as digits needs quotes (`p."1"`), so
+  `p.1` is never a `GetField`.
 - Bindings print in declaration order: `putchar(c: i8): i32` for a `Signature`,
   `errno: i32` for imported `Data`, `answer: i32 = [2a000000]` for defined `Data`, and each function as `fact: i32` followed by its blocks,
   with a blank line around each function.
@@ -887,8 +869,19 @@ arithmetic and keeps no binder names of its own. A let reference becomes a
   so it's beta-reduced, and beta carries the form, giving `args.n: 'i32'`.
 - **Ops**, only as a let's value: `prim.op {...}`, `module.g {...}` (a `Call`, whether
   `g` is imported or defined), a struct literal of atoms (`MakeStruct`), a projection
-  on an atom (`let x = args.p.x in ...` is a `GetField` on param `p`), or
+  on an atom (`let x = args.p.x in ...` is a `GetField` on param `p`), an atom
+  applied to an index (`let y = args.p [01] in ...` is a `GetIndex`), or
   `module.errno` for data (`GetData`).
+- **`GetIndex`**: `s i`, where `s` is an atom with a struct form (a let-bound struct or
+  a param such as `args.p`), reads the field at position `i`, labeled or not, as the
+  kernel's struct apply does on a struct literal. `i` is read by `bruijn.index_value`:
+  any byte array literal, unsigned little-endian, a form on it ignored, so `[01]`,
+  `[0100]` and `[01]: 'i8'` are all 1. It is reduced first like any op argument, so
+  `args.p ((i -> i) [01])` and `let i = [01] in args.p i` work. A run-time value
+  (`args.n`, or a let bound to an op) or `''` is an error (`An index must be a byte
+  array literal, such as [01].`), since LLVM's `extractvalue` needs a constant. An
+  index past the last field is a form error (`Form {i32, i8} has no field at index
+  2.`). Binders are read only by label, so `args [00]` stays an error.
 - **Terminators**, only in tail position:
   - `f.label {...}` is a jump.
   - `if c then f.a {...} else f.b {...}` is a branch. Both arms must be jumps.
@@ -1004,11 +997,8 @@ else0:
   intermediate values are named after the let and field (`%q.x`) instead of
   llvmlite's numbering.
 - `GetData` is a `load` from the global. `GetField` is `extractvalue`.
-- `prim.extractvalue` is `extractvalue` too, with the index constant's value as
-  the position: `prim.extractvalue {struct = args.p, index = [00]: 'i8'}` gives the
-  same IR as `args.p.x`. As for any constant, the index's bytes must fit its form
-  (`[00]: 'i8'` or `[00000000]: 'i32'`; `[00]: 'i32'` is "A i32 constant needs 4
-  bytes.").
+- `GetIndex` is `extractvalue` too, with the index as the position: `args.p [00]`
+  gives the same IR as `args.p.x`.
 - Defined data is a writable `global` (not `constant`) with an initializer,
   `@answer = global i32 42`; imported data is an `external global`. The initializer
   follows the constant rules, so it needs an integer form and the right byte count

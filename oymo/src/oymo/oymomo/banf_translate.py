@@ -255,17 +255,18 @@ class _Translator:
     def op(self, term, block):
         location = _location(term)
         match term:
+            case terms.Apply(function=function, argument=index) if self.is_atom(function, block):
+                # A value struct applied to an index reads that field, as a struct literal does in `reduce`.
+                position = bruijn.index_value(index)
+                if position is None:
+                    raise TranslationError('An index must be a byte array literal, such as [01].', _location(index))
+                return banf.GetIndex(self.atom(function, block), position, location)
             case terms.Apply(function=terms.Project(struct=struct, label=name), argument=arg):
                 base = block.binder(struct)
                 if base == PRIM:
-                    if name in banf_prim.PRIMS:
-                        params = banf_prim.PRIMS[name].params
-                    elif name in banf_prim.DYNAMIC_PRIMS:
-                        # Only the labels are checked here; the arguments are checked by its
-                        # result form, when `banf.verify` runs.
-                        params = [(label, terms.Empty) for label in banf_prim.DYNAMIC_PRIMS[name].labels]
-                    else:
+                    if name not in banf_prim.PRIMS:
                         raise TranslationError(f'Unknown prim op {name!r}.', location)
+                    params = banf_prim.PRIMS[name].params
                     return banf.PrimCall(name, self.args(arg, params, f'prim.{name}', block), location)
                 if base == MODULE:
                     # An imported function's params are declared; a defined one's come from its entry block.
