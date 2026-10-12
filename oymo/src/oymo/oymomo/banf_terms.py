@@ -6,7 +6,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from oymo.oymomo import banf_prim, printer, terms
+from oymo.oymomo import banf_opcodes, printer, terms
 
 Location = terms.Location
 
@@ -31,8 +31,8 @@ type Atom = Var | Const
 
 
 @dataclass
-class PrimCall:
-    op: str
+class OpcodeCall:
+    opcode: str
     args: list[Atom]
     location: Location | None = field(default=None, compare=False)
 
@@ -72,7 +72,7 @@ class GetData:
     location: Location | None = field(default=None, compare=False)
 
 
-type Op = PrimCall | Call | MakeStruct | GetField | GetIndex | GetData
+type Op = OpcodeCall | Call | MakeStruct | GetField | GetIndex | GetData
 
 
 @dataclass
@@ -190,10 +190,10 @@ def callee(op: Call, module: Module) -> Function | Signature:
 def form_of(op: Op, forms: Mapping[str, terms.Term], module: Module) -> terms.Term:
     """The result form of `op`, given the forms of the names in scope."""
     match op:
-        case PrimCall(op=name):
-            if name not in banf_prim.PRIMS:
-                raise FormError(f'Unknown prim op {name!r}.', op.location)
-            return banf_prim.PRIMS[name].result
+        case OpcodeCall(opcode=name):
+            if name not in banf_opcodes.OPCODES:
+                raise FormError(f"Unknown built-in '${name}'.", op.location)
+            return banf_opcodes.OPCODES[name].result
         case Call():
             return callee(op, module).return_form
         case MakeStruct(fields=fields):
@@ -251,9 +251,9 @@ def _check_args(what, params, args, forms, location):
 
 def _check_op(op, forms, module):
     match op:
-        case PrimCall(op=name, args=args):
+        case OpcodeCall(opcode=name, args=args):
             form_of(op, forms, module)
-            _check_args(f'prim.{name}', banf_prim.PRIMS[name].params, args, forms, op.location)
+            _check_args(f'${name}', banf_opcodes.OPCODES[name].params, args, forms, op.location)
         case Call(function=name, args=args):
             _check_args(name, callee(op, module).params, args, forms, op.location)
         case _:
@@ -370,10 +370,12 @@ def _show_args(args):
 
 def show_op(op: Op) -> str:
     match op:
-        case PrimCall(op=name, args=args):
-            return f'prim.{show_name(name)}{_show_args(args)}'
+        case OpcodeCall(opcode=name, args=args):
+            # Assembly style, as in Cranelift: `eq_i32 n, [00000000]:i32`. An opcode always has
+            # operands, so a bare name (`t0 = errno`) is always a data read.
+            return f'{show_name(name)} ' + ', '.join(show_atom(arg) for arg in args)
         case Call(function=name, args=args):
-            return f'{show_name(name)}{_show_args(args)}'
+            return f'call {show_name(name)}{_show_args(args)}'
         case MakeStruct(fields=fields):
             return '{' + ', '.join(_show_label(label, ' = ') + show_atom(atom) for label, atom in fields) + '}'
         case GetField(struct=struct, label=label):

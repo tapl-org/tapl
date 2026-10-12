@@ -10,7 +10,7 @@ import llvmlite.binding as llvm
 from approvaltests.approvals import verify
 from approvaltests.core.namer import Namer
 
-from oymo.oymomo import banf_terms, banf_translate, grammar, llvm_prims, llvm_translate, printer
+from oymo.oymomo import banf_terms, banf_translate, grammar, llvm_opcodes, llvm_translate, printer
 
 
 def run_command(command):
@@ -65,7 +65,7 @@ def run_python_files(base_directory: str, filenames: list[str], output_file: str
     verify(output.getvalue(), namer=ApprovalNamer(filepath))
 
 
-TARGET = llvm_translate.Target(triple='x86_64-unknown-linux-gnu', data_layout='', prims=llvm_prims.DEFAULT_PRIMS)
+TARGET = llvm_translate.Target(triple='x86_64-unknown-linux-gnu', data_layout='', opcodes=llvm_opcodes.DEFAULT_OPCODES)
 LANGUAGE_HEADER = 'language oymomo\n'
 
 

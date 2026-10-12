@@ -58,8 +58,8 @@ terms --bruijn.resolve--> BruijnIndex terms --banf_reduce.shape--> BANF-shaped t
 
 ### Files are flat, with prefixes
 Everything sits in `oymo/src/oymo/oymomo/`:
-`bruijn.py`, `banf_terms.py`, `banf_prim.py`, `banf_reduce.py`, `banf_rename.py`,
-`banf_translate.py`, `llvm_prims.py`,
+`bruijn.py`, `banf_terms.py`, `banf_opcodes.py`, `banf_reduce.py`, `banf_rename.py`,
+`banf_translate.py`, `llvm_opcodes.py`,
 `llvm_translate.py`, and tests use the same names in `tests/oymomo/`.
 - Why flat: the stages are small, and a prefix shows the stage as clearly as a
   subpackage without the extra `__init__.py` files and import paths.
@@ -70,15 +70,15 @@ Everything sits in `oymo/src/oymo/oymomo/`:
 Anything LLVM needs that BANF doesn't have is passed to the LLVM translator:
 
 ```python
-Target(triple='x86_64-unknown-linux-gnu', data_layout='', prims=DEFAULT_PRIMS)
+Target(triple='x86_64-unknown-linux-gnu', data_layout='', opcodes=DEFAULT_OPCODES)
 ```
 
 - No `byte_order`: byte arrays are always little-endian (see "Byte arrays"), and the
   target's own byte order comes from `data_layout` (`e` or `E`). A separate field
   could disagree with it.
-- `prims` maps each prim op name to the LLVM instructions that implement it.
-- Why: how each prim op becomes LLVM instructions is a backend detail, so BANF
-  only names the op (`prim.add_i32`) and the target supplies the implementation.
+- `opcodes` maps each opcode name to the LLVM instructions that implement it.
+- Why: how each opcode becomes LLVM instructions is a backend detail, so BANF
+  only names the opcode (`add_i32`) and the target supplies the implementation.
 
 ## Punctuation
 
@@ -105,6 +105,7 @@ s [00]                       Apply: the field at position 0
 if c then a else b           If
 let x = e in body            sugar for (x -> body) e
 fix f                        Fix
+$add_i32                     Builtin
 [2a 00 00 00]                ByteArray
 e: 'i32'                    Formed
 {c = 'i8'} => 'i32'          FunctionForm
@@ -209,7 +210,7 @@ none, and `: 'void'` is just the form named void. A byte array has no form of it
 `[2a]` is just bytes.
 - Why: quick sketches stay short. `Empty` has no default meaning: each position says
   what `Empty` means there, or rejects it. A BANF let, for example, has no form of its
-  own, so `let t0 = prim.eq_i32 {...} in t0` needs no `t0: 'i1'`: the let's form is
+  own, so `let t0 = $eq_i32 {...} in t0` needs no `t0: 'i1'`: the let's form is
   its op's. BANF translation rejects a byte array where nothing gives it a form, as in
   `[01]` with no `: form` ("form must be written").
 
@@ -250,13 +251,13 @@ from an expression, so a byte array's form can be a variable:
     what gives a literal its number. With an overridable default, one source would
     mean two numbers. Same idea as WebAssembly memory and the `.bc` encoding: the
     encoding is fixed, the machine's byte order is a target detail.
-  - Why: an evaluator (beta reduction plus prims) can run `add_i32` without a
+  - Why: an evaluator (beta reduction plus opcodes) can run `add_i32` without a
     target, and it agrees with compiled code, so constant folding is safe.
   - A big-endian target gets big-endian bytes in memory: the LLVM translator
     emits the number (`i32 42`) and LLVM lays it out per `data_layout`.
-  - Cost, later: once prims can reinterpret memory (store an `i32`, read bytes),
+  - Cost, later: once opcodes can reinterpret memory (store an `i32`, read bytes),
     a big-endian target sees bytes in a different order than the literal. Then
-    either byte-swap loads and stores (as WebAssembly does) or call those prims
+    either byte-swap loads and stores (as WebAssembly does) or call those opcodes
     target-dependent.
 - Inside `[]`: groups of hex digits separated by whitespace. A group holds any
   number of bytes but has an even number of digits, so `[2a000000]`,
@@ -308,13 +309,23 @@ Plain identifiers match `[A-Za-z_][A-Za-z0-9_]*`, excluding the reserved words
 - Cost: `"` is not available for string literals. The kernel has none.
   Rejected: Zig-style `@"..."`, only worth it if strings come.
 
+### `$name` for built-ins, `$0` for indices
+`$` marks a reference that no user name binds: `$0` is bound by position, `$add_i32`
+by the kernel. User names are always written bare.
+- `$` followed by digits is a `BruijnIndex`; `$` followed by a plain identifier is a
+  `Builtin`. An identifier can't start with a digit, so the two never overlap.
+- No trivia between `$` and the name, and the name can't be quoted: `$ fix` and
+  `$"fix"` are errors. Nothing is reserved after `$`.
+- `$name` is a primary, like a variable: `$add_i32 {...}.a` is `$add_i32 ({...}.a)`,
+  `f $fix g` is `(f $fix) g`.
+
 ### Comments use `//`
 Kept after byte arrays moved to `[]`; `#` is now unused.
 
 ### `let x = e in body` is sugar for `(x -> body) e`
 - No new term: the parser builds `Apply(Lambda(x, body), e)`, and the printer prints
   every apply of a lambda as a `let`. The optional form goes on the name, as on a
-  lambda param: `let t0: 'i1' = prim.eq_i32 {...} in t0`.
+  lambda param: `let t0: 'i1' = $eq_i32 {...} in t0`.
 - Like a lambda, a let extends as far right as possible: `let x = e in a b` is
   `let x = e in (a b)`, and an argument needs parens: `f (let x = e in x)`.
 - Why: the applied-lambda let `(t0 -> rest) (op)` puts the value after the whole
@@ -374,20 +385,21 @@ and `⇒` for function forms.
   level by `indent` spaces (default 2):
   - a struct puts one field per line, with a trailing comma;
   - a lambda's body goes on the next line, indented. A body that is a struct or
-    another lambda stays on the same line, so `prim → module: {...} → {`
+    another lambda stays on the same line, so `module: {...} → {`
     stays together;
   - an apply's argument goes on the next line, indented;
   - a `let` puts its body on the next line, at the `let`'s own indentation, so a
     chain of lets reads one let per line:
     ```
     entry = args: {n = 'i32'} →
-      let t0 = prim.eq_i32 {a = args.n, b = [00000000]: 'i32'} in
+      let t0 = $eq_i32 {a = args.n, b = [00000000]: 'i32'} in
       if t0 then f.then0 {} else f.else0 {n = args.n},
     ```
   - an `if` puts `then` and `else` on their own lines.
 - An apply of a lambda prints as `let` in both modes: compact
   `let x:'i8' = e in body`, pretty `let x: 'i8' = e in body`.
-- A `BruijnIndex` prints as `$0` and a `Variable` as its name, in both modes:
+- A `BruijnIndex` prints as `$0`, a `Builtin` as `$add_i32`, and a `Variable` as its
+  name, in both modes:
   the printer shows the term as it is. The parser reads `$0` back as a
   `BruijnIndex` (no space after `$`), so the output of a resolved term parses
   back to the same term.
@@ -400,20 +412,30 @@ and `⇒` for function forms.
 ## Program shape
 
 ```
-prim -> module: {putchar = {c = 'i8'} => 'i32', errno = 'i32', main = => 'i32'} -> {
+module: {putchar = {c = 'i8'} => 'i32', errno = 'i32', main = => 'i32'} -> {
   main = f -> {entry = args:{} -> let t0 = module.putchar {c = [41]:'i8'} in t0},
 }
 ```
 
-A program is two nested lambdas around a struct of definitions.
+A program is a lambda around a struct of definitions.
 
-### `prim`: the machine primitives
-`prim` is the struct of machine primitives (arithmetic, logic, comparison,
-conversions): `prim.add_i32 {a = x, b = y}`.
-- Why a separate binder: it separates machine-provided instructions from symbols.
-  `prim.add_i32` is an instruction the machine provides, so it never becomes an
+### Built-ins: `$add_i32`
+The machine primitives (arithmetic, logic, comparison, conversions) are built-ins,
+each a global constant written `$name`: `$add_i32 {a = x, b = y}`. A built-in with
+machine code is an **opcode**; its name is in `banf_opcodes.OPCODES`.
+- Why not names in `module`: it separates machine-provided instructions from symbols.
+  `$add_i32` is an instruction the machine provides, so it never becomes an
   LLVM symbol, while every symbol in `module` does (`@putchar`, `@fact`).
-  BANF keeps the split too: `PrimCall` for prims, `Call` for symbols.
+  BANF keeps the split too: `OpcodeCall` for opcodes, `Call` for symbols.
+- Why not a binder: a binder's index depends on depth (the program used to start
+  with `prim ->`, and `prim` was `$3` under three lambdas), so `reduce`, which sees
+  only the term, couldn't recognize `prim.fix`. A `Builtin` is the same at any depth.
+- Every built-in is a separate constant, not a field of a global struct: there is no
+  `$` value to project from, apply, or unpack.
+- Every built-in takes one argument. One with several operands takes a struct, so a
+  call is always `Apply(Builtin(name), arg)`.
+- No word is reserved for them: `prim` is a plain name, and the parser accepts any
+  `$name`; `convert` rejects one with no opcode (`Unknown built-in '$nope'.`).
 
 ### `module`: every symbol, declared by the binder's form
 `module`'s form declares every symbol of the module, imported or defined, in one
@@ -470,13 +492,13 @@ Each field of the body is a function written as a struct of blocks:
 ```
 fact = f -> {
   entry = args:{n = 'i32'} ->
-    let t0 = prim.eq_i32 {a = args.n, b = [00000000]:'i32'} in
+    let t0 = $eq_i32 {a = args.n, b = [00000000]:'i32'} in
     if t0 then f.then0 {} else f.else0 {n = args.n},
   then0 = args:{} -> [01000000]:'i32',
   else0 = args:{n = 'i32'} ->
-    let t1 = prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'} in
+    let t1 = $sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'} in
     let t2 = module.fact {n = t1} in
-    let t3 = prim.mul_i32 {a = args.n, b = t2} in
+    let t3 = $mul_i32 {a = args.n, b = t2} in
     t3,
 }
 ```
@@ -493,7 +515,7 @@ fact = f -> {
 
 ### One argument, always a struct
 An oymomo lambda takes exactly one argument. When a program is translated to BANF,
-every block's argument must be a struct, and so must every prim op's and every
+every block's argument must be a struct, and so must every opcode's and every
 imported function's.
 - Why: the kernel stays a plain one-argument lambda calculus. Labels name the
   arguments at every call site (`{minuend = x, subtrahend = y}`), so argument order
@@ -514,18 +536,18 @@ imported function's.
   callee's params in order, or the block's own `args` forwarded as-is:
   `module.add args` or `f.body args`.
 
-## Prim ops
+## Opcodes
 
 ### Monomorphic: one op per signature
 Each unique signature (param forms plus result form) is its own op:
 `add_i32`, `add_i64`, `eq_i8`, `zext_i8_i32`, `trunc_i64_i32`. There is no generic
 `add`.
-- Why: a `PrimCall`'s result form is a table lookup, the same way a `Call`'s comes
+- Why: an `OpcodeCall`'s result form is a table lookup, the same way a `Call`'s comes
   from its callee's signature. Nothing needs width inference, and conversions don't
   need a stored target form: `zext_i8_i32` always returns `i32`.
 - Cost: many op names. They are generated from templates, not written by hand.
-- Strict widths: `prim.add_i32 {a = [01]:'i8', b = ...}` is an error
-  (`prim.add_i32 expects a: i32, got i8.`). Convert explicitly with `zext_i8_i32`.
+- Strict widths: `$add_i32 {a = [01]:'i8', b = ...}` is an error
+  (`$add_i32 expects a: i32, got i8.`). Convert explicitly with `zext_i8_i32`.
 
 ### Naming
 - Same-form ops: `<op>_<form>` (`add_i32`, `eq_i8`).
@@ -546,12 +568,12 @@ trunc                        {value: F} -> T            for each narrower T
 ```
 
 - Why not `a`/`b` everywhere: for non-commutative ops the label documents the
-  operand's role, so `prim.sub_i32 {minuend = x, subtrahend = y}` can't be read
+  operand's role, so `$sub_i32 {minuend = x, subtrahend = y}` can't be read
   the wrong way round.
 - Forms: `i1 i8 i16 i32 i64`. Arithmetic, shifts and ordered comparisons skip `i1`;
   `and or xor eq ne` include it (as boolean logic). No same-width conversions.
-- `banf_prim.py` holds these signatures as plain data, with no LLVM;
-  `llvm_prims.py` maps each one to llvmlite (`add_*` to `builder.add`, `slt_*` to
+- `banf_opcodes.py` holds these signatures as plain data, with no LLVM;
+  `llvm_opcodes.py` maps each one to llvmlite (`add_*` to `builder.add`, `slt_*` to
   `icmp_signed('<')`, `zext_i8_i32` to `zext(value, i32)`). A test checks that the
   two tables have the same op names.
 
@@ -563,14 +585,14 @@ and Cranelift.
 ```
 fact: i32
   entry(n: i32):
-    t0 = prim.eq_i32(n, [00000000]:i32)
+    t0 = eq_i32 n, [00000000]:i32
     branch t0, then0(), else0(n)
   then0():
     return [01000000]:i32
   else0(n: i32):
-    t1 = prim.sub_i32(n, [01000000]:i32)
-    t2 = fact(t1)
-    t3 = prim.mul_i32(n, t2)
+    t1 = sub_i32 n, [01000000]:i32
+    t2 = call fact(t1)
+    t3 = mul_i32 n, t2
     return t3
 ```
 
@@ -585,7 +607,7 @@ fact: i32
   else0(y: i32, z: i32):
     jump join0(y, z)
   join0(v: i32, z: i32):
-    t0 = prim.add_i32(v, z)
+    t0 = add_i32 v, z
   ```
   The LLVM translator turns these back into phis where needed (see "BANF to LLVM").
 
@@ -597,7 +619,7 @@ passes it: `branch t0, then0(), else0(n)`.
   know what is in scope. Names are scoped to their block, so a passed-in value can
   keep its name (`else0(n: i32)`).
 - In oymomo this holds by construction: a block lambda's scope only holds its
-  `args`, its lets, and the outer binders `f`, `module`, `prim`.
+  `args`, its lets, and the outer binders `f` and `module`; built-ins are global.
 
 ### The entry block cannot be jumped to
 The entry block's params are the function's params, as in Cranelift.
@@ -625,7 +647,7 @@ signature's return form, and on each `Data`. Ops carry no form, as in Cranelift
   let form replaces the op's form (`Let.form`; `Empty` when not written).
 
 `form_of` works out each op's result form:
-- `PrimCall`: the op's result form from `banf_prim.py`.
+- `OpcodeCall`: the op's result form from `banf_opcodes.py`.
 - `Call`: the callee's `return_form`, whether it is a `Function` or a `Signature`.
 - `MakeStruct`: each label paired with its field atom's form.
 - `GetField`: that field's form inside the struct atom's form.
@@ -654,12 +676,16 @@ Data(name, form, value=None)               # data: imported (None) or defined (b
 
 ### Printer
 - A binding prints as `name = op` with no `let` keyword and no form, as in
-  Cranelift: `t0 = prim.eq_i32(n, [00000000]:i32)`. That is unambiguous, because a
+  Cranelift: `t0 = eq_i32 n, [00000000]:i32`. That is unambiguous, because a
   block holds only lets plus one terminator, and every terminator starts with a
   keyword (`jump`, `branch`, `return`).
-- Calls print with parentheses and commas (`fact(t1)`), so they don't read like
-  oymomo's one-argument application.
-- Calls and data reads use the symbol, not `module.`: `t0 = errno`.
+- Opcodes print assembly style, as in Cranelift: the name, then the operands
+  separated by commas, with no parentheses and no `$` (`t3 = mul_i32 n, t2`).
+- Calls print with the keyword `call`, parentheses and commas (`t2 = call fact(t1)`),
+  so they don't read like oymomo's one-argument application or like an opcode.
+- A data read is a bare name (`t0 = errno`): an opcode always has operands, so
+  `t0 = add_i32` can only be data.
+- Calls and data reads use the symbol, not `module.`: `call fact(t1)`, `t0 = errno`.
 - A `GetIndex` prints as `p.1`. A label written as digits needs quotes (`p."1"`), so
   `p.1` is never a `GetField`.
 - Bindings print in declaration order: `putchar(c: i8): i32` for a `Signature`,
@@ -691,7 +717,7 @@ the result:
   included (see "Return forms are declared"), and every parameter list and form is
   written once.
 - Unneeded forms are dropped: a form written where BANF has no slot for it (on the
-  `prim` or `blocks` binder, or on a data definition) is dropped, not rejected.
+  `blocks` binder, or on a data definition) is dropped, not rejected.
 - A form is not a type: a written form is never checked against a computed one; it
   replaces it (a let's form, a formed atom). `banf.verify` still checks arguments,
   branch conditions and returns against the forms they're *required* to have, and
@@ -727,7 +753,7 @@ The golden tests approve the shaped term next to the BANF and LLVM output, as
   a `Lambda` callee, struct apply a `Struct` callee.
 - It never raises and never recurses, so one call always finishes. Loops come
   from calling it again and again, so the fuel is in `banf_reduce`.
-- Prims are not run (`prim` is only a binder), and an `if` condition's form isn't
+- Built-ins are not run (`$add_i32 {...}` is stuck), and an `if` condition's form isn't
   checked: only the one-byte values `01` and `00` are redexes.
 - The helpers it uses are `shift`, `substitute`, `beta`
   (`shift(substitute(body, 0, shift(arg, 1)), -1)`), `unfold`, `project` and
@@ -755,22 +781,21 @@ step(t) = reduce(t)        if reduce(t) is not t                        -- a ste
 whnf(t) = whnf(step(t))    if step(t) is not t
         = t                otherwise
 ```
-`whnf` stops at every Lambda, Struct, ByteArray and BruijnIndex, and at stuck terms
-such as `prim.add_i32 {...}`, `args.n`, `blocks.done {...}` or `if t0 then a else b`.
+`whnf` stops at every Lambda, Struct, ByteArray, BruijnIndex and Builtin, and at stuck terms
+such as `$add_i32 {...}`, `args.n`, `blocks.done {...}` or `if t0 then a else b`.
 - "Reduce `t` until it is X" means take `whnf(t)`, then look at its constructor.
   Looking first would be wrong: `{f = x -> ...}.f args.n` is already an apply, but
-  its callee must be reduced before it is a call such as `prim.op {...}`.
+  its callee must be reduced before it is a call such as `$add_i32 {...}`.
 - A position that already has a wanted constructor is not reduced further, since
   `whnf` stops there. So a let-bound struct stays a `MakeStruct`.
 
 **Positions**, as numbered in `banf_reduce.py`:
-1. The term, until a Lambda: `prim -> <module>`.
-2. `<module>`, until a Lambda: `module -> <body>`.
-3. `<body>`, until a Struct: `{label = <func>, ...}`.
-4. `<func>`, until a Lambda: `blocks -> <func_body>`.
-5. `<func_body>`, until a Struct: `{label = <block>, ...}`.
-6. `<block>`, until a Lambda: `args -> <block_body>`.
-7. `<block_body>`, a chain of lets ending in a terminal:
+1. The term, until a Lambda: `module -> <body>`.
+2. `<body>`, until a Struct: `{label = <func>, ...}`.
+3. `<func>`, until a Lambda: `blocks -> <func_body>`.
+4. `<func_body>`, until a Struct: `{label = <block>, ...}`.
+5. `<block>`, until a Lambda: `args -> <block_body>`.
+6. `<block_body>`, a chain of lets ending in a terminal:
    ```
    block_body := terminal | (x -> block_body) <value>      -- a let
    terminal   := [bytes]                                    -- return a constant
@@ -784,17 +809,17 @@ such as `prim.add_i32 {...}`, `args.n`, `blocks.done {...}` or `if t0 then a els
    since it is a redex that must be kept. Repeat:
    1. For a let `(x -> rest) <value>`, take `whnf(<value>)`. If it is an op (an
       apply, a struct, or a projection other than `args.label`), keep the let,
-      visit the op (8), and go on with `rest`. Otherwise beta-reduce the let and
+      visit the op (7), and go on with `rest`. Otherwise beta-reduce the let and
       go on with the result.
    2. Else, if `step` changes the body, go on with that. This can make a let:
       in `(x -> y -> rest) a b` the head reduces and leaves `(y -> rest') b`.
    3. Else visit the terminal's positions and stop.
-8. `<value>`, a let's op: an apply's `<op_arg>` becomes a struct of atoms or a
+7. `<value>`, a let's op: an apply's `<op_arg>` becomes a struct of atoms or a
    BruijnIndex (forwarding `args`); a struct's fields become atoms; a
    projection's struct is a head, already reduced.
-9. `<jump>`, an `if` arm: until `blocks.label <op_arg>`.
-10. `<atom>`: until a ByteArray, `$i` with `i < k`, or `args.n`. `args` itself is
-    not an atom: BANF passes a block's params one by one.
+8. `<jump>`, an `if` arm: until `blocks.label <op_arg>`.
+9. `<atom>`: until a ByteArray, `$i` with `i < k`, or `args.n`. `args` itself is
+   not an atom: BANF passes a block's params one by one.
 
 More rules:
 - Because a let whose value isn't an op is beta-reduced, helpers are inlined,
@@ -808,11 +833,11 @@ More rules:
   flattening would mean inventing names.
 
 ### Binders get fixed names
-The structural binders (positions 1, 2, 4 and 6) are renamed to fixed names,
+The structural binders (positions 1, 3 and 5) are renamed to fixed names,
 so every shaped program reads
-`prim -> module -> {main = blocks -> {entry = args -> ...}}`. `convert` then
+`module -> {main = blocks -> {entry = args -> ...}}`. `convert` then
 checks each position by name, and a wrong name means a wrong shape.
-- On any path from the root the four names appear once each, so they never clash.
+- On any path from the root the three names appear once each, so they never clash.
 - A position `banf_reduce` left without its shape is not structural: its binder
   follows the rule below, and `convert` reports the shape error.
 - The fixed names don't reach BANF: `blocks.label` becomes a jump target and
@@ -820,14 +845,14 @@ checks each position by name, and a wrong name means a wrong shape.
 
 ### Other binders keep their names unless they clash
 A let keeps its name `x` unless `x` is visible: the name of an enclosing binder
-(after renaming, so the four fixed names count), or a param label of its block.
+(after renaming, so the three fixed names count), or a param label of its block.
 Then it becomes `x_L`, else `x__L`, and so on, where `L` is its level (the number
-of enclosing binders; a block's first let is level 4).
-- `let t = ... in let t = ... in let t = ... in t` gives `t, t_5, t_6`.
-- With `args: {n = 'i8'}`, two lets named `n` give `n_4, n_5`, since `n` is a param
+of enclosing binders; a block's first let is level 3).
+- `let t = ... in let t = ... in let t = ... in t` gives `t, t_4, t_5`.
+- With `args: {n = 'i8'}`, two lets named `n` give `n_3, n_4`, since `n` is a param
   label: param labels become BANF `Var`s, as in `entry(n: i8)`.
-- A user's own `t_5` after a renamed `t_5` gives `t_5_6`; `t, t_6, t` gives
-  `t, t_6, t__6`. A let named `args` gives `args_4`.
+- A user's own `t_4` after a renamed `t_4` gives `t_4_5`; `t, t_5, t` gives
+  `t, t_5, t__5`. A let named `args` gives `args_3`; one named `prim` keeps its name.
 - Labels (struct, field, block, function, param) are never renamed, and only
   param labels count as visible. The others live in their own namespaces in
   oymomo and in BANF (`Jump.target`, `Call.function` and `GetData.name` are plain
@@ -847,12 +872,13 @@ of enclosing binders; a block's first let is level 4).
     places;
   - `_<level>_<original>` for every binder: unique without a set, but it renames
     every let, even ones that clash with nothing;
-  - `name$level` (`n$4`): it needs quotes, and `$` now starts a BruijnIndex.
+  - `name$level` (`n$3`): it needs quotes, and `$` now starts a BruijnIndex or a
+    Builtin.
 
 ### `convert` finds binders by index
 Inside a block body with `k` lets so far, the binders above are always, from the
 inside out: the lets (`$0` to `$k-1`), then `args` (`$k`), `blocks` (`$k+1`),
-`module` (`$k+2`), `prim` (`$k+3`). So `convert` classifies each `BruijnIndex` by
+`module` (`$k+2`). So `convert` classifies each `BruijnIndex` by
 arithmetic and keeps no binder names of its own. A let reference becomes a
 `banf.Var` named after the BANF let already built.
 
@@ -860,14 +886,14 @@ arithmetic and keeps no binder names of its own. A let reference becomes a
 - **Let**: `let x = op in rest`, which is `(x -> rest) (op)`. The form may be
   omitted, and then the let's form is the op's. A written form must be a literal,
   and it replaces the op's form without being compared to it, since a form is not a
-  type: `let t0: 'i32' = prim.eq_i32 {...} in t0` gives `t0` the form `i32`, though
-  `eq_i32` gives `i1`. BANF prints it as `t0: i32 = prim.eq_i32(...)`. LLVM translation
+  type: `let t0: 'i32' = $eq_i32 {...} in t0` gives `t0` the form `i32`, though
+  `eq_i32` gives `i1`. BANF prints it as `t0: i32 = eq_i32 ...`. LLVM translation
   rejects it, since the LLVM types differ (see "BANF to LLVM").
 - **Atoms**: a byte array with a literal form (`[01]: 'i8'`), a let name, or `args.label`.
   Any atom can be given a literal form, which replaces its own (`args.n: 'i32'`,
   `t: 'i8'`). `let m: 'i32' = args.n in m` isn't a let in BANF: its value isn't an op,
   so it's beta-reduced, and beta carries the form, giving `args.n: 'i32'`.
-- **Ops**, only as a let's value: `prim.op {...}`, `module.g {...}` (a `Call`, whether
+- **Ops**, only as a let's value: `$opcode {...}` (an `OpcodeCall`), `module.g {...}` (a `Call`, whether
   `g` is imported or defined), a struct literal of atoms (`MakeStruct`), a projection
   on an atom (`let x = args.p.x in ...` is a `GetField` on param `p`), an atom
   applied to an index (`let y = args.p [01] in ...` is a `GetIndex`), or
@@ -888,17 +914,17 @@ arithmetic and keeps no binder names of its own. A let reference becomes a
   - An atom is returned.
 
 ### Labels name params, declarations and blocks
-BANF reads `prim`, `module`, `blocks` and `args` only by label, so every field needs a
+BANF reads `module`, `blocks` and `args` only by label, so every field needs a
 label in the module form, a signature's param form, the module body, a definition's
 blocks, the top level of a block's param form, and the argument struct of a call, a
-jump or a prim: "The module form needs a label on every field." Elsewhere (a value
+jump or an opcode: "The module form needs a label on every field." Elsewhere (a value
 struct, a nested data form such as `args: {p = {'i32', 'i8'}}`) a field may be
 unlabeled, and several unlabeled fields are not duplicate labels. BANF prints an
 unlabeled field alone (`{i32, i8}`, `{n, y = [01]:i8}`), and LLVM names its
 `insertvalue` by index (`%"q.0"`).
 
 ### Operands must be atoms; nested calls are rejected
-`prim.add_i32 {a = prim.add_i32 {...}, b = ...}` is an error; bind the inner call
+`$add_i32 {a = $add_i32 {...}, b = ...}` is an error; bind the inner call
 with a let first.
 - Why: allowing it means flattening nested calls into lets, which means inventing
   temporary names. That is normalization.
@@ -920,10 +946,11 @@ an operand is an error.
   incoming edges from the same block, and an LLVM phi can't tell those edges apart.
 
 ### Binders can't be used as values
-`blocks`, `args`, `prim` and `module` used on their own are errors
+`blocks`, `args` and `module` used on their own are errors
 (`'args' cannot be used as a value.`; the message uses the fixed name), except `args` forwarded as a whole call or
-jump argument. So are `module.g` and `prim.add_i8` without an argument.
-- Why: they have no runtime value. `prim` is not a struct anything could build.
+jump argument. So are `module.g` and `$add_i8` without an argument
+(`$add_i8 must be applied.`).
+- Why: they have no runtime value. `module` is not a struct anything could build.
 
 ### Return forms are declared
 Every function's return form, imported or defined, is written in its `module`
@@ -931,7 +958,7 @@ declaration (`main = => 'i32'`). Each return is checked against it. Recursion ne
 nothing special:
 
 ```
-prim -> module: {loop = => 'i8'} -> {
+module: {loop = => 'i8'} -> {
   loop = f -> {
     entry = args:{c = 'i1'} -> if args.c then f.a {} else f.b {},
     a = args:{} -> let t = module.loop {c = [00]:'i1'} in t,
@@ -1012,7 +1039,7 @@ else0:
   i1."). Nothing is converted: no `bitcast`, no widening, no narrowing.
 
 ## Testing
-- Unit tests per stage: `grammar_test.py`, `printer_test.py`, `banf_prim_test.py`,
+- Unit tests per stage: `grammar_test.py`, `printer_test.py`, `banf_opcodes_test.py`,
   `banf_terms_test.py`, `bruijn_test.py`, `banf_reduce_test.py`,
   `banf_rename_test.py`, `banf_translate_test.py`, `llvm_translate_test.py`.
 - BANF tests build modules by hand, so they don't depend on the translator.

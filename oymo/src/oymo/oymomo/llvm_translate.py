@@ -25,7 +25,7 @@ class LlvmTranslationError(Exception):
 class Target:
     triple: str
     data_layout: str
-    prims: Mapping[str, Callable[[ir.IRBuilder, list[ir.Value]], ir.Value]]
+    opcodes: Mapping[str, Callable[[ir.IRBuilder, list[ir.Value]], ir.Value]]
 
 
 def llvm_type(form: terms.Term) -> ir.Type:
@@ -148,10 +148,10 @@ class _FunctionTranslator:
     def op(self, builder, let, values, forms):
         op = let.value
         match op:
-            case banf.PrimCall(op=name, args=args):
-                if name not in self.target.prims:
-                    raise LlvmTranslationError(f'Target has no implementation of prim.{name}.', op.location)
-                return self.target.prims[name](builder, [self.value(arg, values) for arg in args])
+            case banf.OpcodeCall(opcode=name, args=args):
+                if name not in self.target.opcodes:
+                    raise LlvmTranslationError(f'Target has no implementation of ${name}.', op.location)
+                return self.target.opcodes[name](builder, [self.value(arg, values) for arg in args])
             case banf.Call(function=name, args=args):
                 return builder.call(self.globals[name], [self.value(arg, values) for arg in args])
             case banf.MakeStruct(fields=fields):

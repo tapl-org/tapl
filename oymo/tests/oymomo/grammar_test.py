@@ -25,6 +25,25 @@ def test_bruijn_index():
     assert show(parse('$0x1')) == 'error'
 
 
+def test_builtin():
+    term = parse('$fix')
+    assert term == terms.Builtin(name='fix')
+    assert term.location == syntax.Location(0, 4)
+    # `$` with digits is still a BruijnIndex.
+    assert parse('$0') == terms.BruijnIndex(index=0)
+    # Nothing is reserved after `$`, and a built-in applies like a variable.
+    assert parse('$fix g a') == terms.Apply(terms.Apply(terms.Builtin('fix'), terms.Variable('g')), terms.Variable('a'))
+    assert parse('$add_i32 {a = x}.a') == terms.Apply(
+        terms.Builtin('add_i32'), terms.Project(terms.Struct([terms.Field('a', terms.Variable('x'))]), 'a')
+    )
+    assert parse('f $fix g') == parse('(f $fix) g')
+
+
+@pytest.mark.parametrize('source', ['$ fix', '$"fix"', '$', '$ 0'])
+def test_builtin_errors(source):
+    assert show(parse(source)) == 'error'
+
+
 def test_lambda():
     assert show(parse("x: 'i32' -> x")) == "x:'i32' → x"
 
@@ -425,5 +444,5 @@ def test_locations_skip_leading_trivia():
 
 
 def test_golden_program():
-    source = "prim -> decls: {} -> defs -> {main = a:'i32' -> [00000000]: 'i32'}"
-    assert show(parse(source)) == "prim → decls:{} → defs → {main = a:'i32' → [00000000]:'i32'}"
+    source = "decls: {} -> defs -> {main = a:'i32' -> [00000000]: 'i32'}"
+    assert show(parse(source)) == "decls:{} → defs → {main = a:'i32' → [00000000]:'i32'}"

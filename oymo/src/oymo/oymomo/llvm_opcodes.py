@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""The default LLVM implementation of each prim op in banf_prim."""
+"""The default LLVM implementation of each opcode in banf_opcodes."""
 
 from collections.abc import Callable
 
 from llvmlite import ir
 
-from oymo.oymomo import banf_prim, terms
+from oymo.oymomo import banf_opcodes, terms
 
-type PrimImpl = Callable[[ir.IRBuilder, list[ir.Value]], ir.Value]
+type OpcodeImpl = Callable[[ir.IRBuilder, list[ir.Value]], ir.Value]
 
 
 def _binary(method):
@@ -20,7 +20,7 @@ def _compare(method, op):
 
 
 def _convert(method, result):
-    target = ir.IntType(banf_prim.int_bits(result))
+    target = ir.IntType(banf_opcodes.int_bits(result))
     return lambda builder, args: getattr(builder, method)(args[0], target)
 
 
@@ -56,7 +56,7 @@ _COMPARE = {
 _CONVERT = {'zext': 'zext', 'sext': 'sext', 'trunc': 'trunc'}
 
 
-def _impl(signature: banf_prim.PrimSignature) -> PrimImpl:
+def _impl(signature: banf_opcodes.OpcodeSignature) -> OpcodeImpl:
     template = signature.template
     if template in _BINARY:
         return _binary(_BINARY[template])
@@ -64,8 +64,8 @@ def _impl(signature: banf_prim.PrimSignature) -> PrimImpl:
         return _compare(*_COMPARE[template])
     result = signature.result.as_str if isinstance(signature.result, terms.ByteArray) else None
     if result is None:
-        raise ValueError(f'Prim {signature.name!r} has no named result form.')
+        raise ValueError(f'Opcode {signature.name!r} has no named result form.')
     return _convert(_CONVERT[template], result)
 
 
-DEFAULT_PRIMS: dict[str, PrimImpl] = {name: _impl(signature) for name, signature in banf_prim.PRIMS.items()}
+DEFAULT_OPCODES: dict[str, OpcodeImpl] = {name: _impl(signature) for name, signature in banf_opcodes.OPCODES.items()}

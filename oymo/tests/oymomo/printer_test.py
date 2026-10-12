@@ -9,16 +9,16 @@ from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show, show_form
 
 FACT = """
-prim -> decls: {} -> defs -> {
+decls: {} -> defs -> {
 fact = f -> {
   entry = args:{n = 'i32'} ->
     (t0 -> if t0 then f.then0 {} else f.else0 {n = args.n})
-      (prim.eq_i32 {a = args.n, b = [00000000]:'i32'}),
+      ($eq_i32 {a = args.n, b = [00000000]:'i32'}),
   then0 = args:{} -> [01000000]:'i32',
   else0 = args:{n = 'i32'} ->
-    (t1 -> (t2 -> (t3 -> t3) (prim.mul_i32 {a = args.n, b = t2}))
+    (t1 -> (t2 -> (t3 -> t3) ($mul_i32 {a = args.n, b = t2}))
              (defs.fact {n = t1}))
-      (prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'}),
+      ($sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'}),
 }}
 """
 
@@ -144,16 +144,15 @@ def test_text_bytes_print_quoted_only_up_to_128_bytes():
 
 def test_pretty_breaks_long_terms():
     assert pretty(FACT) == textwrap.dedent("""\
-        prim → decls: {} → defs → {
+        decls: {} → defs → {
           fact= f → {
             entry= args: {n= 'i32'} →
-              let t0 = prim.eq_i32 {a= args.n, b= [00000000]: 'i32'} in
+              let t0 = $eq_i32 {a= args.n, b= [00000000]: 'i32'} in
               if t0 then f.then0 {} else f.else0 {n= args.n},
             then0= args: {} → [01000000]: 'i32',
             else0= args: {n= 'i32'} →
-              let t1 = prim.sub_i32 {minuend= args.n, subtrahend= [01000000]: 'i32'} in
-              let t2 = defs.fact {n= t1} in
-              let t3 = prim.mul_i32 {a= args.n, b= t2} in t3,
+              let t1 = $sub_i32 {minuend= args.n, subtrahend= [01000000]: 'i32'} in
+              let t2 = defs.fact {n= t1} in let t3 = $mul_i32 {a= args.n, b= t2} in t3,
           },
         }""")
 
@@ -257,6 +256,10 @@ def test_width_and_indent_flags():
         "{'1', b = '2'}",
         '{a}',
         '{x -> x, let y = a in y, a: t}',
+        '$add_i32',
+        '$add_i32 {a = x, b = x}',
+        '$0',
+        'f $fix ($fix g).a',
     ],
 )
 def test_output_parses_back_to_the_same_term(source):

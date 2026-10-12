@@ -5,19 +5,19 @@ import textwrap
 import llvmlite.binding as llvm
 import pytest
 
-from oymo.oymomo import banf_prim, banf_translate, terms
+from oymo.oymomo import banf_opcodes, banf_translate, terms
 from oymo.oymomo.banf_terms import Block, Branch, Const, Function, Module, Return, Var
 from oymo.oymomo.grammar import parse
-from oymo.oymomo.llvm_prims import DEFAULT_PRIMS
+from oymo.oymomo.llvm_opcodes import DEFAULT_OPCODES
 from oymo.oymomo.llvm_translate import LlvmTranslationError, Target, translate
 
-TARGET = Target('x86_64-unknown-linux-gnu', '', DEFAULT_PRIMS)
+TARGET = Target('x86_64-unknown-linux-gnu', '', DEFAULT_OPCODES)
 HEADER = '; ModuleID = ""\ntarget triple = "x86_64-unknown-linux-gnu"\ntarget datalayout = ""\n\n'
 
 
 def banf(defs, decls):
     """The BANF module of an oymomo program, written as its `module` form's fields and its body's fields."""
-    return banf_translate.translate(parse(f'prim -> module: {{{decls}}} -> {{{defs}}}'))
+    return banf_translate.translate(parse(f'module: {{{decls}}} -> {{{defs}}}'))
 
 
 def ir_text(defs, decls):
@@ -38,21 +38,21 @@ def text(block):
     return textwrap.dedent(block).removeprefix('\n')
 
 
-def test_default_prims_cover_banf_prims():
-    assert DEFAULT_PRIMS.keys() == banf_prim.PRIMS.keys()
+def test_default_opcodes_cover_banf_opcodes():
+    assert DEFAULT_OPCODES.keys() == banf_opcodes.OPCODES.keys()
 
 
 def test_fact():
     source = """
     fact = blocks -> {
       entry = args: {n = 'i32'} ->
-        let t0 = prim.eq_i32 {a = args.n, b = [00000000]:'i32'} in
+        let t0 = $eq_i32 {a = args.n, b = [00000000]:'i32'} in
         if t0 then blocks.then0 {} else blocks.else0 {n = args.n},
       then0 = args: {} -> [01000000]:'i32',
       else0 = args: {n = 'i32'} ->
-        let t1 = prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'} in
+        let t1 = $sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'} in
         let t2 = module.fact {n = t1} in
-        let t3 = prim.mul_i32 {a = args.n, b = t2} in
+        let t3 = $mul_i32 {a = args.n, b = t2} in
         t3,
     }
     """
@@ -80,7 +80,7 @@ def test_signature_data_and_get_data():
       entry = args: {} ->
         let t0 = module.errno in
         let t1 = module.putchar {c = [41]:'i8'} in
-        let t2 = prim.add_i32 {a = t0, b = t1} in
+        let t2 = $add_i32 {a = t0, b = t1} in
         t2,
     }
     """
@@ -171,7 +171,7 @@ def test_single_predecessor_binds_params_and_multiple_predecessors_get_phis():
       entry = args: {c = 'i1', x = 'i32', z = 'i32'} -> if args.c then blocks.a {x = args.x} else blocks.b {},
       a = args: {x = 'i32'} -> blocks.join0 {v = args.x, w = args.x},
       b = args: {} -> blocks.join0 {v = [00000000]:'i32', w = [07000000]:'i32'},
-      join0 = args: {v = 'i32', w = 'i32'} -> let t0 = prim.add_i32 {a = args.v, b = args.w} in t0,
+      join0 = args: {v = 'i32', w = 'i32'} -> let t0 = $add_i32 {a = args.v, b = args.w} in t0,
     }
     """
     assert ir_text(source, "pick = => 'i32'") == text("""
@@ -209,7 +209,7 @@ def test_rejects_branch_with_same_target_twice():
 
 def test_constants_are_little_endian_on_a_big_endian_target():
     module = banf("g = blocks -> {entry = args: {} -> [0100]:'i16'}", "g = => 'i16'")
-    big = Target('powerpc64-unknown-linux-gnu', 'E-m:e-i64:64-n32:64', DEFAULT_PRIMS)
+    big = Target('powerpc64-unknown-linux-gnu', 'E-m:e-i64:64-n32:64', DEFAULT_OPCODES)
     ir = str(translate(module, big))
     llvm.parse_assembly(ir).verify()
     assert 'target datalayout = "E-m:e-i64:64-n32:64"' in ir
@@ -233,7 +233,7 @@ def test_rejects_let_form_with_another_llvm_type():
     # BANF accepts any let form, but LLVM never converts: no bitcast, no widening.
     source = """
     g = blocks -> {
-      entry = args: {n = 'i32'} -> let t0: 'i32' = prim.eq_i32 {a = args.n, b = [00000000]:'i32'} in t0,
+      entry = args: {n = 'i32'} -> let t0: 'i32' = $eq_i32 {a = args.n, b = [00000000]:'i32'} in t0,
     }
     """
     assert ir_error(source, "g = => 'i32'") == "Let 't0' is formed as i32, but its op gives i1."

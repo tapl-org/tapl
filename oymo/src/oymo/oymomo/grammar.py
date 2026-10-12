@@ -228,13 +228,23 @@ RULES: dict[str, Clause] = {
         ),
         Ref(rn.PRIMARY),
     ),
-    rn.PRIMARY: First(Ref(rn.BYTE_ARRAY), Ref(rn.STRUCT), Ref(rn.GROUP), Ref(rn.BRUIJN_INDEX), Ref(rn.VARIABLE)),
+    rn.PRIMARY: First(
+        Ref(rn.BYTE_ARRAY), Ref(rn.STRUCT), Ref(rn.GROUP), Ref(rn.BRUIJN_INDEX), Ref(rn.BUILTIN), Ref(rn.VARIABLE)
+    ),
     rn.VARIABLE: Seq(NAME, action=lambda c: terms.Variable(name=c.values[0][0], location=c.values[0][1])),
     # `$i`, as the printer writes a BruijnIndex. No trivia between `$` and the digits.
     rn.BRUIJN_INDEX: Seq(
         _punct('$'),
         Integer(bases=(), separator=''),
         action=lambda c: terms.BruijnIndex(index=c.values[0], location=_location(c)),
+    ),
+    # `$name`, a built-in. No trivia between `$` and the name, which is a plain identifier:
+    # nothing is reserved, and it can't be quoted. `$` with digits is a BruijnIndex, tried
+    # first; an identifier can't start with a digit, so the two never overlap.
+    rn.BUILTIN: Seq(
+        _punct('$'),
+        Identifier(reserved=frozenset(), action=lambda c: c.token_text),
+        action=lambda c: terms.Builtin(name=c.values[0], location=_location(c)),
     ),
     # A field is `label = value` or just `value`. The labeled form is tried first, so `{a}`
     # is an unlabeled field holding the variable `a`, and `{a = b}` is the field `a`.

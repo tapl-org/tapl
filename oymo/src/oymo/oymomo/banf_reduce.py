@@ -47,10 +47,10 @@ class _Reducer:
             term = stepped
         return term
 
-    # Positions 1 to 6: the fixed outer structure.
+    # Positions 1 to 5: the fixed outer structure.
 
     def program(self, term):
-        return self.lambda_then(term, self.module)  # 1. prim -> <module>
+        return self.lambda_then(term, self.module_body)  # 1. module -> <body>
 
     def lambda_then(self, term, visit_body):
         term = self.whnf(term)
@@ -58,11 +58,8 @@ class _Reducer:
             term = replace(term, body=visit_body(term.body))
         return term
 
-    def module(self, term):
-        return self.lambda_then(term, self.module_body)  # 2. module -> <body>
-
     def module_body(self, term):
-        return self.struct_then(term, self.function)  # 3. {label = <func>, ...}
+        return self.struct_then(term, self.function)  # 2. {label = <func>, ...}
 
     def struct_then(self, term, visit_value):
         term = self.whnf(term)
@@ -71,13 +68,13 @@ class _Reducer:
         return term
 
     def function(self, term):
-        # 4., 5. A data definition, such as a byte array, isn't a lambda: it's only taken to whnf.
+        # 3., 4. A data definition, such as a byte array, isn't a lambda: it's only taken to whnf.
         return self.lambda_then(term, lambda body: self.struct_then(body, self.block))
 
     def block(self, term):
-        return self.lambda_then(term, lambda body: self.block_body(body, 0))  # 6. args -> <block_body>
+        return self.lambda_then(term, lambda body: self.block_body(body, 0))  # 5. args -> <block_body>
 
-    # Position 7: a chain of lets ending in a terminal. `k` counts the lets since the block's
+    # Position 6: a chain of lets ending in a terminal. `k` counts the lets since the block's
     # `args` binder, so `args` is `$k` here.
 
     def block_body(self, term, k):
@@ -110,7 +107,7 @@ class _Reducer:
                 )
         return term  # [bytes], args.label, $i, or a term left for convert.
 
-    # Positions 8 to 10.
+    # Positions 7 to 9.
 
     def op(self, term):
         """A let's op, already in whnf, so its callee or struct (the head) is reduced too."""

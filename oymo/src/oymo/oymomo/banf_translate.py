@@ -9,9 +9,9 @@
 from dataclasses import dataclass, replace
 
 from oymo.core import syntax
-from oymo.oymomo import banf_prim, banf_reduce, banf_rename, bruijn, terms
+from oymo.oymomo import banf_opcodes, banf_reduce, banf_rename, bruijn, terms
 from oymo.oymomo import banf_terms as banf
-from oymo.oymomo.banf_rename import ARGS, BLOCKS, MODULE, PRIM
+from oymo.oymomo.banf_rename import ARGS, BLOCKS, MODULE
 
 
 class TranslationError(Exception):
@@ -69,9 +69,9 @@ class _Block:
     lets: list[banf.Let]
 
     def binder(self, term):
-        """For a BruijnIndex in the block body: ('let', name), or one of ARGS, BLOCKS, MODULE, PRIM.
+        """For a BruijnIndex in the block body: ('let', name), or one of ARGS, BLOCKS, MODULE.
 
-        Above the body, from the inside out, are the lets so far, then args, blocks, module, prim.
+        Above the body, from the inside out, are the lets so far, then args, blocks, module.
         None for anything else.
         """
         if not isinstance(term, terms.BruijnIndex):
@@ -79,7 +79,7 @@ class _Block:
         k = len(self.lets)
         if term.index < k:
             return ('let', self.lets[k - 1 - term.index].name)
-        fixed = (ARGS, BLOCKS, MODULE, PRIM)
+        fixed = (ARGS, BLOCKS, MODULE)
         if term.index - k < len(fixed):
             return fixed[term.index - k]
         return None
@@ -89,18 +89,15 @@ def _unwrap(term):
     match term:
         case syntax.ErrorTerm(message=message):
             raise TranslationError(message, term.location)
-        case terms.Lambda(
-            param_name=prim_name,
-            body=terms.Lambda(
-                param_name=module_name, param_form=module_form, body=terms.Struct() as body
-            ) as module_lambda,
-        ) if (prim_name, module_name) == (PRIM, MODULE):
+        case (
+            terms.Lambda(param_name=module_name, param_form=module_form, body=terms.Struct() as body) as module_lambda
+        ) if module_name == MODULE:
             if not isinstance(module_form, terms.Struct):
                 raise TranslationError(
                     'The module binder needs a struct form, such as module: {}.', module_lambda.location
                 )
             return module_form, module_lambda.location, body
-    raise TranslationError('Expected a program of the shape prim -> module: {...} -> {...}.', _location(term))
+    raise TranslationError('Expected a program of the shape module: {...} -> {...}.', _location(term))
 
 
 def _declarations(module_form, location):
@@ -215,6 +212,8 @@ class _Translator:
                         return banf.Var(name, location=location)
                     case str() as name:
                         raise _not_a_value(name, location)
+            case terms.Builtin(name=name):
+                raise TranslationError(f'${name} must be applied.', location)
             case terms.Project(struct=struct, label=label) if block.binder(struct) == ARGS:
                 if any(param == label for param, _ in block.params):
                     return banf.Var(label, location=location)
@@ -261,13 +260,13 @@ class _Translator:
                 if position is None:
                     raise TranslationError('An index must be a byte array literal, such as [01].', _location(index))
                 return banf.GetIndex(self.atom(function, block), position, location)
+            case terms.Apply(function=terms.Builtin(name=name), argument=arg):
+                if name not in banf_opcodes.OPCODES:
+                    raise TranslationError(f"Unknown built-in '${name}'.", location)
+                params = banf_opcodes.OPCODES[name].params
+                return banf.OpcodeCall(name, self.args(arg, params, f'${name}', block), location)
             case terms.Apply(function=terms.Project(struct=struct, label=name), argument=arg):
                 base = block.binder(struct)
-                if base == PRIM:
-                    if name not in banf_prim.PRIMS:
-                        raise TranslationError(f'Unknown prim op {name!r}.', location)
-                    params = banf_prim.PRIMS[name].params
-                    return banf.PrimCall(name, self.args(arg, params, f'prim.{name}', block), location)
                 if base == MODULE:
                     # An imported function's params are declared; a defined one's come from its entry block.
                     binding = self.symbol(name, location)
@@ -284,8 +283,8 @@ class _Translator:
                 if isinstance(self.symbol(name, location), banf.Data):
                     return banf.GetData(name, location)
                 raise TranslationError(f'module.{name} must be applied.', location)
-            case terms.Project(struct=struct, label=name) if block.binder(struct) == PRIM:
-                raise TranslationError(f'prim.{name} must be applied.', location)
+            case terms.Builtin(name=name):
+                raise TranslationError(f'${name} must be applied.', location)
             case terms.Project(struct=struct) if block.binder(struct) == ARGS:
                 self.atom(term, block)
             case terms.Project(struct=struct, label=label):
@@ -297,7 +296,7 @@ class _Translator:
         if self.is_atom(term, block):
             raise TranslationError("A let's value must be an op, not an atom.", location)
         raise TranslationError(
-            'Expected an op: prim.op {...}, module.f {...}, module.data, a struct or a projection.', location
+            'Expected an op: $opcode {...}, module.f {...}, module.data, a struct or a projection.', location
         )
 
     def jump(self, term, block):

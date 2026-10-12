@@ -13,7 +13,7 @@ I8, I16, I32 = (terms.ByteArray(name) for name in (b'i8', b'i16', b'i32'))
 
 def program(defs, decls):
     """A program whose `module` binder's form has the fields `decls` and whose body has the fields `defs`."""
-    return f'prim -> module: {{{decls}}} -> {{{defs}}}'
+    return f'module: {{{decls}}} -> {{{defs}}}'
 
 
 def banf(defs, decls):
@@ -35,12 +35,12 @@ FACT = """
 fact = f -> {
   entry = args:{n = 'i32'} ->
     (t0 -> if t0 then f.then0 {} else f.else0 {n = args.n})
-      (prim.eq_i32 {a = args.n, b = [00000000]:'i32'}),
+      ($eq_i32 {a = args.n, b = [00000000]:'i32'}),
   then0 = args:{} -> [01000000]:'i32',
   else0 = args:{n = 'i32'} ->
-    (t1 -> (t2 -> (t3 -> t3) (prim.mul_i32 {a = args.n, b = t2}))
+    (t1 -> (t2 -> (t3 -> t3) ($mul_i32 {a = args.n, b = t2}))
              (module.fact {n = t1}))
-      (prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'}),
+      ($sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'}),
 }
 """
 
@@ -80,49 +80,49 @@ def test_nested_projection_is_get_field_on_param():
 
 
 def test_let_with_written_form():
-    source = "g = f -> {entry = args:{n = 'i32'} -> (t0: 'i1' -> t0) (prim.eq_i32 {a = args.n, b = args.n})}"
+    source = "g = f -> {entry = args:{n = 'i32'} -> (t0: 'i1' -> t0) ($eq_i32 {a = args.n, b = args.n})}"
     assert banf(source, "g = => 'i1'") == text("""
         g: i1
           entry(n: i32):
-            t0: i1 = prim.eq_i32(n, n)
+            t0: i1 = eq_i32 n, n
             return t0
     """)
 
 
 def test_let_form_replaces_op_form():
     # A form is not a type: the written form isn't checked against the op's i1, it replaces it.
-    source = "g = f -> {entry = args:{n = 'i32'} -> (t0: 'i32' -> t0) (prim.eq_i32 {a = args.n, b = args.n})}"
+    source = "g = f -> {entry = args:{n = 'i32'} -> (t0: 'i32' -> t0) ($eq_i32 {a = args.n, b = args.n})}"
     assert banf(source, "g = => 'i32'") == text("""
         g: i32
           entry(n: i32):
-            t0: i32 = prim.eq_i32(n, n)
+            t0: i32 = eq_i32 n, n
             return t0
     """)
 
 
 def test_let_form_must_be_a_literal():
-    source = "g = f -> {entry = args:{n = 'i32'} -> (t0: args.n -> t0) (prim.eq_i32 {a = args.n, b = args.n})}"
+    source = "g = f -> {entry = args:{n = 'i32'} -> (t0: args.n -> t0) ($eq_i32 {a = args.n, b = args.n})}"
     assert error(source, "g = => 'i1'") == "Let 't0': form must be a literal, got ($0.n)."
 
 
 def test_call_with_struct_literal_and_forwarded_args():
     source = """
-    add = f -> {entry = args:{a = 'i32', b = 'i32'} -> (s -> s) (prim.add_i32 {a = args.a, b = args.b})},
+    add = f -> {entry = args:{a = 'i32', b = 'i32'} -> (s -> s) ($add_i32 {a = args.a, b = args.b})},
     twice = f -> {entry = args:{a = 'i32', b = 'i32'} -> (t0 -> f.next {a = t0, b = args.b}) (module.add args),
                   next = args:{a = 'i32', b = 'i32'} -> (t1 -> t1) (module.add {a = args.a, b = args.b})},
     """
     assert banf(source, "add = => 'i32', twice = => 'i32'") == text("""
         add: i32
           entry(a: i32, b: i32):
-            s = prim.add_i32(a, b)
+            s = add_i32 a, b
             return s
 
         twice: i32
           entry(a: i32, b: i32):
-            t0 = add(a, b)
+            t0 = call add(a, b)
             jump next(t0, b)
           next(a: i32, b: i32):
-            t1 = add(a, b)
+            t1 = call add(a, b)
             return t1
     """)
 
@@ -138,27 +138,27 @@ def test_jump_forwards_args():
     """)
 
 
-def test_prim_labels():
-    source = "g = f -> {entry = args:{n = 'i32'} -> (t -> t) (prim.sub_i32 {minuend = args.n, subtrahend = args.n})}"
-    assert 'prim.sub_i32(n, n)' in banf(source, "g = => 'i32'")
+def test_opcode_labels():
+    source = "g = f -> {entry = args:{n = 'i32'} -> (t -> t) ($sub_i32 {minuend = args.n, subtrahend = args.n})}"
+    assert 'sub_i32 n, n' in banf(source, "g = => 'i32'")
 
 
-def test_prim_wrong_labels():
-    source = "g = f -> {entry = args:{n = 'i32'} -> (t -> t) (prim.sub_i32 {a = args.n, b = args.n})}"
-    assert error(source, "g = => 'i32'") == 'prim.sub_i32 takes {minuend, subtrahend}, got {a, b}.'
+def test_opcode_wrong_labels():
+    source = "g = f -> {entry = args:{n = 'i32'} -> (t -> t) ($sub_i32 {a = args.n, b = args.n})}"
+    assert error(source, "g = => 'i32'") == '$sub_i32 takes {minuend, subtrahend}, got {a, b}.'
 
 
-def test_prim_wrong_width():
-    source = "g = f -> {entry = args:{n = 'i8'} -> (t -> t) (prim.add_i32 {a = args.n, b = [00000000]:'i32'})}"
-    assert error(source, "g = => 'i32'") == 'prim.add_i32 expects a: i32, got i8.'
+def test_opcode_wrong_width():
+    source = "g = f -> {entry = args:{n = 'i8'} -> (t -> t) ($add_i32 {a = args.n, b = [00000000]:'i32'})}"
+    assert error(source, "g = => 'i32'") == '$add_i32 expects a: i32, got i8.'
 
 
 def test_conversion():
-    source = "g = f -> {entry = args:{n = 'i8'} -> (t -> t) (prim.zext_i8_i32 {value = args.n})}"
+    source = "g = f -> {entry = args:{n = 'i8'} -> (t -> t) ($zext_i8_i32 {value = args.n})}"
     assert banf(source, "g = => 'i32'") == text("""
         g: i32
           entry(n: i8):
-            t = prim.zext_i8_i32(n)
+            t = zext_i8_i32 n
             return t
     """)
 
@@ -201,14 +201,13 @@ def test_struct_apply_reduces_away():
         'args [00]',
         'f [01] {}',
         '(t -> t) (module [00] {})',
-        '(t -> t) (prim [00] {})',
     ],
 )
 def test_binders_are_not_structs(body):
-    # prim, module, blocks and args are accessed by a label only.
+    # module, blocks and args are accessed by a label only.
     defs = f"g = f -> {{entry = args:{{}} -> {body}, b = args:{{}} -> [01]:'i8'}}"
     assert error(defs, "g = => 'i8'") == (
-        'Expected an op: prim.op {...}, module.f {...}, module.data, a struct or a projection.'
+        'Expected an op: $opcode {...}, module.f {...}, module.data, a struct or a projection.'
     )
 
 
@@ -275,14 +274,14 @@ def test_fact():
     assert banf(FACT, "fact = => 'i32'") == text("""
         fact: i32
           entry(n: i32):
-            t0 = prim.eq_i32(n, [00000000]:i32)
+            t0 = eq_i32 n, [00000000]:i32
             branch t0, then0(), else0(n)
           then0():
             return [01000000]:i32
           else0(n: i32):
-            t1 = prim.sub_i32(n, [01000000]:i32)
-            t2 = fact(t1)
-            t3 = prim.mul_i32(n, t2)
+            t1 = sub_i32 n, [01000000]:i32
+            t2 = call fact(t1)
+            t3 = mul_i32 n, t2
             return t3
     """)
 
@@ -300,7 +299,7 @@ def test_recursion_needs_no_let_form():
     assert banf('g = f -> {entry = args:{} -> (t -> t) (module.g {})}', "g = => 'i8'") == text("""
         g: i8
           entry():
-            t = g()
+            t = call g()
             return t
     """)
 
@@ -316,7 +315,7 @@ def test_explicit_join_block():
         if args.c then f.then0 {x = args.x, z = args.z} else f.else0 {y = args.y, z = args.z},
       then0 = args:{x = 'i32', z = 'i32'} -> f.join0 {v = args.x, z = args.z},
       else0 = args:{y = 'i32', z = 'i32'} -> f.join0 {v = args.y, z = args.z},
-      join0 = args:{v = 'i32', z = 'i32'} -> (t0 -> t0) (prim.add_i32 {a = args.v, b = args.z}),
+      join0 = args:{v = 'i32', z = 'i32'} -> (t0 -> t0) ($add_i32 {a = args.v, b = args.z}),
     }
     """
     assert banf(source, "pick = => 'i32'") == text("""
@@ -328,7 +327,7 @@ def test_explicit_join_block():
           else0(y: i32, z: i32):
             jump join0(y, z)
           join0(v: i32, z: i32):
-            t0 = prim.add_i32(v, z)
+            t0 = add_i32 v, z
             return t0
     """)
 
@@ -347,28 +346,28 @@ def test_first_block_is_entry_whatever_its_name():
 def test_lets_repeating_a_param_label_are_renamed():
     source = """
     g = f -> {entry = args:{n = 'i8'} ->
-      (n -> (n -> n) (prim.mul_i8 {a = n, b = n})) (prim.add_i8 {a = args.n, b = args.n})}
+      (n -> (n -> n) ($mul_i8 {a = n, b = n})) ($add_i8 {a = args.n, b = args.n})}
     """
     assert banf(source, "g = => 'i8'") == text("""
         g: i8
           entry(n: i8):
-            n_4 = prim.add_i8(n, n)
-            n_5 = prim.mul_i8(n_4, n_4)
-            return n_5
+            n_3 = add_i8 n, n
+            n_4 = mul_i8 n_3, n_3
+            return n_4
     """)
 
 
 def test_repeated_let_is_renamed():
     source = """
     g = f -> {entry = args:{n = 'i8'} ->
-      (t -> (t -> t) (prim.add_i8 {a = t, b = t})) (prim.add_i8 {a = args.n, b = args.n})}
+      (t -> (t -> t) ($add_i8 {a = t, b = t})) ($add_i8 {a = args.n, b = args.n})}
     """
     assert banf(source, "g = => 'i8'") == text("""
         g: i8
           entry(n: i8):
-            t = prim.add_i8(n, n)
-            t_5 = prim.add_i8(t, t)
-            return t_5
+            t = add_i8 n, n
+            t_4 = add_i8 t, t
+            return t_4
     """)
 
 
@@ -400,12 +399,12 @@ def test_let_bound_if_is_substituted_into_tail():
     ('defs', 'message'),
     [
         (
-            "g = f -> {entry = args:{n = 'i32'} -> (t -> t) (prim.add_i32 {a = prim.add_i32 {a = args.n, b = args.n}, "
+            "g = f -> {entry = args:{n = 'i32'} -> (t -> t) ($add_i32 {a = $add_i32 {a = args.n, b = args.n}, "
             'b = args.n})}',
             'Expected an atom: a byte array, a let name, or args.label.',
         ),
         (
-            "g = f -> {entry = args:{n = 'i32'} -> prim.add_i32 {a = args.n, b = args.n}}",
+            "g = f -> {entry = args:{n = 'i32'} -> $add_i32 {a = args.n, b = args.n}}",
             'An op in tail position must be bound by a let, as in let t = op in t.',
         ),
         (
@@ -423,14 +422,13 @@ def test_let_bound_if_is_substituted_into_tail():
         ('g = f -> {entry = args:{} -> f.nowhere {}}', "Unknown block 'nowhere'."),
         ('g = f -> {entry = args:{} -> f}', "'blocks' cannot be used as a value."),
         ('g = f -> {entry = args:{} -> args}', "'args' cannot be used as a value."),
-        ('g = f -> {entry = args:{} -> (t -> t) (prim)}', "'prim' cannot be used as a value."),
         ('g = f -> {entry = args:{} -> (t -> t) (module)}', "'module' cannot be used as a value."),
         (
             'g = f -> {entry = args:{} -> (t -> t) (fix module)}',
-            'Expected an op: prim.op {...}, module.f {...}, module.data, a struct or a projection.',
+            'Expected an op: $opcode {...}, module.f {...}, module.data, a struct or a projection.',
         ),
         ('g = f -> {entry = args:{} -> (t -> t) (module.g)}', 'module.g must be applied.'),
-        ('g = f -> {entry = args:{} -> (t -> t) (prim.add_i8)}', 'prim.add_i8 must be applied.'),
+        ('g = f -> {entry = args:{} -> (t -> t) ($add_i8)}', '$add_i8 must be applied.'),
         (
             "g = args:{} -> [01]:'i8'",
             "Definition 'g' must be a struct of blocks, such as blocks -> {entry = args: {} -> ...}.",
@@ -442,7 +440,7 @@ def test_let_bound_if_is_substituted_into_tail():
         ('g = f -> {entry = args:{} -> args.n}', "Block has no param 'n'."),
         ('g = f -> {entry = args:{} -> [01]}', 'Byte array: form must be written.'),
         ('g = f -> {entry = args:{} -> (t -> t) (module.h {})}', "'h' is not declared."),
-        ('g = f -> {entry = args:{} -> (t -> t) (prim.add {})}', "Unknown prim op 'add'."),
+        ('g = f -> {entry = args:{} -> (t -> t) ($add {})}', "Unknown built-in '$add'."),
         (
             "g = f -> {entry = args:{} -> [01]:'i8'}, g = f -> {entry = args:{} -> [01]:'i8'}",
             "Duplicate definition 'g'.",
@@ -487,7 +485,7 @@ def test_imports():
 
         main: i32
           entry():
-            t0 = putchar([41]:i8)
+            t0 = call putchar([41]:i8)
             t1 = errno
             c = cfg
             w = c.w
@@ -500,7 +498,7 @@ def test_bindings_are_in_declaration_order():
     assert banf(source, "main = => 'i32', putchar = {c = 'i8'} => 'i32', errno = 'i32'") == text("""
         main: i32
           entry():
-            t = putchar([41]:i8)
+            t = call putchar([41]:i8)
             return t
 
         putchar(c: i8): i32
@@ -549,7 +547,7 @@ MAIN = "main = f -> {entry = args:{} -> [01]:'i8'}"
             "main = => 'i8', g = 'i8' => 'i32'",
             "Declaration 'g': a function form needs a struct form as its param.",
         ),
-        (MAIN, "main = => 'i8', g = (prim)", "Declaration 'g': form must be a literal, got ($0)."),
+        (MAIN, "main = => 'i8', g = $add_i8", "Declaration 'g': form must be a literal, got ($add_i8)."),
         (MAIN, "main = => 'i8', main = => 'i8'", "Duplicate declaration 'main'."),
         (MAIN, '', "'main' is defined but not declared."),
         (MAIN, "main = => 'i8', g = => 'i8'", "'g' declares no params, so it must be defined."),
@@ -597,9 +595,9 @@ def test_module_errors(defs, decls, message):
             'The argument to module.putchar needs a label on every field.',
         ),
         (
-            "main = f -> {entry = args:{n = 'i8'} -> (t -> t) (prim.add_i8 {args.n, b = args.n})}",
+            "main = f -> {entry = args:{n = 'i8'} -> (t -> t) ($add_i8 {args.n, b = args.n})}",
             "main = => 'i8'",
-            'The argument to prim.add_i8 needs a label on every field.',
+            'The argument to $add_i8 needs a label on every field.',
         ),
         (
             "main = f -> {entry = args:{} -> f.b {[01]:'i8'}, b = args:{n = 'i8'} -> args.n}",
@@ -639,11 +637,11 @@ def test_defined_data_is_reduced():
 
 
 def test_forms_must_be_literals():
-    assert error("main = f -> {entry = args: {n = (prim)} -> [01]:'i8'}", "main = => 'i8'") == (
-        "Block 'entry': form must be a literal, got ($2)."
+    assert error("main = f -> {entry = args: {n = (module)} -> [01]:'i8'}", "main = => 'i8'") == (
+        "Block 'entry': form must be a literal, got ($1)."
     )
-    assert error('main = f -> {entry = args: {} -> [01]: (prim)}', "main = => 'i8'") == (
-        'Byte array: form must be a literal, got ($3).'
+    assert error('main = f -> {entry = args: {} -> [01]: (module)}', "main = => 'i8'") == (
+        'Byte array: form must be a literal, got ($2).'
     )
 
 
@@ -651,15 +649,20 @@ def test_form_must_be_known():
     assert error('main = f -> {entry = args: {} -> [01]}', "main = => 'i8'") == 'Byte array: form must be written.'
 
 
+def test_unknown_builtin():
+    source = 'g = f -> {entry = args:{} -> let t = $nope {} in t}'
+    assert error(source, "g = => 'i8'") == "Unknown built-in '$nope'."
+
+
 def test_program_shape_errors():
     with pytest.raises(TranslationError, match='Expected a program of the shape'):
-        translate(parse('prim -> {}'))
+        translate(parse('prim -> module: {} -> {}'))
     with pytest.raises(TranslationError, match='needs a struct form'):
-        translate(parse('prim -> module -> {}'))
+        translate(parse('module -> {}'))
 
 
 def test_program_binders_are_renamed():
-    assert translate(parse('p -> m: {} -> {}')).bindings == []
+    assert translate(parse('m: {} -> {}')).bindings == []
 
 
 def test_formed_byte_array_is_a_constant():
@@ -685,11 +688,11 @@ def test_formed_atom_has_the_written_form():
 
 
 def test_formed_let_name():
-    source = "main = f -> {entry = args:{n = 'i32'} -> let t = prim.add_i32 {a = args.n, b = args.n} in t:'i8'}"
+    source = "main = f -> {entry = args:{n = 'i32'} -> let t = $add_i32 {a = args.n, b = args.n} in t:'i8'}"
     assert banf(source, "main = => 'i8'") == text("""
         main: i8
           entry(n: i32):
-            t = prim.add_i32(n, n)
+            t = add_i32 n, n
             return t:i8
     """)
 

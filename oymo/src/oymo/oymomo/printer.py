@@ -7,15 +7,15 @@ needs them. Neither mode prints an omitted (`Empty`) form. With `pretty=True` th
 oymomo source that parses back to the same term: parentheses only where needed, and
 quoted names where needed. A term that doesn't fit in `width` columns breaks: a struct puts one
 field per line, a lambda puts its body on the next line (unless the body is a struct
-or another lambda, so `prim → module → {` stays on one line),
+or another lambda, so `module → {main= blocks → {` stays on one line),
 an apply puts its argument on the next line, and an `if` puts `then` and `else` on
 their own lines.
 
 An apply of a lambda, `(x → body) e`, prints as `let x = e in body`; a broken let puts
 its body on the next line, so a chain of lets reads one let per line. A BruijnIndex
-prints as `$i` in both modes. With `name_indices=True` it prints as the name of its
-binder instead, except where an inner binder shadows that name or no binder is in
-scope; there it stays `$i`, so the output still resolves back to the same term.
+prints as `$i` in both modes, and a Builtin as `$name`. With `name_indices=True` a
+BruijnIndex prints as the name of its binder instead, except where an inner binder
+shadows that name or no binder is in scope; there it stays `$i`, so the output still resolves back to the same term.
 """
 
 from oymo.core import syntax
@@ -51,6 +51,8 @@ def _compact(term, names, level=_EXPRESSION):
             text = _name(name)
         case terms.BruijnIndex(index=index):
             text = _bruijn_name(index, names)
+        case terms.Builtin(name=name):
+            text = f'${name}'
         case terms.Lambda(param_name=name, param_form=form, body=body):
             text = f'{_name(name)}{_compact_suffix(form, names)} → {_compact(body, _bind(names, name))}'
         case terms.Apply(function=terms.Lambda(param_name=name, param_form=form, body=body), argument=argument):
@@ -160,6 +162,8 @@ def _flat(term, level, names):
             text = _name(name)
         case terms.BruijnIndex(index=index):
             text = _bruijn_name(index, names)
+        case terms.Builtin(name=name):
+            text = f'${name}'
         case terms.Lambda(param_name=name, param_form=form, body=body):
             text = f'{_name(name)}{_form_suffix(form, names)} → {_flat(body, _EXPRESSION, _bind(names, name))}'
         case terms.Apply(function=terms.Lambda(param_name=name, param_form=form, body=body), argument=argument):

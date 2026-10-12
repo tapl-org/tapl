@@ -27,6 +27,12 @@ def test_resolve_quoted_keyword(word):
     assert show(resolved(f'x -> "{word}" x', free=(f'"{word}"',))) == 'x → $1 $0'
 
 
+def test_resolve_keeps_builtins():
+    assert resolved('x -> $add_i32 {a = x, b = x}') == parse('x -> $add_i32 {a = $0, b = $0}')
+    # `prim` is no longer a binder of the program, so it is a plain name.
+    assert show(resolved('prim -> prim')) == 'prim → $0'
+
+
 def test_resolve_keeps_labels():
     assert show(resolved('s -> {a = s}.a')) == 's → {a = $0}.a'
 
@@ -132,7 +138,7 @@ def test_reduce_one_step(source, expected):
         '{a = e}',
         '[01]',
         'e',
-        'prim.add_i32 {a = e, b = e}',
+        '$add_i32 {a = e, b = e}',
         'args.n',
         'if e then a else b',
         'if [02] then a else b',
@@ -146,7 +152,7 @@ def test_reduce_one_step(source, expected):
     ],
 )
 def test_reduce_returns_the_term_itself(source):
-    term = resolved(source, ('a', 'b', 'e', 'g', 'prim', 'args'))
+    term = resolved(source, ('a', 'b', 'e', 'g', 'args'))
     assert bruijn.reduce(term) is term
 
 

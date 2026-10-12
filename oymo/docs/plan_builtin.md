@@ -1,13 +1,13 @@
 # Plan: built-ins are global constants written `$name`
 
-Status: **in progress**; step 1 done.
+Status: **in progress**; steps 1 and 2 done.
 
 ## Steps
 
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
 - [x] 1. A value struct applied to an index is `GetIndex`; `prim.extractvalue` goes (`oymomo: s [01] on a value struct is GetIndex`)
-- [ ] 2. `$name` built-ins replace the `prim` binder, breaking (`oymomo: prims are $name built-ins`)
+- [x] 2. `$name` built-ins replace the `prim` binder, breaking (`oymomo: prims are $name built-ins`)
 - [ ] 3. Built-ins can have a reduction rule, and `fix` is `$fix`, breaking (`oymomo: fix is $fix`)
 - [ ] 4. A strict built-in's argument is a head in `banf_reduce` (`oymomo: banf_reduce reduces a strict built-in's argument`)
 - [ ] 5. Write the constant folding plan and update plan_struct_pack, docs only (`oymomo: plan constant folding; struct pack on built-ins`)

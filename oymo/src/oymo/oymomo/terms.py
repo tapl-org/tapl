@@ -32,6 +32,20 @@ class BruijnIndex(Term):
 
 
 @dataclass
+class Builtin(Term):
+    """A kernel built-in, written `$name`, applied like a function: `$add_i32 {...}`.
+
+    No binder introduces it, so it means the same at any depth.
+    """
+
+    name: str
+    location: Location | None = field(default=None, compare=False)
+
+    def children(self) -> Generator[Term, None, None]:
+        yield from ()
+
+
+@dataclass
 class Lambda(Term):
     param_name: str
     param_form: Term

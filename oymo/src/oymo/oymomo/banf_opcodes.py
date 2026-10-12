@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Abstract prim op signatures, generated from per-op templates. Contains no LLVM."""
+"""Abstract opcode signatures, generated from per-op templates. Contains no LLVM."""
 
 from dataclasses import dataclass
 
@@ -10,7 +10,7 @@ INT_FORMS = ('i1', 'i8', 'i16', 'i32', 'i64')
 
 
 @dataclass(frozen=True)
-class PrimSignature:
+class OpcodeSignature:
     name: str
     template: str
     params: tuple[tuple[str, terms.Term], ...]
@@ -27,7 +27,7 @@ def _same_form(templates, labels, *, result=None, include_i1):
             if form == 'i1' and not include_i1:
                 continue
             params = tuple((label, terms.ByteArray.from_str(form)) for label in labels)
-            yield PrimSignature(f'{template}_{form}', template, params, terms.ByteArray.from_str(result or form))
+            yield OpcodeSignature(f'{template}_{form}', template, params, terms.ByteArray.from_str(result or form))
 
 
 def _conversions(templates, *, widening):
@@ -37,7 +37,7 @@ def _conversions(templates, *, widening):
                 wider = int_bits(target) > int_bits(source)
                 if source != target and wider == widening:
                     params = (('value', terms.ByteArray.from_str(source)),)
-                    yield PrimSignature(
+                    yield OpcodeSignature(
                         f'{template}_{source}_{target}', template, params, terms.ByteArray.from_str(target)
                     )
 
@@ -56,4 +56,4 @@ def _generate():
     yield from _conversions(('trunc',), widening=False)
 
 
-PRIMS: dict[str, PrimSignature] = {signature.name: signature for signature in _generate()}
+OPCODES: dict[str, OpcodeSignature] = {signature.name: signature for signature in _generate()}

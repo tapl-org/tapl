@@ -18,7 +18,7 @@ from oymo.oymomo.banf_terms import (
     Let,
     MakeStruct,
     Module,
-    PrimCall,
+    OpcodeCall,
     Return,
     Signature,
     Var,
@@ -46,7 +46,7 @@ def fact():
             Block(
                 'entry',
                 [('n', I32)],
-                [Let('t0', PrimCall('eq_i32', [Var('n'), ZERO]))],
+                [Let('t0', OpcodeCall('eq_i32', [Var('n'), ZERO]))],
                 Branch(Var('t0'), 'then0', [], 'else0', [Var('n')]),
             ),
             Block('then0', [], [], Return(ONE)),
@@ -54,9 +54,9 @@ def fact():
                 'else0',
                 [('n', I32)],
                 [
-                    Let('t1', PrimCall('sub_i32', [Var('n'), ONE])),
+                    Let('t1', OpcodeCall('sub_i32', [Var('n'), ONE])),
                     Let('t2', Call('fact', [Var('t1')])),
-                    Let('t3', PrimCall('mul_i32', [Var('n'), Var('t2')])),
+                    Let('t3', OpcodeCall('mul_i32', [Var('n'), Var('t2')])),
                 ],
                 Return(Var('t3')),
             ),
@@ -70,14 +70,14 @@ def test_show_fact():
     assert show(module) == (
         'fact: i32\n'
         '  entry(n: i32):\n'
-        '    t0 = prim.eq_i32(n, [00000000]:i32)\n'
+        '    t0 = eq_i32 n, [00000000]:i32\n'
         '    branch t0, then0(), else0(n)\n'
         '  then0():\n'
         '    return [01000000]:i32\n'
         '  else0(n: i32):\n'
-        '    t1 = prim.sub_i32(n, [01000000]:i32)\n'
-        '    t2 = fact(t1)\n'
-        '    t3 = prim.mul_i32(n, t2)\n'
+        '    t1 = sub_i32 n, [01000000]:i32\n'
+        '    t2 = call fact(t1)\n'
+        '    t3 = mul_i32 n, t2\n'
         '    return t3\n'
     )
 
@@ -93,7 +93,7 @@ def imports_module():
                 [
                     Let('t0', GetData('errno')),
                     Let('t1', Call('putchar', [Const(bytes([0x41]), I8)])),
-                    Let('t2', PrimCall('add_i32', [Var('t0'), Var('t1')])),
+                    Let('t2', OpcodeCall('add_i32', [Var('t0'), Var('t1')])),
                 ],
                 Return(Var('t2')),
             )
@@ -112,8 +112,8 @@ def test_show_signature_data_and_get_data():
         'main: i32\n'
         '  entry():\n'
         '    t0 = errno\n'
-        '    t1 = putchar([41]:i8)\n'
-        '    t2 = prim.add_i32(t0, t1)\n'
+        '    t1 = call putchar([41]:i8)\n'
+        '    t2 = add_i32 t0, t1\n'
         '    return t2\n'
     )
 
@@ -171,8 +171,8 @@ def test_show_form():
 def test_form_of_each_op():
     module = imports_module()
     forms = {'n': I32, 'p': POINT}
-    assert form_of(PrimCall('eq_i32', [Var('n'), ZERO]), forms, module) == I1
-    assert form_of(PrimCall('zext_i8_i32', [Const(b'\x01', I8)]), forms, module) == I32
+    assert form_of(OpcodeCall('eq_i32', [Var('n'), ZERO]), forms, module) == I1
+    assert form_of(OpcodeCall('zext_i8_i32', [Const(b'\x01', I8)]), forms, module) == I32
     assert form_of(Call('putchar', [Const(b'\x41', I8)]), forms, module) == I32
     assert form_of(MakeStruct([('a', Var('n')), ('b', Var('p'))]), forms, module) == terms.Struct(
         [terms.Field('a', I32), terms.Field('b', POINT)]
@@ -238,14 +238,14 @@ def one_block(lets, terminator, params=(), return_form=I32):
     return Module([Function('f', return_form, [Block('entry', list(params), lets, terminator)])])
 
 
-def test_verify_rejects_wrong_prim_operand_form():
-    module = one_block([Let('t0', PrimCall('add_i32', [Const(b'\x01', I8), ZERO]))], Return(Var('t0')))
-    with pytest.raises(FormError, match=r'prim.add_i32 expects a: i32, got i8'):
+def test_verify_rejects_wrong_opcode_operand_form():
+    module = one_block([Let('t0', OpcodeCall('add_i32', [Const(b'\x01', I8), ZERO]))], Return(Var('t0')))
+    with pytest.raises(FormError, match=r'\$add_i32 expects a: i32, got i8'):
         verify(module)
 
 
 def test_verify_rejects_wrong_argument_count():
-    module = one_block([Let('t0', PrimCall('add_i32', [ZERO]))], Return(Var('t0')))
+    module = one_block([Let('t0', OpcodeCall('add_i32', [ZERO]))], Return(Var('t0')))
     with pytest.raises(FormError, match='takes 2 arguments, got 1'):
         verify(module)
 
@@ -273,19 +273,19 @@ def test_formed_var_has_the_written_form():
     assert atom_form(Var('n'), {'n': I8}) == I8
     with pytest.raises(FormError, match="Unknown name 'm'"):
         atom_form(Var('m', I32), {})
-    module = one_block([Let('t0', PrimCall('add_i32', [Var('n', I32), ZERO]))], Return(Var('t0')), params=[('n', I8)])
+    module = one_block([Let('t0', OpcodeCall('add_i32', [Var('n', I32), ZERO]))], Return(Var('t0')), params=[('n', I8)])
     verify(module)
-    assert show(module).splitlines()[2] == '    t0 = prim.add_i32(n:i32, [00000000]:i32)'
+    assert show(module).splitlines()[2] == '    t0 = add_i32 n:i32, [00000000]:i32'
 
 
 def test_let_form_replaces_op_form():
     # eq_i32 gives i1; the written i32 replaces it, and the return is checked against i32.
-    let = Let('t0', PrimCall('eq_i32', [ZERO, ZERO]), I32)
+    let = Let('t0', OpcodeCall('eq_i32', [ZERO, ZERO]), I32)
     module = one_block([let], Return(Var('t0')))
     verify(module)
     assert let_form(let, {}, module) == I32
-    assert let_form(Let('t0', PrimCall('eq_i32', [ZERO, ZERO])), {}, module) == I1
-    assert show(module).splitlines()[2] == '    t0: i32 = prim.eq_i32([00000000]:i32, [00000000]:i32)'
+    assert let_form(Let('t0', OpcodeCall('eq_i32', [ZERO, ZERO])), {}, module) == I1
+    assert show(module).splitlines()[2] == '    t0: i32 = eq_i32 [00000000]:i32, [00000000]:i32'
 
 
 def test_verify_rejects_duplicate_names_and_closed_block_violation():

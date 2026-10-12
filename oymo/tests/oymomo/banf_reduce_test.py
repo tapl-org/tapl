@@ -8,7 +8,7 @@ from oymo.oymomo.printer import show
 
 
 def program(defs):
-    return f'prim -> module: {{}} -> {{{defs}}}'
+    return f'module: {{}} -> {{{defs}}}'
 
 
 def shaped(defs):
@@ -79,38 +79,38 @@ def test_whnf_leaves_a_struct_apply_or_an_argument(source):
     [
         # A helper is inlined.
         (
-            '(id -> let t = prim.add_i8 {a = id args.n, b = args.n} in t) (x -> x)',
-            'let t = prim.add_i8 {a = args.n, b = args.n} in t',
+            '(id -> let t = $add_i8 {a = id args.n, b = args.n} in t) (x -> x)',
+            'let t = $add_i8 {a = args.n, b = args.n} in t',
         ),
         # An atom let is substituted.
         ('let t = args.n in t', 'args.n'),
         (
-            'let t = args.n in let u = prim.add_i8 {a = t, b = t} in u',
-            'let u = prim.add_i8 {a = args.n, b = args.n} in u',
+            'let t = args.n in let u = $add_i8 {a = t, b = t} in u',
+            'let u = $add_i8 {a = args.n, b = args.n} in u',
         ),
         # fix unfolds.
         ('(fix (self -> n -> n)) args.n', 'args.n'),
         # Heads.
         ('((a -> {n = a.n}) args).n', 'args.n'),
         (
-            'let t = {g = x -> prim.add_i8 {a = x, b = x}}.g args.n in t',
-            'let t = prim.add_i8 {a = args.n, b = args.n} in t',
+            'let t = {g = x -> $add_i8 {a = x, b = x}}.g args.n in t',
+            'let t = $add_i8 {a = args.n, b = args.n} in t',
         ),
         (
-            '(x -> y -> let t = prim.add_i8 {a = x, b = y} in t) args.n (prim.mul_i8 {a = args.n, b = args.n})',
-            'let y = prim.mul_i8 {a = args.n, b = args.n} in let t = prim.add_i8 {a = args.n, b = y} in t',
+            '(x -> y -> let t = $add_i8 {a = x, b = y} in t) args.n ($mul_i8 {a = args.n, b = args.n})',
+            'let y = $mul_i8 {a = args.n, b = args.n} in let t = $add_i8 {a = args.n, b = y} in t',
         ),
         # Projection.
         (
-            'let t = prim.add_i8 {a = {a = args.n}.a, b = args.n} in t',
-            'let t = prim.add_i8 {a = args.n, b = args.n} in t',
+            'let t = $add_i8 {a = {a = args.n}.a, b = args.n} in t',
+            'let t = $add_i8 {a = args.n, b = args.n} in t',
         ),
         ('{p = {a = args.n}}.p.a', 'args.n'),
         ('(mk -> (mk args).n) (a -> {n = a.n})', 'args.n'),
         # A let whose op has a redex operand stays a let.
         (
-            'let t = prim.add_i8 {a = (x -> x) args.n, b = args.n} in t',
-            'let t = prim.add_i8 {a = args.n, b = args.n} in t',
+            'let t = $add_i8 {a = (x -> x) args.n, b = args.n} in t',
+            'let t = $add_i8 {a = args.n, b = args.n} in t',
         ),
         # A let-bound struct and a GetField on a param stay lets.
         ('let s = {a = args.n} in s', 'let s = {a = args.n} in s'),
@@ -145,20 +145,16 @@ def test_a_def_produced_by_an_application():
     [
         # Each position, reached after reduction.
         (
-            '(p -> p) (prim -> module: {} -> {})',
-            'prim -> module: {} -> {}',
+            '(p -> p) (module: {} -> {})',
+            'module: {} -> {}',
         ),
         (
-            "prim -> (x -> x) (module: {} -> {main = f -> {entry = args: {} -> [01]: 'i8'}})",
-            "prim -> module: {} -> {main = f -> {entry = args: {} -> [01]: 'i8'}}",
+            '{d = module: {} -> {}}.d',
+            'module: {} -> {}',
         ),
         (
-            'prim -> {d = module: {} -> {}}.d',
-            'prim -> module: {} -> {}',
-        ),
-        (
-            "prim -> module: {} -> (x -> x) {main = f -> (x -> x) {entry = (x -> x) (args: {} -> [01]: 'i8')}}",
-            "prim -> module: {} -> {main = f -> {entry = args: {} -> [01]: 'i8'}}",
+            "module: {} -> (x -> x) {main = f -> (x -> x) {entry = (x -> x) (args: {} -> [01]: 'i8')}}",
+            "module: {} -> {main = f -> {entry = args: {} -> [01]: 'i8'}}",
         ),
     ],
 )
@@ -175,7 +171,7 @@ def test_forms_are_ignored():
     [
         "[01]: 'i8'",
         'args.n',
-        'let t = prim.add_i8 {a = args.n, b = args.n} in t',
+        'let t = $add_i8 {a = args.n, b = args.n} in t',
         'f.a {}',
         'if args.n then f.a {} else f.b {}',
     ],
@@ -190,7 +186,7 @@ def test_terminals_stay(body):
         'main = x -> x',
         block('{a = args.n}.b'),
         block('args'),
-        block('prim'),
+        block('$add_i8'),
     ],
 )
 def test_terms_that_cannot_reach_the_shape_are_left(defs):
@@ -201,13 +197,13 @@ def test_already_shaped_is_unchanged():
     source = """
     fact = f -> {
       entry = args:{n = 'i32'} ->
-        let t0 = prim.eq_i32 {a = args.n, b = [00000000]:'i32'} in
+        let t0 = $eq_i32 {a = args.n, b = [00000000]:'i32'} in
         if t0 then f.then0 {} else f.else0 {n = args.n},
       then0 = args:{} -> [01000000]:'i32',
       else0 = args:{n = 'i32'} ->
-        let t1 = prim.sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'} in
+        let t1 = $sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'} in
         let t2 = module.fact {n = t1} in
-        let t3 = prim.mul_i32 {a = args.n, b = t2} in
+        let t3 = $mul_i32 {a = args.n, b = t2} in
         t3,
     }
     """
