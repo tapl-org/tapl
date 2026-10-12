@@ -101,6 +101,7 @@ f a b                        Apply
 {x = e1, y = e2}             Struct
 {e1, y = e2}                 Struct with an unlabeled field
 s.x                          Project
+s [00]                       Apply: the field at position 0
 if c then a else b           If
 let x = e in body            sugar for (x -> body) e
 fix f                        Fix
@@ -135,6 +136,22 @@ and a field `b`, so a struct can be a tuple. The labeled form is parsed first, s
 - In BANF, an unlabeled field is fine in a value struct and in a data form
   (`p = {'i32', 'i8'}`), but not where a label names something; see "Labels name
   params, declarations and blocks".
+
+### Labels by name, positions by index: `s.a` and `s [00]`
+`s.a` picks a field by a label written in the source. `s i` picks a field by its
+position, and `i` is a term, so it can be computed at run time. A struct apply never
+looks at labels, so every field is reachable by index, unlabeled and duplicate ones
+included: `{a = '1', a = '2'} [01]` gives `'2'`, which `s.a` can't reach.
+- No new syntax and no new term: `s i` is already an `Apply`, and only gets a
+  reduction rule (see "`reduce`"). Labels stay static: no `s.(e)`, no `{(e) = v}`.
+- An index is an unsigned little-endian integer of any length, starting at 0:
+  `[01]`, `[0100]` and `[01000000]` are all 1, `[0001]` is 256. A form on the index is
+  ignored, as for an `if` condition.
+- A missing field is stuck, as for projection: an index past the last field, `''`,
+  or an argument that isn't a byte array.
+- `Project` stays its own term: BANF's shapes and the printer match on it.
+- Precedence is application's: `s [00] [01]` is `(s [00]) [01]`, `f s [00]` is
+  `(f s) [00]`, and `s [00] : t` is `s ([00] : t)`.
 
 ### Project for `s.x`
 It is a one-word verb like `Apply` and `Fix`, and it is TAPL's name for `t.l` on
@@ -689,18 +706,25 @@ The golden tests approve the shaped term next to the BANF and LLVM output, as
   has one;
 - fix: `fix g` gives `g (fix g)`;
 - projection: `{a = e, ...}.a` gives `e`. A missing label is not a redex;
+- struct apply: `{e0, e1, ...} [01]` gives `e1`, the field at that position,
+  labeled or not. The index is the byte array's unsigned little-endian value, so
+  `[01]`, `[0100]` and `[01000000]` are all 1, and a form on it is ignored
+  (`bruijn.index_value`). An index past the last field, `''`, or an argument that
+  isn't a byte array yet is not a redex;
 - if: `if [01] then a else b` gives `a`, and `if [00] ...` gives `b`.
 
 - Only the root: arguments, lambda bodies, struct fields and `if` arms stay as
   they are, and so does a head whose root isn't a redex yet (`(fix g) a`,
   `{p = {a = e}}.p.a`). `banf_reduce` reduces heads.
-- At most one rule applies to a term, so their order doesn't matter.
+- At most one rule applies to a term, so their order doesn't matter: beta needs
+  a `Lambda` callee, struct apply a `Struct` callee.
 - It never raises and never recurses, so one call always finishes. Loops come
   from calling it again and again, so the fuel is in `banf_reduce`.
 - Prims are not run (`prim` is only a binder), and an `if` condition's form isn't
   checked: only the one-byte values `01` and `00` are redexes.
 - The helpers it uses are `shift`, `substitute`, `beta`
-  (`shift(substitute(body, 0, shift(arg, 1)), -1)`), `unfold` and `project`.
+  (`shift(substitute(body, 0, shift(arg, 1)), -1)`), `unfold`, `project` and
+  `index_value`.
 
 ### `banf_reduce`: reduce until each position has its shape
 Each position wants certain constructors. The term there is reduced until it has

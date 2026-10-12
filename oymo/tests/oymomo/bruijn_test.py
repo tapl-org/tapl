@@ -170,3 +170,48 @@ def test_reduce_if_sees_through_a_form(value, expected):
     a, b = terms.BruijnIndex(1), terms.BruijnIndex(0)
     condition = terms.Formed(terms.ByteArray(value), terms.ByteArray(b'i1'))
     assert bruijn.reduce(terms.If(condition, a, b)) == {'a': a, 'b': b}[expected]
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        ("{a = '23'} [00]", "'23'"),
+        ("{a = '23', b = '45'} [01]", "'45'"),
+        # Unlabeled fields.
+        ("{'1', '2'} [01]", "'2'"),
+        ("{'1', b = '2'} [00]", "'1'"),
+        # Duplicate labels: every field is reachable by index.
+        ("{a = '1', a = '2'} [01]", "'2'"),
+        # Any spelling of the same number is the same index.
+        ("{a = '23', b = '45'} [0100]", "'45'"),
+        ("{a = '23'} [0000]", "'23'"),
+        # A form on the index is ignored.
+        ("{a = '23'} ([00] : 'i8')", "'23'"),
+    ],
+)
+def test_reduce_struct_apply(source, expected):
+    assert bruijn.reduce(resolved(source)) == resolved(expected)
+
+
+@pytest.mark.parametrize(
+    'source',
+    [
+        "{a = '23'} [01]",
+        "{a = '23'} [0001]",
+        "{a = '23'} ''",
+        '{} [00]',
+        "{a = '23'} i",
+        "{a = '23'} ((x -> x) [00])",
+    ],
+)
+def test_reduce_struct_apply_stuck(source):
+    term = resolved(source, ('i',))
+    assert bruijn.reduce(term) is term
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [('[01]', 1), ('[0001]', 256), ("''", None), ('i', None), ("[02]: 'i8'", 2)],
+)
+def test_index_value(source, expected):
+    assert bruijn.index_value(resolved(source, ('i',))) == expected

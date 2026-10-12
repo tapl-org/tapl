@@ -126,6 +126,17 @@ def project(term: terms.Project) -> syntax.Term | None:
     return next((field.value for field in struct.fields if field.label == term.label), None)
 
 
+def index_value(term: syntax.Term) -> int | None:
+    """The index a byte array spells, unsigned little-endian. A form on it is ignored.
+
+    None for `''` and for anything that is not a (formed) byte array.
+    """
+    match term:
+        case terms.ByteArray(value=value) | terms.Formed(term=terms.ByteArray(value=value)) if value:
+            return int.from_bytes(value, 'little')
+    return None
+
+
 _TRUE, _FALSE = b'\x01', b'\x00'
 
 
@@ -142,6 +153,11 @@ def reduce(term: syntax.Term) -> syntax.Term:
         case terms.Project(struct=terms.Struct()):
             projected = project(term)
             return term if projected is None else projected
+        case terms.Apply(function=terms.Struct(fields=fields), argument=argument) if (
+            position := index_value(argument)
+        ) is not None and position < len(fields):
+            # A struct applied to an index selects the field at that position, labeled or not.
+            return fields[position].value
         case terms.If(
             condition=terms.ByteArray(value=value) | terms.Formed(term=terms.ByteArray(value=value)),
             then_clause=then_clause,
