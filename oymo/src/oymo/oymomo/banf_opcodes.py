@@ -57,3 +57,9 @@ def _generate():
 
 
 OPCODES: dict[str, OpcodeSignature] = {signature.name: signature for signature in _generate()}
+
+# An OpcodeCall prints its name bare (`add_i32 a, b`), so an opcode named like a BANF
+# keyword would read like a call or a terminator.
+_BANF_KEYWORDS = frozenset({'call', 'jump', 'branch', 'return'})
+if _BANF_KEYWORDS & OPCODES.keys():
+    raise AssertionError('Opcode names must not shadow BANF keywords.')
