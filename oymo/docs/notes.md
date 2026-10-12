@@ -351,7 +351,7 @@ f a b                        Apply: (f a) b
 {e1, y = e2}                 Struct with an unlabeled field
 s.x                          Project: field by label
 s [00]                       Apply on a struct: field by position
-if c then a else b           If
+if c then a else b           Sugar for {b, a} c
 let x = e in body            Sugar for (x -> body) e
 $add_i32, $fix g             Builtin, applied like a function
 $0                           BruijnIndex
@@ -526,8 +526,25 @@ Why `Project` and not `Select`/`FieldAccess`: see
 
 ### If
 
-`if c then a else b`. `c` reduces to `[01]` (then) or `[00]` (else). A form on `c`
-is ignored. Extends as far right as possible.
+`if c then a else b` is sugar for `{b, a} c`: a struct applied to the condition. `c`
+reduces to `[01]` (field 1, then) or `[00]` (field 0, else), read as any
+[struct apply](#structs) index: any length, a form ignored. Extends as far right as
+possible.
+
+```
+if c then t else e           parses to   {e, t} c
+{e, t} c                     prints as   if c then t else e
+{'1', '2'} [01]              prints as   if [01] then '2' else '1'
+{x = e, t} c                 prints as   {x = e, t} c       labeled: not an if
+{e, t, d} c                  prints as   {e, t, d} c        3 fields: not an if
+```
+
+- There is no `If` term. The printer prints every struct with two unlabeled fields,
+  applied to anything, as `if` (`bruijn.branch`), so the output parses back to the
+  same term.
+- In BANF, `{e, t} c` in tail position is a branch, labeled or not. See
+  [Translation](#if-only-in-tail-position-jumping-to-two-different-blocks).
+- Design: [plan_if_as_struct_apply.md](plan_if_as_struct_apply.md).
 
 ### Byte arrays
 
@@ -730,8 +747,8 @@ a form can come from a variable:
 - A byte array is only its bytes: `[01]: 'i8'` is `Formed(ByteArray([01]), 'i8')`,
   just as `y: 'i8'` is `Formed(y, 'i8')`. Every `:` that isn't on a binder is one
   term with one meaning, and beta reduction alone gives a dynamic form.
-- `Formed` itself never reduces. `whnf` reduces inside `Formed.term`, and an `if`
-  sees through a form on its condition.
+- `Formed` itself never reduces. `whnf` reduces inside `Formed.term`, and a struct
+  apply (so an `if`) sees through a form on its index.
 - Precedence: [oymomo syntax › Precedence](#precedence). Design history:
   [plan_annotation.md](plan_annotation.md).
 
@@ -795,7 +812,7 @@ Why built-ins instead of `module` names, a `prim` binder, or a `fix` term: see
 | built-in | `$fix g` | `g ($fix g)` (by `BUILTIN_RULES[name]`, if it fires) |
 | projection | `{a = e, ...}.a` | `e` |
 | struct apply | `{e0, e1, ...} [01]` | `e1` |
-| if | `if [01] then a else b` / `if [00] ...` | `a` / `b` |
+| if (struct apply) | `if [01] then a else b` / `if [00] ...` | `a` / `b` |
 
 Not redexes:
 - a built-in with no rule (`$add_i32 {...}`), an unknown one (`$nope g`), or a rule
@@ -803,9 +820,7 @@ Not redexes:
 - a projection with a missing label;
 - a struct apply with an index past the end, `''`, or an argument that isn't a byte
   array yet (index read by `bruijn.index_value`: unsigned little-endian, form
-  ignored);
-- an `if` whose condition isn't exactly the one byte `01` or `00` (its form isn't
-  checked).
+  ignored). So `if [02] then a else b` is stuck, and `if [0100] then a else b` is `a`.
 
 Properties:
 - **Only the root.** Arguments, lambda bodies, struct fields and `if` arms are not
@@ -1245,7 +1260,7 @@ Some roots become a redex only after their **head** is reduced: in `$fix g a`,
 | `$name a`, with `name`'s rule strict | `a` |
 | `f a`, otherwise (including `$fix g`) | `f` |
 | `s.l` | `s` |
-| `if c then ...` | `c` |
+| `if c then ...`, which is `{e, t} c` | `c` |
 | `t: F` | `t` |
 | anything else | none |
 
@@ -1292,7 +1307,7 @@ As numbered in [`banf_reduce.py`](../src/oymo/oymomo/banf_reduce.py):
                | args.label                                 -- return a param
                | $i, where i < k                            -- return a let
                | blocks.label <op_arg>                      -- jump
-               | if <atom> then <jump> else <jump>          -- branch
+               | {<jump>, <jump>} <atom>                    -- branch: if <atom> then ... else ...
    ```
    `k` counts the lets since the block's `args` binder, so `args` is `$k`; it tells
    `args.label` from other projections. A let isn't reduced with `whnf`, since it is
@@ -1306,7 +1321,7 @@ As numbered in [`banf_reduce.py`](../src/oymo/oymomo/banf_reduce.py):
 7. `<value>`, a let's op: an apply's `<op_arg>` becomes a struct of atoms or a
    BruijnIndex (forwarding `args`); a struct's fields become atoms; a projection's
    struct is a head, already reduced.
-8. `<jump>`, an `if` arm: until `blocks.label <op_arg>`.
+8. `<jump>`, a branch arm (a field of `{e, t} c`): until `blocks.label <op_arg>`.
 9. `<atom>`: until a ByteArray, `$i` with `i < k`, or `args.n`. `args` itself is not
    an atom: BANF passes a block's params one by one.
 
@@ -1401,7 +1416,8 @@ own. A let reference becomes a `banf.Var` named after the BANF let already built
   has no field at index 2.". Binders are read only by label, so `args [00]` is an
   error.
 - **Terminators**, only in tail position: `f.label {...}` (jump);
-  `if c then f.a {...} else f.b {...}` (branch, both arms jumps); an atom (return).
+  `if c then f.a {...} else f.b {...}`, which is `{f.b {...}, f.a {...}} c` (branch,
+  both arms jumps, labels ignored); an atom (return).
 
 ##### Labels name params, declarations and blocks
 
@@ -1430,7 +1446,9 @@ explicit `let t0` keeps every name in the source.
 
 `if c then [01]:'i8' else f.b {}` is an error. A let-bound `if` is substituted, so
 `let t = if c then f.a {} else f.b {} in t` is fine, but an `if` that ends up as an
-operand is an error.
+operand is an error. All of this holds for `{e, t} c`, which is the same term.
+- Only two fields: `{f.a {}, f.b {}, f.c {}} c` is "A branch needs two fields, {else,
+  then}.". An N-way switch is a later plan.
 - A BANF `Branch` is a terminator with two targets. An `if` whose value is used
   needs a join block, which the source writes explicitly.
 - `if c then f.a {} else f.a {}` is rejected: `a` would get two edges from the same

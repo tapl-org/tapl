@@ -94,19 +94,6 @@ class Project(Term):
         yield self.struct
 
 
-@dataclass
-class If(Term):
-    condition: Term
-    then_clause: Term
-    else_clause: Term
-    location: Location | None = field(default=None, compare=False)
-
-    def children(self) -> Generator[Term, None, None]:
-        yield self.condition
-        yield self.then_clause
-        yield self.else_clause
-
-
 # Only bytes. `[01]: 'i8'` is `Formed(ByteArray([01]), 'i8')`.
 # Forms are terms. A named form such as `i32` is the byte array `'i32'`.
 @dataclass

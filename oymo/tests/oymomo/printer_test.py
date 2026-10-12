@@ -52,6 +52,27 @@ def test_pretty_parenthesizes_only_where_needed(source, expected):
     assert pretty(source) == expected
 
 
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        # `if c then t else e` is `{e, t} c`, and every such struct apply prints as `if`.
+        ('{e, t} c', 'if c then t else e'),
+        ("{'1', '2'} [01]", "if [01] then '2' else '1'"),
+        ("{a, b} [02]: 'i8'", "if [02]: 'i8' then b else a"),
+        ('f ({e, t} c)', 'f (if c then t else e)'),
+        ('{e, t} (f x)', 'if f x then t else e'),
+        ('{e, {b, a} d} c', 'if c then if d then a else b else e'),
+        # A label would be lost by `if`, and `if` has two arms.
+        ('{x = e, t} c', '{x= e, t} c'),
+        ('{e, t, d} c', '{e, t, d} c'),
+        ('{e} c', '{e} c'),
+    ],
+)
+def test_two_field_struct_apply_prints_as_if(source, expected):
+    assert pretty(source) == expected
+    assert parse(expected) == parse(source)
+
+
 def test_pretty_omits_empty_forms():
     assert pretty('x -> x') == 'x → x'
     assert pretty('[00]') == '[00]'

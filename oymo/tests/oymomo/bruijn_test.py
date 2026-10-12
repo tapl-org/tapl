@@ -173,11 +173,32 @@ def test_resolve_reaches_formed():
     assert show(term) == 'x → y → $0:$1'
 
 
-@pytest.mark.parametrize(('value', 'expected'), [(b'\x01', 'a'), (b'\x00', 'b')])
+@pytest.mark.parametrize(('value', 'expected'), [(b'\x01', 'a'), (b'\x00', 'b'), (b'\x01\x00', 'a')])
 def test_reduce_if_sees_through_a_form(value, expected):
+    # `if c then a else b` is `{b, a} c`, so the condition is read as an index: any length.
     a, b = terms.BruijnIndex(1), terms.BruijnIndex(0)
     condition = terms.Formed(terms.ByteArray(value), terms.ByteArray(b'i1'))
-    assert bruijn.reduce(terms.If(condition, a, b)) == {'a': a, 'b': b}[expected]
+    branch = terms.Apply(terms.Struct([terms.Field('', b), terms.Field('', a)]), condition)
+    assert bruijn.reduce(branch) == {'a': a, 'b': b}[expected]
+
+
+def test_if_parses_to_a_struct_apply():
+    assert parse('if c then t else e') == parse('{e, t} c')
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        ('{e, t} c', ('c', 't', 'e')),
+        ('if c then t else e', ('c', 't', 'e')),
+        ('{x = e, t} c', None),
+        ('{e, t, d} c', None),
+        ('{e, t}', None),
+    ],
+)
+def test_branch(source, expected):
+    found = bruijn.branch(parse(source))
+    assert (None if found is None else tuple(v.name for v in found)) == expected
 
 
 @pytest.mark.parametrize(

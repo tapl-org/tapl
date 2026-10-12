@@ -98,15 +98,9 @@ class _Reducer:
         match term:
             case terms.Apply(function=terms.Project(struct=terms.BruijnIndex()), argument=argument):
                 return replace(term, argument=self.op_arg(argument))  # blocks.label <op_arg>
-            case terms.If(condition=condition, then_clause=then_clause, else_clause=else_clause):
-                return replace(
-                    term,
-                    condition=self.atom(condition),
-                    then_clause=self.jump(then_clause),
-                    else_clause=self.jump(else_clause),
-                )
             case terms.Apply(function=terms.Struct(fields=fields) as struct, argument=condition):
-                # A branch, `{e, t} c`: `c` didn't reduce to an index, so it's a run-time condition.
+                # A branch, `{e, t} c` or `if c then t else e`: `c` didn't reduce to an index,
+                # so it's a run-time condition.
                 return replace(
                     term,
                     function=replace(struct, fields=[replace(f, value=self.jump(f.value)) for f in fields]),
@@ -162,15 +156,13 @@ def _head(term):
     match term:
         case terms.Apply(function=terms.Struct(), argument=head):
             # A struct applied to an index: the index is the head, so it's reduced only once
-            # the callee is a struct. Other arguments stay lazy.
+            # the callee is a struct. Other arguments stay lazy. This is also an `if`'s condition.
             return head
         case terms.Apply(argument=head) if _strict_builtin(term):
             # A strict built-in's argument is its head: the rule reads it, so it must be
             # reduced first. `$fix g` is not strict, so `g` stays lazy.
             return head
-        case (
-            terms.Apply(function=head) | terms.Project(struct=head) | terms.If(condition=head) | terms.Formed(term=head)
-        ):
+        case terms.Apply(function=head) | terms.Project(struct=head) | terms.Formed(term=head):
             return head
     return None
 
@@ -185,8 +177,6 @@ def _with_head(term, head):
             return replace(term, function=head)
         case terms.Project():
             return replace(term, struct=head)
-        case terms.If():
-            return replace(term, condition=head)
         case terms.Formed():
             return replace(term, term=head)
     raise AssertionError(term)

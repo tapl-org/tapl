@@ -144,8 +144,13 @@ def _lambda(c):
 
 
 def _if(c):
+    """`if c then t else e` is `{e, t} c`: `[00]` picks field 0, the else arm."""
     condition, then_clause, else_clause = c.values
-    return terms.If(condition=condition, then_clause=then_clause, else_clause=else_clause, location=_location(c))
+    location = _location(c)
+    fields = [
+        terms.Field(label='', value=arm, location=getattr(arm, 'location', None)) for arm in (else_clause, then_clause)
+    ]
+    return terms.Apply(function=terms.Struct(fields=fields, location=location), argument=condition, location=location)
 
 
 def _let(c):

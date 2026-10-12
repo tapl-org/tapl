@@ -11,6 +11,9 @@ or another lambda, so `module → {main= blocks → {` stays on one line),
 an apply puts its argument on the next line, and an `if` puts `then` and `else` on
 their own lines.
 
+A struct with two unlabeled fields applied to anything, `{e, t} c`, prints as
+`if c then t else e`, which parses back to it (`bruijn.branch`).
+
 An apply of a lambda, `(x → body) e`, prints as `let x = e in body`; a broken let puts
 its body on the next line, so a chain of lets reads one let per line. In pretty mode a
 chain of two or more lets (and so any term containing one) always breaks, even if it fits.
@@ -21,7 +24,7 @@ shadows that name or no binder is in scope; there it stays `$i`, so the output s
 
 from oymo.core import syntax
 from oymo.core.terminals import IDENT_CONTINUE, IDENT_START
-from oymo.oymomo import terms
+from oymo.oymomo import bruijn, terms
 from oymo.oymomo.grammar import ASCII_TEXT, RESERVED
 
 # Binding levels, loosest first. A term printed where a tighter level is needed gets parentheses.
@@ -60,6 +63,9 @@ def _compact(term, names, level=_EXPRESSION):
             value = _compact(argument, names)
             suffix = _compact_suffix(form, names)
             text = f'let {_name(name)}{suffix} = {value} in {_compact(body, _bind(names, name))}'
+        case terms.Apply() if (branch := bruijn.branch(term)) is not None:
+            c, t, e = branch
+            text = f'if {_compact(c, names)} then {_compact(t, names)} else {_compact(e, names)}'
         case terms.Apply(function=function, argument=argument):
             text = f'{_compact(function, names, _APPLY)} {_compact(argument, names, _argument_level(argument))}'
         case terms.FunctionForm(param=param, result=result):
@@ -68,8 +74,6 @@ def _compact(term, names, level=_EXPRESSION):
             text = '{' + ', '.join(f'{_label(f.label, " = ")}{_compact(f.value, names)}' for f in fields) + '}'
         case terms.Project(struct=struct, label=label):
             text = f'{_compact(struct, names, _PROJECT)}.{_name(label)}'
-        case terms.If(condition=c, then_clause=t, else_clause=e):
-            text = f'if {_compact(c, names)} then {_compact(t, names)} else {_compact(e, names)}'
         case terms.ByteArray(value=value):
             text = _bytes_text(value, grouped=False)
         case terms.Formed(term=inner, form=form):
@@ -129,8 +133,10 @@ def _argument_level(argument):
 def _loosest(term):
     """The loosest level `term` can be printed at without parentheses."""
     match term:
-        case terms.Lambda() | terms.If() | terms.Apply(function=terms.Lambda()):
+        case terms.Lambda() | terms.Apply(function=terms.Lambda()):
             return _EXPRESSION
+        case terms.Apply() if bruijn.branch(term) is not None:
+            return _EXPRESSION  # printed as `if`
         case terms.Formed():
             return _FORMED
         case terms.FunctionForm():
@@ -169,6 +175,12 @@ def _flat(term, level, names):
             value = _flat(argument, _EXPRESSION, names)
             suffix = _form_suffix(form, names)
             text = f'let {_name(name)}{suffix} = {value} in {_flat(body, _EXPRESSION, _bind(names, name))}'
+        case terms.Apply() if (branch := bruijn.branch(term)) is not None:
+            c, t, e = branch
+            text = (
+                f'if {_flat(c, _EXPRESSION, names)} then {_flat(t, _EXPRESSION, names)}'
+                f' else {_flat(e, _EXPRESSION, names)}'
+            )
         case terms.Apply(function=function, argument=argument):
             text = f'{_flat(function, _APPLY, names)} {_flat(argument, _argument_level(argument), names)}'
         case terms.FunctionForm(param=param, result=result):
@@ -177,11 +189,6 @@ def _flat(term, level, names):
             text = '{' + ', '.join(f'{_label(f.label, "= ")}{_flat(f.value, _EXPRESSION, names)}' for f in fields) + '}'
         case terms.Project(struct=struct, label=label):
             text = f'{_flat(struct, _PROJECT, names)}.{_name(label)}'
-        case terms.If(condition=c, then_clause=t, else_clause=e):
-            text = (
-                f'if {_flat(c, _EXPRESSION, names)} then {_flat(t, _EXPRESSION, names)}'
-                f' else {_flat(e, _EXPRESSION, names)}'
-            )
         case terms.ByteArray(value=value):
             text = _bytes_text(value, grouped=True)
         case terms.Formed(term=inner, form=form):
@@ -219,6 +226,13 @@ def _pretty(term, level, depth, column, width, indent, names):
             header = f'let {_name(name)}{_form_suffix(form, names)} = '
             value = sub(argument, _EXPRESSION, depth, column + len(header))
             text = f'{header}{value} in\n{pad}{sub(body, _EXPRESSION, depth, len(pad), _bind(names, name))}'
+        case terms.Apply() if (branch := bruijn.branch(term)) is not None:
+            c, t, e = branch
+            text = (
+                f'if {sub(c, _EXPRESSION, depth, column + 3)}\n'
+                f'{pad}then {sub(t, _EXPRESSION, depth, len(pad) + 5)}\n'
+                f'{pad}else {sub(e, _EXPRESSION, depth, len(pad) + 5)}'
+            )
         case terms.Apply(function=function, argument=argument):
             argument_text = sub(argument, _argument_level(argument), depth + 1, len(inner))
             text = f'{sub(function, _APPLY, depth, column)}\n{inner}{argument_text}'
@@ -230,12 +244,6 @@ def _pretty(term, level, depth, column, width, indent, names):
             text = '{\n' + '\n'.join(lines) + '\n' + pad + '}'
         case terms.Project(struct=struct, label=label):
             text = f'{sub(struct, _PROJECT, depth, column)}.{_name(label)}'
-        case terms.If(condition=c, then_clause=t, else_clause=e):
-            text = (
-                f'if {sub(c, _EXPRESSION, depth, column + 3)}\n'
-                f'{pad}then {sub(t, _EXPRESSION, depth, len(pad) + 5)}\n'
-                f'{pad}else {sub(e, _EXPRESSION, depth, len(pad) + 5)}'
-            )
         case _:
             return flat
     return f'({text})' if grouped else text
@@ -258,8 +266,6 @@ def _has_let_chain(term):
             return any(_has_let_chain(f.value) for f in fields)
         case terms.Project(struct=struct):
             return _has_let_chain(struct)
-        case terms.If(condition=c, then_clause=t, else_clause=e):
-            return _has_let_chain(c) or _has_let_chain(t) or _has_let_chain(e)
     return False
 
 

@@ -52,8 +52,6 @@ def _map_children(term, f):
             return replace(term, fields=[replace(field, value=f(field.value)) for field in fields])
         case terms.Project(struct=struct):
             return replace(term, struct=f(struct))
-        case terms.If(condition=c, then_clause=t, else_clause=e):
-            return replace(term, condition=f(c), then_clause=f(t), else_clause=f(e))
         case terms.Formed(term=inner, form=form):
             return replace(term, term=f(inner), form=f(form))
         case terms.FunctionForm(param=param, result=result):
@@ -157,7 +155,18 @@ def index_value(term: syntax.Term) -> int | None:
     return None
 
 
-_TRUE, _FALSE = b'\x01', b'\x00'
+def branch(term: syntax.Term) -> tuple[syntax.Term, syntax.Term, syntax.Term] | None:
+    """`(condition, then, else)` if `term` is `{e, t} c` with both fields unlabeled, else None.
+
+    That is what `if c then t else e` parses to: `[00]` picks field 0, the else arm.
+    """
+    match term:
+        case terms.Apply(
+            function=terms.Struct(fields=[terms.Field(label='', value=e), terms.Field(label='', value=t)]),
+            argument=c,
+        ):
+            return c, t, e
+    return None
 
 
 def reduce(term: syntax.Term) -> syntax.Term:
@@ -179,15 +188,6 @@ def reduce(term: syntax.Term) -> syntax.Term:
             position := index_value(argument)
         ) is not None and position < len(fields):
             # A struct applied to an index selects the field at that position, labeled or not.
+            # This is also `if`: `if c then t else e` is `{e, t} c`.
             return fields[position].value
-        case terms.If(
-            condition=terms.ByteArray(value=value) | terms.Formed(term=terms.ByteArray(value=value)),
-            then_clause=then_clause,
-            else_clause=else_clause,
-        ):
-            # A form on the condition, as in `if [01]:'i1' then ...`, doesn't change which branch.
-            if value == _TRUE:
-                return then_clause
-            if value == _FALSE:
-                return else_clause
     return term

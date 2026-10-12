@@ -1,6 +1,6 @@
 # Plan: `if` is sugar for a struct applied to a condition
 
-Status: **in progress**; 2 of 4 steps.
+Status: **in progress**; 3 of 4 steps.
 
 ## Steps
 
@@ -8,7 +8,7 @@ One commit each. Each step leaves `hatch run full-check` green.
 
 - [x] 1. Write the plan, docs only (`oymomo: plan if as struct apply`)
 - [x] 2. BANF accepts `{e, t} c` as a branch, additive (`oymomo: a struct applied to an atom is a branch`)
-- [ ] 3. `if` parses to `{e, t} c`, and `If` goes (`oymomo: if is sugar for {else, then} c`)
+- [x] 3. `if` parses to `{e, t} c`, and `If` goes (`oymomo: if is sugar for {else, then} c`)
 - [ ] 4. Write the switch plan, docs only (`oymomo: plan switch`)
 
 Step 2 leaves `If` in place, so every existing test still passes. Step 3 changes no
