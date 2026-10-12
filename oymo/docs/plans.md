@@ -8,7 +8,7 @@ Each plan is one design change, carried out in steps of one commit each. A plan 
 
 | Plan | Status | Description |
 |---|---|---|
-| [plan_builtin.md](plan_builtin.md) | in progress; 2 of 5 steps | Every primitive is a global constant written `$name` (`$add_i32`, `$fix`), so the program drops its `prim ->` binder and `fix` is no longer a term or keyword. A new built-in is one table entry. Also, `s [01]` on a value struct becomes the BANF op `GetIndex`, replacing `prim.extractvalue`. |
+| [plan_builtin.md](plan_builtin.md) | in progress; 3 of 5 steps | Every primitive is a global constant written `$name` (`$add_i32`, `$fix`), so the program drops its `prim ->` binder and `fix` is no longer a term or keyword. A new built-in is one table entry. Also, `s [01]` on a value struct becomes the BANF op `GetIndex`, replacing `prim.extractvalue`. |
 | [plan_struct_pack.md](plan_struct_pack.md) | proposed, with open questions; 0 of 2 steps | `unpack s` turns a struct into a list of fields and `pack l` turns one back, so a struct can be built dynamically: labels and number of fields computed by oymomo code. To be built on `plan_builtin.md`. |
 
 ## Closed

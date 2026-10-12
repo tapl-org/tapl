@@ -10,7 +10,7 @@ from oymo.core.terminals import Comment, Eof, Fixed, HexBytes, Identifier, Integ
 from oymo.oymomo import rule_names as rn
 from oymo.oymomo import terms
 
-RESERVED = frozenset({'if', 'then', 'else', 'fix', 'let', 'in'})
+RESERVED = frozenset({'if', 'then', 'else', 'let', 'in'})
 
 TRIVIA = Memoized(ZeroOrMore(First(Whitespace(' \t\r\n'), Comment('//'))))
 
@@ -195,13 +195,7 @@ RULES: dict[str, Clause] = {
             Ref(rn.FORMED),
             action=lambda c: terms.Apply(function=c.values[0], argument=c.values[1], location=_location(c)),
         ),
-        Ref(rn.FIX),
         Ref(rn.FORMED),
-    ),
-    rn.FIX: Seq(
-        _punct('fix'),
-        Ref(rn.FORMED),
-        action=lambda c: terms.Fix(function=c.values[0], location=_location(c)),
     ),
     # `e: F` is a Formed. Like `=>`, it builds a value, so it binds tighter than apply; it
     # binds looser than `=>`. It is right associative: `f a: g b` is `f (a: g) b`,

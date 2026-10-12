@@ -95,8 +95,6 @@ class _Renamer:
                 return replace(term, struct=self.other(struct))
             case terms.If(condition=c, then_clause=t, else_clause=e):
                 return replace(term, condition=self.other(c), then_clause=self.other(t), else_clause=self.other(e))
-            case terms.Fix(function=function):
-                return replace(term, function=self.other(function))
             case terms.FunctionForm(param=param, result=result):
                 return replace(term, param=self.other(param), result=self.other(result))
             case terms.Formed(term=inner, form=form):

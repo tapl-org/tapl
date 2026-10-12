@@ -104,8 +104,7 @@ s.x                          Project
 s [00]                       Apply: the field at position 0
 if c then a else b           If
 let x = e in body            sugar for (x -> body) e
-fix f                        Fix
-$add_i32                     Builtin
+$add_i32, $fix g             Builtin, applied like a function
 [2a 00 00 00]                ByteArray
 e: 'i32'                    Formed
 {c = 'i8'} => 'i32'          FunctionForm
@@ -158,7 +157,7 @@ included: `{a = '1', a = '2'} [01]` gives `'2'`, which `s.a` can't reach.
   `(f s) [00]`, and `s [00] : t` is `s ([00] : t)`.
 
 ### Project for `s.x`
-It is a one-word verb like `Apply` and `Fix`, and it is TAPL's name for `t.l` on
+It is a one-word verb like `Apply`, and it is TAPL's name for `t.l` on
 records (projection, E-ProjRcd); the reducer already called its step `project`.
 We first chose `Select`, then `FieldAccess` (it pairs with the `Field` class and
 is what C, Rust, and Java call `s.x`), and rejected `Project` as type-theory
@@ -228,13 +227,13 @@ from an expression, so a byte array's form can be a variable:
   own form, unchecked: `([01]:'i8'):'i16'` is the constant `[01]:i16`, and `args.n:'i32'`
   is `n:i32` in BANF even when `n` is `i8`. LLVM translation rejects a formed name whose
   LLVM type differs from the name's.
-- Precedence, highest first: atom, project `.`, `=>`, `:`, apply and `fix`,
+- Precedence, highest first: atom, project `.`, `=>`, `:`, apply,
   `->`/`if`/`let`. The rule: values bind tighter than reducibles. `Formed` and
   `FunctionForm` never reduce, so `:` and `=>` bind tighter than application; `.` binds
   tighter still, since `module.T` and `args.n` read as paths. `:` is right associative
   and looser than `=>`.
   - `f [01]: 'u8' [02]` is `f ([01]: 'u8') [02]`, `f a: g b` is `f (a: g) b`,
-    `fix f: t` is `fix (f: t)`.
+    `$fix f: t` is `$fix (f: t)`.
   - `x: A => B` is `x: (A => B)`, `A => B: C` is `(A => B): C`,
     `a: b: c` is `a: (b: c)`, `x: module.T` is `x: (module.T)`.
   - An application inside `:` needs parentheses: `y: (f a)`, `(f a): t`.
@@ -294,7 +293,7 @@ from an expression, so a byte array's form can be a variable:
 
 ### Identifiers: plain or double quoted
 Plain identifiers match `[A-Za-z_][A-Za-z0-9_]*`, excluding the reserved words
-`if then else fix let in`. Any other non-empty string is written in double quotes:
+`if then else let in`. Any other non-empty string is written in double quotes:
 `"a b"`, `"if"`, `"main.1"`.
 - LLVM does the same (`@main` vs `@"foo bar"`), so kernel names map directly to
   symbols, including mangled names from higher-level languages. SQL also uses `"..."`.
@@ -434,8 +433,32 @@ machine code is an **opcode**; its name is in `banf_opcodes.OPCODES`.
   `$` value to project from, apply, or unpack.
 - Every built-in takes one argument. One with several operands takes a struct, so a
   call is always `Apply(Builtin(name), arg)`.
-- No word is reserved for them: `prim` is a plain name, and the parser accepts any
-  `$name`; `convert` rejects one with no opcode (`Unknown built-in '$nope'.`).
+- No word is reserved for them: `prim` and `fix` are plain names (`fix -> fix` is a
+  lambda), and the parser accepts any `$name`.
+- A name can be in two tables. Reduction rules are in `bruijn.BUILTIN_RULES`
+  (`BuiltinRule(name, strict, needs, rule)`); machine code is in
+  `banf_opcodes.OPCODES` and `llvm_opcodes.DEFAULT_OPCODES`:
+
+  | Name | Rule | Opcode |
+  |---|---|---|
+  | `fix` | `$fix g` gives `g ($fix g)` | no: it must reduce away |
+  | `add_i32` and the other opcodes | not yet (constant folding) | yes |
+
+- A built-in with a rule and no opcode is **kernel-only**. That comes from the tables,
+  with no flag to keep in sync. Reduction removes it: `$fix g` always fires. `convert`
+  is the only gate into BANF: `$name arg` becomes an `OpcodeCall` only if `name` is in
+  `OPCODES`. One message for each way a built-in can be left over:
+
+  | Left over | Message |
+  |---|---|
+  | `$fix`, not applied | `$fix must be applied.` |
+  | a kernel-only `$name arg` whose rule didn't fire | `$name has no opcode, so it must reduce away: its argument must reduce to <needs>.` |
+  | `$nope {}`, in no table | `Unknown built-in '$nope'.` |
+
+  The ending of the second comes from the rule (`BuiltinRule.needs`, such as
+  `'a struct'`), so a new built-in brings its own message.
+- Why `fix` is a built-in, not its own term: a new kernel built-in is one table
+  entry, instead of a term, a grammar rule, a reserved word and cases in five modules.
 
 ### `module`: every symbol, declared by the binder's form
 `module`'s form declares every symbol of the module, imported or defined, in one
@@ -475,8 +498,8 @@ says whether the body defines it:
   return form, and the declaration's shape says which ones are imported.
 - Why not an empty byte array as a "no body" sentinel for imports (an earlier
   idea): it needs a magic value. The declaration's shape says the same thing.
-- Why recursion needs no `fix`: functions call each other by projection on
-  `module`, just as LLVM functions call each other by symbol. A `fix` in the
+- Why recursion needs no `$fix`: functions call each other by projection on
+  `module`, just as LLVM functions call each other by symbol. A `$fix` in the
   source is only unfolded while reducing to BANF's shape (see "oymomo to BANF"); it
   never becomes a loop or a call.
 - Why not cross-module calls by name: every external symbol is declared in
@@ -707,7 +730,7 @@ three and returns an oymomo term in BANF's shape; `convert(shaped)` runs the las
 4. `banf_translate.convert`: reads the shaped term into BANF, and raises
    `TranslationError` with a source location on any mismatch.
 
-**Translation only reduces terms.** `shape` runs term reductions (beta, fix, project,
+**Translation only reduces terms.** `shape` runs term reductions (beta, built-in rules such as `$fix`, project,
 `if`) until each position has BANF's shape, then renames binders. `convert` only reads
 the result:
 - No default values: an omitted form is `Empty`, and `Empty` is never read as `void`
@@ -737,7 +760,9 @@ The golden tests approve the shaped term next to the BANF and LLVM output, as
   `(x: F -> body) e` puts in `e: F`, and drops `e`'s own form (`e: G` goes in
   as `e: F`). Without one, `e` goes in as it is, so it keeps its own form, if it
   has one;
-- fix: `fix g` gives `g (fix g)`;
+- built-in: `$name a` steps by the rule in `bruijn.BUILTIN_RULES[name]`, if there is
+  one and it fires: `$fix g` gives `g ($fix g)`. A built-in with no rule
+  (`$add_i32 {...}`) or an unknown one (`$nope g`) is not a redex;
 - projection: `{a = e, ...}.a` gives `e`. A missing label is not a redex;
 - struct apply: `{e0, e1, ...} [01]` gives `e1`, the field at that position,
   labeled or not. The index is the byte array's unsigned little-endian value, so
@@ -747,16 +772,17 @@ The golden tests approve the shaped term next to the BANF and LLVM output, as
 - if: `if [01] then a else b` gives `a`, and `if [00] ...` gives `b`.
 
 - Only the root: arguments, lambda bodies, struct fields and `if` arms stay as
-  they are, and so does a head whose root isn't a redex yet (`(fix g) a`,
+  they are, and so does a head whose root isn't a redex yet (`$fix g a`,
   `{p = {a = e}}.p.a`). `banf_reduce` reduces heads.
 - At most one rule applies to a term, so their order doesn't matter: beta needs
-  a `Lambda` callee, struct apply a `Struct` callee.
+  a `Lambda` callee, struct apply a `Struct` callee, a built-in rule a `Builtin`
+  callee.
 - It never raises and never recurses, so one call always finishes. Loops come
   from calling it again and again, so the fuel is in `banf_reduce`.
-- Built-ins are not run (`$add_i32 {...}` is stuck), and an `if` condition's form isn't
+- Opcodes are not run (`$add_i32 {...}` is stuck), and an `if` condition's form isn't
   checked: only the one-byte values `01` and `00` are redexes.
 - The helpers it uses are `shift`, `substitute`, `beta`
-  (`shift(substitute(body, 0, shift(arg, 1)), -1)`), `unfold`, `project` and
+  (`shift(substitute(body, 0, shift(arg, 1)), -1)`), `project` and
   `index_value`.
 
 ### `banf_reduce`: reduce until each position has its shape
@@ -766,7 +792,7 @@ one, then its own positions are visited. Forms and binder kinds aren't checked
 context.
 
 **Heads.** Some roots become a redex only after their head is reduced: in
-`(fix g) a`, `fix g` must unfold to a lambda first. The head of an apply is its
+`$fix g a`, `$fix g` must unfold to a lambda first. The head of an apply is its
 callee, of a projection its struct, of an if its condition, of a `Formed` its
 term; other terms have none. Once an apply's callee is a struct, its head is the
 argument instead: in `{a = x} ((y -> y) [00])` the index must become a byte array
@@ -828,7 +854,7 @@ More rules:
 - A term that can't get its shape is left as it is, for `convert` to report with
   the usual message, so this pass has no errors except running out of fuel.
 - Fuel: each step costs one unit, out of 10,000. A term that keeps reducing, such
-  as `fix (self -> self)`, fails with "ran out of reduction steps".
+  as `$fix (self -> self)`, fails with "ran out of reduction steps".
 - Nothing is flattened: a nested call stays nested and is an error, since
   flattening would mean inventing names.
 

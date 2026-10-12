@@ -42,8 +42,8 @@ def test_compact_is_one_line_with_parens_only_where_needed():
         ('f (let x = y in x)', 'f (let x = y in x)'),
         ('f (x -> x)', 'f (x → x)'),
         ('(f a).x', '(f a).x'),
-        ('fix f x', 'fix f x'),
-        ('fix (f a)', 'fix (f a)'),
+        ('$fix f x', '$fix f x'),
+        ('$fix (f a)', '$fix (f a)'),
         ('f (if c then a else b)', 'f (if c then a else b)'),
         ('if c then x -> x else (y -> y) z', 'if c then x → x else let y = z in y'),
     ],
@@ -227,7 +227,7 @@ def test_width_and_indent_flags():
         "x: ([00]: 'i8') => 'i32' -> f ([01]: 'i8') => g [02]: 'i8'",
         'x: (y) -> [00]: (f x) => {}',
         "'tag'",
-        'if c then if d then a else b else fix f',
+        'if c then if d then a else b else $fix f',
         "let x: 'i8' = let y = e in y in f (let z = x in z)",
         "f 'Hello world' [48656c6c6f]: 'i8' '' [00]",
         'y: x',
@@ -248,8 +248,8 @@ def test_width_and_indent_flags():
         'y: (f a)',
         '(f a): t',
         'f y: x z',
-        'fix f: t',
-        '(fix f): t',
+        '$fix f: t',
+        '($fix f): t',
         'x: decls.t',
         "f [01]: 'u8' [02]",
         "{'1', '2'}",
@@ -301,8 +301,9 @@ def test_formed():
     assert show(terms.Formed(terms.Apply(f, y), terms.Apply(f, x))) == '(f y):(f x)'
     assert show(terms.Apply(f, terms.Formed(y, x))) == 'f y:x'
     assert show(terms.Apply(terms.Formed(f, x), y)) == 'f:x y'
-    assert show(terms.Fix(terms.Formed(f, x))) == 'fix f:x'
-    assert show(terms.Formed(terms.Fix(f), x)) == '(fix f):x'
+    fix = terms.Builtin('fix')
+    assert show(terms.Apply(fix, terms.Formed(f, x))) == '$fix f:x'
+    assert show(terms.Formed(terms.Apply(fix, f), x)) == '($fix f):x'
     assert show(terms.Lambda('x', terms.Empty, terms.Formed(y, x))) == 'x → y:x'
     assert show(terms.Formed(y, terms.Lambda('a', terms.Empty, b))) == 'y:(a → b)'
     assert show(terms.Formed(y, terms.FunctionForm(a, b))) == 'y:a ⇒ b'

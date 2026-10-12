@@ -33,7 +33,7 @@ def resolved(source, free):
 def test_whnf_reduces_heads():
     free = ('a', 'e')
     assert show(banf_reduce.whnf(resolved('{p = {a = e}}.p.a', free))) == show(resolved('e', free))
-    assert show(banf_reduce.whnf(resolved('(fix (self -> n -> n)) a', free))) == show(resolved('a', free))
+    assert show(banf_reduce.whnf(resolved('$fix (self -> n -> n) a', free))) == show(resolved('a', free))
 
 
 def test_step_reduces_the_root_or_else_the_head():
@@ -88,8 +88,8 @@ def test_whnf_leaves_a_struct_apply_or_an_argument(source):
             'let t = args.n in let u = $add_i8 {a = t, b = t} in u',
             'let u = $add_i8 {a = args.n, b = args.n} in u',
         ),
-        # fix unfolds.
-        ('(fix (self -> n -> n)) args.n', 'args.n'),
+        # $fix unfolds.
+        ('$fix (self -> n -> n) args.n', 'args.n'),
         # Heads.
         ('((a -> {n = a.n}) args).n', 'args.n'),
         (
@@ -211,7 +211,7 @@ def test_already_shaped_is_unchanged():
 
 
 def test_runs_out_of_fuel():
-    term = bruijn.resolve(parse(program(block('(fix (self -> self)) args.n'))))
+    term = bruijn.resolve(parse(program(block('$fix (self -> self) args.n'))))
     with pytest.raises(bruijn.BruijnError, match='ran out of reduction steps'):
         banf_reduce.shape(term, fuel=100)
 

@@ -6,7 +6,8 @@ A `BruijnIndex(i)` refers to the binder `i` lambdas out: `x -> y -> x` is `x -> 
 Binder names stay on `Lambda.param_name`; references don't carry them.
 """
 
-from dataclasses import replace
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 
 from oymo.core import syntax
 from oymo.oymomo import terms
@@ -53,8 +54,6 @@ def _map_children(term, f):
             return replace(term, struct=f(struct))
         case terms.If(condition=c, then_clause=t, else_clause=e):
             return replace(term, condition=f(c), then_clause=f(t), else_clause=f(e))
-        case terms.Fix(function=function):
-            return replace(term, function=f(function))
         case terms.Formed(term=inner, form=form):
             return replace(term, term=f(inner), form=f(form))
         case terms.FunctionForm(param=param, result=result):
@@ -113,9 +112,30 @@ def beta(lambda_: terms.Lambda, argument: syntax.Term) -> syntax.Term:
     return shift(substitute(lambda_.body, 0, shift(argument, 1)), -1)
 
 
-def unfold(fix: terms.Fix) -> syntax.Term:
-    """`fix g` becomes `g (fix g)`."""
-    return terms.Apply(function=fix.function, argument=fix, location=fix.location)
+@dataclass(frozen=True)
+class BuiltinRule:
+    """How `reduce` steps `$name arg`.
+
+    `rule(call, arg)` gets the whole call and its argument, and returns the result, or
+    None if the call doesn't reduce (yet). A `strict` rule needs its argument in whnf
+    first; `needs` says what that argument must reduce to, for the error when it doesn't
+    (`'a struct'`).
+    """
+
+    name: str
+    strict: bool
+    needs: str | None
+    rule: Callable[[syntax.Term, syntax.Term], syntax.Term | None]
+
+
+def _fix(call: syntax.Term, function: syntax.Term) -> syntax.Term:
+    """`$fix g` becomes `g ($fix g)`."""
+    return terms.Apply(function=function, argument=call, location=getattr(call, 'location', None))
+
+
+# Reduction rules, by built-in name. A built-in with a rule and no opcode
+# (`banf_opcodes.OPCODES`) is kernel-only: it must reduce away before BANF.
+BUILTIN_RULES: dict[str, BuiltinRule] = {rule.name: rule for rule in (BuiltinRule('fix', False, None, _fix),)}
 
 
 def project(term: terms.Project) -> syntax.Term | None:
@@ -148,8 +168,10 @@ def reduce(term: syntax.Term) -> syntax.Term:
     match term:
         case terms.Apply(function=terms.Lambda() as lambda_, argument=argument):
             return beta(lambda_, argument)
-        case terms.Fix():
-            return unfold(term)
+        case terms.Apply(function=terms.Builtin(name=name), argument=argument) if (
+            builtin := BUILTIN_RULES.get(name)
+        ) is not None and (result := builtin.rule(term, argument)) is not None:
+            return result
         case terms.Project(struct=terms.Struct()):
             projected = project(term)
             return term if projected is None else projected

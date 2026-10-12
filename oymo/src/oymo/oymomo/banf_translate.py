@@ -261,7 +261,12 @@ class _Translator:
                     raise TranslationError('An index must be a byte array literal, such as [01].', _location(index))
                 return banf.GetIndex(self.atom(function, block), position, location)
             case terms.Apply(function=terms.Builtin(name=name), argument=arg):
+                # The only way into BANF for a built-in. A kernel-only one (a rule and no
+                # opcode) should have reduced away; it is left only when its rule couldn't fire.
                 if name not in banf_opcodes.OPCODES:
+                    if (builtin := bruijn.BUILTIN_RULES.get(name)) is not None:
+                        needs = f': its argument must reduce to {builtin.needs}' if builtin.needs else ''
+                        raise TranslationError(f'${name} has no opcode, so it must reduce away{needs}.', location)
                     raise TranslationError(f"Unknown built-in '${name}'.", location)
                 params = banf_opcodes.OPCODES[name].params
                 return banf.OpcodeCall(name, self.args(arg, params, f'${name}', block), location)

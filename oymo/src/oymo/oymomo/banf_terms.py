@@ -319,7 +319,7 @@ def verify(module: Module) -> None:
 # Printer
 
 _PLAIN_NAME = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
-_RESERVED = frozenset({'if', 'then', 'else', 'fix'})
+_RESERVED = frozenset({'if', 'then', 'else'})
 
 
 def show_name(name: str) -> str:

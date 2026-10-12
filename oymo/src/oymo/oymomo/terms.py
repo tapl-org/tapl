@@ -107,15 +107,6 @@ class If(Term):
         yield self.else_clause
 
 
-@dataclass
-class Fix(Term):
-    function: Term
-    location: Location | None = field(default=None, compare=False)
-
-    def children(self) -> Generator[Term, None, None]:
-        yield self.function
-
-
 # Only bytes. `[01]: 'i8'` is `Formed(ByteArray([01]), 'i8')`.
 # Forms are terms. A named form such as `i32` is the byte array `'i32'`.
 @dataclass

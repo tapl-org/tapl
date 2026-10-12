@@ -4,7 +4,7 @@ import textwrap
 
 import pytest
 
-from oymo.oymomo import banf_terms, terms
+from oymo.oymomo import banf_terms, bruijn, terms
 from oymo.oymomo.banf_translate import TranslationError, translate
 from oymo.oymomo.grammar import parse
 
@@ -424,11 +424,12 @@ def test_let_bound_if_is_substituted_into_tail():
         ('g = f -> {entry = args:{} -> args}', "'args' cannot be used as a value."),
         ('g = f -> {entry = args:{} -> (t -> t) (module)}', "'module' cannot be used as a value."),
         (
-            'g = f -> {entry = args:{} -> (t -> t) (fix module)}',
+            'g = f -> {entry = args:{} -> (t -> t) ($fix module)}',
             'Expected an op: $opcode {...}, module.f {...}, module.data, a struct or a projection.',
         ),
         ('g = f -> {entry = args:{} -> (t -> t) (module.g)}', 'module.g must be applied.'),
         ('g = f -> {entry = args:{} -> (t -> t) ($add_i8)}', '$add_i8 must be applied.'),
+        ('g = f -> {entry = args:{} -> let t = $fix in t}', '$fix must be applied.'),
         (
             "g = args:{} -> [01]:'i8'",
             "Definition 'g' must be a struct of blocks, such as blocks -> {entry = args: {} -> ...}.",
@@ -647,6 +648,16 @@ def test_forms_must_be_literals():
 
 def test_form_must_be_known():
     assert error('main = f -> {entry = args: {} -> [01]}', "main = => 'i8'") == 'Byte array: form must be written.'
+
+
+def test_a_kernel_only_builtin_that_does_not_reduce_away(monkeypatch):
+    # A strict rule that never fires, standing in for `$unpack` on a run-time value.
+    stuck = bruijn.BuiltinRule('unpack', True, 'a struct', lambda _call, _argument: None)
+    monkeypatch.setitem(bruijn.BUILTIN_RULES, 'unpack', stuck)
+    source = "g = f -> {entry = args:{p = {'i8'}} -> let t = $unpack args.p in t}"
+    assert error(source, "g = => 'i8'") == (
+        '$unpack has no opcode, so it must reduce away: its argument must reduce to a struct.'
+    )
 
 
 def test_unknown_builtin():

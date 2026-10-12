@@ -69,8 +69,6 @@ def _compact(term, names, level=_EXPRESSION):
             text = f'{_compact(struct, names, _PROJECT)}.{_name(label)}'
         case terms.If(condition=c, then_clause=t, else_clause=e):
             text = f'if {_compact(c, names)} then {_compact(t, names)} else {_compact(e, names)}'
-        case terms.Fix(function=function):
-            text = f'fix {_compact(function, names, _FORMED)}'
         case terms.ByteArray(value=value):
             text = _bytes_text(value, grouped=False)
         case terms.Formed(term=inner, form=form):
@@ -136,7 +134,7 @@ def _loosest(term):
             return _FORMED
         case terms.FunctionForm():
             return _ARROW
-        case terms.Apply() | terms.Fix():
+        case terms.Apply():
             return _APPLY
     return _PROJECT
 
@@ -183,8 +181,6 @@ def _flat(term, level, names):
                 f'if {_flat(c, _EXPRESSION, names)} then {_flat(t, _EXPRESSION, names)}'
                 f' else {_flat(e, _EXPRESSION, names)}'
             )
-        case terms.Fix(function=function):
-            text = f'fix {_flat(function, _FORMED, names)}'
         case terms.ByteArray(value=value):
             text = _bytes_text(value, grouped=True)
         case terms.Formed(term=inner, form=form):
@@ -239,8 +235,6 @@ def _pretty(term, level, depth, column, width, indent, names):
                 f'{pad}then {sub(t, _EXPRESSION, depth, len(pad) + 5)}\n'
                 f'{pad}else {sub(e, _EXPRESSION, depth, len(pad) + 5)}'
             )
-        case terms.Fix(function=function):
-            text = f'fix {sub(function, _FORMED, depth, column + 4)}'
         case _:
             return flat
     return f'({text})' if grouped else text

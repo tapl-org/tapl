@@ -107,10 +107,11 @@ def test_if():
     assert show(parse('if c then a else x -> x')) == show(parse('if c then a else (x -> x)'))
 
 
-def test_fix():
-    assert show(parse('fix f')) == 'fix f'
-    assert show(parse('fix f x')) == show(parse('(fix f) x'))
-    assert show(parse('fix s.f')) == 'fix s.f'
+def test_fix_is_a_plain_name():
+    # `fix` is a built-in, `$fix`, so the word itself is an ordinary name.
+    assert parse('fix -> fix') == terms.Lambda('fix', terms.Empty, terms.Variable('fix'))
+    assert show(parse('prim -> fix -> prim fix')) == 'prim → fix → prim fix'
+    assert show(parse('$fix f x')) == show(parse('($fix f) x'))
 
 
 def test_reserved_words_are_not_names():
@@ -282,7 +283,7 @@ def test_function_form_is_an_expression():
 
 
 def test_precedence_order():
-    """Loosest to tightest: `->`/`if`/`let`, apply and `fix`, `:`, `=>`, `.`. Each pair, then each associativity."""
+    """Loosest to tightest: `->`/`if`/`let`, apply, `:`, `=>`, `.`. Each pair, then each associativity."""
     cases = [
         # `->`, `if`, `let` take everything to their right.
         ('x -> y: t', 'x -> (y: t)'),
@@ -290,24 +291,24 @@ def test_precedence_order():
         ('let x = v: t in b', 'let x = (v: t) in b'),
         ('{a = e: t}', '{a = (e: t)}'),
         ('x -> f a', 'x -> (f a)'),
-        ('x -> fix f', 'x -> (fix f)'),
+        ('x -> $fix f', 'x -> ($fix f)'),
         ('x -> a => b', 'x -> (a => b)'),
         ('x -> s.a', 'x -> (s.a)'),
         ('x -> f a: t', 'x -> (f (a: t))'),
         ('if c then a else f a => b', 'if c then a else (f (a => b))'),
         ('let x = f a in g x => s.b', 'let x = (f a) in (g (x => (s.b)))'),
-        # apply and `fix` against `:`, `=>` and `.`.
+        # apply against `:`, `=>` and `.`; a built-in applies like any function.
         ('f a: g b', 'f (a: g) b'),
         ('f y: x z', 'f (y: x) z'),
         ('y: f a', '(y: f) a'),
-        ('fix f: t', 'fix (f: t)'),
-        ('fix f a', '(fix f) a'),
-        ('f fix', 'error'),
+        ('$fix f: t', '$fix (f: t)'),
+        ('$fix f a', '($fix f) a'),
+        ('f $fix', '(f $fix)'),
         ('f a => b', 'f (a => b)'),
         ('a => b c', '(a => b) c'),
-        ('fix a => b', 'fix (a => b)'),
+        ('$fix a => b', '$fix (a => b)'),
         ('f s.a', 'f (s.a)'),
-        ('fix s.a', 'fix (s.a)'),
+        ('$fix s.a', '$fix (s.a)'),
         # `:` against `=>` and `.`.
         ('x: a => b', 'x: (a => b)'),
         ('a => b: c', '(a => b): c'),
@@ -321,7 +322,7 @@ def test_precedence_order():
         ('a => b => c', 'a => (b => c)'),
         ('s.a.b', '(s.a).b'),
         # All levels at once.
-        ('x -> fix f a => s.b c.d => e g', 'x -> ((((fix f) (a => (s.b))) ((c.d) => e)) g)'),
+        ('x -> $fix f a => s.b c.d => e g', 'x -> (((($fix f) (a => (s.b))) ((c.d) => e)) g)'),
         ('x -> f a.b => c: g d => e: h', 'x -> ((f (((a.b) => c): g)) ((d => e): h))'),
     ]
     for source, grouped in cases:
@@ -339,14 +340,13 @@ def test_parentheses_only_override_precedence():
     assert parse('y: x') == terms.Formed(y, x)
     assert parse('x: i32 -> x') == terms.Lambda('x', terms.Variable('i32'), x)
     assert parse('x: s.f -> x') == terms.Lambda('x', terms.Project(terms.Variable('s'), 'f'), x)
-    # A lambda, `if`, `let` or `fix` binds looser than any operand, so as an operand it needs parentheses.
+    # A lambda, `if` or `let` binds looser than any operand, so as an operand it needs parentheses.
     operands = [
         ('f x -> x', 'f (x -> x)'),
         ('f if c then a else b', 'f (if c then a else b)'),
         ('f let x = a in x', 'f (let x = a in x)'),
         ('a => x -> x', 'a => (x -> x)'),
-        ('fix x -> b', 'fix (x -> b)'),
-        ('f fix g', 'f (fix g)'),
+        ('$fix x -> b', '$fix (x -> b)'),
     ]
     for bare, parenthesized in operands:
         assert show(parse(bare)) == 'error', bare
