@@ -315,6 +315,11 @@ def show_name(name: str) -> str:
     return f'"{escaped}"'
 
 
+def _show_label(label: str, separator: str) -> str:
+    """`label` and `separator` before a field; nothing for an unlabeled field (`''`)."""
+    return '' if label == '' else f'{show_name(label)}{separator}'
+
+
 def show_form(form: terms.Term) -> str:
     """BANF's own form syntax: `i32`, `{a: i32}`, `(A => B)`. Nothing for an omitted form,
     and oymomo syntax in parentheses for any other term."""
@@ -323,7 +328,7 @@ def show_form(form: terms.Term) -> str:
     if isinstance(form, terms.FunctionForm):
         return f'({_show_field_form(form)})'
     if isinstance(form, terms.Struct):
-        return '{' + ', '.join(f'{show_name(f.label)}: {_show_field_form(f.value)}' for f in form.fields) + '}'
+        return '{' + ', '.join(_show_label(f.label, ': ') + _show_field_form(f.value) for f in form.fields) + '}'
     if form is terms.Empty:
         return ''
     return f'({printer.show(form)})'
@@ -356,7 +361,7 @@ def show_op(op: Op) -> str:
         case Call(function=name, args=args):
             return f'{show_name(name)}{_show_args(args)}'
         case MakeStruct(fields=fields):
-            return '{' + ', '.join(f'{show_name(label)} = {show_atom(atom)}' for label, atom in fields) + '}'
+            return '{' + ', '.join(_show_label(label, ' = ') + show_atom(atom) for label, atom in fields) + '}'
         case GetField(struct=struct, label=label):
             return f'{show_atom(struct)}.{show_name(label)}'
         case GetData(name=name):

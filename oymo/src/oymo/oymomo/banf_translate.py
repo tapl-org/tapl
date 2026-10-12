@@ -25,14 +25,25 @@ def _location(term):
     return getattr(term, 'location', None)
 
 
+def _has_duplicate_labels(fields):
+    """Whether two fields share a label. Unlabeled fields (`''`) are not duplicates of each other."""
+    labels = [f.label for f in fields if f.label]
+    return len(set(labels)) != len(labels)
+
+
+def _check_labeled(fields, location, what):
+    """Where a label names something (a param, a declaration, a block), every field needs one."""
+    if any(not f.label for f in fields):
+        raise TranslationError(f'{what} needs a label on every field.', location)
+
+
 def _check_data_form(form, location, what):
     """A data form is a named form or a struct of data forms: no Empty parts, no function forms,
-    and no other terms."""
+    and no other terms. Its fields may be unlabeled."""
     if isinstance(form, terms.FunctionForm):
         raise TranslationError(f'{what}: function forms nested inside other forms are not supported.', location)
     if isinstance(form, terms.Struct):
-        labels = [f.label for f in form.fields]
-        if len(set(labels)) != len(labels):
+        if _has_duplicate_labels(form.fields):
             raise TranslationError(f'{what}: duplicate field labels in {banf.show_form(form)}.', location)
         for f in form.fields:
             _check_data_form(f.value, location, what)
@@ -96,6 +107,7 @@ def _declarations(module_form, location):
     """One binding per declared symbol, in declaration order. A function declared as `=> R` is a
     `banf.Function` without blocks yet; its definition gives them."""
     declarations = {}
+    _check_labeled(module_form.fields, location, 'The module form')
     for decl in module_form.fields:
         label, form = decl.label, decl.value
         decl_location = decl.location or location
@@ -110,6 +122,7 @@ def _declarations(module_form, location):
                 continue
             if not isinstance(param, terms.Struct):
                 raise TranslationError(f'{what}: a function form needs a struct form as its param.', decl_location)
+            _check_labeled(param.fields, decl_location, f'{what}: the param form')
             _check_data_form(param, decl_location, what)
             params = [(f.label, f.value) for f in param.fields]
             declarations[label] = banf.Signature(label, params, result, decl_location)
@@ -156,12 +169,15 @@ def _blocks(field):
                 f'Definition {name!r} must be a struct of blocks, such as blocks -> {{entry = args: {{}} -> ...}}.',
                 _location(field.value),
             )
+    _check_labeled(block_fields, _location(field.value), f'Definition {name!r}')
     blocks = []
     for block_field in block_fields:
         match block_field.value:
             case terms.Lambda(param_name=binder, param_form=terms.Struct() as form) if binder == ARGS:
                 params = [(f.label, f.value) for f in form.fields]
-                _check_data_form(form, block_field.location, f'Block {block_field.label!r}')
+                what = f'Block {block_field.label!r}'
+                _check_labeled(form.fields, block_field.location, f'{what}: the param form')
+                _check_data_form(form, block_field.location, what)
             case _:
                 raise TranslationError(
                     f"Block {block_field.label!r} must be a lambda taking a struct, such as args: {{n = 'i32'}} -> ...",
@@ -221,6 +237,7 @@ class _Translator:
                 got = [label for label, _ in block.params]
                 atoms = [banf.Var(label, location=location) for label in got]
             case terms.Struct(fields=fields):
+                _check_labeled(fields, location, f'The argument to {what}')
                 got = [f.label for f in fields]
                 atoms = [self.atom(f.value, block) for f in fields]
             case _:
@@ -254,8 +271,7 @@ class _Translator:
                 if base == BLOCKS:
                     raise TranslationError('A jump must be in tail position.', location)
             case terms.Struct(fields=fields):
-                labels = [f.label for f in fields]
-                if len(set(labels)) != len(labels):
+                if _has_duplicate_labels(fields):
                     raise TranslationError('Duplicate field labels.', location)
                 return banf.MakeStruct([(f.label, self.atom(f.value, block)) for f in fields], location)
             case terms.Project(struct=struct, label=name) if block.binder(struct) == MODULE:
@@ -344,6 +360,7 @@ def convert(term: syntax.Term) -> banf.Module:
     """Reads a shaped term into BANF."""
     module_form, module_location, body = _unwrap(term)
     declarations = _declarations(module_form, module_location)
+    _check_labeled(body.fields, _location(body), 'The module body')
     definitions = []
     defined = set()
     for field in body.fields:

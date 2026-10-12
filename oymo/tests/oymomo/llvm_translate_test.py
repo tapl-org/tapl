@@ -122,6 +122,26 @@ def test_struct_param_make_struct_and_get_field():
     """)
 
 
+def test_make_struct_names_an_unlabeled_field_by_its_index():
+    source = """
+    pair = blocks -> {
+      entry = args: {a = 'i32', b = 'i8'} ->
+        let q = {args.a, y = args.b, args.a} in
+        q,
+    }
+    """
+    assert ir_text(source, "pair = => {'i32', y = 'i8', 'i32'}") == text("""
+        define {i32, i8, i32} @"pair"(i32 %"a", i8 %"b")
+        {
+        entry:
+          %"q.0" = insertvalue {i32, i8, i32} undef, i32 %"a", 0
+          %"q.y" = insertvalue {i32, i8, i32} %"q.0", i8 %"b", 1
+          %"q" = insertvalue {i32, i8, i32} %"q.y", i32 %"a", 2
+          ret {i32, i8, i32} %"q"
+        }
+    """)
+
+
 def test_single_predecessor_binds_params_and_multiple_predecessors_get_phis():
     # Both branches jump to join0, which therefore gets a phi per param.
     source = """

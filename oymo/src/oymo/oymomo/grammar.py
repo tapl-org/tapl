@@ -161,6 +161,11 @@ def _field(c):
     return terms.Field(label=label, value=value, location=_location(c))
 
 
+def _unlabeled_field(c):
+    """A field written without `label =`. Its label is `''`, which no written name can be."""
+    return terms.Field(label='', value=c.values[0], location=_location(c))
+
+
 RULES: dict[str, Clause] = {
     rn.START: Seq(Ref(rn.EXPRESSION), Eof(skip=TRIVIA), action=lambda c: c.values[0]),
     rn.EXPRESSION: First(Ref(rn.LAMBDA), Ref(rn.IF), Ref(rn.LET), Ref(rn.APPLY)),
@@ -231,9 +236,18 @@ RULES: dict[str, Clause] = {
         Integer(bases=(), separator=''),
         action=lambda c: terms.BruijnIndex(index=c.values[0], location=_location(c)),
     ),
+    # A field is `label = value` or just `value`. The labeled form is tried first, so `{a}`
+    # is an unlabeled field holding the variable `a`, and `{a = b}` is the field `a`.
     rn.STRUCT: Seq(
         _punct('{'),
-        Separated(Seq(NAME, _punct('='), Ref(rn.EXPRESSION), action=_field), _punct(','), trailing=True),
+        Separated(
+            First(
+                Seq(NAME, _punct('='), Ref(rn.EXPRESSION), action=_field),
+                Seq(Ref(rn.EXPRESSION), action=_unlabeled_field),
+            ),
+            _punct(','),
+            trailing=True,
+        ),
         _punct('}'),
         action=lambda c: terms.Struct(fields=c.values[0], location=_location(c)),
     ),

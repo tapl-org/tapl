@@ -153,9 +153,25 @@ def test_forms_are_terms():
     assert parse('x: [69 33 32] -> x').param_form == terms.ByteArray(b'i32')
 
 
-def test_every_struct_field_needs_a_value():
-    assert show(parse("[00]: {x, y = 'i32'}")) == 'error'
-    assert show(parse("[00]: {x: 'i8'}")) == 'error'
+def test_unlabeled_fields():
+    def fields(source):
+        return [(f.label, f.value) for f in parse(source).fields]
+
+    a, b, x = terms.Variable('a'), terms.Variable('b'), terms.Variable('x')
+    one, two = terms.ByteArray(b'1'), terms.ByteArray(b'2')
+    assert fields("{'1', '2'}") == [('', one), ('', two)]
+    assert fields('{a}') == [('', a)]
+    assert fields('{a = b}') == [('a', b)]
+    assert fields('{x -> x}') == [('', terms.Lambda('x', terms.Empty, x))]  # `x ->` is not `x =`
+    assert fields("{'1', b = '2'}") == [('', one), ('b', two)]
+    assert fields("{x: 'i8'}") == [('', terms.Formed(x, terms.ByteArray(b'i8')))]
+    assert fields("{'1',}") == [('', one)]
+    assert fields('{let y = a in y}')[0][0] == ''
+    assert parse('{a}').fields[0].location == syntax.Location(1, 2)
+
+
+def test_a_written_label_is_never_empty():
+    assert show(parse('{"" = x}')) == 'error'
 
 
 def test_void_is_an_ordinary_form_name():

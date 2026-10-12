@@ -253,6 +253,10 @@ def test_width_and_indent_flags():
         '(fix f): t',
         'x: decls.t',
         "f [01]: 'u8' [02]",
+        "{'1', '2'}",
+        "{'1', b = '2'}",
+        '{a}',
+        '{x -> x, let y = a in y, a: t}',
     ],
 )
 def test_output_parses_back_to_the_same_term(source):
@@ -260,6 +264,19 @@ def test_output_parses_back_to_the_same_term(source):
     assert parse(show(parse(source))) == parse(source)
     assert show(parse(pretty(source))) == show(parse(source))
     assert show(parse(show(parse(source))), pretty=True) == pretty(source)
+
+
+def test_unlabeled_fields_print_only_their_value():
+    term = parse("{'1', b = '2', c}")
+    assert show(term) == "{'1', b = '2', c}"
+    assert show(term, pretty=True) == "{'1', b= '2', c}"
+    assert show(term, pretty=True, width=10) == textwrap.dedent("""\
+        {
+          '1',
+          b= '2',
+          c,
+        }""")
+    assert show_form(parse("{'i32', y = 'i8'}")) == "{'i32', y = 'i8'}"
 
 
 def test_show_form():

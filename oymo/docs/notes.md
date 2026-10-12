@@ -99,6 +99,7 @@ Surface syntax of the oymomo kernel lambda calculus:
 x: 'i32' -> body            Lambda
 f a b                        Apply
 {x = e1, y = e2}             Struct
+{e1, y = e2}                 Struct with an unlabeled field
 s.x                          Project
 if c then a else b           If
 let x = e in body            sugar for (x -> body) e
@@ -120,6 +121,20 @@ Structs are written with braces, as in C and Rust: `{label = e, ...}`. A struct
 form is an ordinary struct too: `{x = [01]: 'i8'}` is a value, `{x = 'i8'}` is its
 form (see "Forms are terms"). Every field has a value. This replaces the earlier
 plan to use `[]`, which freed `[]` for byte arrays.
+
+### Labels are optional and may repeat
+A field is `label = value` or just `value`: `{'1', b = '2'}` has an unlabeled field
+and a field `b`, so a struct can be a tuple. The labeled form is parsed first, so
+`{a}` is an unlabeled field holding the variable `a`, not a field named `a`.
+- An unlabeled field's label is `''`. A written name is never empty (`{"" = x}` is
+  a parse error), so `''` only ever means "no label". The printer prints such a
+  field as its value alone.
+- Labels may repeat, and `s.a` picks the first field labeled `a`:
+  `{a = '1', a = '2'}.a` gives `'1'`. `s.` can't be written, so no projection
+  reaches an unlabeled field.
+- In BANF, an unlabeled field is fine in a value struct and in a data form
+  (`p = {'i32', 'i8'}`), but not where a label names something; see "Labels name
+  params, declarations and blocks".
 
 ### Project for `s.x`
 It is a one-word verb like `Apply` and `Fix`, and it is TAPL's name for `t.l` on
@@ -825,6 +840,16 @@ arithmetic and keeps no binder names of its own. A let reference becomes a
   - `f.label {...}` is a jump.
   - `if c then f.a {...} else f.b {...}` is a branch. Both arms must be jumps.
   - An atom is returned.
+
+### Labels name params, declarations and blocks
+BANF reads `prim`, `module`, `blocks` and `args` only by label, so every field needs a
+label in the module form, a signature's param form, the module body, a definition's
+blocks, the top level of a block's param form, and the argument struct of a call, a
+jump or a prim: "The module form needs a label on every field." Elsewhere (a value
+struct, a nested data form such as `args: {p = {'i32', 'i8'}}`) a field may be
+unlabeled, and several unlabeled fields are not duplicate labels. BANF prints an
+unlabeled field alone (`{i32, i8}`, `{n, y = [01]:i8}`), and LLVM names its
+`insertvalue` by index (`%"q.0"`).
 
 ### Operands must be atoms; nested calls are rejected
 `prim.add_i32 {a = prim.add_i32 {...}, b = ...}` is an error; bind the inner call

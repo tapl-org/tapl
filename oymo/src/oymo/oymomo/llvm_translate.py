@@ -157,7 +157,9 @@ class _FunctionTranslator:
             case banf.MakeStruct(fields=fields):
                 struct = ir.Constant(llvm_type(banf.form_of(op, forms, self.module)), ir.Undefined)
                 for index, (label, atom) in enumerate(fields):
-                    struct = builder.insert_value(struct, self.value(atom, values), index, name=f'{let.name}.{label}')
+                    # An unlabeled field is named by its index: `p.0` rather than `p.`.
+                    name = f'{let.name}.{label or index}'
+                    struct = builder.insert_value(struct, self.value(atom, values), index, name=name)
                 return struct
             case banf.GetField(struct=struct, label=label):
                 index = banf.field_index(banf.atom_form(struct, forms), label)

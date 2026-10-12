@@ -174,6 +174,21 @@ def test_struct_built_and_read():
     """)
 
 
+def test_unlabeled_fields_in_value_structs_and_data_forms():
+    source = """
+    g = f -> {entry = args:{n = 'i8', p = {'i32', 'i8'}} -> (s -> s) ({args.n, y = [01]:'i8', [02]:'i8'})},
+    pair = [2a01],
+    """
+    assert banf(source, "g = => {'i8', y = 'i8', 'i8'}, pair = {'i8', 'i8'}") == text("""
+        g: {i8, y: i8, i8}
+          entry(n: i8, p: {i32, i8}):
+            s = {n, y = [01]:i8, [02]:i8}
+            return s
+
+        pair: {i8, i8} = [2a01]
+    """)
+
+
 def test_fact():
     assert banf(FACT, "fact = => 'i32'") == text("""
         fact: i32
@@ -475,6 +490,43 @@ MAIN = "main = f -> {entry = args:{} -> [01]:'i8'}"
     ],
 )
 def test_module_errors(defs, decls, message):
+    assert error(defs, decls) == message
+
+
+@pytest.mark.parametrize(
+    ('defs', 'decls', 'message'),
+    [
+        (MAIN, "main = => 'i8', 'i8'", 'The module form needs a label on every field.'),
+        (
+            MAIN,
+            "main = => 'i8', g = {'i8'} => 'i32'",
+            "Declaration 'g': the param form needs a label on every field.",
+        ),
+        (f"{MAIN}, [2a]:'i8'", "main = => 'i8'", 'The module body needs a label on every field.'),
+        ("main = f -> {args:{} -> [01]:'i8'}", "main = => 'i8'", "Definition 'main' needs a label on every field."),
+        (
+            "main = f -> {entry = args:{'i8'} -> [01]:'i8'}",
+            "main = => 'i8'",
+            "Block 'entry': the param form needs a label on every field.",
+        ),
+        (
+            "main = f -> {entry = args:{} -> (t -> t) (module.putchar {[41]:'i8'})}",
+            DECLS,
+            'The argument to module.putchar needs a label on every field.',
+        ),
+        (
+            "main = f -> {entry = args:{n = 'i8'} -> (t -> t) (prim.add_i8 {args.n, b = args.n})}",
+            "main = => 'i8'",
+            'The argument to prim.add_i8 needs a label on every field.',
+        ),
+        (
+            "main = f -> {entry = args:{} -> f.b {[01]:'i8'}, b = args:{n = 'i8'} -> args.n}",
+            "main = => 'i8'",
+            "The argument to Block 'b' needs a label on every field.",
+        ),
+    ],
+)
+def test_labels_that_name_something_are_required(defs, decls, message):
     assert error(defs, decls) == message
 
 

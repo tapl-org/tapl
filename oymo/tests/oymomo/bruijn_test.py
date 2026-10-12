@@ -116,6 +116,8 @@ def test_beta_propagates_form(source, expected):
         ('if [00] then a else b', 'b'),
         ('(x -> x) ((y -> y) z)', '(y -> y) z'),
         ('(x -> y) ((w -> w w) (w -> w w))', 'y'),
+        ('{a = e, a = b}.a', 'e'),
+        ('{e, a = b}.a', 'b'),
     ],
 )
 def test_reduce_one_step(source, expected):
@@ -140,6 +142,7 @@ def test_reduce_one_step(source, expected):
         '(fix g) a',
         'if ((x -> x) [01]) then a else b',
         'x -> (y -> y) x',
+        '{e}.a',
     ],
 )
 def test_reduce_returns_the_term_itself(source):
