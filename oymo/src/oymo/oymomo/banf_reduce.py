@@ -147,6 +147,10 @@ def _location(term):
 
 def _head(term):
     match term:
+        case terms.Apply(function=terms.Struct(), argument=head):
+            # A struct applied to an index: the index is the head, so it's reduced only once
+            # the callee is a struct. Other arguments stay lazy.
+            return head
         case (
             terms.Apply(function=head) | terms.Project(struct=head) | terms.If(condition=head) | terms.Formed(term=head)
         ):
@@ -156,6 +160,8 @@ def _head(term):
 
 def _with_head(term, head):
     match term:
+        case terms.Apply(function=terms.Struct()):
+            return replace(term, argument=head)
         case terms.Apply():
             return replace(term, function=head)
         case terms.Project():

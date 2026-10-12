@@ -189,6 +189,29 @@ def test_unlabeled_fields_in_value_structs_and_data_forms():
     """)
 
 
+def test_struct_apply_reduces_away():
+    assert banf("g = f -> {entry = args:{n = 'i8'} -> {args.n} [00]}", "g = => 'i8'") == banf(
+        "g = f -> {entry = args:{n = 'i8'} -> args.n}", "g = => 'i8'"
+    )
+
+
+@pytest.mark.parametrize(
+    'body',
+    [
+        'args [00]',
+        'f [01] {}',
+        '(t -> t) (module [00] {})',
+        '(t -> t) (prim [00] {})',
+    ],
+)
+def test_binders_are_not_structs(body):
+    # prim, module, blocks and args are accessed by a label only.
+    defs = f"g = f -> {{entry = args:{{}} -> {body}, b = args:{{}} -> [01]:'i8'}}"
+    assert error(defs, "g = => 'i8'") == (
+        'Expected an op: prim.op {...}, module.f {...}, module.data, a struct or a projection.'
+    )
+
+
 def test_fact():
     assert banf(FACT, "fact = => 'i32'") == text("""
         fact: i32

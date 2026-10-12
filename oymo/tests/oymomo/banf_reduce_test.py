@@ -44,6 +44,37 @@ def test_step_reduces_the_root_or_else_the_head():
 
 
 @pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        # The index comes from a variable.
+        ("(i -> {a = '23', b = '45'} i) [01]", "'45'"),
+        # A computed callee and a computed index.
+        ("{p = {a = '23'}}.p ((x -> x) [00])", "'23'"),
+        # Nested: the inner struct apply is the head of the outer one.
+        ("{{'1'}} [00] [00]", "'1'"),
+        # A struct of functions called by index.
+        ("(s -> s [01] '7') {x -> '1', x -> x}", "'7'"),
+    ],
+)
+def test_whnf_reduces_a_struct_apply(source, expected):
+    assert show(banf_reduce.whnf(resolved(source, ()))) == show(resolved(expected, ()))
+
+
+@pytest.mark.parametrize(
+    'source',
+    [
+        # Past the last field: stuck.
+        "{a = '23'} [01]",
+        # The callee is not a struct, so the argument is not reduced.
+        'f ((x -> x) [00])',
+    ],
+)
+def test_whnf_leaves_a_struct_apply_or_an_argument(source):
+    term = resolved(source, ('f',))
+    assert banf_reduce.whnf(term) is term
+
+
+@pytest.mark.parametrize(
     ('body', 'expected'),
     [
         # A helper is inlined.
