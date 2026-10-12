@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import pytest
+
 from oymo.oymomo import terms
-from oymo.oymomo.banf_prim import PRIMS, PrimSignature
+from oymo.oymomo.banf_prim import DYNAMIC_PRIMS, PRIMS, PrimFormError, PrimSignature
 
 I1, I8, I16, I32, I64 = (terms.ByteArray(name) for name in (b'i1', b'i8', b'i16', b'i32', b'i64'))
 
@@ -37,3 +39,38 @@ def test_conversions():
     assert 'trunc_i8_i32' not in PRIMS
     assert 'zext_i32_i32' not in PRIMS
     assert 'trunc_i32_i32' not in PRIMS
+
+
+def test_dynamic_prims_have_their_own_names():
+    assert not PRIMS.keys() & DYNAMIC_PRIMS.keys()
+    assert DYNAMIC_PRIMS['extractvalue'].labels == ('struct', 'index')
+
+
+XY = terms.Struct([terms.Field('x', I32), terms.Field('y', I8)])
+
+
+def extractvalue_form(forms, values):
+    return DYNAMIC_PRIMS['extractvalue'].result_form(forms, values)
+
+
+def test_extractvalue_form():
+    assert extractvalue_form([XY, I8], [None, b'\x01']) == I8
+    assert extractvalue_form([XY, I32], [None, b'\x00\x00\x00\x00']) == I32
+    # Unlabeled fields are reached the same way.
+    assert extractvalue_form([terms.Struct([terms.Field('', I8), terms.Field('', I64)]), I8], [None, b'\x01']) == I64
+
+
+@pytest.mark.parametrize(
+    ('forms', 'values', 'message'),
+    [
+        ([I32, I8], [None, b'\x00'], 'prim.extractvalue: struct must have a struct form.'),
+        ([XY, I8], [None, None], "prim.extractvalue needs a literal index, such as [00]: 'i8'."),
+        ([XY, I8], [None, b''], "prim.extractvalue needs a literal index, such as [00]: 'i8'."),
+        ([XY, XY], [None, b'\x00'], 'prim.extractvalue: the index form must be one of i1, ..., i64.'),
+        ([XY, I8], [None, b'\x02'], 'prim.extractvalue: the struct has no field at index 2.'),
+    ],
+)
+def test_extractvalue_form_errors(forms, values, message):
+    with pytest.raises(PrimFormError) as info:
+        extractvalue_form(forms, values)
+    assert str(info.value) == message

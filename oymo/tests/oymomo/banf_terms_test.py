@@ -26,6 +26,7 @@ from oymo.oymomo.banf_terms import (
     let_form,
     show,
     show_form,
+    show_op,
     verify,
 )
 
@@ -189,6 +190,34 @@ def test_form_of_errors():
         form_of(GetData('putchar'), {}, module)
     with pytest.raises(FormError, match="'errno' is not a function"):
         form_of(Call('errno', []), {}, module)
+
+
+XY = terms.Struct([terms.Field('x', I32), terms.Field('y', I8)])
+
+
+def test_form_of_extractvalue():
+    op = PrimCall('extractvalue', [Var('p'), Const(b'\x01', I8)])
+    assert form_of(op, {'p': XY}, imports_module()) == I8
+    assert show_op(op) == 'prim.extractvalue(p, [01]:i8)'
+
+
+def test_extractvalue_errors_are_form_errors():
+    location = terms.Location(3, 9)
+    op = PrimCall('extractvalue', [Var('p'), Const(b'\x02', I8)], location)
+    with pytest.raises(FormError) as info:
+        form_of(op, {'p': XY}, imports_module())
+    assert info.value.message == 'prim.extractvalue: the struct has no field at index 2.'
+    assert info.value.location == location
+    with pytest.raises(FormError, match=r'prim\.extractvalue takes 2 arguments, got 1'):
+        form_of(PrimCall('extractvalue', [Var('p')]), {'p': XY}, imports_module())
+
+
+def test_verify_checks_extractvalue():
+    params = [('p', XY)]
+    good = one_block([Let('t0', PrimCall('extractvalue', [Var('p'), Const(b'\x00', I8)]))], Return(Var('t0')), params)
+    verify(good)
+    with pytest.raises(FormError, match='needs a literal index'):
+        verify(one_block([Let('t0', PrimCall('extractvalue', [Var('p'), Var('p')]))], Return(Var('t0')), params))
 
 
 def one_block(lets, terminator, params=(), return_form=I32):

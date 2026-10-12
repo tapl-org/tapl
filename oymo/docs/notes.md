@@ -552,6 +552,29 @@ trunc                        {value: F} -> T            for each narrower T
   `icmp_signed('<')`, `zext_i8_i32` to `zext(value, i32)`). A test checks that the
   two tables have the same op names.
 
+### Dynamic prims: `prim.extractvalue`
+Some prims' result form depends on their arguments, so they can't be a
+`PrimSignature`. A `banf_prim.DynamicPrim` has the param labels and a `result_form`
+function, which gets each argument's form and, for a constant, its bytes (None for a
+name), and returns the result form or raises `PrimFormError`. They live in their own
+table, `DYNAMIC_PRIMS`, which shares no name with `PRIMS`. In BANF a dynamic prim is
+still a `PrimCall`.
+
+`prim.extractvalue {struct = s, index = [01]: 'i8'}` is the field at position 1 of the
+value struct `s`, labeled or not, so it reaches unlabeled and duplicate fields:
+- `struct` must have a struct form: a let-bound struct or a param such as `args.p`.
+- `index` must be a byte array literal with an integer form (`i1` to `i64`), read as
+  a struct apply's index (unsigned little-endian), since LLVM's `extractvalue` needs
+  a constant index. A let name as index, `''`, or another form is an error.
+- An index past the last field is an error
+  (`prim.extractvalue: the struct has no field at index 2.`).
+- `banf_translate` checks only the labels (`prim.extractvalue takes {struct, index},
+  got {...}.`); the rest is checked by `result_form` when `banf.verify` runs, and
+  reported as a `TranslationError` like every `FormError`.
+- It is not a struct apply: `prim`, `module`, `blocks` and `args` are binders, read
+  only by label, so `args [00]` stays an error. A struct apply whose struct and index
+  are known reduces away before BANF.
+
 ## BANF
 
 BANF: block-based ANF; SSA with block parameters instead of phi nodes, as in MLIR
@@ -622,7 +645,9 @@ signature's return form, and on each `Data`. Ops carry no form, as in Cranelift
   let form replaces the op's form (`Let.form`; `Empty` when not written).
 
 `form_of` works out each op's result form:
-- `PrimCall`: the op's result form from `banf_prim.py`.
+- `PrimCall`: the op's result form from `banf_prim.py`. For a dynamic prim, its
+  `result_form` on the arguments' forms and constant bytes; a `PrimFormError`
+  becomes a `FormError` at the op's location.
 - `Call`: the callee's `return_form`, whether it is a `Function` or a `Signature`.
 - `MakeStruct`: each label paired with its field atom's form.
 - `GetField`: that field's form inside the struct atom's form.
@@ -979,6 +1004,11 @@ else0:
   intermediate values are named after the let and field (`%q.x`) instead of
   llvmlite's numbering.
 - `GetData` is a `load` from the global. `GetField` is `extractvalue`.
+- `prim.extractvalue` is `extractvalue` too, with the index constant's value as
+  the position: `prim.extractvalue {struct = args.p, index = [00]: 'i8'}` gives the
+  same IR as `args.p.x`. As for any constant, the index's bytes must fit its form
+  (`[00]: 'i8'` or `[00000000]: 'i32'`; `[00]: 'i32'` is "A i32 constant needs 4
+  bytes.").
 - Defined data is a writable `global` (not `constant`) with an initializer,
   `@answer = global i32 42`; imported data is an `external global`. The initializer
   follows the constant rules, so it needs an integer form and the right byte count

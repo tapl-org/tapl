@@ -212,6 +212,46 @@ def test_binders_are_not_structs(body):
     )
 
 
+@pytest.mark.parametrize('param_form', ["{x = 'i32', y = 'i8'}", "{'i32', 'i8'}"])
+def test_prim_extractvalue_on_a_param(param_form):
+    source = f"g = f -> {{entry = args:{{p = {param_form}}} -> let x = prim.extractvalue {{struct = args.p, index = [01]:'i8'}} in x}}"
+    module = translate(parse(program(source, "g = => 'i8'")))
+    let = module.bindings[0].blocks[0].lets[0]
+    assert let.value == banf_terms.PrimCall('extractvalue', [banf_terms.Var('p'), banf_terms.Const(b'\x01', I8)])
+    assert 'x = prim.extractvalue(p, [01]:i8)' in banf_terms.show(module)
+
+
+def test_prim_extractvalue_on_a_let():
+    source = """
+    g = f -> {entry = args:{n = 'i8'} ->
+      let s = {[00000000]:'i32', args.n} in
+      let x = prim.extractvalue {struct = s, index = [01]:'i8'} in x}
+    """
+    assert banf(source, "g = => 'i8'") == text("""
+        g: i8
+          entry(n: i8):
+            s = {[00000000]:i32, n}
+            x = prim.extractvalue(s, [01]:i8)
+            return x
+    """)
+
+
+@pytest.mark.parametrize(
+    ('arg', 'message'),
+    [
+        ("{s = args.p, index = [00]:'i8'}", 'prim.extractvalue takes {struct, index}, got {s, index}.'),
+        ("{struct = args.n, index = [00]:'i8'}", 'prim.extractvalue: struct must have a struct form.'),
+        ('{struct = args.p, index = args.n}', "prim.extractvalue needs a literal index, such as [00]: 'i8'."),
+        ("{struct = args.p, index = '':'i8'}", "prim.extractvalue needs a literal index, such as [00]: 'i8'."),
+        ("{struct = args.p, index = [00]:{'i8'}}", 'prim.extractvalue: the index form must be one of i1, ..., i64.'),
+        ("{struct = args.p, index = [02]:'i8'}", 'prim.extractvalue: the struct has no field at index 2.'),
+    ],
+)
+def test_prim_extractvalue_errors(arg, message):
+    source = f"g = f -> {{entry = args:{{n = 'i8', p = {{'i32', 'i8'}}}} -> let x = prim.extractvalue {arg} in x}}"
+    assert error(source, "g = => 'i8'") == message
+
+
 def test_fact():
     assert banf(FACT, "fact = => 'i32'") == text("""
         fact: i32

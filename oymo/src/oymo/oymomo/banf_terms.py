@@ -181,7 +181,9 @@ def callee(op: Call, module: Module) -> Function | Signature:
 def form_of(op: Op, forms: Mapping[str, terms.Term], module: Module) -> terms.Term:
     """The result form of `op`, given the forms of the names in scope."""
     match op:
-        case PrimCall(op=name):
+        case PrimCall(op=name, args=args):
+            if name in banf_prim.DYNAMIC_PRIMS:
+                return _dynamic_form(op, banf_prim.DYNAMIC_PRIMS[name], args, forms)
             if name not in banf_prim.PRIMS:
                 raise FormError(f'Unknown prim op {name!r}.', op.location)
             return banf_prim.PRIMS[name].result
@@ -220,6 +222,18 @@ def field_index(form: terms.Term, label: str) -> int:
     raise FormError(f'Form {show_form(form)} has no field {label!r}.')
 
 
+def _dynamic_form(op, prim, args, forms):
+    """A dynamic prim's result form: its `result_form` on the arguments' forms and constant bytes."""
+    if len(args) != len(prim.labels):
+        raise FormError(f'prim.{prim.name} takes {len(prim.labels)} arguments, got {len(args)}.', op.location)
+    arg_forms = [atom_form(arg, forms) for arg in args]
+    values = [arg.value if isinstance(arg, Const) else None for arg in args]
+    try:
+        return prim.result_form(arg_forms, values)
+    except banf_prim.PrimFormError as error:
+        raise FormError(str(error), op.location) from error
+
+
 # Verifier
 
 
@@ -237,6 +251,9 @@ def _check_args(what, params, args, forms, location):
 
 def _check_op(op, forms, module):
     match op:
+        case PrimCall(op=name) if name in banf_prim.DYNAMIC_PRIMS:
+            # The argument count and the arguments themselves are checked by its result form.
+            form_of(op, forms, module)
         case PrimCall(op=name, args=args):
             form_of(op, forms, module)
             _check_args(f'prim.{name}', banf_prim.PRIMS[name].params, args, forms, op.location)

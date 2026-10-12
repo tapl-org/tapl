@@ -39,7 +39,7 @@ def text(block):
 
 
 def test_default_prims_cover_banf_prims():
-    assert DEFAULT_PRIMS.keys() == banf_prim.PRIMS.keys()
+    assert DEFAULT_PRIMS.keys() == banf_prim.PRIMS.keys() | banf_prim.DYNAMIC_PRIMS.keys()
 
 
 def test_fact():
@@ -140,6 +140,35 @@ def test_make_struct_names_an_unlabeled_field_by_its_index():
           ret {i32, i8, i32} %"q"
         }
     """)
+
+
+def test_prim_extractvalue_is_extractvalue():
+    def first(read):
+        source = f"g = blocks -> {{entry = args: {{p = {{x = 'i32', y = 'i8'}}}} -> let x = {read} in x}}"
+        return ir_text(source, "g = => 'i32'")
+
+    expected = text("""
+        define i32 @"g"({i32, i8} %"p")
+        {
+        entry:
+          %"x" = extractvalue {i32, i8} %"p", 0
+          ret i32 %"x"
+        }
+    """)
+    assert first("prim.extractvalue {struct = args.p, index = [00]:'i8'}") == expected
+    assert first('args.p.x') == expected
+
+
+def test_prim_extractvalue_on_an_unlabeled_struct():
+    source = """
+    g = blocks -> {entry = args: {p = {'i32', 'i8'}} -> let y = prim.extractvalue {struct = args.p, index = [01]:'i8'} in y}
+    """
+    assert '%"y" = extractvalue {i32, i8} %"p", 1' in ir_text(source, "g = => 'i8'")
+
+
+def test_rejects_prim_extractvalue_index_of_the_wrong_size():
+    source = "g = blocks -> {entry = args: {p = {x = 'i32'}} -> let x = prim.extractvalue {struct = args.p, index = [00]:'i32'} in x}"
+    assert ir_error(source, "g = => 'i32'") == 'A i32 constant needs 4 bytes.'
 
 
 def test_single_predecessor_binds_params_and_multiple_predecessors_get_phis():

@@ -1,6 +1,6 @@
 # Plan: a struct applied to an index selects the field
 
-Status: **proposed**.
+Status: **implemented**.
 
 ## Steps
 
@@ -9,7 +9,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [x] 1. A struct field's label is optional (`oymomo: a struct field's label is optional`)
 - [x] 2. The struct apply rule in `bruijn.reduce` (`oymomo: a struct applied to an index selects the field`)
 - [x] 3. `banf_reduce` reduces the index of a struct apply (`oymomo: banf_reduce reduces a struct apply's index`)
-- [ ] 4. `prim.extractvalue`: a field of a value struct by index, in BANF (`oymomo: add prim.extractvalue`)
+- [x] 4. `prim.extractvalue`: a field of a value struct by index, in BANF (`oymomo: add prim.extractvalue`)
 
 ## Goal
 

@@ -68,4 +68,14 @@ def _impl(signature: banf_prim.PrimSignature) -> PrimImpl:
     return _convert(_CONVERT[template], result)
 
 
+def _extractvalue(builder: ir.IRBuilder, args: list[ir.Value]) -> ir.Value:
+    struct, index = args
+    # `banf.verify` only lets a literal index through, and a literal becomes an ir.Constant.
+    if not isinstance(index, ir.Constant):
+        raise TypeError('prim.extractvalue needs a constant index.')
+    return builder.extract_value(struct, index.constant)
+
+
 DEFAULT_PRIMS: dict[str, PrimImpl] = {name: _impl(signature) for name, signature in banf_prim.PRIMS.items()}
+# Dynamic prims.
+DEFAULT_PRIMS['extractvalue'] = _extractvalue
