@@ -12,8 +12,9 @@ an apply puts its argument on the next line, and an `if` puts `then` and `else` 
 their own lines.
 
 An apply of a lambda, `(x → body) e`, prints as `let x = e in body`; a broken let puts
-its body on the next line, so a chain of lets reads one let per line. A BruijnIndex
-prints as `$i` in both modes, and a Builtin as `$name`. With `name_indices=True` a
+its body on the next line, so a chain of lets reads one let per line. In pretty mode a
+chain of two or more lets (and so any term containing one) always breaks, even if it fits.
+A BruijnIndex prints as `$i` in both modes, and a Builtin as `$name`. With `name_indices=True` a
 BruijnIndex prints as the name of its binder instead, except where an inner binder
 shadows that name or no binder is in scope; there it stays `$i`, so the output still resolves back to the same term.
 """
@@ -200,7 +201,7 @@ def _pretty(term, level, depth, column, width, indent, names):
         return _pretty(child, child_level, child_depth, child_column, width, indent, child_names)
 
     flat = _flat(term, level, names)
-    if column + len(flat) <= width:
+    if column + len(flat) <= width and not _has_let_chain(term):
         return flat
     grouped = level > _loosest(term)
     column += grouped
@@ -238,6 +239,28 @@ def _pretty(term, level, depth, column, width, indent, names):
         case _:
             return flat
     return f'({text})' if grouped else text
+
+
+def _is_let(term):
+    return isinstance(term, terms.Apply) and isinstance(term.function, terms.Lambda)
+
+
+def _has_let_chain(term):
+    """Whether `term` contains a let whose body is a let, where `_pretty` can break it."""
+    match term:
+        case terms.Apply(function=terms.Lambda(body=body), argument=argument):
+            return _is_let(body) or _has_let_chain(body) or _has_let_chain(argument)
+        case terms.Apply(function=function, argument=argument):
+            return _has_let_chain(function) or _has_let_chain(argument)
+        case terms.Lambda(body=body):
+            return _has_let_chain(body)
+        case terms.Struct(fields=fields):
+            return any(_has_let_chain(f.value) for f in fields)
+        case terms.Project(struct=struct):
+            return _has_let_chain(struct)
+        case terms.If(condition=c, then_clause=t, else_clause=e):
+            return _has_let_chain(c) or _has_let_chain(t) or _has_let_chain(e)
+    return False
 
 
 def _form_suffix(form, names):

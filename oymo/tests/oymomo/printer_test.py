@@ -152,7 +152,8 @@ def test_pretty_breaks_long_terms():
             then0= args: {} → [01000000]: 'i32',
             else0= args: {n= 'i32'} →
               let t1 = $sub_i32 {minuend= args.n, subtrahend= [01000000]: 'i32'} in
-              let t2 = defs.fact {n= t1} in let t3 = $mul_i32 {a= args.n, b= t2} in t3,
+              let t2 = defs.fact {n= t1} in
+              let t3 = $mul_i32 {a= args.n, b= t2} in t3,
           },
         }""")
 
@@ -167,13 +168,25 @@ def test_pretty_let_keeps_written_form():
 
 
 def test_pretty_breaks_let_chain_one_per_line():
-    assert pretty('let a = f x in let b = g a in let c = h b in c') == 'let a = f x in let b = g a in let c = h b in c'
-    assert show(parse('let a = f x in let b = g a in let c = h b in c'), pretty=True, width=20) == textwrap.dedent(
+    # A chain of two or more lets breaks even when it fits in the width.
+    assert pretty('let a = f x in let b = g a in let c = h b in c') == textwrap.dedent(
         """\
         let a = f x in
         let b = g a in
         let c = h b in c"""
     )
+    assert pretty('{x= let a = f in let b = g in b}') == textwrap.dedent(
+        """\
+        {
+          x= let a = f in
+          let b = g in b,
+        }"""
+    )
+
+
+def test_pretty_keeps_single_let_on_one_line():
+    assert pretty('let a = f x in a') == 'let a = f x in a'
+    assert pretty('{x= let a = f in a}') == '{x= let a = f in a}'
 
 
 def test_bruijn_index():
