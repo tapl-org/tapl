@@ -799,6 +799,19 @@ argument instead: in `{a = x} ((y -> y) [00])` the index must become a byte arra
 before the struct apply fires. So `step` reduces the callee to a struct, then the
 index, then the root. An argument is reduced only when the callee is already a
 struct, so ordinary applications stay lazy (`f ((x -> x) a)` keeps its argument).
+A strict built-in's argument is its head too: a rule marked `strict` reads its
+argument, so in `$unpack ((x -> x) {...})` the argument is reduced to a struct before
+the rule fires. `banf_reduce` reads the flag on the rule, so a new built-in needs no
+change there. `$fix` is not strict: `$fix g` unfolds without reducing `g`.
+
+| Term | Head |
+|---|---|
+| `{...} i` | `i` |
+| `$name a`, with `name`'s rule strict | `a` |
+| `f a`, otherwise (including `$fix g`) | `f` |
+| `s.l` | `s` |
+| `if c then ...` | `c` |
+| `t: F` | `t` |
 ```
 step(t) = reduce(t)        if reduce(t) is not t                        -- a step at the root
         = t with head h'   if t has a head h, and h' = whnf(h) is not h   -- else reduce the head

@@ -142,11 +142,24 @@ def _location(term):
     return getattr(term, 'location', None)
 
 
+def _strict_builtin(term):
+    """Whether `term` is `$name arg` with a strict rule: one that needs `arg` in whnf first."""
+    match term:
+        case terms.Apply(function=terms.Builtin(name=name)):
+            builtin = bruijn.BUILTIN_RULES.get(name)
+            return builtin is not None and builtin.strict
+    return False
+
+
 def _head(term):
     match term:
         case terms.Apply(function=terms.Struct(), argument=head):
             # A struct applied to an index: the index is the head, so it's reduced only once
             # the callee is a struct. Other arguments stay lazy.
+            return head
+        case terms.Apply(argument=head) if _strict_builtin(term):
+            # A strict built-in's argument is its head: the rule reads it, so it must be
+            # reduced first. `$fix g` is not strict, so `g` stays lazy.
             return head
         case (
             terms.Apply(function=head) | terms.Project(struct=head) | terms.If(condition=head) | terms.Formed(term=head)
@@ -158,6 +171,8 @@ def _head(term):
 def _with_head(term, head):
     match term:
         case terms.Apply(function=terms.Struct()):
+            return replace(term, argument=head)
+        case terms.Apply() if _strict_builtin(term):
             return replace(term, argument=head)
         case terms.Apply():
             return replace(term, function=head)

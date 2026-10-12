@@ -36,6 +36,39 @@ def test_whnf_reduces_heads():
     assert show(banf_reduce.whnf(resolved('$fix (self -> n -> n) a', free))) == show(resolved('a', free))
 
 
+def _first(_call, argument):
+    """A test-only strict rule: `$first s` is the first field of the struct `s`."""
+    if isinstance(argument, terms.Struct) and argument.fields:
+        return argument.fields[0].value
+    return None
+
+
+@pytest.fixture
+def first_rule(monkeypatch):
+    monkeypatch.setitem(bruijn.BUILTIN_RULES, 'first', bruijn.BuiltinRule('first', True, 'a struct', _first))
+
+
+@pytest.mark.usefixtures('first_rule')
+def test_a_strict_builtin_reduces_its_argument_first():
+    # The argument is reduced to a struct, then the rule fires.
+    assert show(banf_reduce.whnf(resolved("$first ((x -> x) {a = '1'})", ()))) == "'1'"
+    assert show(banf_reduce.whnf(resolved("$first ({s = {'1', '2'}}.s)", ()))) == "'1'"
+
+
+@pytest.mark.usefixtures('first_rule')
+def test_a_strict_builtin_on_a_stuck_argument_is_unchanged():
+    term = resolved('$first e', ('e',))
+    assert banf_reduce.whnf(term) is term
+    term = resolved('$first args.p', ('args',))
+    assert banf_reduce.whnf(term) is term
+
+
+def test_fix_is_not_strict():
+    # `$fix g` unfolds without reducing `g`.
+    term = resolved('$fix ((x -> x) g)', ('g',))
+    assert show(banf_reduce.step(term)) == show(resolved('(x -> x) g ($fix ((x -> x) g))', ('g',)))
+
+
 def test_step_reduces_the_root_or_else_the_head():
     free = ('e',)
     assert show(banf_reduce.step(resolved('{p = {a = e}}.p.a', free))) == show(resolved('{a = e}.a', free))
