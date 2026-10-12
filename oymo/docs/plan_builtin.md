@@ -10,7 +10,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [ ] 2. `$name` built-ins replace the `prim` binder, breaking (`oymomo: prims are $name built-ins`)
 - [ ] 3. Built-ins can have a reduction rule, and `fix` is `$fix`, breaking (`oymomo: fix is $fix`)
 - [ ] 4. A strict built-in's argument is a head in `banf_reduce` (`oymomo: banf_reduce reduces a strict built-in's argument`)
-- [ ] 5. Write the constant folding plan, docs only (`oymomo: plan constant folding`)
+- [ ] 5. Write the constant folding plan and update plan_struct_pack, docs only (`oymomo: plan constant folding; struct pack on built-ins`)
 
 Step 1 is independent of the rest; it comes first so that steps 2 to 4 have no dynamic
 prims to carry along. [plan_struct_pack.md](plan_struct_pack.md) builds on step 4:
@@ -58,8 +58,10 @@ prim -> fix -> prim fix              plain names: nothing is reserved
 3. **The index is a byte array literal, read by `bruijn.index_value`**: unsigned
    little-endian, any length, a form on it ignored. It needs no int form, unlike
    `prim.extractvalue`'s index, since it is never a run-time value: `args.p [01]` is
-   enough. A let name, `''`, or anything else as index is an error (LLVM's
-   `extractvalue` needs a constant).
+   enough. The index is reduced first, as any op argument is, so
+   `args.p ((i -> i) [01])` and `let i = [01] in args.p i` work (an atom let is
+   substituted). A run-time value as index (`args.n`, or a let bound to an op) or `''`
+   is an error, since LLVM's `extractvalue` needs a constant.
 4. **BANF prints it as `p.1`.** A label written as digits needs quotes (`p."1"`), so
    `p.1` is never a label.
 
@@ -141,7 +143,7 @@ prim -> fix -> prim fix              plain names: nothing is reserved
     | `banf_terms.PrimCall(op, args)` | `banf_terms.OpcodeCall(opcode, args)` |
     | `banf_prim.py`, `PRIMS`, `PrimSignature` | `banf_opcodes.py`, `OPCODES`, `OpcodeSignature` |
     | `llvm_prims.py`, `DEFAULT_PRIMS`, `PrimImpl` | `llvm_opcodes.py`, `DEFAULT_OPCODES`, `OpcodeImpl` |
-    | `Target.prims` | `Target.opcodes` |
+    | `Target.prims` (also in `tests/golden_test.py` and the notes' `Target(...)` example) | `Target.opcodes` |
     | `banf_prim_test.py` | `banf_opcodes_test.py` |
     | notes: "Prim ops" | "Opcodes" |
 
@@ -201,7 +203,7 @@ BANF without the `prim` binder:
 |---|---|
 | `banf_reduce.py` | position 1 (`prim -> <module>`) goes; the program starts at `module -> <body>` |
 | `banf_rename.py` | `PRIM` is no longer a fixed name; `program` starts at `module` |
-| `banf_translate.py` | the program shape is `module: {...} -> {...}`; `binder` loses `PRIM` (above a block body: lets, `args` `$k`, `blocks` `$k+1`, `module` `$k+2`); `op` turns `Apply(Builtin(name), arg)` into a `OpcodeCall` |
+| `banf_translate.py` | the program shape is `module: {...} -> {...}`; `binder` loses `PRIM` (above a block body: lets, `args` `$k`, `blocks` `$k+1`, `module` `$k+2`); `op` turns `Apply(Builtin(name), arg)` into an `OpcodeCall` |
 
 Messages: `prim.add_i8 must be applied.` becomes `$add_i8 must be applied.`,
 `prim.sub_i32 takes {...}` becomes `$sub_i32 takes {...}`, `Unknown prim op 'add'.`
@@ -215,7 +217,7 @@ program shape message drops `prim ->`.
 class BuiltinRule:
     name: str
     strict: bool  # The argument must be in whnf before the rule can fire.
-    needs: str  # What the argument must reduce to, for the error when it doesn't: 'a struct'.
+    needs: str | None  # What a strict argument must reduce to, for the error: 'a struct'.
     rule: Callable[[syntax.Term, syntax.Term], syntax.Term | None]
 
 
@@ -224,7 +226,7 @@ def _fix(call, function):
     return terms.Apply(function=function, argument=call, location=call.location)
 
 
-BUILTIN_RULES: dict[str, BuiltinRule] = {rule.name: rule for rule in (BuiltinRule('fix', False, 'anything', _fix),)}
+BUILTIN_RULES: dict[str, BuiltinRule] = {rule.name: rule for rule in (BuiltinRule('fix', False, None, _fix),)}
 ```
 
 In `reduce`, disjoint from beta (a `Lambda` callee) and struct apply (a `Struct` callee):
@@ -254,7 +256,8 @@ case terms.Apply(function=terms.Builtin(name=name), argument=argument) if (
 |---|---|---|
 | `banf_terms.py` | 1, 3 | `GetIndex`, and no dynamic prims (1); remove `fix` from the printer's `_RESERVED` (3) |
 | `banf_prim.py`, `llvm_prims.py` | 1, 2 | remove the dynamic prims and `extractvalue` (1); renamed `banf_opcodes.py`, `llvm_opcodes.py` (2, decision 15) |
-| `banf_terms.py`, `llvm_translate.py` | 2 | `PrimCall` is `OpcodeCall`; `Target.prims` is `Target.opcodes` (decision 15) |
+| `banf_terms.py`, `llvm_translate.py` | 2 | `PrimCall` is `OpcodeCall`; `Target.prims` is `Target.opcodes` (decision 15); `show_op` prints assembly style (decision 12) |
+| `tests/golden_test.py` | 2 | `llvm_opcodes.DEFAULT_OPCODES`, `Target(opcodes=...)` |
 | `llvm_translate.py` | 1 | `GetIndex` |
 | `terms.py` | 2, 3 | add `Builtin` (2); remove `Fix` (3) |
 | `rule_names.py`, `grammar.py` | 2, 3 | the `BUILTIN` rule (2); remove `FIX` and `fix` from `RESERVED` (3) |
@@ -262,9 +265,10 @@ case terms.Apply(function=terms.Builtin(name=name), argument=argument) if (
 | `bruijn.py` | 3 | `BuiltinRule`, `BUILTIN_RULES`, the `reduce` case; remove `unfold` and the `Fix` cases |
 | `banf_reduce.py` | 2, 4 | no position 1 (2); the strict head (4) |
 | `banf_rename.py` | 2, 3 | no `PRIM` fixed name (2); remove the `Fix` case (3) |
-| `banf_translate.py` | 1, 2, 3 | `GetIndex`, no dynamic prims (1); B (2); the no-machine-code error (3) |
+| `banf_translate.py` | 1, 2, 3 | `GetIndex`, no dynamic prims (1); B (2); the gate and messages of decision 10 (3) |
 | golden files | 2 | `.oymo` and `.shaped.oymo` lose `prim ->`; `.banf` and `.ll` don't change |
 | `docs/notes.md` | 1–4 | see each step |
+| `docs/plan_struct_pack.md`, `docs/plans.md` | 5 | `$unpack` and `$pack` as rules; this plan closed |
 
 ---
 
@@ -287,9 +291,12 @@ Each step is one commit and leaves `hatch run full-check` green. Each step updat
 - Tests (the `prim.extractvalue` tests become `GetIndex` tests):
   - `banf_translate`: `let y = args.p [01] in y` on a labeled and on an unlabeled param
     struct, and on a let-bound struct, prints `y = p.1`; `[0100]` and `[01]: 'i8'` are
-    index 1 too; `args.p t` with `t` a let, and `args.p ''`, are
+    index 1 too; so are `args.p ((i -> i) [01])` and `let i = [01] in args.p i`;
+    `args.p args.n`, `args.p t` with `t` bound to an op, and `args.p ''`, are
     `An index must be a byte array literal, such as [01].`; `args.p [02]` on a
-    two-field struct is `Form {i32, i8} has no field at index 2.`
+    two-field struct is `Form {i32, i8} has no field at index 2.`; `args.n [00]` with
+    `n: 'i32'` is `Form i32 has no field at index 0.`; `args.p [01]` in tail position is
+    the usual `An op in tail position must be bound by a let, ...`
   - `banf_terms`: `form_of`, `show_op` and `verify` for `GetIndex`.
   - `llvm_translate`: `args.p [00]` gives the same `extractvalue` as `args.p.x`.
   - `PRIMS` and `DEFAULT_PRIMS` have the same names again.
@@ -352,7 +359,7 @@ Commit: `oymomo: fix is $fix`
 
 Commit: `oymomo: banf_reduce reduces a strict built-in's argument`
 
-### Step 5: write the constant folding plan
+### Step 5: write the constant folding plan, and update plan_struct_pack
 
 Docs only. Write `docs/plan_constant_folding.md` in the same format as this plan, with
 its own steps, and add it to `plans.md` as open. It gives opcodes a rule in
@@ -378,9 +385,14 @@ reduces to `[03000000]: 'i32'`. It must decide at least:
   whether `GetIndex` on a struct literal needs anything (it already reduces as a struct
   apply).
 
-- Status of this plan: **implemented**.
+Also rewrite `plan_struct_pack.md` on this plan: `unpack s` and `pack l` become
+`$unpack s` and `$pack l`, two entries in `bruijn.BUILTIN_RULES` (both strict, both
+kernel-only), instead of two terms and two reserved words. Its decision 1 and its
+affected modules change; its open questions stay.
 
-Commit: `oymomo: plan constant folding`
+- Status of this plan: **implemented**; `plans.md` moves it to Closed.
+
+Commit: `oymomo: plan constant folding; struct pack on built-ins`
 
 ---
 
