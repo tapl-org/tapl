@@ -1448,7 +1448,7 @@ explicit `let t0` keeps every name in the source.
 `let t = if c then f.a {} else f.b {} in t` is fine, but an `if` that ends up as an
 operand is an error. All of this holds for `{e, t} c`, which is the same term.
 - Only two fields: `{f.a {}, f.b {}, f.c {}} c` is "A branch needs two fields, {else,
-  then}.". An N-way switch is a later plan.
+  then}.". An N-way switch is [plan_switch.md](plan_switch.md).
 - A BANF `Branch` is a terminator with two targets. An `if` whose value is used
   needs a join block, which the source writes explicitly.
 - `if c then f.a {} else f.a {}` is rejected: `a` would get two edges from the same
