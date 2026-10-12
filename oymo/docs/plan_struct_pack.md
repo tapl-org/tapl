@@ -23,7 +23,7 @@ Every other term is already built from expressions, except for names and literal
 |---|---|
 | `Apply`, `If`, `Fix`, `Formed`, `FunctionForm` | yes: every part is a term |
 | `Lambda` | yes: the form and the body are terms. The param name is only a binder name |
-| `Project` | yes, once struct apply lands: `s l` picks a computed label |
+| `Project` | no: the label is a name. Once struct apply lands, `s i` picks a field by a computed index, not label |
 | `ByteArray` | no: its bytes are literal. Computing bytes needs prims (out of scope) |
 | **`Struct`** | **no**: the field list is fixed by the syntax, labels and count both |
 
@@ -49,7 +49,7 @@ pack (unpack {a = '1', b = '2'})                                   ⇒   {a = '1
    `if l.more then … else …`. Rejected: Scott or Church lists (`c -> n -> …`). A rule that
    needs to see a list's nodes can't look inside a lambda, and an `if` can't branch on
    one.
-3. **A label is the UTF-8 bytes of the field's name**, as in struct apply. `unpack`
+3. **A label is the UTF-8 bytes of the field's name.** `unpack`
    encodes each label; `pack` decodes it.
 4. **Lazy values.** Neither built-in reduces a field value. `unpack {a = (x -> x) y}`
    keeps `(x -> x) y` in the `value` field.
@@ -58,7 +58,7 @@ pack (unpack {a = '1', b = '2'})                                   ⇒   {a = '1
 6. **A malformed input is stuck, not an error**, as for projection. `unpack` is stuck on
    anything but a struct literal. `pack` is stuck unless every node is a struct with
    `more = [00]`, or with `more = [01]` and `label`, `value` and `rest` fields, where the
-   label's bytes are valid non-empty UTF-8. Extra fields in a node are ignored. Duplicate
+   label's bytes are valid UTF-8; `''` gives an unlabeled field. Extra fields in a node are ignored. Duplicate
    labels are kept, as a struct literal may have them.
 7. **BANF shape rules decide what BANF accepts.** `pack` and `unpack` must reduce away
    in `banf_reduce.shape`. A stuck one is not a BANF shape, and `convert` rejects it.
@@ -172,8 +172,9 @@ in pack (map g (unpack {a = x, b = y}))
 >    very common word.
 > 2. **Node labels.** `more`, `label`, `value`, `rest`. Alternatives: `head` / `tail`
 >    with entries `{label, value}` (two levels per field), or a `tag` instead of `more`.
-> 3. **Empty or invalid labels in `pack`** are stuck (decision 6). Should they be allowed,
->    since a struct built by `pack` never goes through the parser?
+> 3. **Invalid labels in `pack`** (bytes that aren't UTF-8) are stuck (decision 6). Should
+>    they be allowed, since a struct built by `pack` never goes through the parser? An empty
+>    label is valid: it is an unlabeled field (plan_struct_apply decision 1).
 
 ---
 
@@ -204,8 +205,8 @@ Commit: `oymomo: add unpack`
 - Tests:
   - Grammar and printer, as for `unpack`.
   - `reduce`: `pack {more = [00]}` → `{}`; a two-field list → the struct, in order;
-    duplicates kept. Stuck: a missing `more`, `more = [02]`, a label `[ff]`, a label `''`,
-    a `rest` that isn't reduced yet (root only).
+    duplicates kept; a label `''` gives an unlabeled field. Stuck: a missing `more`,
+    `more = [02]`, a label `[ff]`, a `rest` that isn't reduced yet (root only).
   - `whnf`: the goal example with a computed label; a `rest` and a `label` that need
     reducing; the `map` example; `pack (fix (l -> {more = [01], label = 'a', value = x, rest = l}))`
     runs out of fuel.
