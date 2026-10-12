@@ -12,6 +12,7 @@ Each plan is one design change, carried out in steps of one commit each. A plan 
 | [plan_struct_pack.md](plan_struct_pack.md) | proposed, with open questions; 0 of 2 steps | `$unpack s` turns a struct into a list of fields and `$pack l` turns one back, so a struct can be built dynamically: labels and number of fields computed by oymomo code. Two entries in `bruijn.BUILTIN_RULES`, with no new term or reserved word. |
 | [plan_switch.md](plan_switch.md) | proposed, with open questions; 0 of 3 steps | `{a0, a1, ..., an} i` in tail position, with three or more jumps, is a BANF `Switch`, lowered to LLVM `switch`. Two fields stay a `Branch`. A switch may repeat a target with the same args. Open: what an index past the last target does. |
 | [plan_constant_folding.md](plan_constant_folding.md) | proposed, with open questions; 0 of 4 steps | An opcode whose operands are all literals reduces to its result (`$add_i32` on `[01000000]` and `[02000000]` is `[03000000]: 'i32'`), with the bytes LLVM would compute and nothing folded where LLVM has no defined result. Each opcode gets a rule in `bruijn.BUILTIN_RULES`. |
+| [plan_memory.md](plan_memory.md) | proposed, with open questions; 0 of 4 steps | Mutable memory: a `'ptr'` form (an opaque address) and the opcodes `$load_T`, `$store_T` (gives `{}`) and `$alloca_T` (entry block only). Effects happen in let order, as calls do today; no memory opcode reduces. A data symbol becomes its address (breaking). Open: let order or a memory token. |
 
 ## Closed
 
