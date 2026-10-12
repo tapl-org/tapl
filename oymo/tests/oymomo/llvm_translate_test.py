@@ -5,8 +5,7 @@ import textwrap
 import llvmlite.binding as llvm
 import pytest
 
-from oymo.oymomo import banf_opcodes, banf_translate, terms
-from oymo.oymomo.banf_terms import Block, Branch, Const, Function, Module, Return, Var
+from oymo.oymomo import banf_opcodes, banf_translate
 from oymo.oymomo.grammar import parse
 from oymo.oymomo.llvm_opcodes import DEFAULT_OPCODES
 from oymo.oymomo.llvm_translate import LlvmTranslationError, Target, translate
@@ -210,18 +209,9 @@ def test_struct_branch_lowers_like_if():
 
 
 def test_rejects_branch_with_same_target_twice():
-    # oymomo translation already rejects this, so the module is built directly.
-    i1, i8 = terms.ByteArray(b'i1'), terms.ByteArray(b'i8')
-    function = Function(
-        'g',
-        i8,
-        [
-            Block('entry', [('c', i1)], [], Branch(Var('c'), 'a', [], 'a', [])),
-            Block('a', [], [], Return(Const(b'\x01', i8))),
-        ],
-    )
-    with pytest.raises(LlvmTranslationError, match='same block as both targets'):
-        translate(Module([function]), TARGET)
+    # BANF allows this (Cranelift does too), but an LLVM phi can't tell the two edges apart.
+    defs = "g = blocks -> {entry = args: {c = 'i1'} -> {blocks.a {}, blocks.a {}} args.c, a = args: {} -> [01]:'i8'}"
+    assert ir_error(defs, "g = => 'i8'") == 'A branch cannot have the same block as both targets.'
 
 
 def test_constants_are_little_endian_on_a_big_endian_target():

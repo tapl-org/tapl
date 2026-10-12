@@ -543,7 +543,7 @@ if c then t else e           parses to   {e, t} c
   applied to anything, as `if` (`bruijn.branch`), so the output parses back to the
   same term.
 - In BANF, `{e, t} c` in tail position is a branch, labeled or not. See
-  [Translation](#if-only-in-tail-position-jumping-to-two-different-blocks).
+  [Translation](#if-only-in-tail-position).
 - Design: [plan_if_as_struct_apply.md](plan_if_as_struct_apply.md).
 
 ### Byte arrays
@@ -1442,7 +1442,7 @@ Write `args:{} -> let t0 = module.putchar {c = [41]:'i8'} in t0`, not
 `args:{} -> module.putchar {c = [41]:'i8'}`. A BANF `Return` takes an atom, and the
 explicit `let t0` keeps every name in the source.
 
-##### `if` only in tail position, jumping to two different blocks
+##### `if` only in tail position
 
 `if c then [01]:'i8' else f.b {}` is an error. A let-bound `if` is substituted, so
 `let t = if c then f.a {} else f.b {} in t` is fine, but an `if` that ends up as an
@@ -1451,8 +1451,9 @@ operand is an error. All of this holds for `{e, t} c`, which is the same term.
   then}.". An N-way switch is [plan_switch.md](plan_switch.md).
 - A BANF `Branch` is a terminator with two targets. An `if` whose value is used
   needs a join block, which the source writes explicitly.
-- `if c then f.a {} else f.a {}` is rejected: `a` would get two edges from the same
-  block, and an LLVM phi can't tell them apart.
+- `if c then f.a {} else f.a {}` is valid BANF, as Cranelift allows it. The LLVM
+  backend rejects it: `a` would get two edges from the same block, and an LLVM phi
+  can't tell them apart.
 
 ##### Binders can't be used as values
 
@@ -1556,8 +1557,7 @@ message text to find where it's raised.
 |---|---|---|
 | `Expected an atom: a byte array, a let name, or args.label.` | An operand that is an op, e.g. a nested call. | Bind it first: `let t = $add_i32 {...} in ... t ...`. See [Translation](#operands-must-be-atoms). |
 | `A let's value must be an op, not an atom.` | A let in BANF position whose value is an atom. | Use the atom directly. |
-| `An if must be in tail position.` | An `if` used as a value. | Branch to blocks and join explicitly. See [Translation](#if-only-in-tail-position-jumping-to-two-different-blocks). |
-| `Both branches of an if jump to the same block.` | `if c then f.a {} else f.a {}`. | Use two blocks (LLVM phis can't tell the edges apart). |
+| `An if must be in tail position.` | An `if` used as a value. | Branch to blocks and join explicitly. See [Translation](#if-only-in-tail-position). |
 | `A jump must be in tail position.` | `f.label {...}` used as a value. | Put the jump last. |
 | `Cannot jump to the entry block.` | `f.entry {...}`. | Jump to a separate loop header. See [BANF](#the-entry-block-cannot-be-jumped-to). |
 | `'<args>' cannot be used as a value.` | `blocks`, `args` or `module` used alone. | Use `args.n`, `module.f {...}`, `blocks.b {...}`; `args` may only be forwarded whole as a call/jump argument. |
@@ -1598,6 +1598,7 @@ message text to find where it's raised.
 | `A i32 constant needs 4 bytes.` | Wrong byte count for an `iN` constant (`(N + 7) // 8` bytes). | Write the right number of bytes: `[2a000000]`. |
 | `Constant does not fit in <form>.` | e.g. an `i1` byte that isn't `00` or `01`. | Fix the bytes. |
 | `Only integer constants are supported, got <form>.` | A struct constant. | Not supported yet. |
+| `A branch cannot have the same block as both targets.` | `if c then f.a {} else f.a {}`; valid BANF (Cranelift allows it). | Use two blocks (LLVM phis can't tell the edges apart). See [Translation](#if-only-in-tail-position). |
 
 ## How to…
 

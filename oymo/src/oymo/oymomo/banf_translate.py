@@ -339,8 +339,8 @@ class _Translator:
                         raise TranslationError(
                             'Both branches of an if must be jumps, such as blocks.then0 {}.', location
                         )
-                    if then_jump[0] == else_jump[0]:
-                        raise TranslationError('Both branches of an if jump to the same block.', location)
+                    # Both arms may jump to the same block: Cranelift allows it, and
+                    # llvm_translate rejects it, since an LLVM phi can't tell the edges apart.
                     return banf.Branch(atom, *then_jump, *else_jump, location)
                 case terms.Apply(function=terms.Struct()):
                     raise TranslationError('A branch needs two fields, {else, then}.', location)

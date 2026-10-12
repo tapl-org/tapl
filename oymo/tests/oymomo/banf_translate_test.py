@@ -437,11 +437,16 @@ def test_struct_branch_to_an_explicit_join_block():
     [
         ('{f.a {}, f.b {}, f.a {}} args.c', 'A branch needs two fields, {else, then}.'),
         ("{f.b {}, [01]:'i8'} args.c", 'Both branches of an if must be jumps, such as blocks.then0 {}.'),
-        ('{f.b {}, f.b {}} args.c', 'Both branches of an if jump to the same block.'),
     ],
 )
 def test_struct_branch_errors(body, message):
     assert error(branch_defs(body), "g = => 'i8'") == message
+
+
+@pytest.mark.parametrize('body', ['{f.b {}, f.b {}} args.c', 'if args.c then f.b {} else f.b {}'])
+def test_branch_may_jump_to_the_same_block_twice(body):
+    # BANF allows it (Cranelift does too); llvm_translate rejects it.
+    assert 'branch c, b(), b()' in banf(branch_defs(body), "g = => 'i8'")
 
 
 def test_struct_branch_condition_must_be_i1():
@@ -469,10 +474,6 @@ def test_struct_branch_condition_must_be_i1():
         (
             'g = f -> {entry = args:{} -> f.b {}, b = args:{} -> f.entry {}}',
             'Cannot jump to the entry block.',
-        ),
-        (
-            "g = f -> {entry = args:{c = 'i1'} -> if args.c then f.b {} else f.b {}, b = args:{} -> [01]:'i8'}",
-            'Both branches of an if jump to the same block.',
         ),
         ('g = f -> {entry = args:{} -> f.nowhere {}}', "Unknown block 'nowhere'."),
         ('g = f -> {entry = args:{} -> f}', "'blocks' cannot be used as a value."),
