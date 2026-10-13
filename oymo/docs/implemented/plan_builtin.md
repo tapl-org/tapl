@@ -13,7 +13,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [x] 5. Write the constant folding plan and update plan_struct_pack, docs only (`oymomo: plan constant folding; struct pack on built-ins`)
 
 Step 1 is independent of the rest; it comes first so that steps 2 to 4 have no dynamic
-prims to carry along. [plan_struct_pack.md](plan_struct_pack.md) builds on step 4:
+prims to carry along. [plan_struct_pack.md](../plan_struct_pack.md) builds on step 4:
 `$unpack` and `$pack` become two rules instead of two new terms and two reserved words.
 Constant folding (`$add_i32` on literals) is a later plan, on the same rules; step 5
 writes it.

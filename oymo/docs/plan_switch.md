@@ -13,7 +13,7 @@ One commit each. Each step leaves `hatch run full-check` green. Details are in
 
 Step 1 only adds BANF and LLVM code, tested on BANF modules built directly. Step 2 is
 the only step that changes what oymomo source means. Step 3 is independent of step 2
-and could be dropped. Built on [plan_if_as_struct_apply.md](plan_if_as_struct_apply.md):
+and could be dropped. Built on [plan_if_as_struct_apply.md](implemented/plan_if_as_struct_apply.md):
 `if c then t else e` is `{e, t} c`, and in tail position a two-field struct of jumps
 applied to an atom is a BANF `Branch` (its decision 12 leaves out other counts).
 
@@ -118,7 +118,7 @@ blocks needs N-1 compares and branches, each in its own block.
 > **What happens when the index is past the last target?** The kernel has no answer (the
 > apply is stuck), and LLVM `switch` needs a default.
 > - **`unreachable` (this plan).** No cost. It is undefined behavior, which
->   [plan_banf_explicit.md](plan_banf_explicit.md) ("no defaults") may argue against.
+>   [plan_banf_explicit.md](implemented/plan_banf_explicit.md) ("no defaults") may argue against.
 > - **The last target.** Defined, but it gives a meaning the kernel doesn't have:
 >   `{a, b, c} [07]` is stuck, while its BANF would jump to `c`.
 > - **An error unless the form has exactly N values** (four targets on `i2`). Safe

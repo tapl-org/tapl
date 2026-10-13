@@ -544,7 +544,7 @@ if c then t else e           parses to   {e, t} c
   same term.
 - In BANF, `{e, t} c` in tail position is a branch, labeled or not. See
   [Translation](#if-only-in-tail-position).
-- Design: [plan_if_as_struct_apply.md](plan_if_as_struct_apply.md).
+- Design: [plan_if_as_struct_apply.md](implemented/plan_if_as_struct_apply.md).
 
 ### Byte arrays
 
@@ -750,7 +750,7 @@ a form can come from a variable:
 - `Formed` itself never reduces. `reduce_until_top_stable` reduces inside `Formed.term`, and a struct
   apply (so an `if`) sees through a form on its index.
 - Precedence: [oymomo syntax › Precedence](#precedence). Design history:
-  [plan_annotation.md](plan_annotation.md).
+  [plan_annotation.md](implemented/plan_annotation.md).
 
 In BANF translation, a formed byte array becomes a constant; any other formed atom
 becomes that atom with the written form. **The written form replaces the atom's own
@@ -798,7 +798,7 @@ A name can appear in two tables:
 
 Why built-ins instead of `module` names, a `prim` binder, or a `fix` term: see
 [Design decisions › Built-ins](#built-ins-2) and
-[plan_builtin.md](plan_builtin.md).
+[plan_builtin.md](implemented/plan_builtin.md).
 
 ### `reduce`: one step at the root
 
@@ -1234,7 +1234,7 @@ until each position has BANF's shape. `convert` only reads the result. So:
   `llvm_translate` rejects a replaced form whose LLVM type differs.
 
 A term without BANF's shape after reduction is rejected, and the source fixes it
-explicitly. Background: [plan_banf_explicit.md](plan_banf_explicit.md).
+explicitly. Background: [plan_banf_explicit.md](implemented/plan_banf_explicit.md).
 
 #### 1. `bruijn.resolve`
 
@@ -1675,7 +1675,7 @@ gives the same BANF), and checks the shaped output compiles to the same BANF.
 
 Larger changes are written as a plan first: `docs/plan_<name>.md`, carried out in
 steps of one commit each, and listed in [plans.md](plans.md) (open until every step
-is done, then closed).
+is done, then closed and moved to `docs/implemented/`).
 
 ### Update the notes when a plan lands
 
@@ -1756,7 +1756,7 @@ Rejected:
 `Project` stays its own term next to struct apply (`s [00]`), because BANF's shapes
 and the printer match on it. Struct apply needed no new syntax or term: `s i` is
 already an `Apply`. → [oymomo syntax](#projection-and-struct-apply),
-[plan_struct_apply.md](plan_struct_apply.md)
+[plan_struct_apply.md](implemented/plan_struct_apply.md)
 
 ### The lambda arrow
 
@@ -1767,7 +1767,7 @@ accepted. The printer prints `→`.
 
 One syntax and one set of terms for values and forms, so later stages can compute
 forms with the same machinery as values. → [The kernel](#forms-are-terms),
-[plan_term_as_form.md](plan_term_as_form.md)
+[plan_term_as_form.md](implemented/plan_term_as_form.md)
 
 ### Omitted forms are `Empty`, with no default
 
@@ -1775,7 +1775,7 @@ Quick sketches stay short, and `Empty` has no default meaning: each position say
 what it means there or rejects it. It used to mean `void`; that was dropped so that
 translation never fills in a value the source didn't write.
 → [The kernel](#omitted-forms-are-empty),
-[plan_banf_explicit.md](plan_banf_explicit.md)
+[plan_banf_explicit.md](implemented/plan_banf_explicit.md)
 
 ### `Formed` binds tighter than application
 
@@ -1786,7 +1786,7 @@ The rule is "values bind tighter than things that reduce". `Formed` and
 Rejected: `:` below application, as in Haskell, OCaml and Lean
 (`f a: g b` = `(f a): (g b)`). It made `:` the only value operator looser than
 application. → [oymomo syntax](#precedence),
-[plan_annotation.md](plan_annotation.md)
+[plan_annotation.md](implemented/plan_annotation.md)
 
 ### A byte array is only its bytes
 
@@ -1892,7 +1892,7 @@ reading like source; pretty mode round-trips, so goldens are valid source.
 - **Kernel-only comes from the tables**: a rule and no opcode, with no flag to keep
   in sync. Each built-in's `needs` gives its own error message.
 
-→ [The kernel](#built-ins), [plan_builtin.md](plan_builtin.md)
+→ [The kernel](#built-ins), [plan_builtin.md](implemented/plan_builtin.md)
 
 ### One `module` binder
 
@@ -1959,7 +1959,7 @@ No defaults, nothing inferred, unneeded forms dropped, a written form replaces a
 computed one. A term not in shape is rejected, and the source fixes it explicitly,
 so every name and form in BANF comes from the source.
 → [Translation](#the-principle-translation-only-reduces),
-[plan_banf_explicit.md](plan_banf_explicit.md)
+[plan_banf_explicit.md](implemented/plan_banf_explicit.md)
 
 Consequences:
 - **Operands must be atoms**: allowing nested calls means flattening into lets,

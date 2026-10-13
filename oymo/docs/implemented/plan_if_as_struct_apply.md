@@ -13,7 +13,7 @@ One commit each. Each step leaves `hatch run full-check` green.
 
 Step 2 leaves `If` in place, so every existing test still passes. Step 3 changes no
 syntax: `if c then t else e` still parses and still prints. Only the term behind it changes.
-Step 4 writes [plan_switch.md](plan_switch.md) for the N-way case, which this plan leaves out (decision 12).
+Step 4 writes [plan_switch.md](../plan_switch.md) for the N-way case, which this plan leaves out (decision 12).
 
 ## Goal
 
@@ -174,28 +174,28 @@ if c then t else e           parses to   {e, t} c
 
 | File | Change |
 |---|---|
-| [banf_reduce.py](../src/oymo/oymomo/banf_reduce.py) | `terminal`: struct-apply case (decision 7). `_is_op`: `Apply(Struct)` is not an op (decision 8). |
-| [banf_translate.py](../src/oymo/oymomo/banf_translate.py) | `body`: struct-apply branch (decision 9). `op`: tail-position error. |
+| [banf_reduce.py](../../src/oymo/oymomo/banf_reduce.py) | `terminal`: struct-apply case (decision 7). `_is_op`: `Apply(Struct)` is not an op (decision 8). |
+| [banf_translate.py](../../src/oymo/oymomo/banf_translate.py) | `body`: struct-apply branch (decision 9). `op`: tail-position error. |
 | tests | Add a `{e, t} c` copy of each BANF `if` test (see Verification). |
 
 ### Step 3: `if` is sugar, and `If` goes
 
 | File | Change |
 |---|---|
-| [terms.py](../src/oymo/oymomo/terms.py#L97-L107) | Delete `If`. |
-| [grammar.py](../src/oymo/oymomo/grammar.py#L146-L148) | `_if` builds `{e, t} c` (decision 1). `rn.IF`, `RESERVED` unchanged. |
-| [bruijn.py](../src/oymo/oymomo/bruijn.py#L55-L56) | Delete the `If` cases in `_map_children` and `reduce`, and `_TRUE`/`_FALSE`. Add `branch` (decision 3). |
-| [banf_reduce.py](../src/oymo/oymomo/banf_reduce.py#L101-L107) | Delete the `If` cases in `terminal`, `_head`, `_with_head`. |
-| [banf_rename.py](../src/oymo/oymomo/banf_rename.py) | Delete the `If` case. `Apply` and `Struct` already cover a branch. |
-| [banf_translate.py](../src/oymo/oymomo/banf_translate.py#L299-L342) | Delete the `If` cases in `op` and `body`. |
-| [printer.py](../src/oymo/oymomo/printer.py) | In `_compact`, `_flat`, `_pretty`, `_has_let_chain`, `_loosest`: `case terms.If(...)` becomes `case terms.Apply() if (b := bruijn.branch(term))`, placed before the generic `Apply` case. |
+| [terms.py](../../src/oymo/oymomo/terms.py#L97-L107) | Delete `If`. |
+| [grammar.py](../../src/oymo/oymomo/grammar.py#L146-L148) | `_if` builds `{e, t} c` (decision 1). `rn.IF`, `RESERVED` unchanged. |
+| [bruijn.py](../../src/oymo/oymomo/bruijn.py#L55-L56) | Delete the `If` cases in `_map_children` and `reduce`, and `_TRUE`/`_FALSE`. Add `branch` (decision 3). |
+| [banf_reduce.py](../../src/oymo/oymomo/banf_reduce.py#L101-L107) | Delete the `If` cases in `terminal`, `_head`, `_with_head`. |
+| [banf_rename.py](../../src/oymo/oymomo/banf_rename.py) | Delete the `If` case. `Apply` and `Struct` already cover a branch. |
+| [banf_translate.py](../../src/oymo/oymomo/banf_translate.py#L299-L342) | Delete the `If` cases in `op` and `body`. |
+| [printer.py](../../src/oymo/oymomo/printer.py) | In `_compact`, `_flat`, `_pretty`, `_has_let_chain`, `_loosest`: `case terms.If(...)` becomes `case terms.Apply() if (b := bruijn.branch(term))`, placed before the generic `Apply` case. |
 | tests | `bruijn_test.test_reduce_if_sees_through_a_form` builds `If` directly: build it with `grammar.parse` or a `Struct` instead. Add printer round-trip tests (decision 2). The other `if` tests parse source, so they stay as they are. |
-| [notes.md](notes.md#L527-L530) | The **If** section: `if` is sugar for `{e, t} c`, with the printing rule. The `reduce` table (l. 798): the `if` row points at struct apply. Heads (l. 1248): the head of `if c ...` is still `c`, through the struct apply rule. The BANF shape grammar (l. 1295) and the tail-position rules (l. 1404, 1431-1437) stay, worded in terms of `{e, t} c`. |
+| [notes.md](../notes.md#L527-L530) | The **If** section: `if` is sugar for `{e, t} c`, with the printing rule. The `reduce` table (l. 798): the `if` row points at struct apply. Heads (l. 1248): the head of `if c ...` is still `c`, through the struct apply rule. The BANF shape grammar (l. 1295) and the tail-position rules (l. 1404, 1431-1437) stay, worded in terms of `{e, t} c`. |
 
 ### Step 4: Write the switch plan
 
-Docs only: [plan_switch.md](plan_switch.md), and a row for it under **Open** in
-[plans.md](plans.md). It starts from decision 12: `{a0, a1, ..., an} i` in tail position,
+Docs only: [plan_switch.md](../plan_switch.md), and a row for it under **Open** in
+[plans.md](../plans.md). It starts from decision 12: `{a0, a1, ..., an} i` in tail position,
 with every field a jump, is an N-way jump. It must decide:
 
 - **The BANF terminator:** a new `Switch`, or `Branch` generalized to N targets.

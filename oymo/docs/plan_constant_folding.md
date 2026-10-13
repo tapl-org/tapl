@@ -12,7 +12,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [ ] 4. Fold comparisons and conversions (`oymomo: fold comparisons and conversions`)
 
 Step 1 comes first; steps 2 to 4 each add templates to the same evaluator, and step 2
-adds the test that checks it against LLVM. Built on [plan_builtin.md](plan_builtin.md):
+adds the test that checks it against LLVM. Built on [plan_builtin.md](implemented/plan_builtin.md):
 opcodes are built-ins (`$add_i32`), and a built-in can have a rule in
 `bruijn.BUILTIN_RULES`. Step 2 also needs step 1 of
 [plan_struct_pack.md](plan_struct_pack.md): a rule lists its blockers.

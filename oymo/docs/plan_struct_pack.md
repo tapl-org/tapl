@@ -11,7 +11,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [ ] 3. `$fields_to_struct l`: a list of fields to a struct (`oymomo: add $fields_to_struct`)
 
 Step 1 lets a rule read reduced parts of its argument. Step 3 uses step 2 in its round-trip
-tests. Built on [plan_builtin.md](plan_builtin.md): both are built-ins, so each is an entry
+tests. Built on [plan_builtin.md](implemented/plan_builtin.md): both are built-ins, so each is an entry
 in `bruijn.BUILTIN_RULES`, with no new term, no grammar rule and no reserved word.
 [plan_constant_folding.md](plan_constant_folding.md) builds on step 1.
 
