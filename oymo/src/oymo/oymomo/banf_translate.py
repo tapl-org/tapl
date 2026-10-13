@@ -2,14 +2,14 @@
 
 """Translates oymomo terms into BANF.
 
-`shape` resolves names, reduces the term to BANF's shape (`banf_reduce`) and renames its binders
+`shape` resolves names, reduces the term to BANF's shape (`banf_shape`) and renames its binders
 (`banf_rename`). `convert` then reads the shaped term into BANF; it does no normalization.
 """
 
 from dataclasses import dataclass, replace
 
 from oymo.core import syntax
-from oymo.oymomo import banf_opcodes, banf_reduce, banf_rename, bruijn, terms
+from oymo.oymomo import banf_opcodes, banf_shape, banf_rename, bruijn, terms
 from oymo.oymomo import banf_terms as banf
 from oymo.oymomo.banf_rename import ARGS, BLOCKS, MODULE
 
@@ -365,7 +365,7 @@ class _Translator:
 def shape(term: syntax.Term) -> syntax.Term:
     """Resolves names, reduces to BANF's shape and renames binders."""
     try:
-        return banf_rename.rename(banf_reduce.shape(bruijn.resolve(term)))
+        return banf_rename.rename(banf_shape.shape(bruijn.resolve(term)))
     except bruijn.BruijnError as error:
         raise TranslationError(error.message, error.location) from error
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from oymo.oymomo import banf_reduce, bruijn, terms
+from oymo.oymomo import banf_shape, bruijn, terms
 from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show
 
@@ -12,7 +12,7 @@ def program(defs):
 
 
 def shaped(defs):
-    return show(banf_reduce.shape(bruijn.resolve(parse(program(defs)))))
+    return show(banf_shape.shape(bruijn.resolve(parse(program(defs)))))
 
 
 def same(defs):
@@ -32,8 +32,8 @@ def resolved(source, free):
 
 def test_reduce_until_top_stable():
     free = ('a', 'e')
-    assert show(banf_reduce.reduce_until_top_stable(resolved('{p = {a = e}}.p.a', free))) == show(resolved('e', free))
-    assert show(banf_reduce.reduce_until_top_stable(resolved('$fix (self -> n -> n) a', free))) == show(
+    assert show(banf_shape.reduce_until_top_stable(resolved('{p = {a = e}}.p.a', free))) == show(resolved('e', free))
+    assert show(banf_shape.reduce_until_top_stable(resolved('$fix (self -> n -> n) a', free))) == show(
         resolved('a', free)
     )
 
@@ -41,14 +41,14 @@ def test_reduce_until_top_stable():
 def test_fix_does_not_reduce_its_argument():
     # `$fix g` unfolds without reducing `g`.
     term = resolved('$fix ((x -> x) g)', ('g',))
-    assert show(banf_reduce.step(term)) == show(resolved('(x -> x) g ($fix ((x -> x) g))', ('g',)))
+    assert show(banf_shape.step(term)) == show(resolved('(x -> x) g ($fix ((x -> x) g))', ('g',)))
 
 
 def test_step_fires_the_root_rule_or_else_unblocks():
     free = ('e',)
-    assert show(banf_reduce.step(resolved('{p = {a = e}}.p.a', free))) == show(resolved('{a = e}.a', free))
+    assert show(banf_shape.step(resolved('{p = {a = e}}.p.a', free))) == show(resolved('{a = e}.a', free))
     term = resolved('e.a', free)
-    assert banf_reduce.step(term) is term
+    assert banf_shape.step(term) is term
 
 
 @pytest.mark.parametrize(
@@ -65,7 +65,7 @@ def test_step_fires_the_root_rule_or_else_unblocks():
     ],
 )
 def test_reduce_until_top_stable_reduces_a_struct_apply(source, expected):
-    assert show(banf_reduce.reduce_until_top_stable(resolved(source, ()))) == show(resolved(expected, ()))
+    assert show(banf_shape.reduce_until_top_stable(resolved(source, ()))) == show(resolved(expected, ()))
 
 
 @pytest.mark.parametrize(
@@ -79,7 +79,7 @@ def test_reduce_until_top_stable_reduces_a_struct_apply(source, expected):
 )
 def test_reduce_until_top_stable_leaves_a_struct_apply_or_an_argument(source):
     term = resolved(source, ('f',))
-    assert banf_reduce.reduce_until_top_stable(term) is term
+    assert banf_shape.reduce_until_top_stable(term) is term
 
 
 @pytest.mark.parametrize(
@@ -173,7 +173,7 @@ def test_a_def_produced_by_an_application():
     ],
 )
 def test_positions(source, expected):
-    assert show(banf_reduce.shape(bruijn.resolve(parse(source)))) == show(bruijn.resolve(parse(expected)))
+    assert show(banf_shape.shape(bruijn.resolve(parse(source)))) == show(bruijn.resolve(parse(expected)))
 
 
 def test_forms_are_ignored():
@@ -229,18 +229,18 @@ def test_already_shaped_is_unchanged():
 def test_runs_out_of_fuel():
     term = bruijn.resolve(parse(program(block('$fix (self -> self) args.n'))))
     with pytest.raises(bruijn.BruijnError, match='ran out of reduction steps'):
-        banf_reduce.shape(term, fuel=100)
+        banf_shape.shape(term, fuel=100)
 
 
 def test_reduce_until_top_stable_reduces_inside_formed():
     i1 = terms.ByteArray(b'i1')
     one = terms.ByteArray(b'\x01')
     identity = terms.Lambda('x', terms.Empty, terms.BruijnIndex(0))
-    reduced = banf_reduce.reduce_until_top_stable(terms.Formed(terms.Apply(identity, one), i1))
+    reduced = banf_shape.reduce_until_top_stable(terms.Formed(terms.Apply(identity, one), i1))
     assert reduced == terms.Formed(one, i1)
 
 
 def test_dynamic_byte_array_form():
-    reduced = banf_reduce.reduce_until_top_stable(bruijn.resolve(parse("(x -> y -> y: x) 'i1' [01]")))
+    reduced = banf_shape.reduce_until_top_stable(bruijn.resolve(parse("(x -> y -> y: x) 'i1' [01]")))
     assert reduced == parse("[01]:'i1'")
     assert show(reduced) == "[01]:'i1'"

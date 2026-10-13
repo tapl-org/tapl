@@ -98,7 +98,7 @@ rejected alternatives. When a plan lands, update the section it changes (see
   - [BANF to LLVM](#banf-to-llvm)
 - [Error messages](#error-messages)
   - [Names and resolution (`bruijn.py`)](#names-and-resolution-bruijnpy)
-  - [Shaping (`banf_reduce.py`)](#shaping-banf_reducepy)
+  - [Shaping (`banf_shape.py`)](#shaping-banf_shapepy)
   - [Program shape (`banf_translate.py`)](#program-shape-banf_translatepy)
   - [Forms (`banf_translate.py`)](#forms-banf_translatepy)
   - [Block bodies (`banf_translate.py`)](#block-bodies-banf_translatepy)
@@ -181,7 +181,7 @@ oymomo source --parse--> oymomo terms --banf_translate--> BANF --llvm_translate-
 `banf_translate` is a pipeline of four passes (details in [Translation](#translation-oymomo--banf--llvm)):
 
 ```
-terms --bruijn.resolve--> BruijnIndex terms --banf_reduce.shape--> BANF-shaped term
+terms --bruijn.resolve--> BruijnIndex terms --banf_shape.shape--> BANF-shaped term
       --banf_rename.rename--> no shadowing --banf_translate.convert--> BANF
 ```
 
@@ -286,7 +286,7 @@ module has a test of the same name in `tests/oymomo/`.
 | [`terms.py`](../src/oymo/oymomo/terms.py) | oymomo term classes (`Lambda`, `Apply`, `Struct`, `Formed`…) |
 | [`printer.py`](../src/oymo/oymomo/printer.py) | Prints terms, compact or pretty |
 | [`bruijn.py`](../src/oymo/oymomo/bruijn.py) | `resolve`, `shift`, `substitute`, `reduce`, `BUILTIN_RULES` |
-| [`banf_reduce.py`](../src/oymo/oymomo/banf_reduce.py) | Reduces a term until it has BANF's shape |
+| [`banf_shape.py`](../src/oymo/oymomo/banf_shape.py) | Reduces a term until it has BANF's shape |
 | [`banf_rename.py`](../src/oymo/oymomo/banf_rename.py) | Renames binders so none shadow each other |
 | [`banf_translate.py`](../src/oymo/oymomo/banf_translate.py) | `shape`, `convert`, `translate`: oymomo → BANF |
 | [`banf_terms.py`](../src/oymo/oymomo/banf_terms.py) | BANF classes, `form_of`, verifier, BANF printer |
@@ -316,7 +316,7 @@ subpackage, without extra `__init__.py` files and import paths.
 ### Testing
 
 - Unit tests per stage: `grammar_test.py`, `printer_test.py`, `banf_opcodes_test.py`,
-  `banf_terms_test.py`, `bruijn_test.py`, `banf_reduce_test.py`,
+  `banf_terms_test.py`, `bruijn_test.py`, `banf_shape_test.py`,
   `banf_rename_test.py`, `banf_translate_test.py`, `llvm_translate_test.py`.
 - BANF tests build modules by hand, so they don't depend on the translator.
 - Every LLVM test parses the IR with `llvmlite.binding` and verifies it.
@@ -825,12 +825,12 @@ Not redexes:
 Properties:
 - **Only the root.** Arguments, lambda bodies, struct fields and `if` arms are not
   touched, nor is a blocker that isn't reduced yet (`$fix g a`, `{p = {a = e}}.p.a`).
-  [`banf_reduce`](#2-banf_reduceshape-reduce-until-each-position-has-its-shape)
+  [`banf_shape`](#2-banf_shapeshape-reduce-until-each-position-has-its-shape)
   reduces blockers.
 - **At most one rule applies**, so order doesn't matter: beta needs a `Lambda`
   callee, struct apply a `Struct`, a built-in rule a `Builtin`.
 - **Never raises, never recurses.** Loops come from calling it repeatedly, so the
-  fuel limit lives in `banf_reduce`.
+  fuel limit lives in `banf_shape`.
 - **Opcodes are not run** (`$add_i32 {...}` is stuck).
 - Helpers: `shift`, `substitute`, `beta`
   (`shift(substitute(body, 0, shift(arg, 1)), -1)`), `project`, `index_value`.
@@ -1210,7 +1210,7 @@ and returns an oymomo term in BANF's shape; `convert(shaped)` runs the last.
 | # | Pass | Does |
 |---|---|---|
 | 1 | `bruijn.resolve` | Each `Variable` becomes a `BruijnIndex`. Names stay on `Lambda.param_name`. Unbound name → error. |
-| 2 | `banf_reduce.shape` | Reduces only where the term doesn't have BANF's shape yet. |
+| 2 | `banf_shape.shape` | Reduces only where the term doesn't have BANF's shape yet. |
 | 3 | `banf_rename.rename` | Renames binders: fixed structural names, no shadowing. |
 | 4 | `banf_translate.convert` | Reads the shaped term into BANF; `TranslationError` with a source location on any mismatch. |
 
@@ -1242,7 +1242,7 @@ Turns names into indices by counting enclosing lambdas. See
 [The kernel › reduce](#reduce-one-step-at-the-root) for the one-step
 reducer the next pass uses.
 
-#### 2. `banf_reduce.shape`: reduce until each position has its shape
+#### 2. `banf_shape.shape`: reduce until each position has its shape
 
 Each [position](#positions) wants certain constructors. The term there is reduced
 until it has one, then its own positions are visited. Forms and binder kinds aren't
@@ -1290,7 +1290,7 @@ Builtin, and at stuck terms such as `$add_i32 {...}`, `args.n`, `blocks.done {..
 
 ##### Positions
 
-As numbered in [`banf_reduce.py`](../src/oymo/oymomo/banf_reduce.py):
+As numbered in [`banf_shape.py`](../src/oymo/oymomo/banf_shape.py):
 
 1. The term, until a Lambda: `module -> <body>`.
 2. `<body>`, until a Struct: `{label = <func>, ...}`.
@@ -1341,7 +1341,7 @@ shaped program reads `module -> {main = blocks -> {entry = args -> ...}}`.
 
 - `convert` checks each position by name; a wrong name means a wrong shape.
 - On any path from the root the three names appear once each, so they never clash.
-- A position `banf_reduce` left without its shape isn't structural: its binder
+- A position `banf_shape` left without its shape isn't structural: its binder
   follows the let rule below, and `convert` reports the shape error.
 - The fixed names don't reach BANF: `blocks.label` becomes a jump target and
   `args.n` becomes `banf.Var('n')`.
@@ -1521,7 +1521,7 @@ message text to find where it's raised.
 |---|---|---|
 | `Unknown name '<x>'.` | A variable that no lambda or let binds. | Bind it, or check spelling. Built-ins need `$` (`$add_i32`). |
 
-### Shaping (`banf_reduce.py`)
+### Shaping (`banf_shape.py`)
 
 | Message | Cause | Fix |
 |---|---|---|
@@ -1664,11 +1664,11 @@ gives the same BANF), and checks the shaped output compiles to the same BANF.
    `BuiltinRule(name, needs, rule)` to `BUILTIN_RULES`.
    - `needs` names what the argument must reduce to (`'a struct'`), for the
      error message.
-   - `banf_reduce` doesn't reduce a built-in's argument. A rule that must read its
-     argument reduced needs a new blocker case in `banf_reduce.unblock`.
+   - `banf_shape` doesn't reduce a built-in's argument. A rule that must read its
+     argument reduced needs a new blocker case in `banf_shape.unblock`.
 2. The parser accepts any `$name`, and `convert` rejects a leftover kernel-only
    built-in with a message built from `needs`.
-3. Add tests in `bruijn_test.py` and `banf_reduce_test.py`; update
+3. Add tests in `bruijn_test.py` and `banf_shape_test.py`; update
    [The kernel › Built-ins](#built-ins).
 
 ### Write a design change

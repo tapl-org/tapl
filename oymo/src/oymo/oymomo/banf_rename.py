@@ -82,7 +82,7 @@ class _Renamer:
         return visit
 
     def other(self, term):
-        """Any term outside the fixed positions: lets, and lambdas `banf_reduce` left."""
+        """Any term outside the fixed positions: lets, and lambdas `banf_shape` left."""
         match term:
             case terms.Lambda(param_name=name):
                 return self.bind(term, fresh(name, self.level, self.visible), self.other)

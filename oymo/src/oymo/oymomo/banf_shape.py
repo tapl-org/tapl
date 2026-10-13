@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Reduces a resolved oymomo term until it has BANF's shape. See docs/notes.md, `banf_reduce`.
+"""Reduces a resolved oymomo term until it has BANF's shape. See docs/notes.md, `banf_shape`.
 
 Each position wants certain constructors. The term there is reduced with `reduce_until_top_stable`
 until its top constructor can't change, then its own positions are visited. A term that can't get
@@ -15,7 +15,6 @@ from oymo.oymomo import bruijn, terms
 FUEL = 10_000
 
 
-# TODO: rename module to banf_shape.py
 class _Shaper:
     def __init__(self, fuel: int) -> None:
         self.fuel = fuel

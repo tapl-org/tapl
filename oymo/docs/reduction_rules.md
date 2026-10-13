@@ -1,7 +1,7 @@
 # oymomo reduction rules
 
 The rules implemented by [`bruijn.reduce`](../src/oymo/oymomo/bruijn.py) (computation)
-and [`banf_reduce.step`](../src/oymo/oymomo/banf_reduce.py) (congruence), in the style of
+and [`banf_shape.step`](../src/oymo/oymomo/banf_shape.py) (congruence), in the style of
 TAPL. See [notes.md › Blockers](notes.md#blockers) for the prose version.
 
 ## Syntax
@@ -84,7 +84,7 @@ positions are never reduced by `→`. So `$fix t` never reduces `t`, nor does an
 
 ## Under binders: `shape`
 
-[`banf_reduce.shape`](../src/oymo/oymomo/banf_reduce.py) is the only place that goes under
+[`banf_shape.shape`](../src/oymo/oymomo/banf_shape.py) is the only place that goes under
 a `λ` or into a struct field, and only along BANF's skeleton. Writing `⇓` for `reduce_until_top_stable`:
 
 ```

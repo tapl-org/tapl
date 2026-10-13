@@ -7,15 +7,15 @@ Status: **proposed**. No open questions.
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
 - [ ] 1. Opcode signatures move to a neutral `opcodes.py` (`oymomo: move opcode signatures to opcodes.py`)
-- [ ] 2. A built-in rule can be strict in its argument's fields (`oymomo: a built-in rule can be strict in its fields`)
-- [ ] 3. Fold `add sub mul and or xor` (`oymomo: fold add, sub, mul, and, or, xor on literals`)
-- [ ] 4. Fold division and shifts, except where LLVM has no defined result (`oymomo: fold division and shifts`)
-- [ ] 5. Fold comparisons and conversions (`oymomo: fold comparisons and conversions`)
+- [ ] 2. Fold `add sub mul and or xor` (`oymomo: fold add, sub, mul, and, or, xor on literals`)
+- [ ] 3. Fold division and shifts, except where LLVM has no defined result (`oymomo: fold division and shifts`)
+- [ ] 4. Fold comparisons and conversions (`oymomo: fold comparisons and conversions`)
 
-Steps 1 and 2 come first, in either order; steps 3 to 5 each add templates to the same
-evaluator, and step 3 adds the test that checks it against LLVM. Built on
-[plan_builtin.md](plan_builtin.md): opcodes are built-ins (`$add_i32`), and a built-in
-can have a rule in `bruijn.BUILTIN_RULES`.
+Step 1 comes first; steps 2 to 4 each add templates to the same evaluator, and step 2
+adds the test that checks it against LLVM. Built on [plan_builtin.md](plan_builtin.md):
+opcodes are built-ins (`$add_i32`), and a built-in can have a rule in
+`bruijn.BUILTIN_RULES`. Step 2 also needs step 1 of
+[plan_struct_pack.md](plan_struct_pack.md): a rule lists its blockers.
 
 ## Goal
 
@@ -94,33 +94,24 @@ is the jump `f.a {}`.
 7. **The result has the signature's result form**: `Formed(ByteArray(bytes), result)`,
    such as `[03000000]: 'i32'` or `[01]: 'i1'`. So BANF still knows the constant's form,
    and an `if` on a folded comparison reduces by the existing `if` rule.
-8. **A rule can be strict in its argument's fields.** Folding needs every field in whnf:
-   in `$add_i32 {a = (x -> x) [01000000]: 'i32', b = ...}` the field must be reduced
-   before the rule can read it. Step 4 of plan_builtin made the argument a head
-   (`strict=True`); this plan makes `strict` one of three values:
+8. **An opcode's blockers are its argument and each of its fields.** Folding reads
+   every field reduced: in `$add_i32 {a = (x -> x) [01000000]: 'i32', b = ...}` the
+   field must be reduced before the rule can read it. A rule lists the parts it reads
+   as blockers (plan_struct_pack decision 8), so each opcode rule uses
+   `bruijn.field_blockers`: the argument, then, once it is a struct, each field in
+   order. No change in `banf_shape`.
 
-   | `BuiltinRule.strict` | Reduced before the rule fires |
-   |---|---|
-   | `NONE` (`$fix`) | nothing |
-   | `ARGUMENT` | the argument, to whnf |
-   | `FIELDS` (opcodes) | the argument, then each of its fields, to whnf, in order |
-
-   Fields stay lazy where they are not read: only a strict built-in's fields are reduced,
-   and only once its argument is a struct. `bruijn.reduce` itself stays root-only: the
-   rule only checks that the fields are already literals.
-
-   Only these three values, for now. `$fields_to_struct` needs a deeper, data-dependent shape (a
-   list's spine); whether that becomes a fourth value or a rule-supplied list of the
-   positions it reads is left to [plan_struct_pack.md](plan_struct_pack.md) open
-   question 3. If it picks the latter, `Strictness` is replaced there.
+   Fields stay lazy where they are not read: only a built-in's blockers are reduced,
+   and fields only once the argument is a struct. `bruijn.reduce` itself stays
+   root-only: the rule only checks that the fields are already literals.
 9. **BANF output changes where operands are literals.** A let whose value folds is no
-   longer an op, so `banf_reduce` beta-reduces it and the constant is substituted
+   longer an op, so `banf_shape` beta-reduces it and the constant is substituted
    (notes: "a let whose value isn't an op is beta-reduced"). Lets disappear, and an `if`
    on a folded condition becomes a jump. The golden files have no opcode on literals, so
    they don't change; unit tests that use literal operands to get an `OpcodeCall` switch
    to a param operand (`args.n`). The notes' "Opcodes are not run" goes.
-10. **Scope.** All templates fold: arithmetic and logic (step 3), division and shifts
-    (step 4), comparisons and conversions (step 5). `GetIndex` needs nothing: a struct
+10. **Scope.** All templates fold: arithmetic and logic (step 2), division and shifts
+    (step 3), comparisons and conversions (step 4). `GetIndex` needs nothing: a struct
     literal applied to an index already reduces as a struct apply, and `GetIndex` is only
     for a value struct, which is never a literal.
 
@@ -137,31 +128,17 @@ change in content except `_BANF_KEYWORDS`, which moves to `banf_terms.py`. Impor
 terms  ←  opcodes  ←  bruijn, banf_terms, banf_translate, llvm_opcodes
 ```
 
-### B. Strictness (step 2)
+### B. Blockers
 
-```python
-class Strictness(Enum):
-    NONE = 'none'
-    ARGUMENT = 'argument'
-    FIELDS = 'fields'
-
-
-@dataclass(frozen=True)
-class BuiltinRule:
-    name: str
-    strict: Strictness
-    needs: str | None
-    rule: Callable[[syntax.Term, syntax.Term], syntax.Term | None]
-```
-
-In `banf_reduce.step`, after the root and the head:
+From plan_struct_pack step 1. `banf_shape.unblock` reduces a built-in's blockers in
+order, one per step:
 
 | Term | Reduced by `step` |
 |---|---|
-| `$name a`, `ARGUMENT` or `FIELDS`, `a` not yet in whnf | `a` (the head, as in plan_builtin step 4) |
-| `$name {l1 = e1, ...}`, `FIELDS` | the first field `ei` that `whnf` changes |
+| `$add_i32 a`, `a` not yet a struct | `a` |
+| `$add_i32 {l1 = e1, ...}` | the first field `ei` that `reduce_until_top_stable` changes |
 
-### C. The evaluator (steps 3 to 5)
+### C. The evaluator (steps 2 to 4)
 
 ```python
 def evaluate(signature: OpcodeSignature, operands: list[int]) -> int | None:
@@ -172,7 +149,7 @@ def evaluate(signature: OpcodeSignature, operands: list[int]) -> int | None:
 One function per template group, keyed by `signature.template`, like `llvm_opcodes._impl`:
 `_BINARY`, `_COMPARE`, `_CONVERT`, each a Python function on `(bits, operands)`.
 
-### D. The rule (step 3)
+### D. The rule (step 2)
 
 ```python
 def _fold(signature):
@@ -184,7 +161,7 @@ def _fold(signature):
         if result is None:
             return None
         return terms.Formed(terms.ByteArray(_encode(result, signature.result)), signature.result)
-    return BuiltinRule(signature.name, Strictness.FIELDS, None, rule)
+    return BuiltinRule(signature.name, field_blockers, None, rule)
 ```
 
 `BUILTIN_RULES` gets one such rule per name in `opcodes.OPCODES` whose template is
@@ -196,14 +173,14 @@ folded so far.
 
 | Module | Step | Change |
 |---|---|---|
-| `banf_opcodes.py` → `opcodes.py` | 1, 3, 4, 5 | renamed (A); `evaluate` (C), a template group per step |
+| `banf_opcodes.py` → `opcodes.py` | 1, 2, 3, 4 | renamed (A); `evaluate` (C), a template group per step |
 | `banf_terms.py`, `banf_translate.py`, `llvm_opcodes.py` | 1 | import `opcodes`; `banf_terms` gets the keyword check |
 | `banf_opcodes_test.py` → `opcodes_test.py`, `llvm_translate_test.py` | 1 | renamed import |
-| `bruijn.py` | 2, 3 | `Strictness`; `$fix` is `NONE`; the opcode rules (D) |
-| `banf_reduce.py` | 2 | the `FIELDS` positions (B) |
-| `opcodes_test.py` or `llvm_translate_test.py` | 3 | fold vs LLVM JIT, per template and width |
-| `banf_translate_test.py` | 3 | tests that need an `OpcodeCall` use a param operand |
-| `docs/notes.md` | 1–5 | module table and opcode sections (`opcodes.py`); "Heads" (`FIELDS`), the `reduce` list, "Opcodes are not run", "Monomorphic" |
+| `bruijn.py` | 2 | the opcode rules (D), with `field_blockers` |
+| `banf_shape.py` | — | none: blockers come from plan_struct_pack step 1 |
+| `opcodes_test.py` or `llvm_translate_test.py` | 2 | fold vs LLVM JIT, per template and width |
+| `banf_translate_test.py` | 2 | tests that need an `OpcodeCall` use a param operand |
+| `docs/notes.md` | 1–4 | module table and opcode sections (`opcodes.py`); the `reduce` list, "Opcodes are not run", "Monomorphic" |
 | `docs/plan_memory.md`, `docs/plan_struct_pack.md` | 1 | `banf_opcodes` → `opcodes` where they name it |
 
 ---
@@ -225,25 +202,16 @@ Each step is one commit and leaves `hatch run full-check` green. Each step updat
 
 Commit: `oymomo: move opcode signatures to opcodes.py`
 
-### Step 2: a built-in rule can be strict in its fields
+### Step 2: fold `add sub mul and or xor`
 
-- `bruijn.py`: `Strictness`; `$fix` is `NONE`. `banf_reduce.py`: B.
-- Tests in `banf_reduce_test.py`, with a test-only `FIELDS` rule (monkeypatched
-  `bruijn.BUILTIN_RULES`), such as `$both {a = x, b = y}` giving `{x, y}` once both
-  fields are byte arrays:
-  - `$both {a = (i -> i) [01], b = {c = [02]}.c}` reduces both fields, then fires.
-  - `$both {a = e, b = (i -> i) [02]}` reduces `b` and stays (`e` is free).
-  - An `ARGUMENT` rule still doesn't reduce fields; `$fix g` still doesn't reduce `g`.
-
-Commit: `oymomo: a built-in rule can be strict in its fields`
-
-### Step 3: fold `add sub mul and or xor`
-
+- Needs plan_struct_pack step 1 (`field_blockers`).
 - `opcodes.py`: `evaluate` for these templates. `bruijn.py`: D.
 - Tests:
   - `reduce`: the goal's `$add_i32`, with forms and bare; wrapping (`$add_i8` of `ff`
     and `01` is `00`); a wrong form or byte count is stuck, a run-time operand is
     stuck, wrong labels are stuck.
+  - `reduce_until_top_stable`: `$add_i32 {a = (x -> x) [01000000]: 'i32', b = …}`
+    reduces the field, then folds.
   - `banf_translate`: a folded let disappears; a bare-literal `$add_i32` is accepted
     and folds; `$add_i8 {a = [01]: 'i32', b = ...}` still gives
     `$add_i8 expects a: i8, got i32.`
@@ -252,7 +220,7 @@ Commit: `oymomo: a built-in rule can be strict in its fields`
 
 Commit: `oymomo: fold add, sub, mul, and, or, xor on literals`
 
-### Step 4: fold division and shifts
+### Step 3: fold division and shifts
 
 - `opcodes.py`: `sdiv udiv srem urem shl lshr ashr`, with decision 5's guards.
 - Tests: each guard is stuck (divisor 0, signed minimum by -1, shift by `N` and more);
@@ -260,7 +228,7 @@ Commit: `oymomo: fold add, sub, mul, and, or, xor on literals`
 
 Commit: `oymomo: fold division and shifts`
 
-### Step 5: fold comparisons and conversions
+### Step 4: fold comparisons and conversions
 
 - `opcodes.py`: `eq ne slt sle sgt sge ult ule ugt uge`, `zext sext trunc`.
 - Tests: the goal's `$eq_i8` and `$zext_i8_i32`; `sext` of `ff` to `i32` is
