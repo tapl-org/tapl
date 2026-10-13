@@ -30,7 +30,11 @@ A language `<L>` whose programs:
    layer 0 is what runs, layer 1 is the type checker, and it is real code;
 2. lower **each layer to its own oymomo program**, then to BANF, LLVM IR and machine code;
 3. **call C and are called by C** with no glue code: same ABI, same symbols, same
-   memory layout, and C headers usable directly.
+   memory layout, and C headers usable directly;
+4. can **replace a single library or file in a C stack**, without rewriting any code
+   above it (its callers) or below it (what it calls): the `<L>` version exports the same
+   symbols, ABI and struct layouts, uses the same header, and links as the same `.o`,
+   `.a` or `.so`.
 
 ```mermaid
 flowchart LR
