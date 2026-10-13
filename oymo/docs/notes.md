@@ -1268,7 +1268,7 @@ Some roots become a redex only after their **head** is reduced: in `$fix g a`,
   in `{a = x} ((y -> y) [00])` the index must become a byte array first.
 - An argument is reduced only when the callee is a struct or a strict built-in, so
   ordinary applications stay lazy: `f ((x -> x) a)` keeps its argument.
-- A strict rule reads its argument, so in `$unpack ((x -> x) {...})` the argument
+- A strict rule reads its argument, so in `$struct_to_fields ((x -> x) {...})` the argument
   is reduced to a struct before the rule fires. `banf_reduce` reads the flag on the
   rule, so a new built-in needs no change here. `$fix` is not strict.
 

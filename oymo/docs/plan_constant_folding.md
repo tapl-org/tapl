@@ -109,10 +109,10 @@ is the jump `f.a {}`.
    and only once its argument is a struct. `bruijn.reduce` itself stays root-only: the
    rule only checks that the fields are already literals.
 
-   Only these three values, for now. `$pack` needs a deeper, data-dependent shape (a
+   Only these three values, for now. `$fields_to_struct` needs a deeper, data-dependent shape (a
    list's spine); whether that becomes a fourth value or a rule-supplied list of the
    positions it reads is left to [plan_struct_pack.md](plan_struct_pack.md) open
-   question 4. If it picks the latter, `Strictness` is replaced there.
+   question 3. If it picks the latter, `Strictness` is replaced there.
 9. **BANF output changes where operands are literals.** A let whose value folds is no
    longer an op, so `banf_reduce` beta-reduces it and the constant is substituted
    (notes: "a let whose value isn't an op is beta-reduced"). Lets disappear, and an `if`
