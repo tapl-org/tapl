@@ -161,12 +161,53 @@ None: no word becomes reserved, and no term changes.
 > 3. **Invalid labels in `$pack`** (bytes that aren't UTF-8) are stuck (decision 6). Should
 >    they be allowed, since a struct built by `$pack` never goes through the parser? An empty
 >    label is valid: it is an unlabeled field (plan_struct_apply decision 1).
-> 4. **How `$pack` asks for its spine.** `BuiltinRule.strict` only reduces the argument.
->    [plan_constant_folding.md](plan_constant_folding.md) turns it into a `Strictness`
->    with a `FIELDS` value; `$pack` needs more (the spine). Options: a `SPINE` value that
->    `banf_reduce` knows; or a rule-supplied function giving the positions it reads, so
->    `banf_reduce` stays generic. Until then, adding `$pack` changes `banf_reduce`, so
->    plan_builtin's "two table entries, no other module" holds only for `$unpack`.
+> 4. **How `$pack` asks for its spine.** `bruijn.reduce` is root-only, so `banf_reduce`
+>    must put in whnf every position a rule reads before it fires.
+>    [plan_constant_folding.md](plan_constant_folding.md) (decision 8) makes `strict` a
+>    `Strictness` of `NONE`, `ARGUMENT`, `FIELDS`, and leaves the general case to this
+>    plan. `$pack` needs an unbounded, data-dependent shape: whether `rest` is read
+>    depends on the value of `more`:
+>    ```
+>    $pack {more = (x -> x) [01], label = l, value = v, rest = f {}}
+>           ^ whnf first, then: [01], so label and rest too; then rest.more, ...
+>    ```
+>    *Option A: a fourth value, `SPINE`.* `banf_reduce` gets a case for it, which knows
+>    the node labels (`more`, `label`, `rest`).
+>    - Simple; each shape is visible in one table.
+>    - Every new shape changes `banf_reduce`, so plan_builtin's "two table entries, no
+>      other module" holds only for shapes that exist; the node labels are written in
+>      two modules.
+>
+>    *Option B: the rule lists the positions it reads.* `Strictness` is replaced by
+>    `reads(argument) -> Iterator[Path]`, a `Path` being field indices from the argument
+>    (`()` is the argument, `(1, 0)` is field 0 of field 1). It is called on the argument
+>    as reduced so far, so it can stop or go on by what it sees; `step` whnf's the first
+>    yielded position that `whnf` changes.
+>    ```python
+>    def reads_nothing(argument):          # $fix
+>        return iter(())
+>
+>    def reads_argument(argument):         # $unpack
+>        yield ()
+>
+>    def reads_fields(argument):           # opcodes
+>        yield ()
+>        if isinstance(argument, terms.Struct):
+>            yield from ((i,) for i in range(len(argument.fields)))
+>
+>    def reads_spine(argument, path=()):   # $pack, next to _pack
+>        yield path
+>        node = at(argument, path)
+>        if isinstance(node, terms.Struct) and (more := index_of(node, 'more')) is not None:
+>            yield path + (more,)
+>            if index_value(node.fields[more].value) == 1:
+>                yield path + (index_of(node, 'label'),)
+>                yield from reads_spine(argument, path + (index_of(node, 'rest'),))
+>    ```
+>    - `banf_reduce` gets one generic case and never changes for a new built-in; a
+>      rule's reading shape sits next to the rule.
+>    - More machinery; re-walking from the root each step is O(n²) for an n-node list,
+>      fine at today's sizes. Replaces constant folding's `Strictness`.
 
 ---
 
