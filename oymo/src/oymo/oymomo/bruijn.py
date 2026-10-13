@@ -115,13 +115,11 @@ class BuiltinRule:
     """How `reduce` steps `$name arg`.
 
     `rule(call, arg)` gets the whole call and its argument, and returns the result, or
-    None if the call doesn't reduce (yet). A `strict` rule needs its argument in whnf
-    first; `needs` says what that argument must reduce to, for the error when it doesn't
-    (`'a struct'`).
+    None if the call doesn't reduce (yet). `needs` says what the argument must reduce to,
+    for the error when it doesn't (`'a struct'`).
     """
 
     name: str
-    strict: bool
     needs: str | None
     rule: Callable[[syntax.Term, syntax.Term], syntax.Term | None]
 
@@ -133,7 +131,7 @@ def _fix(call: syntax.Term, function: syntax.Term) -> syntax.Term:
 
 # Reduction rules, by built-in name. A built-in with a rule and no opcode
 # (`banf_opcodes.OPCODES`) is kernel-only: it must reduce away before BANF.
-BUILTIN_RULES: dict[str, BuiltinRule] = {rule.name: rule for rule in (BuiltinRule('fix', False, None, _fix),)}
+BUILTIN_RULES: dict[str, BuiltinRule] = {rule.name: rule for rule in (BuiltinRule('fix', None, _fix),)}
 
 
 def project(term: terms.Project) -> syntax.Term | None:

@@ -2,7 +2,7 @@
 
 The rules implemented by [`bruijn.reduce`](../src/oymo/oymomo/bruijn.py) (computation)
 and [`banf_reduce.step`](../src/oymo/oymomo/banf_reduce.py) (congruence), in the style of
-TAPL. See [notes.md › Heads](notes.md#heads) for the prose version.
+TAPL. See [notes.md › Blockers](notes.md#blockers) for the prose version.
 
 ## Syntax
 
@@ -21,10 +21,10 @@ t ::=                                   terms
 
 Forms are terms. Below, `F` and `G` are metavariables for terms used as forms.
 
-## Weak head normal forms
+## Where `reduce_until_top_stable` stops
 
 Evaluation is **weak** (never under `λ`) and **lazy** (an ordinary argument is never
-reduced). `whnf` stops at:
+reduced). `reduce_until_top_stable` stops at:
 
 ```
 w ::=   λx:t. t  |  {l1 = t1, ...}  |  [b]  |  x  |  $name  |  t -> t  |  stuck terms
@@ -57,22 +57,18 @@ is not a byte array.
 
 `le(b)` reads `b` as an unsigned little-endian integer.
 
-### Congruence (reduce the head)
+### Congruence (reduce the blocker)
 
 These apply only when no computation rule applies at the root.
 
 ```
-                 t1 → t1'      t1 is not a struct    t1 t2 is not a strict built-in call
+                       t1 → t1'      t1 is not a struct
    ─────────────────────────────────────────────────────                 (E-App1)
                         t1 t2  →  t1' t2
 
                               t2 → t2'
    ─────────────────────────────────────────────────────                 (E-SelectArg)
                 {f1 = t1, ...} t2  →  {f1 = t1, ...} t2'
-
-                 t2 → t2'      $name is strict
-   ─────────────────────────────────────────────────────                 (E-Strict)
-                     $name t2  →  $name t2'
 
                                t → t'
    ─────────────────────────────────────────────────────                 (E-Proj1)
@@ -84,12 +80,12 @@ These apply only when no computation rule applies at the root.
 ```
 
 There are no rules for `λx:F. t`, struct fields, ordinary arguments, or forms: those
-positions are never reduced by `→`. `$fix` is not strict, so `$fix t` never reduces `t`.
+positions are never reduced by `→`. So `$fix t` never reduces `t`, nor does any `$name t`.
 
 ## Under binders: `shape`
 
 [`banf_reduce.shape`](../src/oymo/oymomo/banf_reduce.py) is the only place that goes under
-a `λ` or into a struct field, and only along BANF's skeleton. Writing `⇓` for `whnf`:
+a `λ` or into a struct field, and only along BANF's skeleton. Writing `⇓` for `reduce_until_top_stable`:
 
 ```
    module position:   t ⇓ λm. b        ⟹  shape t = λm. body(b)

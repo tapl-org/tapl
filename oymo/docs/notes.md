@@ -16,7 +16,7 @@ New here? Read these sections in order:
 3. [Programs](#programs): what a whole program must look like.
 4. [How to…](#how-to): run the tests and make common changes.
 
-The [Glossary](#glossary) at the end defines words like *form*, *BANF*, *atom* or *whnf*.
+The [Glossary](#glossary) at the end defines words like *form*, *BANF*, *atom* or *blocker*.
 
 ## Find an answer
 
@@ -747,7 +747,7 @@ a form can come from a variable:
 - A byte array is only its bytes: `[01]: 'i8'` is `Formed(ByteArray([01]), 'i8')`,
   just as `y: 'i8'` is `Formed(y, 'i8')`. Every `:` that isn't on a binder is one
   term with one meaning, and beta reduction alone gives a dynamic form.
-- `Formed` itself never reduces. `whnf` reduces inside `Formed.term`, and a struct
+- `Formed` itself never reduces. `reduce_until_top_stable` reduces inside `Formed.term`, and a struct
   apply (so an `if`) sees through a form on its index.
 - Precedence: [oymomo syntax › Precedence](#precedence). Design history:
   [plan_annotation.md](plan_annotation.md).
@@ -778,7 +778,7 @@ A name can appear in two tables:
 
 | Table | File | Gives |
 |---|---|---|
-| `BUILTIN_RULES` (`BuiltinRule(name, strict, needs, rule)`) | [`bruijn.py`](../src/oymo/oymomo/bruijn.py) | a reduction rule |
+| `BUILTIN_RULES` (`BuiltinRule(name, needs, rule)`) | [`bruijn.py`](../src/oymo/oymomo/bruijn.py) | a reduction rule |
 | `OPCODES` / `DEFAULT_OPCODES` | [`banf_opcodes.py`](../src/oymo/oymomo/banf_opcodes.py) / [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) | machine code (an **opcode**) |
 
 | Name | Rule | Opcode |
@@ -788,8 +788,8 @@ A name can appear in two tables:
 
 - A built-in with a rule and no opcode is **kernel-only**. This follows from the
   tables, with no flag to keep in sync. Reduction must remove it.
-- A **strict** rule needs its argument reduced first (to `needs`, e.g.
-  `'a struct'`). `$fix` is not strict: `$fix g` unfolds without reducing `g`.
+- `needs` says what a rule's argument must reduce to (e.g. `'a struct'`), for the
+  error when it doesn't. `$fix g` unfolds without reducing `g`.
 - `convert` is the only gate into BANF: `$name arg` becomes an `OpcodeCall` only if
   `name` is in `OPCODES`. Leftovers are errors: see
   [Error messages › Built-ins](#built-ins-1).
@@ -824,9 +824,9 @@ Not redexes:
 
 Properties:
 - **Only the root.** Arguments, lambda bodies, struct fields and `if` arms are not
-  touched, nor is a head that isn't a redex yet (`$fix g a`, `{p = {a = e}}.p.a`).
+  touched, nor is a blocker that isn't reduced yet (`$fix g a`, `{p = {a = e}}.p.a`).
   [`banf_reduce`](#2-banf_reduceshape-reduce-until-each-position-has-its-shape)
-  reduces heads.
+  reduces blockers.
 - **At most one rule applies**, so order doesn't matter: beta needs a `Lambda`
   callee, struct apply a `Struct`, a built-in rule a `Builtin`.
 - **Never raises, never recurses.** Loops come from calling it repeatedly, so the
@@ -888,7 +888,7 @@ Rules:
 - A definition must fit its declaration: `=> R` needs `blocks -> {...}`; a data
   declaration needs a byte array ("'answer' is declared as data, so its definition
   must be a byte array.").
-- The body field is taken to whnf, so `answer = (x -> x) [2a]` is fine. A data
+- The body field is reduced with `reduce_until_top_stable`, so `answer = (x -> x) [2a]` is fine. A data
   definition's form is the declared one; a form written on the byte array
   (`[2a]: 'i16'`) is dropped.
 - Every parameter list is written **once**: a defined function's only in its entry
@@ -1249,15 +1249,14 @@ until it has one, then its own positions are visited. Forms and binder kinds are
 checked here (except `args`, through `k`); `convert` does that, so this pass needs
 no context.
 
-##### Heads
+##### Blockers
 
-Some roots become a redex only after their **head** is reduced: in `$fix g a`,
-`$fix g` must unfold to a lambda first.
+Some roots become a redex only after one part, their **blocker**, is reduced: in
+`$fix g a`, `$fix g` must unfold to a lambda first.
 
-| Term | Head |
+| Term | Blocker |
 |---|---|
 | `{...} i` (callee already a struct) | `i` |
-| `$name a`, with `name`'s rule strict | `a` |
 | `f a`, otherwise (including `$fix g`) | `f` |
 | `s.l` | `s` |
 | `if c then ...`, which is `{e, t} c` | `c` |
@@ -1266,30 +1265,28 @@ Some roots become a redex only after their **head** is reduced: in `$fix g a`,
 
 - So `step` reduces an apply's callee to a struct, then the index, then the root:
   in `{a = x} ((y -> y) [00])` the index must become a byte array first.
-- An argument is reduced only when the callee is a struct or a strict built-in, so
-  ordinary applications stay lazy: `f ((x -> x) a)` keeps its argument.
-- A strict rule reads its argument, so in `$struct_to_fields ((x -> x) {...})` the argument
-  is reduced to a struct before the rule fires. `banf_reduce` reads the flag on the
-  rule, so a new built-in needs no change here. `$fix` is not strict.
+- An argument is reduced only when the callee is a struct, so ordinary applications
+  stay lazy: `f ((x -> x) a)` keeps its argument. `$fix g` unfolds without reducing `g`.
 
 ```
-step(t) = reduce(t)        if reduce(t) is not t                        -- a step at the root
-        = t with head h'   if t has a head h, and h' = whnf(h) is not h   -- else reduce the head
-        = t                otherwise
+step(t) = reduce(t)           if reduce(t) is not t                  -- fire the rule at the root
+        = t with blocker b'   if t has a blocker b, and              -- else unblock
+                              b' = reduce_until_top_stable(b) is not b
+        = t                   otherwise
 
-whnf(t) = whnf(step(t))    if step(t) is not t
-        = t                otherwise
+reduce_until_top_stable(t) = reduce_until_top_stable(step(t))    if step(t) is not t
+                           = t                                    otherwise
 ```
 
-`whnf` stops at every Lambda, Struct, ByteArray, BruijnIndex and Builtin, and at
-stuck terms such as `$add_i32 {...}`, `args.n`, `blocks.done {...}` or
+`reduce_until_top_stable` stops at every Lambda, Struct, ByteArray, BruijnIndex and
+Builtin, and at stuck terms such as `$add_i32 {...}`, `args.n`, `blocks.done {...}` or
 `if t0 then a else b`.
 
-- "Reduce `t` until it is X" means take `whnf(t)`, *then* look at its constructor.
-  Looking first is wrong: `{f = x -> ...}.f args.n` is already an apply, but its
-  callee must be reduced before it is a call such as `$add_i32 {...}`.
+- "Reduce `t` until it is X" means take `reduce_until_top_stable(t)`, *then* look at its
+  constructor. Looking first is wrong: `{f = x -> ...}.f args.n` is already an apply,
+  but its callee must be reduced before it is a call such as `$add_i32 {...}`.
 - A position that already has a wanted constructor isn't reduced further, since
-  `whnf` stops there. So a let-bound struct stays a `MakeStruct`.
+  `reduce_until_top_stable` stops there. So a let-bound struct stays a `MakeStruct`.
 
 ##### Positions
 
@@ -1310,17 +1307,17 @@ As numbered in [`banf_reduce.py`](../src/oymo/oymomo/banf_reduce.py):
                | {<jump>, <jump>} <atom>                    -- branch: if <atom> then ... else ...
    ```
    `k` counts the lets since the block's `args` binder, so `args` is `$k`; it tells
-   `args.label` from other projections. A let isn't reduced with `whnf`, since it is
+   `args.label` from other projections. A let isn't reduced with `reduce_until_top_stable`, since it is
    a redex that must be kept. Repeat:
-   1. For a let `(x -> rest) <value>`, take `whnf(<value>)`. If it is an op (an
+   1. For a let `(x -> rest) <value>`, take `reduce_until_top_stable(<value>)`. If it is an op (an
       apply, a struct, or a projection other than `args.label`), keep the let, visit
       the op (7), and go on with `rest`. Otherwise beta-reduce the let and go on.
    2. Else, if `step` changes the body, go on with that. This can make a let: in
-      `(x -> y -> rest) a b` the head reduces and leaves `(y -> rest') b`.
+      `(x -> y -> rest) a b` the blocker reduces and leaves `(y -> rest') b`.
    3. Else visit the terminal's positions and stop.
 7. `<value>`, a let's op: an apply's `<op_arg>` becomes a struct of atoms or a
    BruijnIndex (forwarding `args`); a struct's fields become atoms; a projection's
-   struct is a head, already reduced.
+   struct is a blocker, already reduced.
 8. `<jump>`, a branch arm (a field of `{e, t} c`): until `blocks.label <op_arg>`.
 9. `<atom>`: until a ByteArray, `$i` with `i < k`, or `args.n`. `args` itself is not
    an atom: BANF passes a block's params one by one.
@@ -1664,13 +1661,13 @@ gives the same BANF), and checks the shaped output compiles to the same BANF.
 
 1. In [`bruijn.py`](../src/oymo/oymomo/bruijn.py), write
    `rule(call, arg) -> Term | None` (return `None` when it doesn't fire yet) and add
-   `BuiltinRule(name, strict, needs, rule)` to `BUILTIN_RULES`.
-   - `strict=True` if the rule reads its argument (`banf_reduce` will reduce the
-     argument first); `needs` names what it must reduce to (`'a struct'`), for the
+   `BuiltinRule(name, needs, rule)` to `BUILTIN_RULES`.
+   - `needs` names what the argument must reduce to (`'a struct'`), for the
      error message.
-2. Nothing else needs to change: the parser accepts any `$name`, `banf_reduce` reads
-   `strict`, and `convert` rejects a leftover kernel-only built-in with a message
-   built from `needs`.
+   - `banf_reduce` doesn't reduce a built-in's argument. A rule that must read its
+     argument reduced needs a new blocker case in `banf_reduce.unblock`.
+2. The parser accepts any `$name`, and `convert` rejects a leftover kernel-only
+   built-in with a message built from `needs`.
 3. Add tests in `bruijn_test.py` and `banf_reduce_test.py`; update
    [The kernel › Built-ins](#built-ins).
 
@@ -2011,6 +2008,7 @@ Words used across the docs, in alphabetical order. Code names are in `code`.
 | **atom** | A BANF operand: a constant (`[01]: 'i8'`), a let name, or `args.label`, optionally with a form. | [Translation](#what-the-shape-is) |
 | **BANF** | *Block-based ANF*. The first-order IR between oymomo and LLVM: SSA with block params instead of phi nodes. | [BANF](#banf) |
 | **beta** | The reduction `(x -> body) e` → `body` with `e` put in for `x`. | [The kernel](#reduce-one-step-at-the-root) |
+| **blocker** | The part of a term that must reduce before the term can: an apply's callee, a projection's struct, an `if`'s condition… | [Translation](#blockers) |
 | **binder** | Anything that introduces a name: a lambda param or a let. | |
 | **block** | A BANF basic block: params, lets, one terminator. In oymomo, a lambda `args: {...} -> ...` in a function's struct. | [BANF](#blocks) |
 | **blocks** | Fixed name of a function's self-binder after renaming; `blocks.then0 {}` jumps to block `then0`. | [Programs](#functions-are-structs-of-blocks) |
@@ -2023,7 +2021,6 @@ Words used across the docs, in alphabetical order. Code names are in `code`.
 | **Formed** | The term `e: F`, "`e` formed as `F`". | [The kernel](#formed-any-term-with-a-form) |
 | **function form** | `P => R`, the form of a function. `FunctionForm` term. | [oymomo syntax](#function-forms) |
 | **golden test** | `tests/goldens/name.oymo` compiled and compared to approved `.shaped.oymo`, `.banf` and `.ll` files. | [How to…](#add-a-golden-test) |
-| **head** | The part of a term that must reduce before the term can: an apply's callee, a projection's struct, an `if`'s condition… | [Translation](#heads) |
 | **kernel-only** | A built-in with a reduction rule but no opcode (`$fix`). Must reduce away before BANF. | [The kernel](#built-ins) |
 | **label** | A struct field's name. Optional (`''` = none), may repeat. | [oymomo syntax](#structs) |
 | **layout** | The physical memory representation (`{ i32, i32 }` in LLVM). Belongs to the backend. | [Overview](#type-form-layout) |
@@ -2035,10 +2032,10 @@ Words used across the docs, in alphabetical order. Code names are in `code`.
 | **position** | A place in the program that wants a certain shape (a lambda, a struct, an atom…). | [Translation](#positions) |
 | **project** | `s.x`: pick a field by label. `Project` term. | [oymomo syntax](#projection-and-struct-apply) |
 | **redex** | A term that can take a reduction step at its root. | [The kernel](#reduce-one-step-at-the-root) |
+| **reduce_until_top_stable** | Fire the root rule or reduce the blocker, until neither changes the term. Its top constructor then can't change. | [Translation](#blockers) |
 | **shape / shaped term** | An oymomo term reduced until every position looks like BANF. Output of `banf_translate.shape`. | [Translation](#translation-oymomo--banf--llvm) |
 | **struct** | `{x = e, y = e}`: ordered fields. Also used as struct forms. | [oymomo syntax](#structs) |
 | **struct apply** | `s [01]`: pick a field by position. | [oymomo syntax](#projection-and-struct-apply) |
 | **symbol** | An LLVM global (`@fact`, `@putchar`, `@errno`). One per `module` declaration. | [Programs](#symbols) |
 | **terminator** | The last instruction of a block: `return`, `jump`, `branch`. | [BANF](#blocks) |
 | **type** | Program-level meaning. Belongs to higher layers; the kernel has none. | [Overview](#type-form-layout) |
-| **whnf** | *Weak head normal form*: reduce the root and its head until neither can step. | [Translation](#heads) |

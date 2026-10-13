@@ -30,46 +30,21 @@ def resolved(source, free):
     return term
 
 
-def test_whnf_reduces_heads():
+def test_reduce_until_top_stable():
     free = ('a', 'e')
-    assert show(banf_reduce.whnf(resolved('{p = {a = e}}.p.a', free))) == show(resolved('e', free))
-    assert show(banf_reduce.whnf(resolved('$fix (self -> n -> n) a', free))) == show(resolved('a', free))
+    assert show(banf_reduce.reduce_until_top_stable(resolved('{p = {a = e}}.p.a', free))) == show(resolved('e', free))
+    assert show(banf_reduce.reduce_until_top_stable(resolved('$fix (self -> n -> n) a', free))) == show(
+        resolved('a', free)
+    )
 
 
-def _first(_call, argument):
-    """A test-only strict rule: `$first s` is the first field of the struct `s`."""
-    if isinstance(argument, terms.Struct) and argument.fields:
-        return argument.fields[0].value
-    return None
-
-
-@pytest.fixture
-def first_rule(monkeypatch):
-    monkeypatch.setitem(bruijn.BUILTIN_RULES, 'first', bruijn.BuiltinRule('first', True, 'a struct', _first))
-
-
-@pytest.mark.usefixtures('first_rule')
-def test_a_strict_builtin_reduces_its_argument_first():
-    # The argument is reduced to a struct, then the rule fires.
-    assert show(banf_reduce.whnf(resolved("$first ((x -> x) {a = '1'})", ()))) == "'1'"
-    assert show(banf_reduce.whnf(resolved("$first ({s = {'1', '2'}}.s)", ()))) == "'1'"
-
-
-@pytest.mark.usefixtures('first_rule')
-def test_a_strict_builtin_on_a_stuck_argument_is_unchanged():
-    term = resolved('$first e', ('e',))
-    assert banf_reduce.whnf(term) is term
-    term = resolved('$first args.p', ('args',))
-    assert banf_reduce.whnf(term) is term
-
-
-def test_fix_is_not_strict():
+def test_fix_does_not_reduce_its_argument():
     # `$fix g` unfolds without reducing `g`.
     term = resolved('$fix ((x -> x) g)', ('g',))
     assert show(banf_reduce.step(term)) == show(resolved('(x -> x) g ($fix ((x -> x) g))', ('g',)))
 
 
-def test_step_reduces_the_root_or_else_the_head():
+def test_step_fires_the_root_rule_or_else_unblocks():
     free = ('e',)
     assert show(banf_reduce.step(resolved('{p = {a = e}}.p.a', free))) == show(resolved('{a = e}.a', free))
     term = resolved('e.a', free)
@@ -89,8 +64,8 @@ def test_step_reduces_the_root_or_else_the_head():
         ("(s -> s [01] '7') {x -> '1', x -> x}", "'7'"),
     ],
 )
-def test_whnf_reduces_a_struct_apply(source, expected):
-    assert show(banf_reduce.whnf(resolved(source, ()))) == show(resolved(expected, ()))
+def test_reduce_until_top_stable_reduces_a_struct_apply(source, expected):
+    assert show(banf_reduce.reduce_until_top_stable(resolved(source, ()))) == show(resolved(expected, ()))
 
 
 @pytest.mark.parametrize(
@@ -102,9 +77,9 @@ def test_whnf_reduces_a_struct_apply(source, expected):
         'f ((x -> x) [00])',
     ],
 )
-def test_whnf_leaves_a_struct_apply_or_an_argument(source):
+def test_reduce_until_top_stable_leaves_a_struct_apply_or_an_argument(source):
     term = resolved(source, ('f',))
-    assert banf_reduce.whnf(term) is term
+    assert banf_reduce.reduce_until_top_stable(term) is term
 
 
 @pytest.mark.parametrize(
@@ -257,15 +232,15 @@ def test_runs_out_of_fuel():
         banf_reduce.shape(term, fuel=100)
 
 
-def test_whnf_reduces_inside_formed():
+def test_reduce_until_top_stable_reduces_inside_formed():
     i1 = terms.ByteArray(b'i1')
     one = terms.ByteArray(b'\x01')
     identity = terms.Lambda('x', terms.Empty, terms.BruijnIndex(0))
-    reduced = banf_reduce.whnf(terms.Formed(terms.Apply(identity, one), i1))
+    reduced = banf_reduce.reduce_until_top_stable(terms.Formed(terms.Apply(identity, one), i1))
     assert reduced == terms.Formed(one, i1)
 
 
 def test_dynamic_byte_array_form():
-    reduced = banf_reduce.whnf(bruijn.resolve(parse("(x -> y -> y: x) 'i1' [01]")))
+    reduced = banf_reduce.reduce_until_top_stable(bruijn.resolve(parse("(x -> y -> y: x) 'i1' [01]")))
     assert reduced == parse("[01]:'i1'")
     assert show(reduced) == "[01]:'i1'"
