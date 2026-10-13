@@ -4,8 +4,8 @@ Status: **proposed**, with open questions; 0 of 9 phases.
 
 This is a roadmap, not a single design change: each phase below is **one or more plans
 of its own** (`plan_<name>.md`), and each of those has steps of one commit each. A phase
-is checked off when all its plans are closed. Working name of the language: **`<L>`**
-(choosing it is step 0.1). It lives in `src/oymo/<l>/`, beside `oymomo/`.
+is checked off when all its plans are closed. The language is called **Anvil**
+(step 0.1). It lives in `src/oymo/anvil/`, beside `oymomo/`.
 
 ## Steps
 
@@ -13,18 +13,18 @@ is checked off when all its plans are closed. Working name of the language: **`<
 - [ ] 1. oymomo kernel gaps for C ([Phase 1](#phase-1--oymomo-kernel-gaps-for-c))
 - [ ] 2. Toolchain: from oymomo to a running binary ([Phase 2](#phase-2--toolchain-from-oymomo-to-a-running-binary))
 - [ ] 3. C ABI lowering in `llvm_abi.py` ([Phase 3](#phase-3--c-abi-lowering-llvm_abipy))
-- [ ] 4. `<L>` frontend, layer 0 only ([Phase 4](#phase-4--l-frontend-layer-0-only))
+- [ ] 4. Anvil frontend, layer 0 only ([Phase 4](#phase-4--anvil-frontend-layer-0-only))
 - [ ] 5. Layer 1: the type checker as code ([Phase 5](#phase-5--layer-1-the-type-checker-as-code))
 - [ ] 6. Import C headers ([Phase 6](#phase-6--import-c-headers))
 - [ ] 7. Called from C ([Phase 7](#phase-7--called-from-c))
 - [ ] 8. Later: separate compilation, debug info, more targets ([Phase 8](#phase-8--later))
 
 Suggested start: Phase 0, then 1.1 + 1.2 + Phase 2. That gives an oymomo program calling
-`puts` as a real binary, before any `<L>` syntax exists.
+`puts` as a real binary, before any Anvil syntax exists.
 
 ## Goal
 
-A language `<L>` whose programs:
+Anvil is a language whose programs:
 
 1. are written in one source file with **two layers**, as TAPL does for Python:
    layer 0 is what runs, layer 1 is the type checker, and it is real code;
@@ -32,13 +32,13 @@ A language `<L>` whose programs:
 3. **call C and are called by C** with no glue code: same ABI, same symbols, same
    memory layout, and C headers usable directly;
 4. can **replace a single library or file in a C stack**, without rewriting any code
-   above it (its callers) or below it (what it calls): the `<L>` version exports the same
+   above it (its callers) or below it (what it calls): the Anvil version exports the same
    symbols, ABI and struct layouts, uses the same header, and links as the same `.o`,
    `.a` or `.so`.
 
 ```mermaid
 flowchart LR
-  src["a.L source"] --> parse["PEG parser"] --> tree["syntax tree"]
+  src["Anvil source"] --> parse["PEG parser"] --> tree["syntax tree"]
   tree --> sep["LayerSeparator"]
   sep --> l0["layer 0 term"] --> o0["oymomo program 0"]
   sep --> l1["layer 1 term"] --> o1["oymomo program 1"]
@@ -65,7 +65,7 @@ it finishes without error, layer 0 type-checks. This mirrors TAPL's `a1.py`.
 | — | Varargs calls (`printf`) |
 | LLVM IR text | Object files, linking, a driver CLI |
 | `data_layout=''` | A real target triple and data layout (sizes of `int`, `long`, pointers) |
-| PEG engine ([peg.py](../src/oymo/core/peg.py)) | `<L>` grammar, layer separation, lowering to oymomo |
+| PEG engine ([peg.py](../src/oymo/core/peg.py)) | Anvil grammar, layer separation, lowering to oymomo |
 
 ## How other languages interoperate with C
 
@@ -106,9 +106,7 @@ target-independent (see [notes.md › BANF does not depend on LLVM](notes.md#ban
 Each decision is written down in this file (or a plan of its own) before Phase 4 starts.
 Phases 1–3 don't depend on them.
 
-**0.1 Name and file extension.** Criteria: short, pronounceable, not taken by a known
-language or tool, a free file extension, and ideally says "two layers" or "C". Ideas so
-far: *Twain* (`.twn`, "two"), *Lamina* (`.lam`, "layer"), *Tapc* (`.tapc`, TAPL for C).
+**0.1 Name and file extension.** Name: **Anvil** (decided). File extension: open.
 
 **0.2 Syntax.** The main choice:
 - A: C/Zig-like braces. Familiar to C users; C declarations map almost word for word.
@@ -159,7 +157,7 @@ pointers pass freely to C.
 Fallback if 2 is too costly at first: reject by-value structs at the C boundary (pass a
 `'ptr'`), and say so in the error message.
 
-### Phase 4 — `<L>` frontend, layer 0 only
+### Phase 4 — Anvil frontend, layer 0 only
 
 - Grammar on the PEG engine; syntax tree classes with `separate()`, as in TAPL.
 - Lower layer 0 to an oymomo program (the `module -> {...}` shape).
@@ -189,7 +187,7 @@ Fallback if 2 is too costly at first: reject by-value structs at the C boundary 
 
 - `export` functions with a C name, the C ABI and no mangling.
 - Generate a `.h` for the exported API (as `cbindgen` and `zig -femit-h` do).
-- **Milestone:** a C `main` calls `<L>` functions and passes callbacks in.
+- **Milestone:** a C `main` calls Anvil functions and passes callbacks in.
 
 ### Phase 8 — later
 
