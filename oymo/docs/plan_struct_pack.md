@@ -300,6 +300,16 @@ only code that builds rules sees.
 
 ---
 
+## Out of scope
+
+- **`needs` as a function.** `needs` stays a string. With blockers in place it could
+  become `(argument) -> str` and say which blocker was wrong, for example
+  "field `b` must reduce to a byte array". That can be a separate change.
+- **A cursor into `blockers`**, to avoid the O(n²) walk of decision 8. It can be added
+  later without changing the contract.
+
+---
+
 ## Implementation steps
 
 Each step is one commit and leaves `hatch run full-check` green. Each step updates
