@@ -1,6 +1,6 @@
 # Plan: mutable memory as linear regions: the `'mem'` form, load and store
 
-Status: **proposed**, with open questions; 0 of 5 steps.
+Status: **proposed**, with open questions; 0 of 6 steps.
 
 ## Steps
 
@@ -11,10 +11,12 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [ ] 3. Load and store fold on literal regions (`oymomo: fold load and store`)
 - [ ] 4. Module regions: a data symbol of form `'mem'` is a heap at a fixed symbol (`oymomo: add module regions`)
 - [ ] 5. Alias scopes: LLVM learns that regions never overlap (`oymomo: regions never alias`)
+- [ ] 6. `$after`: an identity the kernel can't see through orders effects (`oymomo: add $after`)
 
 Step 1 gives regions but nothing reads or writes them until step 2. Step 3 makes the
 kernel run memory ops on literals. Step 4 adds heaps that outlive a function call.
-Step 5 only adds metadata. No step is breaking.
+Step 5 only adds metadata. Step 6 doesn't depend on steps 1 to 5 and can land first:
+it orders calls to imports, which regions don't cover. No step is breaking.
 
 ## Goal
 
@@ -80,6 +82,22 @@ $store_i32 {mem = [00000000]: 'mem', offset = [0000000000000000]: 'i64', value =
     ⇒  [29000000]: 'mem'
 $load_i32 {mem = [29000000]: 'mem', offset = [0000000000000000]: 'i64'}
     ⇒  {mem = [29000000]: 'mem', value = [29000000]: 'i32'}
+```
+
+Step 6 adds one more thing: **a program can order effects that regions don't cover**,
+such as calls to imports. `$after {x, d1, ..., dn}` is `x`, but the kernel can't see
+that, so `x` waits for every `dᵢ` (decision 14), and `convert` drops it:
+
+```
+let q = module.putchar {c = [68000000]: 'i32'} in
+let r = module.putchar {c = $after {[69000000]: 'i32', q}} in
+r
+```
+
+```
+q = putchar [68000000]:i32
+r = putchar [69000000]:i32
+return r
 ```
 
 ## Decisions
@@ -230,6 +248,39 @@ $load_i32 {mem = [29000000]: 'mem', offset = [0000000000000000]: 'i64'}
     gives its size: `'heap' is a region, so it must be defined.` Alternatives are in
     open question 7.
 
+### Ordering effects (step 6)
+
+14. **`$after {x, d1, ..., dn}` is `x`, and the kernel can't see that.** Field 0 is
+    the value; the others are what it waits for. Fields are positional, and labels are
+    ignored, as in a branch. `after` has no rule and no opcode, so `reduce` never fires
+    on it (an unknown built-in is already not a redex): no kernel change. Since `x`
+    now uses every `dᵢ`, full β can't drop a `dᵢ`, and a let that uses `$after` comes
+    after every let it waits for:
+
+    ```
+    let q = module.putchar {c = [68000000]: 'i32'} in
+    let r = module.putchar {c = $after {[69000000]: 'i32', q}} in
+    r
+    ```
+
+    Without `$after`, nothing uses `q`, so full β drops the first call and the program
+    prints `i`. Regions order memory ops by themselves; `$after` orders what they
+    don't: calls to imports, and an op after a call
+    (`$store_i32 {mem = m, offset = $after {o, q}, value = v}`).
+15. **`$after` may be an operand.** With atoms as fields it is an atom: an op argument,
+    a jump argument, a branch condition, a return, or a let's value. This is the one
+    exception to [notes.md › Operands must be atoms](notes.md#operands-must-be-atoms),
+    because it stands for its field 0, which is an atom.
+16. **`convert` drops it.** `$after {x, ...}` becomes the atom `x`, and
+    `let c = $after {...}` binds no BANF let: `c` is an alias of `x`. So BANF, the
+    verifier, `form_of` and LLVM never see it, and it needs no form. After `convert`,
+    order is let order alone, which BANF keeps: no BANF pass reorders or removes a let,
+    and LLVM keeps calls to imports in order and never removes them.
+17. **Ordering is by hand and unchecked.** An effect that nothing uses, directly or
+    through `$after`, can still be dropped by full β; two effects with no chain between
+    them have no order; a call whose let is used twice can be copied. `$after` gives a
+    program a way to order effects, not a guarantee. A check is open question 9.
+
 ---
 
 ## Design
@@ -319,6 +370,19 @@ check's bookkeeping gives the origin) gets `!alias.scope` with `h`'s scope and
 `!noalias` with the other params' scopes. Allocas and globals need no metadata: LLVM
 already knows they don't alias each other or params.
 
+### H. `$after` (step 6)
+
+| Module | Change |
+|---|---|
+| `bruijn.py` | none: `after` is in neither `BUILTIN_RULES` nor `OPCODES`, and an unknown built-in is not a redex |
+| `banf_shape.py` | `atom`: for `$after {...}`, each field is reduced as an atom, so `$after {{a = q}.a, r}` reaches `$after {q, r}` |
+| `banf_translate.py` | `AFTER = 'after'`, checked before the opcode lookup in `op`; `_Translator.atom` reads `$after {x, d1, ..., dn}` as the atom of `x`, after checking `n ≥ 1` and that each `dᵢ` is an atom; `body` binds `let c = $after {...}` as an alias of that atom, not a `Let` |
+| `banf_terms.py`, `llvm_translate.py` | none |
+
+`_Block.binder` counts lets to resolve an index, so an alias still takes a binder
+slot: `_Block` keeps one entry per let binder, a `Let` it emitted or the atom it
+aliases, and `atom` returns the aliased atom for an alias.
+
 ---
 
 ## Breaking changes
@@ -326,7 +390,7 @@ already knows they don't alias each other or params.
 None. `'mem'` is a new named form, a byte array formed as `'mem'` had no meaning
 before, `load_*` and `store_*` are new opcode names, and the parser already accepts any
 `$name`. A function that uses no memory needs no region. Data symbols of other forms
-keep today's meaning.
+keep today's meaning. `$after` was an unknown built-in, an error in `convert`.
 
 ---
 
@@ -338,7 +402,9 @@ keep today's meaning.
 >    calls aren't. The fix in the same style is a token for everything outside the
 >    program (`'io'`, as GHC's `RealWorld`): every import takes and gives one, and
 >    `module.errno` reads through it. That is a plan of its own, and it decides
->    whether a C-visible global is a module region or part of the world.
+>    whether a C-visible global is a module region or part of the world. Step 6's
+>    `$after` lets a program order calls to imports by hand, unchecked; a token would
+>    check it.
 > 2. **C pointers.** A raw `'ptr'` and the bridge `$region {address: ptr, size: i64}`
 >    (make a region of C memory, unsafe) and `$address {mem} => ptr` (hand a region to
 >    C, consuming it) are where regions merge and the guarantees stop. They belong with
@@ -366,6 +432,12 @@ keep today's meaning.
 >    ([plan_c_interop.md](plan_c_interop.md) 1.6) an entry point can be re-entered
 >    through a callback, and (a) must be revisited then.
 > 8. **Names.** `'mem'` or `'region'`; `offset` or `at`; `load`, `store` follow LLVM.
+> 9. **Checking `$after`** (decision 17). `convert` could check, before it drops
+>    `$after`, that the effects of a block (calls to imports, and calls to functions
+>    that make them) form one chain by data dependency, and that the terminator depends
+>    on the last: `'putchar' at line 4 is not ordered after 'putchar' at line 3; chain
+>    them with $after.` That would also make merging copied calls sound, as decision 10
+>    does for regions. Later, or in step 6?
 
 ---
 
@@ -459,6 +531,30 @@ Commit: `oymomo: add module regions`
 
 Commit: `oymomo: regions never alias`
 
+### Step 6: `$after`
+
+- H.
+- Tests:
+  - `bruijn`: `$after {[01], [02]}` is not a redex; normalizing the `hi` program keeps
+    the first `putchar`, and normalizing it without `$after` drops it (why the step
+    exists).
+  - `banf_shape`: a field of `$after` that reduces (`{a = q}.a`) is reduced to `q`.
+  - `banf_translate`: `hi` gives two `putchar` lets in order, the second on
+    `[69000000]:i32`; `$after` inline in an op argument, as a jump argument, as a
+    branch condition and as a return; `let c = $after {...}` makes `c` an alias, and a
+    later let still resolves to the right name; labels in `$after` are ignored;
+    `$after {x}` is `$after needs a value and at least one field to wait for.`; a field
+    that isn't an atom is `$after: every field must be an atom.`
+  - `llvm_translate`: `hi`'s IR has both calls, in order, and no trace of `$after`.
+  - confluence: `hi` gives the same BANF from `t` and from `normalize(t)`.
+  - golden `after.oymo`: `hi`, and a loop that calls `putchar` once per iteration and
+    ties the call to the counter with `$after`.
+- `docs/notes.md`: a row for `after` in Built-ins (no rule, no opcode, dropped by
+  `convert`); `$after` in Translation › oymomo → BANF and in Operands must be atoms;
+  the messages in Error messages › Built-ins.
+
+Commit: `oymomo: add $after`
+
 ---
 
 ## Verification
@@ -472,4 +568,5 @@ hatch run full-check
 The final check: the goal program's LLVM IR runs under `llvmlite`'s JIT and `bump(41)`
 returns 42; the folded goal compiles to `ret i32 42`; a program that writes a module
 region in `main` and reads it in a callee returns the written value; a load at offset
-4 of a 4-byte region param traps under the JIT.
+4 of a 4-byte region param traps under the JIT; the `hi` program of step 6 gives the
+same BANF from `t` and from `normalize(t)`, with both `putchar` calls, in order.
