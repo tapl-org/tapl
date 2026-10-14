@@ -58,3 +58,31 @@ def test_evaluate_logic():
 
 def test_folded_templates_are_opcode_templates():
     assert {signature.template for signature in OPCODES.values()} >= FOLDED_TEMPLATES
+
+
+def test_evaluate_division_rounds_toward_zero():
+    assert evaluate(OPCODES['sdiv_i8'], [0xF9, 0x02]) == 0xFD  # -7 / 2 = -3
+    assert evaluate(OPCODES['srem_i8'], [0xF9, 0x02]) == 0xFF  # -7 % 2 = -1
+    assert evaluate(OPCODES['sdiv_i8'], [0x07, 0xFE]) == 0xFD  # 7 / -2 = -3
+    assert evaluate(OPCODES['srem_i8'], [0x07, 0xFE]) == 0x01  # 7 % -2 = 1
+    assert evaluate(OPCODES['udiv_i8'], [0xF9, 0x02]) == 0x7C  # 249 / 2
+    assert evaluate(OPCODES['urem_i8'], [0xF9, 0x02]) == 0x01
+
+
+def test_evaluate_shifts():
+    assert evaluate(OPCODES['shl_i8'], [0x81, 0x01]) == 0x02
+    assert evaluate(OPCODES['lshr_i8'], [0x80, 0x07]) == 0x01
+    assert evaluate(OPCODES['ashr_i8'], [0x80, 0x07]) == 0xFF
+    assert evaluate(OPCODES['ashr_i8'], [0x40, 0x07]) == 0x00
+
+
+def test_evaluate_has_no_result_where_llvm_has_none():
+    for template in ('sdiv', 'udiv', 'srem', 'urem'):
+        assert evaluate(OPCODES[f'{template}_i32'], [5, 0]) is None
+    assert evaluate(OPCODES['sdiv_i8'], [0x80, 0xFF]) is None  # -128 / -1
+    assert evaluate(OPCODES['srem_i8'], [0x80, 0xFF]) is None
+    assert evaluate(OPCODES['udiv_i8'], [0x80, 0xFF]) == 0  # unsigned: 128 / 255
+    for template in ('shl', 'lshr', 'ashr'):
+        assert evaluate(OPCODES[f'{template}_i8'], [1, 8]) is None
+        assert evaluate(OPCODES[f'{template}_i8'], [1, 0xFF]) is None
+        assert evaluate(OPCODES[f'{template}_i8'], [1, 7]) is not None

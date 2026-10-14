@@ -81,6 +81,43 @@ def byte_count(bits: int) -> int:
 # may be out of range (`evaluate` wraps it); None means LLVM has no defined result.
 type _Evaluator = Callable[[int, int, int], int | None]
 
+
+def _signed(bits: int, value: int) -> int:
+    """`value` (unsigned, below `2^bits`) read as two's complement."""
+    return value - (1 << bits) if value >> (bits - 1) else value
+
+
+def _sdiv(bits: int, dividend: int, divisor: int) -> int | None:
+    """Signed division, rounding toward zero, as LLVM's `sdiv`. None for a divisor of 0,
+    and for the signed minimum by -1 (the quotient doesn't fit)."""
+    a, b = _signed(bits, dividend), _signed(bits, divisor)
+    if b == 0 or (a == -(1 << (bits - 1)) and b == -1):
+        return None
+    quotient = abs(a) // abs(b)
+    return -quotient if (a < 0) != (b < 0) else quotient
+
+
+def _srem(bits: int, dividend: int, divisor: int) -> int | None:
+    """Signed remainder with the dividend's sign, as LLVM's `srem`. None where `sdiv` is."""
+    quotient = _sdiv(bits, dividend, divisor)
+    if quotient is None:
+        return None
+    return _signed(bits, dividend) - _signed(bits, divisor) * quotient
+
+
+def _udiv(_bits: int, dividend: int, divisor: int) -> int | None:
+    return None if divisor == 0 else dividend // divisor
+
+
+def _urem(_bits: int, dividend: int, divisor: int) -> int | None:
+    return None if divisor == 0 else dividend % divisor
+
+
+def _shift(shift: Callable[[int, int, int], int]) -> _Evaluator:
+    """A shift that is None (LLVM: poison) when the amount is the width or more."""
+    return lambda bits, value, amount: None if amount >= bits else shift(bits, value, amount)
+
+
 _BINARY: dict[str, _Evaluator] = {
     'add': lambda _bits, a, b: a + b,
     'sub': lambda _bits, minuend, subtrahend: minuend - subtrahend,
@@ -88,6 +125,13 @@ _BINARY: dict[str, _Evaluator] = {
     'and': lambda _bits, a, b: a & b,
     'or': lambda _bits, a, b: a | b,
     'xor': lambda _bits, a, b: a ^ b,
+    'sdiv': _sdiv,
+    'udiv': _udiv,
+    'srem': _srem,
+    'urem': _urem,
+    'shl': _shift(lambda _bits, value, amount: value << amount),
+    'lshr': _shift(lambda _bits, value, amount: value >> amount),
+    'ashr': _shift(lambda bits, value, amount: _signed(bits, value) >> amount),
 }
 
 # The templates `evaluate` knows. An opcode of another template is never folded.

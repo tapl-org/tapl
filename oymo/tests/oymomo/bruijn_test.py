@@ -177,6 +177,16 @@ def test_reduce_one_step(source, expected):
         '$add_i32 [01000000]',
         # `reduce` is root-only: a field must already be a literal.
         '$add_i32 {a = (x -> x) [01000000], b = [02000000]}',
+        # No fold where LLVM has no defined result.
+        '$sdiv_i32 {dividend = [07000000], divisor = [00000000]}',
+        '$udiv_i8 {dividend = [07], divisor = [00]}',
+        '$srem_i16 {dividend = [0700], divisor = [0000]}',
+        '$urem_i64 {dividend = [0700000000000000], divisor = [0000000000000000]}',
+        '$sdiv_i8 {dividend = [80], divisor = [ff]}',
+        '$srem_i8 {dividend = [80], divisor = [ff]}',
+        '$shl_i8 {value = [01], amount = [08]}',
+        '$lshr_i32 {value = [01000000], amount = [20000000]}',
+        '$ashr_i16 {value = [0100], amount = [ffff]}',
     ],
 )
 def test_reduce_returns_the_term_itself(source):
@@ -204,6 +214,16 @@ def test_reduce_returns_the_term_itself(source):
         ('$and_i8 {a = [0f], b = [3c]}', "[0c]: 'i8'"),
         ('$or_i32 {a = [01000000], b = [00000080]}', "[01000080]: 'i32'"),
         ('$xor_i16 {a = [ffff], b = [0ff0]}', "[f00f]: 'i16'"),
+        # Division rounds toward zero; a remainder has the dividend's sign.
+        ('$sdiv_i8 {dividend = [f9], divisor = [02]}', "[fd]: 'i8'"),
+        ('$srem_i8 {dividend = [f9], divisor = [02]}', "[ff]: 'i8'"),
+        ('$udiv_i8 {dividend = [f9], divisor = [02]}', "[7c]: 'i8'"),
+        ('$urem_i32 {dividend = [07000000], divisor = [03000000]}', "[01000000]: 'i32'"),
+        ('$udiv_i8 {dividend = [80], divisor = [ff]}', "[00]: 'i8'"),
+        # Shifts by less than the width.
+        ('$shl_i8 {value = [81], amount = [01]}', "[02]: 'i8'"),
+        ('$lshr_i16 {value = [0080], amount = [0f00]}', "[0100]: 'i16'"),
+        ('$ashr_i16 {value = [0080], amount = [0f00]}', "[ffff]: 'i16'"),
     ],
 )
 def test_reduce_folds_an_opcode(source, expected):

@@ -1,6 +1,6 @@
 # Plan: opcodes on literals fold to a constant
 
-Status: **in progress** (2 of 4 steps). No open questions. Prerequisites done.
+Status: **in progress** (3 of 4 steps). No open questions. Prerequisites done.
 
 ## Steps
 
@@ -8,7 +8,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 
 - [x] 1. Opcode signatures move to a neutral `opcodes.py` (`oymomo: move opcode signatures to opcodes.py`)
 - [x] 2. Fold `add sub mul and or xor` (`oymomo: fold add, sub, mul, and, or, xor on literals`)
-- [ ] 3. Fold division and shifts, except where LLVM has no defined result (`oymomo: fold division and shifts`)
+- [x] 3. Fold division and shifts, except where LLVM has no defined result (`oymomo: fold division and shifts`)
 - [ ] 4. Fold comparisons and conversions (`oymomo: fold comparisons and conversions`)
 
 Step 1 comes first; steps 2 to 4 each add templates to the same evaluator, and step 2
@@ -75,8 +75,9 @@ is the jump `f.a {}`.
    through LLVM: llvmlite's JIT on the opcode's `DEFAULT_OPCODES` code, which is what
    `llvm_translate` emits for an `OpcodeCall`, wrapped as `i64 f(i64, ...)` (operands
    truncated, the result zero-extended). It tries every pair of edge operands (0, 1,
-   the signed maximum, the signed minimum, -1) and compares with the fold, for every
-   width.
+   2, `N - 1`, the signed maximum, the signed minimum, -1) and compares with the fold,
+   for every width, skipping the cases `evaluate` doesn't fold (decision 5). 2 and
+   `N - 1` were added in step 3, so shifts are tried by more than 0 and 1.
 5. **No undefined behaviour is folded.** Where LLVM gives poison or undefined
    behaviour, `evaluate` returns `None` and the call stays unreduced, exactly as today:
    - `sdiv udiv srem urem` with divisor 0;

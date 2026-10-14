@@ -789,7 +789,7 @@ A name can appear in two tables:
 | `fix` | `$fix g` gives `g ($fix g)` | no: it must reduce away |
 | `fields_to_struct` | `$fields_to_struct {more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}` gives `{l1 = e1, ...}`; reduces `more`, `label` and `rest` of each node first, never a value; stuck on a malformed list | no: it must reduce away |
 | `struct_to_fields` | `$struct_to_fields {l1 = e1, ...}` gives `{more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}`: labels as UTF-8 bytes, values unreduced, order kept ([plan_struct_pack.md](implemented/plan_struct_pack.md)) | no: it must reduce away |
-| `add_i32` and other opcodes | on literal operands, the result LLVM would compute: `$add_i32 {a = [01000000], b = [02000000]}` gives `[03000000]: 'i32'`; reduces the argument, then each field if the labels are the params'. So far `add sub mul and or xor` ([plan_constant_folding.md](plan_constant_folding.md)). See [Opcodes › Folding](#folding) | yes |
+| `add_i32` and other opcodes | on literal operands, the result LLVM would compute: `$add_i32 {a = [01000000], b = [02000000]}` gives `[03000000]: 'i32'`; reduces the argument, then each field if the labels are the params'. So far `add sub mul and or xor sdiv udiv srem urem shl lshr ashr`, never where LLVM has no defined result ([plan_constant_folding.md](plan_constant_folding.md)). See [Opcodes › Folding](#folding) | yes |
 
 - A built-in with a rule and no opcode is **kernel-only**. This follows from the
   tables, with no flag to keep in sync. Reduction must remove it.
@@ -828,9 +828,10 @@ Why built-ins instead of `module` names, a `prim` binder, or a `fix` term: see
 | if (struct apply) | `if [01] then a else b` / `if [00] ...` | `a` / `b` |
 
 Not redexes:
-- a built-in with no rule (`$udiv_i32 {...}`, not folded yet), an unknown one
+- a built-in with no rule (`$eq_i32 {...}`, not folded yet), an unknown one
   (`$nope g`), or a rule that doesn't fire, such as an opcode on a run-time operand
-  (`$add_i32 {a = args.n, b = ...}`) or on a literal of the wrong form or size;
+  (`$add_i32 {a = args.n, b = ...}`), on a literal of the wrong form or size, or
+  where LLVM has no defined result (`$udiv_i32` by `[00000000]`);
 - a projection with a missing label;
 - a struct apply with an index past the end, `''`, or an argument that isn't a byte
   array yet (index read by `bruijn.index_value`: unsigned little-endian, form
@@ -1085,10 +1086,16 @@ $add_i32 {a = args.n, b = [01000000]: 'i32'}             stays: a run-time opera
 
 - Each folded opcode has a rule in `bruijn.BUILTIN_RULES`, generated from its
   signature; `opcodes.evaluate` computes the result on unsigned integers, with no LLVM.
-  So far: `add sub mul and or xor` (`opcodes.FOLDED_TEMPLATES`).
+  So far: `add sub mul and or xor sdiv udiv srem urem shl lshr ashr`
+  (`opcodes.FOLDED_TEMPLATES`).
 - **Same bytes as LLVM**: little-endian, `(N + 7) // 8` bytes for `iN`, arithmetic
-  wrapping modulo `2^N`. `llvm_translate_test.test_fold_matches_llvm` runs each folded
-  opcode through LLVM's JIT on edge operands and compares.
+  wrapping modulo `2^N`; signed templates (`sdiv srem ashr`) read operands as two's
+  complement; `sdiv` rounds toward zero and `srem` has the dividend's sign.
+  `llvm_translate_test.test_fold_matches_llvm` runs each folded opcode through LLVM's
+  JIT on edge operands and compares.
+- **No undefined behaviour is folded**: where LLVM gives poison or undefined
+  behaviour, `evaluate` returns None and the call stays: division or remainder by 0,
+  `sdiv`/`srem` of the signed minimum by -1, a shift by `N` or more.
 - **Operands**: a byte array of exactly `(N + 7) // 8` bytes, below `2^N`, bare or
   with the param's form, under the params' labels in order. A bare literal folds
   (the signature says how to read it); a wrong form or size doesn't, so `convert`

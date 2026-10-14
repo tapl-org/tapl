@@ -328,8 +328,10 @@ def jit():
 
 
 def _edges(bits):
-    """0, 1, the signed maximum, the signed minimum and -1, as unsigned `bits`-bit values."""
-    return sorted({0, 1, (1 << (bits - 1)) - 1, 1 << (bits - 1), (1 << bits) - 1})
+    """0, 1, 2, `bits - 1` (the largest defined shift), the signed maximum, the signed
+    minimum and -1, as unsigned `bits`-bit values."""
+    edges = {0, 1, 2, bits - 1, (1 << (bits - 1)) - 1, 1 << (bits - 1), (1 << bits) - 1}
+    return sorted(edge for edge in edges if edge < 1 << bits)
 
 
 @pytest.mark.parametrize('name', FOLDED)

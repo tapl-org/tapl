@@ -48,7 +48,9 @@ is not a byte array.
       $op is folded    vi literal operands of op's params    eval(op, v1..vn) = v
    ─────────────────────────────────────────────────────                 (E-Opcode)
             $op {l1 = v1, ..., ln = vn}  →  v : R
-                 (li are op's params, in order; R is op's result form)
+                 (li are op's params, in order; R is op's result form;
+                  no rule where eval is undefined: x / 0, x % 0, signed min / -1,
+                  signed min % -1, a shift by the width or more)
 
          {li = ti  i∈1..n}.lj  →  tj                                      (E-Proj)
                  (the first field labeled lj)
