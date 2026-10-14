@@ -1,6 +1,6 @@
 # Plan: `$struct_to_fields` and `$fields_to_struct`, a struct to a list of fields and back
 
-Status: **proposed**. Open questions below.
+Status: **proposed**.
 
 ## Steps
 
@@ -38,83 +38,138 @@ $fields_to_struct ($struct_to_fields {a = '1', b = '2'})            ⇒   {a = '
 
 ## Decisions
 
-1. **Two built-ins: `$struct_to_fields s` and `$fields_to_struct l`.** Each is one entry in
-   `bruijn.BUILTIN_RULES`: a `BuiltinRule` with a rule and no opcode, so both are
-   kernel-only (plan_builtin decision 10). Both read their argument, so each lists what
-   it reads as blockers (decision 8). `needs` is `'a struct'` for `$struct_to_fields` and
-   `'a list of fields'` for `$fields_to_struct`, so a leftover one is reported as
-   `$struct_to_fields has no opcode, so it must reduce away: its argument must reduce to a struct.`
-   Nothing is reserved: `struct_to_fields` and `fields_to_struct` stay plain names.
+| # | Decision | Step |
+|---|---|---|
+| 1 | A built-in rule lists its blockers, as paths into its argument | 1 |
+| 2 | Two built-ins, `$struct_to_fields s` and `$fields_to_struct l` | 2, 3 |
+| 3 | A list of fields is a chain of `{more, label, value, rest}` structs | 2, 3 |
+| 4 | A label is the UTF-8 bytes of the field's name | 2, 3 |
+| 5 | Field values stay lazy | 2, 3 |
+| 6 | Field order is kept | 2, 3 |
+| 7 | A malformed input is stuck, not an error | 2, 3 |
+| 8 | `banf_shape` reduces both away; a stuck one is rejected | 2, 3 |
 
-   The names say both sides of the conversion, so they read without knowing a
-   convention, and the two mirror each other. Rejected:
-   - `$pack` / `$unpack`: short, but they don't say what they work on, and elsewhere
-     (Python's `struct.pack`, Perl's `pack`, LLVM's packed structs) they mean bytes, which
-     misleads in a language with byte arrays and memory opcodes.
-   - `$construct_struct` / `$deconstruct_struct`: exact opposites, but they don't name
-     the other side (fields), and a struct literal also constructs a struct.
-   - `$build_struct`, `$fields` / `$struct`, `$explode` / `$implode`, `$to_list` /
-     `$from_list`: less clear about direction or about what they work on.
-2. **A list of fields is made of structs with fixed labels.** The kernel has no lists,
-   and the labels below are static, so users build and read these nodes with today's
-   syntax:
-   ```
-   nil  = {more = [00]}
-   cons = {more = [01], label = 'a', value = e, rest = <list>}
-   ```
-   `more` is a one-byte boolean, so code walks a list with an ordinary
-   `if l.more then … else …`. Rejected: Scott or Church lists (`c -> n -> …`). A rule that
-   needs to see a list's nodes can't look inside a lambda, and an `if` can't branch on
-   one.
-3. **A label is the UTF-8 bytes of the field's name.** `$struct_to_fields`
-   encodes each label; `$fields_to_struct` decodes it.
-4. **Lazy values.** Neither built-in reduces a field value. `$struct_to_fields {a = (x -> x) y}`
-   keeps `(x -> x) y` in the `value` field.
-5. **Order is kept.** Field order matters for layout (notes: "Struct, not record"), so
-   `$struct_to_fields` lists the fields in order and `$fields_to_struct` builds them in
-   list order.
-6. **A malformed input is stuck, not an error**, as for projection: the rule returns
-   None. `$struct_to_fields` is stuck on anything but a struct literal. `$fields_to_struct`
-   is stuck unless every node is a struct with `more = [00]`, or with `more = [01]` and
-   `label`, `value` and `rest` fields, where the label's bytes are valid UTF-8; `''` gives
-   an unlabeled field. Extra fields in a node are ignored. Duplicate labels are kept, as a
-   struct literal may have them.
-7. **BANF shape rules decide what BANF accepts.** `$fields_to_struct` and
-   `$struct_to_fields` must reduce away in `banf_shape.shape`. A stuck one reaches
-   `convert`, which rejects it with the message of decision 1, as for any kernel-only
-   built-in.
-8. **A rule lists its blockers as paths into its argument.** `bruijn.reduce` is
-   root-only, and today `banf_shape` never reduces a built-in's argument (notes:
-   "Blockers"). A rule that reads a reduced part of its argument says so with
-   `blockers(argument) -> Iterable[Path]`, next to the rule. A `Path` is field positions
-   from the argument: `()` is the argument, `(1, 0)` is field 0 of field 1.
-   `banf_shape.unblock` reduces the first yielded blocker that
-   `reduce_until_top_stable` changes, with one generic case for every built-in.
+### Blockers (step 1)
 
-   `blockers` is called again on the argument as reduced so far, so a rule can choose
-   what comes next by what it sees. `$fields_to_struct` needs this: whether `rest` is a
-   blocker depends on the value of `more`:
-   ```
-   $fields_to_struct {more = (x -> x) [01], label = l, value = v, rest = f {}}
-                      ^ reduced first, then: [01], so label and rest too; then rest.more, ...
-   ```
-   The contract, checked per rule by a test:
-   1. **`rule` reads only blockers.** It looks at the top constructor of a yielded path,
-      and under it only at paths that are yielded too.
-   2. **None with every blocker reduced is final.** If `reduce_until_top_stable` changes
-      no yielded blocker and `rule` returns None, no reduction elsewhere can make the
-      call fire. So `banf_translate` can report `needs`.
-   3. **Blockers only grow.** Reducing a blocker never takes back a path yielded before
-      it; it can only add paths after it.
+#### 1. A built-in rule lists its blockers, as paths into its argument
 
-   Contract 1 also keeps reduction confluent: a rule never depends on a part that is
-   still unreduced and might reduce differently later.
+**Problem.** `bruijn.reduce` only rewrites the root, and `banf_shape` never reduces a
+built-in's argument (notes: "Blockers"). So `$struct_to_fields ({p = s}.p)` is stuck:
+the rule sees a projection, not a struct.
 
-   Rejected: a fixed set of shapes in `banf_shape` (`NONE`, `ARGUMENT`, `FIELDS`, and a
-   fourth, `SPINE`, for this plan). Each new shape would change `banf_shape`, and the node
-   labels (`more`, `label`, `rest`) would be written in two modules. The cost of paths:
-   `unblock` walks `blockers` from the root again at each step, O(n²) for an n-node
-   list, which is fine at today's sizes.
+**Fix.** Next to its rule, a built-in says which parts of its argument the rule reads:
+
+```python
+blockers(argument) -> Iterable[Path]
+```
+
+- A `Path` is field positions from the argument: `()` is the argument, `(1, 0)` is field
+  0 of field 1.
+- `banf_shape.unblock` reduces the first blocker that `reduce_until_top_stable` changes.
+  One generic case serves every built-in.
+- After each change, `unblock` calls `blockers` again on the argument as reduced so far.
+  So a rule can pick its next blocker by what it sees. `$fields_to_struct` needs this:
+  `rest` is a blocker only once `more` is `[01]`.
+
+```
+$fields_to_struct {more = (x -> x) [01], label = l, value = v, rest = f {}}
+                   ^ reduced first, then: [01], so label and rest too; then rest.more, ...
+```
+
+**Contract**, checked for every rule by a test:
+
+| Rule | Means |
+|---|---|
+| `rule` reads only blockers | It looks at the top constructor of a yielded path, and below it only at paths that are yielded too. This also keeps reduction confluent: a rule never depends on a part that might still reduce differently. |
+| None is final once every blocker is reduced | If no yielded blocker changes and `rule` returns None, no reduction elsewhere can make the call fire, so `banf_translate` can report `needs`. |
+| Blockers only grow | Reducing a blocker never takes back a path yielded before it; it can only add paths after it. |
+
+**Rejected:** a fixed set of shapes in `banf_shape` (`NONE`, `ARGUMENT`, `FIELDS`, and
+`SPINE` for this plan). Each new shape would change `banf_shape`, and the node labels
+(`more`, `label`, `rest`) would be written in two modules.
+
+**Cost:** `unblock` walks `blockers` from the root again at each step, O(n²) for an
+n-node list. That is fine at today's sizes.
+
+### The two built-ins (steps 2 and 3)
+
+#### 2. Two built-ins, `$struct_to_fields s` and `$fields_to_struct l`
+
+- Each is one entry in `bruijn.BUILTIN_RULES`: a `BuiltinRule` with a rule and no
+  opcode, so both are kernel-only (plan_builtin decision 10).
+- Both read their argument, so each lists blockers (decision 1).
+- `needs` is `'a struct'` for `$struct_to_fields` and `'a list of fields'` for
+  `$fields_to_struct`. A leftover call is reported as
+  `$struct_to_fields has no opcode, so it must reduce away: its argument must reduce to a struct.`
+- Nothing is reserved: `struct_to_fields` and `fields_to_struct` stay plain names.
+
+**Why these names:** they say both sides of the conversion, so they read without knowing
+a convention, and the two mirror each other.
+
+**Rejected:**
+
+| Names | Why not |
+|---|---|
+| `$pack` / `$unpack` | They don't say what they work on, and elsewhere (Python's `struct.pack`, Perl's `pack`, LLVM's packed structs) they mean bytes. That misleads in a language with byte arrays and memory opcodes. |
+| `$construct_struct` / `$deconstruct_struct` | They don't name the other side (fields), and a struct literal also constructs a struct. |
+| `$build_struct`, `$fields` / `$struct`, `$explode` / `$implode`, `$to_list` / `$from_list` | Less clear about direction or about what they work on. |
+
+#### 3. A list of fields is a chain of `{more, label, value, rest}` structs
+
+The kernel has no lists. With fixed labels, users build and read the nodes with today's
+syntax:
+
+```
+nil  = {more = [00]}
+cons = {more = [01], label = 'a', value = e, rest = <list>}
+```
+
+`more` is a one-byte boolean, so code walks a list with an ordinary
+`if l.more then … else …`.
+
+**Rejected:**
+
+| Shape | Why not |
+|---|---|
+| Scott or Church lists (`c -> n -> …`) | A rule can't look inside a lambda to see the nodes, and an `if` can't branch on one. |
+| `head` / `tail`, with entries `{label, value}` | Two levels per field: every walk reads `l.head.label` and `l.head.value`, and `spine_blockers` has one more step. |
+| `tag` instead of `more` | Same shape, but `if l.tag` reads worse, and nothing else in the kernel uses tags yet. |
+
+#### 4. A label is the UTF-8 bytes of the field's name
+
+`$struct_to_fields` encodes each label; `$fields_to_struct` decodes it. `''` is an
+unlabeled field (plan_struct_apply decision 1).
+
+#### 5. Field values stay lazy
+
+Neither built-in reduces a value: `$struct_to_fields {a = (x -> x) y}` keeps
+`(x -> x) y` in the `value` field.
+
+#### 6. Field order is kept
+
+Field order matters for layout (notes: "Struct, not record"). `$struct_to_fields` lists
+the fields in order; `$fields_to_struct` builds them in list order.
+
+#### 7. A malformed input is stuck, not an error
+
+As for projection, the rule returns None.
+
+- `$struct_to_fields` is stuck on anything but a struct literal.
+- `$fields_to_struct` is stuck unless every node is either `{more = [00]}` or
+  `{more = [01], label, value, rest}`, with a label that is valid UTF-8.
+- Extra fields in a node are ignored.
+- Duplicate labels are kept, as a struct literal may have them.
+
+**Why non-UTF-8 labels are stuck**, even though a struct built by `$fields_to_struct`
+never goes through the parser: every struct stays one that a literal could write and
+the printer can print, and `$struct_to_fields` gives back the same bytes.
+
+#### 8. `banf_shape` reduces both away; a stuck one is rejected
+
+Both are kernel-only, so BANF has no op for them: `banf_shape.shape` reduces every
+`$fields_to_struct` and `$struct_to_fields` call, with its blockers (decision 1), until
+the rule fires. A call that stays stuck reaches `convert`, which rejects it with the
+message of decision 2, as for any kernel-only built-in.
 
 ---
 
@@ -238,7 +293,7 @@ literal. The helpers are `to_field_list(struct)` and `from_field_list(list)` (No
 not literal).
 
 `$fields_to_struct` reads the list's spine, not just its argument: each node, its `more`,
-and for `[01]` its `label` and `rest`, again and again. Values are left alone (decision 4).
+and for `[01]` its `label` and `rest`, again and again. Values are left alone (decision 5).
 `spine_blockers` sits next to `_fields_to_struct`, the only code that knows the node labels:
 
 ```python
@@ -265,7 +320,7 @@ None.
 | `banf_shape.py` | 1 | the built-in case in `unblock` (B) |
 | `banf_shape_test.py`, `banf_translate_test.py` | 1 | the monkeypatched rules get a `blockers` argument |
 | `terms.py`, `rule_names.py`, `grammar.py`, `printer.py`, `banf_rename.py` | — | none: a `Builtin` is a leaf, already parsed and printed |
-| `banf_translate.py`, `banf_terms.py`, `llvm_translate.py` | — | none (decision 7) |
+| `banf_translate.py`, `banf_terms.py`, `llvm_translate.py` | — | none (decision 8) |
 | `docs/notes.md` | 1, 2, 3 | "Blockers" and "How to add a built-in" (1); the built-ins table, the rules in "`reduce`" (2, 3) |
 | `docs/reduction_rules.md` | 1 | an `E-Builtin` congruence rule over a rule's blockers |
 
@@ -288,24 +343,12 @@ only code that builds rules sees.
 
 ---
 
-## Open questions
-
-> [!IMPORTANT]
-> 1. **Node labels.** `more`, `label`, `value`, `rest`. Alternatives: `head` / `tail`
->    with entries `{label, value}` (two levels per field), or a `tag` instead of `more`.
-> 2. **Invalid labels in `$fields_to_struct`** (bytes that aren't UTF-8) are stuck
->    (decision 6). Should they be allowed, since a struct built by `$fields_to_struct`
->    never goes through the parser? An empty label is valid: it is an unlabeled field
->    (plan_struct_apply decision 1).
-
----
-
 ## Out of scope
 
 - **`needs` as a function.** `needs` stays a string. With blockers in place it could
   become `(argument) -> str` and say which blocker was wrong, for example
   "field `b` must reduce to a byte array". That can be a separate change.
-- **A cursor into `blockers`**, to avoid the O(n²) walk of decision 8. It can be added
+- **A cursor into `blockers`**, to avoid the O(n²) walk of decision 1. It can be added
   later without changing the contract.
 
 ---

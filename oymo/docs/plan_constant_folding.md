@@ -97,7 +97,7 @@ is the jump `f.a {}`.
 8. **An opcode's blockers are its argument and each of its fields.** Folding reads
    every field reduced: in `$add_i32 {a = (x -> x) [01000000]: 'i32', b = ...}` the
    field must be reduced before the rule can read it. A rule lists the parts it reads
-   as blockers (plan_struct_pack decision 8), so each opcode rule uses
+   as blockers (plan_struct_pack decision 1), so each opcode rule uses
    `bruijn.field_blockers`: the argument, then, once it is a struct, each field in
    order. No change in `banf_shape`.
 
