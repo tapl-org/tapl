@@ -351,8 +351,22 @@ class _Translator:
                     # Both arms may jump to the same block: Cranelift allows it, and
                     # llvm_translate rejects it, since an LLVM phi can't tell the edges apart.
                     return banf.Branch(atom, *then_jump, *else_jump, location)
-                case terms.Apply(function=terms.Struct()):
-                    raise TranslationError('A branch needs two fields, {else, then}.', location)
+                case terms.Apply(function=terms.Struct(fields=[])):
+                    raise TranslationError('A switch needs two or more fields.', location)
+                case terms.Apply(function=terms.Struct(fields=[_])):
+                    raise TranslationError('A switch needs two or more fields; one is a jump.', location)
+                case terms.Apply(function=terms.Struct(fields=fields), argument=selector):
+                    # `{a0, ..., an} k` with three or more fields: field `k` is taken, or the
+                    # last one if `k` is past it. Labels are ignored, as for a branch.
+                    atom = self.atom(selector, block)
+                    targets = []
+                    for f in fields:
+                        if (target := self.jump(f.value, block)) is None:
+                            raise TranslationError(
+                                'Every field of a switch must be a jump, such as blocks.a {}.', location
+                            )
+                        targets.append(target)
+                    return banf.Switch(atom, targets, location)
             if (jump := self.jump(term, block)) is not None:
                 return banf.Jump(*jump, location)
             if self.is_atom(term, block):

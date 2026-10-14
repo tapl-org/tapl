@@ -500,8 +500,10 @@ def test_struct_branch_to_an_explicit_join_block():
 @pytest.mark.parametrize(
     ('body', 'message'),
     [
-        ('{f.a {}, f.b {}, f.a {}} args.c', 'A branch needs two fields, {else, then}.'),
+        ('{f.a {}} args.c', 'A switch needs two or more fields; one is a jump.'),
+        ('{} args.c', 'A switch needs two or more fields.'),
         ("{f.b {}, [01]:'i8'} args.c", 'Both branches of an if must be jumps, such as blocks.then0 {}.'),
+        ("{f.a {}, [01]:'i8', f.b {}} args.c", 'Every field of a switch must be a jump, such as blocks.a {}.'),
     ],
 )
 def test_struct_branch_errors(body, message):
@@ -518,6 +520,52 @@ def test_struct_branch_condition_must_be_i1():
     assert (
         error(branch_defs('{f.b {}, f.a {}} args.c', "'i8'"), "g = => 'i8'") == 'Branch condition must be i1, got i8.'
     )
+
+
+SWITCH_BLOCKS = (
+    "a = args:{} -> [01]:'i8', b = args:{} -> [02]:'i8', c = args:{x = 'i8'} -> args.x, d = args:{} -> [04]:'i8'"
+)
+
+
+def switch_defs(body, selector_form="'i8'"):
+    return f"g = f -> {{entry = args:{{k = {selector_form}, x = 'i8'}} -> {body}, {SWITCH_BLOCKS}}}"
+
+
+@pytest.mark.parametrize(
+    'body',
+    [
+        '{f.a {}, f.b {}, f.c {x = args.x}} args.k',
+        # Let-bound: substituted into the tail.
+        '(t -> t) ({f.a {}, f.b {}, f.c {x = args.x}} args.k)',
+        # Labels are ignored: only the position picks the target.
+        '{p = f.a {}, q = f.b {}, r = f.c {x = args.x}} args.k',
+    ],
+)
+def test_struct_of_three_jumps_applied_to_an_index_is_a_switch(body):
+    assert banf(switch_defs(body), "g = => 'i8'") == text("""
+        g: i8
+          entry(k: i8, x: i8):
+            switch k, a(), b(), c(x)
+          a():
+            return [01]:i8
+          b():
+            return [02]:i8
+          c(x: i8):
+            return x
+          d():
+            return [04]:i8
+    """)
+
+
+def test_struct_of_four_jumps_is_a_switch():
+    body = '{f.c {x = args.x}, f.a {}, f.b {}, f.d {}} args.k'
+    assert '    switch k, c(x), a(), b(), d()\n' in banf(switch_defs(body), "g = => 'i8'")
+
+
+def test_switch_selector_form_is_not_checked():
+    # BANF puts nothing on the selector's form; LLVM translation checks it.
+    body = '{f.a {}, f.b {}, f.d {}} args.k'
+    assert '    switch k, a(), b(), d()\n' in banf(switch_defs(body, "{y = 'i8'}"), "g = => 'i8'")
 
 
 @pytest.mark.parametrize(

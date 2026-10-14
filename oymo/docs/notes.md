@@ -955,7 +955,8 @@ fact = f -> {
 - A block body is a chain of lets ending in a terminator:
   - return an atom: `[01000000]:'i32'`, `args.n`, or a let name;
   - jump: `f.label {...}`;
-  - branch: `if c then f.a {...} else f.b {...}`.
+  - branch: `if c then f.a {...} else f.b {...}`;
+  - switch: `{f.a {...}, f.b {...}, f.c {...}} k`, three or more jumps.
 
 Why: it is plain oymomo (lambdas, structs, application), so blocks and jumps
 needed no new syntax, and every name in the BANF output comes from the source.
@@ -1055,7 +1056,7 @@ There are no same-width conversions.
 
 - Same-form ops: `<op>_<form>`: `add_i32`, `eq_i8`.
 - Conversions name both forms, from then to: `zext_i8_i32`, `trunc_i64_i32`.
-- No opcode may be named `call`, `jump`, `branch` or `return` (they'd read as BANF
+- No opcode may be named `call`, `jump`, `branch`, `switch` or `return` (they'd read as BANF
   keywords); `banf_terms.py` asserts this.
 
 ### Monomorphic: one op per signature
@@ -1152,7 +1153,7 @@ Data(name, form, value=None)               # imported (None) or defined (bytes)
 
 ### Blocks
 
-A block has params, lets, and one terminator (`return`, `jump`, `branch`).
+A block has params, lets, and one terminator (`return`, `jump`, `branch`, `switch`).
 
 Why basic blocks: lowering is one BANF block → one LLVM block, one let → one
 instruction.
@@ -1243,7 +1244,7 @@ else `form_of` its op. They add it to the block's name table.
 | a `Function` | `fact: i32` then its blocks | blank line around each function |
 
 - Lets need no keyword: a block holds only lets plus one terminator, and every
-  terminator starts with a keyword (`jump`, `branch`, `return`).
+  terminator starts with a keyword (`jump`, `branch`, `switch`, `return`).
 - Calls and data reads use the symbol, not `module.`.
 - Bindings print in declaration order.
 - Block labels are indented 2 spaces, instructions 4, so the column tells a line's
@@ -1360,7 +1361,7 @@ As numbered in [`banf_shape.py`](../src/oymo/oymomo/banf_shape.py):
                | args.label                                 -- return a param
                | $i, where i < k                            -- return a let
                | blocks.label <op_arg>                      -- jump
-               | {<jump>, <jump>} <atom>                    -- branch: if <atom> then ... else ...
+               | {<jump>, ..., <jump>} <atom>               -- branch (two jumps) or switch (three or more)
    ```
    `k` counts the lets since the block's `args` binder, so `args` is `$k`; it tells
    `args.label` from other projections. A let isn't reduced with `reduce_until_top_stable`, since it is
@@ -1374,7 +1375,8 @@ As numbered in [`banf_shape.py`](../src/oymo/oymomo/banf_shape.py):
 7. `<value>`, a let's op: an apply's `<op_arg>` becomes a struct of atoms or a
    BruijnIndex (forwarding `args`); a struct's fields become atoms; a projection's
    struct is a blocker, already reduced.
-8. `<jump>`, a branch arm (a field of `{e, t} c`): until `blocks.label <op_arg>`.
+8. `<jump>`, a branch arm or switch target (a field of `{a0, ..., an} c`): until
+   `blocks.label <op_arg>`.
 9. `<atom>`: until a ByteArray, `$i` with `i < k`, or `args.n`. `args` itself is not
    an atom: BANF passes a block's params one by one.
 
@@ -1472,7 +1474,8 @@ own. A let reference becomes a `banf.Var` named after the BANF let already built
   error.
 - **Terminators**, only in tail position: `f.label {...}` (jump);
   `if c then f.a {...} else f.b {...}`, which is `{f.b {...}, f.a {...}} c` (branch,
-  both arms jumps, labels ignored); an atom (return).
+  both arms jumps, labels ignored); `{f.a {...}, f.b {...}, f.c {...}} k`, three or
+  more jumps (switch, labels ignored); an atom (return).
 
 ##### Labels name params, declarations and blocks
 
@@ -1502,8 +1505,12 @@ explicit `let t0` keeps every name in the source.
 `if c then [01]:'i8' else f.b {}` is an error. A let-bound `if` is substituted, so
 `let t = if c then f.a {} else f.b {} in t` is fine, but an `if` that ends up as an
 operand is an error. All of this holds for `{e, t} c`, which is the same term.
-- Only two fields: `{f.a {}, f.b {}, f.c {}} c` is "A branch needs two fields, {else,
-  then}.". An N-way switch is [plan_switch.md](plan_switch.md).
+- Three or more fields are a BANF `Switch`: `{f.a {}, f.b {}, f.c {x = args.x}} args.k`
+  is `switch k, a(), b(), c(x)`, which jumps to field `k`, or to the last field if `k`
+  is past it, as in the kernel. BANF puts nothing on `k`'s form; LLVM translation
+  needs an `iN` with room for the cases (`i1` holds 3 targets). A let-bound switch is
+  substituted into the tail, as an `if` is. One field is "A switch needs two or more
+  fields; one is a jump.". See [plan_switch.md](plan_switch.md).
 - A BANF `Branch` is a terminator with two targets. An `if` whose value is used
   needs a join block, which the source writes explicitly.
 - `if c then f.a {} else f.a {}` is valid BANF, as Cranelift allows it. The LLVM
@@ -1613,6 +1620,9 @@ message text to find where it's raised.
 | `Expected an atom: a byte array, a let name, or args.label.` | An operand that is an op, e.g. a nested call. | Bind it first: `let t = $add_i32 {...} in ... t ...`. See [Translation](#operands-must-be-atoms). |
 | `A let's value must be an op, not an atom.` | A let in BANF position whose value is an atom. | Use the atom directly. |
 | `An if must be in tail position.` | An `if` used as a value. | Branch to blocks and join explicitly. See [Translation](#if-only-in-tail-position). |
+| `A switch needs two or more fields; one is a jump.` | `{f.a {}} k` in tail position. | Write the jump: `f.a {}`. See [Translation](#if-only-in-tail-position). |
+| `A switch needs two or more fields.` | `{} k` in tail position. | Give it targets. |
+| `Every field of a switch must be a jump, such as blocks.a {}.` | `{f.a {}, [01]:'i8', f.b {}} k`. | Make each field a jump. |
 | `A jump must be in tail position.` | `f.label {...}` used as a value. | Put the jump last. |
 | `Cannot jump to the entry block.` | `f.entry {...}`. | Jump to a separate loop header. See [BANF](#the-entry-block-cannot-be-jumped-to). |
 | `'<args>' cannot be used as a value.` | `blocks`, `args` or `module` used alone. | Use `args.n`, `module.f {...}`, `blocks.b {...}`; `args` may only be forwarded whole as a call/jump argument. |
@@ -1641,6 +1651,7 @@ message text to find where it's raised.
 | `$add_i32 expects a: i32, got i8.` (`<what> expects <label>: <form>, got <form>.`) | Argument form doesn't match. Widths are strict. | Convert explicitly, e.g. `$zext_i8_i32`. |
 | `<what> takes <n> arguments, got <m>.` | Wrong argument count. | Match the callee's params. |
 | `Branch condition must be i1, got <form>.` | `if` on a non-`i1` value. | Compare first, e.g. `$ne_i32`. |
+| `A switch needs a target.` | A BANF `Switch` with no targets. | Give it targets. |
 | `Function '<f>' returns <form>, got <form>.` | A return value's form differs from the declared return form. | Fix the value's form or the declaration. |
 | `Form <form> has no field at index <i>.` | `GetIndex` on a form with no fields. | Index a struct with at least one field. |
 
@@ -1654,6 +1665,9 @@ message text to find where it's raised.
 | `Constant does not fit in <form>.` | e.g. an `i1` byte that isn't `00` or `01`. | Fix the bytes. |
 | `Only integer constants are supported, got <form>.` | A struct constant. | Not supported yet. |
 | `A branch cannot have the same block as both targets.` | `if c then f.a {} else f.a {}`; valid BANF (Cranelift allows it). | Use two blocks (LLVM phis can't tell the edges apart). See [Translation](#if-only-in-tail-position). |
+| `Switch selector must be an integer form, got <form>.` | A switch on a non-`iN` value. | Switch on an integer. |
+| `A switch on i1 has 4 targets; it holds 3.` | More targets than the selector's form has values, plus one for the default. | Widen the selector, e.g. `$zext_i1_i8`. |
+| `A switch cannot name the same block twice.` | `{f.a {}, f.b {}, f.a {}} k`; valid BANF. | Use one block per target. |
 
 ## How to…
 
@@ -1710,7 +1724,7 @@ gives the same BANF), and checks the shaped output compiles to the same BANF.
    [Opcodes](#labels-fit-the-op)).
 2. In [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py), map the template to
    its llvmlite builder method in `_BINARY`, `_COMPARE` or `_CONVERT`.
-3. Don't name it `call`, `jump`, `branch` or `return` (`banf_terms.py` checks).
+3. Don't name it `call`, `jump`, `branch`, `switch` or `return` (`banf_terms.py` checks).
 4. To fold it, give `opcodes.evaluate` its template (in `_BINARY`, or a new group)
    so it lands in `FOLDED_TEMPLATES`; `test_fold_matches_llvm` then checks it.
    Return None where LLVM has no defined result.
@@ -2100,5 +2114,5 @@ Words used across the docs, in alphabetical order. Code names are in `code`.
 | **struct** | `{x = e, y = e}`: ordered fields. Also used as struct forms. | [oymomo syntax](#structs) |
 | **struct apply** | `s [01]`: pick a field by position. | [oymomo syntax](#projection-and-struct-apply) |
 | **symbol** | An LLVM global (`@fact`, `@putchar`, `@errno`). One per `module` declaration. | [Programs](#symbols) |
-| **terminator** | The last instruction of a block: `return`, `jump`, `branch`. | [BANF](#blocks) |
+| **terminator** | The last instruction of a block: `return`, `jump`, `branch`, `switch`. | [BANF](#blocks) |
 | **type** | Program-level meaning. Belongs to higher layers; the kernel has none. | [Overview](#type-form-layout) |

@@ -9,7 +9,7 @@ One commit each. Each step leaves `hatch run full-check` green. Details are in
 
 - [x] 1. A struct applied to an index past its last field selects the last field, in the kernel and in BANF `GetIndex` (`oymomo: an index past the last field selects the last field`)
 - [x] 2. BANF `Switch` terminator, verified and lowered to LLVM `switch`, additive (`oymomo: banf Switch terminator`)
-- [ ] 3. `{a0, a1, ..., an} i` with three or more fields is a `Switch` (`oymomo: a struct of jumps applied to an index is a switch`)
+- [x] 3. `{a0, a1, ..., an} i` with three or more fields is a `Switch` (`oymomo: a struct of jumps applied to an index is a switch`)
 - [ ] 4. A switch may repeat a target with the same args (`oymomo: a switch may repeat a target`)
 
 Step 1 changes what the kernel means, so that step 2's `Switch` keeps the kernel's
@@ -113,7 +113,9 @@ blocks needs N-1 compares and branches, each in its own block.
 
 12. **`{a0, ..., an} i` in tail position with three or more fields is a `Switch`.** Two
     fields stay a `Branch` (decision 4). One field is an error: "A switch needs two or
-    more fields; one is a jump." Labels are ignored, as they are for a branch.
+    more fields; one is a jump." No fields is "A switch needs two or more fields.", and a
+    field that isn't a jump is "Every field of a switch must be a jump, such as blocks.a
+    {}." Labels are ignored, as they are for a branch.
 13. **`banf_reduce` needs no change.** Its `terminal` case already reduces every field
     of `{...} c` to a jump and `c` to an atom, whatever the count. `_is_op` already makes
     a let-bound one substitute into the tail.
