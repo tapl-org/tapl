@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import ctypes
+import itertools
 import textwrap
 
 import llvmlite.binding as llvm
 import pytest
+from llvmlite import ir
 
 from oymo.oymomo import banf_translate, opcodes
 from oymo.oymomo.grammar import parse
@@ -280,3 +283,60 @@ def test_rejects_defined_data_with_a_struct_form():
         ir_error('p = [0102]', "p = {x = 'i8', y = 'i8'}")
         == 'Only integer constants are supported, got {x: i8, y: i8}.'
     )
+
+
+def _resize(builder, value, bits):
+    """`value` truncated or zero-extended to `bits` bits."""
+    width = value.type.width
+    if width > bits:
+        return builder.trunc(value, ir.IntType(bits))
+    if width < bits:
+        return builder.zext(value, ir.IntType(bits))
+    return value
+
+
+FOLDED = sorted(name for name, signature in opcodes.OPCODES.items() if signature.template in opcodes.FOLDED_TEMPLATES)
+
+
+@pytest.fixture(scope='module')
+def jit():
+    """Each folded opcode, compiled by LLVM from its `DEFAULT_OPCODES` code (what
+    `llvm_translate` emits for an `OpcodeCall`), as `i64 name(i64, ...)`: each operand is
+    truncated to its param's width, and the result zero-extended to 64 bits."""
+    module = ir.Module()
+    i64 = ir.IntType(64)
+    for name in FOLDED:
+        signature = opcodes.OPCODES[name]
+        function = ir.Function(module, ir.FunctionType(i64, [i64] * len(signature.params)), name)
+        builder = ir.IRBuilder(function.append_basic_block())
+        args = [
+            _resize(builder, arg, opcodes.form_bits(form))
+            for arg, (_, form) in zip(function.args, signature.params, strict=True)
+        ]
+        builder.ret(_resize(builder, DEFAULT_OPCODES[name](builder, args), 64))
+    llvm.initialize_native_target()
+    llvm.initialize_native_asmprinter()
+    machine = llvm.Target.from_default_triple().create_target_machine()
+    engine = llvm.create_mcjit_compiler(llvm.parse_assembly(str(module)), machine)
+    engine.finalize_object()
+
+    def run(name, operands):
+        prototype = ctypes.CFUNCTYPE(ctypes.c_uint64, *[ctypes.c_uint64] * len(operands))
+        return prototype(engine.get_function_address(name))(*operands)
+
+    return run
+
+
+def _edges(bits):
+    """0, 1, the signed maximum, the signed minimum and -1, as unsigned `bits`-bit values."""
+    return sorted({0, 1, (1 << (bits - 1)) - 1, 1 << (bits - 1), (1 << bits) - 1})
+
+
+@pytest.mark.parametrize('name', FOLDED)
+def test_fold_matches_llvm(jit, name):
+    signature = opcodes.OPCODES[name]
+    edges = [_edges(opcodes.form_bits(form)) for _, form in signature.params]
+    for operands in itertools.product(*edges):
+        folded = opcodes.evaluate(signature, list(operands))
+        if folded is not None:
+            assert folded == jit(name, operands), (name, operands)

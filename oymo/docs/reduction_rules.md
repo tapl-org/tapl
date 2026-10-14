@@ -30,7 +30,7 @@ reduced). `reduce_until_top_stable` stops at:
 w ::=   λx:t. t  |  {l1 = t1, ...}  |  [b]  |  x  |  $name  |  t -> t  |  stuck terms
 ```
 
-Stuck terms include `$add_i32 {...}`, `args.n`, `blocks.done {...}` and `{e, t} c` where `c`
+Stuck terms include `$add_i32 {a = args.n, ...}`, `args.n`, `blocks.done {...}` and `{e, t} c` where `c`
 is not a byte array.
 
 ## Evaluation  `t → t'`
@@ -44,6 +44,11 @@ is not a byte array.
                  where strip (t : G) = t,  strip t = t otherwise
 
                  $fix t  →  t ($fix t)                                    (E-Fix)
+
+      $op is folded    vi literal operands of op's params    eval(op, v1..vn) = v
+   ─────────────────────────────────────────────────────                 (E-Opcode)
+            $op {l1 = v1, ..., ln = vn}  →  v : R
+                 (li are op's params, in order; R is op's result form)
 
          {li = ti  i∈1..n}.lj  →  tj                                      (E-Proj)
                  (the first field labeled lj)

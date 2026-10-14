@@ -1,13 +1,13 @@
 # Plan: opcodes on literals fold to a constant
 
-Status: **in progress** (1 of 4 steps). No open questions. Prerequisites done.
+Status: **in progress** (2 of 4 steps). No open questions. Prerequisites done.
 
 ## Steps
 
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
 - [x] 1. Opcode signatures move to a neutral `opcodes.py` (`oymomo: move opcode signatures to opcodes.py`)
-- [ ] 2. Fold `add sub mul and or xor` (`oymomo: fold add, sub, mul, and, or, xor on literals`)
+- [x] 2. Fold `add sub mul and or xor` (`oymomo: fold add, sub, mul, and, or, xor on literals`)
 - [ ] 3. Fold division and shifts, except where LLVM has no defined result (`oymomo: fold division and shifts`)
 - [ ] 4. Fold comparisons and conversions (`oymomo: fold comparisons and conversions`)
 
@@ -71,9 +71,12 @@ is the jump `f.a {}`.
      complement; the rest read them as unsigned;
    - comparisons give `i1`; `zext`, `sext` and `trunc` change the width as LLVM does.
 
-   A test runs each template through LLVM (llvmlite's JIT on the IR `llvm_translate`
-   emits) on edge operands (0, 1, the maximum, the signed minimum, -1) and compares with
-   the fold, for every width.
+   A test (`llvm_translate_test.test_fold_matches_llvm`) runs each folded opcode
+   through LLVM: llvmlite's JIT on the opcode's `DEFAULT_OPCODES` code, which is what
+   `llvm_translate` emits for an `OpcodeCall`, wrapped as `i64 f(i64, ...)` (operands
+   truncated, the result zero-extended). It tries every pair of edge operands (0, 1,
+   the signed maximum, the signed minimum, -1) and compares with the fold, for every
+   width.
 5. **No undefined behaviour is folded.** Where LLVM gives poison or undefined
    behaviour, `evaluate` returns `None` and the call stays unreduced, exactly as today:
    - `sdiv udiv srem urem` with divisor 0;
@@ -157,8 +160,11 @@ def evaluate(signature: OpcodeSignature, operands: list[int]) -> int | None:
     None where LLVM has no defined result."""
 ```
 
-One function per template group, keyed by `signature.template`, like `llvm_opcodes._impl`:
-`_BINARY`, `_COMPARE`, `_CONVERT`, each a Python function on `(bits, operands)`.
+One table per template group, keyed by `signature.template`, like `llvm_opcodes._impl`:
+`_BINARY` (step 2), then `_COMPARE` and `_CONVERT`. Each entry is a Python function on
+`(bits, *operands)` that may return an out-of-range result (`evaluate` wraps it to the
+result's width) or None. `FOLDED_TEMPLATES` is the set of templates in the tables; only
+their opcodes get a rule. Helpers: `form_bits(form)` and `byte_count(bits)`.
 
 ### D. The rule (step 2)
 
@@ -180,15 +186,15 @@ def _fold(signature: opcodes.OpcodeSignature) -> BuiltinRule:
         result = opcodes.evaluate(signature, operands)
         if result is None:
             return call
-        return terms.Formed(terms.ByteArray(_encode(result, signature.result)), signature.result)
+        data = result.to_bytes(opcodes.byte_count(opcodes.form_bits(signature.result)), 'little')
+        return terms.Formed(terms.ByteArray(data), signature.result)
 
     return BuiltinRule(signature.name, reduce)
 ```
 
 - `_literal_operands(signature, argument)`: the operands as unsigned ints, or None
   unless the labels match and every field is a byte array of the right size and value
-  range, bare or under the param's form (decision 6).
-- `_encode(value, form)`: `(N + 7) // 8` bytes, little-endian.
+  range, bare or under the param's form (decision 6), read by `_literal_operand`.
 
 `BUILTIN_RULES` gets one such rule per name in `opcodes.OPCODES` whose template is
 folded so far. The comment above `BUILTIN_RULES` (kernel-only means "a rule and no
@@ -204,11 +210,11 @@ opcode") still holds.
 | `banf_terms.py`, `banf_translate.py`, `llvm_opcodes.py` | 1 | import `opcodes`; `banf_terms` gets the keyword check |
 | `banf_opcodes_test.py` → `opcodes_test.py`, `llvm_translate_test.py` | 1 | renamed import |
 | `bruijn.py` | 1 | the `BUILTIN_RULES` comment names `opcodes.OPCODES` |
-| `bruijn.py` | 2 | the opcode rules (D), `_literal_operands`, `_encode` |
+| `bruijn.py` | 2 | the opcode rules (D), `_literal_operands`, `_literal_operand` |
 | `banf_shape.py`, `banf_translate.py` | — | none: B is in place; an opcode isn't kernel-only |
 | `bruijn_test.py` | 2, 3, 4 | the rule under `reduce` (`keep`) |
 | `banf_shape_test.py` | 2 | the rule under `reduce_until_top_stable`; `SAMPLES` for the `reduce` contract |
-| `opcodes_test.py` or `llvm_translate_test.py` | 2 | fold vs LLVM JIT, per template and width |
+| `opcodes_test.py`, `llvm_translate_test.py` | 2 | `evaluate`; fold vs LLVM JIT, per folded opcode |
 | `banf_translate_test.py` | 2, 4 | folded lets and jumps; the bare-literal case |
 | `docs/notes.md` | 1–4 | see each step |
 | `docs/reduction_rules.md` | 2 | an `E-Opcode` computation rule; the "Stuck terms" example becomes `$add_i32 {a = args.n, ...}` |

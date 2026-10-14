@@ -153,6 +153,36 @@ def test_opcode_wrong_width():
     assert error(source, "g = => 'i32'") == '$add_i32 expects a: i32, got i8.'
 
 
+def test_opcode_on_literals_folds_and_its_let_disappears():
+    source = """
+    g = f -> {entry = args:{n = 'i8'} ->
+      let t = $add_i8 {a = [01]:'i8', b = [02]:'i8'} in
+      let u = $add_i8 {a = args.n, b = t} in
+      u}
+    """
+    assert banf(source, "g = => 'i8'") == text("""
+        g: i8
+          entry(n: i8):
+            u = add_i8 n, [03]:i8
+            return u
+    """)
+
+
+def test_opcode_on_bare_literals_folds():
+    # Without folding, `convert` would reject the bare byte arrays: their form isn't written.
+    source = 'g = f -> {entry = args:{} -> $add_i32 {a = [01000000], b = [02000000]}}'
+    assert banf(source, "g = => 'i32'") == text("""
+        g: i32
+          entry():
+            return [03000000]:i32
+    """)
+
+
+def test_opcode_on_a_literal_of_the_wrong_form_is_not_folded():
+    source = "g = f -> {entry = args:{} -> (t -> t) ($add_i8 {a = [01]:'i32', b = [02]:'i8'})}"
+    assert error(source, "g = => 'i8'") == '$add_i8 expects a: i8, got i32.'
+
+
 def test_conversion():
     source = "g = f -> {entry = args:{n = 'i8'} -> (t -> t) ($zext_i8_i32 {value = args.n})}"
     assert banf(source, "g = => 'i32'") == text("""

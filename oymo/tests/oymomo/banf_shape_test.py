@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import pytest
 
-from oymo.oymomo import banf_shape, bruijn, terms
+from oymo.oymomo import banf_shape, bruijn, opcodes, terms
 from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show
 
@@ -308,6 +308,41 @@ def test_an_endless_field_list_runs_out_of_fuel():
         banf_shape.reduce_until_top_stable(term)
 
 
+def test_an_opcode_reduces_its_fields_then_folds():
+    term = resolved("$add_i32 {a = (x -> x) [01000000]: 'i32', b = {c = [02000000]}.c}", FREE)
+    assert banf_shape.reduce_until_top_stable(term) == resolved("[03000000]: 'i32'", FREE)
+
+
+def test_an_opcode_with_wrong_labels_reduces_no_field():
+    term = resolved('$add_i32 {x = (i -> i) [01000000], y = (i -> i) [02000000]}', FREE)
+    assert banf_shape.reduce_until_top_stable(term) is term
+
+
+def test_an_opcode_on_a_run_time_operand_keeps_the_fields_it_reduced():
+    term = resolved('$add_i32 {a = e, b = (i -> i) [02000000]}', FREE)
+    assert show(banf_shape.reduce_until_top_stable(term)) == show(resolved('$add_i32 {a = e, b = [02000000]}', FREE))
+
+
+@pytest.mark.parametrize(
+    ('body', 'expected'),
+    [
+        # A let whose op folds is no longer an op, so it is substituted.
+        ("let t = $add_i8 {a = [01]: 'i8', b = [02]: 'i8'} in t", "[03]: 'i8'"),
+        (
+            "let t = $add_i8 {a = [01]: 'i8', b = [02]: 'i8'} in let u = $add_i8 {a = args.n, b = t} in u",
+            "let u = $add_i8 {a = args.n, b = [03]: 'i8'} in u",
+        ),
+        # A fold can feed the next one.
+        (
+            "let t = $add_i8 {a = [01]: 'i8', b = [02]: 'i8'} in let u = $mul_i8 {a = t, b = t} in u",
+            "[09]: 'i8'",
+        ),
+    ],
+)
+def test_block_body_folds(body, expected):
+    assert shaped(block(body)) == same(block(expected))
+
+
 # A built-in reduces its own call (plan_struct_pack decision 1). The rules below are test-only.
 
 
@@ -409,6 +444,30 @@ SAMPLES = {
     'first': ['$first ({p = {a = x}}.p)', '$first e', '$first {a = x}'],
     'both': ['$both {a = (i -> i) [01], b = {c = [02]}.c}', '$both {a = e, b = (i -> i) [02]}', '$both [01]'],
     'gate': ['$gate {(i -> i) [00], (i -> i) [02]}', '$gate {(i -> i) [01], (i -> i) [02]}'],
+}
+
+
+def _opcode_samples(signature):
+    """Calls of an opcode: one that folds, one that reduces its argument and fields first,
+    one stuck on a run-time operand (`e`), and one with wrong labels."""
+    form = signature.params[0][1]
+    one = f"[{(1).to_bytes(opcodes.byte_count(opcodes.form_bits(form)), 'little').hex()}]: '{form.as_str}'"
+    labels = [label for label, _ in signature.params]
+
+    def call(values, labels=labels):
+        return '{' + ', '.join(f'{label} = {value}' for label, value in zip(labels, values, strict=True)) + '}'
+
+    reducible = [f'(i -> i) {one}'] * len(labels)
+    return [
+        f'${signature.name} {call([one] * len(labels))}',
+        f'${signature.name} ({{p = {call(reducible)}}}.p)',
+        f'${signature.name} {call(["e", *reducible[1:]])}',
+        f'${signature.name} {call(reducible, [f"x{i}" for i in range(len(labels))])}',
+    ]
+
+
+SAMPLES |= {
+    name: _opcode_samples(signature) for name, signature in opcodes.OPCODES.items() if name in bruijn.BUILTIN_RULES
 }
 
 

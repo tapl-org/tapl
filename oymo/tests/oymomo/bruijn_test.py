@@ -165,11 +165,49 @@ def test_reduce_one_step(source, expected):
         'if ((x -> x) [01]) then a else b',
         'x -> (y -> y) x',
         '{e}.a',
+        # An opcode folds only on literals of its params' size, bare or with the param's
+        # form, under the params' labels in order.
+        "$add_i32 {a = [01000000]: 'i8', b = [02000000]: 'i32'}",
+        '$add_i32 {a = [01], b = [02000000]}',
+        '$and_i1 {a = [02], b = [01]}',
+        '$add_i32 {a = e, b = [02000000]}',
+        '$add_i32 {b = [01000000], a = [02000000]}',
+        '$add_i32 {a = [01000000], b = [02000000], c = [00]}',
+        '$add_i32 {a = [01000000]}',
+        '$add_i32 [01000000]',
+        # `reduce` is root-only: a field must already be a literal.
+        '$add_i32 {a = (x -> x) [01000000], b = [02000000]}',
     ],
 )
 def test_reduce_returns_the_term_itself(source):
     term = resolved(source, ('a', 'b', 'e', 'g', 'args'))
     assert bruijn.reduce(term) is term
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        ("$add_i32 {a = [01000000]: 'i32', b = [02000000]: 'i32'}", "[03000000]: 'i32'"),
+        # A bare literal folds: the signature says how to read it.
+        ('$add_i32 {a = [01000000], b = [02000000]}', "[03000000]: 'i32'"),
+        ("$add_i32 {a = [01000000], b = [02000000]: 'i32'}", "[03000000]: 'i32'"),
+        # Arithmetic wraps.
+        ('$add_i8 {a = [ff], b = [01]}', "[00]: 'i8'"),
+        ('$sub_i8 {minuend = [00], subtrahend = [01]}', "[ff]: 'i8'"),
+        ('$sub_i16 {minuend = [0500], subtrahend = [0300]}', "[0200]: 'i16'"),
+        ('$mul_i16 {a = [0001], b = [0001]}', "[0000]: 'i16'"),
+        ('$mul_i64 {a = [0300000000000000], b = [0500000000000000]}', "[0f00000000000000]: 'i64'"),
+        # Logic, including on i1.
+        ('$and_i1 {a = [01], b = [01]}', "[01]: 'i1'"),
+        ('$or_i1 {a = [00], b = [01]}', "[01]: 'i1'"),
+        ('$xor_i1 {a = [01], b = [01]}', "[00]: 'i1'"),
+        ('$and_i8 {a = [0f], b = [3c]}', "[0c]: 'i8'"),
+        ('$or_i32 {a = [01000000], b = [00000080]}', "[01000080]: 'i32'"),
+        ('$xor_i16 {a = [ffff], b = [0ff0]}', "[f00f]: 'i16'"),
+    ],
+)
+def test_reduce_folds_an_opcode(source, expected):
+    assert bruijn.reduce(resolved(source)) == resolved(expected)
 
 
 def test_shift_and_substitute_reach_formed():

@@ -88,6 +88,7 @@ rejected alternatives. When a plan lands, update the section it changes (see
   - [Naming](#naming)
   - [Monomorphic: one op per signature](#monomorphic-one-op-per-signature)
   - [Labels fit the op](#labels-fit-the-op)
+  - [Folding](#folding)
 - [BANF](#banf)
   - [Module](#module)
   - [Blocks](#blocks)
@@ -788,7 +789,7 @@ A name can appear in two tables:
 | `fix` | `$fix g` gives `g ($fix g)` | no: it must reduce away |
 | `fields_to_struct` | `$fields_to_struct {more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}` gives `{l1 = e1, ...}`; reduces `more`, `label` and `rest` of each node first, never a value; stuck on a malformed list | no: it must reduce away |
 | `struct_to_fields` | `$struct_to_fields {l1 = e1, ...}` gives `{more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}`: labels as UTF-8 bytes, values unreduced, order kept ([plan_struct_pack.md](implemented/plan_struct_pack.md)) | no: it must reduce away |
-| `add_i32` and other opcodes | not yet (see [plan_constant_folding.md](plan_constant_folding.md)) | yes |
+| `add_i32` and other opcodes | on literal operands, the result LLVM would compute: `$add_i32 {a = [01000000], b = [02000000]}` gives `[03000000]: 'i32'`; reduces the argument, then each field if the labels are the params'. So far `add sub mul and or xor` ([plan_constant_folding.md](plan_constant_folding.md)). See [Opcodes › Folding](#folding) | yes |
 
 - A built-in with a rule and no opcode is **kernel-only**. This follows from the
   tables, with no flag to keep in sync. Reduction must remove it.
@@ -821,13 +822,15 @@ Why built-ins instead of `module` names, a `prim` binder, or a `fix` term: see
 | built-in | `$fix g` | `g ($fix g)` (by `BUILTIN_RULES[name]`, if it fires) |
 | built-in | `$struct_to_fields {a = e}` | `{more = [01], label = 'a', value = e, rest = {more = [00]}}` |
 | built-in | `$fields_to_struct {more = [01], label = 'a', value = e, rest = {more = [00]}}` | `{a = e}` |
+| opcode | `$add_i32 {a = [01000000], b = [02000000]: 'i32'}` | `[03000000]: 'i32'` |
 | projection | `{a = e, ...}.a` | `e` |
 | struct apply | `{e0, e1, ...} [01]` | `e1` |
 | if (struct apply) | `if [01] then a else b` / `if [00] ...` | `a` / `b` |
 
 Not redexes:
-- a built-in with no rule (`$add_i32 {...}`), an unknown one (`$nope g`), or a rule
-  that doesn't fire;
+- a built-in with no rule (`$udiv_i32 {...}`, not folded yet), an unknown one
+  (`$nope g`), or a rule that doesn't fire, such as an opcode on a run-time operand
+  (`$add_i32 {a = args.n, b = ...}`) or on a literal of the wrong form or size;
 - a projection with a missing label;
 - a struct apply with an index past the end, `''`, or an argument that isn't a byte
   array yet (index read by `bruijn.index_value`: unsigned little-endian, form
@@ -842,7 +845,6 @@ Properties:
   callee, struct apply a `Struct`, a built-in rule a `Builtin`.
 - **Never raises, never recurses.** Loops come from calling it repeatedly, so the
   fuel limit lives in `banf_shape`.
-- **Opcodes are not run** (`$add_i32 {...}` is stuck).
 - Helpers: `shift`, `substitute`, `beta`
   (`shift(substitute(body, 0, shift(arg, 1)), -1)`), `project`, `index_value`.
 
@@ -1070,6 +1072,33 @@ For non-commutative ops the label says the operand's role, so
 `$sub_i32 {minuend = x, subtrahend = y}` can't be read the wrong way round.
 Commutative ops use `a`/`b`.
 
+### Folding
+
+An opcode whose operands are all literals reduces to its result, so a constant
+computed in oymomo doesn't reach BANF as an instruction:
+
+```
+$add_i32 {a = [01000000]: 'i32', b = [02000000]: 'i32'}   ⇒   [03000000]: 'i32'
+$add_i8 {a = [ff], b = [01]}                             ⇒   [00]: 'i8'
+$add_i32 {a = args.n, b = [01000000]: 'i32'}             stays: a run-time operand
+```
+
+- Each folded opcode has a rule in `bruijn.BUILTIN_RULES`, generated from its
+  signature; `opcodes.evaluate` computes the result on unsigned integers, with no LLVM.
+  So far: `add sub mul and or xor` (`opcodes.FOLDED_TEMPLATES`).
+- **Same bytes as LLVM**: little-endian, `(N + 7) // 8` bytes for `iN`, arithmetic
+  wrapping modulo `2^N`. `llvm_translate_test.test_fold_matches_llvm` runs each folded
+  opcode through LLVM's JIT on edge operands and compares.
+- **Operands**: a byte array of exactly `(N + 7) // 8` bytes, below `2^N`, bare or
+  with the param's form, under the params' labels in order. A bare literal folds
+  (the signature says how to read it); a wrong form or size doesn't, so `convert`
+  still reports it (`$add_i8 expects a: i8, got i32.`).
+- **Result**: formed as the signature's result (`[03000000]: 'i32'`), so BANF still
+  knows its form, and an `if` on a folded comparison is a jump.
+- **Laziness**: the rule reduces its argument, then each field only if the labels
+  are the params'.
+- In BANF, a let whose value folds is no longer an op, so it is substituted.
+
 Adding an opcode: [How to… › Add an opcode](#add-an-opcode).
 
 ## BANF
@@ -1295,7 +1324,7 @@ reduce_until_top_stable(t) = reduce_until_top_stable(step(t))    if step(t) is n
 ```
 
 `reduce_until_top_stable` stops at every Lambda, Struct, ByteArray, BruijnIndex and
-Builtin, and at stuck terms such as `$add_i32 {...}`, `args.n`, `blocks.done {...}` or
+Builtin, and at stuck terms such as `$add_i32 {a = args.n, ...}`, `args.n`, `blocks.done {...}` or
 `if t0 then a else b`.
 
 - "Reduce `t` until it is X" means take `reduce_until_top_stable(t)`, *then* look at its
@@ -1668,10 +1697,13 @@ gives the same BANF), and checks the shaped output compiles to the same BANF.
    [Opcodes](#labels-fit-the-op)).
 2. In [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py), map the template to
    its llvmlite builder method in `_BINARY`, `_COMPARE` or `_CONVERT`.
-3. Don't name it `call`, `jump`, `branch` or `return`.
-4. Add tests in `opcodes_test.py` and `llvm_translate_test.py`; a test checks
+3. Don't name it `call`, `jump`, `branch` or `return` (`banf_terms.py` checks).
+4. To fold it, give `opcodes.evaluate` its template (in `_BINARY`, or a new group)
+   so it lands in `FOLDED_TEMPLATES`; `test_fold_matches_llvm` then checks it.
+   Return None where LLVM has no defined result.
+5. Add tests in `opcodes_test.py` and `llvm_translate_test.py`; a test checks
    both tables have the same names.
-5. Update [Opcodes](#opcodes).
+6. Update [Opcodes](#opcodes).
 
 ### Add a built-in reduction rule
 

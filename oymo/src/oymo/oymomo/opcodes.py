@@ -6,6 +6,7 @@ Shared by the kernel (`bruijn`), BANF (`banf_terms`, `banf_translate`) and LLVM
 (`llvm_opcodes`), so it holds no BANF and no LLVM and imports only `terms`.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from oymo.oymomo import terms
@@ -61,3 +62,46 @@ def _generate():
 
 
 OPCODES: dict[str, OpcodeSignature] = {signature.name: signature for signature in _generate()}
+
+
+def form_bits(form: terms.Term) -> int:
+    """The width of an integer form such as `'i32'` (a signature's param or result)."""
+    name = form.as_str if isinstance(form, terms.ByteArray) else None
+    if name is None or name not in INT_FORMS:
+        raise ValueError(f'Not an integer form: {form!r}.')
+    return int_bits(name)
+
+
+def byte_count(bits: int) -> int:
+    """How many bytes hold an `iN` value: `(N + 7) // 8`, so `i1` is one byte."""
+    return (bits + 7) // 8
+
+
+# How each template computes its result, on unsigned operands of `bits` bits. The result
+# may be out of range (`evaluate` wraps it); None means LLVM has no defined result.
+type _Evaluator = Callable[[int, int, int], int | None]
+
+_BINARY: dict[str, _Evaluator] = {
+    'add': lambda _bits, a, b: a + b,
+    'sub': lambda _bits, minuend, subtrahend: minuend - subtrahend,
+    'mul': lambda _bits, a, b: a * b,
+    'and': lambda _bits, a, b: a & b,
+    'or': lambda _bits, a, b: a | b,
+    'xor': lambda _bits, a, b: a ^ b,
+}
+
+# The templates `evaluate` knows. An opcode of another template is never folded.
+FOLDED_TEMPLATES: frozenset[str] = frozenset(_BINARY)
+
+
+def evaluate(signature: OpcodeSignature, operands: list[int]) -> int | None:
+    """The unsigned result of `signature` on unsigned operands, as LLVM computes it.
+
+    Each operand must be below `2^N` for its param's `iN`. Arithmetic wraps modulo `2^N`
+    of the result form. None where LLVM has no defined result.
+    """
+    bits = form_bits(signature.params[0][1])
+    result = _BINARY[signature.template](bits, *operands)
+    if result is None:
+        return None
+    return result % (1 << form_bits(signature.result))
