@@ -1,6 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Abstract opcode signatures, generated from per-op templates. Contains no LLVM."""
+"""Abstract opcode signatures, generated from per-op templates.
+
+Shared by the kernel (`bruijn`), BANF (`banf_terms`, `banf_translate`) and LLVM
+(`llvm_opcodes`), so it holds no BANF and no LLVM and imports only `terms`.
+"""
 
 from dataclasses import dataclass
 
@@ -57,9 +61,3 @@ def _generate():
 
 
 OPCODES: dict[str, OpcodeSignature] = {signature.name: signature for signature in _generate()}
-
-# An OpcodeCall prints its name bare (`add_i32 a, b`), so an opcode named like a BANF
-# keyword would read like a call or a terminator.
-_BANF_KEYWORDS = frozenset({'call', 'jump', 'branch', 'return'})
-if _BANF_KEYWORDS & OPCODES.keys():
-    raise AssertionError('Opcode names must not shadow BANF keywords.')

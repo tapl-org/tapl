@@ -5,7 +5,7 @@ import textwrap
 import llvmlite.binding as llvm
 import pytest
 
-from oymo.oymomo import banf_opcodes, banf_translate
+from oymo.oymomo import banf_translate, opcodes
 from oymo.oymomo.grammar import parse
 from oymo.oymomo.llvm_opcodes import DEFAULT_OPCODES
 from oymo.oymomo.llvm_translate import LlvmTranslationError, Target, translate
@@ -37,8 +37,8 @@ def text(block):
     return textwrap.dedent(block).removeprefix('\n')
 
 
-def test_default_opcodes_cover_banf_opcodes():
-    assert DEFAULT_OPCODES.keys() == banf_opcodes.OPCODES.keys()
+def test_default_opcodes_cover_opcodes():
+    assert DEFAULT_OPCODES.keys() == opcodes.OPCODES.keys()
 
 
 def test_fact():

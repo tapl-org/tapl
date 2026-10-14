@@ -256,7 +256,7 @@ def _fields_to_struct(call: terms.Apply, reduce_part: ReducePart) -> syntax.Term
 
 
 # Reduction rules, by built-in name. A built-in with a rule and no opcode
-# (`banf_opcodes.OPCODES`) is kernel-only: it must reduce away before BANF.
+# (`opcodes.OPCODES`) is kernel-only: it must reduce away before BANF.
 BUILTIN_RULES: dict[str, BuiltinRule] = {
     rule.name: rule
     for rule in (

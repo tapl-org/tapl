@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""The default LLVM implementation of each opcode in banf_opcodes."""
+"""The default LLVM implementation of each opcode in `opcodes.OPCODES`."""
 
 from collections.abc import Callable
 
 from llvmlite import ir
 
-from oymo.oymomo import banf_opcodes, terms
+from oymo.oymomo import opcodes, terms
 
 type OpcodeImpl = Callable[[ir.IRBuilder, list[ir.Value]], ir.Value]
 
@@ -20,7 +20,7 @@ def _compare(method, op):
 
 
 def _convert(method, result):
-    target = ir.IntType(banf_opcodes.int_bits(result))
+    target = ir.IntType(opcodes.int_bits(result))
     return lambda builder, args: getattr(builder, method)(args[0], target)
 
 
@@ -56,7 +56,7 @@ _COMPARE = {
 _CONVERT = {'zext': 'zext', 'sext': 'sext', 'trunc': 'trunc'}
 
 
-def _impl(signature: banf_opcodes.OpcodeSignature) -> OpcodeImpl:
+def _impl(signature: opcodes.OpcodeSignature) -> OpcodeImpl:
     template = signature.template
     if template in _BINARY:
         return _binary(_BINARY[template])
@@ -68,4 +68,4 @@ def _impl(signature: banf_opcodes.OpcodeSignature) -> OpcodeImpl:
     return _convert(_CONVERT[template], result)
 
 
-DEFAULT_OPCODES: dict[str, OpcodeImpl] = {name: _impl(signature) for name, signature in banf_opcodes.OPCODES.items()}
+DEFAULT_OPCODES: dict[str, OpcodeImpl] = {name: _impl(signature) for name, signature in opcodes.OPCODES.items()}

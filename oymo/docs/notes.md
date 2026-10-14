@@ -290,13 +290,15 @@ module has a test of the same name in `tests/oymomo/`.
 | [`banf_rename.py`](../src/oymo/oymomo/banf_rename.py) | Renames binders so none shadow each other |
 | [`banf_translate.py`](../src/oymo/oymomo/banf_translate.py) | `shape`, `convert`, `translate`: oymomo → BANF |
 | [`banf_terms.py`](../src/oymo/oymomo/banf_terms.py) | BANF classes, `form_of`, verifier, BANF printer |
-| [`banf_opcodes.py`](../src/oymo/oymomo/banf_opcodes.py) | Opcode signatures (`OPCODES`), no LLVM |
+| [`opcodes.py`](../src/oymo/oymomo/opcodes.py) | Opcode signatures (`OPCODES`), no BANF and no LLVM; shared by the kernel, BANF and LLVM |
 | [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) | llvmlite code for each opcode (`DEFAULT_OPCODES`) |
 | [`llvm_translate.py`](../src/oymo/oymomo/llvm_translate.py) | BANF → LLVM IR, `Target` |
 
 Import rules:
 - Only `llvm_*.py` imports llvmlite.
-- No `banf_*.py` imports an `llvm_*.py`. BANF depends only on `oymomo.terms`.
+- No `banf_*.py` imports an `llvm_*.py`. BANF depends only on `oymomo.terms` and
+  `opcodes.py`.
+- `opcodes.py` imports only `terms`, so the kernel, BANF and LLVM can all import it.
 
 Anything LLVM needs that BANF doesn't have is passed to the LLVM translator:
 
@@ -315,7 +317,7 @@ subpackage, without extra `__init__.py` files and import paths.
 
 ### Testing
 
-- Unit tests per stage: `grammar_test.py`, `printer_test.py`, `banf_opcodes_test.py`,
+- Unit tests per stage: `grammar_test.py`, `printer_test.py`, `opcodes_test.py`,
   `banf_terms_test.py`, `bruijn_test.py`, `banf_shape_test.py`,
   `banf_rename_test.py`, `banf_translate_test.py`, `llvm_translate_test.py`.
 - BANF tests build modules by hand, so they don't depend on the translator.
@@ -779,7 +781,7 @@ A name can appear in two tables:
 | Table | File | Gives |
 |---|---|---|
 | `BUILTIN_RULES` (`BuiltinRule(name, reduce)`) | [`bruijn.py`](../src/oymo/oymomo/bruijn.py) | a reduction rule |
-| `OPCODES` / `DEFAULT_OPCODES` | [`banf_opcodes.py`](../src/oymo/oymomo/banf_opcodes.py) / [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) | machine code (an **opcode**) |
+| `OPCODES` / `DEFAULT_OPCODES` | [`opcodes.py`](../src/oymo/oymomo/opcodes.py) / [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) | machine code (an **opcode**) |
 
 | Name | Rule | Opcode |
 |---|---|---|
@@ -1021,8 +1023,8 @@ fine; one left over is an error.
 ## Opcodes
 
 An **opcode** is a built-in with machine code: `$add_i32 {a = x, b = y}`.
-Signatures are plain data in [`banf_opcodes.py`](../src/oymo/oymomo/banf_opcodes.py)
-(`OPCODES`, no LLVM); their LLVM code is in
+Signatures are plain data in [`opcodes.py`](../src/oymo/oymomo/opcodes.py)
+(`OPCODES`, no BANF and no LLVM); their LLVM code is in
 [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) (`DEFAULT_OPCODES`). A test
 checks that both tables have the same names.
 
@@ -1049,7 +1051,7 @@ There are no same-width conversions.
 - Same-form ops: `<op>_<form>`: `add_i32`, `eq_i8`.
 - Conversions name both forms, from then to: `zext_i8_i32`, `trunc_i64_i32`.
 - No opcode may be named `call`, `jump`, `branch` or `return` (they'd read as BANF
-  keywords); `banf_opcodes.py` asserts this.
+  keywords); `banf_terms.py` asserts this.
 
 ### Monomorphic: one op per signature
 
@@ -1162,7 +1164,7 @@ out; `form_of(op, forms, module)` computes the rest:
 
 | Op | oymomo source | Result form |
 |---|---|---|
-| `OpcodeCall` | `$add_i32 {...}` | the op's result form from `banf_opcodes.py` |
+| `OpcodeCall` | `$add_i32 {...}` | the op's result form from `opcodes.py` |
 | `Call` | `module.g {...}` | the callee's `return_form` (`Function` or `Signature`) |
 | `MakeStruct` | `{x = a, y = b}` | each label paired with its field atom's form |
 | `GetField` | `args.p.x` | that field's form inside the struct's form |
@@ -1660,14 +1662,14 @@ gives the same BANF), and checks the shaped output compiles to the same BANF.
 
 ### Add an opcode
 
-1. In [`banf_opcodes.py`](../src/oymo/oymomo/banf_opcodes.py), add the template to
+1. In [`opcodes.py`](../src/oymo/oymomo/opcodes.py), add the template to
    `_generate()` (same-form ops with `_same_form`, conversions with `_conversions`).
    Pick labels that say each operand's role (see
    [Opcodes](#labels-fit-the-op)).
 2. In [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py), map the template to
    its llvmlite builder method in `_BINARY`, `_COMPARE` or `_CONVERT`.
 3. Don't name it `call`, `jump`, `branch` or `return`.
-4. Add tests in `banf_opcodes_test.py` and `llvm_translate_test.py`; a test checks
+4. Add tests in `opcodes_test.py` and `llvm_translate_test.py`; a test checks
    both tables have the same names.
 5. Update [Opcodes](#opcodes).
 
@@ -2043,7 +2045,7 @@ Words used across the docs, in alphabetical order. Code names are in `code`.
 | **let** | `let x = e in body`, sugar for `(x -> body) e`. In BANF, one instruction `x = op`. | [oymomo syntax](#let) |
 | **module** | The program's outer binder; its form declares every symbol. `module.fact {...}` calls a function. | [Programs](#module-declares-every-symbol) |
 | **op** | A BANF let's value: `OpcodeCall`, `Call`, `MakeStruct`, `GetField`, `GetIndex`, `GetData`. | [BANF](#ops-and-their-forms) |
-| **opcode** | A built-in with machine code (`add_i32`). Listed in `banf_opcodes.OPCODES`. | [Opcodes](#opcodes) |
+| **opcode** | A built-in with machine code (`add_i32`). Listed in `opcodes.OPCODES`. | [Opcodes](#opcodes) |
 | **oymomo** | The kernel lambda-calculus language. | [oymomo syntax](#oymomo-syntax) |
 | **position** | A place in the program that wants a certain shape (a lambda, a struct, an atom…). | [Translation](#positions) |
 | **project** | `s.x`: pick a field by label. `Project` term. | [oymomo syntax](#projection-and-struct-apply) |

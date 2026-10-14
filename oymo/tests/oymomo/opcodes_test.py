@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from oymo.oymomo import terms
-from oymo.oymomo.banf_opcodes import OPCODES, OpcodeSignature
+from oymo.oymomo.opcodes import OPCODES, OpcodeSignature
 
 I1, I8, I16, I32, I64 = (terms.ByteArray(name) for name in (b'i1', b'i8', b'i16', b'i32', b'i64'))
 

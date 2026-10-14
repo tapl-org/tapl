@@ -6,9 +6,15 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from oymo.oymomo import banf_opcodes, printer, terms
+from oymo.oymomo import opcodes, printer, terms
 
 Location = terms.Location
+
+# An OpcodeCall prints its name bare (`add_i32 a, b`), so an opcode named like a BANF
+# keyword would read like a call or a terminator.
+_BANF_KEYWORDS = frozenset({'call', 'jump', 'branch', 'return'})
+if _BANF_KEYWORDS & opcodes.OPCODES.keys():
+    raise AssertionError('Opcode names must not shadow BANF keywords.')
 
 
 @dataclass
@@ -191,9 +197,9 @@ def form_of(op: Op, forms: Mapping[str, terms.Term], module: Module) -> terms.Te
     """The result form of `op`, given the forms of the names in scope."""
     match op:
         case OpcodeCall(opcode=name):
-            if name not in banf_opcodes.OPCODES:
+            if name not in opcodes.OPCODES:
                 raise FormError(f"Unknown built-in '${name}'.", op.location)
-            return banf_opcodes.OPCODES[name].result
+            return opcodes.OPCODES[name].result
         case Call():
             return callee(op, module).return_form
         case MakeStruct(fields=fields):
@@ -253,7 +259,7 @@ def _check_op(op, forms, module):
     match op:
         case OpcodeCall(opcode=name, args=args):
             form_of(op, forms, module)
-            _check_args(f'${name}', banf_opcodes.OPCODES[name].params, args, forms, op.location)
+            _check_args(f'${name}', opcodes.OPCODES[name].params, args, forms, op.location)
         case Call(function=name, args=args):
             _check_args(name, callee(op, module).params, args, forms, op.location)
         case _:

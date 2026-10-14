@@ -291,7 +291,7 @@ Commit: `oymomo: add the ptr form`
 
 - B, without alloca.
 - Tests:
-  - `banf_opcodes`: `load_i32` and `store_ptr` signatures; both tables still have the
+  - `opcodes`: `load_i32` and `store_ptr` signatures; both tables still have the
     same names.
   - `banf_translate`: a dead store let is kept; two loads stay two lets, in order;
     `$store_i32 {value = v, address = p}` is `$store_i32 takes {address, value}, got {value, address}.`;

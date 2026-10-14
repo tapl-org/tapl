@@ -1,12 +1,12 @@
 # Plan: opcodes on literals fold to a constant
 
-Status: **proposed**. No open questions. Prerequisites done.
+Status: **in progress** (1 of 4 steps). No open questions. Prerequisites done.
 
 ## Steps
 
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
-- [ ] 1. Opcode signatures move to a neutral `opcodes.py` (`oymomo: move opcode signatures to opcodes.py`)
+- [x] 1. Opcode signatures move to a neutral `opcodes.py` (`oymomo: move opcode signatures to opcodes.py`)
 - [ ] 2. Fold `add sub mul and or xor` (`oymomo: fold add, sub, mul, and, or, xor on literals`)
 - [ ] 3. Fold division and shifts, except where LLVM has no defined result (`oymomo: fold division and shifts`)
 - [ ] 4. Fold comparisons and conversions (`oymomo: fold comparisons and conversions`)
