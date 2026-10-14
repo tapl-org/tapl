@@ -152,6 +152,16 @@ def test_reduce_one_step(source, expected):
         '$struct_to_fields e',
         '$struct_to_fields {p = {a = e}}.p',
         "$struct_to_fields {a = e}: 'f'",
+        '$fields_to_struct e',
+        "$fields_to_struct {more = [01], label = 'a', value = e, rest = (y -> y) {more = [00]}}",
+        # Malformed lists: no `more`, `more` not [00] or [01], a label that isn't UTF-8,
+        # a missing `rest`, a node under a form.
+        "$fields_to_struct {label = 'a'}",
+        '$fields_to_struct {more = [02]}',
+        '$fields_to_struct {more = [01], label = [ff], value = e, rest = {more = [00]}}',
+        "$fields_to_struct {more = [01], label = 'a', value = e}",
+        "$fields_to_struct {more = [01], label = 'a', value = e, rest = {more = [00]}: 'f'}",
+        "$fields_to_struct {more = [00]}: 'f'",
         'if ((x -> x) [01]) then a else b',
         'x -> (y -> y) x',
         '{e}.a',
@@ -274,3 +284,48 @@ def test_reduce_struct_to_fields(source, expected):
 def test_struct_to_fields_labels_are_bare_byte_arrays():
     field_list = bruijn.reduce(resolved('$struct_to_fields {a = x}', ('x',)))
     assert field_list.fields[1] == terms.Field('label', terms.ByteArray(b'a'))
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        ('$fields_to_struct {more = [00]}', '{}'),
+        (
+            "$fields_to_struct {more = [01], label = 'a', value = x, rest = {more = [01], label = 'b', value = '2', "
+            'rest = {more = [00]}}}',
+            "{a = x, b = '2'}",
+        ),
+        # Duplicate labels are kept; '' is an unlabeled field; a value stays unreduced.
+        (
+            "$fields_to_struct {more = [01], label = 'a', value = x, rest = {more = [01], label = 'a', "
+            "value = (y -> y) x, rest = {more = [01], label = '', value = x, rest = {more = [00]}}}}",
+            '{a = x, a = (y -> y) x, x}',
+        ),
+        # A form on `more` or `label` is ignored; extra fields are ignored; in a node the
+        # first of two equal labels counts; field order in a node doesn't matter.
+        (
+            "$fields_to_struct {value = x, more = [01]: 'u8', label = 'a': 'f', label = 'b', extra = x, "
+            'rest = {more = [00], label = [ff]}}',
+            '{a = x}',
+        ),
+        ('$fields_to_struct {more = [01], label = [cebb], value = x, rest = {more = [00]}}', '{"λ" = x}'),
+    ],
+)
+def test_reduce_fields_to_struct(source, expected):
+    assert show(bruijn.reduce(resolved(source, ('x',)))) == show(resolved(expected, ('x',)))
+
+
+@pytest.mark.parametrize('source', ['{}', '{a = x, "λ" = \'2\', x, a = (y -> y) x}'])
+def test_fields_to_struct_undoes_struct_to_fields(source):
+    struct = resolved(source, ('x',))
+    field_list = bruijn.reduce(terms.Apply(terms.Builtin('struct_to_fields'), struct))
+    assert bruijn.reduce(terms.Apply(terms.Builtin('fields_to_struct'), field_list)) == struct
+
+
+def test_struct_to_fields_undoes_fields_to_struct():
+    field_list = resolved(
+        "{more = [01], label = 'a', value = x, rest = {more = [01], label = '', value = '2', rest = {more = [00]}}}",
+        ('x',),
+    )
+    struct = bruijn.reduce(terms.Apply(terms.Builtin('fields_to_struct'), field_list))
+    assert bruijn.reduce(terms.Apply(terms.Builtin('struct_to_fields'), struct)) == field_list

@@ -170,10 +170,100 @@ def _struct_to_fields(call: terms.Apply, reduce_part: ReducePart) -> syntax.Term
     return call if argument is call.argument else replace(call, argument=argument)
 
 
+def _field_position(struct: terms.Struct, label: str) -> int | None:
+    """The position of the first field labeled `label`, or None."""
+    return next((i for i, field in enumerate(struct.fields) if field.label == label), None)
+
+
+def _bytes(term: syntax.Term) -> bytes | None:
+    """The bytes of a byte array, with a form on it ignored. None for anything else."""
+    match term:
+        case terms.ByteArray(value=value) | terms.Formed(term=terms.ByteArray(value=value)):
+            return value
+    return None
+
+
+def _with_value(struct: terms.Struct, position: int, value: syntax.Term) -> terms.Struct:
+    """`struct` with the value at `position` replaced; `struct` itself if `value` is already there."""
+    if value is struct.fields[position].value:
+        return struct
+    fields = list(struct.fields)
+    fields[position] = replace(fields[position], value=value)
+    return replace(struct, fields=fields)
+
+
+def from_field_list(field_list: syntax.Term) -> terms.Struct | None:
+    """The struct a literal list of fields spells (the reverse of `to_field_list`), or None.
+
+    Each node must be a struct with `more = [00]` (the end), or `more = [01]` and a `label`
+    of valid UTF-8, a `value` and a `rest`. A form on `more` or `label` is ignored; extra
+    fields are ignored; the first of two equal labels in a node counts.
+    """
+    fields = []
+    node = field_list
+    while True:
+        if not isinstance(node, terms.Struct) or (more := _field_position(node, 'more')) is None:
+            return None
+        match _bytes(node.fields[more].value):
+            case b'\x00':
+                return terms.Struct(fields, getattr(field_list, 'location', None))
+            case b'\x01':
+                pass
+            case _:
+                return None
+        label, value, rest = (_field_position(node, name) for name in ('label', 'value', 'rest'))
+        if label is None or value is None or rest is None:
+            return None
+        name = _bytes(node.fields[label].value)
+        if name is None:
+            return None
+        try:
+            fields.append(terms.Field(name.decode(), node.fields[value].value))
+        except UnicodeDecodeError:
+            return None
+        node = node.fields[rest].value
+
+
+def _reduce_field_list(field_list: syntax.Term, reduce_part: ReducePart) -> syntax.Term:
+    """Reduces what `from_field_list` reads: each node, its `more`, and if `more` is [01],
+    its `label` and its `rest`. Never a `value`. `field_list` itself if nothing changes.
+
+    A loop, not recursion, so a long (or endless) list costs fuel, not Python stack.
+    """
+    parents = []  # (node, position of its rest), outermost first
+    node = reduce_part(field_list)
+    while isinstance(node, terms.Struct) and (more := _field_position(node, 'more')) is not None:
+        node = _with_value(node, more, reduce_part(node.fields[more].value))
+        if _bytes(node.fields[more].value) != b'\x01':
+            break
+        if (label := _field_position(node, 'label')) is not None:
+            node = _with_value(node, label, reduce_part(node.fields[label].value))
+        if (rest := _field_position(node, 'rest')) is None:
+            break
+        parents.append((node, rest))
+        node = reduce_part(node.fields[rest].value)
+    for parent, rest in reversed(parents):
+        node = _with_value(parent, rest, node)
+    return node
+
+
+def _fields_to_struct(call: terms.Apply, reduce_part: ReducePart) -> syntax.Term:
+    """`$fields_to_struct l` gives `from_field_list(l)` once `l` reduces to a literal list."""
+    field_list = _reduce_field_list(call.argument, reduce_part)
+    if (struct := from_field_list(field_list)) is not None:
+        return struct
+    return call if field_list is call.argument else replace(call, argument=field_list)
+
+
 # Reduction rules, by built-in name. A built-in with a rule and no opcode
 # (`banf_opcodes.OPCODES`) is kernel-only: it must reduce away before BANF.
 BUILTIN_RULES: dict[str, BuiltinRule] = {
-    rule.name: rule for rule in (BuiltinRule('fix', _fix), BuiltinRule('struct_to_fields', _struct_to_fields))
+    rule.name: rule
+    for rule in (
+        BuiltinRule('fix', _fix),
+        BuiltinRule('struct_to_fields', _struct_to_fields),
+        BuiltinRule('fields_to_struct', _fields_to_struct),
+    )
 }
 
 

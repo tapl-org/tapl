@@ -259,6 +259,55 @@ def test_struct_to_fields_on_a_run_time_value_is_stuck():
     assert banf_shape.reduce_until_top_stable(term) is term
 
 
+def test_fields_to_struct_goal():
+    source = "(l -> v -> $fields_to_struct {more = [01], label = l, value = v, rest = {more = [00]}}) 'a' '23'"
+    assert banf_shape.reduce_until_top_stable(bruijn.resolve(parse(source))) == parse("{a = '23'}")
+
+
+def test_fields_to_struct_reduces_more_label_and_rest_but_not_values():
+    source = (
+        "$fields_to_struct ({p = {more = (y -> y) [01], label = {q = 'a'}.q, value = (y -> y) x, "
+        'rest = (y -> y) {more = [00]}}}.p)'
+    )
+    reduced = banf_shape.reduce_until_top_stable(resolved(source, FREE))
+    assert show(reduced) == show(resolved('{a = (y -> y) x}', FREE))
+
+
+def test_fields_to_struct_reads_label_and_rest_only_after_more_is_01():
+    given = []
+
+    def record(part):
+        given.append(show(part))
+        return banf_shape.reduce_until_top_stable(part)
+
+    source = "$fields_to_struct {more = [00], label = (y -> y) 'a', value = (y -> y) x, rest = (y -> y) e}"
+    call = resolved(source, FREE)
+    assert bruijn.BUILTIN_RULES['fields_to_struct'].reduce(call, record) == terms.Struct([])
+    assert given == [show(call.argument), '[00]']
+
+
+def test_fields_to_struct_maps_a_struct():
+    source = """
+        let map = $fix (map -> f -> l ->
+          if l.more then {more = [01], label = l.label, value = f l.value, rest = map f l.rest}
+          else l)
+        in $fields_to_struct (map (v -> {v}) ($struct_to_fields {a = x, b = e}))
+    """
+    struct = banf_shape.reduce_until_top_stable(resolved(source, FREE))
+    assert [field.label for field in struct.fields] == ['a', 'b']
+    values = [banf_shape.reduce_until_top_stable(field.value) for field in struct.fields]
+    assert [show(banf_shape.reduce_until_top_stable(v.fields[0].value)) for v in values] == [
+        show(resolved('x', FREE)),
+        show(resolved('e', FREE)),
+    ]
+
+
+def test_an_endless_field_list_runs_out_of_fuel():
+    term = resolved("$fields_to_struct ($fix (l -> {more = [01], label = 'a', value = x, rest = l}))", FREE)
+    with pytest.raises(bruijn.BruijnError, match='ran out of reduction steps'):
+        banf_shape.reduce_until_top_stable(term)
+
+
 # A built-in reduces its own call (plan_struct_pack decision 1). The rules below are test-only.
 
 
@@ -351,6 +400,12 @@ def test_a_builtin_picks_what_to_reduce_by_what_it_sees():
 SAMPLES = {
     'fix': ['$fix g', '$fix ((x -> x) g)', '$fix {a = g}'],
     'struct_to_fields': ['$struct_to_fields {a = x}', '$struct_to_fields ({p = {a = x}}.p)', '$struct_to_fields e'],
+    'fields_to_struct': [
+        "$fields_to_struct {more = (y -> y) [01], label = (y -> y) 'a', value = x, rest = (y -> y) {more = [00]}}",
+        "$fields_to_struct {more = [01], label = 'a', value = x, rest = e}",
+        '$fields_to_struct {more = [00]}',
+        '$fields_to_struct e',
+    ],
     'first': ['$first ({p = {a = x}}.p)', '$first e', '$first {a = x}'],
     'both': ['$both {a = (i -> i) [01], b = {c = [02]}.c}', '$both {a = e, b = (i -> i) [02]}', '$both [01]'],
     'gate': ['$gate {(i -> i) [00], (i -> i) [02]}', '$gate {(i -> i) [01], (i -> i) [02]}'],

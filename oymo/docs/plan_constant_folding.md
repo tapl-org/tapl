@@ -15,7 +15,7 @@ Step 1 comes first; steps 2 to 4 each add templates to the same evaluator, and s
 adds the test that checks it against LLVM. Built on [plan_builtin.md](implemented/plan_builtin.md):
 opcodes are built-ins (`$add_i32`), and a built-in can have a rule in
 `bruijn.BUILTIN_RULES`. Step 2 also needs step 1 of
-[plan_struct_pack.md](plan_struct_pack.md): a built-in reduces its own call.
+[plan_struct_pack.md](implemented/plan_struct_pack.md): a built-in reduces its own call.
 
 ## Goal
 
@@ -187,7 +187,7 @@ folded so far.
 | `opcodes_test.py` or `llvm_translate_test.py` | 2 | fold vs LLVM JIT, per template and width |
 | `banf_translate_test.py` | 2 | tests that need an `OpcodeCall` use a param operand |
 | `docs/notes.md` | 1–4 | module table and opcode sections (`opcodes.py`); the `reduce` list, "Opcodes are not run", "Monomorphic" |
-| `docs/plan_memory.md`, `docs/plan_struct_pack.md` | 1 | `banf_opcodes` → `opcodes` where they name it |
+| `docs/plan_memory.md` | 1 | `banf_opcodes` → `opcodes` where they name it |
 
 ---
 

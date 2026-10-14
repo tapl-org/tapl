@@ -1,6 +1,6 @@
 # Plan: `$struct_to_fields` and `$fields_to_struct`, a struct to a list of fields and back
 
-Status: **proposed**.
+Status: **implemented**.
 
 ## Steps
 
@@ -8,9 +8,9 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 
 - [x] 1. A built-in reduces its own call (`oymomo: a built-in reduces its own call`)
 - [x] 2. `$struct_to_fields s`: a struct to a list of fields (`oymomo: add $struct_to_fields`)
-- [ ] 3. `$fields_to_struct l`: a list of fields to a struct (`oymomo: add $fields_to_struct`)
+- [x] 3. `$fields_to_struct l`: a list of fields to a struct (`oymomo: add $fields_to_struct`)
 
-Built on [plan_builtin.md](implemented/plan_builtin.md). [plan_constant_folding.md](plan_constant_folding.md)
+Built on [plan_builtin.md](plan_builtin.md). [plan_constant_folding.md](../plan_constant_folding.md)
 builds on step 1.
 
 ## Goal
@@ -233,25 +233,29 @@ def _fields_to_struct(call, reduce_part):
     return call if field_list is call.argument else replace(call, argument=field_list)
 
 
-def _reduce_field_list(node, reduce_part):
-    """Reduces the node, its `more`, and if `more` is [01], its `label` and (recursively) its `rest`.
-    Never a `value`."""
-    node = reduce_part(node)
-    if not isinstance(node, terms.Struct) or (more := _field_position(node, 'more')) is None:
-        return node
-    fields = list(node.fields)
-    fields[more] = replace(fields[more], value=reduce_part(fields[more].value))
-    if index_value(fields[more].value) == 1:
+def _reduce_field_list(field_list, reduce_part):
+    """Reduces each node, its `more`, and if `more` is [01], its `label` and its `rest`.
+    Never a `value`. A loop, not recursion, so a long list costs fuel, not Python stack."""
+    parents = []  # (node, position of its rest), outermost first
+    node = reduce_part(field_list)
+    while isinstance(node, terms.Struct) and (more := _field_position(node, 'more')) is not None:
+        node = _with_value(node, more, reduce_part(node.fields[more].value))
+        if _bytes(node.fields[more].value) != b'\x01':
+            break
         if (label := _field_position(node, 'label')) is not None:
-            fields[label] = replace(fields[label], value=reduce_part(fields[label].value))
-        if (rest := _field_position(node, 'rest')) is not None:
-            fields[rest] = replace(fields[rest], value=_reduce_field_list(fields[rest].value, reduce_part))
-    if all(new.value is old.value for new, old in zip(fields, node.fields)):
-        return node
-    return replace(node, fields=fields)
+            node = _with_value(node, label, reduce_part(node.fields[label].value))
+        if (rest := _field_position(node, 'rest')) is None:
+            break
+        parents.append((node, rest))
+        node = reduce_part(node.fields[rest].value)
+    for parent, rest in reversed(parents):
+        node = _with_value(parent, rest, node)
+    return node
 ```
 
 `_field_position(struct, label)` is the position of the first field with that label, or None.
+`_bytes(term)` is a byte array's bytes, form ignored. `_with_value(struct, i, v)` returns
+`struct` itself when `v` is already the value at `i`.
 
 ### Modules
 

@@ -90,7 +90,7 @@ hides it, because the written form replaces the atom's form
 
 5. **A built-in rule must commute with reduction of its argument.** Today the only rule
    is `$fix`, which isn't strict and doesn't look at its argument. Strict rules
-   ([plan_struct_pack.md](plan_struct_pack.md),
+   ([plan_struct_pack.md](implemented/plan_struct_pack.md),
    [plan_constant_folding.md](plan_constant_folding.md)) read their argument, so they need
    a contract, in the `BuiltinRule` docstring:
 
@@ -161,7 +161,7 @@ hides it, because the written form replaces the atom's form
   a form is replaced (E-Reform)".
 - `bruijn.beta` docstring: the form goes with the argument, and E-Reform drops the
   argument's own form.
-- [plan_struct_pack.md](plan_struct_pack.md), [plan_constant_folding.md](plan_constant_folding.md):
+- [plan_struct_pack.md](implemented/plan_struct_pack.md), [plan_constant_folding.md](plan_constant_folding.md):
   each rule names its decision 5 samples.
 
 ## Risks
