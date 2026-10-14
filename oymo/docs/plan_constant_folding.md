@@ -97,9 +97,8 @@ is the jump `f.a {}`.
 8. **An opcode reduces its argument and each of its fields.** Folding reads
    every field reduced: in `$add_i32 {a = (x -> x) [01000000]: 'i32', b = ...}` the
    field must be reduced before the rule can read it. A built-in reduces the parts it
-   reads in its own `reduce` (plan_struct_pack decision 1), so each opcode rule starts
-   with `bruijn.reduce_argument_fields`: the argument, then, once it is a struct, each
-   field in order. No change in `banf_shape`.
+   reads in its own `reduce` (plan_struct_pack decision 1), so each opcode rule first
+   reduces the argument, then, once it is a struct, each field in order. No change in `banf_shape`.
 
    Fields stay lazy where they are not read: only what a built-in gives to
    `reduce_part` is reduced, and fields only once the argument is a struct.
@@ -132,7 +131,7 @@ terms  ←  opcodes  ←  bruijn, banf_terms, banf_translate, llvm_opcodes
 ### B. Reducing the operands
 
 From plan_struct_pack step 1. `banf_shape.unblock` calls the opcode's `reduce` with
-`reduce_until_top_stable`, and `reduce_argument_fields` reduces:
+`reduce_until_top_stable`, and it reduces:
 
 | Term | Reduced by `step` |
 |---|---|
@@ -155,15 +154,20 @@ One function per template group, keyed by `signature.template`, like `llvm_opcod
 ```python
 def _fold(signature):
     def reduce(call, reduce_part):
-        call = reduce_argument_fields(call, reduce_part)
-        operands = _literal_operands(signature, call.argument)  # None unless decision 6 holds
+        argument = reduce_part(call.argument)
+        if isinstance(argument, terms.Struct):
+            fields = [replace(f, value=reduce_part(f.value)) for f in argument.fields]
+            if any(new.value is not old.value for new, old in zip(fields, argument.fields)):
+                argument = replace(argument, fields=fields)
+        call = call if argument is call.argument else replace(call, argument=argument)
+        operands = _literal_operands(signature, argument)  # None unless decision 6 holds
         if operands is None:
             return call
         result = opcodes.evaluate(signature, operands)
         if result is None:
             return call
         return terms.Formed(terms.ByteArray(_encode(result, signature.result)), signature.result)
-    return BuiltinRule(signature.name, None, reduce)
+    return BuiltinRule(signature.name, reduce)
 ```
 
 `BUILTIN_RULES` gets one such rule per name in `opcodes.OPCODES` whose template is
@@ -178,7 +182,7 @@ folded so far.
 | `banf_opcodes.py` → `opcodes.py` | 1, 2, 3, 4 | renamed (A); `evaluate` (C), a template group per step |
 | `banf_terms.py`, `banf_translate.py`, `llvm_opcodes.py` | 1 | import `opcodes`; `banf_terms` gets the keyword check |
 | `banf_opcodes_test.py` → `opcodes_test.py`, `llvm_translate_test.py` | 1 | renamed import |
-| `bruijn.py` | 2 | the opcode rules (D), with `reduce_argument_fields` |
+| `bruijn.py` | 2 | the opcode rules (D) |
 | `banf_shape.py` | — | none: a built-in reduces its own call since plan_struct_pack step 1 |
 | `opcodes_test.py` or `llvm_translate_test.py` | 2 | fold vs LLVM JIT, per template and width |
 | `banf_translate_test.py` | 2 | tests that need an `OpcodeCall` use a param operand |
@@ -206,7 +210,7 @@ Commit: `oymomo: move opcode signatures to opcodes.py`
 
 ### Step 2: fold `add sub mul and or xor`
 
-- Needs plan_struct_pack step 1 (`reduce_argument_fields`).
+- Needs plan_struct_pack step 1 (`BuiltinRule.reduce`).
 - `opcodes.py`: `evaluate` for these templates. `bruijn.py`: D.
 - Tests:
   - `reduce`: the goal's `$add_i32`, with forms and bare; wrapping (`$add_i8` of `ff`
