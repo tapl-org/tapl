@@ -4,7 +4,7 @@ import textwrap
 
 import pytest
 
-from oymo.oymomo import banf_terms, bruijn, terms
+from oymo.oymomo import banf_terms, terms
 from oymo.oymomo.banf_translate import TranslationError, translate
 from oymo.oymomo.grammar import parse
 
@@ -706,10 +706,8 @@ def test_form_must_be_known():
     assert error('main = f -> {entry = args: {} -> [01]}', "main = => 'i8'") == 'Byte array: form must be written.'
 
 
-def test_a_kernel_only_builtin_that_does_not_reduce_away(monkeypatch):
-    # A rule that never fires, standing in for `$struct_to_fields` on a run-time value.
-    stuck = bruijn.BuiltinRule('struct_to_fields', lambda call, _reduce_part: call)
-    monkeypatch.setitem(bruijn.BUILTIN_RULES, 'struct_to_fields', stuck)
+def test_a_kernel_only_builtin_that_does_not_reduce_away():
+    # `args.p` is a run-time value, so `$struct_to_fields` can't fire.
     source = "g = f -> {entry = args:{p = {'i8'}} -> let t = $struct_to_fields args.p in t}"
     assert error(source, "g = => 'i8'") == (
         '$struct_to_fields has no opcode, so it must reduce away: its argument must reduce to a struct.'

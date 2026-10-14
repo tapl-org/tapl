@@ -784,6 +784,7 @@ A name can appear in two tables:
 | Name | Rule | Opcode |
 |---|---|---|
 | `fix` | `$fix g` gives `g ($fix g)` | no: it must reduce away |
+| `struct_to_fields` | `$struct_to_fields {l1 = e1, ...}` gives `{more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}`: labels as UTF-8 bytes, values unreduced, order kept ([plan_struct_pack.md](plan_struct_pack.md)) | no: it must reduce away |
 | `add_i32` and other opcodes | not yet (see [plan_constant_folding.md](plan_constant_folding.md)) | yes |
 
 - A built-in with a rule and no opcode is **kernel-only**. This follows from the
@@ -815,6 +816,7 @@ Why built-ins instead of `module` names, a `prim` binder, or a `fix` term: see
 | beta | `(x -> body) e` | `body` with `e` for `x` |
 | beta with form | `(x: F -> body) e` | `body` with `e: F` for `x` (`e`'s own form dropped) |
 | built-in | `$fix g` | `g ($fix g)` (by `BUILTIN_RULES[name]`, if it fires) |
+| built-in | `$struct_to_fields {a = e}` | `{more = [01], label = 'a', value = e, rest = {more = [00]}}` |
 | projection | `{a = e, ...}.a` | `e` |
 | struct apply | `{e0, e1, ...} [01]` | `e1` |
 | if (struct apply) | `if [01] then a else b` / `if [00] ...` | `a` / `b` |

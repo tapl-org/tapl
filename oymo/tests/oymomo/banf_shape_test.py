@@ -248,6 +248,17 @@ def test_dynamic_byte_array_form():
     assert show(reduced) == "[01]:'i1'"
 
 
+def test_struct_to_fields_reduces_its_argument_but_not_the_values():
+    term = resolved('$struct_to_fields ({p = {a = (i -> i) x}}.p)', FREE)
+    expected = resolved("{more = [01], label = 'a', value = (i -> i) x, rest = {more = [00]}}", FREE)
+    assert show(banf_shape.reduce_until_top_stable(term)) == show(expected)
+
+
+def test_struct_to_fields_on_a_run_time_value_is_stuck():
+    term = resolved('$struct_to_fields e', FREE)
+    assert banf_shape.reduce_until_top_stable(term) is term
+
+
 # A built-in reduces its own call (plan_struct_pack decision 1). The rules below are test-only.
 
 
@@ -339,6 +350,7 @@ def test_a_builtin_picks_what_to_reduce_by_what_it_sees():
 # The rules of decision 1, checked for every built-in on sample calls.
 SAMPLES = {
     'fix': ['$fix g', '$fix ((x -> x) g)', '$fix {a = g}'],
+    'struct_to_fields': ['$struct_to_fields {a = x}', '$struct_to_fields ({p = {a = x}}.p)', '$struct_to_fields e'],
     'first': ['$first ({p = {a = x}}.p)', '$first e', '$first {a = x}'],
     'both': ['$both {a = (i -> i) [01], b = {c = [02]}.c}', '$both {a = e, b = (i -> i) [02]}', '$both [01]'],
     'gate': ['$gate {(i -> i) [00], (i -> i) [02]}', '$gate {(i -> i) [01], (i -> i) [02]}'],

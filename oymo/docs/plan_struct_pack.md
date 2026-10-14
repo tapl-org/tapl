@@ -7,7 +7,7 @@ Status: **proposed**.
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
 - [x] 1. A built-in reduces its own call (`oymomo: a built-in reduces its own call`)
-- [ ] 2. `$struct_to_fields s`: a struct to a list of fields (`oymomo: add $struct_to_fields`)
+- [x] 2. `$struct_to_fields s`: a struct to a list of fields (`oymomo: add $struct_to_fields`)
 - [ ] 3. `$fields_to_struct l`: a list of fields to a struct (`oymomo: add $fields_to_struct`)
 
 Built on [plan_builtin.md](implemented/plan_builtin.md). [plan_constant_folding.md](plan_constant_folding.md)

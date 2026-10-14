@@ -148,6 +148,10 @@ def test_reduce_one_step(source, expected):
         '$fix g a',
         '$fix',
         '$nope g',
+        # `reduce` is root-only: the argument must already be a struct literal.
+        '$struct_to_fields e',
+        '$struct_to_fields {p = {a = e}}.p',
+        "$struct_to_fields {a = e}: 'f'",
         'if ((x -> x) [01]) then a else b',
         'x -> (y -> y) x',
         '{e}.a',
@@ -244,3 +248,29 @@ def test_reduce_struct_apply_stuck(source):
 )
 def test_index_value(source, expected):
     assert bruijn.index_value(resolved(source, ('i',))) == expected
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        ('$struct_to_fields {}', '{more = [00]}'),
+        (
+            '$struct_to_fields {a = \'1\', "λ" = x}',
+            "{more = [01], label = 'a', value = '1', rest = {more = [01], label = [cebb], value = x, rest = {more = [00]}}}",
+        ),
+        # An unlabeled field has the label ''. A value stays unreduced.
+        ('$struct_to_fields {(y -> y) x}', "{more = [01], label = '', value = (y -> y) x, rest = {more = [00]}}"),
+        # Duplicate labels are kept, in order.
+        (
+            "$struct_to_fields {a = x, a = '2'}",
+            "{more = [01], label = 'a', value = x, rest = {more = [01], label = 'a', value = '2', rest = {more = [00]}}}",
+        ),
+    ],
+)
+def test_reduce_struct_to_fields(source, expected):
+    assert show(bruijn.reduce(resolved(source, ('x',)))) == show(resolved(expected, ('x',)))
+
+
+def test_struct_to_fields_labels_are_bare_byte_arrays():
+    field_list = bruijn.reduce(resolved('$struct_to_fields {a = x}', ('x',)))
+    assert field_list.fields[1] == terms.Field('label', terms.ByteArray(b'a'))

@@ -140,9 +140,41 @@ def _fix(call: terms.Apply, _reduce_part: ReducePart) -> syntax.Term:
     return terms.Apply(function=call.argument, argument=call, location=getattr(call, 'location', None))
 
 
+def to_field_list(struct: terms.Struct) -> terms.Struct:
+    """`{l1 = e1, ..., ln = en}` as a list of fields, in order:
+    `{more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}`.
+
+    A label is its name's UTF-8 bytes, with no form (`''` for an unlabeled field). Values
+    are kept as they are, unreduced.
+    """
+    location = struct.location
+    field_list = terms.Struct([terms.Field('more', terms.ByteArray(b'\x00'))], location)
+    for field in reversed(struct.fields):
+        field_list = terms.Struct(
+            [
+                terms.Field('more', terms.ByteArray(b'\x01')),
+                terms.Field('label', terms.ByteArray(field.label.encode())),
+                terms.Field('value', field.value),
+                terms.Field('rest', field_list),
+            ],
+            location,
+        )
+    return field_list
+
+
+def _struct_to_fields(call: terms.Apply, reduce_part: ReducePart) -> syntax.Term:
+    """`$struct_to_fields s` gives `to_field_list(s)` once `s` reduces to a struct literal."""
+    argument = reduce_part(call.argument)
+    if isinstance(argument, terms.Struct):
+        return to_field_list(argument)
+    return call if argument is call.argument else replace(call, argument=argument)
+
+
 # Reduction rules, by built-in name. A built-in with a rule and no opcode
 # (`banf_opcodes.OPCODES`) is kernel-only: it must reduce away before BANF.
-BUILTIN_RULES: dict[str, BuiltinRule] = {rule.name: rule for rule in (BuiltinRule('fix', _fix),)}
+BUILTIN_RULES: dict[str, BuiltinRule] = {
+    rule.name: rule for rule in (BuiltinRule('fix', _fix), BuiltinRule('struct_to_fields', _struct_to_fields))
+}
 
 
 def project(term: terms.Project) -> syntax.Term | None:
