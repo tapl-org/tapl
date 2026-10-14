@@ -166,6 +166,11 @@ def test_get_index_on_an_unlabeled_struct():
     assert '%"y" = extractvalue {i32, i8} %"p", 1' in ir_text(source, "g = => 'i8'")
 
 
+def test_get_index_past_the_last_field_extracts_the_last_field():
+    source = "g = blocks -> {entry = args: {p = {'i32', 'i8'}} -> let y = args.p [07] in y}"
+    assert '%"y" = extractvalue {i32, i8} %"p", 1' in ir_text(source, "g = => 'i8'")
+
+
 def test_single_predecessor_binds_params_and_multiple_predecessors_get_phis():
     # Both branches jump to join0, which therefore gets a phi per param.
     source = """

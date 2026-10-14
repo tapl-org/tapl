@@ -7,7 +7,7 @@ Status: **proposed**.
 One commit each. Each step leaves `hatch run full-check` green. Details are in
 [Implementation steps](#implementation-steps).
 
-- [ ] 1. A struct applied to an index past its last field selects the last field, in the kernel and in BANF `GetIndex` (`oymomo: an index past the last field selects the last field`)
+- [x] 1. A struct applied to an index past its last field selects the last field, in the kernel and in BANF `GetIndex` (`oymomo: an index past the last field selects the last field`)
 - [ ] 2. BANF `Switch` terminator, verified and lowered to LLVM `switch`, additive (`oymomo: banf Switch terminator`)
 - [ ] 3. `{a0, a1, ..., an} i` with three or more fields is a `Switch` (`oymomo: a struct of jumps applied to an index is a switch`)
 - [ ] 4. A switch may repeat a target with the same args (`oymomo: a switch may repeat a target`)

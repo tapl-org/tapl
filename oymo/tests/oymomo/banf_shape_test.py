@@ -64,6 +64,8 @@ def test_step_fires_the_root_rule_or_else_unblocks():
         ("{{'1'}} [00] [00]", "'1'"),
         # A struct of functions called by index.
         ("(s -> s [01] '7') {x -> '1', x -> x}", "'7'"),
+        # Past the last field: the last field.
+        ("(i -> {a = '23', b = '45'} i) [07]", "'45'"),
     ],
 )
 def test_reduce_until_top_stable_reduces_a_struct_apply(source, expected):
@@ -73,8 +75,8 @@ def test_reduce_until_top_stable_reduces_a_struct_apply(source, expected):
 @pytest.mark.parametrize(
     'source',
     [
-        # Past the last field: stuck.
-        "{a = '23'} [01]",
+        # No field at all: stuck.
+        '{} [01]',
         # The callee is not a struct, so the argument is not reduced.
         'f ((x -> x) [00])',
     ],

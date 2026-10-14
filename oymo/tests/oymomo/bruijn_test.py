@@ -120,6 +120,8 @@ def test_beta_propagates_form(source, expected):
         ('{a = e}.a', 'e'),
         ('if [01] then a else b', 'a'),
         ('if [00] then a else b', 'b'),
+        # Any nonzero index is true: past the last field is the last field.
+        ('if [02] then a else b', 'a'),
         ('(x -> x) ((y -> y) z)', '(y -> y) z'),
         ('(x -> y) ((w -> w w) (w -> w w))', 'y'),
         ('{a = e, a = b}.a', 'e'),
@@ -141,7 +143,6 @@ def test_reduce_one_step(source, expected):
         '$add_i32 {a = e, b = e}',
         'args.n',
         'if e then a else b',
-        'if [02] then a else b',
         '{a = e}.b',
         '{p = {a = e}}.p.a',
         '((x -> x) (y -> y)) e',
@@ -302,6 +303,13 @@ def test_branch(source, expected):
         ("{a = '23'} [0000]", "'23'"),
         # A form on the index is ignored.
         ("{a = '23'} ([00] : 'i8')", "'23'"),
+        # An index past the last field selects the last field.
+        ("{a = '23'} [01]", "'23'"),
+        ("{a = '23'} [0001]", "'23'"),
+        ("{'1', '2', '3'} [07]", "'3'"),
+        ("{x = '1', y = '2'} [05]", "'2'"),
+        # So `if` takes any nonzero index as true.
+        ("{'else', 'then'} [02]", "'then'"),
     ],
 )
 def test_reduce_struct_apply(source, expected):
@@ -311,10 +319,10 @@ def test_reduce_struct_apply(source, expected):
 @pytest.mark.parametrize(
     'source',
     [
-        "{a = '23'} [01]",
-        "{a = '23'} [0001]",
         "{a = '23'} ''",
+        # No last field to fall back to.
         '{} [00]',
+        '{} [07]',
         "{a = '23'} i",
         "{a = '23'} ((x -> x) [00])",
     ],

@@ -377,9 +377,10 @@ def reduce(term: syntax.Term) -> syntax.Term:
             projected = project(term)
             return term if projected is None else projected
         case terms.Apply(function=terms.Struct(fields=fields), argument=argument) if (
-            position := index_value(argument)
-        ) is not None and position < len(fields):
-            # A struct applied to an index selects the field at that position, labeled or not.
-            # This is also `if`: `if c then t else e` is `{e, t} c`.
-            return fields[position].value
+            fields and (position := index_value(argument)) is not None
+        ):
+            # A struct applied to an index selects the field at that position, labeled or not;
+            # an index past the last field selects the last one, so the last field is a default.
+            # This is also `if`: `if c then t else e` is `{e, t} c`, true for any nonzero `c`.
+            return fields[min(position, len(fields) - 1)].value
     return term

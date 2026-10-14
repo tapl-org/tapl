@@ -518,8 +518,9 @@ Two ways to pick a field:
 - An index is an unsigned little-endian integer of any length, starting at 0:
   `[01]`, `[0100]` and `[01000000]` are all 1; `[0001]` is 256. A form on the index
   is ignored.
-- A missing field is stuck (no reduction): an index past the last field, `''`, or
-  an argument that isn't a byte array.
+- An index past the last field selects the last field: `{a, b, c} [07]` is `c`, so
+  the last field is a default, and `if` takes any nonzero index as true. Stuck (no
+  reduction): `{} i`, `''`, or an argument that isn't a byte array.
 - Labels stay static: no `s.(e)`, no `{(e) = v}`.
 - In BANF, `s i` on a value struct is the op `GetIndex`, and the index must be a
   literal. See [Translation](#what-the-shape-is).
@@ -833,9 +834,10 @@ Not redexes:
   (`$add_i32 {a = args.n, b = ...}`), on a literal of the wrong form or size, or
   where LLVM has no defined result (`$udiv_i32` by `[00000000]`);
 - a projection with a missing label;
-- a struct apply with an index past the end, `''`, or an argument that isn't a byte
-  array yet (index read by `bruijn.index_value`: unsigned little-endian, form
-  ignored). So `if [02] then a else b` is stuck, and `if [0100] then a else b` is `a`.
+- a struct apply on `{}`, with `''`, or with an argument that isn't a byte array yet
+  (index read by `bruijn.index_value`: unsigned little-endian, form ignored). An
+  index past the end selects the last field, so `if [02] then a else b` and
+  `if [0100] then a else b` are both `a`.
 
 Properties:
 - **Only the root.** Arguments, lambda bodies, struct fields and `if` arms are not
@@ -1206,7 +1208,7 @@ out; `form_of(op, forms, module)` computes the rest:
 | `Call` | `module.g {...}` | the callee's `return_form` (`Function` or `Signature`) |
 | `MakeStruct` | `{x = a, y = b}` | each label paired with its field atom's form |
 | `GetField` | `args.p.x` | that field's form inside the struct's form |
-| `GetIndex` | `args.p [01]` | the form of the field at that position, labeled or not (`Form {x: i32} has no field at index 2.`) |
+| `GetIndex` | `args.p [01]` | the form of the field at that position, labeled or not; past the last field, the last field's (`Form i32 has no field at index 0.`) |
 | `GetData` | `module.errno` | the `Data` binding's form |
 
 Where forms **are** stored:
@@ -1463,8 +1465,10 @@ own. A let reference becomes a `banf.Var` named after the BANF let already built
   all 1). It's reduced first like any op argument, so `args.p ((i -> i) [01])` and
   `let i = [01] in args.p i` work. A run-time value (`args.n`, a let bound to an op)
   or `''` is an error ("An index must be a byte array literal, such as [01]."),
-  since LLVM's `extractvalue` needs a constant. Past the last field: "Form {i32, i8}
-  has no field at index 2.". Binders are read only by label, so `args [00]` is an
+  since LLVM's `extractvalue` needs a constant. Past the last field it reads the last
+  field, as in the kernel (`args.p [02]` on `{i32, i8}` is `p.2`, an `i8`, lowered to
+  `extractvalue ..., 1`); a form with no fields is "Form i32 has no field at index
+  0.". Binders are read only by label, so `args [00]` is an
   error.
 - **Terminators**, only in tail position: `f.label {...}` (jump);
   `if c then f.a {...} else f.b {...}`, which is `{f.b {...}, f.a {...}} c` (branch,
@@ -1638,7 +1642,7 @@ message text to find where it's raised.
 | `<what> takes <n> arguments, got <m>.` | Wrong argument count. | Match the callee's params. |
 | `Branch condition must be i1, got <form>.` | `if` on a non-`i1` value. | Compare first, e.g. `$ne_i32`. |
 | `Function '<f>' returns <form>, got <form>.` | A return value's form differs from the declared return form. | Fix the value's form or the declaration. |
-| `Form <form> has no field at index <i>.` | `GetIndex` past the last field. | Use a smaller index. |
+| `Form <form> has no field at index <i>.` | `GetIndex` on a form with no fields. | Index a struct with at least one field. |
 
 ### LLVM (`llvm_translate.py`)
 

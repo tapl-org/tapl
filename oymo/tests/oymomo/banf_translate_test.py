@@ -309,6 +309,12 @@ def test_get_index_reads_any_byte_array_literal(index):
     assert 'y = p.1' in banf(source, "g = => 'i8'")
 
 
+def test_get_index_past_the_last_field_keeps_the_index_as_written():
+    # It reads the last field (its form is i8), but prints the source index.
+    source = "g = f -> {entry = args:{p = {'i32', 'i8'}} -> let y = args.p [02] in y}"
+    assert 'y = p.2' in banf(source, "g = => 'i8'")
+
+
 def test_get_index_through_an_atom_let():
     source = "g = f -> {entry = args:{p = {'i32', 'i8'}} -> let i = [01] in let y = args.p i in y}"
     assert 'y = p.1' in banf(source, "g = => 'i8'")
@@ -320,7 +326,6 @@ def test_get_index_through_an_atom_let():
         ('let y = args.p args.n in y', 'An index must be a byte array literal, such as [01].'),
         ('let t = {args.n} in let y = args.p t in y', 'An index must be a byte array literal, such as [01].'),
         ("let y = args.p '' in y", 'An index must be a byte array literal, such as [01].'),
-        ('let y = args.p [02] in y', 'Form {i32, i8} has no field at index 2.'),
         ('let y = args.n [00] in y', 'Form i32 has no field at index 0.'),
         ('args.p [01]', 'An op in tail position must be bound by a let, as in let t = op in t.'),
     ],

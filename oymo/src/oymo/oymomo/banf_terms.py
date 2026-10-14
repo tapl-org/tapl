@@ -212,10 +212,7 @@ def form_of(op: Op, forms: Mapping[str, terms.Term], module: Module) -> terms.Te
                         return f.value
             raise FormError(f'Form {show_form(struct_form)} has no field {label!r}.', op.location)
         case GetIndex(struct=struct, index=index):
-            struct_form = atom_form(struct, forms)
-            if isinstance(struct_form, terms.Struct) and 0 <= index < len(struct_form.fields):
-                return struct_form.fields[index].value
-            raise FormError(f'Form {show_form(struct_form)} has no field at index {index}.', op.location)
+            return indexed_field(atom_form(struct, forms), index, op.location)[1]
         case GetData(name=name):
             binding = module.lookup(name)
             if not isinstance(binding, Data):
@@ -238,6 +235,15 @@ def field_index(form: terms.Term, label: str) -> int:
             if f.label == label:
                 return index
     raise FormError(f'Form {show_form(form)} has no field {label!r}.')
+
+
+def indexed_field(form: terms.Term, index: int, location: Location | None = None) -> tuple[int, terms.Term]:
+    """The position and form of the field `GetIndex` reads: `index`, or the last field if
+    `index` is past it, as in the kernel."""
+    if isinstance(form, terms.Struct) and form.fields:
+        position = min(index, len(form.fields) - 1)
+        return position, form.fields[position].value
+    raise FormError(f'Form {show_form(form)} has no field at index {index}.', location)
 
 
 # Verifier

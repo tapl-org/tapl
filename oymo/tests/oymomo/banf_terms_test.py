@@ -202,6 +202,9 @@ def test_form_of_get_index():
     # Unlabeled fields are reached the same way.
     unlabeled = terms.Struct([terms.Field('', I8), terms.Field('', I64)])
     assert form_of(GetIndex(Var('p'), 1), {'p': unlabeled}, imports_module()) == I64
+    # Past the last field: the last field, as in the kernel.
+    assert form_of(GetIndex(Var('p'), 2), {'p': XY}, imports_module()) == I8
+    assert form_of(GetIndex(Var('p'), 256), {'p': XY}, imports_module()) == I8
 
 
 def test_show_get_index():
@@ -213,7 +216,7 @@ def test_show_get_index():
 @pytest.mark.parametrize(
     ('form', 'index', 'message'),
     [
-        (XY, 2, 'Form {x: i32, y: i8} has no field at index 2.'),
+        (terms.Struct([]), 0, 'Form {} has no field at index 0.'),
         (I32, 0, 'Form i32 has no field at index 0.'),
     ],
 )
@@ -228,10 +231,12 @@ def test_get_index_errors_are_form_errors(form, index, message):
 def test_verify_checks_get_index():
     params = [('p', XY)]
     verify(one_block([Let('t0', GetIndex(Var('p'), 0))], Return(Var('t0')), params))
-    with pytest.raises(FormError, match='has no field at index 2'):
-        verify(one_block([Let('t0', GetIndex(Var('p'), 2))], Return(Var('t0')), params))
+    with pytest.raises(FormError, match='has no field at index 0'):
+        verify(one_block([Let('t0', GetIndex(Var('p'), 0))], Return(Var('t0')), [('p', I32)]))
     with pytest.raises(FormError, match='returns i32, got i8'):
         verify(one_block([Let('t0', GetIndex(Var('p'), 1))], Return(Var('t0')), params))
+    with pytest.raises(FormError, match='returns i32, got i8'):
+        verify(one_block([Let('t0', GetIndex(Var('p'), 2))], Return(Var('t0')), params))
 
 
 def one_block(lets, terminator, params=(), return_form=I32):

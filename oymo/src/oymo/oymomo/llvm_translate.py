@@ -165,7 +165,8 @@ class _FunctionTranslator:
                 index = banf.field_index(banf.atom_form(struct, forms), label)
                 return builder.extract_value(self.value(struct, values), index)
             case banf.GetIndex(struct=struct, index=index):
-                return builder.extract_value(self.value(struct, values), index)
+                position, _ = banf.indexed_field(banf.atom_form(struct, forms), index)
+                return builder.extract_value(self.value(struct, values), position)
             case banf.GetData(name=name):
                 return builder.load(self.globals[name])
         raise AssertionError(op)
