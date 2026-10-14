@@ -290,9 +290,17 @@ def test_rejects_switch_on_a_non_integer_selector():
     assert message == 'Switch selector must be an integer form, got {x: i8}.'
 
 
-def test_rejects_switch_with_the_same_target_twice():
-    jumps = 'blocks.b {}, blocks.c {}, blocks.b {}'
-    assert ir_error(switch_defs(jumps), PICK) == 'A switch cannot name the same block twice.'
+def test_switch_may_repeat_a_target():
+    # a is case 0 and the default: two edges from entry, so a phi with two equal entries.
+    jumps = 'blocks.a {x = args.x}, blocks.b {}, blocks.a {x = args.x}'
+    llvm_text = ir_text(switch_defs(jumps), PICK)
+    assert 'switch i8 %"k", label %"a" [i8 0, label %"a" i8 1, label %"b"]' in llvm_text
+    assert 'phi  i32 [%"x", %"entry"], [%"x", %"entry"]' in llvm_text
+    # Two cases, neither the default, to one block.
+    jumps = 'blocks.a {x = args.x}, blocks.a {x = args.x}, blocks.b {}'
+    llvm_text = ir_text(switch_defs(jumps), PICK)
+    assert 'switch i8 %"k", label %"b" [i8 0, label %"a" i8 1, label %"a"]' in llvm_text
+    assert 'phi  i32 [%"x", %"entry"], [%"x", %"entry"]' in llvm_text
 
 
 def test_constants_are_little_endian_on_a_big_endian_target():

@@ -326,6 +326,12 @@ def _verify_function(function, module):
                     raise FormError('A switch needs a target.', switch.location)
                 for target, args in switch.targets:
                     _check_jump(function, target, args, forms, switch.location)
+                passed = {}
+                for target, args in switch.targets:
+                    # An LLVM phi takes one entry per edge, and entries from one block must
+                    # agree, so a repeated target must get the same args.
+                    if passed.setdefault(target, args) != args:
+                        raise FormError(f'A switch passes different args to {target!r}.', switch.location)
             case Return(value=value) as ret:
                 value_form = atom_form(value, forms)
                 if value_form != function.return_form:

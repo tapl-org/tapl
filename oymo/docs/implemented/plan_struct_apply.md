@@ -3,7 +3,7 @@
 Status: **implemented**.
 
 > [!NOTE]
-> Since [plan_switch.md](../plan_switch.md) step 1, an index past the last field selects
+> Since [plan_switch.md](plan_switch.md) step 1, an index past the last field selects
 > the last field instead of being stuck (`{a = '23'} [01]` is `'23'`); only `{} i` stays
 > stuck. Decision 6 and the examples below describe the rule as first implemented.
 

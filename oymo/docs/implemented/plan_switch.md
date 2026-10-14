@@ -1,6 +1,6 @@
 # Plan: a struct of jumps applied to an integer is a switch
 
-Status: **proposed**.
+Status: **implemented**.
 
 ## Steps
 
@@ -10,13 +10,13 @@ One commit each. Each step leaves `hatch run full-check` green. Details are in
 - [x] 1. A struct applied to an index past its last field selects the last field, in the kernel and in BANF `GetIndex` (`oymomo: an index past the last field selects the last field`)
 - [x] 2. BANF `Switch` terminator, verified and lowered to LLVM `switch`, additive (`oymomo: banf Switch terminator`)
 - [x] 3. `{a0, a1, ..., an} i` with three or more fields is a `Switch` (`oymomo: a struct of jumps applied to an index is a switch`)
-- [ ] 4. A switch may repeat a target with the same args (`oymomo: a switch may repeat a target`)
+- [x] 4. A switch may repeat a target with the same args (`oymomo: a switch may repeat a target`)
 
 Step 1 changes what the kernel means, so that step 2's `Switch` keeps the kernel's
 meaning instead of adding one. Step 2 only adds BANF and LLVM code, tested on BANF
 modules built directly. Step 3 is the only step that changes what oymomo source
 translates to. Step 4 is independent of step 3 and could be dropped. Built on
-[plan_if_as_struct_apply.md](implemented/plan_if_as_struct_apply.md): `if c then t
+[plan_if_as_struct_apply.md](plan_if_as_struct_apply.md): `if c then t
 else e` is `{e, t} c`, and in tail position a two-field struct of jumps applied to an
 atom is a BANF `Branch` (its decision 12 leaves out other counts).
 
@@ -48,16 +48,16 @@ blocks needs N-1 compares and branches, each in its own block.
 ### Kernel (step 1)
 
 1. **A struct applied to an index at or past its length selects its last field.**
-   In [`reduce`](../src/oymo/oymomo/bruijn.py): `{a, b, c} [07]` → `c`, where today it
+   In [`reduce`](../../src/oymo/oymomo/bruijn.py): `{a, b, c} [07]` → `c`, where today it
    is stuck. The last field is a catch-all: `{a, b, other} k` is case 0, case 1,
    default. With two fields, `if` gets any nonzero index as true: `{e, t} [02]` → `t`.
    The rule is still a function of the literal, so confluence
-   ([plan_confluence.md](plan_confluence.md)) is unaffected. The cost: a wrong index
+   ([plan_confluence.md](../plan_confluence.md)) is unaffected. The cost: a wrong index
    no longer leaves a stuck term to see; it silently takes the last field.
 2. **`{} i` stays stuck**, as there is no last field, and so does an index that is not
    a byte array literal (`''`, `$0`), as today. Labels don't matter, as today:
    `{x = [01], y = [02]} [05]` → `[02]`. Indexing a built-in (`$f [i]`,
-   [plan_builtin.md](implemented/plan_builtin.md)) is a different rule and is unchanged.
+   [plan_builtin.md](plan_builtin.md)) is a different rule and is unchanged.
 3. **BANF `GetIndex` agrees: an index past the last field reads the last field.**
    `op_form` and the LLVM lowering both use `min(index, len(fields) - 1)`; a struct
    form with no fields is still "has no field at index {index}". `GetIndex` keeps the
@@ -89,7 +89,7 @@ blocks needs N-1 compares and branches, each in its own block.
    `bruijn.index_value` reads an index.
 7. **An index past the last target takes the last target**, as in the kernel
    (decision 1). It needs no default in BANF, so it keeps
-   [plan_banf_explicit.md](implemented/plan_banf_explicit.md)'s "no defaults".
+   [plan_banf_explicit.md](plan_banf_explicit.md)'s "no defaults".
    Undefined behavior (`unreachable`) and requiring exactly as many targets as the
    form has values were the other options.
 8. **Printing:** `switch k, a(), b(), c(x)`: the selector, then the targets in order,
@@ -136,14 +136,14 @@ blocks needs N-1 compares and branches, each in its own block.
 
 | Module | Step | Change |
 |---|---|---|
-| [bruijn.py](../src/oymo/oymomo/bruijn.py) | 1 | `reduce`: the struct apply case selects the last field for an index at or past the length (decisions 1, 2). |
-| [banf_terms.py](../src/oymo/oymomo/banf_terms.py), [llvm_translate.py](../src/oymo/oymomo/llvm_translate.py) | 1 | `GetIndex`: `op_form` and lowering read the last field for an index past it (decision 3). |
-| [banf_terms.py](../src/oymo/oymomo/banf_terms.py) | 2 | `Switch`, `Terminator`, `_verify_function` (decision 5), `show_terminator` (decision 8). |
-| [llvm_translate.py](../src/oymo/oymomo/llvm_translate.py) | 2 | `_successors`, `terminator`: `builder.switch` to the last target, with `add_case` per other target (decision 9); the selector checks (decision 11). |
-| [banf_translate.py](../src/oymo/oymomo/banf_translate.py) | 3 | `body`: three or more fields make a `Switch`; one field is an error (decision 12). |
-| [banf_terms.py](../src/oymo/oymomo/banf_terms.py), [banf_translate.py](../src/oymo/oymomo/banf_translate.py) | 4 | Accept a repeated target with equal args; reject different args (decision 15). |
-| [notes.md](notes.md) | 1, 3, 4 | The struct apply rule; the BANF terminators, the shape grammar's branch line, the tail-position rules, the errors table. |
-| [plan_struct_apply.md](implemented/plan_struct_apply.md) | 1 | A note that an index past the last field now selects it, pointing here. |
+| [bruijn.py](../../src/oymo/oymomo/bruijn.py) | 1 | `reduce`: the struct apply case selects the last field for an index at or past the length (decisions 1, 2). |
+| [banf_terms.py](../../src/oymo/oymomo/banf_terms.py), [llvm_translate.py](../../src/oymo/oymomo/llvm_translate.py) | 1 | `GetIndex`: `op_form` and lowering read the last field for an index past it (decision 3). |
+| [banf_terms.py](../../src/oymo/oymomo/banf_terms.py) | 2 | `Switch`, `Terminator`, `_verify_function` (decision 5), `show_terminator` (decision 8). |
+| [llvm_translate.py](../../src/oymo/oymomo/llvm_translate.py) | 2 | `_successors`, `terminator`: `builder.switch` to the last target, with `add_case` per other target (decision 9); the selector checks (decision 11). |
+| [banf_translate.py](../../src/oymo/oymomo/banf_translate.py) | 3 | `body`: three or more fields make a `Switch`; one field is an error (decision 12). |
+| [banf_terms.py](../../src/oymo/oymomo/banf_terms.py), [banf_translate.py](../../src/oymo/oymomo/banf_translate.py) | 4 | Accept a repeated target with equal args; reject different args (decision 15). |
+| [notes.md](../notes.md) | 1, 3, 4 | The struct apply rule; the BANF terminators, the shape grammar's branch line, the tail-position rules, the errors table. |
+| [plan_struct_apply.md](plan_struct_apply.md) | 1 | A note that an index past the last field now selects it, pointing here. |
 
 ## Implementation steps
 
@@ -183,7 +183,7 @@ blocks needs N-1 compares and branches, each in its own block.
 - `banf_terms.verify` and `banf_translate`: equal args are accepted, different args
   rejected.
 - `llvm_translate`: a repeated target adds one phi entry per edge, all with the same value,
-  including when the last target (the default) also appears as a case. Step 2 rejects any
+  including when the last target (the default) also appears as a case. Step 2 rejected any
   repeated target there ("A switch cannot name the same block twice."); this lifts it.
 - Tests: two cases to one join block, checked by LLVM's verifier; different args
   rejected.

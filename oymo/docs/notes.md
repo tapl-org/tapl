@@ -1510,7 +1510,8 @@ operand is an error. All of this holds for `{e, t} c`, which is the same term.
   is past it, as in the kernel. BANF puts nothing on `k`'s form; LLVM translation
   needs an `iN` with room for the cases (`i1` holds 3 targets). A let-bound switch is
   substituted into the tail, as an `if` is. One field is "A switch needs two or more
-  fields; one is a jump.". See [plan_switch.md](plan_switch.md).
+  fields; one is a jump.". A switch may name a block more than once, only with the
+  same args ("A switch passes different args to 'a'."). See [plan_switch.md](implemented/plan_switch.md).
 - A BANF `Branch` is a terminator with two targets. An `if` whose value is used
   needs a join block, which the source writes explicitly.
 - `if c then f.a {} else f.a {}` is valid BANF, as Cranelift allows it. The LLVM
@@ -1652,6 +1653,7 @@ message text to find where it's raised.
 | `<what> takes <n> arguments, got <m>.` | Wrong argument count. | Match the callee's params. |
 | `Branch condition must be i1, got <form>.` | `if` on a non-`i1` value. | Compare first, e.g. `$ne_i32`. |
 | `A switch needs a target.` | A BANF `Switch` with no targets. | Give it targets. |
+| `A switch passes different args to '<b>'.` | `{f.a {x = [01]:'i8'}, f.b {}, f.a {x = [02]:'i8'}} k`. | Pass the same args each time `a` is named (an LLVM phi needs equal entries from one block), or use another block. |
 | `Function '<f>' returns <form>, got <form>.` | A return value's form differs from the declared return form. | Fix the value's form or the declaration. |
 | `Form <form> has no field at index <i>.` | `GetIndex` on a form with no fields. | Index a struct with at least one field. |
 
@@ -1667,7 +1669,6 @@ message text to find where it's raised.
 | `A branch cannot have the same block as both targets.` | `if c then f.a {} else f.a {}`; valid BANF (Cranelift allows it). | Use two blocks (LLVM phis can't tell the edges apart). See [Translation](#if-only-in-tail-position). |
 | `Switch selector must be an integer form, got <form>.` | A switch on a non-`iN` value. | Switch on an integer. |
 | `A switch on i1 has 4 targets; it holds 3.` | More targets than the selector's form has values, plus one for the default. | Widen the selector, e.g. `$zext_i1_i8`. |
-| `A switch cannot name the same block twice.` | `{f.a {}, f.b {}, f.a {}} k`; valid BANF. | Use one block per target. |
 
 ## How to…
 

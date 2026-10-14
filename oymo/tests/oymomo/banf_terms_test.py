@@ -324,6 +324,12 @@ def test_verify_checks_switch_targets():
         verify(switch_module("'i8'", Switch(Var('k'), [])))
 
 
+def test_verify_checks_args_to_a_repeated_switch_target():
+    verify(switch_module("'i8'", Switch(Var('k'), [('c', [Var('x')]), ('a', []), ('c', [Var('x')])])))
+    with pytest.raises(FormError, match="A switch passes different args to 'c'"):
+        verify(switch_module("'i8'", Switch(Var('k'), [('c', [Var('x')]), ('a', []), ('c', [ZERO])])))
+
+
 def test_formed_var_has_the_written_form():
     # n is i8; n:i32 is i32, unchecked, so it can be passed where i32 is expected.
     assert atom_form(Var('n', I32), {'n': I8}) == I32

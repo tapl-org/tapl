@@ -568,6 +568,16 @@ def test_switch_selector_form_is_not_checked():
     assert '    switch k, a(), b(), d()\n' in banf(switch_defs(body, "{y = 'i8'}"), "g = => 'i8'")
 
 
+def test_switch_may_repeat_a_target_with_the_same_args():
+    body = '{f.c {x = args.x}, f.a {}, f.c {x = args.x}} args.k'
+    assert '    switch k, c(x), a(), c(x)\n' in banf(switch_defs(body), "g = => 'i8'")
+
+
+def test_switch_rejects_different_args_to_a_repeated_target():
+    body = "{f.c {x = args.x}, f.a {}, f.c {x = [07]:'i8'}} args.k"
+    assert error(switch_defs(body), "g = => 'i8'") == "A switch passes different args to 'c'."
+
+
 @pytest.mark.parametrize(
     ('defs', 'message'),
     [

@@ -136,7 +136,7 @@ pointers pass freely to C.
 | 1.6 | Function pointers: `module.f` as an address, indirect call | Callbacks (`qsort`, `atexit`) |
 | 1.7 | Varargs declarations and calls | `printf`, `open` |
 | 1.8 | Linkage: internal vs exported symbols, symbol name ≠ label | Export to C, hide helpers |
-| 1.9 | Switch (exists: [plan_switch.md](plan_switch.md)) | C `switch`, enums |
+| 1.9 | Switch (exists: [plan_switch.md](implemented/plan_switch.md)) | C `switch`, enums |
 
 ### Phase 2 — toolchain: from oymomo to a running binary
 

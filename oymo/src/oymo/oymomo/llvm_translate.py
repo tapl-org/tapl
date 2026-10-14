@@ -221,9 +221,8 @@ class _FunctionTranslator:
                 f'A switch on {name} has {len(switch.targets)} targets; it holds {holds}.', switch.location
             )
         labels = [target for target, _ in switch.targets]
-        if len(set(labels)) != len(labels):
-            # An LLVM phi has one entry per edge; repeated targets would need equal args.
-            raise LlvmTranslationError('A switch cannot name the same block twice.', switch.location)
+        # A repeated target adds one phi entry per edge, all equal: BANF checks that a
+        # repeated target gets the same args.
         for target, args in switch.targets:
             self.pass_args(target, args, values, builder.block)
         *cases, default = labels

@@ -13,7 +13,7 @@ One commit each. Each step leaves `hatch run full-check` green.
 
 Step 2 leaves `If` in place, so every existing test still passes. Step 3 changes no
 syntax: `if c then t else e` still parses and still prints. Only the term behind it changes.
-Step 4 writes [plan_switch.md](../plan_switch.md) for the N-way case, which this plan leaves out (decision 12).
+Step 4 writes [plan_switch.md](plan_switch.md) for the N-way case, which this plan leaves out (decision 12).
 
 ## Goal
 
@@ -194,7 +194,7 @@ if c then t else e           parses to   {e, t} c
 
 ### Step 4: Write the switch plan
 
-Docs only: [plan_switch.md](../plan_switch.md), and a row for it under **Open** in
+Docs only: [plan_switch.md](plan_switch.md), and a row for it under **Open** in
 [plans.md](../plans.md). It starts from decision 12: `{a0, a1, ..., an} i` in tail position,
 with every field a jump, is an N-way jump. It must decide:
 
