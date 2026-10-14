@@ -8,7 +8,7 @@ import llvmlite.binding as llvm
 import pytest
 from llvmlite import ir
 
-from oymo.oymomo import banf_translate, opcodes
+from oymo.oymomo import banf_terms, banf_translate, opcodes
 from oymo.oymomo.grammar import parse
 from oymo.oymomo.llvm_opcodes import DEFAULT_OPCODES
 from oymo.oymomo.llvm_translate import LlvmTranslationError, Target, translate
@@ -220,6 +220,90 @@ def test_rejects_branch_with_same_target_twice():
     # BANF allows this (Cranelift does too), but an LLVM phi can't tell the two edges apart.
     defs = "g = blocks -> {entry = args: {c = 'i1'} -> {blocks.a {}, blocks.a {}} args.c, a = args: {} -> [01]:'i8'}"
     assert ir_error(defs, "g = => 'i8'") == 'A branch cannot have the same block as both targets.'
+
+
+def switch_module(selector_form, targets):
+    """`pick(k, x)`, with `k` of the oymomo form `selector_form`, switches on `k` to
+    `targets`, among `a(x)`, `b()`, `c()` and `d()`, which join with `x`, 0, 7 and 9.
+    Oymomo source can't write a switch yet, so `entry` is written as a jump and its
+    terminator replaced; blocks no switch reaches are not lowered."""
+    source = f"""
+    pick = blocks -> {{
+      entry = args: {{k = {selector_form}, x = 'i32'}} -> blocks.a {{x = args.x}},
+      a = args: {{x = 'i32'}} -> blocks.join {{v = args.x}},
+      b = args: {{}} -> blocks.join {{v = [00000000]:'i32'}},
+      c = args: {{}} -> blocks.join {{v = [07000000]:'i32'}},
+      d = args: {{}} -> blocks.join {{v = [09000000]:'i32'}},
+      join = args: {{v = 'i32'}} -> args.v,
+    }}
+    """
+    module = banf(source, "pick = => 'i32'")
+    function = module.bindings[0]
+    assert isinstance(function, banf_terms.Function)
+    function.blocks[0].terminator = banf_terms.Switch(banf_terms.Var('k'), targets)
+    return module
+
+
+THREE_WAY = [('a', [banf_terms.Var('x')]), ('b', []), ('c', [])]
+
+
+def switch_error(selector_form, targets):
+    module = switch_module(selector_form, targets)
+    banf_terms.verify(module)
+    with pytest.raises(LlvmTranslationError) as info:
+        translate(module, TARGET)
+    return info.value.message
+
+
+def test_switch_defaults_to_its_last_target_and_joins_with_phis():
+    module = switch_module("'i8'", THREE_WAY)
+    banf_terms.verify(module)
+    llvm_text = str(translate(module, TARGET))
+    llvm.parse_assembly(llvm_text).verify()
+    assert llvm_text.removeprefix(HEADER) == text("""
+        define i32 @"pick"(i8 %"k", i32 %"x")
+        {
+        entry:
+          switch i8 %"k", label %"c" [i8 0, label %"a" i8 1, label %"b"]
+        a:
+          br label %"join"
+        b:
+          br label %"join"
+        c:
+          br label %"join"
+        join:
+          %"v" = phi  i32 [%"x", %"a"], [0, %"b"], [7, %"c"]
+          ret i32 %"v"
+        }
+    """)
+
+
+def test_switch_past_its_last_target_takes_the_last_target():
+    llvm.initialize_native_target()
+    llvm.initialize_native_asmprinter()
+    machine = llvm.Target.from_default_triple().create_target_machine()
+    llvm_module = llvm.parse_assembly(str(translate(switch_module("'i8'", THREE_WAY), TARGET)))
+    engine = llvm.create_mcjit_compiler(llvm_module, machine)
+    engine.finalize_object()
+    pick = ctypes.CFUNCTYPE(ctypes.c_uint32, ctypes.c_uint8, ctypes.c_uint32)(engine.get_function_address('pick'))
+    # Read as unsigned, as the kernel reads an index: 255 is past the last target, not -1.
+    assert [pick(k, 5) for k in (0, 1, 2, 3, 128, 255)] == [5, 0, 7, 7, 7, 7]
+
+
+def test_switch_on_i1_holds_three_targets():
+    module = switch_module("'i1'", THREE_WAY)
+    llvm.parse_assembly(str(translate(module, TARGET))).verify()
+    four = [*THREE_WAY, ('d', [])]
+    assert switch_error("'i1'", four) == 'A switch on i1 has 4 targets; it holds 3.'
+
+
+def test_rejects_switch_on_a_non_integer_selector():
+    assert switch_error("{x = 'i8'}", THREE_WAY) == 'Switch selector must be an integer form, got {x: i8}.'
+
+
+def test_rejects_switch_with_the_same_target_twice():
+    targets = [('b', []), ('c', []), ('b', [])]
+    assert switch_error("'i8'", targets) == 'A switch cannot name the same block twice.'
 
 
 def test_constants_are_little_endian_on_a_big_endian_target():

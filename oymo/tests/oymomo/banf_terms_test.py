@@ -2,7 +2,7 @@
 
 import pytest
 
-from oymo.oymomo import terms
+from oymo.oymomo import banf_translate, terms
 from oymo.oymomo.banf_terms import (
     Block,
     Branch,
@@ -21,6 +21,7 @@ from oymo.oymomo.banf_terms import (
     OpcodeCall,
     Return,
     Signature,
+    Switch,
     Var,
     atom_form,
     form_of,
@@ -30,6 +31,7 @@ from oymo.oymomo.banf_terms import (
     show_op,
     verify,
 )
+from oymo.oymomo.grammar import parse
 
 I1, I8, I16, I32, I64 = (terms.ByteArray(name) for name in (b'i1', b'i8', b'i16', b'i32', b'i64'))
 
@@ -270,6 +272,56 @@ def test_verify_rejects_jump_to_entry_and_unknown_block():
         verify(one_block([], Jump('entry', [])))
     with pytest.raises(FormError, match="Unknown block 'nowhere'"):
         verify(one_block([], Jump('nowhere', [])))
+
+
+def switch_module(selector_form, terminator):
+    """`entry` takes a selector `k` of the oymomo form `selector_form` and an `x`, and ends
+    with `terminator`. `a` and `b` take nothing and return zero; `c` takes an i32 and
+    returns it. Oymomo source can't write a switch yet, so `entry` is written as a jump and
+    its terminator replaced."""
+    source = f"""
+    module: {{f = => 'i32'}} -> {{f = blocks -> {{
+      entry = args: {{k = {selector_form}, x = 'i32'}} -> blocks.a {{}},
+      a = args: {{}} -> [00000000]:'i32',
+      b = args: {{}} -> [00000000]:'i32',
+      c = args: {{x = 'i32'}} -> args.x,
+    }}}}
+    """
+    module = banf_translate.translate(parse(source))
+    function = module.bindings[0]
+    assert isinstance(function, Function)
+    function.blocks[0].terminator = terminator
+    return module
+
+
+THREE_WAY = Switch(Var('k'), [('a', []), ('b', []), ('c', [Var('x')])])
+
+
+def test_show_switch():
+    module = switch_module("'i8'", THREE_WAY)
+    verify(module)
+    assert show(module).splitlines()[2] == '    switch k, a(), b(), c(x)'
+
+
+def test_verify_accepts_any_selector_form():
+    # BANF puts nothing on the selector's form, as the kernel puts nothing on an index.
+    verify(switch_module("'i1'", THREE_WAY))
+    verify(switch_module("{x = 'i8'}", THREE_WAY))
+
+
+def test_verify_checks_switch_targets():
+    with pytest.raises(FormError, match='Block c takes 1 arguments, got 0'):
+        verify(switch_module("'i8'", Switch(Var('k'), [('a', []), ('c', [])])))
+    with pytest.raises(FormError, match='Block b takes 0 arguments, got 1'):
+        verify(switch_module("'i8'", Switch(Var('k'), [('a', []), ('b', [Var('x')])])))
+    with pytest.raises(FormError, match="Unknown block 'nowhere'"):
+        verify(switch_module("'i8'", Switch(Var('k'), [('a', []), ('nowhere', [])])))
+    with pytest.raises(FormError, match='entry block'):
+        verify(switch_module("'i8'", Switch(Var('k'), [('a', []), ('entry', [])])))
+    with pytest.raises(FormError, match="Unknown name 'j'"):
+        verify(switch_module("'i8'", Switch(Var('j'), [('a', []), ('b', [])])))
+    with pytest.raises(FormError, match='A switch needs a target'):
+        verify(switch_module("'i8'", Switch(Var('k'), [])))
 
 
 def test_formed_var_has_the_written_form():

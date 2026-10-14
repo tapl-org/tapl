@@ -12,7 +12,7 @@ Location = terms.Location
 
 # An OpcodeCall prints its name bare (`add_i32 a, b`), so an opcode named like a BANF
 # keyword would read like a call or a terminator.
-_BANF_KEYWORDS = frozenset({'call', 'jump', 'branch', 'return'})
+_BANF_KEYWORDS = frozenset({'call', 'jump', 'branch', 'switch', 'return'})
 if _BANF_KEYWORDS & opcodes.OPCODES.keys():
     raise AssertionError('Opcode names must not shadow BANF keywords.')
 
@@ -109,12 +109,22 @@ class Branch:
 
 
 @dataclass
+class Switch:
+    """Jumps to target `k` when `selector`, read as unsigned, is `k`, and to the last target
+    when it is past the last one, as a struct applied to an index selects its last field."""
+
+    selector: Atom
+    targets: list[tuple[str, list[Atom]]]
+    location: Location | None = field(default=None, compare=False)
+
+
+@dataclass
 class Return:
     value: Atom
     location: Location | None = field(default=None, compare=False)
 
 
-type Terminator = Jump | Branch | Return
+type Terminator = Jump | Branch | Switch | Return
 
 
 @dataclass
@@ -307,6 +317,15 @@ def _verify_function(function, module):
                     raise FormError(f'Branch condition must be i1, got {show_form(condition_form)}.', branch.location)
                 _check_jump(function, branch.then_target, branch.then_args, forms, branch.location)
                 _check_jump(function, branch.else_target, branch.else_args, forms, branch.location)
+            case Switch() as switch:
+                # Nothing about the selector's form, as the kernel puts nothing on an index:
+                # which selectors can be lowered is up to the backend.
+                atom_form(switch.selector, forms)
+                if not switch.targets:
+                    # As `{} i` is stuck: there is no last target to take.
+                    raise FormError('A switch needs a target.', switch.location)
+                for target, args in switch.targets:
+                    _check_jump(function, target, args, forms, switch.location)
             case Return(value=value) as ret:
                 value_form = atom_form(value, forms)
                 if value_form != function.return_form:
@@ -409,6 +428,10 @@ def show_terminator(terminator: Terminator) -> str:
                 f'branch {show_atom(branch.condition)}, '
                 f'{show_name(branch.then_target)}{_show_args(branch.then_args)}, '
                 f'{show_name(branch.else_target)}{_show_args(branch.else_args)}'
+            )
+        case Switch(selector=selector, targets=targets):
+            return f'switch {show_atom(selector)}, ' + ', '.join(
+                f'{show_name(target)}{_show_args(args)}' for target, args in targets
             )
         case Return(value=value):
             return f'return {show_atom(value)}'

@@ -8,7 +8,7 @@ One commit each. Each step leaves `hatch run full-check` green. Details are in
 [Implementation steps](#implementation-steps).
 
 - [x] 1. A struct applied to an index past its last field selects the last field, in the kernel and in BANF `GetIndex` (`oymomo: an index past the last field selects the last field`)
-- [ ] 2. BANF `Switch` terminator, verified and lowered to LLVM `switch`, additive (`oymomo: banf Switch terminator`)
+- [x] 2. BANF `Switch` terminator, verified and lowered to LLVM `switch`, additive (`oymomo: banf Switch terminator`)
 - [ ] 3. `{a0, a1, ..., an} i` with three or more fields is a `Switch` (`oymomo: a struct of jumps applied to an index is a switch`)
 - [ ] 4. A switch may repeat a target with the same args (`oymomo: a switch may repeat a target`)
 
@@ -83,7 +83,8 @@ blocks needs N-1 compares and branches, each in its own block.
 5. **BANF puts no requirement on the selector's form**, as the kernel puts none on an
    index. `verify` checks the selector's scope and each target's arg count, nothing
    about the selector's form or how many targets it can hold. Which selectors can be
-   lowered is LLVM translation's concern (decision 11).
+   lowered is LLVM translation's concern (decision 11). A switch with no targets is
+   rejected ("A switch needs a target."), as `{} i` is stuck: there is no last target.
 6. **Target `k` is taken when the selector equals `k`**, read as unsigned, as
    `bruijn.index_value` reads an index.
 7. **An index past the last target takes the last target**, as in the kernel
@@ -180,7 +181,8 @@ blocks needs N-1 compares and branches, each in its own block.
 - `banf_terms.verify` and `banf_translate`: equal args are accepted, different args
   rejected.
 - `llvm_translate`: a repeated target adds one phi entry per edge, all with the same value,
-  including when the last target (the default) also appears as a case.
+  including when the last target (the default) also appears as a case. Step 2 rejects any
+  repeated target there ("A switch cannot name the same block twice."); this lifts it.
 - Tests: two cases to one join block, checked by LLVM's verifier; different args
   rejected.
 

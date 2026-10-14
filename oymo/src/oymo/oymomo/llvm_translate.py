@@ -61,6 +61,8 @@ def _successors(terminator):
             return [(target, args)]
         case banf.Branch() as branch:
             return [(branch.then_target, branch.then_args), (branch.else_target, branch.else_args)]
+        case banf.Switch(targets=targets):
+            return list(targets)
     return []
 
 
@@ -143,7 +145,7 @@ class _FunctionTranslator:
                     let.location,
                 )
             forms[let.name] = banf.let_form(let, forms, self.module)
-        return self.terminator(builder, block.terminator, values)
+        return self.terminator(builder, block.terminator, values, forms)
 
     def op(self, builder, let, values, forms):
         op = let.value
@@ -180,7 +182,7 @@ class _FunctionTranslator:
         else:
             self.values[target] = {name: value for (name, _), value in zip(params, passed, strict=True)}
 
-    def terminator(self, builder, terminator, values):
+    def terminator(self, builder, terminator, values, forms):
         match terminator:
             case banf.Jump(target=target, args=args):
                 self.pass_args(target, args, values, builder.block)
@@ -197,10 +199,38 @@ class _FunctionTranslator:
                     self.llvm_blocks[branch.else_target],
                 )
                 return [branch.then_target, branch.else_target]
+            case banf.Switch() as switch:
+                return self.switch(builder, switch, values, forms)
             case banf.Return(value=value):
                 builder.ret(self.value(value, values))
                 return []
         raise AssertionError(terminator)
+
+    def switch(self, builder, switch, values, forms):
+        selector_form = banf.atom_form(switch.selector, forms)
+        name = selector_form.as_str if isinstance(selector_form, terms.ByteArray) else None
+        match = _INT_FORM.fullmatch(name) if name is not None else None
+        if match is None:
+            raise LlvmTranslationError(
+                f'Switch selector must be an integer form, got {banf.show_form(selector_form)}.', switch.location
+            )
+        # The last target is the default, so n targets need the cases 0 to n-2.
+        holds = (1 << int(match.group(1))) + 1
+        if len(switch.targets) > holds:
+            raise LlvmTranslationError(
+                f'A switch on {name} has {len(switch.targets)} targets; it holds {holds}.', switch.location
+            )
+        labels = [target for target, _ in switch.targets]
+        if len(set(labels)) != len(labels):
+            # An LLVM phi has one entry per edge; repeated targets would need equal args.
+            raise LlvmTranslationError('A switch cannot name the same block twice.', switch.location)
+        for target, args in switch.targets:
+            self.pass_args(target, args, values, builder.block)
+        *cases, default = labels
+        instruction = builder.switch(self.value(switch.selector, values), self.llvm_blocks[default])
+        for value, target in enumerate(cases):
+            instruction.add_case(value, self.llvm_blocks[target])
+        return labels
 
 
 def translate(module: banf.Module, target: Target) -> ir.Module:
