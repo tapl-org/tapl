@@ -332,6 +332,12 @@ def test_an_opcode_on_a_run_time_operand_keeps_the_fields_it_reduced():
             "let t = $add_i8 {a = [01]: 'i8', b = [02]: 'i8'} in let u = $add_i8 {a = args.n, b = t} in u",
             "let u = $add_i8 {a = args.n, b = [03]: 'i8'} in u",
         ),
+        # An if on a folded comparison picks its arm.
+        ("let c = $eq_i8 {a = [07]: 'i8', b = [07]: 'i8'} in if c then f.a {} else f.b {}", 'f.a {}'),
+        (
+            "let c = $ult_i8 {lhs = [ff]: 'i8', rhs = args.n} in if c then f.a {} else f.b {}",
+            "let c = $ult_i8 {lhs = [ff]: 'i8', rhs = args.n} in if c then f.a {} else f.b {}",
+        ),
         # A fold can feed the next one.
         (
             "let t = $add_i8 {a = [01]: 'i8', b = [02]: 'i8'} in let u = $mul_i8 {a = t, b = t} in u",

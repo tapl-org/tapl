@@ -86,3 +86,29 @@ def test_evaluate_has_no_result_where_llvm_has_none():
         assert evaluate(OPCODES[f'{template}_i8'], [1, 8]) is None
         assert evaluate(OPCODES[f'{template}_i8'], [1, 0xFF]) is None
         assert evaluate(OPCODES[f'{template}_i8'], [1, 7]) is not None
+
+
+def test_evaluate_comparisons():
+    assert evaluate(OPCODES['eq_i8'], [7, 7]) == 1
+    assert evaluate(OPCODES['ne_i1'], [1, 1]) == 0
+    # 0xff is -1 signed, 255 unsigned.
+    assert evaluate(OPCODES['slt_i8'], [0xFF, 0x00]) == 1
+    assert evaluate(OPCODES['ult_i8'], [0xFF, 0x00]) == 0
+    assert evaluate(OPCODES['sge_i16'], [0x8000, 0x7FFF]) == 0
+    assert evaluate(OPCODES['uge_i16'], [0x8000, 0x7FFF]) == 1
+    assert evaluate(OPCODES['sle_i32'], [5, 5]) == 1
+    assert evaluate(OPCODES['ugt_i64'], [2**64 - 1, 0]) == 1
+
+
+def test_evaluate_conversions():
+    assert evaluate(OPCODES['zext_i8_i32'], [0xFF]) == 0xFF
+    assert evaluate(OPCODES['sext_i8_i32'], [0xFF]) == 0xFFFFFFFF
+    assert evaluate(OPCODES['sext_i8_i32'], [0x7F]) == 0x7F
+    assert evaluate(OPCODES['sext_i1_i8'], [1]) == 0xFF
+    assert evaluate(OPCODES['zext_i1_i64'], [1]) == 1
+    assert evaluate(OPCODES['trunc_i32_i8'], [0x12345678]) == 0x78
+    assert evaluate(OPCODES['trunc_i8_i1'], [0xFE]) == 0
+
+
+def test_every_opcode_folds():
+    assert {signature.template for signature in OPCODES.values()} == FOLDED_TEMPLATES

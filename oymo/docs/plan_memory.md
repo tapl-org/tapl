@@ -101,7 +101,7 @@ entry:
    The kernel itself never runs an opcode (`$load_i32 {...}` is stuck), but `shape` is
    the only strategy that keeps these lets: full β and `whnf` may inline one, which
    drops or copies its effect. Open question 1 (required) decides how to fix that.
-7. **No memory opcode gets a reduction rule.** [plan_constant_folding.md](plan_constant_folding.md)
+7. **No memory opcode gets a reduction rule.** [plan_constant_folding.md](implemented/plan_constant_folding.md)
    folds an opcode whose operands are literals; a load, store or alloca never folds.
 8. **An alloca must be in the entry block.** LLVM allows one anywhere, but outside the
    entry block it grows the stack on every pass through a loop, and LLVM's `mem2reg`

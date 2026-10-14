@@ -2,7 +2,7 @@
 
 import pytest
 
-from oymo.oymomo import bruijn, terms
+from oymo.oymomo import bruijn, opcodes, terms
 from oymo.oymomo.grammar import RESERVED, parse
 from oymo.oymomo.printer import show
 
@@ -187,6 +187,9 @@ def test_reduce_one_step(source, expected):
         '$shl_i8 {value = [01], amount = [08]}',
         '$lshr_i32 {value = [01000000], amount = [20000000]}',
         '$ashr_i16 {value = [0100], amount = [ffff]}',
+        # A conversion's operand has the source's size and form.
+        "$zext_i8_i32 {value = [ff000000]: 'i32'}",
+        '$zext_i8_i32 {value = [ff00]}',
     ],
 )
 def test_reduce_returns_the_term_itself(source):
@@ -224,6 +227,17 @@ def test_reduce_returns_the_term_itself(source):
         ('$shl_i8 {value = [81], amount = [01]}', "[02]: 'i8'"),
         ('$lshr_i16 {value = [0080], amount = [0f00]}', "[0100]: 'i16'"),
         ('$ashr_i16 {value = [0080], amount = [0f00]}', "[ffff]: 'i16'"),
+        # Comparisons give an i1.
+        ("$eq_i8 {a = [07]: 'i8', b = [07]: 'i8'}", "[01]: 'i1'"),
+        ('$ne_i32 {a = [07000000], b = [07000000]}', "[00]: 'i1'"),
+        ('$slt_i8 {lhs = [ff], rhs = [00]}', "[01]: 'i1'"),
+        ('$ult_i8 {lhs = [ff], rhs = [00]}', "[00]: 'i1'"),
+        # Conversions change the width.
+        ("$zext_i8_i32 {value = [ff]: 'i8'}", "[ff000000]: 'i32'"),
+        ('$sext_i8_i32 {value = [ff]}', "[ffffffff]: 'i32'"),
+        ('$sext_i1_i16 {value = [01]}', "[ffff]: 'i16'"),
+        ('$trunc_i32_i8 {value = [78563412]}', "[78]: 'i8'"),
+        ('$trunc_i16_i1 {value = [0300]}', "[01]: 'i1'"),
     ],
 )
 def test_reduce_folds_an_opcode(source, expected):
@@ -387,3 +401,7 @@ def test_struct_to_fields_undoes_fields_to_struct():
     )
     struct = bruijn.reduce(terms.Apply(terms.Builtin('fields_to_struct'), field_list))
     assert bruijn.reduce(terms.Apply(terms.Builtin('struct_to_fields'), struct)) == field_list
+
+
+def test_every_opcode_has_a_rule():
+    assert set(opcodes.OPCODES) <= set(bruijn.BUILTIN_RULES)

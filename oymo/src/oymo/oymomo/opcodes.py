@@ -77,9 +77,10 @@ def byte_count(bits: int) -> int:
     return (bits + 7) // 8
 
 
-# How each template computes its result, on unsigned operands of `bits` bits. The result
-# may be out of range (`evaluate` wraps it); None means LLVM has no defined result.
-type _Evaluator = Callable[[int, int, int], int | None]
+# How each template computes its result, on unsigned operands of `bits` bits (the first
+# param's width). The result may be out of range (`evaluate` wraps it to the result's
+# width); None means LLVM has no defined result.
+type _Evaluator = Callable[..., int | None]
 
 
 def _signed(bits: int, value: int) -> int:
@@ -134,8 +135,43 @@ _BINARY: dict[str, _Evaluator] = {
     'ashr': _shift(lambda bits, value, amount: _signed(bits, value) >> amount),
 }
 
+
+def _compare(compare: Callable[[int, int], bool], *, signed: bool) -> _Evaluator:
+    """A comparison giving 1 or 0 (an `i1`), on operands read as unsigned or two's complement."""
+
+    def evaluate(bits: int, lhs: int, rhs: int) -> int:
+        if signed:
+            lhs, rhs = _signed(bits, lhs), _signed(bits, rhs)
+        return int(compare(lhs, rhs))
+
+    return evaluate
+
+
+_COMPARE: dict[str, _Evaluator] = {
+    'eq': _compare(lambda a, b: a == b, signed=False),
+    'ne': _compare(lambda a, b: a != b, signed=False),
+    'slt': _compare(lambda a, b: a < b, signed=True),
+    'sle': _compare(lambda a, b: a <= b, signed=True),
+    'sgt': _compare(lambda a, b: a > b, signed=True),
+    'sge': _compare(lambda a, b: a >= b, signed=True),
+    'ult': _compare(lambda a, b: a < b, signed=False),
+    'ule': _compare(lambda a, b: a <= b, signed=False),
+    'ugt': _compare(lambda a, b: a > b, signed=False),
+    'uge': _compare(lambda a, b: a >= b, signed=False),
+}
+
+# `bits` is the source width; `evaluate` wraps to the target width, so `trunc` keeps the
+# low bits and a negative `sext` result becomes the target's two's complement.
+_CONVERT: dict[str, _Evaluator] = {
+    'zext': lambda _bits, value: value,
+    'sext': lambda bits, value: _signed(bits, value),
+    'trunc': lambda _bits, value: value,
+}
+
+_TEMPLATES: dict[str, _Evaluator] = _BINARY | _COMPARE | _CONVERT
+
 # The templates `evaluate` knows. An opcode of another template is never folded.
-FOLDED_TEMPLATES: frozenset[str] = frozenset(_BINARY)
+FOLDED_TEMPLATES: frozenset[str] = frozenset(_TEMPLATES)
 
 
 def evaluate(signature: OpcodeSignature, operands: list[int]) -> int | None:
@@ -145,7 +181,7 @@ def evaluate(signature: OpcodeSignature, operands: list[int]) -> int | None:
     of the result form. None where LLVM has no defined result.
     """
     bits = form_bits(signature.params[0][1])
-    result = _BINARY[signature.template](bits, *operands)
+    result = _TEMPLATES[signature.template](bits, *operands)
     if result is None:
         return None
     return result % (1 << form_bits(signature.result))

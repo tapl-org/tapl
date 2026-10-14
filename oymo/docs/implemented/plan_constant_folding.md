@@ -1,6 +1,6 @@
 # Plan: opcodes on literals fold to a constant
 
-Status: **in progress** (3 of 4 steps). No open questions. Prerequisites done.
+Status: **implemented**.
 
 ## Steps
 
@@ -9,12 +9,12 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [x] 1. Opcode signatures move to a neutral `opcodes.py` (`oymomo: move opcode signatures to opcodes.py`)
 - [x] 2. Fold `add sub mul and or xor` (`oymomo: fold add, sub, mul, and, or, xor on literals`)
 - [x] 3. Fold division and shifts, except where LLVM has no defined result (`oymomo: fold division and shifts`)
-- [ ] 4. Fold comparisons and conversions (`oymomo: fold comparisons and conversions`)
+- [x] 4. Fold comparisons and conversions (`oymomo: fold comparisons and conversions`)
 
 Step 1 comes first; steps 2 to 4 each add templates to the same evaluator, and step 2
-adds the test that checks it against LLVM. Built on [plan_builtin.md](implemented/plan_builtin.md):
+adds the test that checks it against LLVM. Built on [plan_builtin.md](plan_builtin.md):
 opcodes are built-ins (`$add_i32`), and a built-in can have a rule in
-`bruijn.BUILTIN_RULES`. Also built on [plan_struct_pack.md](implemented/plan_struct_pack.md)
+`bruijn.BUILTIN_RULES`. Also built on [plan_struct_pack.md](plan_struct_pack.md)
 (implemented): a built-in reduces its own call through
 `BuiltinRule.reduce(call, reduce_part)`, and `banf_shape.unblock` already passes
 `reduce_until_top_stable` to every built-in in `BUILTIN_RULES`.

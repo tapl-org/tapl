@@ -178,6 +178,36 @@ def test_opcode_on_bare_literals_folds():
     """)
 
 
+def test_an_if_on_a_folded_comparison_is_a_jump():
+    source = """
+    g = f -> {
+      entry = args:{n = 'i8'} ->
+        let c = $eq_i8 {a = [07]:'i8', b = [07]:'i8'} in
+        if c then f.yes {n = args.n} else f.no {},
+      yes = args:{n = 'i8'} -> args.n,
+      no = args:{} -> [00]:'i8',
+    }
+    """
+    assert banf(source, "g = => 'i8'") == text("""
+        g: i8
+          entry(n: i8):
+            jump yes(n)
+          yes(n: i8):
+            return n
+          no():
+            return [00]:i8
+    """)
+
+
+def test_a_folded_conversion_is_a_constant():
+    source = "g = f -> {entry = args:{} -> $sext_i8_i32 {value = [ff]:'i8'}}"
+    assert banf(source, "g = => 'i32'") == text("""
+        g: i32
+          entry():
+            return [ffffffff]:i32
+    """)
+
+
 def test_opcode_on_a_literal_of_the_wrong_form_is_not_folded():
     source = "g = f -> {entry = args:{} -> (t -> t) ($add_i8 {a = [01]:'i32', b = [02]:'i8'})}"
     assert error(source, "g = => 'i8'") == '$add_i8 expects a: i8, got i32.'
