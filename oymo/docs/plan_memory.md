@@ -1,6 +1,6 @@
 # Plan: memory as in LLVM: the `'ptr'` form, alloca, getelementptr, load and store
 
-Status: **proposed**, with open questions; 0 of 4 steps.
+Status: **proposed**, with open questions; 0 of 5 steps.
 
 ## Steps
 
@@ -10,11 +10,13 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [ ] 2. The `'ptr'` form, `$alloca` and `$getelementptr` (`oymomo: add the ptr form`)
 - [ ] 3. `$load` and `$store` (`oymomo: add load and store`)
 - [ ] 4. Tests: what full β does to effects without `$after` (`oymomo: test unordered effects`)
+- [ ] 5. Arrays, vectors and packed structs as tagged pairs (`{'array', {element, count}}`) (`oymomo: add aggregate forms`)
 
 Step 1 doesn't depend on the others: it orders effects, which memory ops are, as calls
 to imports already are. Step 2 makes and moves pointers, but nothing reads or writes
 through them until step 3. Step 4 needs step 3: it uses loads and stores to show why
-step 1 exists. The kernel never folds a memory op (decision 13); LLVM does.
+step 1 exists. Step 5 needs only forms, but its tests use step 3's loads and stores.
+The kernel never folds a memory op (decision 13); LLVM does.
 No step is breaking.
 
 ## Goal
@@ -164,25 +166,69 @@ return r
    | `$load` | `form`, `ptr` | `F` | `load F, ptr ptr` |
    | `$store` | `value`, `ptr` | `{}` | `store F value, ptr ptr` |
 
-   - `form` must reduce to a literal form (a named form or a struct of them), as a
-     binder's form must for BANF; it is a form, not an operand, so it stays in place
-     and is never let-bound. `'ptr'` is a literal form too, so a pointer can be
-     stored and loaded.
+   - `form` must reduce to a literal form (a named form, a struct, or a tagged pair of
+     decision 8, of literal forms), as a binder's form must for BANF; it is a form,
+     not an operand, so it stays in place and is never let-bound. `'ptr'` is a literal
+     form too, so a pointer can be stored and loaded.
    - `$store` has no `form`: LLVM's `store F value` names the value's own type, and an
      oymomo value carries its form (`form_of`).
    - `count` and each index may be any integer form, as in LLVM. An index into a
-     struct must be a literal `'i32'` inside the struct's field count, as in LLVM:
-     `$getelementptr: index 1 into {x: i32} must be a literal 'i32' below 1.` Struct
-     fields are indexed by position, not label, as in LLVM.
+     struct or packed struct must be a literal `'i32'` inside its field count, as in
+     LLVM: `$getelementptr: index 1 into {x: i32} must be a literal 'i32' below 1.`
+     Struct fields are indexed by position, not label, as in LLVM. An index into an
+     array or a vector may be known only at run time.
    - The first index of `$getelementptr` steps by whole `F`s, so a byte offset is
      `$getelementptr {form = 'i8', ptr = p, indices = {o}}`. It is not `inbounds`.
    - Fields are checked by label, as for opcodes:
      `$store takes {value, ptr}, got {ptr, value}.`
-8. **An array is `count` elements.** oymomo has no array form, so `alloca [16 x i32]`
-   is written `$alloca {form = 'i32', count = [1000000000000000]: 'i64'}`, LLVM's
-   `alloca i32, i64 16`: the same 16 contiguous elements, indexed by the first index
-   of `$getelementptr {form = 'i32', ...}`. An array *inside* a struct needs an array
-   form: open question 7.
+8. **LLVM's other aggregate types are tagged pairs.** A plain struct form stays
+   LLVM's struct, as today. Every other LLVM type that is not a named form is a
+   two-field unlabeled struct: a tag, a byte array naming the type, then a struct of
+   its parts:
+
+   | Form | LLVM | Parts |
+   |---|---|---|
+   | `{x = 'i32', y = 'i64'}` | `{i32, i64}` | the fields, as today |
+   | `{'packed', {x = 'i8', y = 'i32'}}` | `<{i8, i32}>` | the fields, as for a struct; no padding |
+   | `{'array', {element = 'i32', count = [03000000]: 'i32'}}` | `[3 x i32]` | `element`, `count` |
+   | `{'vector', {element = 'i32', count = [04000000]: 'i32'}}` | `<4 x i32>` | `element`, `count` |
+   | `{'scalable_vector', {element = 'i32', count = [04000000]: 'i32'}}` | `<vscale x 4 x i32>` | `element`, `count` |
+
+   - **Only BANF and LLVM read the tag.** To the kernel a tagged pair is a struct like
+     any other: no rule, no built-in, no kernel change. β builds them as it builds
+     any struct: `let bytes = n -> {'array', {element = 'i8', count = n}} in ...`.
+     BANF needs them literal, as every form.
+   - **The tag can't be mistaken for a field's form.** The named forms LLVM accepts
+     are a closed set (`'i1'` to `'i64'`, and `'ptr'` from step 2), so `'array'` is
+     never a data form, and no plain struct that reaches LLVM has it as field 0.
+     `{'i32', {x = 'i8'}}` is still a plain struct,
+     `{i32, {i8}}`. The four tags are reserved names: a later plan that lets a
+     program name its own forms can't use them.
+   - The pair has exactly two unlabeled fields; anything else whose field 0 is a
+     reserved tag is an error: `'array' form must be {'array', {element, count}}.`
+     Parts are checked by label, as for memory ops:
+     `'array' takes {element, count}, got {count, element}.`
+   - `count` is a literal of any integer form, read unsigned; a vector's is above 0.
+     `element` is a literal form; a vector's is an integer form or `'ptr'`. A
+     scalable vector can't be inside a struct, a packed struct or an array, as in
+     LLVM.
+   - `$alloca`'s `count` stays: `$alloca {form = {'array', {element = 'i32', count =
+     [10000000]: 'i32'}}}` is a `[16 x i32]` slot, and `$alloca {form = 'i32', count =
+     n}` is `n` slots, where `n` may be known only at run time, as in LLVM.
+   - Rejected:
+     - a tag field (`{tag = 'array', element = 'i32', ...}`): it reserves the label
+       `tag`, so `{tag = 'i8', data = ...}`, an ordinary struct, would read as a
+       tagged form; or every struct writes `{tag = 'struct', ...}`, which breaks
+       every program. The pair's tag is a position, not a label, and its value is a
+       name no data form has.
+     - `$array {...}` and friends: a `$` built-in is for something with special
+       behaviour, and these have none.
+     - `'array' {...}`, a byte array applied to a struct: that shape is kept for
+       calls to virtual machine symbols ([plan_vm.md](plan_vm.md)).
+     - `{...}: 'array'`: `:` means a value with a form, and here there is no value.
+   - Not here: LLVM's named (identified) structs (`%T = type {...}`), which allow
+     recursive types, and opaque structs. Floating-point forms are their own plan;
+     once they exist, a vector's element may be one.
 9. **An `alloca` may be in any block, as in LLVM.** One in a loop block grows the
    stack on each pass, and only entry-block ones are promoted by `mem2reg`. Its memory
    dies with the function, and a pointer to it used after that is undefined, as in
@@ -245,6 +291,16 @@ aliases, and `atom` returns the aliased atom for an alias.
 | `banf_terms.py` | ops `Load(form, ptr: Atom)`, form `form`, and `Store(value: Atom, ptr: Atom)`, form `{}`; printed `load i32, p` and `store n, p`; verifier: a name bound by a `Store` let is used nowhere (decision 11); `$after` is gone by then, so any use is an error |
 | `banf_translate.py` | `load` and `store` in `MEMORY`; `ptr` must have form `'ptr'`: `$load expects ptr: ptr, got i32.` |
 | `llvm_translate.py` | `Load` → `builder.load(ptr, typ=llvm_type(form))`; `Store` → `builder.store(value, ptr)`, and the let binds no LLVM value |
+
+### D. Tagged pairs for arrays, vectors and packed structs (step 5)
+
+| Module | Change |
+|---|---|
+| `bruijn.py`, `terms.py` | none: a tagged pair is a struct |
+| `banf_shape.py` | none: a struct form is already reduced to normal form in place |
+| `banf_terms.py` | `FORM_TAGS = {'array', 'vector', 'scalable_vector', 'packed'}` and `tagged_form(form) -> (tag, parts) \| None`, the one reader every BANF and LLVM stage uses; `show_form`: `[3 x i32]`, `<4 x i32>`, `<vscale x 4 x i32>`, `<{i8, i32}>`, as LLVM prints them; the verifier compares forms with `==`, which already covers structs |
+| `banf_translate.py` | `_check_data_form` reads a struct with `tagged_form` first, and checks a tagged pair by the rules of decision 8, recursively; `count` read as an unsigned little-endian integer |
+| `llvm_translate.py` | `llvm_type`: `ir.ArrayType(e, n)`, `ir.VectorType(e, n)`, `ir.LiteralStructType(fs, packed=True)`; a scalable vector raises, as llvmlite has no scalable vector type; `GetElementPtr` accepts a run-time index into an array or vector |
 
 ---
 
@@ -344,7 +400,10 @@ result, an import declares them (`malloc = {size = 'i64'} => 'ptr'`).
 
 None. `'ptr'` is a new named form, and `$alloca`, `$getelementptr`, `$load` and
 `$store` were unknown built-ins, an error in `convert`; the parser already accepts any
-`$name`. Data symbols keep today's meaning. `$after` was an unknown built-in too.
+`$name`. Data symbols keep today's meaning. `$after` was an unknown built-in too. A
+plain struct form keeps its meaning; a struct whose field 0 is `'array'`, `'vector'`,
+`'scalable_vector'` or `'packed'` had no LLVM type before, so no working program
+changes meaning.
 
 ---
 
@@ -370,12 +429,6 @@ None. `'ptr'` is a new named form, and `$alloca`, `$getelementptr`, `$load` and
 >    `module.x` under one built-in? LLVM's answer is that a global *is* a `ptr`.
 > 6. **Names.** `ptr` or `address`; the field `form` or `type` (LLVM says type, oymomo
 >    says form).
-> 7. **An array form** (decision 8), for `[N x F]` inside a struct and for
->    `getelementptr`'s array indices. (a) A new term `ArrayForm(element, count)`, with
->    syntax to choose (`[16 x 'i8']` would clash with byte array literals). (b) A
->    built-in form constructor `$array {form = 'i8', count = [10..]: 'i64'}`, which
->    BANF would accept as a literal form. (c) None: structs of repeated fields for
->    short arrays, `count` for buffers. (b) needs no syntax and keeps forms as terms.
 
 ---
 
@@ -490,9 +543,37 @@ Each case is checked on `normalize(t)` in `bruijn`, and on `convert(t)` in
       `load`.
 - `docs/notes.md`: under `$after` in Built-ins, the three cases, one line each, with
   a link to these tests.
-- Status of this plan: **implemented**.
 
 Commit: `oymomo: test unordered effects`
+
+### Step 5: tagged pairs for arrays, vectors and packed structs
+
+- D.
+- Tests:
+  - `bruijn`: none needed: a tagged pair is a struct. One test that β builds one:
+    `(e -> {'array', {element = e, count = ...}}) 'i8'` normalizes to
+    `{'array', {element = 'i8', ...}}`.
+  - `banf_translate`: each tagged pair as a block param's form, a function param's
+    form and a memory op's `form`; nested (an array of packed structs, a struct
+    holding an array); `{'i32', {x = 'i8'}}` stays a plain struct; every message of
+    decision 8: a reserved tag with labeled or extra fields, missing or extra parts,
+    a count that isn't a literal, a vector of a struct, a scalable vector inside a
+    struct or an array.
+  - `banf_terms`: `show_form` prints `[3 x i32]`, `<4 x i32>`, `<vscale x 4 x i32>`,
+    `<{i8, i32}>`.
+  - `llvm_translate`: `llvm_type` gives `[3 x i32]`, `<4 x i32>`, `<{i8, i32}>`;
+    `$getelementptr` into an array with a run-time index; through LLVM's JIT, a
+    store then a load of an array and of a packed struct gives the stored value, and
+    a `{'packed', {a = 'i8', b = 'i32'}}` alloca is 5 bytes (`$getelementptr` to
+    field `b` is offset 1); a scalable vector is
+    `Form <vscale x 4 x i32> has no LLVM type in llvmlite.`
+  - golden `aggregate.oymo`: a function that sums an array of `'i32'` in memory with
+    a loop and a run-time `$getelementptr` index.
+- `docs/notes.md`: tagged pairs in Forms are terms (a row each) and in the BANF to
+  LLVM table; the reserved tags; the messages in Error messages.
+- Status of this plan: **implemented**.
+
+Commit: `oymomo: add aggregate forms`
 
 ---
 
