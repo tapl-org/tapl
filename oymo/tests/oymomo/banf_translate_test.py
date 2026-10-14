@@ -708,7 +708,7 @@ def test_form_must_be_known():
 
 def test_a_kernel_only_builtin_that_does_not_reduce_away(monkeypatch):
     # A rule that never fires, standing in for `$struct_to_fields` on a run-time value.
-    stuck = bruijn.BuiltinRule('struct_to_fields', 'a struct', lambda _call, _argument: None)
+    stuck = bruijn.BuiltinRule('struct_to_fields', lambda call, _reduce_part: call)
     monkeypatch.setitem(bruijn.BUILTIN_RULES, 'struct_to_fields', stuck)
     source = "g = f -> {entry = args:{p = {'i8'}} -> let t = $struct_to_fields args.p in t}"
     assert error(source, "g = => 'i8'") == (

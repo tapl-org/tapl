@@ -110,28 +110,39 @@ def beta(lambda_: terms.Lambda, argument: syntax.Term) -> syntax.Term:
     return shift(substitute(lambda_.body, 0, shift(argument, 1)), -1)
 
 
+ReducePart = Callable[[syntax.Term], syntax.Term]
+"""Reduces a part of a built-in's argument until its top constructor can't change.
+Returns the part itself if it doesn't change."""
+
+
+def keep(part: syntax.Term) -> syntax.Term:
+    """The `ReducePart` that reduces nothing. `reduce` passes it, so it stays root-only."""
+    return part
+
+
 @dataclass(frozen=True)
 class BuiltinRule:
-    """How `reduce` steps `$name arg`.
+    """How `$name arg` steps.
 
-    `rule(call, arg)` gets the whole call and its argument, and returns the result, or
-    None if the call doesn't reduce (yet). `needs` says what the argument must reduce to,
-    for the error when it doesn't (`'a struct'`).
+    `reduce(call, reduce_part)` gets the whole call. It gives each part of the argument that
+    it reads to `reduce_part` before reading it, and returns:
+    - the result, if the call fires;
+    - `call` with the changed parts put back, if a part changed but the call can't fire yet;
+    - `call` itself, if nothing changed.
     """
 
     name: str
-    needs: str | None
-    rule: Callable[[syntax.Term, syntax.Term], syntax.Term | None]
+    reduce: Callable[[terms.Apply, ReducePart], syntax.Term]
 
 
-def _fix(call: syntax.Term, function: syntax.Term) -> syntax.Term:
-    """`$fix g` becomes `g ($fix g)`."""
-    return terms.Apply(function=function, argument=call, location=getattr(call, 'location', None))
+def _fix(call: terms.Apply, _reduce_part: ReducePart) -> syntax.Term:
+    """`$fix g` becomes `g ($fix g)`. `g` stays lazy: it is never given to `reduce_part`."""
+    return terms.Apply(function=call.argument, argument=call, location=getattr(call, 'location', None))
 
 
 # Reduction rules, by built-in name. A built-in with a rule and no opcode
 # (`banf_opcodes.OPCODES`) is kernel-only: it must reduce away before BANF.
-BUILTIN_RULES: dict[str, BuiltinRule] = {rule.name: rule for rule in (BuiltinRule('fix', None, _fix),)}
+BUILTIN_RULES: dict[str, BuiltinRule] = {rule.name: rule for rule in (BuiltinRule('fix', _fix),)}
 
 
 def project(term: terms.Project) -> syntax.Term | None:
@@ -175,10 +186,9 @@ def reduce(term: syntax.Term) -> syntax.Term:
     match term:
         case terms.Apply(function=terms.Lambda() as lambda_, argument=argument):
             return beta(lambda_, argument)
-        case terms.Apply(function=terms.Builtin(name=name), argument=argument) if (
-            builtin := BUILTIN_RULES.get(name)
-        ) is not None and (result := builtin.rule(term, argument)) is not None:
-            return result
+        case terms.Apply(function=terms.Builtin(name=name)) if (builtin := BUILTIN_RULES.get(name)) is not None:
+            # `keep` reduces no part, so the rule fires only if the parts it reads are already reduced.
+            return builtin.reduce(term, keep)
         case terms.Project(struct=terms.Struct()):
             projected = project(term)
             return term if projected is None else projected

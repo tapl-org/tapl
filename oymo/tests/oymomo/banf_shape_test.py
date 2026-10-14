@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from dataclasses import replace
+
 import pytest
 
 from oymo.oymomo import banf_shape, bruijn, terms
@@ -244,3 +246,166 @@ def test_dynamic_byte_array_form():
     reduced = banf_shape.reduce_until_top_stable(bruijn.resolve(parse("(x -> y -> y: x) 'i1' [01]")))
     assert reduced == parse("[01]:'i1'")
     assert show(reduced) == "[01]:'i1'"
+
+
+# A built-in reduces its own call (plan_struct_pack decision 1). The rules below are test-only.
+
+
+def _reduce_fields(struct, positions, reduce_part):
+    fields = list(struct.fields)
+    for i in positions:
+        fields[i] = replace(fields[i], value=reduce_part(fields[i].value))
+    if all(new.value is old.value for new, old in zip(fields, struct.fields, strict=True)):
+        return struct
+    return replace(struct, fields=fields)
+
+
+def _put_back(call, argument):
+    return call if argument is call.argument else replace(call, argument=argument)
+
+
+def _first(call, reduce_part):
+    """`$first {a, ...}` gives `a`, once the argument is a struct."""
+    argument = reduce_part(call.argument)
+    if isinstance(argument, terms.Struct) and argument.fields:
+        return argument.fields[0].value
+    return _put_back(call, argument)
+
+
+def _both(call, reduce_part):
+    """`$both {a, b}` joins the bytes of `a` and `b`, once both are byte arrays."""
+    argument = reduce_part(call.argument)
+    if isinstance(argument, terms.Struct):
+        argument = _reduce_fields(argument, range(len(argument.fields)), reduce_part)
+        values = [f.value for f in argument.fields]
+        if all(isinstance(v, terms.ByteArray) for v in values):
+            return terms.ByteArray(b''.join(v.value for v in values))
+    return _put_back(call, argument)
+
+
+def _gate(call, reduce_part):
+    """`$gate {c, t}` gives `t` reduced if `c` is [01]. `t` is read only then."""
+    argument = reduce_part(call.argument)
+    if isinstance(argument, terms.Struct) and len(argument.fields) == 2:
+        argument = _reduce_fields(argument, [0], reduce_part)
+        if bruijn.index_value(argument.fields[0].value) == 1:
+            return reduce_part(argument.fields[1].value)
+    return _put_back(call, argument)
+
+
+@pytest.fixture
+def test_rules(monkeypatch):
+    for name, reduce in (('first', _first), ('both', _both), ('gate', _gate)):
+        monkeypatch.setitem(bruijn.BUILTIN_RULES, name, bruijn.BuiltinRule(name, reduce))
+
+
+FREE = ('e', 'g', 'x')
+
+
+@pytest.mark.usefixtures('test_rules')
+def test_a_builtin_reduces_its_argument_and_fires_in_one_step():
+    term = resolved('$first ({p = {a = x}}.p)', FREE)
+    assert show(banf_shape.step(term)) == show(resolved('x', FREE))
+
+
+@pytest.mark.usefixtures('test_rules')
+def test_bruijn_reduce_does_not_reduce_parts():
+    term = resolved('$first ({p = {a = x}}.p)', FREE)
+    assert bruijn.reduce(term) is term
+
+
+@pytest.mark.usefixtures('test_rules')
+def test_a_builtin_reduces_each_field_then_fires():
+    term = resolved('$both {a = (i -> i) [01], b = {c = [02]}.c}', FREE)
+    assert banf_shape.reduce_until_top_stable(term) == terms.ByteArray(b'\x01\x02')
+
+
+@pytest.mark.usefixtures('test_rules')
+def test_a_stuck_builtin_keeps_the_parts_it_reduced():
+    term = resolved('$both {a = e, b = (i -> i) [02]}', FREE)
+    stepped = banf_shape.step(term)
+    assert show(stepped) == show(resolved('$both {a = e, b = [02]}', FREE))
+    assert banf_shape.step(stepped) is stepped
+
+
+@pytest.mark.usefixtures('test_rules')
+def test_a_builtin_picks_what_to_reduce_by_what_it_sees():
+    stays = resolved('$gate {(i -> i) [00], (i -> i) [02]}', FREE)
+    assert show(banf_shape.reduce_until_top_stable(stays)) == show(resolved('$gate {[00], (i -> i) [02]}', FREE))
+    fires = resolved('$gate {(i -> i) [01], (i -> i) [02]}', FREE)
+    assert banf_shape.reduce_until_top_stable(fires) == terms.ByteArray(b'\x02')
+
+
+# The rules of decision 1, checked for every built-in on sample calls.
+SAMPLES = {
+    'fix': ['$fix g', '$fix ((x -> x) g)', '$fix {a = g}'],
+    'first': ['$first ({p = {a = x}}.p)', '$first e', '$first {a = x}'],
+    'both': ['$both {a = (i -> i) [01], b = {c = [02]}.c}', '$both {a = e, b = (i -> i) [02]}', '$both [01]'],
+    'gate': ['$gate {(i -> i) [00], (i -> i) [02]}', '$gate {(i -> i) [01], (i -> i) [02]}'],
+}
+
+
+def test_every_builtin_has_samples():
+    assert set(bruijn.BUILTIN_RULES) <= set(SAMPLES)
+
+
+def _fired(call, result):
+    """Whether `result` is not the call (or the call with parts reduced)."""
+    return not (isinstance(result, terms.Apply) and result.function == call.function)
+
+
+# Catches a built-in whose `reduce` is written wrong. Each check below is shown with a
+# broken version of a test rule above that it catches, on one of the samples.
+#
+# Check 1: it must not look at a part without giving it to `reduce_part` first.
+#
+#     def first(call, reduce_part):                       # broken: never reduces
+#         if isinstance(call.argument, terms.Struct):
+#             return call.argument.fields[0].value
+#         return call
+#
+#   On `$first {a = x}` it fires without asking `reduce_part` for anything, so the test
+#   swaps the argument for the variable `e`: `$first e` doesn't fire. Firing depended on
+#   a part it never reduced, so it would also miss `$first ({p = {a = x}}.p)`. Fails.
+#
+# Check 2: with `keep` (reduce nothing) it must fire or return `call` itself.
+#
+#     def first(call, reduce_part):                       # broken: always a new call
+#         argument = reduce_part(call.argument)
+#         if isinstance(argument, terms.Struct):
+#             return argument.fields[0].value
+#         return replace(call, argument=argument)
+#
+#   On `$first e` with `keep`, it returns a copy of `call`. `bruijn.reduce(t) is t` is
+#   then false although nothing happened, and `reduce_until_top_stable` loops. Fails.
+#
+# Check 3: one call does all it can, so if it doesn't fire, calling it again on what it
+# returned gives back that same object (stuck for good).
+#
+#     def both(call, reduce_part):                        # broken: one field per call
+#         ... reduces only the first field that changes, then returns ...
+#
+#   On `$both {a = (i -> i) [01], b = {c = [02]}.c}` the first call returns
+#   `$both {a = [01], b = {c = [02]}.c}`, and the second one still changes `b`. Fails.
+@pytest.mark.usefixtures('test_rules')
+@pytest.mark.parametrize('source', [source for sources in SAMPLES.values() for source in sources])
+def test_builtin_reduce_contract(source):
+    call = resolved(source, FREE)
+    rule = bruijn.BUILTIN_RULES[call.function.name]
+    given = []
+
+    def record(part):
+        given.append(part)
+        return banf_shape.reduce_until_top_stable(part)
+
+    result = rule.reduce(call, record)
+
+    if not any(part is call.argument for part in given):
+        other = replace(call, argument=terms.BruijnIndex(len(FREE) - 1))  # `e`
+        assert _fired(other, rule.reduce(other, record)) == _fired(call, result)
+
+    kept = rule.reduce(call, bruijn.keep)
+    assert kept is call or _fired(call, kept)
+
+    if not _fired(call, result):
+        assert rule.reduce(result, banf_shape.reduce_until_top_stable) is result

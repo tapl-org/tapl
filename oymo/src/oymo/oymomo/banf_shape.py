@@ -56,6 +56,11 @@ class _Shaper:
                 # Other arguments stay lazy.
                 new = self.reduce_until_top_stable(index)
                 return term if new is index else replace(term, argument=new)
+            case terms.Apply(function=terms.Builtin(name=name)) if (
+                builtin := bruijn.BUILTIN_RULES.get(name)
+            ) is not None:
+                # A built-in reduces the parts of its argument that it reads, and may fire.
+                return builtin.reduce(term, self.reduce_until_top_stable)
             case terms.Apply(function=function):
                 new = self.reduce_until_top_stable(function)
                 return term if new is function else replace(term, function=new)

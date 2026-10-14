@@ -77,10 +77,16 @@ These apply only when no computation rule applies at the root.
                                t → t'
    ─────────────────────────────────────────────────────                 (E-Formed)
                            t : F  →  t' : F
+
+                 p is a part of t that the rule of $name reads      p → p'
+   ─────────────────────────────────────────────────────                 (E-Builtin)
+                          $name t  →  $name t[p ↦ p']
 ```
 
-There are no rules for `λx:F. t`, struct fields, ordinary arguments, or forms: those
-positions are never reduced by `→`. So `$fix t` never reduces `t`, nor does any `$name t`.
+E-Builtin is the rule's own `reduce`, given `reduce_until_top_stable` as `reduce_part`:
+each built-in says which parts it reads (`$fix` reads none). There are no rules for
+`λx:F. t`, struct fields, ordinary arguments, or forms: those positions are never
+reduced by `→`. So `$fix t` never reduces `t`.
 
 ## Under binders: `shape`
 

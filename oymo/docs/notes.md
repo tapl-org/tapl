@@ -778,7 +778,7 @@ A name can appear in two tables:
 
 | Table | File | Gives |
 |---|---|---|
-| `BUILTIN_RULES` (`BuiltinRule(name, needs, rule)`) | [`bruijn.py`](../src/oymo/oymomo/bruijn.py) | a reduction rule |
+| `BUILTIN_RULES` (`BuiltinRule(name, reduce)`) | [`bruijn.py`](../src/oymo/oymomo/bruijn.py) | a reduction rule |
 | `OPCODES` / `DEFAULT_OPCODES` | [`banf_opcodes.py`](../src/oymo/oymomo/banf_opcodes.py) / [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) | machine code (an **opcode**) |
 
 | Name | Rule | Opcode |
@@ -788,8 +788,13 @@ A name can appear in two tables:
 
 - A built-in with a rule and no opcode is **kernel-only**. This follows from the
   tables, with no flag to keep in sync. Reduction must remove it.
-- `needs` says what a rule's argument must reduce to (e.g. `'a struct'`), for the
-  error when it doesn't. `$fix g` unfolds without reducing `g`.
+- `reduce(call, reduce_part)` steps the whole call. It gives each part of the argument
+  it reads to `reduce_part` first, and returns the result if it fires, else `call` with
+  the reduced parts put back, else `call` itself. `bruijn.reduce` passes `keep` (reduces
+  nothing); `banf_shape` passes `reduce_until_top_stable`. See [Blockers](#blockers).
+- `$fix g` unfolds without reducing `g`: `_fix` never calls `reduce_part`.
+- What a leftover kernel-only built-in's argument must reduce to (e.g. `'a struct'`) is
+  in `banf_translate._MUST_REDUCE_TO`, for the error message.
 - `convert` is the only gate into BANF: `$name arg` becomes an `OpcodeCall` only if
   `name` is in `OPCODES`. Leftovers are errors: see
   [Error messages › Built-ins](#built-ins-1).
@@ -1261,12 +1266,17 @@ Some roots become a redex only after one part, their **blocker**, is reduced: in
 | `s.l` | `s` |
 | `if c then ...`, which is `{e, t} c` | `c` |
 | `t: F` | `t` |
+| `$name a`, `name` in `BUILTIN_RULES` | the parts of `a` its `reduce` reads (none for `$fix`) |
 | anything else | none |
 
 - So `step` reduces an apply's callee to a struct, then the index, then the root:
   in `{a = x} ((y -> y) [00])` the index must become a byte array first.
 - An argument is reduced only when the callee is a struct, so ordinary applications
   stay lazy: `f ((x -> x) a)` keeps its argument. `$fix g` unfolds without reducing `g`.
+- A built-in reduces its own blockers: `unblock` calls `builtin.reduce(t,
+  reduce_until_top_stable)` and takes what comes back, which may be the fired result.
+  Returning `t` itself means stuck for good. Its `reduce` reads a part only after giving
+  it to `reduce_part`, so no part it reads can still change.
 
 ```
 step(t) = reduce(t)           if reduce(t) is not t                  -- fire the rule at the root
@@ -1660,15 +1670,17 @@ gives the same BANF), and checks the shaped output compiles to the same BANF.
 ### Add a built-in reduction rule
 
 1. In [`bruijn.py`](../src/oymo/oymomo/bruijn.py), write
-   `rule(call, arg) -> Term | None` (return `None` when it doesn't fire yet) and add
-   `BuiltinRule(name, needs, rule)` to `BUILTIN_RULES`.
-   - `needs` names what the argument must reduce to (`'a struct'`), for the
-     error message.
-   - `banf_shape` doesn't reduce a built-in's argument. A rule that must read its
-     argument reduced needs a new blocker case in `banf_shape.unblock`.
+   `reduce(call, reduce_part) -> Term` and add `BuiltinRule(name, reduce)` to
+   `BUILTIN_RULES`.
+   - Give each part of the argument to `reduce_part` before reading it; a part you
+     don't give stays lazy. No change in `banf_shape`.
+   - Return the result if it fires, else `call` with the changed parts put back, else
+     `call` itself (only if no part changed).
 2. The parser accepts any `$name`, and `convert` rejects a leftover kernel-only
-   built-in with a message built from `needs`.
-3. Add tests in `bruijn_test.py` and `banf_shape_test.py`; update
+   built-in. Add what its argument must reduce to in
+   `banf_translate._MUST_REDUCE_TO`, for the message.
+3. Add tests in `bruijn_test.py` and `banf_shape_test.py`, and samples in
+   `banf_shape_test.SAMPLES` for the `reduce` contract; update
    [The kernel › Built-ins](#built-ins).
 
 ### Write a design change

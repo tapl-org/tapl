@@ -9,7 +9,7 @@
 from dataclasses import dataclass, replace
 
 from oymo.core import syntax
-from oymo.oymomo import banf_opcodes, banf_shape, banf_rename, bruijn, terms
+from oymo.oymomo import banf_opcodes, banf_rename, banf_shape, bruijn, terms
 from oymo.oymomo import banf_terms as banf
 from oymo.oymomo.banf_rename import ARGS, BLOCKS, MODULE
 
@@ -19,6 +19,14 @@ class TranslationError(Exception):
         super().__init__(message)
         self.message = message
         self.location = location
+
+
+# For a kernel-only built-in left in the term: what its argument must reduce to for it to
+# reduce away. Used only in the error message.
+_MUST_REDUCE_TO = {
+    'struct_to_fields': 'a struct',
+    'fields_to_struct': 'a list of fields',
+}
 
 
 def _location(term):
@@ -264,8 +272,9 @@ class _Translator:
                 # The only way into BANF for a built-in. A kernel-only one (a rule and no
                 # opcode) should have reduced away; it is left only when its rule couldn't fire.
                 if name not in banf_opcodes.OPCODES:
-                    if (builtin := bruijn.BUILTIN_RULES.get(name)) is not None:
-                        needs = f': its argument must reduce to {builtin.needs}' if builtin.needs else ''
+                    if name in bruijn.BUILTIN_RULES:
+                        must = _MUST_REDUCE_TO.get(name)
+                        needs = f': its argument must reduce to {must}' if must else ''
                         raise TranslationError(f'${name} has no opcode, so it must reduce away{needs}.', location)
                     raise TranslationError(f"Unknown built-in '${name}'.", location)
                 params = banf_opcodes.OPCODES[name].params
