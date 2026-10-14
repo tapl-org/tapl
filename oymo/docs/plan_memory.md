@@ -1,37 +1,33 @@
-# Plan: mutable memory as linear regions: the `'mem'` form, load and store
+# Plan: memory as in LLVM: the `'ptr'` form, alloca, getelementptr, load and store
 
-Status: **proposed**, with open questions; 0 of 6 steps.
+Status: **proposed**, with open questions; 0 of 3 steps.
 
 ## Steps
 
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
-- [ ] 1. The `'mem'` form and region literals: a stack slot is a value (`oymomo: add the mem form`)
-- [ ] 2. `$load_T` and `$store_T` opcodes, each taking and giving a region (`oymomo: add load and store`)
-- [ ] 3. Load and store fold on literal regions (`oymomo: fold load and store`)
-- [ ] 4. Module regions: a data symbol of form `'mem'` is a heap at a fixed symbol (`oymomo: add module regions`)
-- [ ] 5. Alias scopes: LLVM learns that regions never overlap (`oymomo: regions never alias`)
-- [ ] 6. `$after`: an identity the kernel can't see through orders effects (`oymomo: add $after`)
+- [ ] 1. `$after`: an identity the kernel can't see through orders effects (`oymomo: add $after`)
+- [ ] 2. The `'ptr'` form, `$alloca` and `$getelementptr` (`oymomo: add the ptr form`)
+- [ ] 3. `$load` and `$store` (`oymomo: add load and store`)
 
-Step 1 gives regions but nothing reads or writes them until step 2. Step 3 makes the
-kernel run memory ops on literals. Step 4 adds heaps that outlive a function call.
-Step 5 only adds metadata. Step 6 doesn't depend on steps 1 to 5 and can land first:
-it orders calls to imports, which regions don't cover. No step is breaking.
+Step 1 doesn't depend on the others: it orders effects, which memory ops are, as calls
+to imports already are. Step 2 makes and moves pointers, but nothing reads or writes
+through them until step 3. The kernel never folds a memory op (decision 13); LLVM does.
+No step is breaking.
 
 ## Goal
 
-**A program can read and write memory**, and three things hold at once:
+**A program can read and write memory with LLVM's instructions and their operands.**
+A pointer is a value of form `'ptr'`, LLVM's opaque `ptr`. `$alloca` makes one,
+`$getelementptr` moves it, `$load` reads through it, `$store` writes through it. Each
+is one LLVM instruction with LLVM's operands, in LLVM's order, and where LLVM writes
+a type, oymomo passes the form as a value (`form = 'i32'`, `form = {x = 'i32', y =
+'i64'}`). Nothing more: no bounds checks, no regions, no tokens.
 
-1. **Reduction keeps the meaning of memory.** A memory op takes the region it acts on
-   as a value of form `'mem'` and gives the new region back, so it is a pure function
-   of its operands. Full β may drop or copy any let without changing what the program
-   does, and [plan_confluence.md](plan_confluence.md)'s guarantee covers programs, not
-   only terms.
-2. **Regions are separate.** The stack, each heap, and each global are different
-   regions, and an op can only touch the region it is given. Two live regions never
-   overlap, so ops on different regions commute, in the kernel and (step 5) in LLVM.
-3. **The kernel can run memory.** A region literal is a byte array formed as `'mem'`,
-   and a load or store on a literal region folds, like `$add_i32` on literal operands.
+Memory ops are effects, like calls to imports. The term doesn't order them; a
+program orders them by hand with `$after` (decisions 1 to 4), as it orders calls to
+imports. [plan_confluence.md](plan_confluence.md)'s guarantee covers the term, not the
+order of effects (decision 4).
 
 Today every value is immutable, and the only memory a program touches is a data symbol,
 read with `module.errno` (BANF `GetData`).
@@ -40,9 +36,9 @@ read with `module.errno` (BANF `GetData`).
 module: {bump = => 'i32'} -> {
   bump = f -> {
     entry = args: {n = 'i32'} ->
-      let m1 = $store_i32 {mem = [00000000]: 'mem', offset = [0000000000000000]: 'i64', value = args.n} in
-      let r = $load_i32 {mem = m1, offset = [0000000000000000]: 'i64'} in
-      let v = r.value in
+      let p = $alloca {form = 'i32'} in
+      let s = $store {value = args.n, ptr = p} in
+      let v = $load {form = 'i32', ptr = $after {p, s}} in
       let w = $add_i32 {a = v, b = [01000000]: 'i32'} in
       w,
   },
@@ -52,9 +48,9 @@ module: {bump = => 'i32'} -> {
 ```
 bump: i32
   entry(n: i32):
-    m1 = store_i32 [00000000]:mem, [0000000000000000]:i64, n
-    r = load_i32 m1, [0000000000000000]:i64
-    v = r.value
+    p = alloca i32
+    s = store n, p
+    v = load i32, p
     w = add_i32 v, [01000000]:i32
     return w
 ```
@@ -63,30 +59,35 @@ bump: i32
 define i32 @"bump"(i32 %"n")
 {
 entry:
-  %"m1.mem" = alloca [4 x i8]
-  store [4 x i8] zeroinitializer, ptr %"m1.mem"
-  store i32 %"n", ptr %"m1.mem", align 1
-  %"r" = load i32, ptr %"m1.mem", align 1
-  %"w" = add i32 %"r", 1
+  %"p" = alloca i32
+  store i32 %"n", ptr %"p"
+  %"v" = load i32, ptr %"p"
+  %"w" = add i32 %"v", 1
   ret i32 %"w"
 }
 ```
 
-The literal `[00000000]: 'mem'` is a 4-byte region: a stack slot. The literal offset
-on a literal region needs no bounds check and no `gep`, and `v` is the value `r`
-loaded (design E). With `[29000000]: 'i32'` in place of `args.n`, the whole body
-folds in the kernel, and BANF is `return [2a000000]:i32`:
+`$after {p, s}` is `p`, but it makes the load wait for the store (decision 1), and
+`convert` drops it, so BANF and LLVM never see it. Without it nothing uses `s`, and
+full β could drop the store. With `[29000000]: 'i32'` in place of `args.n`, the kernel
+still leaves the three memory lets alone (decision 13), and LLVM's `mem2reg` turns the
+body into `ret i32 42`.
+
+A struct in memory, and the address of its second field:
 
 ```
-$store_i32 {mem = [00000000]: 'mem', offset = [0000000000000000]: 'i64', value = [29000000]: 'i32'}
-    ⇒  [29000000]: 'mem'
-$load_i32 {mem = [29000000]: 'mem', offset = [0000000000000000]: 'i64'}
-    ⇒  {mem = [29000000]: 'mem', value = [29000000]: 'i32'}
+let q = $alloca {form = {x = 'i32', y = 'i64'}} in
+let y = $getelementptr {form = {x = 'i32', y = 'i64'}, ptr = q,
+                        indices = {[0000000000000000]: 'i64', [01000000]: 'i32'}} in
+...
 ```
 
-Step 6 adds one more thing: **a program can order effects that regions don't cover**,
-such as calls to imports. `$after {x, d1, ..., dn}` is `x`, but the kernel can't see
-that, so `x` waits for every `dᵢ` (decision 14), and `convert` drops it:
+```llvm
+  %"q" = alloca {i32, i64}
+  %"y" = getelementptr {i32, i64}, ptr %"q", i64 0, i32 1
+```
+
+`$after` also orders calls to imports:
 
 ```
 let q = module.putchar {c = [68000000]: 'i32'} in
@@ -102,275 +103,117 @@ return r
 
 ## Decisions
 
-### Regions (step 1)
+### Ordering effects (step 1)
 
-1. **A region is a value of form `'mem'`: some bytes, with a size.** What is at an
-   offset is said by the op that reads or writes it (`$load_i32`), not by the region.
-   A **region literal** is a byte array formed as `'mem'`: `[00000000]: 'mem'` is a
-   region of four zero bytes. A region is a value like any other: a block param, a
-   function param or result, a struct field, a let.
-2. **An address is an offset into a region, of form `'i64'`.** There is no `'ptr'`
-   form in this plan. An op names the region and the byte offset, as a WebAssembly
-   memory op does, so an offset can never reach another region, whatever its value.
-   Address arithmetic is `$add_i64` and friends, and address comparison is `$eq_i64`.
-   Where a region lives is not observable, so it is a layout fact, left to the
-   translator (decision 12). Raw C pointers and the bridge between them and regions
-   belong to [plan_c_interop.md](plan_c_interop.md) phase 1.1 (open question 2).
-3. **A region name is used at most once on every path.** The compiled code updates a
-   region in place (decision 12), which is right only if no one reads an old version:
+1. **`$after {x, d1, ..., dn}` is `x`, and the kernel can't see that.** Field 0 is
+   the value; the others are what it waits for. Fields are positional, and labels are
+   ignored, as in a branch. `after` has no rule and no opcode, so `reduce` never fires
+   on it (an unknown built-in is already not a redex): no kernel change. Since `x`
+   now uses every `dᵢ`, full β can't drop a `dᵢ`, and a let that uses `$after` comes
+   after every let it waits for:
 
    ```
-   let m1 = $store_i32 {mem = args.h, offset = o, value = x} in
-   $load_i32 {mem = args.h, offset = o}        -- reads the region before the store
+   let q = module.putchar {c = [68000000]: 'i32'} in
+   let r = module.putchar {c = $after {[69000000]: 'i32', q}} in
+   r
    ```
 
-   A *region name* is a name of form `'mem'`, or a `'mem'` field of a name, by path
-   (`r.mem`). A *use* is an op operand, a call or jump argument, a struct field, or a
-   return; using a whole name uses every region in it; projecting another field
-   (`r.value`) uses none. The verifier counts uses per block, with a branch or switch
-   counted per arm: `Region 'h' is used twice; a region is used at most once.`
-   At most once, not exactly once: a region nobody uses again is dead, and so is the
-   store that made it, which is dead-store elimination for free.
+   Without `$after`, nothing uses `q`, so full β drops the first call and the program
+   prints `i`. `$after` orders calls to imports and memory ops
+   (`$load {form = 'i32', ptr = $after {p, s}}`).
+2. **`$after` may be an operand.** With atoms as fields it is an atom: an op argument,
+   a jump argument, a branch condition, a return, or a let's value. This is one
+   exception to [notes.md › Operands must be atoms](notes.md#operands-must-be-atoms),
+   because it stands for its field 0, which is an atom. (The other is a memory op's
+   `form`, decision 7.)
+3. **`convert` drops it.** `$after {x, ...}` becomes the atom `x`, and
+   `let c = $after {...}` binds no BANF let: `c` is an alias of `x`. So BANF, the
+   verifier, `form_of` and LLVM never see it, and it needs no form. After `convert`,
+   order is let order alone, which BANF keeps: no BANF pass reorders or removes a let,
+   and LLVM keeps calls to imports and memory ops in order.
+4. **Ordering is by hand and unchecked.** An effect that nothing uses, directly or
+   through `$after`, can still be dropped by full β; two effects with no chain between
+   them have no order; a let used twice can be copied, so a load can run twice, once
+   on each side of a store. `$after` gives a program a way to order effects, not a
+   guarantee. A check is open question 1.
 
-   β keeps this: substituting a value for a binder used at most once uses the value at
-   most once, and a copied op is merged back by decision 10. So the check runs once,
-   on BANF. A form is not a type, so the kernel can't check it. Only names are
-   counted: a literal is a value, and `g {a = [00]: 'mem', b = [00]: 'mem'}` means two
-   regions, which is what the compiled code makes.
-4. **A region literal lives in the frame, in the entry block, and never leaves it.**
-   A literal is an `alloca`, so it dies with the function:
-   - the verifier rejects a literal outside `blocks[0]`:
-     `A region literal must be in the entry block.` In a loop block one slot per
-     literal would alias the previous iteration's region, and one slot per pass would
-     grow the stack (as LLVM's `alloca` in a loop does);
-   - the verifier rejects returning a region that the frame owns:
-     `Region 'm1' lives in this function's frame, so it can't be returned.` A literal
-     is owned; an entry-block param and a module region are not; a load's or store's
-     result owns what its `mem` operand owned; a call's result owns if any region
-     passed to it did; a block param owns if any jump to it passes an owned region
-     (a fixed point over the blocks). An owned region may still be passed to a call,
-     since the callee can't keep it either.
-5. **Live regions never overlap.** A region comes from a literal (its own `alloca`), a
-   module region (its own global), or a param (the caller's region, used once by
-   decision 3). No op makes one region from another. So any two region names in a
-   function denote disjoint bytes, which is what step 5 tells LLVM.
+### Pointers and memory ops (steps 2, 3)
 
-### Ops (steps 2, 3)
+5. **A pointer is a value of form `'ptr'`: LLVM's opaque `ptr`.** It says nothing
+   about what it points to; the op that reads or writes says that. A pointer is a
+   value like any other: a block param, a function param or result, a struct field,
+   a let, and a param or result of an imported function, where it is C's `T *` (a
+   step toward [plan_c_interop.md](plan_c_interop.md) 1.1).
+6. **A pointer can't be a literal.** The kernel's byte arrays have no address to
+   name, and a null pointer is open question 3. The verifier rejects
+   `[0000000000000000]: 'ptr'`: `A pointer can't be a literal.`
+7. **Memory ops are LLVM's instructions, with the form as an operand.** LLVM's
+   `alloca`, `getelementptr` and `load` take a type, and the type can be any type:
+   `i32`, `{i32, i64}`, `[16 x i8]`. A name can't hold that (`$load_{x = 'i32'}` isn't
+   a name), so these are not monomorphic opcodes
+   ([notes.md › Opcodes](notes.md#monomorphic-one-op-per-signature)) but four
+   built-ins, named as in LLVM, that take the form as a value, as forms are terms
+   ([notes.md › Forms are terms](notes.md#forms-are-terms)):
 
-6. **Load and store are opcodes**, generated from templates like the others, one per
-   form (monomorphic, see [notes.md › Opcodes](notes.md#monomorphic-one-op-per-signature)).
-   `T` is one of `i1 i8 i16 i32 i64`:
+   | Built-in | Fields | Gives | LLVM |
+   |---|---|---|---|
+   | `$alloca` | `form`, and `count` if not 1 | `ptr` | `alloca F` / `alloca F, iN count` |
+   | `$getelementptr` | `form`, `ptr`, `indices` | `ptr` | `getelementptr F, ptr ptr, iN i0, ...` |
+   | `$load` | `form`, `ptr` | `F` | `load F, ptr ptr` |
+   | `$store` | `value`, `ptr` | `{}` | `store F value, ptr ptr` |
 
-   | Op | Signature | LLVM |
-   |---|---|---|
-   | `load_T` | `{mem: mem, offset: i64} => {mem: mem, value: T}` | `load T` at `base + offset` |
-   | `store_T` | `{mem: mem, offset: i64, value: T} => mem` | `store T` at `base + offset` |
-
-   No new BANF op, term, syntax or reserved word: they are `OpcodeCall`s. There is no
-   alloca opcode: a region literal is the slot (decision 4). A load gives its region
-   back, though it doesn't change it, so that every op on a region consumes the
-   version it reads: let order and data order are then the same thing (decision 11),
-   and the verifier needs no special case for readers. The cost is that the kernel
-   can't reorder two loads of one region; LLVM can. See open question 5.
-7. **An access outside the region traps.** The compiled op checks
-   `width ≤ size` and `offset ≤ size − width` and calls `llvm.trap` otherwise, so an
-   offset can't reach other memory at run time either. The check is left out when the
-   region is a literal and the offset a literal, and the verifier rejects that case
-   when it is out of bounds: `$load_i32 at offset 4 reads past a 4-byte region.`
-   The kernel never folds an access outside the region (decision 9). An unchecked
-   target is open question 4.
-8. **Memory is little-endian, like byte arrays, on every target.** `$store_i32` of
-   `[2a000000]: 'i32'` writes those four bytes in that order, and `$load_i8` at offset
-   0 then gives `[2a]`, so folding (decision 9) and running agree. On a big-endian
-   target the translator byte-swaps loads and stores (`llvm.bswap`), as WebAssembly
-   does. This settles the "cost, later" in
-   [notes.md › Byte arrays are always little-endian](notes.md#byte-arrays-are-always-little-endian).
-   Every access is `align 1`: alignment is a layout fact (open question 3).
-9. **Load and store fold on a literal region and a literal offset**, by rules in the
-   style of [plan_constant_folding.md](implemented/plan_constant_folding.md):
-
-   ```
-   $load_T {mem = [m], offset = [o]}             →  {mem = [m]: 'mem', value = [m[o .. o+n)]: T}
-   $store_T {mem = [m], offset = [o], value = [v]}  →  [m with v at o .. o+n]: 'mem'
-       n = (N + 7) // 8 for T = iN;  [o] is 8 bytes, read little-endian;  o + n ≤ |m|
-       each literal bare or with the param's form;  |v| = n
-   ```
-
-   The rules read only byte arrays, which are normal forms, so they meet
-   plan_confluence's decision 5. An op on a run-time region or offset stays, and is
-   kept as a let by `shape`. A store on a 1 MB literal copies 1 MB per step in the
-   kernel; a heap that big is a module region (decision 13), which never folds.
-10. **`convert` merges equal ops on a region name.** Full β may copy a let:
-    `let r = $load_i32 {mem = h, offset = o} in let s = r in let u = r in ...`
-    becomes two lets with the same load, and `h` would count twice. They are the same
-    pure function of the same version, so they are one op: `convert` keeps one let for
-    each distinct `(opcode, operands)` in a block whose `mem` operand is a name, and
-    decision 3 counts uses after that. Ops on a literal region are never merged: each
-    literal is a fresh region (decision 3). A copy that lands in operand position
-    (`g {a = ($load_i32 {...}).value}`) is already rejected by
-    [notes.md › Operands must be atoms](notes.md#operands-must-be-atoms); a term that
-    doesn't compile is not a change of meaning.
-11. **Effects happen in let order, because the chain is let order.** A let can only
-    use earlier names, and each version is used once, so the ops on one region form a
-    chain in let order, and ops on different regions are independent. `convert` keeps
-    let order as today, with no scheduling. The kernel itself never runs an op on a
-    run-time region (`$store_i32 {mem = args.h, ...}` is stuck).
-
-### In LLVM (steps 1, 2, 5)
-
-12. **`'mem'` is the LLVM type `{ptr, i64}`: base and size.** A literal of `N` bytes
-    is `alloca [N x i8]` plus a store of the bytes, in the entry block. A store's
-    result is its input region, the same two values; a load's result is the loaded
-    value with the same region. Inside a function the translator keeps base and size
-    as two values and packs `{ptr, i64}` only where a region is one value: a call or
-    jump argument, a struct field, a return. So a chain on one region packs nothing,
-    and the goal program's IR is what LLVM's `mem2reg` expects. A region param or
-    result of an *imported* function is rejected for now:
-    `'write' takes a region; regions can't cross to C yet.` (open question 2).
-
-### Module regions (step 4)
-
-13. **A data symbol of form `'mem'`, defined by a byte array, is a module region.**
-    `module: {heap = 'mem', ...} -> {heap = [00000000 ...], ...}` is the LLVM global
-    `@heap = global [N x i8] ...`: a heap that starts at a fixed symbol, outlives any
-    call, and is not on the stack. Several such symbols are several heaps. Other data
-    symbols are unchanged: `module.errno` is still a read-only read (`GetData`), and
-    no symbol lives inside a heap.
-
-    `module.heap` is the region: a BANF atom `Region('heap')`, `{ptr @heap, i64 N}`,
-    with form `'mem'`, usable as an operand. It is the region's current contents, not
-    a value the kernel knows, so it never folds. For in-place updates to be right it
-    may appear **once in the program, in the entry block of an entry point**: a
-    function that no function in the module calls. Then one activation holds it, and
-    threads it from there. The verifier checks all three:
-    `module.heap is used twice; a module region is used once, in the entry block of an entry point.`
-    An imported region (`heap = 'mem'` with no definition) is rejected, since nothing
-    gives its size: `'heap' is a region, so it must be defined.` Alternatives are in
-    open question 7.
-
-### Ordering effects (step 6)
-
-14. **`$after {x, d1, ..., dn}` is `x`, and the kernel can't see that.** Field 0 is
-    the value; the others are what it waits for. Fields are positional, and labels are
-    ignored, as in a branch. `after` has no rule and no opcode, so `reduce` never fires
-    on it (an unknown built-in is already not a redex): no kernel change. Since `x`
-    now uses every `dᵢ`, full β can't drop a `dᵢ`, and a let that uses `$after` comes
-    after every let it waits for:
-
-    ```
-    let q = module.putchar {c = [68000000]: 'i32'} in
-    let r = module.putchar {c = $after {[69000000]: 'i32', q}} in
-    r
-    ```
-
-    Without `$after`, nothing uses `q`, so full β drops the first call and the program
-    prints `i`. Regions order memory ops by themselves; `$after` orders what they
-    don't: calls to imports, and an op after a call
-    (`$store_i32 {mem = m, offset = $after {o, q}, value = v}`).
-15. **`$after` may be an operand.** With atoms as fields it is an atom: an op argument,
-    a jump argument, a branch condition, a return, or a let's value. This is the one
-    exception to [notes.md › Operands must be atoms](notes.md#operands-must-be-atoms),
-    because it stands for its field 0, which is an atom.
-16. **`convert` drops it.** `$after {x, ...}` becomes the atom `x`, and
-    `let c = $after {...}` binds no BANF let: `c` is an alias of `x`. So BANF, the
-    verifier, `form_of` and LLVM never see it, and it needs no form. After `convert`,
-    order is let order alone, which BANF keeps: no BANF pass reorders or removes a let,
-    and LLVM keeps calls to imports in order and never removes them.
-17. **Ordering is by hand and unchecked.** An effect that nothing uses, directly or
-    through `$after`, can still be dropped by full β; two effects with no chain between
-    them have no order; a call whose let is used twice can be copied. `$after` gives a
-    program a way to order effects, not a guarantee. A check is open question 9.
+   - `form` must reduce to a literal form (a named form or a struct of them), as a
+     binder's form must for BANF; it is a form, not an operand, so it stays in place
+     and is never let-bound. `'ptr'` is a literal form too, so a pointer can be
+     stored and loaded.
+   - `$store` has no `form`: LLVM's `store F value` names the value's own type, and an
+     oymomo value carries its form (`form_of`).
+   - `count` and each index may be any integer form, as in LLVM. An index into a
+     struct must be a literal `'i32'` inside the struct's field count, as in LLVM:
+     `$getelementptr: index 1 into {x: i32} must be a literal 'i32' below 1.` Struct
+     fields are indexed by position, not label, as in LLVM.
+   - The first index of `$getelementptr` steps by whole `F`s, so a byte offset is
+     `$getelementptr {form = 'i8', ptr = p, indices = {o}}`. It is not `inbounds`.
+   - Fields are checked by label, as for opcodes:
+     `$store takes {value, ptr}, got {ptr, value}.`
+8. **An array is `count` elements.** oymomo has no array form, so `alloca [16 x i32]`
+   is written `$alloca {form = 'i32', count = [1000000000000000]: 'i64'}`, LLVM's
+   `alloca i32, i64 16`: the same 16 contiguous elements, indexed by the first index
+   of `$getelementptr {form = 'i32', ...}`. An array *inside* a struct needs an array
+   form: open question 7.
+9. **An `alloca` may be in any block, as in LLVM.** One in a loop block grows the
+   stack on each pass, and only entry-block ones are promoted by `mem2reg`. Its memory
+   dies with the function, and a pointer to it used after that is undefined, as in
+   LLVM; nothing checks it.
+10. **Two different pointers may alias.** LLVM's own alias analysis is all there is:
+    it knows two `alloca`s are distinct, and that an `alloca` that doesn't escape
+    isn't reached through a param. Saying more (`noalias`, `!alias.scope`) is open
+    question 4.
+11. **A store gives `{}`, which only `$after` may use.** LLVM's `store` gives no
+    value, and oymomo has no `void` yet ([plan_c_interop.md](plan_c_interop.md) 1.2).
+    The result form is the empty struct, so the let has a name to wait for, and the
+    verifier rejects any other use: `'s' is the result of a store; only $after can
+    use it.` In LLVM the let binds nothing.
+12. **Accesses are as LLVM's defaults: target byte order, ABI alignment, no checks.**
+    A load or store carries no `align`, so LLVM assumes the type's ABI alignment, and
+    an access through a misaligned or dangling pointer is undefined, as in C. Byte
+    order is the target's: on a big-endian target, storing `[2a000000]: 'i32'` and
+    loading `'i8'` at the same pointer gives `[00]`. This is unlike byte array
+    literals, which are little-endian everywhere
+    ([notes.md › Byte arrays are always little-endian](notes.md#byte-arrays-are-always-little-endian)),
+    but memory has no literals, so the two never meet. A struct's layout (padding,
+    field offsets) is LLVM's for the target. See open question 2.
+13. **Memory ops never fold in the kernel.** `alloca`, `getelementptr`, `load` and
+    `store` are in neither `BUILTIN_RULES` nor `OPCODES`, and an unknown built-in is
+    not a redex, so they are stuck, as `$after` is: no kernel change. The kernel has
+    no memory to run them on. LLVM folds what can be folded (`mem2reg`, SROA,
+    `instcombine`).
 
 ---
 
 ## Design
 
-### A. Forms and verifier (step 1)
-
-| Module | Change |
-|---|---|
-| `llvm_translate.llvm_type` | `'mem'` → `ir.LiteralStructType([ir.PointerType(), ir.IntType(64)])` |
-| `llvm_translate` constants | a `Constant` of form `mem` in the entry block: `alloca [N x i8]`, a store of the bytes (`zeroinitializer` when all zero), and the pair `(ptr, N)` |
-| `banf_terms._verify_function` | three passes: at-most-once use of region names (decision 3), the escape check (decision 4), literals only in `blocks[0]` (decision 4) |
-| `banf_terms`, `banf_translate` | none for the form: a named form is any byte array, and a formed byte array is already a `Constant` |
-
-The use count walks each block's lets and terminal once, with the terminal's arms
-counted separately. The escape check is a fixed point over blocks on an `owned` set of
-region names. Both read forms through `form_of`, so a `'mem'` field inside a struct
-param is found by path.
-
-### B. Opcodes (step 2)
-
-```python
-_MEM, _OFFSET = _named('mem'), _named('i64')
-
-def _memory():
-    for form in INT_FORMS:
-        yield OpcodeSignature(f'load_{form}', 'load', (('mem', _MEM), ('offset', _OFFSET)),
-                              _struct(mem=_MEM, value=_named(form)))
-        yield OpcodeSignature(f'store_{form}', 'store',
-                              (('mem', _MEM), ('offset', _OFFSET), ('value', _named(form))), _MEM)
-```
-
-`OpcodeImpl` today gets `(builder, args)`. For a `mem` operand the translator passes
-two values, base and size. Load and store need the element type, the module's
-`mem.check` and its byte order, so the memory impls close over the form and read the
-rest from `builder.module`:
-
-```python
-def _load(form):
-    def impl(builder, args):
-        base, size, offset = args
-        _check(builder, offset, width(form), size)          # skipped for literals
-        value = builder.load(_address(builder, base, offset), typ=llvm_type(form), align=1)
-        return base, size, _swap_if_big_endian(builder, value)
-    return impl
-```
-
-`mem.check` is one private `alwaysinline` function per module, emitted on first use:
-`(i64 offset, i64 width, i64 size)`, a compare, and `llvm.trap` + `unreachable` on
-failure. One let stays one LLVM block; the branch is inside the helper.
-
-### C. Merging (step 2)
-
-`banf_translate.convert`: before it adds a let whose value is an `OpcodeCall` with a
-`mem` operand that is a name, it looks the op up by `(opcode, atoms)` among the block's
-lets so far; on a hit the new name is an alias of the earlier let's name, and later
-atoms are rewritten through the alias map. Atoms compare by name, after `rename`.
-
-### D. Folding (step 3)
-
-| Module | Change |
-|---|---|
-| `opcodes.py` | `FOLDED_TEMPLATES` gains `load store`; `evaluate_memory(name, mem, offset, value)` on bytes, `None` when out of bounds |
-| `bruijn.py` | the generated rule reads the `mem` operand as a byte array of any length, the `offset` as 8 bytes, the `value` as `n` bytes; the result of a load is a `Struct` of two `Formed` byte arrays |
-| `banf_terms` verifier | a literal region with a literal offset out of bounds is an error (decision 7), since the rule left it stuck |
-
-### E. Translation of results (step 2)
-
-`r = load_i32 m, o` binds `r` to three LLVM values: base, size, value. `r.value` is
-the loaded instruction, named `r` in the IR when `r.value` is its only use, and
-`r.mem` is the pair. `m1 = store_i32 ...` binds `m1` to the operand's pair. Packing
-with `insertvalue` and unpacking with `extractvalue` happen only at the places decision
-12 names.
-
-### F. Module regions (step 4)
-
-| Module | Change |
-|---|---|
-| `banf_terms.py` | atom `Region(name)` with form `'mem'`; `Data` docstring: a `mem` data symbol is writable through its region; verifier: the once-in-an-entry-point rule |
-| `banf_translate.py` | `module.x` on data of form `'mem'` is a `Region` atom, not `GetData`; an undefined `mem` data symbol is an error |
-| `llvm_translate.py` | `@x = global [N x i8] <bytes>`; `Region(x)` → the pair `(ptr @x, N)` |
-
-### G. Alias scopes (step 5)
-
-`llvm_translate`: each `mem` param of a function gets an `!alias.scope` in a domain for
-the function. A load or store through a region derived from param `h` (the escape
-check's bookkeeping gives the origin) gets `!alias.scope` with `h`'s scope and
-`!noalias` with the other params' scopes. Allocas and globals need no metadata: LLVM
-already knows they don't alias each other or params.
-
-### H. `$after` (step 6)
+### A. `$after` (step 1)
 
 | Module | Change |
 |---|---|
@@ -383,61 +226,154 @@ already knows they don't alias each other or params.
 slot: `_Block` keeps one entry per let binder, a `Let` it emitted or the atom it
 aliases, and `atom` returns the aliased atom for an alias.
 
+### B. Pointers, `$alloca`, `$getelementptr` (step 2)
+
+| Module | Change |
+|---|---|
+| `bruijn.py` | none (decision 13) |
+| `banf_shape.py` | for a memory built-in, `form` is reduced to normal form and kept in place; every other field is reduced as an atom (`indices` field by field) |
+| `banf_terms.py` | ops `Alloca(form, count: Atom \| None)` and `GetElementPtr(form, ptr: Atom, indices: tuple[Atom, ...])`, form `'ptr'`; printed `alloca {i32, i64}`, `getelementptr {i32, i64}, q, [00..]:i64, [01000000]:i32`; verifier: a `Constant` of form `ptr` is an error (decision 6), struct indices (decision 7) |
+| `banf_translate.py` | `MEMORY = {'alloca', 'getelementptr', 'load', 'store'}`, checked before the opcode lookup in `op`; `form` read with the literal-form reader binders use ("form must be a literal"); fields checked by label |
+| `llvm_translate.py` | `llvm_type`: `'ptr'` → `ir.PointerType()`; `Alloca` → `builder.alloca(llvm_type(form), size=count)`; `GetElementPtr` → `builder.gep(ptr, indices, source_etype=llvm_type(form))` |
+
+### C. `$load` and `$store` (step 3)
+
+| Module | Change |
+|---|---|
+| `banf_terms.py` | ops `Load(form, ptr: Atom)`, form `form`, and `Store(value: Atom, ptr: Atom)`, form `{}`; printed `load i32, p` and `store n, p`; verifier: a name bound by a `Store` let is used nowhere (decision 11); `$after` is gone by then, so any use is an error |
+| `banf_translate.py` | `load` and `store` in `MEMORY`; `ptr` must have form `'ptr'`: `$load expects ptr: ptr, got i32.` |
+| `llvm_translate.py` | `Load` → `builder.load(ptr, typ=llvm_type(form))`; `Store` → `builder.store(value, ptr)`, and the let binds no LLVM value |
+
+---
+
+## Cranelift's memory model
+
+How Cranelift IR (CLIF) does memory, next to LLVM and this plan.
+
+| | Cranelift | LLVM | Here |
+|---|---|---|---|
+| Address | no pointer type: an integer of pointer width (`i64` on 64-bit targets) | opaque `ptr` | `'ptr'` (decision 5) |
+| Type of an access | a suffix on the opcode (`load.i32`); only scalar and vector types | an operand, any first-class type, aggregates included | `form`, any literal form (decision 7) |
+| Load, store | `v = load.i32 flags p+16`, `store flags v, p+16`: an immediate `i32` offset is part of the access; store gives nothing | `load`, `store`; the offset is a separate `getelementptr` | `$load`, `$store`, `$getelementptr` |
+| Narrow access | `uload8`, `sload8`, `uload16`, `sload16`, `uload32`, `sload32` extend; `istore8`, `istore16`, `istore32` truncate | `load i8` then `zext`/`sext`; `trunc` then `store i8` | the same as LLVM: `$load {form = 'i8', ...}` then a `zext` opcode |
+| Stack | `ss0 = explicit_slot 8` in the function preamble, sized in bytes; `stack_load`, `stack_store`, `stack_addr`; `dynamic_stack_slot` for scalable vectors | `alloca T` or `alloca T, iN n` anywhere | `$alloca` (decisions 7 to 9) |
+| Field address | integer arithmetic: the frontend computes the offset | `getelementptr` with struct and array indices | `$getelementptr` with struct indices (decision 7) |
+| Globals | `global_value` entities: `symbol` (a linker symbol), `vmctx`, `load` and `iadd_imm` chains; `symbol_value`, `global_value`, `tls_value` instructions | a global is a `ptr` constant | open question 5 |
+| Flags on an access | `MemFlags`: can trap or not (`notrap`, trap code), `aligned`, `readonly`, `can_move`, `checked`, byte order `little`/`big` per access, an alias region | `align`, `volatile`, `atomic`; `!noalias`, `!tbaa`, `!invariant.load` metadata; byte order is the target's | none (decision 12) |
+| Aliasing | alias regions on `MemFlags`: two accesses in different regions don't alias; regions are named by the frontend | `noalias`, scopes, TBAA, and its own analysis | LLVM's own analysis (decision 10) |
+| Atomics | `atomic_load`, `atomic_store`, `atomic_rmw`, `atomic_cas`, `fence`; sequentially consistent only | `load atomic`, `store atomic`, `atomicrmw`, `cmpxchg`, `fence`; every ordering | no |
+| Bulk | no instruction: `FunctionBuilder::call_memcpy`, `call_memset`, `call_memmove` call libc, and `emit_small_memory_copy` inlines small ones | `llvm.memcpy`, `llvm.memmove`, `llvm.memset` | no (open question 3) |
+| Bounds-checked heaps | there was a `heap` entity and `heap_addr`; it was removed from CLIF, and Wasmtime's translator now emits the checks as plain compares and traps | none | none: the regions of the earlier draft were this, and were dropped |
+| Effect order | a block's side-effecting instructions stay in order; the optimizer moves only pure ones, and loads flagged `readonly` and `can_move` | instruction order, then alias analysis | let order after `convert`, set by hand with `$after` (decision 4) |
+
+Two things to take from it. A pointer-width integer address (Cranelift) would save the
+`'ptr'` form, but then an imported function's `T *` param and an `i64` would look the
+same, and LLVM, which this plan follows, would need `inttoptr` everywhere. And both
+IRs keep effects in instruction order; oymomo's term doesn't, which is why `$after`
+comes first.
+
+---
+
+## LLVM memory operations
+
+Every LLVM instruction, intrinsic and annotation that reads, writes, allocates or
+describes memory, and where it stands in this plan. "Used" means a step emits it.
+
+### Instructions
+
+| LLVM | What it does | Here |
+|---|---|---|
+| `alloca` | a stack slot in the frame | used, step 2: `$alloca` |
+| `getelementptr` | address arithmetic on a pointer | used, step 2: `$getelementptr` |
+| `load` | read a value at an address | used, step 3: `$load` |
+| `store` | write a value at an address | used, step 3: `$store` |
+| `load volatile`, `store volatile` | an access LLVM may not drop or reorder | no: memory-mapped I/O, later |
+| `load atomic`, `store atomic` | an access with a memory ordering | no: no threads |
+| `atomicrmw` | atomic read-modify-write (`add`, `xchg`, ...) | no: no threads |
+| `cmpxchg` | atomic compare and exchange | no: no threads |
+| `fence` | order accesses between threads | no: no threads |
+| `ptrtoint`, `inttoptr` | pointer to integer and back | no: open question 3 |
+| `icmp` on `ptr` | compare pointers | no: open question 3 |
+| `addrspacecast` | change a pointer's address space | no: one address space |
+
+### Intrinsics
+
+| LLVM | What it does | Here |
+|---|---|---|
+| `llvm.memcpy`, `llvm.memcpy.inline` | copy bytes; source and destination don't overlap | no: open question 3 |
+| `llvm.memmove` | copy bytes that may overlap | no: open question 3 |
+| `llvm.memset`, `llvm.memset.inline` | fill bytes with one byte | no: open question 3 |
+| `llvm.experimental.memset.pattern` | fill bytes with a repeated value | no |
+| `llvm.lifetime.start`, `llvm.lifetime.end` | where an `alloca` is live | no |
+| `llvm.invariant.start`, `llvm.invariant.end` | memory that doesn't change for a while | no |
+| `llvm.launder.invariant.group`, `llvm.strip.invariant.group` | C++ vtable invariants | no |
+| `llvm.stacksave`, `llvm.stackrestore` | scope a dynamic `alloca` | no: would bound the stack growth of an `alloca` in a loop (decision 9) |
+| `llvm.masked.load`, `llvm.masked.store` | vector access with a lane mask | no: no vector forms |
+| `llvm.masked.gather`, `llvm.masked.scatter` | vector access at a vector of addresses | no: no vector forms |
+| `llvm.masked.expandload`, `llvm.masked.compressstore` | vector access to consecutive lanes | no: no vector forms |
+| `llvm.vp.load`, `llvm.vp.store`, `llvm.vp.gather`, `llvm.vp.scatter`, `llvm.experimental.vp.strided.load`, `llvm.experimental.vp.strided.store` | vector-predicated access | no: no vector forms |
+| `llvm.prefetch` | a cache hint | no |
+| `llvm.objectsize` | the size of the object behind a pointer | no |
+| `llvm.ptrmask` | mask a pointer's bits | no |
+| `llvm.threadlocal.address` | the address of a thread-local global | no: no threads |
+| `llvm.load.relative` | load a pointer stored as a relative offset | no |
+| `llvm.assume` | a fact the optimizer may use | no |
+
+### Metadata and attributes
+
+| LLVM | What it says | Here |
+|---|---|---|
+| `align` on an access | the address is a multiple of N | not emitted: ABI alignment (decision 12, open question 2) |
+| `inbounds` on `getelementptr` | the result stays inside the object | no (decision 7) |
+| `!alias.scope`, `!noalias` | which accesses don't alias | no: open question 4 |
+| `noalias` on a param | the param's memory is reached only through it | no: open question 4 |
+| `dereferenceable(N)`, `nonnull` | the pointer reaches N bytes | no |
+| `!tbaa` | type-based alias analysis | no |
+| `!invariant.load` | the loaded memory never changes | no |
+| `!nontemporal` | the access is not reused soon | no |
+| `memory(...)` on a function | what memory a function touches | no |
+
+C's `malloc`, `realloc` and `free` are calls, not LLVM operations: with a `'ptr'`
+result, an import declares them (`malloc = {size = 'i64'} => 'ptr'`).
+
 ---
 
 ## Breaking changes
 
-None. `'mem'` is a new named form, a byte array formed as `'mem'` had no meaning
-before, `load_*` and `store_*` are new opcode names, and the parser already accepts any
-`$name`. A function that uses no memory needs no region. Data symbols of other forms
-keep today's meaning. `$after` was an unknown built-in, an error in `convert`.
+None. `'ptr'` is a new named form, and `$alloca`, `$getelementptr`, `$load` and
+`$store` were unknown built-ins, an error in `convert`; the parser already accepts any
+`$name`. Data symbols keep today's meaning. `$after` was an unknown built-in too.
 
 ---
 
 ## Open questions
 
 > [!IMPORTANT]
-> 1. **Imports and the world.** `module.putchar {...}` still has no token, so full β
->    can drop or copy a call to an import, as today. Memory is now safe from that;
->    calls aren't. The fix in the same style is a token for everything outside the
->    program (`'io'`, as GHC's `RealWorld`): every import takes and gives one, and
->    `module.errno` reads through it. That is a plan of its own, and it decides
->    whether a C-visible global is a module region or part of the world. Step 6's
->    `$after` lets a program order calls to imports by hand, unchecked; a token would
->    check it.
-> 2. **C pointers.** A raw `'ptr'` and the bridge `$region {address: ptr, size: i64}`
->    (make a region of C memory, unsafe) and `$address {mem} => ptr` (hand a region to
->    C, consuming it) are where regions merge and the guarantees stop. They belong with
->    the `'io'` token in [plan_c_interop.md](plan_c_interop.md) 1.1, since `malloc`
->    and `free` are world effects too.
-> 3. **Offsets and alignment.** `'i64'` offsets fit every target; `'i32'` would be
->    shorter to write and is what wasm32 uses. Every access is `align 1`; a later
->    opcode or form could promise alignment, which is a layout fact.
-> 4. **An unchecked target.** Decision 7 costs a compare per access with a run-time
->    offset. A `Target(checked=False)` could drop it, at the price of guarantee 2.
-> 5. **Loads that don't consume.** `load_T: {mem, offset} => T` would let the kernel
->    reorder loads of one version, but the verifier would then allow many readers
->    before one writer and `convert` would have to schedule them before it. Start with
->    decision 6?
-> 6. **More ops.** Each could be a step here or a later plan: `$size {mem} => {mem, size}`;
->    `$split {mem, at} => {low, high}` and `$join`, which keep decision 5 and make
->    arenas; `$copy` between regions (`memcpy`); `$fill`; loads and stores of struct
->    forms (`load_{...}` isn't a name the templates can make, and padding is layout);
->    a repeat syntax for big literals (`[00 x 1024]` isn't oymomo syntax today).
-> 7. **Module regions** (decision 13). (a) As decided: a named global, used once in an
->    entry point. (b) No module regions: a heap is an entry-block literal, and the
->    translator may place a literal of an entry point in static storage, so no
->    program-wide rule, but no symbol to name either. (c) Pass the module's regions to
->    `main` as params, which needs a notion of `main`. With function pointers
->    ([plan_c_interop.md](plan_c_interop.md) 1.6) an entry point can be re-entered
->    through a callback, and (a) must be revisited then.
-> 8. **Names.** `'mem'` or `'region'`; `offset` or `at`; `load`, `store` follow LLVM.
-> 9. **Checking `$after`** (decision 17). `convert` could check, before it drops
->    `$after`, that the effects of a block (calls to imports, and calls to functions
->    that make them) form one chain by data dependency, and that the terminator depends
->    on the last: `'putchar' at line 4 is not ordered after 'putchar' at line 3; chain
->    them with $after.` That would also make merging copied calls sound, as decision 10
->    does for regions. Later, or in step 6?
+> 1. **Checking order** (decision 4). `convert` could check, before it drops
+>    `$after`, that the effects of a block (memory ops, calls to imports, and calls to
+>    functions that make them) form one chain by data dependency, and that the
+>    terminator depends on the last: `'store' at line 4 is not ordered after 'load' at
+>    line 3; chain them with $after.` A token (`'io'`, as GHC's `RealWorld`) that every
+>    effect takes and gives would make the chain part of the signature. Later, or in
+>    step 1?
+> 2. **Alignment and byte order** (decision 12). An optional `align` field, as LLVM's
+>    `align N`, for packed data; a byte order field for portable formats, as
+>    Cranelift's per-access `little`/`big`.
+> 3. **More ops.** `$ptrtoint`, `$inttoptr`, `icmp` on pointers, a null pointer
+>    (`$null` or a literal exception to decision 6), `$memcpy`, `$memmove`, `$memset`.
+> 4. **Aliasing** (decision 10). `noalias` on `'ptr'` params, or alias scopes, need a
+>    promise the program makes and nothing checks.
+> 5. **Globals.** `module.x` reads a data symbol (`GetData`). Writing one needs its
+>    address: a data symbol of form `'ptr'`? `$address {module.x}` as a new reading of
+>    `module.x` under one built-in? LLVM's answer is that a global *is* a `ptr`.
+> 6. **Names.** `ptr` or `address`; the field `form` or `type` (LLVM says type, oymomo
+>    says form).
+> 7. **An array form** (decision 8), for `[N x F]` inside a struct and for
+>    `getelementptr`'s array indices. (a) A new term `ArrayForm(element, count)`, with
+>    syntax to choose (`[16 x 'i8']` would clash with byte array literals). (b) A
+>    built-in form constructor `$array {form = 'i8', count = [10..]: 'i64'}`, which
+>    BANF would accept as a literal form. (c) None: structs of repeated fields for
+>    short arrays, `count` for buffers. (b) needs no syntax and keeps forms as terms.
 
 ---
 
@@ -446,94 +382,9 @@ keep today's meaning. `$after` was an unknown built-in, an error in `convert`.
 Each step is one commit and leaves `hatch run full-check` green. Each step updates
 `docs/notes.md` for its own part.
 
-### Step 1: the `'mem'` form and region literals
+### Step 1: `$after`
 
 - A.
-- Tests:
-  - `llvm_translate`: a function with a `'mem'` param that returns it is
-    `define {ptr, i64} @"g"({ptr, i64} %"h")`; a literal `[00000000]: 'mem'` in the
-    entry block is `alloca [4 x i8]` and a store of zeros; a literal of non-zero bytes
-    stores them; a region passed from `entry` to a loop block is a phi of `{ptr, i64}`;
-    a struct form with a `'mem'` field; an import with a `'mem'` param is rejected.
-  - `banf_terms`: `verify` rejects a region used twice in one block, accepts one used
-    in each arm of a branch, rejects a literal outside `blocks[0]`, rejects returning
-    a literal, a struct holding one, and a block param fed by one, and accepts
-    returning a param.
-  - golden `region.oymo`: a region param threaded through a call and returned.
-- `docs/notes.md`: `'mem'` in the BANF to LLVM table; Overview's Type/Form/Layout
-  table gets a region row; "A region is used at most once" and the escape check in
-  BANF; the messages in Error messages.
-
-Commit: `oymomo: add the mem form`
-
-### Step 2: `$load_T` and `$store_T`
-
-- B, C, E.
-- Tests:
-  - `opcodes`: `load_i32` and `store_i8` signatures; both tables still have the same
-    names.
-  - `banf_translate`: two loads stay two lets, in order;
-    `$store_i32 {value = v, mem = m, offset = o}` is
-    `$store_i32 takes {mem, offset, value}, got {value, mem, offset}.`;
-    `$load_i32 {mem = args.n, offset = o}` with `n: 'i32'` is
-    `$load_i32 expects mem: mem, got i32.`; a term where full β copied a load
-    converts to one load; one that copied a store on a literal converts to two.
-  - `llvm_translate`: the goal program's IR; a load at a run-time offset calls
-    `mem.check`; a store on a region param returns the param's pair; a big-endian
-    `data_layout` swaps bytes; `test_fold_matches_llvm`-style: a store then a load of
-    each width through LLVM's JIT gives the stored value.
-  - confluence ([plan_confluence.md](plan_confluence.md)): the goal program and a
-    copied load give the same BANF from `t` and from `normalize(t)`.
-  - golden `memory.oymo`: the goal example, and a loop that sums into a slot.
-- `docs/notes.md`: Opcodes table; "Effects happen in let order" and merging in
-  Translation; byte order in Design decisions (decision 8).
-
-Commit: `oymomo: add load and store`
-
-### Step 3: folding
-
-- D.
-- Tests:
-  - `bruijn`: the goal's folded chain; a load of each width at offset 1 of a 9-byte
-    literal; a store that keeps the other bytes; an out-of-bounds offset stays stuck;
-    a run-time offset stays stuck; a bare `[..]` region and offset fold.
-  - `banf_translate`: the folded goal gives `return [2a000000]:i32`; an out-of-bounds
-    literal access is `$load_i32 at offset 4 reads past a 4-byte region.`
-  - `llvm_translate.test_fold_matches_llvm` gains `load_T` and `store_T` samples.
-- `docs/notes.md`: Opcodes › Folding; the kernel's reduce table.
-
-Commit: `oymomo: fold load and store`
-
-### Step 4: module regions
-
-- F.
-- Tests:
-  - `banf_translate`: `module.heap` is a `Region` atom; used twice is an error; used
-    in a loop block is an error; used in a function that `main` calls is an error;
-    an undefined `mem` symbol is an error.
-  - `llvm_translate`: `@heap = global [8 x i8] zeroinitializer`; a store and a load
-    through it; a non-zero initializer.
-  - golden `heap.oymo`: a heap of 16 bytes, written by `main`, passed to a function
-    that reads it.
-- `docs/notes.md`: `module` declarations table gets the `mem` row; Symbols; the
-  messages.
-
-Commit: `oymomo: add module regions`
-
-### Step 5: alias scopes
-
-- G.
-- Tests: `llvm_translate`: a function with two region params emits `!alias.scope` and
-  `!noalias` on each access, and LLVM's verifier accepts the module; a function with
-  one region param emits none.
-- `docs/notes.md`: BANF to LLVM: "regions never overlap".
-- Status of this plan: **implemented**.
-
-Commit: `oymomo: regions never alias`
-
-### Step 6: `$after`
-
-- H.
 - Tests:
   - `bruijn`: `$after {[01], [02]}` is not a redex; normalizing the `hi` program keeps
     the first `putchar`, and normalizing it without `$after` drops it (why the step
@@ -555,6 +406,53 @@ Commit: `oymomo: regions never alias`
 
 Commit: `oymomo: add $after`
 
+### Step 2: the `'ptr'` form, `$alloca` and `$getelementptr`
+
+- B.
+- Tests:
+  - `bruijn`: `$alloca {form = 'i32'}` is not a redex.
+  - `banf_shape`: a `form` that reduces (`{f = 'i32'}.f`) is reduced to `'i32'` and
+    not let-bound.
+  - `banf_translate`: `$alloca` without `form`, or with a form that isn't a literal,
+    is an error; `$getelementptr` with a run-time index into a struct is an error;
+    fields out of order are an error.
+  - `llvm_translate`: a function with a `'ptr'` param that returns it is
+    `define ptr @"g"(ptr %"h")`; `$alloca {form = 'i32'}` is `alloca i32`; with
+    `count` it is `alloca i32, i64 16`; a struct form is `alloca {i32, i64}`; the
+    struct `$getelementptr` of the goal; a byte offset is `getelementptr i8`; a
+    pointer passed from `entry` to a loop block is a phi of `ptr`; an import with a
+    `'ptr'` param and result.
+  - `banf_terms`: a `'ptr'` literal is `A pointer can't be a literal.`
+  - golden `pointer.oymo`: an `alloca` of a struct, a field address passed to a call.
+- `docs/notes.md`: `'ptr'` in the BANF to LLVM table; Overview's Type/Form/Layout
+  table gets a pointer row; memory built-ins in Built-ins (no rule, form as a field);
+  the form field in Operands must be atoms; the messages in Error messages.
+
+Commit: `oymomo: add the ptr form`
+
+### Step 3: `$load` and `$store`
+
+- C.
+- Tests:
+  - `bruijn`: a store then a load stay stuck (decision 13).
+  - `banf_translate`: the goal program gives its BANF, with the load after the store;
+    without `$after` the store is gone (why decision 4 matters);
+    `$store {ptr = p, value = v}` is `$store takes {value, ptr}, got {ptr, value}.`;
+    `$load {form = 'i32', ptr = args.n}` with `n: 'i32'` is
+    `$load expects ptr: ptr, got i32.`; returning a store's result is
+    `'s' is the result of a store; only $after can use it.`
+  - `llvm_translate`: the goal program's IR; a store then a load of each integer
+    form, of `'ptr'` and of a struct form through LLVM's JIT gives the stored value;
+    the goal with `[29000000]: 'i32'` for `args.n` is `ret i32 42` after LLVM's `-O2`
+    pipeline.
+  - golden `memory.oymo`: the goal example, and a loop that sums into an `alloca`,
+    chained with `$after`.
+- `docs/notes.md`: memory built-ins and `$after` in Translation; byte order,
+  alignment and layout in Design decisions (decision 12).
+- Status of this plan: **implemented**.
+
+Commit: `oymomo: add load and store`
+
 ---
 
 ## Verification
@@ -566,7 +464,6 @@ hatch run full-check
 ```
 
 The final check: the goal program's LLVM IR runs under `llvmlite`'s JIT and `bump(41)`
-returns 42; the folded goal compiles to `ret i32 42`; a program that writes a module
-region in `main` and reads it in a callee returns the written value; a load at offset
-4 of a 4-byte region param traps under the JIT; the `hi` program of step 6 gives the
-same BANF from `t` and from `normalize(t)`, with both `putchar` calls, in order.
+returns 42; with a literal 41, the goal keeps its three memory lets in BANF and is
+`ret i32 42` after LLVM's optimizer; the `hi` program of step 1 gives the same BANF
+from `t` and from `normalize(t)`, with both `putchar` calls, in order.
