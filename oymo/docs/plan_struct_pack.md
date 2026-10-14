@@ -72,17 +72,19 @@ blockers(argument) -> Iterable[Path]
   `rest` is a blocker only once `more` is `[01]`.
 
 ```
-$fields_to_struct {more = (x -> x) [01], label = l, value = v, rest = f {}}
-                   ^ reduced first, then: [01], so label and rest too; then rest.more, ...
+$fields_to_struct {more = (x -> x) [01], label = l, value = v, rest = (x -> x) {more = [00]}}
+                   ^ more first: [01], so label and rest next; rest gives a node, so rest.more next
 ```
 
-**Contract**, checked for every rule by a test:
+**Contract.** Paths come outermost first: a path is yielded after its prefixes.
 
 | Rule | Means |
 |---|---|
-| `rule` reads only blockers | It looks at the top constructor of a yielded path, and below it only at paths that are yielded too. This also keeps reduction confluent: a rule never depends on a part that might still reduce differently. |
-| None is final once every blocker is reduced | If no yielded blocker changes and `rule` returns None, no reduction elsewhere can make the call fire, so `banf_translate` can report `needs`. |
+| `rule` reads only blockers | It looks at a yielded part as `reduce_until_top_stable` leaves it (its top constructor, and the term inside a `Formed`, which `step` reduces too), and deeper only at parts that are yielded too. This also keeps reduction confluent: a rule never depends on a part that might still reduce differently. |
 | Blockers only grow | Reducing a blocker never takes back a path yielded before it; it can only add paths after it. |
+| None is final once every blocker is reduced | Follows from the two above: if no yielded blocker changes and `rule` returns None, no reduction elsewhere can make the call fire, so `banf_translate.convert` can report `needs` (decision 8). |
+
+Step 1 tests the first two for every rule in `BUILTIN_RULES`.
 
 **Rejected:** a fixed set of shapes in `banf_shape` (`NONE`, `ARGUMENT`, `FIELDS`, and
 `SPINE` for this plan). Each new shape would change `banf_shape`, and the node labels
@@ -137,8 +139,9 @@ cons = {more = [01], label = 'a', value = e, rest = <list>}
 
 #### 4. A label is the UTF-8 bytes of the field's name
 
-`$struct_to_fields` encodes each label; `$fields_to_struct` decodes it. `''` is an
-unlabeled field (plan_struct_apply decision 1).
+`$struct_to_fields` encodes each label as a bare byte array, with no form;
+`$fields_to_struct` decodes it. `''` is an unlabeled field (plan_struct_apply
+decision 1).
 
 #### 5. Field values stay lazy
 
@@ -157,8 +160,11 @@ As for projection, the rule returns None.
 - `$struct_to_fields` is stuck on anything but a struct literal.
 - `$fields_to_struct` is stuck unless every node is either `{more = [00]}` or
   `{more = [01], label, value, rest}`, with a label that is valid UTF-8.
-- Extra fields in a node are ignored.
-- Duplicate labels are kept, as a struct literal may have them.
+- A form on `more` or `label` is ignored, as `bruijn.index_value` ignores one, so
+  `more = [01] : 'u8'` works. A form on a node or on the whole list is not: the
+  argument must be a struct, as for `s.l`.
+- Extra fields in a node are ignored. If a node has a label twice, the first one counts.
+- Duplicate labels across nodes are kept, as a struct literal may have them.
 
 **Why non-UTF-8 labels are stuck**, even though a struct built by `$fields_to_struct`
 never goes through the parser: every struct stays one that a literal could write and
@@ -168,8 +174,8 @@ the printer can print, and `$struct_to_fields` gives back the same bytes.
 
 Both are kernel-only, so BANF has no op for them: `banf_shape.shape` reduces every
 `$fields_to_struct` and `$struct_to_fields` call, with its blockers (decision 1), until
-the rule fires. A call that stays stuck reaches `convert`, which rejects it with the
-message of decision 2, as for any kernel-only built-in.
+the rule fires. A call that stays stuck reaches `banf_translate.convert`, which rejects
+it with the message of decision 2, as for any kernel-only built-in.
 
 ---
 
@@ -200,7 +206,7 @@ Path = tuple[int, ...]
 class BuiltinRule:
     """How `reduce` steps `$name arg`.
 
-    `blockers(arg)` yields the paths of `arg` that `rule` reads, outermost first.
+    `blockers(arg)` yields the paths of `arg` that `rule` reads, each after its prefixes.
     `banf_shape` reduces them, one at a time, before `rule` fires; it calls `blockers`
     again on the argument as reduced so far.
 
@@ -237,7 +243,9 @@ def field_blockers(argument):       # opcodes (plan_constant_folding)
         yield from ((i,) for i in range(len(argument.fields)))
 ```
 
-`at` doesn't look through `Formed`: no rule reads a struct under a form. `$fix` becomes
+`at` doesn't look through `Formed`: no rule reads a struct under a form (decision 7). A
+form on a yielded part is fine: `reduce_until_top_stable` reduces the term inside it.
+`$fix` becomes
 `BuiltinRule('fix', no_blockers, None, _fix)`.
 
 In `banf_shape.py`, one case in `_Shaper.unblock`, before the generic apply:
@@ -268,7 +276,7 @@ case terms.Apply(function=terms.Builtin(name=name), argument=argument) if (
 | `$fix g` | `no_blockers` | the rule fires right away |
 | `$struct_to_fields ({p = s}.p)` | `argument_blocker` | `()` reduces to `s`, then the rule fires |
 | `$add_i32 {a = (x -> x) [01..]: 'i32', b = …}` | `field_blockers` | `()`, then `(0,)`, then `(1,)`, then the fold |
-| `$fields_to_struct L` | `spine_blockers` (C) | `()`, `(more,)`; if `[01]`: `(label,)`, then the spine of `rest`, … |
+| `$fields_to_struct L` | `spine_blockers` (C) | `()`, then the position of `more`; if `[01]`: of `label`, then of `rest` and the spine under it, … |
 
 ### C. Rules in `bruijn.BUILTIN_RULES` (steps 2 and 3)
 
@@ -281,7 +289,7 @@ Both are root-only, like the other rules.
   *literal list*: each node is a `Struct` whose `more` is a byte array `[00]` or `[01]`,
   and for `[01]` whose `label` is a byte array of valid UTF-8 and whose `rest` is again a
   literal list. A `Formed` around `more` or `label` is seen through, as an `if` condition
-  is. Otherwise not a redex.
+  is. Otherwise not a redex (decision 7).
 
 ```python
 BuiltinRule('struct_to_fields', argument_blocker, 'a struct', _struct_to_fields)
@@ -370,8 +378,11 @@ Each step is one commit and leaves `hatch run full-check` green. Each step updat
     reduces to `[01]`.
   - A path that isn't there (`(3,)` of a two-field struct) leaves the call as it is.
   - `$fix g` still doesn't reduce `g`; `argument_blocker` doesn't reduce fields.
-- Contract test: for each rule in `BUILTIN_RULES`, on sample arguments, `rule` gives the
-  same result when every part that isn't a blocker is replaced by a fresh free variable.
+- Contract tests (decision 1), for each rule in `BUILTIN_RULES` on sample arguments:
+  - `rule` gives the same result when every part that isn't a blocker is replaced by a
+    fresh free variable.
+  - After a blocker is reduced, `blockers` yields the paths it yielded before, then
+    maybe more.
 - `docs/notes.md`: a row in "Blockers" (`$name a` with a rule: the rule's blockers, in
   order); "How to add a built-in" lists `blockers` instead of a new `unblock` case.
   `docs/reduction_rules.md`: `E-Builtin`.
@@ -396,8 +407,9 @@ Commit: `oymomo: add $struct_to_fields`
 - `bruijn.py`: `from_field_list`, `spine_blockers`, the `BUILTIN_RULES` entry.
 - Tests:
   - `reduce`: `$fields_to_struct {more = [00]}` → `{}`; a two-field list → the struct, in
-    order; duplicates kept; a label `''` gives an unlabeled field. Stuck: a missing
-    `more`, `more = [02]`, a label `[ff]`, a `rest` that isn't reduced yet (root only).
+    order; duplicates kept; a label `''` gives an unlabeled field; `more = [01] : 'u8'`
+    works. Stuck: a missing `more`, `more = [02]`, a label `[ff]`, a node under a form,
+    a `rest` that isn't reduced yet (root only).
   - `spine_blockers`: the paths for a two-node list; no `label` or `rest` path after
     `more = [00]`.
   - `reduce_until_top_stable`: the goal example with a computed label; a `rest` and a
@@ -406,7 +418,8 @@ Commit: `oymomo: add $struct_to_fields`
     runs out of fuel.
   - Round trips: `$fields_to_struct ($struct_to_fields s)` gives `s`;
     `$struct_to_fields ($fields_to_struct l)` gives `l` for a list with bare labels.
-- Status of this plan: **implemented**.
+- Status of this plan: **implemented**; move it to `docs/implemented/` and update
+  `docs/plans.md`.
 
 Commit: `oymomo: add $fields_to_struct`
 
