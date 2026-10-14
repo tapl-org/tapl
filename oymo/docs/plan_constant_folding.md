@@ -15,7 +15,7 @@ Step 1 comes first; steps 2 to 4 each add templates to the same evaluator, and s
 adds the test that checks it against LLVM. Built on [plan_builtin.md](implemented/plan_builtin.md):
 opcodes are built-ins (`$add_i32`), and a built-in can have a rule in
 `bruijn.BUILTIN_RULES`. Step 2 also needs step 1 of
-[plan_struct_pack.md](plan_struct_pack.md): a rule lists its blockers.
+[plan_struct_pack.md](plan_struct_pack.md): a built-in reduces its own call.
 
 ## Goal
 
@@ -94,16 +94,17 @@ is the jump `f.a {}`.
 7. **The result has the signature's result form**: `Formed(ByteArray(bytes), result)`,
    such as `[03000000]: 'i32'` or `[01]: 'i1'`. So BANF still knows the constant's form,
    and an `if` on a folded comparison reduces by the existing `if` rule.
-8. **An opcode's blockers are its argument and each of its fields.** Folding reads
+8. **An opcode reduces its argument and each of its fields.** Folding reads
    every field reduced: in `$add_i32 {a = (x -> x) [01000000]: 'i32', b = ...}` the
-   field must be reduced before the rule can read it. A rule lists the parts it reads
-   as blockers (plan_struct_pack decision 1), so each opcode rule uses
-   `bruijn.field_blockers`: the argument, then, once it is a struct, each field in
-   order. No change in `banf_shape`.
+   field must be reduced before the rule can read it. A built-in reduces the parts it
+   reads in its own `reduce` (plan_struct_pack decision 1), so each opcode rule starts
+   with `bruijn.reduce_argument_fields`: the argument, then, once it is a struct, each
+   field in order. No change in `banf_shape`.
 
-   Fields stay lazy where they are not read: only a built-in's blockers are reduced,
-   and fields only once the argument is a struct. `bruijn.reduce` itself stays
-   root-only: the rule only checks that the fields are already literals.
+   Fields stay lazy where they are not read: only what a built-in gives to
+   `reduce_part` is reduced, and fields only once the argument is a struct.
+   `bruijn.reduce` itself stays root-only: it passes `keep`, so the rule only checks
+   that the fields are already literals.
 9. **BANF output changes where operands are literals.** A let whose value folds is no
    longer an op, so `banf_shape` beta-reduces it and the constant is substituted
    (notes: "a let whose value isn't an op is beta-reduced"). Lets disappear, and an `if`
@@ -128,15 +129,15 @@ change in content except `_BANF_KEYWORDS`, which moves to `banf_terms.py`. Impor
 terms  ←  opcodes  ←  bruijn, banf_terms, banf_translate, llvm_opcodes
 ```
 
-### B. Blockers
+### B. Reducing the operands
 
-From plan_struct_pack step 1. `banf_shape.unblock` reduces a built-in's blockers in
-order, one per step:
+From plan_struct_pack step 1. `banf_shape.unblock` calls the opcode's `reduce` with
+`reduce_until_top_stable`, and `reduce_argument_fields` reduces:
 
 | Term | Reduced by `step` |
 |---|---|
-| `$add_i32 a`, `a` not yet a struct | `a` |
-| `$add_i32 {l1 = e1, ...}` | the first field `ei` that `reduce_until_top_stable` changes |
+| `$add_i32 a`, `a` not yet a struct | `a`, then its fields if it becomes a struct |
+| `$add_i32 {l1 = e1, ...}` | each field `ei` in order; the call fires in the same step if they all become literals |
 
 ### C. The evaluator (steps 2 to 4)
 
@@ -153,15 +154,16 @@ One function per template group, keyed by `signature.template`, like `llvm_opcod
 
 ```python
 def _fold(signature):
-    def rule(call, argument):
-        operands = _literal_operands(signature, argument)  # None unless decision 6 holds
+    def reduce(call, reduce_part):
+        call = reduce_argument_fields(call, reduce_part)
+        operands = _literal_operands(signature, call.argument)  # None unless decision 6 holds
         if operands is None:
-            return None
+            return call
         result = opcodes.evaluate(signature, operands)
         if result is None:
-            return None
+            return call
         return terms.Formed(terms.ByteArray(_encode(result, signature.result)), signature.result)
-    return BuiltinRule(signature.name, field_blockers, None, rule)
+    return BuiltinRule(signature.name, None, reduce)
 ```
 
 `BUILTIN_RULES` gets one such rule per name in `opcodes.OPCODES` whose template is
@@ -176,8 +178,8 @@ folded so far.
 | `banf_opcodes.py` → `opcodes.py` | 1, 2, 3, 4 | renamed (A); `evaluate` (C), a template group per step |
 | `banf_terms.py`, `banf_translate.py`, `llvm_opcodes.py` | 1 | import `opcodes`; `banf_terms` gets the keyword check |
 | `banf_opcodes_test.py` → `opcodes_test.py`, `llvm_translate_test.py` | 1 | renamed import |
-| `bruijn.py` | 2 | the opcode rules (D), with `field_blockers` |
-| `banf_shape.py` | — | none: blockers come from plan_struct_pack step 1 |
+| `bruijn.py` | 2 | the opcode rules (D), with `reduce_argument_fields` |
+| `banf_shape.py` | — | none: a built-in reduces its own call since plan_struct_pack step 1 |
 | `opcodes_test.py` or `llvm_translate_test.py` | 2 | fold vs LLVM JIT, per template and width |
 | `banf_translate_test.py` | 2 | tests that need an `OpcodeCall` use a param operand |
 | `docs/notes.md` | 1–4 | module table and opcode sections (`opcodes.py`); the `reduce` list, "Opcodes are not run", "Monomorphic" |
@@ -204,7 +206,7 @@ Commit: `oymomo: move opcode signatures to opcodes.py`
 
 ### Step 2: fold `add sub mul and or xor`
 
-- Needs plan_struct_pack step 1 (`field_blockers`).
+- Needs plan_struct_pack step 1 (`reduce_argument_fields`).
 - `opcodes.py`: `evaluate` for these templates. `bruijn.py`: D.
 - Tests:
   - `reduce`: the goal's `$add_i32`, with forms and bare; wrapping (`$add_i8` of `ff`
