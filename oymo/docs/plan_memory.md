@@ -1,6 +1,6 @@
 # Plan: memory as in LLVM: the `'ptr'` form, alloca, getelementptr, load and store
 
-Status: **proposed**, with open questions; 0 of 3 steps.
+Status: **proposed**, with open questions; 0 of 4 steps.
 
 ## Steps
 
@@ -9,10 +9,12 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [ ] 1. `$after`: an identity the kernel can't see through orders effects (`oymomo: add $after`)
 - [ ] 2. The `'ptr'` form, `$alloca` and `$getelementptr` (`oymomo: add the ptr form`)
 - [ ] 3. `$load` and `$store` (`oymomo: add load and store`)
+- [ ] 4. Tests: what full β does to effects without `$after` (`oymomo: test unordered effects`)
 
 Step 1 doesn't depend on the others: it orders effects, which memory ops are, as calls
 to imports already are. Step 2 makes and moves pointers, but nothing reads or writes
-through them until step 3. The kernel never folds a memory op (decision 13); LLVM does.
+through them until step 3. Step 4 needs step 3: it uses loads and stores to show why
+step 1 exists. The kernel never folds a memory op (decision 13); LLVM does.
 No step is breaking.
 
 ## Goal
@@ -435,8 +437,8 @@ Commit: `oymomo: add the ptr form`
 - C.
 - Tests:
   - `bruijn`: a store then a load stay stuck (decision 13).
-  - `banf_translate`: the goal program gives its BANF, with the load after the store;
-    without `$after` the store is gone (why decision 4 matters);
+  - `banf_translate`: the goal program gives its BANF, with the load after the store
+    (without `$after`: step 4);
     `$store {ptr = p, value = v}` is `$store takes {value, ptr}, got {ptr, value}.`;
     `$load {form = 'i32', ptr = args.n}` with `n: 'i32'` is
     `$load expects ptr: ptr, got i32.`; returning a store's result is
@@ -449,9 +451,48 @@ Commit: `oymomo: add the ptr form`
     chained with `$after`.
 - `docs/notes.md`: memory built-ins and `$after` in Translation; byte order,
   alignment and layout in Design decisions (decision 12).
-- Status of this plan: **implemented**.
 
 Commit: `oymomo: add load and store`
+
+### Step 4: effects without `$after`
+
+No code change. Memory ops are stuck (decision 13), but the let around them is not:
+`let x = e in body` is `(x -> body) e`, a β-redex whatever `e` is. These tests pin
+down the three things full β does to effects that `$after` doesn't chain (decision
+4), so a later change to the kernel or to `banf_shape` that alters them fails a test.
+Each case is checked on `normalize(t)` in `bruijn`, and on `convert(t)` in
+`banf_translate`, which gives the same BANF as `convert(normalize(t))` (confluence).
+
+- Tests:
+  - **Unused effects disappear.**
+    `let s = $store {value = args.n, ptr = p} in $load {form = 'i32', ptr = p}`:
+    - `bruijn`: normalizes to `$load {form = 'i32', ptr = p}`; no `$store` is left,
+      since nothing uses `s`.
+    - `banf_translate`: the block is `p = alloca i32`, `v = load i32, p`, with no
+      `store`.
+    - The same program with `ptr = $after {p, s}` keeps the store (the goal program).
+  - **Effects get copied.**
+    `let v = $load {form = 'i32', ptr = p} in let s = $store {value = args.n, ptr = p}
+    in $add_i32 {a = $after {v, s}, b = v}`, one load written before the store:
+    - `bruijn`: the normal form has two `$load {form = 'i32', ptr = p}` subterms.
+    - `banf_translate`: the block is `load`, `store`, `load`, `add`: one load on each
+      side of the store.
+    - `llvm_translate`: with `p` first stored `[01000000]: 'i32'`, `bump(41)` under
+      LLVM's JIT is `42` (`41 + 1`), not `2` (`1 + 1`), what the source order says.
+  - **The order is lost.**
+    `let s = $store {value = args.n, ptr = p} in let v = $load {form = 'i32', ptr = p}
+    in $after {v, s}`, the store written before the load, and both kept:
+    - `bruijn`: the normal form is `$after {$load {...}, $store {...}}`; no let is
+      left.
+    - `banf_translate`: the block is `load` then `store`: `banf_shape` lets the fields
+      of `$after` in field order, so the load comes first, the reverse of the source.
+    - The same program with `ptr = $after {p, s}` in the load gives `store` then
+      `load`.
+- `docs/notes.md`: under `$after` in Built-ins, the three cases, one line each, with
+  a link to these tests.
+- Status of this plan: **implemented**.
+
+Commit: `oymomo: test unordered effects`
 
 ---
 
