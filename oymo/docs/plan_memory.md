@@ -7,8 +7,8 @@ Status: **proposed**, with open questions; 0 of 5 steps.
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
 - [ ] 1. `$after`: an identity the kernel can't see through orders effects (`oymomo: add $after`)
-- [ ] 2. The `'ptr'` form, `$alloca` and `$getelementptr` (`oymomo: add the ptr form`)
-- [ ] 3. `$load` and `$store` (`oymomo: add load and store`)
+- [ ] 2. The `'ptr'` form, `'alloca'` and `'getelementptr'` (`oymomo: add the ptr form`)
+- [ ] 3. `'load'` and `'store'` (`oymomo: add load and store`)
 - [ ] 4. Tests: what full β does to effects without `$after` (`oymomo: test unordered effects`)
 - [ ] 5. Arrays, vectors and packed structs as tagged pairs (`{'array', {element, count}}`) (`oymomo: add aggregate forms`)
 
@@ -16,17 +16,20 @@ Step 1 doesn't depend on the others: it orders effects, which memory ops are, as
 to imports already are. Step 2 makes and moves pointers, but nothing reads or writes
 through them until step 3. Step 4 needs step 3: it uses loads and stores to show why
 step 1 exists. Step 5 needs only forms, but its tests use step 3's loads and stores.
+Steps 2 and 3 need [plan_vm.md](plan_vm.md) step 3: memory ops are entries of its
+symbol table, called as `'name' {...}`, as every opcode is after that step.
 The kernel never folds a memory op (decision 13); LLVM does.
 No step is breaking.
 
 ## Goal
 
 **A program can read and write memory with LLVM's instructions and their operands.**
-A pointer is a value of form `'ptr'`, LLVM's opaque `ptr`. `$alloca` makes one,
-`$getelementptr` moves it, `$load` reads through it, `$store` writes through it. Each
+A pointer is a value of form `'ptr'`, LLVM's opaque `ptr`. `'alloca'` makes one,
+`'getelementptr'` moves it, `'load'` reads through it, `'store'` writes through it. Each
 is one LLVM instruction with LLVM's operands, in LLVM's order, and where LLVM writes
 a type, oymomo passes the form as a value (`form = 'i32'`, `form = {x = 'i32', y =
-'i64'}`). Nothing more: no bounds checks, no regions, no tokens.
+'i64'}`), as every opcode does ([plan_vm.md](plan_vm.md) decision 10). Nothing more:
+no bounds checks, no regions, no tokens.
 
 Memory ops are effects, like calls to imports. The term doesn't order them; a
 program orders them by hand with `$after` (decisions 1 to 4), as it orders calls to
@@ -40,10 +43,10 @@ read with `module.errno` (BANF `GetData`).
 module: {bump = => 'i32'} -> {
   bump = f -> {
     entry = args: {n = 'i32'} ->
-      let p = $alloca {form = 'i32'} in
-      let s = $store {value = args.n, ptr = p} in
-      let v = $load {form = 'i32', ptr = $after {p, s}} in
-      let w = $add_i32 {a = v, b = [01000000]: 'i32'} in
+      let p = 'alloca' {'i32'} in
+      let s = 'store' {args.n, p} in
+      let v = 'load' {'i32', $after {p, s}} in
+      let w = 'add' {'i32', v, [01000000]} in
       w,
   },
 }
@@ -55,7 +58,7 @@ bump: i32
     p = alloca i32
     s = store n, p
     v = load i32, p
-    w = add_i32 v, [01000000]:i32
+    w = add i32 v, [01000000]:i32
     return w
 ```
 
@@ -80,9 +83,9 @@ body into `ret i32 42`.
 A struct in memory, and the address of its second field:
 
 ```
-let q = $alloca {form = {x = 'i32', y = 'i64'}} in
-let y = $getelementptr {form = {x = 'i32', y = 'i64'}, ptr = q,
-                        indices = {[0000000000000000]: 'i64', [01000000]: 'i32'}} in
+let q = 'alloca' {{x = 'i32', y = 'i64'}} in
+let y = 'getelementptr' {{x = 'i32', y = 'i64'}, q,
+                         {[0000000000000000]: 'i64', [01000000]: 'i32'}} in
 ...
 ```
 
@@ -111,8 +114,9 @@ return r
 
 1. **`$after {x, d1, ..., dn}` is `x`, and the kernel can't see that.** Field 0 is
    the value; the others are what it waits for. Fields are positional, and labels are
-   ignored, as in a branch. `after` has no rule and no opcode, so `reduce` never fires
-   on it (an unknown built-in is already not a redex): no kernel change. Since `x`
+   ignored, as in a branch. `after` has no rule and is not a VM symbol, so `reduce`
+   never fires on it (a built-in with no rule is already not a redex): no kernel
+   change. It keeps its `$` because `convert` treats it specially. Since `x`
    now uses every `dᵢ`, full β can't drop a `dᵢ`, and a let that uses `$after` comes
    after every let it waits for:
 
@@ -124,12 +128,12 @@ return r
 
    Without `$after`, nothing uses `q`, so full β drops the first call and the program
    prints `i`. `$after` orders calls to imports and memory ops
-   (`$load {form = 'i32', ptr = $after {p, s}}`).
+   (`'load' {'i32', $after {p, s}}`).
 2. **`$after` may be an operand.** With atoms as fields it is an atom: an op argument,
    a jump argument, a branch condition, a return, or a let's value. This is one
    exception to [notes.md › Operands must be atoms](notes.md#operands-must-be-atoms),
-   because it stands for its field 0, which is an atom. (The other is a memory op's
-   `form`, decision 7.)
+   because it stands for its field 0, which is an atom. (The other is a form field of
+   a VM symbol, such as `form` ([plan_vm.md](plan_vm.md) decision 10).)
 3. **`convert` drops it.** `$after {x, ...}` becomes the atom `x`, and
    `let c = $after {...}` binds no BANF let: `c` is an alias of `x`. So BANF, the
    verifier, `form_of` and LLVM never see it, and it needs no form. After `convert`,
@@ -153,50 +157,51 @@ return r
    `[0000000000000000]: 'ptr'`: `A pointer can't be a literal.`
 7. **Memory ops are LLVM's instructions, with the form as an operand.** LLVM's
    `alloca`, `getelementptr` and `load` take a type, and the type can be any type:
-   `i32`, `{i32, i64}`, `[16 x i8]`. A name can't hold that (`$load_{x = 'i32'}` isn't
-   a name), so these are not monomorphic opcodes
-   ([notes.md › Opcodes](notes.md#monomorphic-one-op-per-signature)) but four
-   built-ins, named as in LLVM, that take the form as a value, as forms are terms
-   ([notes.md › Forms are terms](notes.md#forms-are-terms)):
+   `i32`, `{i32, i64}`, `[16 x i8]`. So they take it as a `form` field, as every
+   opcode does after [plan_vm.md](plan_vm.md) step 3 (`'add' {'i32', a, b}`),
+   and as forms are terms ([notes.md › Forms are terms](notes.md#forms-are-terms)).
+   They are four impure entries of the VM symbol table, named as in LLVM, with
+   fields in LLVM's operand order:
 
-   | Built-in | Fields | Gives | LLVM |
+   | Symbol | Fields | Gives | LLVM |
    |---|---|---|---|
-   | `$alloca` | `form`, and `count` if not 1 | `ptr` | `alloca F` / `alloca F, iN count` |
-   | `$getelementptr` | `form`, `ptr`, `indices` | `ptr` | `getelementptr F, ptr ptr, iN i0, ...` |
-   | `$load` | `form`, `ptr` | `F` | `load F, ptr ptr` |
-   | `$store` | `value`, `ptr` | `{}` | `store F value, ptr ptr` |
+   | `'alloca'` | `form`, and `count` if not 1 | `ptr` | `alloca F` / `alloca F, iN count` |
+   | `'getelementptr'` | `form`, `ptr`, `indices` | `ptr` | `getelementptr F, ptr ptr, iN i0, ...` |
+   | `'load'` | `form`, `ptr` | `F` | `load F, ptr ptr` |
+   | `'store'` | `value`, `ptr` | `{}` | `store F value, ptr ptr` |
 
    - `form` must reduce to a literal form (a named form, a struct, or a tagged pair of
      decision 8, of literal forms), as a binder's form must for BANF; it is a form,
      not an operand, so it stays in place and is never let-bound. `'ptr'` is a literal
      form too, so a pointer can be stored and loaded.
-   - `$store` has no `form`: LLVM's `store F value` names the value's own type, and an
+   - `'store'` has no `form`: LLVM's `store F value` names the value's own type, and an
      oymomo value carries its form (`form_of`).
    - `count` and each index may be any integer form, as in LLVM. An index into a
      struct or packed struct must be a literal `'i32'` inside its field count, as in
-     LLVM: `$getelementptr: index 1 into {x: i32} must be a literal 'i32' below 1.`
+     LLVM: `'getelementptr': index 1 into {x: i32} must be a literal 'i32' below 1.`
      Struct fields are indexed by position, not label, as in LLVM. An index into an
      array or a vector may be known only at run time.
-   - The first index of `$getelementptr` steps by whole `F`s, so a byte offset is
-     `$getelementptr {form = 'i8', ptr = p, indices = {o}}`. It is not `inbounds`.
-   - Fields are checked by label, as for opcodes:
-     `$store takes {value, ptr}, got {ptr, value}.`
+   - The first index of `'getelementptr'` steps by whole `F`s, so a byte offset is
+     `'getelementptr' {'i8', p, {o}}`. It is not `inbounds`.
+   - Fields are positional and labels are ignored, as for every VM symbol
+     ([plan_vm.md](plan_vm.md) decision 7): `'store' {v, p}` stores `v` at `p`, as
+     LLVM's `store F v, ptr p`.
 8. **LLVM's other aggregate types are tagged pairs.** A plain struct form stays
    LLVM's struct, as today. Every other LLVM type that is not a named form is a
-   two-field unlabeled struct: a tag, a byte array naming the type, then a struct of
-   its parts:
+   two-field struct: a tag, a byte array naming the type, then a struct of its
+   parts, positional and in the order LLVM writes them, as for VM symbols:
 
    | Form | LLVM | Parts |
    |---|---|---|
    | `{x = 'i32', y = 'i64'}` | `{i32, i64}` | the fields, as today |
    | `{'packed', {x = 'i8', y = 'i32'}}` | `<{i8, i32}>` | the fields, as for a struct; no padding |
-   | `{'array', {element = 'i32', count = [03000000]: 'i32'}}` | `[3 x i32]` | `element`, `count` |
-   | `{'vector', {element = 'i32', count = [04000000]: 'i32'}}` | `<4 x i32>` | `element`, `count` |
-   | `{'scalable_vector', {element = 'i32', count = [04000000]: 'i32'}}` | `<vscale x 4 x i32>` | `element`, `count` |
+   | `{'array', {[03000000]: 'i32', 'i32'}}` | `[3 x i32]` | `count`, `element` |
+   | `{'vector', {[04000000]: 'i32', 'i32'}}` | `<4 x i32>` | `count`, `element` |
+   | `{'scalable_vector', {[04000000]: 'i32', 'i32'}}` | `<vscale x 4 x i32>` | `count`, `element` |
 
    - **Only BANF and LLVM read the tag.** To the kernel a tagged pair is a struct like
      any other: no rule, no built-in, no kernel change. β builds them as it builds
-     any struct: `let bytes = n -> {'array', {element = 'i8', count = n}} in ...`.
+     any struct: `let bytes = n -> {'array', {n, 'i8'}} in ...`.
      BANF needs them literal, as every form.
    - **The tag can't be mistaken for a field's form.** The named forms LLVM accepts
      are a closed set (`'i1'` to `'i64'`, and `'ptr'` from step 2), so `'array'` is
@@ -204,17 +209,16 @@ return r
      `{'i32', {x = 'i8'}}` is still a plain struct,
      `{i32, {i8}}`. The four tags are reserved names: a later plan that lets a
      program name its own forms can't use them.
-   - The pair has exactly two unlabeled fields; anything else whose field 0 is a
-     reserved tag is an error: `'array' form must be {'array', {element, count}}.`
-     Parts are checked by label, as for memory ops:
-     `'array' takes {element, count}, got {count, element}.`
+   - The pair has exactly two fields; anything else whose field 0 is a reserved tag
+     is an error: `'array' form must be {'array', {count, element}}.` Labels are
+     ignored, in the pair and in its parts (a packed struct's own field labels
+     excepted, as a struct's).
    - `count` is a literal of any integer form, read unsigned; a vector's is above 0.
      `element` is a literal form; a vector's is an integer form or `'ptr'`. A
      scalable vector can't be inside a struct, a packed struct or an array, as in
      LLVM.
-   - `$alloca`'s `count` stays: `$alloca {form = {'array', {element = 'i32', count =
-     [10000000]: 'i32'}}}` is a `[16 x i32]` slot, and `$alloca {form = 'i32', count =
-     n}` is `n` slots, where `n` may be known only at run time, as in LLVM.
+   - `'alloca'`'s `count` stays: `'alloca' {{'array', {[10000000]: 'i32', 'i32'}}}` is
+     a `[16 x i32]` slot, and `'alloca' {'i32', n}` is `n` slots, where `n` may be known only at run time, as in LLVM.
    - Rejected:
      - a tag field (`{tag = 'array', element = 'i32', ...}`): it reserves the label
        `tag`, so `{tag = 'i8', data = ...}`, an ordinary struct, would read as a
@@ -252,10 +256,10 @@ return r
     but memory has no literals, so the two never meet. A struct's layout (padding,
     field offsets) is LLVM's for the target. See open question 2.
 13. **Memory ops never fold in the kernel.** `alloca`, `getelementptr`, `load` and
-    `store` are in neither `BUILTIN_RULES` nor `OPCODES`, and an unknown built-in is
-    not a redex, so they are stuck, as `$after` is: no kernel change. The kernel has
-    no memory to run them on. LLVM folds what can be folded (`mem2reg`, SROA,
-    `instcombine`).
+    `store` are impure VM symbols, and the kernel folds only pure ones
+    ([plan_vm.md](plan_vm.md) decision 8), so they are stuck: no kernel change. The
+    kernel has no memory to run them on. LLVM folds what can be folded (`mem2reg`,
+    SROA, `instcombine`).
 
 ---
 
@@ -265,32 +269,36 @@ return r
 
 | Module | Change |
 |---|---|
-| `bruijn.py` | none: `after` is in neither `BUILTIN_RULES` nor `OPCODES`, and an unknown built-in is not a redex |
+| `bruijn.py` | none: `after` has no rule in `BUILTIN_RULES`, and a built-in with no rule is not a redex |
 | `banf_shape.py` | `atom`: for `$after {...}`, each field is reduced as an atom, so `$after {{a = q}.a, r}` reaches `$after {q, r}` |
-| `banf_translate.py` | `AFTER = 'after'`, checked before the opcode lookup in `op`; `_Translator.atom` reads `$after {x, d1, ..., dn}` as the atom of `x`, after checking `n ≥ 1` and that each `dᵢ` is an atom; `body` binds `let c = $after {...}` as an alias of that atom, not a `Let` |
+| `banf_translate.py` | `AFTER = 'after'`, checked in `op` before anything else; `_Translator.atom` reads `$after {x, d1, ..., dn}` as the atom of `x`, after checking `n ≥ 1` and that each `dᵢ` is an atom; `body` binds `let c = $after {...}` as an alias of that atom, not a `Let` |
 | `banf_terms.py`, `llvm_translate.py` | none |
 
 `_Block.binder` counts lets to resolve an index, so an alias still takes a binder
 slot: `_Block` keeps one entry per let binder, a `Let` it emitted or the atom it
 aliases, and `atom` returns the aliased atom for an alias.
 
-### B. Pointers, `$alloca`, `$getelementptr` (step 2)
+### B. Pointers, `'alloca'`, `'getelementptr'` (step 2)
+
+Everything generic is already in plan_vm step 3: the call shape, the `VmCall` op,
+form params reduced in place and never let-bound, fields read by position, and
+lowering through an entry's `llvm`. What is left is two table entries and their
+checks.
 
 | Module | Change |
 |---|---|
-| `bruijn.py` | none (decision 13) |
-| `banf_shape.py` | for a memory built-in, `form` is reduced to normal form and kept in place; every other field is reduced as an atom (`indices` field by field) |
-| `banf_terms.py` | ops `Alloca(form, count: Atom \| None)` and `GetElementPtr(form, ptr: Atom, indices: tuple[Atom, ...])`, form `'ptr'`; printed `alloca {i32, i64}`, `getelementptr {i32, i64}, q, [00..]:i64, [01000000]:i32`; verifier: a `Constant` of form `ptr` is an error (decision 6), struct indices (decision 7) |
-| `banf_translate.py` | `MEMORY = {'alloca', 'getelementptr', 'load', 'store'}`, checked before the opcode lookup in `op`; `form` read with the literal-form reader binders use ("form must be a literal"); fields checked by label |
-| `llvm_translate.py` | `llvm_type`: `'ptr'` → `ir.PointerType()`; `Alloca` → `builder.alloca(llvm_type(form), size=count)`; `GetElementPtr` → `builder.gep(ptr, indices, source_etype=llvm_type(form))` |
+| `bruijn.py`, `banf_shape.py` | none (decision 13; form params are plan_vm's) |
+| `vm_symbols.py` | entries `alloca` (form param `form`, optional value param `count` of any integer form, result `'ptr'`) and `getelementptr` (form param `form`, `ptr: 'ptr'`, `indices`, result `'ptr'`), impure, each with a `check` for decision 7's rules and an `llvm`: `builder.alloca(llvm_type(form), size=count)`, `builder.gep(ptr, indices, source_etype=llvm_type(form))` |
+| `banf_terms.py` | `show_form` for `'ptr'`; printed `alloca {i32, i64}`, `getelementptr {i32, i64}, q, [00..]:i64, [01000000]:i32`; verifier: a `Const` of form `ptr` is an error (decision 6) |
+| `llvm_translate.py` | `llvm_type`: `'ptr'` → `ir.PointerType()` |
 
-### C. `$load` and `$store` (step 3)
+### C. `'load'` and `'store'` (step 3)
 
 | Module | Change |
 |---|---|
-| `banf_terms.py` | ops `Load(form, ptr: Atom)`, form `form`, and `Store(value: Atom, ptr: Atom)`, form `{}`; printed `load i32, p` and `store n, p`; verifier: a name bound by a `Store` let is used nowhere (decision 11); `$after` is gone by then, so any use is an error |
-| `banf_translate.py` | `load` and `store` in `MEMORY`; `ptr` must have form `'ptr'`: `$load expects ptr: ptr, got i32.` |
-| `llvm_translate.py` | `Load` → `builder.load(ptr, typ=llvm_type(form))`; `Store` → `builder.store(value, ptr)`, and the let binds no LLVM value |
+| `vm_symbols.py` | entries `load` (form param `form`, `ptr: 'ptr'`, result `form`) and `store` (`value` of any form, `ptr: 'ptr'`, result `{}`), impure; `llvm`: `builder.load(ptr, typ=llvm_type(form))`, `builder.store(value, ptr)`, the let binding no LLVM value |
+| `banf_terms.py` | verifier: a name bound by a `store` let is used nowhere (decision 11); `$after` is gone by then, so any use is an error |
+| `banf_translate.py` | none: `ptr` must have form `'ptr'` is the table's param check: `'load' expects ptr: ptr, got i32.` |
 
 ### D. Tagged pairs for arrays, vectors and packed structs (step 5)
 
@@ -312,10 +320,10 @@ How Cranelift IR (CLIF) does memory, next to LLVM and this plan.
 |---|---|---|---|
 | Address | no pointer type: an integer of pointer width (`i64` on 64-bit targets) | opaque `ptr` | `'ptr'` (decision 5) |
 | Type of an access | a suffix on the opcode (`load.i32`); only scalar and vector types | an operand, any first-class type, aggregates included | `form`, any literal form (decision 7) |
-| Load, store | `v = load.i32 flags p+16`, `store flags v, p+16`: an immediate `i32` offset is part of the access; store gives nothing | `load`, `store`; the offset is a separate `getelementptr` | `$load`, `$store`, `$getelementptr` |
-| Narrow access | `uload8`, `sload8`, `uload16`, `sload16`, `uload32`, `sload32` extend; `istore8`, `istore16`, `istore32` truncate | `load i8` then `zext`/`sext`; `trunc` then `store i8` | the same as LLVM: `$load {form = 'i8', ...}` then a `zext` opcode |
-| Stack | `ss0 = explicit_slot 8` in the function preamble, sized in bytes; `stack_load`, `stack_store`, `stack_addr`; `dynamic_stack_slot` for scalable vectors | `alloca T` or `alloca T, iN n` anywhere | `$alloca` (decisions 7 to 9) |
-| Field address | integer arithmetic: the frontend computes the offset | `getelementptr` with struct and array indices | `$getelementptr` with struct indices (decision 7) |
+| Load, store | `v = load.i32 flags p+16`, `store flags v, p+16`: an immediate `i32` offset is part of the access; store gives nothing | `load`, `store`; the offset is a separate `getelementptr` | `'load'`, `'store'`, `'getelementptr'` |
+| Narrow access | `uload8`, `sload8`, `uload16`, `sload16`, `uload32`, `sload32` extend; `istore8`, `istore16`, `istore32` truncate | `load i8` then `zext`/`sext`; `trunc` then `store i8` | the same as LLVM: `'load' {'i8', p}` then `'zext'` |
+| Stack | `ss0 = explicit_slot 8` in the function preamble, sized in bytes; `stack_load`, `stack_store`, `stack_addr`; `dynamic_stack_slot` for scalable vectors | `alloca T` or `alloca T, iN n` anywhere | `'alloca'` (decisions 7 to 9) |
+| Field address | integer arithmetic: the frontend computes the offset | `getelementptr` with struct and array indices | `'getelementptr'` with struct indices (decision 7) |
 | Globals | `global_value` entities: `symbol` (a linker symbol), `vmctx`, `load` and `iadd_imm` chains; `symbol_value`, `global_value`, `tls_value` instructions | a global is a `ptr` constant | open question 5 |
 | Flags on an access | `MemFlags`: can trap or not (`notrap`, trap code), `aligned`, `readonly`, `can_move`, `checked`, byte order `little`/`big` per access, an alias region | `align`, `volatile`, `atomic`; `!noalias`, `!tbaa`, `!invariant.load` metadata; byte order is the target's | none (decision 12) |
 | Aliasing | alias regions on `MemFlags`: two accesses in different regions don't alias; regions are named by the frontend | `noalias`, scopes, TBAA, and its own analysis | LLVM's own analysis (decision 10) |
@@ -341,10 +349,10 @@ describes memory, and where it stands in this plan. "Used" means a step emits it
 
 | LLVM | What it does | Here |
 |---|---|---|
-| `alloca` | a stack slot in the frame | used, step 2: `$alloca` |
-| `getelementptr` | address arithmetic on a pointer | used, step 2: `$getelementptr` |
-| `load` | read a value at an address | used, step 3: `$load` |
-| `store` | write a value at an address | used, step 3: `$store` |
+| `alloca` | a stack slot in the frame | used, step 2: `'alloca'` |
+| `getelementptr` | address arithmetic on a pointer | used, step 2: `'getelementptr'` |
+| `load` | read a value at an address | used, step 3: `'load'` |
+| `store` | write a value at an address | used, step 3: `'store'` |
 | `load volatile`, `store volatile` | an access LLVM may not drop or reorder | no: memory-mapped I/O, later |
 | `load atomic`, `store atomic` | an access with a memory ordering | no: no threads |
 | `atomicrmw` | atomic read-modify-write (`add`, `xchg`, ...) | no: no threads |
@@ -398,9 +406,11 @@ result, an import declares them (`malloc = {size = 'i64'} => 'ptr'`).
 
 ## Breaking changes
 
-None. `'ptr'` is a new named form, and `$alloca`, `$getelementptr`, `$load` and
-`$store` were unknown built-ins, an error in `convert`; the parser already accepts any
-`$name`. Data symbols keep today's meaning. `$after` was an unknown built-in too. A
+None here. `'ptr'` is a new named form, and `'alloca'`, `'getelementptr'`, `'load'`
+and `'store'` were unknown VM symbols, an error in `convert`. (Renaming `$add_i32` to
+`'add' {'i32', a, b}` is breaking, but it is [plan_vm.md](plan_vm.md) step 3.)
+Data symbols keep today's meaning. `$after` was an unknown built-in, and the parser
+already accepts any `$name`. A
 plain struct form keeps its meaning; a struct whose field 0 is `'array'`, `'vector'`,
 `'scalable_vector'` or `'packed'` had no LLVM type before, so no working program
 changes meaning.
@@ -420,12 +430,12 @@ changes meaning.
 > 2. **Alignment and byte order** (decision 12). An optional `align` field, as LLVM's
 >    `align N`, for packed data; a byte order field for portable formats, as
 >    Cranelift's per-access `little`/`big`.
-> 3. **More ops.** `$ptrtoint`, `$inttoptr`, `icmp` on pointers, a null pointer
->    (`$null` or a literal exception to decision 6), `$memcpy`, `$memmove`, `$memset`.
+> 3. **More ops.** `'ptrtoint'`, `'inttoptr'`, comparing pointers, a null pointer
+>    (`'null'` or a literal exception to decision 6), `'memcpy'`, `'memmove'`, `'memset'`.
 > 4. **Aliasing** (decision 10). `noalias` on `'ptr'` params, or alias scopes, need a
 >    promise the program makes and nothing checks.
 > 5. **Globals.** `module.x` reads a data symbol (`GetData`). Writing one needs its
->    address: a data symbol of form `'ptr'`? `$address {module.x}` as a new reading of
+>    address: a data symbol of form `'ptr'`? `'address' {module.x}` as a new reading of
 >    `module.x` under one built-in? LLVM's answer is that a global *is* a `ptr`.
 > 6. **Names.** `ptr` or `address`; the field `form` or `type` (LLVM says type, oymomo
 >    says form).
@@ -461,40 +471,40 @@ Each step is one commit and leaves `hatch run full-check` green. Each step updat
 
 Commit: `oymomo: add $after`
 
-### Step 2: the `'ptr'` form, `$alloca` and `$getelementptr`
+### Step 2: the `'ptr'` form, `'alloca'` and `'getelementptr'`
 
 - B.
 - Tests:
-  - `bruijn`: `$alloca {form = 'i32'}` is not a redex.
+  - `bruijn`: `'alloca' {'i32'}` is not a redex.
   - `banf_shape`: a `form` that reduces (`{f = 'i32'}.f`) is reduced to `'i32'` and
     not let-bound.
-  - `banf_translate`: `$alloca` without `form`, or with a form that isn't a literal,
-    is an error; `$getelementptr` with a run-time index into a struct is an error;
+  - `banf_translate`: `'alloca'` without `form`, or with a form that isn't a literal,
+    is an error; `'getelementptr'` with a run-time index into a struct is an error;
     fields out of order are an error.
   - `llvm_translate`: a function with a `'ptr'` param that returns it is
-    `define ptr @"g"(ptr %"h")`; `$alloca {form = 'i32'}` is `alloca i32`; with
+    `define ptr @"g"(ptr %"h")`; `'alloca' {'i32'}` is `alloca i32`; with
     `count` it is `alloca i32, i64 16`; a struct form is `alloca {i32, i64}`; the
-    struct `$getelementptr` of the goal; a byte offset is `getelementptr i8`; a
+    struct `'getelementptr'` of the goal; a byte offset is `getelementptr i8`; a
     pointer passed from `entry` to a loop block is a phi of `ptr`; an import with a
     `'ptr'` param and result.
   - `banf_terms`: a `'ptr'` literal is `A pointer can't be a literal.`
   - golden `pointer.oymo`: an `alloca` of a struct, a field address passed to a call.
 - `docs/notes.md`: `'ptr'` in the BANF to LLVM table; Overview's Type/Form/Layout
-  table gets a pointer row; memory built-ins in Built-ins (no rule, form as a field);
+  table gets a pointer row; the memory entries in VM symbols (impure, form params);
   the form field in Operands must be atoms; the messages in Error messages.
 
 Commit: `oymomo: add the ptr form`
 
-### Step 3: `$load` and `$store`
+### Step 3: `'load'` and `'store'`
 
 - C.
 - Tests:
   - `bruijn`: a store then a load stay stuck (decision 13).
   - `banf_translate`: the goal program gives its BANF, with the load after the store
     (without `$after`: step 4);
-    `$store {ptr = p, value = v}` is `$store takes {value, ptr}, got {ptr, value}.`;
-    `$load {form = 'i32', ptr = args.n}` with `n: 'i32'` is
-    `$load expects ptr: ptr, got i32.`; returning a store's result is
+    `'store' {v}` is `'store' takes 2 fields, got 1.`;
+    `'load' {'i32', args.n}` with `n: 'i32'` is
+    `'load' expects ptr: ptr, got i32.`; returning a store's result is
     `'s' is the result of a store; only $after can use it.`
   - `llvm_translate`: the goal program's IR; a store then a load of each integer
     form, of `'ptr'` and of a struct form through LLVM's JIT gives the stored value;
@@ -502,7 +512,7 @@ Commit: `oymomo: add the ptr form`
     pipeline.
   - golden `memory.oymo`: the goal example, and a loop that sums into an `alloca`,
     chained with `$after`.
-- `docs/notes.md`: memory built-ins and `$after` in Translation; byte order,
+- `docs/notes.md`: memory symbols and `$after` in Translation; byte order,
   alignment and layout in Design decisions (decision 12).
 
 Commit: `oymomo: add load and store`
@@ -518,24 +528,25 @@ Each case is checked on `normalize(t)` in `bruijn`, and on `convert(t)` in
 
 - Tests:
   - **Unused effects disappear.**
-    `let s = $store {value = args.n, ptr = p} in $load {form = 'i32', ptr = p}`:
-    - `bruijn`: normalizes to `$load {form = 'i32', ptr = p}`; no `$store` is left,
+    `let s = 'store' {args.n, p} in 'load' {'i32', p}`:
+    - `bruijn`: normalizes to `'load' {'i32', p}`; no `'store'` is left,
       since nothing uses `s`.
     - `banf_translate`: the block is `p = alloca i32`, `v = load i32, p`, with no
       `store`.
-    - The same program with `ptr = $after {p, s}` keeps the store (the goal program).
+    - The same program with `$after {p, s}` as the load's pointer keeps the store (the
+      goal program).
   - **Effects get copied.**
-    `let v = $load {form = 'i32', ptr = p} in let s = $store {value = args.n, ptr = p}
-    in $add_i32 {a = $after {v, s}, b = v}`, one load written before the store:
-    - `bruijn`: the normal form has two `$load {form = 'i32', ptr = p}` subterms.
+    `let v = 'load' {'i32', p} in let s = 'store' {args.n, p} in
+    'add' {'i32', $after {v, s}, v}`, one load written before the store:
+    - `bruijn`: the normal form has two `'load' {'i32', p}` subterms.
     - `banf_translate`: the block is `load`, `store`, `load`, `add`: one load on each
       side of the store.
     - `llvm_translate`: with `p` first stored `[01000000]: 'i32'`, `bump(41)` under
       LLVM's JIT is `42` (`41 + 1`), not `2` (`1 + 1`), what the source order says.
   - **The order is lost.**
-    `let s = $store {value = args.n, ptr = p} in let v = $load {form = 'i32', ptr = p}
+    `let s = 'store' {args.n, p} in let v = 'load' {'i32', p}
     in $after {v, s}`, the store written before the load, and both kept:
-    - `bruijn`: the normal form is `$after {$load {...}, $store {...}}`; no let is
+    - `bruijn`: the normal form is `$after {'load' {...}, 'store' {...}}`; no let is
       left.
     - `banf_translate`: the block is `load` then `store`: `banf_shape` lets the fields
       of `$after` in field order, so the load comes first, the reverse of the source.
@@ -562,13 +573,13 @@ Commit: `oymomo: test unordered effects`
   - `banf_terms`: `show_form` prints `[3 x i32]`, `<4 x i32>`, `<vscale x 4 x i32>`,
     `<{i8, i32}>`.
   - `llvm_translate`: `llvm_type` gives `[3 x i32]`, `<4 x i32>`, `<{i8, i32}>`;
-    `$getelementptr` into an array with a run-time index; through LLVM's JIT, a
+    `'getelementptr'` into an array with a run-time index; through LLVM's JIT, a
     store then a load of an array and of a packed struct gives the stored value, and
-    a `{'packed', {a = 'i8', b = 'i32'}}` alloca is 5 bytes (`$getelementptr` to
+    a `{'packed', {a = 'i8', b = 'i32'}}` alloca is 5 bytes (`'getelementptr'` to
     field `b` is offset 1); a scalable vector is
     `Form <vscale x 4 x i32> has no LLVM type in llvmlite.`
   - golden `aggregate.oymo`: a function that sums an array of `'i32'` in memory with
-    a loop and a run-time `$getelementptr` index.
+    a loop and a run-time `'getelementptr'` index.
 - `docs/notes.md`: tagged pairs in Forms are terms (a row each) and in the BANF to
   LLVM table; the reserved tags; the messages in Error messages.
 - Status of this plan: **implemented**.

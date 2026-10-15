@@ -130,7 +130,7 @@ pointers pass freely to C.
 |---|---|---|
 | 1.1 | Memory: regions, load, store (exists: [plan_memory.md](plan_memory.md)); then `'ptr'`, `$region {address, size}` and `$address {mem}` to cross between C memory and regions, with a token for imports | Pointers are C's main data type |
 | 1.2 | `void`: `=> {}` returns, a call as a statement | Most C APIs return `void` |
-| 1.3 | Floats: `'f32'`, `'f64'`, arithmetic, comparisons, int↔float | `double` everywhere in libc and libm |
+| 1.3 | Floats: `'f32'`, `'f64'`, arithmetic, comparisons, int↔float (exists: [plan_floats.md](plan_floats.md)) | `double` everywhere in libc and libm |
 | 1.4 | Field and element addresses: `$gep` on a struct or array form | `&s->x`, `a[i]`; offsets stay in LLVM, not in the kernel |
 | 1.5 | Array form `T[N]`, and a decision on unions | C structs contain arrays and unions |
 | 1.6 | Function pointers: `module.f` as an address, indirect call | Callbacks (`qsort`, `atexit`) |

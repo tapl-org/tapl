@@ -8,13 +8,15 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 
 - [ ] 1. Bytecode, and a compiler from BANF to it (`oymomo: add VM bytecode`)
 - [ ] 2. The interpreter: run bytecode, imports bound by the host (`oymomo: add the VM`)
-- [ ] 3. VM symbols: `'name' {args}` calls a symbol the VM defines (`oymomo: add VM symbols`)
-- [ ] 4. The kernel folds a pure VM symbol on literals (`oymomo: fold pure VM symbols`)
+- [ ] 3. Opcodes are VM symbols, polymorphic in `form`: `$add_i32 {a, b}` becomes `'add' {'i32', a, b}`, fields in LLVM's order (`oymomo: opcodes are VM symbols`) — **breaking**
+- [ ] 4. VM symbols that are not LLVM instructions: `'ctpop'`, `'trace'` (`oymomo: add VM-only symbols`)
 - [ ] 5. Memory in the VM (`oymomo: add memory to the VM`)
 
 Steps 1 and 2 need nothing new in the kernel or BANF: the VM runs the BANF that
-LLVM gets today. Step 3 adds the one new term shape, step 4 lets the kernel run it,
-and step 5 needs [plan_memory.md](plan_memory.md) steps 2 and 3. No step is breaking.
+LLVM gets today. Step 3 is the one breaking step: it renames every opcode, moves
+`opcodes.py`, constant folding and `llvm_opcodes.py` into one table, and makes the
+form an operand. [plan_memory.md](plan_memory.md) steps 2 and 3 need step 3 (memory
+ops are entries of its table), and step 5 needs them.
 
 ## Goal
 
@@ -26,18 +28,19 @@ convert(term) → BANF → verify → vm_compile → bytecode → vm.run
                               ↘ llvm_translate → LLVM IR → JIT / object file
 ```
 
-Everything up to BANF is shared, so the VM and LLVM see the same program. The VM's
-opcodes are computed by `opcodes.evaluate`, the function the kernel already folds with
-([plan_constant_folding.md](implemented/plan_constant_folding.md)), so the kernel, the
-VM and LLVM agree by construction, and differential tests check it.
+Everything up to BANF is shared, so the VM and LLVM see the same program. Every
+operation that isn't a call into the program is a **VM symbol**, written
+`'name' {args}`, from one table that says, for each, its signature, how the VM runs
+it, how LLVM lowers it, and whether the kernel may fold it. The kernel, the VM and
+LLVM read the same table, and differential tests check that they agree.
 
 ```
 module: {main = => 'i32', putchar = {c = 'i32'} => 'i32'} -> {
   main = f -> {
     entry = args: {n = 'i32'} ->
       let q = module.putchar {c = [68000000]: 'i32'} in
-      let r = 'popcount_i32' {value = $after {args.n, q}} in
-      r,
+      let r = 'ctpop' {'i32', $after {args.n, q}} in
+      'add' {'i32', r, [01000000]},
   },
 }
 ```
@@ -46,13 +49,13 @@ module: {main = => 'i32', putchar = {c = 'i32'} => 'i32'} -> {
 program = vm_compile.compile(banf_translate.convert(term))
 output = []
 vm.run(program, 'main', [7], host={'putchar': lambda c: output.append(c) or c})
-# 3, and output == [0x68]
+# 4, and output == [0x68]
 ```
 
-`'popcount_i32' {...}` calls a VM symbol (decision 6): the VM runs it in Python,
-LLVM lowers it to `llvm.ctpop.i32`, and with a literal argument the kernel folds it
-(decision 8). `module.putchar` is an import: the host binds it in the VM, the linker
-binds it in LLVM.
+`'add'` is LLVM's `add`, and `'ctpop'` LLVM's `llvm.ctpop`: the VM runs both in
+Python, LLVM lowers them, and with literal arguments the kernel folds them (decision
+8). `module.putchar` is an import: the host binds it in the VM, the linker binds it
+in LLVM. (`$after` is [plan_memory.md](plan_memory.md) step 1.)
 
 ## Decisions
 
@@ -77,11 +80,9 @@ binds it in LLVM.
 
    | Instruction | BANF | Does |
    |---|---|---|
-   | `const r, v` | a `Const` operand | `r = v` (decoded at compile time) |
-   | `op r, name, a...` | `OpcodeCall` | `r = opcodes.evaluate(name, a...)` |
+   | `op r, name, a...` | `OpcodeCall` (`VmCall` from step 3) | `r = run(a...)` |
    | `call r, f, a...` | `Call` to a function | push a frame for `f` |
    | `host r, f, a...` | `Call` to an import (`Signature`) | `r = host[f](a...)` |
-   | `vm r, s, a...` | `VmCall` (step 3) | `r = vm_symbols[s](a...)` |
    | `struct r, a...` | `MakeStruct` | `r = (a, ...)` |
    | `index r, s, i` | `GetField`, `GetIndex` | `r = s[i]` |
    | `data r, d` | `GetData` | `r = data[d]` |
@@ -90,12 +91,11 @@ binds it in LLVM.
    | `switch s, (L, moves)...` | `Switch` | the `s`-th target, or the last |
    | `return r` | `Return` | pop the frame, give `r` |
 
-   A constant operand is folded into the instruction that uses it, not given its own
-   `const` (an instruction's operand is a register or a constant).
-4. **An opcode whose result LLVM leaves undefined stops the VM.** Where
+   An operand is a register or a constant, decoded at compile time.
+4. **An operation whose result LLVM leaves undefined stops the VM.** Where
    `opcodes.evaluate` gives `None` (division by zero, a shift by the width or more),
    LLVM's result is undefined or poison; the VM raises
-   `VmError: $udiv_i32: division by zero, in 'main' block 'entry'.` rather than pick a
+   `VmError: udiv i32: division by zero, in 'main' block 'entry'.` rather than pick a
    value. The kernel already doesn't fold these.
 5. **Calls don't use the Python stack.** The interpreter is one loop over an explicit
    stack of frames, so a deep oymomo recursion costs memory, not Python recursion
@@ -103,7 +103,7 @@ binds it in LLVM.
    number of instructions it may run, and raises `VmError: out of fuel.` past it, so
    a test of an endless loop ends.
 
-### Host functions and VM symbols (steps 2, 3)
+### Host functions and VM symbols (steps 2, 3, 4)
 
 6. **Two kinds of host function: imports and VM symbols.**
    - An **import** (`module.putchar {...}`) is declared by the program, as today, and
@@ -111,51 +111,126 @@ binds it in LLVM.
      LLVM, by the linker. `vm.load` checks that every import the program calls is
      bound: `VmError: import 'putchar' is not bound.` Imported data is bound the same
      way.
-   - A **VM symbol** (`'popcount_i32' {...}`) is defined by the VM itself, the same in
-     every program, in a fixed table in `vm_symbols.py`, as opcodes are in
-     `opcodes.py`.
+   - A **VM symbol** (`'add' {...}`) is defined by the VM itself, the same in every
+     program, in a fixed table in `vm_symbols.py`.
 
    That is "both": the program declares what it needs from outside, the VM defines
    what it always has.
 7. **A VM symbol is called as a byte array applied to a struct.** `'name' {args}` is
    `Apply(ByteArray, Struct)`, a shape the kernel already leaves stuck (no rule
-   matches a byte array in function position), so it needs no new term and no `$`.
-   Each table entry has:
+   matches a byte array in function position), so it needs no new term. Each table
+   entry has:
 
    | Field | Meaning |
    |---|---|
-   | `params`, `result` | labels and forms, as an `OpcodeSignature` |
+   | `params` | in LLVM's operand order, each with a name for messages and docs; each a **form param** (decision 10) or a value param, whose form is fixed (`'ptr'`) or named by a form param (`form`) |
+   | `result` | the result form, fixed or named by a form param |
+   | `accepts` | which forms each form param may be: `'add' takes an integer form, got ptr.` |
    | `pure` | it reads and writes nothing but its arguments and result |
    | `run` | the Python function the VM calls, on Python values (decision 2) |
-   | `llvm` | how LLVM lowers it, as `llvm_opcodes` does, or `None` |
+   | `llvm` | how LLVM lowers it, or `None` |
 
-   `convert` turns `'name' {...}` into a BANF op `VmCall(name, args)`, printed
-   `vm popcount_i32 n`, checked by label as an opcode call; a name not in the table
-   is `Unknown VM symbol 'foo'.` In LLVM, a symbol with no `llvm` is
-   `'name' runs only in the VM.` This is also why decision 8 of
+   `convert` turns `'name' {...}` into a BANF op `VmCall(name, forms, args)`: the
+   form params, read as literal forms, and the value args as atoms. It is printed as
+   LLVM writes the instruction: `add i32 a, b`, `zext i8 x to i32`.
+
+   **Fields are positional, in LLVM's operand order, and labels are ignored**, as in
+   `$after` and in a branch. `'sub' {'i32', x, y}` is `sub i32 x, y`, `x - y`,
+   because LLVM writes `sub i32 %x, %y`; a form param sits where LLVM writes the
+   type. Only the number of fields is checked: `'sub' takes 3 fields, got 2.`
+   Optional params come last (`'alloca' {form, count}`), so leaving one out is
+   leaving off the end. A label is free to write and means nothing:
+   `'sub' {form = 'i32', subtrahend = x, minuend = y}` is still `x - y`. This drops
+   [notes.md › Labels fit the op](notes.md#labels-fit-the-op): the order to
+   remember is LLVM's, which the BANF and LLVM printouts show.
+
+   A name not in the table is `Unknown VM symbol 'foo'.`; in LLVM, a symbol with no
+   `llvm` is `'name' runs only in the VM.` This is also why decision 8 of
    [plan_memory.md](plan_memory.md) writes LLVM's aggregate types as tagged pairs
    (`{'array', {...}}`) and not as `'array' {...}`: that shape is a call.
-8. **The kernel folds a pure VM symbol on literal arguments** (step 4), as it folds an
-   opcode: one `BuiltinRule`-like rule for `Apply(ByteArray, Struct)` that, when the
-   name is a pure symbol and every field is a literal of its param's form, calls
-   `run` and gives the result formed as `result`. An impure symbol never folds; it
-   stays a call, and is ordered by `$after` like an import. The rule reads only
-   literals, so it commutes with reduction, as
-   [plan_confluence.md](plan_confluence.md) asks of every built-in rule.
-   `vm_symbols.py` imports only `terms` and `opcodes`, so `bruijn` can use it.
+8. **The kernel folds a pure VM symbol on literal arguments**, one rule for every
+   symbol: when the name is a pure symbol, every form param is a literal form it
+   folds on (integer forms, for now), and every value param a literal of its form,
+   `run` gives the result, formed as `result`. This is today's constant folding
+   ([plan_constant_folding.md](implemented/plan_constant_folding.md)) with the
+   per-opcode rules of `BUILTIN_RULES` replaced by this one. An impure symbol never
+   folds; it stays a call, ordered by `$after` like an import. The rule reads only
+   literals, so it commutes with reduction, as [plan_confluence.md](plan_confluence.md)
+   asks of every built-in rule. `vm_symbols.py` imports only `terms`, so `bruijn` can
+   use it; LLVM lowerings are attached in `llvm_opcodes.py`, keyed by name, so the
+   table stays free of llvmlite.
+9. **`$` is kept only where the kernel or `convert` treats a term specially.** A VM
+   symbol is a function on values, so it has no `$`. What keeps it:
+
+   | Built-in | Why it isn't a VM symbol |
+   |---|---|
+   | `$fix` | a kernel rule on terms, not values |
+   | `$struct_to_fields`, `$fields_to_struct` | they rewrite terms, and must reduce away before BANF |
+   | `$after` | the kernel must not see through it, and `convert` drops it ([plan_memory.md](plan_memory.md)) |
+
+### Opcodes polymorphic in `form` (step 3)
+
+10. **The form is an operand, not part of the name.** One symbol per LLVM
+    instruction, as LLVM writes `add i32 %a, %b`. A **form param** must reduce to a
+    literal form; it is a form, not an operand, so it stays in place and is never
+    let-bound (the other exception to
+    [notes.md › Operands must be atoms](notes.md#operands-must-be-atoms), with
+    `$after`).
+
+    | Today | Step 3 | LLVM |
+    |---|---|---|
+    | `$add_i32 {a, b}` | `'add' {'i32', a, b}` | `add i32 a, b` |
+    | `$sub_i32 {minuend, subtrahend}` | `'sub' {'i32', a, b}` | `sub i32 a, b` |
+    | `$udiv_i32 {dividend, divisor}` | `'udiv' {'i32', a, b}` | `udiv i32 a, b` |
+    | `$shl_i32 {value, amount}` | `'shl' {'i32', a, b}` | `shl i32 a, b` |
+    | `$zext_i8_i32 {value}` | `'zext' {'i8', x, 'i32'}` | `zext i8 x to i32` |
+    | `$slt_i32 {lhs, rhs}` | `'icmp_slt' {'i32', a, b}` | `icmp slt i32 a, b` |
+
+    The same goes for `mul`, `sdiv`, `srem`, `urem`, `lshr`, `ashr`, `and`, `or`,
+    `xor`, and `sext`, `trunc` (as `zext`).
+    - **One symbol per comparison predicate, named `icmp_` and LLVM's predicate**,
+      not LLVM's one `icmp` with a predicate field: `'icmp_eq'`, `'icmp_ne'`,
+      `'icmp_ugt'`, `'icmp_uge'`, `'icmp_ult'`, `'icmp_ule'`, `'icmp_sgt'`,
+      `'icmp_sge'`, `'icmp_slt'`, `'icmp_sle'`, each `{form, lhs, rhs}` and giving
+      `'i1'`, as today. Float comparisons are `fcmp_` and LLVM's
+      predicate ([plan_floats.md](plan_floats.md)), so every comparison names its
+      LLVM instruction and predicate, and `icmp_ugt` (unsigned greater) can't be
+      mistaken for `fcmp_ugt` (unordered or greater). BANF prints them as LLVM does
+      (`icmp slt i32 a, b`).
+    - **Still monomorphic where it matters**
+      ([notes.md › Monomorphic](notes.md#monomorphic-one-op-per-signature)): the
+      result form is read from the call, never inferred; widths are strict
+      (`'add' expects a: i32, got i8.`); a conversion's target is the `to` field. The
+      form moves from the name into a field; nothing else changes.
+    - **A literal operand takes its form from `form`**, as a bare literal does today
+      (`$add_i8 {a = [ff], b = [01]}`), and must have exactly its bytes:
+      `'add' {'i32', [01], ...}` is
+      `'add': a must be 4 bytes for i32, got 1.` A byte array is only its bytes, so it
+      is never widened.
+    - **`accepts`**: the arithmetic and bitwise symbols take an integer form; `and`,
+      `or`, `xor`, `icmp_eq`, `icmp_ne` also `'i1'`, as today; `zext` and `sext` need `to`
+      wider than `form`, `trunc` narrower: `'zext': to must be wider than i32, got i8.`
+      Once [plan_memory.md](plan_memory.md) step 5 adds vectors, an integer vector is
+      accepted wherever LLVM accepts one; the kernel folds only scalar integer forms.
+    - **BANF ops carry their form params**, as LLVM's instructions carry their type.
+      [notes.md › BANF](notes.md#banf)'s "ops carry no form, as in Cranelift" no
+      longer holds for `VmCall`.
+11. **The table replaces three files.** `opcodes.py`'s generated names become about
+    25 entries; `opcodes.evaluate` becomes each entry's `run`; `llvm_opcodes.py`'s
+    builders become each entry's `llvm`. `OpcodeCall` becomes `VmCall`.
 
 ### Memory (step 5)
 
-9. **Memory is one `bytearray`, and a pointer is an offset into it.** Laid out as LLVM
-   lays it out for the target: sizes, alignment and struct padding come from LLVM's
-   data layout (llvmlite's `get_abi_size` and `get_element_offset` on the target
-   data), and byte order is the target's, as
-   [plan_memory.md](plan_memory.md) decision 12 says. So a program that reads memory
-   reads the same bytes in the VM and under LLVM. `alloca` takes space from a
-   stack area that a frame gives back when it returns; offset 0 is never handed out,
-   so a stray zero pointer faults. An access outside what was allocated raises
-   `VmError: load of 4 bytes at 0x10 is outside memory.` where LLVM would be
-   undefined.
+12. **Memory is one `bytearray`, and a pointer is an offset into it.** Laid out as LLVM
+    lays it out for the target: sizes, alignment and struct padding come from LLVM's
+    data layout (llvmlite's `get_abi_size` and `get_element_offset` on the target
+    data), and byte order is the target's, as [plan_memory.md](plan_memory.md)
+    decision 12 says. So a program that reads memory reads the same bytes in the VM
+    and under LLVM. `alloca` takes space from a stack area that a frame gives back
+    when it returns; offset 0 is never handed out, so a stray zero pointer faults. An
+    access outside what was allocated raises
+    `VmError: load of 4 bytes at 0x10 is outside memory.` where LLVM would be
+    undefined.
 
 ---
 
@@ -166,57 +241,70 @@ binds it in LLVM.
 | Module | Change |
 |---|---|
 | `vm_bytecode.py` (new) | `Instruction` classes of decision 3, `Function(name, registers, params, code)`, `Program(functions, data, imports)`; `show(program)`, an assembly listing |
-| `vm_compile.py` (new) | `compile(module) -> Program`: a register per block param and let, in order; block labels to offsets in a second pass; `GetField` to an index with `banf_terms.field_index`; constants decoded with their form (`opcodes.form_bits`) |
+| `vm_compile.py` (new) | `compile(module) -> Program`: a register per block param and let, in order; block labels to offsets in a second pass; `GetField` to an index with `banf_terms.field_index`; constants decoded with their form |
 
 ### B. The interpreter (step 2)
 
 | Module | Change |
 |---|---|
-| `vm.py` (new) | `load(program, host) -> Machine`, which checks imports; `Machine.run(function, args, fuel)`; `run(program, function, args, host, fuel)` for both; `VmError` with the function and block |
+| `vm.py` (new) | `load(program, host) -> Machine`, which checks imports; `Machine.run(function, args, fuel)`; `run(program, function, args, host, fuel)` for both; `op` runs `opcodes.evaluate`; `VmError` with the function and block |
 
-### C. VM symbols (step 3)
-
-| Module | Change |
-|---|---|
-| `vm_symbols.py` (new) | `VmSymbol(name, params, result, pure, run, llvm)` and `VM_SYMBOLS`; first entries `popcount_i8` to `popcount_i64` (pure, `llvm.ctpop`) and `trace_i32` (impure, appends to the machine's trace, gives its argument; no `llvm`) |
-| `banf_terms.py` | op `VmCall(symbol, args)`; `form_of` and the verifier from the table; printed `vm name a, b` |
-| `banf_translate.py` | `'name' {...}` (a byte array applied to a struct) read as `VmCall`, fields checked by label |
-| `banf_shape.py` | a VM symbol call's fields reduced as atoms, as an opcode call's |
-| `vm_compile.py`, `vm.py` | `vm` instruction; `trace_i32` writes to `Machine.trace` |
-| `llvm_translate.py` | `VmCall` → the entry's `llvm`, or `'name' runs only in the VM.` |
-
-### D. Folding (step 4)
+### C. Opcodes are VM symbols (step 3)
 
 | Module | Change |
 |---|---|
-| `bruijn.py` | in `reduce`, `Apply(ByteArray, Struct)` with a pure symbol: reduce the fields, and if all are literals of their params' forms, `run` and give the result formed as `result` |
+| `vm_symbols.py` (new) | `VmSymbol(name, params, result, accepts, pure, run)`, `VM_SYMBOLS`; one entry per LLVM instruction of decision 10, `run` taken from `opcodes.evaluate`'s templates |
+| `opcodes.py` | removed; `form_bits` and `byte_count` move to `vm_symbols.py` |
+| `bruijn.py` | `_fold` rules replaced by one rule for `Apply(ByteArray, Struct)` (decision 8) |
+| `banf_shape.py` | a VM symbol call: form params reduced to normal form in place, value params reduced as atoms |
+| `banf_terms.py` | `OpcodeCall(opcode, args)` → `VmCall(symbol, forms, args)`; `form_of` from `result`; verifier from `params` and `accepts`; printed as LLVM writes it |
+| `banf_translate.py` | `'name' {...}` read as `VmCall`; `$name` is only `$fix`, `$struct_to_fields`, `$fields_to_struct`, `$after`; any other `$name` is `Unknown built-in '$add_i32'; opcodes are VM symbols now: 'add' {'i32', a, b}.` |
+| `llvm_opcodes.py` | builders keyed by symbol name, taking the form params |
+| `printer.py` | prints `'add' {'i32', x, y}` |
+| `vm_compile.py`, `vm.py` | `op` runs the entry's `run` |
+| tests, goldens, `docs/notes.md` | every `$name_iN` rewritten |
+
+### D. VM-only and intrinsic symbols (step 4)
+
+| Module | Change |
+|---|---|
+| `vm_symbols.py` | `ctpop` (form param `form`, `value`, pure; LLVM `llvm.ctpop`) and `trace` (form param `form`, `value`, impure: appends to the machine's trace and gives `value`; no `llvm`) |
+| `llvm_translate.py` | a `VmCall` with no lowering is `'trace' runs only in the VM.` |
+| `vm.py` | `Machine.trace` |
 
 ### E. Memory (step 5)
 
 | Module | Change |
 |---|---|
 | `vm_layout.py` (new) | size, alignment and field offsets of a form, from llvmlite's target data, so the VM and LLVM share one layout |
-| `vm_bytecode.py`, `vm_compile.py`, `vm.py` | `alloca`, `gep`, `load`, `store`; a pointer is an `int` offset; loads and stores encode and decode values in the target's byte order |
+| `vm_symbols.py`, `vm.py` | `run` for `alloca`, `getelementptr`, `load`, `store` (their entries are [plan_memory.md](plan_memory.md)'s) on the machine's memory; a pointer is an `int` offset; loads and stores encode and decode values in the target's byte order |
 
 ---
 
 ## Breaking changes
 
-None. The VM is new. `'name' {args}` was stuck in the kernel and an error in
-`convert` (a byte array is not a function), so no program that worked changes meaning.
+Step 3: every opcode is renamed and takes its form as a field.
+
+| Before | After |
+|---|---|
+| `$add_i32 {a = x, b = y}` | `'add' {'i32', x, y}` |
+| `$sub_i32 {minuend = x, subtrahend = y}` | `'sub' {'i32', x, y}` |
+| `$zext_i8_i32 {value = x}` | `'zext' {'i8', x, 'i32'}` |
+| BANF `add_i32 x, y` | BANF `add i32 x, y` |
+
+The old names give an error that names the new spelling (design C). Steps 1, 2, 4 and
+5 break nothing: `'name' {args}` was stuck in the kernel and an error in `convert`.
 
 ---
 
 ## Open questions
 
 > [!IMPORTANT]
-> 1. **Trap or not** (decision 4). Stopping on an undefined opcode makes the VM
+> 1. **Trap or not** (decision 4). Stopping on an undefined operation makes the VM
 >    stricter than LLVM, which is what tests want. A program that relies on what
 >    LLVM happens to give would then run under LLVM and stop in the VM.
-> 2. **The first VM symbols** (decision 7). `popcount` is there to show the three
->    paths (VM, LLVM, folding) with one example; it could be an opcode instead. Which
->    symbols does the VM really need first: output for tests (`trace`), Anvil's
->    layer-1 helpers (type values, errors), or form helpers?
+> 2. **Which VM-only symbols first** (step 4). `trace` is there for tests; Anvil's
+>    layer-1 helpers (type values, errors) are the likely next users.
 > 3. **Imports as VM symbols.** Could the VM define common imports (`putchar`,
 >    `malloc`) itself, so a test needs no `host`? Then an import bound by neither is
 >    still an error.
@@ -256,44 +344,50 @@ Commit: `oymomo: add VM bytecode`
 - Tests:
   - `vm`: each opcode on edge operands (0, 1, the top bit, all ones) gives
     `opcodes.evaluate`'s result; a loop (sum 1 to n) gives the sum; a recursive
-    function 10000 deep returns (no Python recursion); `$udiv_i32` by zero is
-    `VmError`; an endless loop is `out of fuel`; a call to an unbound import is
-    `import 'putchar' is not bound.`; the goal's `putchar` reaches the host.
+    function 10000 deep returns (no Python recursion); `udiv` by zero is `VmError`;
+    an endless loop is `out of fuel`; a call to an unbound import is
+    `import 'putchar' is not bound.`; an import reaches the host.
   - differential: every golden and every program in `llvm_translate_test` that runs
     under the JIT gives the same result in the VM.
 - `docs/notes.md`: values, traps, fuel, host binding.
 
 Commit: `oymomo: add the VM`
 
-### Step 3: VM symbols
+### Step 3: opcodes are VM symbols
 
 - C.
 - Tests:
-  - `banf_translate`: `'popcount_i32' {value = args.n}` is `vm popcount_i32 n`;
-    fields out of order are an error; `'nope' {}` is `Unknown VM symbol 'nope'.`
-  - `vm`: `popcount_i32` of `7` is `3`; `trace_i32` records its argument and gives it
-    back; two `trace_i32` chained with `$after` record in order.
-  - `llvm_translate`: `popcount_i32` is `call i32 @llvm.ctpop.i32` and runs under the
-    JIT with the VM's result; `trace_i32` is `'trace_i32' runs only in the VM.`
-  - golden `vm_symbol.oymo`.
-- `docs/notes.md`: VM symbols in Built-ins (not `$`: a call), `VmCall` in BANF, the
-  table.
+  - `vm_symbols`: every entry's `run` gives what `opcodes.evaluate` gave for every
+    old opcode, on edge operands (the old table is kept in the test as the oracle).
+  - `bruijn`: `'add' {'i32', [01000000], [02000000]}` folds to
+    `[03000000]: 'i32'`; with a variable it stays; with `form` computed by β
+    (`(f -> 'add' {f, ...}) 'i32'`) it folds; with a non-literal form it stays.
+  - `banf_translate`: `'add' {'i32', args.n, ...}` is `add i32 n, ...`;
+    `'zext' {'i8', x, 'i32'}` is `zext i8 x to i32`; `'sub'` with labels written in
+    the wrong order still subtracts by position; every message of decisions 7 and
+    10 (field count, `accepts`, operand size, `to` width, unknown symbol);
+    `$add_i32` names the new spelling.
+  - `llvm_translate`: `test_fold_matches_llvm` over the new table; every lowering
+    matches the old one.
+  - every existing test and golden passes after the rewrite.
+- `docs/notes.md`: Opcodes rewritten (polymorphic in `form`, and why still strict);
+  Built-ins lists only the four `$` built-ins; BANF's `VmCall`; folding.
 
-Commit: `oymomo: add VM symbols`
+Commit: `oymomo: opcodes are VM symbols`
 
-### Step 4: folding
+### Step 4: VM-only and intrinsic symbols
 
 - D.
 - Tests:
-  - `bruijn`: `'popcount_i32' {value = [07000000]: 'i32'}` normalizes to
-    `[03000000]: 'i32'`; with a variable argument it stays; `'trace_i32'` with a
-    literal stays (impure); a field formed as the wrong form stays.
-  - confluence: a program with a pure VM symbol gives the same BANF from `t` and from
-    `normalize(t)`.
-- `docs/notes.md`: the rule in the kernel's reduction rules
-  ([reduction_rules.md](reduction_rules.md)).
+  - `vm`: `'ctpop' {'i32', 7}` is 3; `trace` records its argument and
+    gives it back; two `trace`s chained with `$after` record in order.
+  - `bruijn`: `ctpop` folds on a literal; `trace` never does.
+  - `llvm_translate`: `ctpop` is `call i32 @llvm.ctpop.i32` and runs under the JIT
+    with the VM's result; `trace` is `'trace' runs only in the VM.`
+  - golden `vm_symbol.oymo`: the goal program.
+- `docs/notes.md`: VM-only symbols.
 
-Commit: `oymomo: fold pure VM symbols`
+Commit: `oymomo: add VM-only symbols`
 
 ### Step 5: memory
 
@@ -324,4 +418,4 @@ hatch run full-check
 ```
 
 The final check: every program that runs under LLVM's JIT in the test suite runs in
-the VM with the same result, and the goal program gives 3 and calls `putchar` once.
+the VM with the same result, and the goal program gives 4 and calls `putchar` once.
