@@ -40,9 +40,9 @@ Today every value is immutable, and the only memory a program touches is a data 
 read with `module.errno` (BANF `GetData`).
 
 ```
-module: {bump = => 'i32'} -> {
+module~{bump = => 'i32'} -> {
   bump = f -> {
-    entry = args: {n = 'i32'} ->
+    entry = args~{n = 'i32'} ->
       let p = 'alloca' {'i32'} in
       let s = 'store' {args.n, p} in
       let v = 'load' {'i32', $after {p, s}} in
@@ -76,7 +76,7 @@ entry:
 
 `$after {p, s}` is `p`, but it makes the load wait for the store (decision 1), and
 `convert` drops it, so BANF and LLVM never see it. Without it nothing uses `s`, and
-full β could drop the store. With `[29000000]: 'i32'` in place of `args.n`, the kernel
+full β could drop the store. With `[29000000]~'i32'` in place of `args.n`, the kernel
 still leaves the three memory lets alone (decision 13), and LLVM's `mem2reg` turns the
 body into `ret i32 42`.
 
@@ -85,7 +85,7 @@ A struct in memory, and the address of its second field:
 ```
 let q = 'alloca' {{x = 'i32', y = 'i64'}} in
 let y = 'getelementptr' {{x = 'i32', y = 'i64'}, q,
-                         {[0000000000000000]: 'i64', [01000000]: 'i32'}} in
+                         {[0000000000000000]~'i64', [01000000]~'i32'}} in
 ...
 ```
 
@@ -97,8 +97,8 @@ let y = 'getelementptr' {{x = 'i32', y = 'i64'}, q,
 `$after` also orders calls to imports:
 
 ```
-let q = module.putchar {c = [68000000]: 'i32'} in
-let r = module.putchar {c = $after {[69000000]: 'i32', q}} in
+let q = module.putchar {c = [68000000]~'i32'} in
+let r = module.putchar {c = $after {[69000000]~'i32', q}} in
 r
 ```
 
@@ -121,8 +121,8 @@ return r
    after every let it waits for:
 
    ```
-   let q = module.putchar {c = [68000000]: 'i32'} in
-   let r = module.putchar {c = $after {[69000000]: 'i32', q}} in
+   let q = module.putchar {c = [68000000]~'i32'} in
+   let r = module.putchar {c = $after {[69000000]~'i32', q}} in
    r
    ```
 
@@ -154,7 +154,7 @@ return r
    step toward [plan_c_interop.md](plan_c_interop.md) 1.1).
 6. **A pointer can't be a literal.** The kernel's byte arrays have no address to
    name, and a null pointer is open question 3. The verifier rejects
-   `[0000000000000000]: 'ptr'`: `A pointer can't be a literal.`
+   `[0000000000000000]~'ptr'`: `A pointer can't be a literal.`
 7. **Memory ops are LLVM's instructions, with the form as an operand.** LLVM's
    `alloca`, `getelementptr` and `load` take a type, and the type can be any type:
    `i32`, `{i32, i64}`, `[16 x i8]`. So they take it as a `form` field, as every
@@ -195,9 +195,9 @@ return r
    |---|---|---|
    | `{x = 'i32', y = 'i64'}` | `{i32, i64}` | the fields, as today |
    | `{'packed', {x = 'i8', y = 'i32'}}` | `<{i8, i32}>` | the fields, as for a struct; no padding |
-   | `{'array', {[03000000]: 'i32', 'i32'}}` | `[3 x i32]` | `count`, `element` |
-   | `{'vector', {[04000000]: 'i32', 'i32'}}` | `<4 x i32>` | `count`, `element` |
-   | `{'scalable_vector', {[04000000]: 'i32', 'i32'}}` | `<vscale x 4 x i32>` | `count`, `element` |
+   | `{'array', {[03000000]~'i32', 'i32'}}` | `[3 x i32]` | `count`, `element` |
+   | `{'vector', {[04000000]~'i32', 'i32'}}` | `<4 x i32>` | `count`, `element` |
+   | `{'scalable_vector', {[04000000]~'i32', 'i32'}}` | `<vscale x 4 x i32>` | `count`, `element` |
 
    - **Only BANF and LLVM read the tag.** To the kernel a tagged pair is a struct like
      any other: no rule, no built-in, no kernel change. β builds them as it builds
@@ -217,7 +217,7 @@ return r
      `element` is a literal form; a vector's is an integer form or `'ptr'`. A
      scalable vector can't be inside a struct, a packed struct or an array, as in
      LLVM.
-   - `'alloca'`'s `count` stays: `'alloca' {{'array', {[10000000]: 'i32', 'i32'}}}` is
+   - `'alloca'`'s `count` stays: `'alloca' {{'array', {[10000000]~'i32', 'i32'}}}` is
      a `[16 x i32]` slot, and `'alloca' {'i32', n}` is `n` slots, where `n` may be known only at run time, as in LLVM.
    - Rejected:
      - a tag field (`{tag = 'array', element = 'i32', ...}`): it reserves the label
@@ -229,7 +229,7 @@ return r
        behaviour, and these have none.
      - `'array' {...}`, a byte array applied to a struct: that shape is kept for
        calls to virtual machine symbols ([plan_vm.md](plan_vm.md)).
-     - `{...}: 'array'`: `:` means a value with a form, and here there is no value.
+     - `{...}~'array'`: `~` means a value with a form, and here there is no value.
    - Not here: LLVM's named (identified) structs (`%T = type {...}`), which allow
      recursive types, and opaque structs. Floating-point forms are their own plan;
      once they exist, a vector's element may be one.
@@ -249,7 +249,7 @@ return r
 12. **Accesses are as LLVM's defaults: target byte order, ABI alignment, no checks.**
     A load or store carries no `align`, so LLVM assumes the type's ABI alignment, and
     an access through a misaligned or dangling pointer is undefined, as in C. Byte
-    order is the target's: on a big-endian target, storing `[2a000000]: 'i32'` and
+    order is the target's: on a big-endian target, storing `[2a000000]~'i32'` and
     loading `'i8'` at the same pointer gives `[00]`. This is unlike byte array
     literals, which are little-endian everywhere
     ([notes.md › Byte arrays are always little-endian](notes.md#byte-arrays-are-always-little-endian)),
@@ -288,7 +288,7 @@ checks.
 | Module | Change |
 |---|---|
 | `reduction.py`, `banf_shape.py` | none (decision 13; form params are plan_vm's) |
-| `opcodes.py` | entries `alloca` (form param `form`, optional value param `count` of any integer form, result `'ptr'`) and `getelementptr` (form param `form`, `ptr: 'ptr'`, `indices`, result `'ptr'`), impure, each with a `check` for decision 7's rules and an `llvm`: `builder.alloca(llvm_type(form), size=count)`, `builder.gep(ptr, indices, source_etype=llvm_type(form))` |
+| `opcodes.py` | entries `alloca` (form param `form`, optional value param `count` of any integer form, result `'ptr'`) and `getelementptr` (form param `form`, `ptr~'ptr'`, `indices`, result `'ptr'`), impure, each with a `check` for decision 7's rules and an `llvm`: `builder.alloca(llvm_type(form), size=count)`, `builder.gep(ptr, indices, source_etype=llvm_type(form))` |
 | `banf_terms.py` | `show_form` for `'ptr'`; printed `alloca {i32, i64}`, `getelementptr {i32, i64}, q, [00..]:i64, [01000000]:i32`; verifier: a `Const` of form `ptr` is an error (decision 6) |
 | `llvm_translate.py` | `llvm_type`: `'ptr'` → `ir.PointerType()` |
 
@@ -296,7 +296,7 @@ checks.
 
 | Module | Change |
 |---|---|
-| `opcodes.py` | entries `load` (form param `form`, `ptr: 'ptr'`, result `form`) and `store` (`value` of any form, `ptr: 'ptr'`, result `{}`), impure; `llvm`: `builder.load(ptr, typ=llvm_type(form))`, `builder.store(value, ptr)`, the let binding no LLVM value |
+| `opcodes.py` | entries `load` (form param `form`, `ptr~'ptr'`, result `form`) and `store` (`value` of any form, `ptr~'ptr'`, result `{}`), impure; `llvm`: `builder.load(ptr, typ=llvm_type(form))`, `builder.store(value, ptr)`, the let binding no LLVM value |
 | `banf_terms.py` | verifier: a name bound by a `store` let is used nowhere (decision 11); `$after` is gone by then, so any use is an error |
 | `banf_translate.py` | none: `ptr` must have form `'ptr'` is the table's param check: `'load' expects ptr: ptr, got i32.` |
 
@@ -503,12 +503,12 @@ Commit: `oymomo: add the ptr form`
   - `banf_translate`: the goal program gives its BANF, with the load after the store
     (without `$after`: step 4);
     `'store' {v}` is `'store' takes 2 fields, got 1.`;
-    `'load' {'i32', args.n}` with `n: 'i32'` is
+    `'load' {'i32', args.n}` with `args~{n = 'i32'}` is
     `'load' expects ptr: ptr, got i32.`; returning a store's result is
     `'s' is the result of a store; only $after can use it.`
   - `llvm_translate`: the goal program's IR; a store then a load of each integer
     form, of `'ptr'` and of a struct form through LLVM's JIT gives the stored value;
-    the goal with `[29000000]: 'i32'` for `args.n` is `ret i32 42` after LLVM's `-O2`
+    the goal with `[29000000]~'i32'` for `args.n` is `ret i32 42` after LLVM's `-O2`
     pipeline.
   - golden `memory.oymo`: the goal example, and a loop that sums into an `alloca`,
     chained with `$after`.
@@ -541,7 +541,7 @@ Each case is checked on `normalize(t)` in `reduction`, and on `convert(t)` in
     - `reduction`: the normal form has two `'load' {'i32', p}` subterms.
     - `banf_translate`: the block is `load`, `store`, `load`, `add`: one load on each
       side of the store.
-    - `llvm_translate`: with `p` first stored `[01000000]: 'i32'`, `bump(41)` under
+    - `llvm_translate`: with `p` first stored `[01000000]~'i32'`, `bump(41)` under
       LLVM's JIT is `42` (`41 + 1`), not `2` (`1 + 1`), what the source order says.
   - **The order is lost.**
     `let s = 'store' {args.n, p} in let v = 'load' {'i32', p}

@@ -36,13 +36,13 @@ Today this fails. E-BetaForm strips the argument's form, and reducing the argume
 create a form:
 
 ```
-(x: 'i16' -> x) ((y -> y: 'i8') a)
+(x~'i16' -> x) ((y -> y~'i8') a)
 
-beta first (whnf):          ((y -> y: 'i8') a): 'i16'   →  (a: 'i8'): 'i16'
-argument first (shape):     (x: 'i16' -> x) (a: 'i8')    →  a: 'i16'
+beta first (whnf):          ((y -> y~'i8') a)~'i16'   →  (a~'i8')~'i16'
+argument first (shape):     (x~'i16' -> x) (a~'i8')   →  a~'i16'
 ```
 
-No rule takes `(a: 'i8'): 'i16'` to `a: 'i16'`, so the two never meet. Translation
+No rule takes `(a~'i8')~'i16'` to `a~'i16'`, so the two never meet. Translation
 hides it, because the written form replaces the atom's form
 ([notes.md › Forms](notes.md#forms)), but the kernel itself is not confluent.
 
@@ -54,7 +54,7 @@ hides it, because the written form replaces the atom's form
    already follows, made a reduction:
 
    ```
-             (t : G) : F  →  t : F                        (E-Reform)
+                 (t~G)~F  →  t~F                          (E-Reform)
    ```
 
    It fires at the root, in `reduction.reduce`, so `whnf` uses it too.
@@ -64,13 +64,13 @@ hides it, because the written form replaces the atom's form
 
    ```
                  (λx. t1) t2  →  [x ↦ t2] t1               (E-Beta)
-              (λx:F. t1) t2  →  [x ↦ t2 : F] t1            (E-BetaForm)
+              (λx~F. t1) t2  →  [x ↦ t2~F] t1              (E-BetaForm)
    ```
 
    A rule that checks what shape its argument has is what breaks confluence. After this,
    no beta rule looks at its argument.
 
-3. **E-Select sees one form.** `index_value` keeps accepting `[b]` and `[b] : F`. A deeper
+3. **E-Select sees one form.** `index_value` keeps accepting `[b]` and `[b]~F`. A deeper
    nesting reaches that shape through E-Reform first, because the index is the head.
 
 4. **Critical pairs.** After decisions 1 and 2, the rules are left-linear, and E-Reform's
@@ -78,9 +78,9 @@ hides it, because the written form replaces the atom's form
 
    | Overlap | Joins as |
    |---|---|
-   | `((t : H) : G) : F`, inner and outer E-Reform | both give `t : F` |
-   | E-BetaForm, then the argument reduces to `a : G` | `(a : G) : F` →E-Reform `a : F` |
-   | E-Select on `{...} ([b] : F)` | no overlap: E-Formed can't step a byte array |
+   | `((t~H)~G)~F`, inner and outer E-Reform | both give `t~F` |
+   | E-BetaForm, then the argument reduces to `a~G` | `(a~G)~F` →E-Reform `a~F` |
+   | E-Select on `{...} ([b]~F)` | no overlap: E-Formed can't step a byte array |
    | E-Proj, E-Fix, E-Beta | no overlap with each other |
 
    With every critical pair joinable, a left-linear system has the diamond property for
@@ -166,7 +166,7 @@ hides it, because the written form replaces the atom's form
 
 ## Risks
 
-- **Nested forms in shaped terms.** Beta no longer strips, so `(a : G) : F` can appear
+- **Nested forms in shaped terms.** Beta no longer strips, so `(a~G)~F` can appear
   where `shape` doesn't take whnf, for example in a data definition's fields. Step 2 checks
   that each position `convert` reads a form from takes whnf first. Otherwise `convert`
   has to accept nested forms and use the outer one.
@@ -176,7 +176,7 @@ hides it, because the written form replaces the atom's form
 ## Open questions
 
 1. **E-Reform, or keep every form?** Option (a), recommended: E-Reform, as above; it
-   matches translation. Option (b): no E-Reform and no `strip`, so `(a : G) : F` stays, and
+   matches translation. Option (b): no E-Reform and no `strip`, so `(a~G)~F` stays, and
    translation reads the outermost form. Both are confluent. (b) keeps more information
    in the term, but every pass that reads a form must look through the nesting.
 2. **Should `shape` keep lazy termination?** Option (a): no, decision 8 as written.
@@ -191,5 +191,5 @@ hides it, because the written form replaces the atom's form
 ## Out of scope
 
 - **Termination** (strong normalization): `$fix` makes some terms diverge on purpose.
-- **Making forms transparent** to apply and projection, as in `(λx. t : F) a` or
-  `({a = x} : F).a`. Both are stuck in every order, so they don't affect confluence.
+- **Making forms transparent** to apply and projection, as in `(λx. t~F) a` or
+  `({a = x}~F).a`. Both are stuck in every order, so they don't affect confluence.

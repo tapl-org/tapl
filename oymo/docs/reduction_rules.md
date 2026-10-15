@@ -15,13 +15,13 @@ For the prose version, see [notes.md › Blockers](notes.md#blockers).
 ```
 t, F ::=                         terms (forms are terms too, written F, G)
       x                          variable (a de Bruijn index after resolve)
-      λx:F. t  |  λx. t          abstraction, with or without a form
+      λx~F. t  |  λx. t          abstraction, with or without a form
       t t                        application
       {l1 = t1, ..., ln = tn}    struct (a label may be empty)
       t.l                        projection
       [b]                        byte array ('l' is the UTF-8 bytes of l)
       $name                      built-in
-      t : F                      formed term
+      t~F                        formed term
       F -> F                     function form
 
 if c then t else e   ≡   {e, t} c
@@ -33,7 +33,7 @@ Evaluation is **weak** (it never goes under a `λ` or into a struct field) and
 **lazy** (it never reduces an ordinary argument). `⇓` stops at:
 
 ```
-w ::= λx:F. t | {l1 = t1, ...} | [b] | x | $name | F -> G | stuck terms
+w ::= λx~F. t | {l1 = t1, ...} | [b] | x | $name | F -> G | stuck terms
 ```
 
 Here are some stuck terms: `args.n`, `blocks.done {...}`, `'add' {'i32', args.n, ...}`,
@@ -44,13 +44,13 @@ Here are some stuck terms: `args.n`, `blocks.done {...}`, `'add' {'i32', args.n,
 
 ```
 (λx. t1) t2          →  [x ↦ t2] t1                            (E-Beta)
-(λx:F. t1) t2        →  [x ↦ strip(t2) : F] t1                 (E-BetaForm)
-                         strip(t : G) = t;  strip(t) = t otherwise
+(λx~F. t1) t2        →  [x ↦ strip(t2)~F] t1                   (E-BetaForm)
+                         strip(t~G) = t;  strip(t) = t otherwise
 
 {li = ti}.lj         →  tk     tk is the first field labeled lj         (E-Proj)
 
 {f0 = t0, ..., f(n-1) = t(n-1)} [b]  →  t(min(le(b), n-1))
-                         n ≥ 1, b ≠ '', labels ignored, [b] : F counts as [b]
+                         n ≥ 1, b ≠ '', labels ignored, [b]~F counts as [b]
                          le(b) = b read as an unsigned little-endian integer   (E-Select)
 ```
 
@@ -71,10 +71,10 @@ $fields_to_struct fl(l1 = t1, ..., ln = tn)  →  {l1 = t1, ..., ln = tn}   (E-F
     (When E-FromFields reads a field list, it ignores extra fields and any
      form on more or label. Each label must be valid UTF-8.)
 
-'op' {v1, ..., vn}  →  [r] : R                                  (E-Opcode)
+'op' {v1, ..., vn}  →  [r]~R                                    (E-Opcode)
     'op' is a pure opcode with params p1 ... pn, in this order; labels on
     the fields are ignored. Each form param's vi is a literal form the
-    opcode accepts, and each value param's vi is [b] or [b] : iN, where iN
+    opcode accepts, and each value param's vi is [b] or [b]~iN, where iN
     is the form its form param got, |b| = ceil(N / 8) and le(b) < 2^N.
     R is the result form: a form param's vi, or fixed (i1).
     r = the bytes LLVM computes. There is no rule where LLVM leaves the
@@ -101,7 +101,7 @@ These rules apply only when no computation rule applies at the root.
 
      t → t'
 ───────────────                                    (E-Formed; the form F is never reduced)
- t : F → t' : F
+   t~F → t'~F
 
   p ⇓ p'     p is a part of t that $name reads, p' ≠ p
 ───────────────────────────────────                (E-Builtin)

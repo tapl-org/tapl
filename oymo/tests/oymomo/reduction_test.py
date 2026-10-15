@@ -38,7 +38,7 @@ def test_resolve_keeps_labels():
 
 
 def test_resolve_inside_function_form():
-    assert show(resolved('a -> b -> x: (a => b) -> x')) == 'a → b → x:$1 ⇒ $0 → $0'
+    assert show(resolved('a -> b -> x~(a => b) -> x')) == 'a → b → x~$1 ⇒ $0 → $0'
 
 
 def test_resolve_keeps_location():
@@ -56,17 +56,17 @@ def test_resolve_unknown_name():
 
 def test_resolve_forms_in_the_outer_scope():
     # A param's form can't see the param itself; it sees the binders around the lambda.
-    assert show(resolved('x: (a) -> x: (x) -> x', free=('a',))) == 'x:$0 → x:$0 → $0'
-    assert show(resolved('[00]: {f = (a)} => (a)', free=('a',))) == '[00]:{f = $0} ⇒ $0'
+    assert show(resolved('x~(a) -> x~(x) -> x', free=('a',))) == 'x~$0 → x~$0 → $0'
+    assert show(resolved('[00]~{f = (a)} => (a)', free=('a',))) == '[00]~{f = $0} ⇒ $0'
     with pytest.raises(reduction.ReductionError, match="Unknown name 'x'"):
-        reduction.resolve(parse('x: (x) -> x'))
+        reduction.resolve(parse('x~(x) -> x'))
 
 
 def test_shift_and_substitute_reach_forms():
-    term = resolved('x: (a) -> [00]: (x)', free=('a',))
-    assert show(term) == 'x:$0 → [00]:$0'
-    assert show(reduction.shift(term, 1)) == 'x:$1 → [00]:$0'
-    assert show(reduction.substitute(term, 0, terms.BruijnIndex(5))) == 'x:$5 → [00]:$0'
+    term = resolved('x~(a) -> [00]~(x)', free=('a',))
+    assert show(term) == 'x~$0 → [00]~$0'
+    assert show(reduction.shift(term, 1)) == 'x~$1 → [00]~$0'
+    assert show(reduction.substitute(term, 0, terms.BruijnIndex(5))) == 'x~$5 → [00]~$0'
 
 
 def test_shift():
@@ -93,17 +93,17 @@ def test_beta_avoids_capture():
     ('source', 'expected'),
     [
         # The lambda's form goes with the argument.
-        ("(x: 'i8' -> x) [01]", "[01]:'i8'"),
+        ("(x~'i8' -> x) [01]", "[01]~'i8'"),
         # The lambda's form replaces the argument's own form.
-        ("(x: 'i8' -> x) [01]:'i16'", "[01]:'i8'"),
+        ("(x~'i8' -> x) [01]~'i16'", "[01]~'i8'"),
         # Only the outer form is replaced: a form inside the term or the form stays.
-        ("(x:'i8'->x) ([01]:'i16'):'i32'", "([01]:'i16'):'i8'"),
-        ("(x:'i8'->x) [01]:('i16':'i32')", "[01]:'i8'"),
-        ('(x: t -> f x) y', 'f (y:t)'),
+        ("(x~'i8'->x) ([01]~'i16')~'i32'", "([01]~'i16')~'i8'"),
+        ("(x~'i8'->x) [01]~('i16'~'i32')", "[01]~'i8'"),
+        ('(x~t -> f x) y', 'f (y~t)'),
         # No form on the lambda: the argument goes in as it is, with its own form if any.
         ('(x -> x) [01]', '[01]'),
-        ("(x -> x) [01]:'i16'", "[01]:'i16'"),
-        ("let x: 'i1' = [01] in x", "[01]:'i1'"),
+        ("(x -> x) [01]~'i16'", "[01]~'i16'"),
+        ("let x~'i1' = [01] in x", "[01]~'i1'"),
     ],
 )
 def test_beta_propagates_form(source, expected):
@@ -152,7 +152,7 @@ def test_reduce_one_step(source, expected):
         # `reduce` is root-only: the argument must already be a struct literal.
         '$struct_to_fields e',
         '$struct_to_fields {p = {a = e}}.p',
-        "$struct_to_fields {a = e}: 'f'",
+        "$struct_to_fields {a = e}~'f'",
         '$fields_to_struct e',
         "$fields_to_struct {more = [01], label = 'a', value = e, rest = (y -> y) {more = [00]}}",
         # Malformed lists: no `more`, `more` not [00] or [01], a label that isn't UTF-8,
@@ -161,21 +161,21 @@ def test_reduce_one_step(source, expected):
         '$fields_to_struct {more = [02]}',
         '$fields_to_struct {more = [01], label = [ff], value = e, rest = {more = [00]}}',
         "$fields_to_struct {more = [01], label = 'a', value = e}",
-        "$fields_to_struct {more = [01], label = 'a', value = e, rest = {more = [00]}: 'f'}",
-        "$fields_to_struct {more = [00]}: 'f'",
+        "$fields_to_struct {more = [01], label = 'a', value = e, rest = {more = [00]}~'f'}",
+        "$fields_to_struct {more = [00]}~'f'",
         'if ((x -> x) [01]) then a else b',
         'x -> (y -> y) x',
         '{e}.a',
         # An opcode folds only where it can evaluate its fields: an integer form, and
         # operands of its size (bare or formed; a written form is not compared), three fields.
-        "'add' {'i32', [01]: 'i32', [02000000]: 'i32'}",
+        "'add' {'i32', [01]~'i32', [02000000]~'i32'}",
         "'add' {'i32', [01], [02000000]}",
         "'and' {'i1', [02], [01]}",
         "'add' {'i32', e, [02000000]}",
         "'add' {g, [01000000], [02000000]}",
         "'add' {'ptr', [01], [00]}",
         "'zext' {'i32', [01000000], 'i8'}",
-        "'add' {'i32': 'f', [01000000], [02000000]}",
+        "'add' {'i32'~'f', [01000000], [02000000]}",
         "'add' {'i32', [01000000], [02000000], [00]}",
         "'add' {'i32', [01000000]}",
         "'add' [01000000]",
@@ -192,7 +192,7 @@ def test_reduce_one_step(source, expected):
         "'lshr' {'i32', [01000000], [20000000]}",
         "'ashr' {'i16', [0100], [ffff]}",
         # A conversion's operand has the source's size and form.
-        "'zext' {'i8', [ff000000]: 'i32', 'i32'}",
+        "'zext' {'i8', [ff000000]~'i32', 'i32'}",
         "'zext' {'i8', [ff00], 'i32'}",
     ],
 )
@@ -204,46 +204,46 @@ def test_reduce_returns_the_term_itself(source):
 @pytest.mark.parametrize(
     ('source', 'expected'),
     [
-        ("'add' {'i32', [01000000]: 'i32', [02000000]: 'i32'}", "[03000000]: 'i32'"),
+        ("'add' {'i32', [01000000]~'i32', [02000000]~'i32'}", "[03000000]~'i32'"),
         # A bare literal folds: the signature says how to read it.
-        ("'add' {'i32', [01000000], [02000000]}", "[03000000]: 'i32'"),
-        ("'add' {'i32', [01000000], [02000000]: 'i32'}", "[03000000]: 'i32'"),
+        ("'add' {'i32', [01000000], [02000000]}", "[03000000]~'i32'"),
+        ("'add' {'i32', [01000000], [02000000]~'i32'}", "[03000000]~'i32'"),
         # Arithmetic wraps.
-        ("'add' {'i8', [ff], [01]}", "[00]: 'i8'"),
-        ("'sub' {'i8', [00], [01]}", "[ff]: 'i8'"),
+        ("'add' {'i8', [ff], [01]}", "[00]~'i8'"),
+        ("'sub' {'i8', [00], [01]}", "[ff]~'i8'"),
         # Fields are positional: labels are ignored, so this is still 0 - 1.
-        ("'sub' {form = 'i8', subtrahend = [00], minuend = [01]}", "[ff]: 'i8'"),
-        ("'sub' {'i16', [0500], [0300]}", "[0200]: 'i16'"),
-        ("'mul' {'i16', [0001], [0001]}", "[0000]: 'i16'"),
-        ("'mul' {'i64', [0300000000000000], [0500000000000000]}", "[0f00000000000000]: 'i64'"),
+        ("'sub' {form = 'i8', subtrahend = [00], minuend = [01]}", "[ff]~'i8'"),
+        ("'sub' {'i16', [0500], [0300]}", "[0200]~'i16'"),
+        ("'mul' {'i16', [0001], [0001]}", "[0000]~'i16'"),
+        ("'mul' {'i64', [0300000000000000], [0500000000000000]}", "[0f00000000000000]~'i64'"),
         # Logic, including on i1.
-        ("'and' {'i1', [01], [01]}", "[01]: 'i1'"),
-        ("'or' {'i1', [00], [01]}", "[01]: 'i1'"),
-        ("'xor' {'i1', [01], [01]}", "[00]: 'i1'"),
-        ("'and' {'i8', [0f], [3c]}", "[0c]: 'i8'"),
-        ("'or' {'i32', [01000000], [00000080]}", "[01000080]: 'i32'"),
-        ("'xor' {'i16', [ffff], [0ff0]}", "[f00f]: 'i16'"),
+        ("'and' {'i1', [01], [01]}", "[01]~'i1'"),
+        ("'or' {'i1', [00], [01]}", "[01]~'i1'"),
+        ("'xor' {'i1', [01], [01]}", "[00]~'i1'"),
+        ("'and' {'i8', [0f], [3c]}", "[0c]~'i8'"),
+        ("'or' {'i32', [01000000], [00000080]}", "[01000080]~'i32'"),
+        ("'xor' {'i16', [ffff], [0ff0]}", "[f00f]~'i16'"),
         # Division rounds toward zero; a remainder has the dividend's sign.
-        ("'sdiv' {'i8', [f9], [02]}", "[fd]: 'i8'"),
-        ("'srem' {'i8', [f9], [02]}", "[ff]: 'i8'"),
-        ("'udiv' {'i8', [f9], [02]}", "[7c]: 'i8'"),
-        ("'urem' {'i32', [07000000], [03000000]}", "[01000000]: 'i32'"),
-        ("'udiv' {'i8', [80], [ff]}", "[00]: 'i8'"),
+        ("'sdiv' {'i8', [f9], [02]}", "[fd]~'i8'"),
+        ("'srem' {'i8', [f9], [02]}", "[ff]~'i8'"),
+        ("'udiv' {'i8', [f9], [02]}", "[7c]~'i8'"),
+        ("'urem' {'i32', [07000000], [03000000]}", "[01000000]~'i32'"),
+        ("'udiv' {'i8', [80], [ff]}", "[00]~'i8'"),
         # Shifts by less than the width.
-        ("'shl' {'i8', [81], [01]}", "[02]: 'i8'"),
-        ("'lshr' {'i16', [0080], [0f00]}", "[0100]: 'i16'"),
-        ("'ashr' {'i16', [0080], [0f00]}", "[ffff]: 'i16'"),
+        ("'shl' {'i8', [81], [01]}", "[02]~'i8'"),
+        ("'lshr' {'i16', [0080], [0f00]}", "[0100]~'i16'"),
+        ("'ashr' {'i16', [0080], [0f00]}", "[ffff]~'i16'"),
         # Comparisons give an i1.
-        ("'icmp_eq' {'i8', [07]: 'i8', [07]: 'i8'}", "[01]: 'i1'"),
-        ("'icmp_ne' {'i32', [07000000], [07000000]}", "[00]: 'i1'"),
-        ("'icmp_slt' {'i8', [ff], [00]}", "[01]: 'i1'"),
-        ("'icmp_ult' {'i8', [ff], [00]}", "[00]: 'i1'"),
+        ("'icmp_eq' {'i8', [07]~'i8', [07]~'i8'}", "[01]~'i1'"),
+        ("'icmp_ne' {'i32', [07000000], [07000000]}", "[00]~'i1'"),
+        ("'icmp_slt' {'i8', [ff], [00]}", "[01]~'i1'"),
+        ("'icmp_ult' {'i8', [ff], [00]}", "[00]~'i1'"),
         # Conversions change the width.
-        ("'zext' {'i8', [ff]: 'i8', 'i32'}", "[ff000000]: 'i32'"),
-        ("'sext' {'i8', [ff], 'i32'}", "[ffffffff]: 'i32'"),
-        ("'sext' {'i1', [01], 'i16'}", "[ffff]: 'i16'"),
-        ("'trunc' {'i32', [78563412], 'i8'}", "[78]: 'i8'"),
-        ("'trunc' {'i16', [0300], 'i1'}", "[01]: 'i1'"),
+        ("'zext' {'i8', [ff]~'i8', 'i32'}", "[ff000000]~'i32'"),
+        ("'sext' {'i8', [ff], 'i32'}", "[ffffffff]~'i32'"),
+        ("'sext' {'i1', [01], 'i16'}", "[ffff]~'i16'"),
+        ("'trunc' {'i32', [78563412], 'i8'}", "[78]~'i8'"),
+        ("'trunc' {'i16', [0300], 'i1'}", "[01]~'i1'"),
     ],
 )
 def test_reduce_folds_an_opcode(source, expected):
@@ -264,7 +264,7 @@ def test_resolve_reaches_formed():
             'x', terms.Empty, terms.Lambda('y', terms.Empty, terms.Formed(terms.Variable('y'), terms.Variable('x')))
         )
     )
-    assert show(term) == 'x → y → $0:$1'
+    assert show(term) == 'x → y → $0~$1'
 
 
 @pytest.mark.parametrize(('value', 'expected'), [(b'\x01', 'a'), (b'\x00', 'b'), (b'\x01\x00', 'a')])
@@ -309,7 +309,7 @@ def test_branch(source, expected):
         ("{a = '23', b = '45'} [0100]", "'45'"),
         ("{a = '23'} [0000]", "'23'"),
         # A form on the index is ignored.
-        ("{a = '23'} ([00] : 'i8')", "'23'"),
+        ("{a = '23'} ([00]~'i8')", "'23'"),
         # An index past the last field selects the last field.
         ("{a = '23'} [01]", "'23'"),
         ("{a = '23'} [0001]", "'23'"),
@@ -341,7 +341,7 @@ def test_reduce_struct_apply_stuck(source):
 
 @pytest.mark.parametrize(
     ('source', 'expected'),
-    [('[01]', 1), ('[0001]', 256), ("''", None), ('i', None), ("[02]: 'i8'", 2)],
+    [('[01]', 1), ('[0001]', 256), ("''", None), ('i', None), ("[02]~'i8'", 2)],
 )
 def test_index_value(source, expected):
     assert reduction.index_value(resolved(source, ('i',))) == expected
@@ -391,7 +391,7 @@ def test_struct_to_fields_labels_are_bare_byte_arrays():
         # A form on `more` or `label` is ignored; extra fields are ignored; in a node the
         # first of two equal labels counts; field order in a node doesn't matter.
         (
-            "$fields_to_struct {value = x, more = [01]: 'u8', label = 'a': 'f', label = 'b', extra = x, "
+            "$fields_to_struct {value = x, more = [01]~'u8', label = 'a'~'f', label = 'b', extra = x, "
             'rest = {more = [00], label = [ff]}}',
             '{a = x}',
         ),

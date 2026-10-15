@@ -9,16 +9,16 @@ from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show, show_form
 
 FACT = """
-decls: {} -> defs -> {
+decls~{} -> defs -> {
 fact = f -> {
-  entry = args:{n = 'i32'} ->
+  entry = args~{n = 'i32'} ->
     (t0 -> if t0 then f.then0 {} else f.else0 {n = args.n})
-      ('icmp_eq' {'i32', args.n, [00000000]:'i32'}),
-  then0 = args:{} -> [01000000]:'i32',
-  else0 = args:{n = 'i32'} ->
+      ('icmp_eq' {'i32', args.n, [00000000]~'i32'}),
+  then0 = args~{} -> [01000000]~'i32',
+  else0 = args~{n = 'i32'} ->
     (t1 -> (t2 -> (t3 -> t3) ('mul' {'i32', args.n, t2}))
              (defs.fact {n = t1}))
-      ('sub' {'i32', args.n, [01000000]:'i32'}),
+      ('sub' {'i32', args.n, [01000000]~'i32'}),
 }}
 """
 
@@ -58,7 +58,7 @@ def test_pretty_parenthesizes_only_where_needed(source, expected):
         # `if c then t else e` is `{e, t} c`, and every such struct apply prints as `if`.
         ('{e, t} c', 'if c then t else e'),
         ("{'1', '2'} [01]", "if [01] then '2' else '1'"),
-        ("{a, b} [02]: 'i8'", "if [02]: 'i8' then b else a"),
+        ("{a, b} [02]~'i8'", "if [02]~'i8' then b else a"),
         ('f ({e, t} c)', 'f (if c then t else e)'),
         ('{e, t} (f x)', 'if f x then t else e'),
         ('{e, {b, a} d} c', 'if c then if d then a else b else e'),
@@ -79,16 +79,16 @@ def test_pretty_omits_empty_forms():
 
 
 def test_void_is_an_ordinary_form_name():
-    assert pretty("x: 'void' -> x") == "x: 'void' → x"
+    assert pretty("x~'void' -> x") == "x~'void' → x"
 
 
 def test_binder_forms_print_at_the_formed_level():
-    assert pretty('x: (i32) -> x') == 'x: i32 → x'
-    assert pretty('x: (a -> b) -> c') == 'x: (a → b) → c'
-    assert pretty("[00]: (f 'i8')") == "[00]: (f 'i8')"  # `:` binds tighter than apply
-    assert pretty('x: (i8) => (s.f) -> x') == 'x: i8 ⇒ s.f → x'
-    assert pretty('x: (f a) -> x') == 'x: (f a) → x'
-    assert pretty("x: ([00]: 'i8') => 'i32' -> x") == "x: ([00]: 'i8') ⇒ 'i32' → x"
+    assert pretty('x~(i32) -> x') == 'x~i32 → x'
+    assert pretty('x~(a -> b) -> c') == 'x~(a → b) → c'
+    assert pretty("[00]~(f 'i8')") == "[00]~(f 'i8')"  # `~` binds tighter than apply
+    assert pretty('x~(i8) => (s.f) -> x') == 'x~i8 ⇒ s.f → x'
+    assert pretty('x~(f a) -> x') == 'x~(f a) → x'
+    assert pretty("x~([00]~'i8') => 'i32' -> x") == "x~([00]~'i8') ⇒ 'i32' → x"
 
 
 @pytest.mark.parametrize(
@@ -102,10 +102,10 @@ def test_binder_forms_print_at_the_formed_level():
         ('(=> a) => b', '(⇒ a) ⇒ b'),
         # As an apply argument, `⇒ b` needs parens, or `f` would read as its param.
         ('f (=> b)', 'f (⇒ b)'),
-        ('f ((=> a):x)', 'f (⇒ a:x)'),
+        ('f ((=> a)~x)', 'f (⇒ a~x)'),
         ('(=> a) b', '⇒ a b'),
-        ('y: => a', 'y:⇒ a'),
-        ('x: => a -> x', 'x:⇒ a → x'),
+        ('y~=> a', 'y~⇒ a'),
+        ('x~=> a -> x', 'x~⇒ a → x'),
     ],
 )
 def test_function_form_without_param(source, expected):
@@ -115,15 +115,15 @@ def test_function_form_without_param(source, expected):
 
 
 def test_struct_shaped_like_a_function_form_prints_as_a_struct():
-    assert pretty("x: {tag = ' => ', param = {c = 'i8'}, result = 'i32'} -> x") == (
-        "x: {tag= ' => ', param= {c= 'i8'}, result= 'i32'} → x"
+    assert pretty("x~{tag = ' => ', param = {c = 'i8'}, result = 'i32'} -> x") == (
+        "x~{tag= ' => ', param= {c= 'i8'}, result= 'i32'} → x"
     )
 
 
 def test_pretty_function_forms_group_only_as_params():
-    assert pretty("g: ({c = 'i8'} => 'i32') -> g") == "g: {c= 'i8'} ⇒ 'i32' → g"
-    assert pretty("[]: {f = {c = 'i8'} => 'i32'}") == "[]: {f= {c= 'i8'} ⇒ 'i32'}"
-    assert pretty("[]: {f = ({a = 'i8'} => 'i8') => 'i32'}") == "[]: {f= ({a= 'i8'} ⇒ 'i8') ⇒ 'i32'}"
+    assert pretty("g~({c = 'i8'} => 'i32') -> g") == "g~{c= 'i8'} ⇒ 'i32' → g"
+    assert pretty("[]~{f = {c = 'i8'} => 'i32'}") == "[]~{f= {c= 'i8'} ⇒ 'i32'}"
+    assert pretty("[]~{f = ({a = 'i8'} => 'i8') => 'i32'}") == "[]~{f= ({a= 'i8'} ⇒ 'i8') ⇒ 'i32'}"
 
 
 def test_pretty_quotes_names_that_need_it():
@@ -134,7 +134,7 @@ def test_pretty_quotes_names_that_need_it():
 
 
 def test_pretty_groups_bytes_by_four():
-    assert pretty("[deadbeefcafebabe00]: 'i64'") == "[deadbeef cafebabe 00]: 'i64'"
+    assert pretty("[deadbeefcafebabe00]~'i64'") == "[deadbeef cafebabe 00]~'i64'"
 
 
 @pytest.mark.parametrize(
@@ -147,14 +147,14 @@ def test_pretty_groups_bytes_by_four():
         ('[486900]', '[486900]'),  # 00 is not text
         ('[4127]', '[4127]'),  # no escapes, so `'` stays hex
         ('[415c]', '[415c]'),  # and so does `\`
-        ("[4869]: 'i8'", "[4869]:'i8'"),  # a written form keeps hex
-        ("'Hi': 'i8'", "[4869]:'i8'"),
-        ('[]: {}', '[]:{}'),
+        ("[4869]~'i8'", "[4869]~'i8'"),  # a written form keeps hex
+        ("'Hi'~'i8'", "[4869]~'i8'"),
+        ('[]~{}', '[]~{}'),
     ],
 )
 def test_text_bytes_print_quoted_without_a_form(source, expected):
     assert show(parse(source)) == expected
-    assert show(parse(source), pretty=True) == expected.replace(':', ': ')
+    assert show(parse(source), pretty=True) == expected
 
 
 def test_text_bytes_print_quoted_only_up_to_128_bytes():
@@ -165,14 +165,14 @@ def test_text_bytes_print_quoted_only_up_to_128_bytes():
 
 def test_pretty_breaks_long_terms():
     assert pretty(FACT) == textwrap.dedent("""\
-        decls: {} → defs → {
+        decls~{} → defs → {
           fact= f → {
-            entry= args: {n= 'i32'} →
-              let t0 = 'icmp_eq' {'i32', args.n, [00000000]: 'i32'} in
+            entry= args~{n= 'i32'} →
+              let t0 = 'icmp_eq' {'i32', args.n, [00000000]~'i32'} in
               if t0 then f.then0 {} else f.else0 {n= args.n},
-            then0= args: {} → [01000000]: 'i32',
-            else0= args: {n= 'i32'} →
-              let t1 = 'sub' {'i32', args.n, [01000000]: 'i32'} in
+            then0= args~{} → [01000000]~'i32',
+            else0= args~{n= 'i32'} →
+              let t1 = 'sub' {'i32', args.n, [01000000]~'i32'} in
               let t2 = defs.fact {n= t1} in
               let t3 = 'mul' {'i32', args.n, t2} in t3,
           },
@@ -180,12 +180,12 @@ def test_pretty_breaks_long_terms():
 
 
 def test_compact_let():
-    assert show(parse("let x: 'i8' = e in x")) == "let x:'i8' = e in x"
+    assert show(parse("let x~'i8' = e in x")) == "let x~'i8' = e in x"
     assert show(parse('let x = e in x')) == 'let x = e in x'
 
 
 def test_pretty_let_keeps_written_form():
-    assert pretty("let t0: 'i1' = f a in t0") == "let t0: 'i1' = f a in t0"
+    assert pretty("let t0~'i1' = f a in t0") == "let t0~'i1' = f a in t0"
 
 
 def test_pretty_breaks_let_chain_one_per_line():
@@ -256,40 +256,40 @@ def test_width_and_indent_flags():
         FACT,
         'f a (b -> b) (if c then d else e).x',
         '"if" -> "a b" -> s."\\u{3bb}"',
-        "d: {putchar = {c = 'i8'} => 'i32', errno = 'i32'} -> []: ({} => 'i32')",
+        "d~{putchar = {c = 'i8'} => 'i32', errno = 'i32'} -> []~({} => 'i32')",
         "{f = {a = 'i8'} => 'i32', g = (f a) => (g => h) => i}",
-        "x: ([00]: 'i8') => 'i32' -> f ([01]: 'i8') => g [02]: 'i8'",
-        'x: (y) -> [00]: (f x) => {}',
+        "x~([00]~'i8') => 'i32' -> f ([01]~'i8') => g [02]~'i8'",
+        'x~(y) -> [00]~(f x) => {}',
         "'tag'",
         'if c then if d then a else b else $fix f',
-        "let x: 'i8' = let y = e in y in f (let z = x in z)",
-        "f 'Hello world' [48656c6c6f]: 'i8' '' [00]",
-        'y: x',
-        'f a: g b',
-        'a: b: c',
-        '(a: b): c',
-        'x -> y -> y: x',
-        'f (y: x) z',
-        '(f: g) x',
-        'y: (a -> b)',
-        'y: a => b',
-        '(a: b) => c',
-        '{a = e: t}',
-        'if c: t then a: t else b: t',
-        "let x: 'i8' = v: t in x: t",
-        '[01]: y',
-        "([01]: 'i8'): 'i16'",
-        'y: (f a)',
-        '(f a): t',
-        'f y: x z',
-        '$fix f: t',
-        '($fix f): t',
-        'x: decls.t',
-        "f [01]: 'u8' [02]",
+        "let x~'i8' = let y = e in y in f (let z = x in z)",
+        "f 'Hello world' [48656c6c6f]~'i8' '' [00]",
+        'y~x',
+        'f a~g b',
+        'a~b~c',
+        '(a~b)~c',
+        'x -> y -> y~x',
+        'f (y~x) z',
+        '(f~g) x',
+        'y~(a -> b)',
+        'y~a => b',
+        '(a~b) => c',
+        '{a = e~t}',
+        'if c~t then a~t else b~t',
+        "let x~'i8' = v~t in x~t",
+        '[01]~y',
+        "([01]~'i8')~'i16'",
+        'y~(f a)',
+        '(f a)~t',
+        'f y~x z',
+        '$fix f~t',
+        '($fix f)~t',
+        'x~decls.t',
+        "f [01]~'u8' [02]",
         "{'1', '2'}",
         "{'1', b = '2'}",
         '{a}',
-        '{x -> x, let y = a in y, a: t}',
+        '{x -> x, let y = a in y, a~t}',
         '$add_i32',
         "'add' {'i32', x, x}",
         '$0',
@@ -329,28 +329,28 @@ def test_show_form():
 def test_formed():
     a, b, c, f, x, y = (terms.Variable(name) for name in 'abcfxy')
     byte = terms.ByteArray(b'\x01')
-    assert show(terms.Formed(y, x)) == 'y:x'
-    assert show(terms.Formed(y, x), pretty=True) == 'y: x'
-    assert show(terms.Formed(byte, terms.ByteArray(b'i1'))) == "[01]:'i1'"
-    assert show(terms.Formed(terms.Apply(f, y), terms.Apply(f, x))) == '(f y):(f x)'
-    assert show(terms.Apply(f, terms.Formed(y, x))) == 'f y:x'
-    assert show(terms.Apply(terms.Formed(f, x), y)) == 'f:x y'
+    assert show(terms.Formed(y, x)) == 'y~x'
+    assert show(terms.Formed(y, x), pretty=True) == 'y~x'
+    assert show(terms.Formed(byte, terms.ByteArray(b'i1'))) == "[01]~'i1'"
+    assert show(terms.Formed(terms.Apply(f, y), terms.Apply(f, x))) == '(f y)~(f x)'
+    assert show(terms.Apply(f, terms.Formed(y, x))) == 'f y~x'
+    assert show(terms.Apply(terms.Formed(f, x), y)) == 'f~x y'
     fix = terms.Builtin('fix')
-    assert show(terms.Apply(fix, terms.Formed(f, x))) == '$fix f:x'
-    assert show(terms.Formed(terms.Apply(fix, f), x)) == '($fix f):x'
-    assert show(terms.Lambda('x', terms.Empty, terms.Formed(y, x))) == 'x → y:x'
-    assert show(terms.Formed(y, terms.Lambda('a', terms.Empty, b))) == 'y:(a → b)'
-    assert show(terms.Formed(y, terms.FunctionForm(a, b))) == 'y:a ⇒ b'
-    assert show(terms.FunctionForm(terms.Formed(a, b), c)) == '(a:b) ⇒ c'
-    assert show(terms.Formed(a, terms.Formed(b, c))) == 'a:b:c'
-    assert show(terms.Formed(terms.Formed(a, b), c)) == '(a:b):c'
-    assert show(terms.Formed(terms.Project(y, 'p'), x)) == 'y.p:x'
+    assert show(terms.Apply(fix, terms.Formed(f, x))) == '$fix f~x'
+    assert show(terms.Formed(terms.Apply(fix, f), x)) == '($fix f)~x'
+    assert show(terms.Lambda('x', terms.Empty, terms.Formed(y, x))) == 'x → y~x'
+    assert show(terms.Formed(y, terms.Lambda('a', terms.Empty, b))) == 'y~(a → b)'
+    assert show(terms.Formed(y, terms.FunctionForm(a, b))) == 'y~a ⇒ b'
+    assert show(terms.FunctionForm(terms.Formed(a, b), c)) == '(a~b) ⇒ c'
+    assert show(terms.Formed(a, terms.Formed(b, c))) == 'a~b~c'
+    assert show(terms.Formed(terms.Formed(a, b), c)) == '(a~b)~c'
+    assert show(terms.Formed(terms.Project(y, 'p'), x)) == 'y.p~x'
 
 
 def test_formed_byte_array_in_parens_where_needed():
-    # `[01]:'i8':'i16'` would read as `[01]: ('i8': 'i16')`.
+    # `[01]~'i8'~'i16'` would read as `[01]~('i8'~'i16')`.
     i8, i16 = terms.ByteArray(b'i8'), terms.ByteArray(b'i16')
     byte = terms.ByteArray(b'\x01')
-    assert show(terms.Formed(terms.Formed(byte, i8), i16)) == "([01]:'i8'):'i16'"
-    assert show(terms.Apply(terms.Variable('f'), terms.Formed(byte, i8))) == "f [01]:'i8'"
-    assert show(terms.Formed(byte, terms.Formed(i8, i16))) == "[01]:[6938]:'i16'"
+    assert show(terms.Formed(terms.Formed(byte, i8), i16)) == "([01]~'i8')~'i16'"
+    assert show(terms.Apply(terms.Variable('f'), terms.Formed(byte, i8))) == "f [01]~'i8'"
+    assert show(terms.Formed(byte, terms.Formed(i8, i16))) == "[01]~[6938]~'i16'"

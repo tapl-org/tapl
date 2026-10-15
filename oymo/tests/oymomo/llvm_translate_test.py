@@ -19,7 +19,7 @@ HEADER = '; ModuleID = ""\ntarget triple = "x86_64-unknown-linux-gnu"\ntarget da
 
 def banf(defs, decls):
     """The BANF module of an oymomo program, written as its `module` form's fields and its body's fields."""
-    return banf_translate.translate(parse(f'module: {{{decls}}} -> {{{defs}}}'))
+    return banf_translate.translate(parse(f'module~{{{decls}}} -> {{{defs}}}'))
 
 
 def ir_text(defs, decls):
@@ -47,12 +47,12 @@ def test_default_opcodes_cover_opcodes():
 def test_fact():
     source = """
     fact = blocks -> {
-      entry = args: {n = 'i32'} ->
-        let t0 = 'icmp_eq' {'i32', args.n, [00000000]:'i32'} in
+      entry = args~{n = 'i32'} ->
+        let t0 = 'icmp_eq' {'i32', args.n, [00000000]~'i32'} in
         if t0 then blocks.then0 {} else blocks.else0 {n = args.n},
-      then0 = args: {} -> [01000000]:'i32',
-      else0 = args: {n = 'i32'} ->
-        let t1 = 'sub' {'i32', args.n, [01000000]:'i32'} in
+      then0 = args~{} -> [01000000]~'i32',
+      else0 = args~{n = 'i32'} ->
+        let t1 = 'sub' {'i32', args.n, [01000000]~'i32'} in
         let t2 = module.fact {n = t1} in
         let t3 = 'mul' {'i32', args.n, t2} in
         t3,
@@ -79,9 +79,9 @@ def test_signature_data_and_get_data():
     decls = "putchar = {c = 'i8'} => 'i32', errno = 'i32', main = => 'i32'"
     source = """
     main = blocks -> {
-      entry = args: {} ->
+      entry = args~{} ->
         let t0 = module.errno in
-        let t1 = module.putchar {c = [41]:'i8'} in
+        let t1 = module.putchar {c = [41]~'i8'} in
         let t2 = 'add' {'i32', t0, t1} in
         t2,
     }
@@ -104,7 +104,7 @@ def test_signature_data_and_get_data():
 def test_struct_param_make_struct_and_get_field():
     source = """
     swap = blocks -> {
-      entry = args: {p = {x = 'i32', y = 'i32'}} ->
+      entry = args~{p = {x = 'i32', y = 'i32'}} ->
         let x = args.p.x in
         let y = args.p.y in
         let q = {x = y, y = x} in
@@ -127,7 +127,7 @@ def test_struct_param_make_struct_and_get_field():
 def test_make_struct_names_an_unlabeled_field_by_its_index():
     source = """
     pair = blocks -> {
-      entry = args: {a = 'i32', b = 'i8'} ->
+      entry = args~{a = 'i32', b = 'i8'} ->
         let q = {args.a, y = args.b, args.a} in
         q,
     }
@@ -146,7 +146,7 @@ def test_make_struct_names_an_unlabeled_field_by_its_index():
 
 def test_get_index_is_extractvalue():
     def first(read):
-        source = f"g = blocks -> {{entry = args: {{p = {{x = 'i32', y = 'i8'}}}} -> let x = {read} in x}}"
+        source = f"g = blocks -> {{entry = args~{{p = {{x = 'i32', y = 'i8'}}}} -> let x = {read} in x}}"
         return ir_text(source, "g = => 'i32'")
 
     expected = text("""
@@ -162,12 +162,12 @@ def test_get_index_is_extractvalue():
 
 
 def test_get_index_on_an_unlabeled_struct():
-    source = "g = blocks -> {entry = args: {p = {'i32', 'i8'}} -> let y = args.p [01] in y}"
+    source = "g = blocks -> {entry = args~{p = {'i32', 'i8'}} -> let y = args.p [01] in y}"
     assert '%"y" = extractvalue {i32, i8} %"p", 1' in ir_text(source, "g = => 'i8'")
 
 
 def test_get_index_past_the_last_field_extracts_the_last_field():
-    source = "g = blocks -> {entry = args: {p = {'i32', 'i8'}} -> let y = args.p [07] in y}"
+    source = "g = blocks -> {entry = args~{p = {'i32', 'i8'}} -> let y = args.p [07] in y}"
     assert '%"y" = extractvalue {i32, i8} %"p", 1' in ir_text(source, "g = => 'i8'")
 
 
@@ -175,10 +175,10 @@ def test_single_predecessor_binds_params_and_multiple_predecessors_get_phis():
     # Both branches jump to join0, which therefore gets a phi per param.
     source = """
     pick = blocks -> {
-      entry = args: {c = 'i1', x = 'i32', z = 'i32'} -> if args.c then blocks.a {x = args.x} else blocks.b {},
-      a = args: {x = 'i32'} -> blocks.join0 {v = args.x, w = args.x},
-      b = args: {} -> blocks.join0 {v = [00000000]:'i32', w = [07000000]:'i32'},
-      join0 = args: {v = 'i32', w = 'i32'} -> let t0 = 'add' {'i32', args.v, args.w} in t0,
+      entry = args~{c = 'i1', x = 'i32', z = 'i32'} -> if args.c then blocks.a {x = args.x} else blocks.b {},
+      a = args~{x = 'i32'} -> blocks.join0 {v = args.x, w = args.x},
+      b = args~{} -> blocks.join0 {v = [00000000]~'i32', w = [07000000]~'i32'},
+      join0 = args~{v = 'i32', w = 'i32'} -> let t0 = 'add' {'i32', args.v, args.w} in t0,
     }
     """
     assert ir_text(source, "pick = => 'i32'") == text("""
@@ -203,10 +203,10 @@ def test_struct_branch_lowers_like_if():
     def pick(entry_body):
         return f"""
         pick = blocks -> {{
-          entry = args: {{c = 'i1', x = 'i32', z = 'i32'}} -> {entry_body},
-          a = args: {{x = 'i32'}} -> blocks.join0 {{v = args.x, w = args.x}},
-          b = args: {{}} -> blocks.join0 {{v = [00000000]:'i32', w = [07000000]:'i32'}},
-          join0 = args: {{v = 'i32', w = 'i32'}} -> let t0 = 'add' {{'i32', args.v, args.w}} in t0,
+          entry = args~{{c = 'i1', x = 'i32', z = 'i32'}} -> {entry_body},
+          a = args~{{x = 'i32'}} -> blocks.join0 {{v = args.x, w = args.x}},
+          b = args~{{}} -> blocks.join0 {{v = [00000000]~'i32', w = [07000000]~'i32'}},
+          join0 = args~{{v = 'i32', w = 'i32'}} -> let t0 = 'add' {{'i32', args.v, args.w}} in t0,
         }}
         """
 
@@ -218,7 +218,7 @@ def test_struct_branch_lowers_like_if():
 
 def test_rejects_branch_with_same_target_twice():
     # BANF allows this (Cranelift does too), but an LLVM phi can't tell the two edges apart.
-    defs = "g = blocks -> {entry = args: {c = 'i1'} -> {blocks.a {}, blocks.a {}} args.c, a = args: {} -> [01]:'i8'}"
+    defs = "g = blocks -> {entry = args~{c = 'i1'} -> {blocks.a {}, blocks.a {}} args.c, a = args~{} -> [01]~'i8'}"
     assert ir_error(defs, "g = => 'i8'") == 'A branch cannot have the same block as both targets.'
 
 
@@ -228,12 +228,12 @@ def switch_defs(jumps, selector_form="'i8'"):
     with `x`, 0, 7 and 9. Blocks no switch reaches are not lowered."""
     return f"""
     pick = blocks -> {{
-      entry = args: {{k = {selector_form}, x = 'i32'}} -> {{{jumps}}} args.k,
-      a = args: {{x = 'i32'}} -> blocks.join {{v = args.x}},
-      b = args: {{}} -> blocks.join {{v = [00000000]:'i32'}},
-      c = args: {{}} -> blocks.join {{v = [07000000]:'i32'}},
-      d = args: {{}} -> blocks.join {{v = [09000000]:'i32'}},
-      join = args: {{v = 'i32'}} -> args.v,
+      entry = args~{{k = {selector_form}, x = 'i32'}} -> {{{jumps}}} args.k,
+      a = args~{{x = 'i32'}} -> blocks.join {{v = args.x}},
+      b = args~{{}} -> blocks.join {{v = [00000000]~'i32'}},
+      c = args~{{}} -> blocks.join {{v = [07000000]~'i32'}},
+      d = args~{{}} -> blocks.join {{v = [09000000]~'i32'}},
+      join = args~{{v = 'i32'}} -> args.v,
     }}
     """
 
@@ -304,7 +304,7 @@ def test_switch_may_repeat_a_target():
 
 
 def test_constants_are_little_endian_on_a_big_endian_target():
-    module = banf("g = blocks -> {entry = args: {} -> [0100]:'i16'}", "g = => 'i16'")
+    module = banf("g = blocks -> {entry = args~{} -> [0100]~'i16'}", "g = => 'i16'")
     big = Target('powerpc64-unknown-linux-gnu', 'E-m:e-i64:64-n32:64', DEFAULT_OPCODES)
     ir = str(translate(module, big))
     llvm.parse_assembly(ir).verify()
@@ -313,13 +313,13 @@ def test_constants_are_little_endian_on_a_big_endian_target():
 
 
 def test_rejects_wrong_constant_size():
-    assert ir_error("g = blocks -> {entry = args: {} -> [01]:'i32'}", "g = => 'i32'") == 'A i32 constant needs 4 bytes.'
+    assert ir_error("g = blocks -> {entry = args~{} -> [01]~'i32'}", "g = => 'i32'") == 'A i32 constant needs 4 bytes.'
 
 
 def test_let_form_with_the_same_llvm_type_is_used_as_it_is():
     source = """
     g = blocks -> {
-      entry = args: {v = 'i32', w = 'i32'} -> let q: {a = 'i32', b = 'i32'} = {x = args.v, y = args.w} in q,
+      entry = args~{v = 'i32', w = 'i32'} -> let q~{a = 'i32', b = 'i32'} = {x = args.v, y = args.w} in q,
     }
     """
     assert 'ret {i32, i32} %"q"' in ir_text(source, "g = => {a = 'i32', b = 'i32'}")
@@ -329,25 +329,25 @@ def test_rejects_let_form_with_another_llvm_type():
     # BANF accepts any let form, but LLVM never converts: no bitcast, no widening.
     source = """
     g = blocks -> {
-      entry = args: {n = 'i32'} -> let t0: 'i32' = 'icmp_eq' {'i32', args.n, [00000000]:'i32'} in t0,
+      entry = args~{n = 'i32'} -> let t0~'i32' = 'icmp_eq' {'i32', args.n, [00000000]~'i32'} in t0,
     }
     """
     assert ir_error(source, "g = => 'i32'") == "Let 't0' is formed as i32, but its op gives i1."
 
 
 def test_formed_var_with_the_same_llvm_type_is_used_as_it_is():
-    assert 'ret i32 %"n"' in ir_text("g = blocks -> {entry = args: {n = 'i32'} -> args.n:'i32'}", "g = => 'i32'")
+    assert 'ret i32 %"n"' in ir_text("g = blocks -> {entry = args~{n = 'i32'} -> args.n~'i32'}", "g = => 'i32'")
 
 
 def test_rejects_formed_var_with_another_llvm_type():
-    source = "g = blocks -> {entry = args: {n = 'i8'} -> args.n:'i32'}"
+    source = "g = blocks -> {entry = args~{n = 'i8'} -> args.n~'i32'}"
     assert ir_error(source, "g = => 'i32'") == "'n' is formed as i32, but its LLVM type is i8."
 
 
 def test_defined_data_is_a_writable_global_with_an_initializer():
     source = """
     answer = [2a000000],
-    main = blocks -> {entry = args: {} -> let t = module.answer in t},
+    main = blocks -> {entry = args~{} -> let t = module.answer in t},
     """
     assert ir_text(source, "answer = 'i32', main = => 'i32'") == text("""
         @"answer" = global i32 42

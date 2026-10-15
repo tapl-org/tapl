@@ -10,7 +10,7 @@ from oymo.oymomo.printer import show
 
 
 def program(defs):
-    return f'module: {{}} -> {{{defs}}}'
+    return f'module~{{}} -> {{{defs}}}'
 
 
 def shaped(defs):
@@ -22,7 +22,7 @@ def same(defs):
 
 
 def block(body, params="{n = 'i8'}"):
-    return f'main = f -> {{entry = args: {params} -> {body}}}'
+    return f'main = f -> {{entry = args~{params} -> {body}}}'
 
 
 def resolved(source, free):
@@ -153,8 +153,8 @@ def test_get_field_on_struct_param_stays_a_let():
 
 
 def test_a_def_produced_by_an_application():
-    assert shaped("main = (x -> x) (f -> {entry = args: {} -> [01]: 'i8'})") == same(
-        "main = f -> {entry = args: {} -> [01]: 'i8'}"
+    assert shaped("main = (x -> x) (f -> {entry = args~{} -> [01]~'i8'})") == same(
+        "main = f -> {entry = args~{} -> [01]~'i8'}"
     )
 
 
@@ -163,16 +163,16 @@ def test_a_def_produced_by_an_application():
     [
         # Each position, reached after reduction.
         (
-            '(p -> p) (module: {} -> {})',
-            'module: {} -> {}',
+            '(p -> p) (module~{} -> {})',
+            'module~{} -> {}',
         ),
         (
-            '{d = module: {} -> {}}.d',
-            'module: {} -> {}',
+            '{d = module~{} -> {}}.d',
+            'module~{} -> {}',
         ),
         (
-            "module: {} -> (x -> x) {main = f -> (x -> x) {entry = (x -> x) (args: {} -> [01]: 'i8')}}",
-            "module: {} -> {main = f -> {entry = args: {} -> [01]: 'i8'}}",
+            "module~{} -> (x -> x) {main = f -> (x -> x) {entry = (x -> x) (args~{} -> [01]~'i8')}}",
+            "module~{} -> {main = f -> {entry = args~{} -> [01]~'i8'}}",
         ),
     ],
 )
@@ -187,7 +187,7 @@ def test_forms_are_ignored():
 @pytest.mark.parametrize(
     'body',
     [
-        "[01]: 'i8'",
+        "[01]~'i8'",
         'args.n',
         "let t = 'add' {'i8', args.n, args.n} in t",
         'f.a {}',
@@ -216,12 +216,12 @@ def test_terms_that_cannot_reach_the_shape_are_left(defs):
 def test_already_shaped_is_unchanged():
     source = """
     fact = f -> {
-      entry = args:{n = 'i32'} ->
-        let t0 = 'icmp_eq' {'i32', args.n, [00000000]:'i32'} in
+      entry = args~{n = 'i32'} ->
+        let t0 = 'icmp_eq' {'i32', args.n, [00000000]~'i32'} in
         if t0 then f.then0 {} else f.else0 {n = args.n},
-      then0 = args:{} -> [01000000]:'i32',
-      else0 = args:{n = 'i32'} ->
-        let t1 = 'sub' {'i32', args.n, [01000000]:'i32'} in
+      then0 = args~{} -> [01000000]~'i32',
+      else0 = args~{n = 'i32'} ->
+        let t1 = 'sub' {'i32', args.n, [01000000]~'i32'} in
         let t2 = module.fact {n = t1} in
         let t3 = 'mul' {'i32', args.n, t2} in
         t3,
@@ -245,9 +245,9 @@ def test_reduce_until_top_stable_reduces_inside_formed():
 
 
 def test_dynamic_byte_array_form():
-    reduced = banf_shape.reduce_until_top_stable(reduction.resolve(parse("(x -> y -> y: x) 'i1' [01]")))
-    assert reduced == parse("[01]:'i1'")
-    assert show(reduced) == "[01]:'i1'"
+    reduced = banf_shape.reduce_until_top_stable(reduction.resolve(parse("(x -> y -> y~x) 'i1' [01]")))
+    assert reduced == parse("[01]~'i1'")
+    assert show(reduced) == "[01]~'i1'"
 
 
 def test_struct_to_fields_reduces_its_argument_but_not_the_values():
@@ -311,8 +311,8 @@ def test_an_endless_field_list_runs_out_of_fuel():
 
 
 def test_an_opcode_reduces_its_fields_then_folds():
-    term = resolved("'add' {(f -> f) 'i32', (x -> x) [01000000]: 'i32', {c = [02000000]}.c}", FREE)
-    assert banf_shape.reduce_until_top_stable(term) == resolved("[03000000]: 'i32'", FREE)
+    term = resolved("'add' {(f -> f) 'i32', (x -> x) [01000000]~'i32', {c = [02000000]}.c}", FREE)
+    assert banf_shape.reduce_until_top_stable(term) == resolved("[03000000]~'i32'", FREE)
 
 
 def test_an_opcode_with_the_wrong_number_of_fields_reduces_its_fields_but_does_not_fold():
@@ -330,21 +330,21 @@ def test_an_opcode_on_a_run_time_operand_keeps_the_fields_it_reduced():
     ('body', 'expected'),
     [
         # A let whose op folds is no longer an op, so it is substituted.
-        ("let t = 'add' {'i8', [01]: 'i8', [02]: 'i8'} in t", "[03]: 'i8'"),
+        ("let t = 'add' {'i8', [01]~'i8', [02]~'i8'} in t", "[03]~'i8'"),
         (
-            "let t = 'add' {'i8', [01]: 'i8', [02]: 'i8'} in let u = 'add' {'i8', args.n, t} in u",
-            "let u = 'add' {'i8', args.n, [03]: 'i8'} in u",
+            "let t = 'add' {'i8', [01]~'i8', [02]~'i8'} in let u = 'add' {'i8', args.n, t} in u",
+            "let u = 'add' {'i8', args.n, [03]~'i8'} in u",
         ),
         # An if on a folded comparison picks its arm.
-        ("let c = 'icmp_eq' {'i8', [07]: 'i8', [07]: 'i8'} in if c then f.a {} else f.b {}", 'f.a {}'),
+        ("let c = 'icmp_eq' {'i8', [07]~'i8', [07]~'i8'} in if c then f.a {} else f.b {}", 'f.a {}'),
         (
-            "let c = 'icmp_ult' {'i8', [ff]: 'i8', args.n} in if c then f.a {} else f.b {}",
-            "let c = 'icmp_ult' {'i8', [ff]: 'i8', args.n} in if c then f.a {} else f.b {}",
+            "let c = 'icmp_ult' {'i8', [ff]~'i8', args.n} in if c then f.a {} else f.b {}",
+            "let c = 'icmp_ult' {'i8', [ff]~'i8', args.n} in if c then f.a {} else f.b {}",
         ),
         # A fold can feed the next one.
         (
-            "let t = 'add' {'i8', [01]: 'i8', [02]: 'i8'} in let u = 'mul' {'i8', t, t} in u",
-            "[09]: 'i8'",
+            "let t = 'add' {'i8', [01]~'i8', [02]~'i8'} in let u = 'mul' {'i8', t, t} in u",
+            "[09]~'i8'",
         ),
     ],
 )
@@ -460,7 +460,7 @@ def _opcode_samples(signature):
     """Calls of an opcode: one that folds, one that reduces its argument and fields first,
     one stuck on a run-time operand (`e`), and one with wrong labels."""
     form = signature.params[0][1]
-    one = f"[{(1).to_bytes(opcodes.byte_width(opcodes.bit_width(form)), 'little').hex()}]: '{form.as_str}'"
+    one = f"[{(1).to_bytes(opcodes.byte_width(opcodes.bit_width(form)), 'little').hex()}]~'{form.as_str}'"
     labels = [label for label, _ in signature.params]
 
     def call(values, labels=labels):

@@ -44,12 +44,12 @@ def show(
 
 
 def show_form(form: syntax.Term, *, pretty: bool = False) -> str:
-    """`form` as it is written after `:`."""
+    """`form` as it is written after `~`."""
     return _flat(form, _FORMED, None) if pretty else _compact(form, None, _FORMED)
 
 
 def _compact(term, names, level=_EXPRESSION):
-    """Like `_flat`, but `:form` without a space, and bytes ungrouped."""
+    """Like `_flat`, but bytes ungrouped."""
     match term:
         case terms.Variable(name=name):
             text = _name(name)
@@ -78,7 +78,7 @@ def _compact(term, names, level=_EXPRESSION):
             text = _bytes_text(value, grouped=False)
         case terms.Formed(term=inner, form=form):
             inner_text = _formed_term(inner, lambda t, level: _compact(t, names, level), grouped=False)
-            text = f'{inner_text}:{_compact(form, names, _FORMED)}'
+            text = f'{inner_text}~{_compact(form, names, _FORMED)}'
         case syntax.ErrorTerm():
             text = 'error'
         case _:
@@ -97,12 +97,12 @@ def _bytes_text(value, *, grouped, text=True):
 
 
 def _compact_suffix(form, names):
-    """`:form` after a name; nothing for an omitted form."""
-    return '' if form is terms.Empty else ':' + _compact(form, names, _FORMED)
+    """`~form` after a name; nothing for an omitted form."""
+    return '' if form is terms.Empty else '~' + _compact(form, names, _FORMED)
 
 
 def _formed_term(term, show, *, grouped):
-    """The `t` of `t: form`. A byte array with a form prints its bytes as hex."""
+    """The `t` of `t~form`. A byte array with a form prints its bytes as hex."""
     if isinstance(term, terms.ByteArray):
         return _bytes_text(term.value, grouped=grouped, text=False)
     return show(term, _ARROW)
@@ -193,7 +193,7 @@ def _flat(term, level, names):
             text = _bytes_text(value, grouped=True)
         case terms.Formed(term=inner, form=form):
             inner_text = _formed_term(inner, lambda t, level: _flat(t, level, names), grouped=True)
-            text = f'{inner_text}: {_flat(form, _FORMED, names)}'
+            text = f'{inner_text}~{_flat(form, _FORMED, names)}'
         case syntax.ErrorTerm():
             text = 'error'
         case _:
@@ -270,8 +270,8 @@ def _has_let_chain(term):
 
 
 def _form_suffix(form, names):
-    """`: form` after a lambda param or let name; nothing for an omitted form."""
-    return '' if form is terms.Empty else ': ' + _flat(form, _FORMED, names)
+    """`~form` after a lambda param or let name; nothing for an omitted form."""
+    return '' if form is terms.Empty else '~' + _flat(form, _FORMED, names)
 
 
 def _label(label, separator):

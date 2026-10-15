@@ -114,12 +114,12 @@ NAME = Memoized(
 )
 
 
-# `: form` after a lambda param or a let name; omitted means `Empty`.
-# A form is an ordinary formed-level expression, as after any other `:`. It never holds a
-# lambda, so in `x: 'i32' -> x` the form stops at `->`. An application needs parentheses:
-# `x: (f a) -> x`.
+# `~form` after a lambda param or a let name; omitted means `Empty`.
+# A form is an ordinary formed-level expression, as after any other `~`. It never holds a
+# lambda, so in `x~'i32' -> x` the form stops at `->`. An application needs parentheses:
+# `x~(f a) -> x`.
 FORM_OPT = Optional(
-    Seq(_punct(':'), Ref(rn.FORMED), action=lambda c: c.values[0]),
+    Seq(_punct('~'), Ref(rn.FORMED), action=lambda c: c.values[0]),
     action=lambda c: c.value if c.matched else terms.Empty,
 )
 
@@ -202,12 +202,12 @@ RULES: dict[str, Clause] = {
         ),
         Ref(rn.FORMED),
     ),
-    # `e: F` is a Formed. Like `=>`, it builds a value, so it binds tighter than apply; it
-    # binds looser than `=>`. It is right associative: `f a: g b` is `f (a: g) b`,
-    # `x: A => B` is `x: (A => B)`, `a: b: c` is `a: (b: c)`. A lambda is tried first,
-    # so `x: F -> body` is still a lambda with a param form.
+    # `e~F` is a Formed. Like `=>`, it builds a value, so it binds tighter than apply; it
+    # binds looser than `=>`. It is right associative: `f a~g b` is `f (a~g) b`,
+    # `x~A => B` is `x~(A => B)`, `a~b~c` is `a~(b~c)`. A lambda is tried first,
+    # so `x~F -> body` is still a lambda with a param form.
     rn.FORMED: First(
-        Seq(Ref(rn.ARROW), _punct(':'), Ref(rn.FORMED), action=_formed),
+        Seq(Ref(rn.ARROW), _punct('~'), Ref(rn.FORMED), action=_formed),
         Ref(rn.ARROW),
     ),
     # `P => R` is a FunctionForm. It binds tighter than apply and looser than `.`, so

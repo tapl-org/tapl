@@ -25,9 +25,9 @@ No step is breaking.
 written as an opcode with the form as a field:
 
 ```
-module: {hypot = => 'f64', sqrt = {x = 'f64'} => 'f64'} -> {
+module~{hypot = => 'f64', sqrt = {x = 'f64'} => 'f64'} -> {
   hypot = f -> {
-    entry = args: {x = 'f64', y = 'f64'} ->
+    entry = args~{x = 'f64', y = 'f64'} ->
       let xx = 'fmul' {'f64', args.x, args.x} in
       let yy = 'fmul' {'f64', args.y, args.y} in
       let s = 'fadd' {'f64', xx, yy} in
@@ -58,7 +58,7 @@ entry:
 }
 ```
 
-A literal is its bits: `[000000000000f03f]: 'f64'` is 1.0. With literal arguments the
+A literal is its bits: `[000000000000f03f]~'f64'` is 1.0. With literal arguments the
 kernel folds `'fmul'` and `'fadd'` to the bits LLVM would compute (decision 5); the
 VM runs them in Python with the same bits ([plan_vm.md](plan_vm.md)).
 
@@ -69,8 +69,8 @@ VM runs them in Python with the same bits ([plan_vm.md](plan_vm.md)).
 1. **`'f32'` and `'f64'`, LLVM's `float` and `double`.** Named as the integer forms
    are, by kind and width. They are what C needs (`float`, `double`). `'f16'`,
    `'bf16'`, `'f128'` and `x86_fp80` are open question 1.
-2. **A float literal is its IEEE 754 bits, little-endian.** `[0000803f]: 'f32'` is
-   1.0, `[000000000000f03f]: 'f64'` is 1.0, as every byte array is little-endian
+2. **A float literal is its IEEE 754 bits, little-endian.** `[0000803f]~'f32'` is
+   1.0, `[000000000000f03f]~'f64'` is 1.0, as every byte array is little-endian
    ([notes.md › Byte arrays are always little-endian](notes.md#byte-arrays-are-always-little-endian)).
    Every bit pattern is a value, NaNs with any payload included; a literal of the
    wrong size is `A f32 constant needs 4 bytes.`, as for integers. Writing floats as
@@ -103,7 +103,7 @@ VM runs them in Python with the same bits ([plan_vm.md](plan_vm.md)).
    result is a NaN unfolded, as it leaves an integer division by zero, and LLVM or
    the hardware picks. The VM gives some NaN; differential tests compare NaNs as
    "is a NaN", not by bits. A NaN *operand* is fine to fold when the result isn't
-   a NaN (`'fcmp_uno'` of a NaN is `[01]: 'i1'`).
+   a NaN (`'fcmp_uno'` of a NaN is `[01]~'i1'`).
 7. **A conversion LLVM leaves undefined stops the VM.** `fptosi` and `fptoui` of a
    NaN, an infinity, or a value out of the target's range are poison in LLVM; the
    kernel doesn't fold them, and the VM raises
@@ -147,7 +147,7 @@ field, folded on literals except where decisions 6 and 7 say not.
 
    Fields `{form, lhs, rhs}`, as LLVM's `fcmp olt double lhs, rhs`; each gives
    `'i1'`. LLVM's `fcmp false` and `fcmp true` are
-   left out: they don't read their operands, and a program writes `[00]: 'i1'`.
+   left out: they don't read their operands, and a program writes `[00]~'i1'`.
    `-0.0` equals `+0.0` under `oeq`, as IEEE 754 says.
 10. **Conversions**, LLVM's casts, with fields `{form, value, to}` in LLVM's order
     (`fpext float %x to double` is `'fpext' {'f32', x, 'f64'}`), as `'zext'`:
@@ -220,7 +220,7 @@ None. `'f32'` and `'f64'` had no LLVM type before, and the new symbols were unkn
 >    `struct` `'e'`) is cheap; `'bf16'` has no Python support but is a truncated
 >    `f32`; `'f128'` and `x86_fp80` need software arithmetic in the VM. Which, and
 >    when?
-> 2. **Decimal literals** (decision 2). `1.5: 'f64'` as parser sugar for the bytes
+> 2. **Decimal literals** (decision 2). `1.5~'f64'` as parser sugar for the bytes
 >    `[000000000000f83f]`, so the kernel still sees only byte arrays. Hex float
 >    (`0x1.8p0`) would be exact; decimal needs a rounding rule (nearest, as C).
 >    The printer would show floats the same way.
@@ -247,7 +247,7 @@ Each step is one commit and leaves `hatch run full-check` green. Each step updat
 - A.
 - Tests:
   - `llvm_translate`: a function that returns its `'f64'` param is
-    `define double @"g"(double %"x")`; `[0000803f]: 'f32'` is `float 1.0`; a NaN
+    `define double @"g"(double %"x")`; `[0000803f]~'f32'` is `float 1.0`; a NaN
     with a payload keeps its bits through LLVM (JIT, read back with `struct`); a
     struct with a float field; an import `sqrt = {x = 'f64'} => 'f64'` called under
     the JIT; a 3-byte `'f32'` literal is `A f32 constant needs 4 bytes.`
@@ -266,7 +266,7 @@ Commit: `oymomo: add float forms`
     largest finite, `±∞`, a NaN) for both forms gives what LLVM's JIT gives, bit for
     bit except NaN results, which are NaN on both sides.
   - `reduction`: `'fadd' {'f64', [000000000000f03f], [0000000000000040]}`
-    (1.0 + 2.0) folds to `[0000000000000840]: 'f64'` (3.0); `0.0 / 0.0` (a NaN)
+    (1.0 + 2.0) folds to `[0000000000000840]~'f64'` (3.0); `0.0 / 0.0` (a NaN)
     stays; `'fneg'` of a NaN folds with its sign flipped; an `'f32'` result
     that rounds differently from `'f64'` (`0.1 + 0.2`) folds to the `f32` bits.
   - `llvm_translate`: `test_fold_matches_llvm` covers the float symbols.
@@ -280,8 +280,8 @@ Commit: `oymomo: add float arithmetic`
 - Tests:
   - `opcodes`: every predicate on every pair of `{-∞, -1, -0, +0, 1, +∞, NaN}`
     matches LLVM's JIT.
-  - `reduction`: `'fcmp_olt'` of literals folds to `[01]: 'i1'` or `[00]: 'i1'`;
-    `'fcmp_uno'` with a NaN operand folds to `[01]: 'i1'`.
+  - `reduction`: `'fcmp_olt'` of literals folds to `[01]~'i1'` or `[00]~'i1'`;
+    `'fcmp_uno'` with a NaN operand folds to `[01]~'i1'`.
   - `banf_translate`: `'icmp_ult' {'f32', a, b}` is
     `'icmp_ult' takes an integer form, got f32; for floats use 'fcmp_ult'.`
 - `docs/notes.md`: the predicate table.
@@ -295,7 +295,7 @@ Commit: `oymomo: add float comparisons`
   - `opcodes`: `fptrunc` of a `'f64'` that isn't an `f32` rounds to nearest even;
     `sitofp` of `2^53 + 1` to `'f64'` rounds; `fptosi` of `-1.5` to `'i32'` is `-1`;
     `fptoui` of `-1.0`, of a NaN and of `2^32` to `'i32'` don't fold and are
-    `VmError` in the VM; `'bitcast'` of `1.0: 'f32'` to `'i32'` is `[0000803f]`.
+    `VmError` in the VM; `'bitcast'` of `1.0~'f32'` to `'i32'` is `[0000803f]`.
   - `banf_translate`: `'fpext' {'f64', x, 'f32'}` is
     `'fpext': to must be wider than f64, got f32.`; `'bitcast'` between forms of
     different sizes is an error.

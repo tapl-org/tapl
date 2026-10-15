@@ -13,7 +13,7 @@ I8, I16, I32 = (terms.ByteArray(name) for name in (b'i8', b'i16', b'i32'))
 
 def program(defs, decls):
     """A program whose `module` binder's form has the fields `decls` and whose body has the fields `defs`."""
-    return f'module: {{{decls}}} -> {{{defs}}}'
+    return f'module~{{{decls}}} -> {{{defs}}}'
 
 
 def banf(defs, decls):
@@ -33,20 +33,20 @@ def error(defs, decls):
 
 FACT = """
 fact = f -> {
-  entry = args:{n = 'i32'} ->
+  entry = args~{n = 'i32'} ->
     (t0 -> if t0 then f.then0 {} else f.else0 {n = args.n})
-      ('icmp_eq' {'i32', args.n, [00000000]:'i32'}),
-  then0 = args:{} -> [01000000]:'i32',
-  else0 = args:{n = 'i32'} ->
+      ('icmp_eq' {'i32', args.n, [00000000]~'i32'}),
+  then0 = args~{} -> [01000000]~'i32',
+  else0 = args~{n = 'i32'} ->
     (t1 -> (t2 -> (t3 -> t3) ('mul' {'i32', args.n, t2}))
              (module.fact {n = t1}))
-      ('sub' {'i32', args.n, [01000000]:'i32'}),
+      ('sub' {'i32', args.n, [01000000]~'i32'}),
 }
 """
 
 
 def test_simplest():
-    assert banf("main = f -> {entry = args:{a = 'i32'} -> [00000000]: 'i32'}", "main = => 'i32'") == text("""
+    assert banf("main = f -> {entry = args~{a = 'i32'} -> [00000000]~'i32'}", "main = => 'i32'") == text("""
         main: i32
           entry(a: i32):
             return [00000000]:i32
@@ -54,7 +54,7 @@ def test_simplest():
 
 
 def test_empty_params():
-    assert banf("main = f -> {entry = args:{} -> [01]:'i8'}", "main = => 'i8'") == text("""
+    assert banf("main = f -> {entry = args~{} -> [01]~'i8'}", "main = => 'i8'") == text("""
         main: i8
           entry():
             return [01]:i8
@@ -62,7 +62,7 @@ def test_empty_params():
 
 
 def test_param_is_an_atom():
-    assert banf("id = f -> {entry = args:{n = 'i32'} -> args.n}", "id = => 'i32'") == text("""
+    assert banf("id = f -> {entry = args~{n = 'i32'} -> args.n}", "id = => 'i32'") == text("""
         id: i32
           entry(n: i32):
             return n
@@ -70,7 +70,7 @@ def test_param_is_an_atom():
 
 
 def test_nested_projection_is_get_field_on_param():
-    source = "get = f -> {entry = args:{p = {x = 'i32', y = 'i8'}} -> (x -> x) (args.p.x)}"
+    source = "get = f -> {entry = args~{p = {x = 'i32', y = 'i8'}} -> (x -> x) (args.p.x)}"
     assert banf(source, "get = => 'i32'") == text("""
         get: i32
           entry(p: {x: i32, y: i8}):
@@ -80,7 +80,7 @@ def test_nested_projection_is_get_field_on_param():
 
 
 def test_let_with_written_form():
-    source = "g = f -> {entry = args:{n = 'i32'} -> (t0: 'i1' -> t0) ('icmp_eq' {'i32', args.n, args.n})}"
+    source = "g = f -> {entry = args~{n = 'i32'} -> (t0~'i1' -> t0) ('icmp_eq' {'i32', args.n, args.n})}"
     assert banf(source, "g = => 'i1'") == text("""
         g: i1
           entry(n: i32):
@@ -91,7 +91,7 @@ def test_let_with_written_form():
 
 def test_let_form_replaces_op_form():
     # A form is not a type: the written form isn't checked against the op's i1, it replaces it.
-    source = "g = f -> {entry = args:{n = 'i32'} -> (t0: 'i32' -> t0) ('icmp_eq' {'i32', args.n, args.n})}"
+    source = "g = f -> {entry = args~{n = 'i32'} -> (t0~'i32' -> t0) ('icmp_eq' {'i32', args.n, args.n})}"
     assert banf(source, "g = => 'i32'") == text("""
         g: i32
           entry(n: i32):
@@ -101,15 +101,15 @@ def test_let_form_replaces_op_form():
 
 
 def test_let_form_must_be_a_literal():
-    source = "g = f -> {entry = args:{n = 'i32'} -> (t0: args.n -> t0) ('icmp_eq' {'i32', args.n, args.n})}"
+    source = "g = f -> {entry = args~{n = 'i32'} -> (t0~args.n -> t0) ('icmp_eq' {'i32', args.n, args.n})}"
     assert error(source, "g = => 'i1'") == "Let 't0': form must be a literal, got ($0.n)."
 
 
 def test_call_with_struct_literal_and_forwarded_args():
     source = """
-    add = f -> {entry = args:{a = 'i32', b = 'i32'} -> (s -> s) ('add' {'i32', args.a, args.b})},
-    twice = f -> {entry = args:{a = 'i32', b = 'i32'} -> (t0 -> f.next {a = t0, b = args.b}) (module.add args),
-                  next = args:{a = 'i32', b = 'i32'} -> (t1 -> t1) (module.add {a = args.a, b = args.b})},
+    add = f -> {entry = args~{a = 'i32', b = 'i32'} -> (s -> s) ('add' {'i32', args.a, args.b})},
+    twice = f -> {entry = args~{a = 'i32', b = 'i32'} -> (t0 -> f.next {a = t0, b = args.b}) (module.add args),
+                  next = args~{a = 'i32', b = 'i32'} -> (t1 -> t1) (module.add {a = args.a, b = args.b})},
     """
     assert banf(source, "add = => 'i32', twice = => 'i32'") == text("""
         add: i32
@@ -128,7 +128,7 @@ def test_call_with_struct_literal_and_forwarded_args():
 
 
 def test_jump_forwards_args():
-    source = "g = f -> {entry = args:{n = 'i8'} -> f.body args, body = args:{n = 'i8'} -> args.n}"
+    source = "g = f -> {entry = args~{n = 'i8'} -> f.body args, body = args~{n = 'i8'} -> args.n}"
     assert banf(source, "g = => 'i8'") == text("""
         g: i8
           entry(n: i8):
@@ -140,22 +140,22 @@ def test_jump_forwards_args():
 
 def test_opcode_fields_are_positional():
     # `'sub' {form, minuend, subtrahend}`, in LLVM's operand order: `sub 'i32', n, 1` is n - 1.
-    source = "g = f -> {entry = args:{n = 'i32'} -> (t -> t) ('sub' {'i32', args.n, [01000000]:'i32'})}"
+    source = "g = f -> {entry = args~{n = 'i32'} -> (t -> t) ('sub' {'i32', args.n, [01000000]~'i32'})}"
     assert "sub 'i32', n, [01000000]:i32" in banf(source, "g = => 'i32'")
 
 
 def test_opcode_labels_are_ignored():
     # Labels written in the wrong order still subtract by position.
     source = (
-        "g = f -> {entry = args:{n = 'i32'} -> "
-        "(t -> t) ('sub' {form = 'i32', subtrahend = args.n, minuend = [01000000]:'i32'})}"
+        "g = f -> {entry = args~{n = 'i32'} -> "
+        "(t -> t) ('sub' {form = 'i32', subtrahend = args.n, minuend = [01000000]~'i32'})}"
     )
     assert "sub 'i32', n, [01000000]:i32" in banf(source, "g = => 'i32'")
 
 
 def test_opcode_bare_literal_stays_bare():
     # A byte array is only its bytes: the opcode reads it at `form`, in LLVM.
-    source = "g = f -> {entry = args:{n = 'i32'} -> (t -> t) ('add' {'i32', args.n, [01000000]})}"
+    source = "g = f -> {entry = args~{n = 'i32'} -> (t -> t) ('add' {'i32', args.n, [01000000]})}"
     assert "add 'i32', n, [01000000]" in banf(source, "g = => 'i32'")
 
 
@@ -171,7 +171,7 @@ def test_opcode_bare_literal_stays_bare():
     ],
 )
 def test_opcode_errors(call, message):
-    source = f"g = f -> {{entry = args:{{n = 'i32'}} -> (t -> t) ({call})}}"
+    source = f"g = f -> {{entry = args~{{n = 'i32'}} -> (t -> t) ({call})}}"
     assert error(source, "g = => 'i32'") == message
 
 
@@ -186,13 +186,13 @@ def test_opcode_errors(call, message):
 )
 def test_opcode_fields_are_left_to_the_opcode(call, printed):
     # No checks for user mistakes: the opcode, or LLVM, reads the fields.
-    source = f"g = f -> {{entry = args:{{n = 'i32'}} -> (t -> t) ({call})}}"
+    source = f"g = f -> {{entry = args~{{n = 'i32'}} -> (t -> t) ({call})}}"
     assert printed in banf(source, "g = => 'i32'")
 
 
 def test_opcode_operand_form_is_not_compared():
     # A form isn't a type: an `i8` operand to an `i32` add is BANF; LLVM may reject it.
-    source = "g = f -> {entry = args:{n = 'i8'} -> (t -> t) ('add' {'i32', args.n, [00000000]:'i32'})}"
+    source = "g = f -> {entry = args~{n = 'i8'} -> (t -> t) ('add' {'i32', args.n, [00000000]~'i32'})}"
     assert banf(source, "g = => 'i32'") == text("""
         g: i32
           entry(n: i8):
@@ -203,8 +203,8 @@ def test_opcode_operand_form_is_not_compared():
 
 def test_opcode_on_literals_folds_and_its_let_disappears():
     source = """
-    g = f -> {entry = args:{n = 'i8'} ->
-      let t = 'add' {'i8', [01]:'i8', [02]:'i8'} in
+    g = f -> {entry = args~{n = 'i8'} ->
+      let t = 'add' {'i8', [01]~'i8', [02]~'i8'} in
       let u = 'add' {'i8', args.n, t} in
       u}
     """
@@ -218,7 +218,7 @@ def test_opcode_on_literals_folds_and_its_let_disappears():
 
 def test_opcode_on_bare_literals_folds():
     # Without folding, `convert` would reject the bare byte arrays: their form isn't written.
-    source = "g = f -> {entry = args:{} -> 'add' {'i32', [01000000], [02000000]}}"
+    source = "g = f -> {entry = args~{} -> 'add' {'i32', [01000000], [02000000]}}"
     assert banf(source, "g = => 'i32'") == text("""
         g: i32
           entry():
@@ -229,11 +229,11 @@ def test_opcode_on_bare_literals_folds():
 def test_an_if_on_a_folded_comparison_is_a_jump():
     source = """
     g = f -> {
-      entry = args:{n = 'i8'} ->
-        let c = 'icmp_eq' {'i8', [07]:'i8', [07]:'i8'} in
+      entry = args~{n = 'i8'} ->
+        let c = 'icmp_eq' {'i8', [07]~'i8', [07]~'i8'} in
         if c then f.yes {n = args.n} else f.no {},
-      yes = args:{n = 'i8'} -> args.n,
-      no = args:{} -> [00]:'i8',
+      yes = args~{n = 'i8'} -> args.n,
+      no = args~{} -> [00]~'i8',
     }
     """
     assert banf(source, "g = => 'i8'") == text("""
@@ -248,7 +248,7 @@ def test_an_if_on_a_folded_comparison_is_a_jump():
 
 
 def test_a_folded_conversion_is_a_constant():
-    source = "g = f -> {entry = args:{} -> 'sext' {'i8', [ff]:'i8', 'i32'}}"
+    source = "g = f -> {entry = args~{} -> 'sext' {'i8', [ff]~'i8', 'i32'}}"
     assert banf(source, "g = => 'i32'") == text("""
         g: i32
           entry():
@@ -257,8 +257,8 @@ def test_a_folded_conversion_is_a_constant():
 
 
 def test_opcode_on_a_literal_of_another_form_folds():
-    # A form isn't compared: `[01]: 'i32'` is read at the opcode's `i8`.
-    source = "g = f -> {entry = args:{} -> (t -> t) ('add' {'i8', [01]:'i32', [02]:'i8'})}"
+    # A form isn't compared: `[01]~'i32'` is read at the opcode's `i8`.
+    source = "g = f -> {entry = args~{} -> (t -> t) ('add' {'i8', [01]~'i32', [02]~'i8'})}"
     assert banf(source, "g = => 'i8'") == text("""
         g: i8
           entry():
@@ -267,7 +267,7 @@ def test_opcode_on_a_literal_of_another_form_folds():
 
 
 def test_conversion():
-    source = "g = f -> {entry = args:{n = 'i8'} -> (t -> t) ('zext' {'i8', args.n, 'i32'})}"
+    source = "g = f -> {entry = args~{n = 'i8'} -> (t -> t) ('zext' {'i8', args.n, 'i32'})}"
     assert banf(source, "g = => 'i32'") == text("""
         g: i32
           entry(n: i8):
@@ -277,7 +277,7 @@ def test_conversion():
 
 
 def test_struct_built_and_read():
-    source = "g = f -> {entry = args:{n = 'i8'} -> (s -> (y -> y) (s.y)) ({x = args.n, y = [01]:'i8'})}"
+    source = "g = f -> {entry = args~{n = 'i8'} -> (s -> (y -> y) (s.y)) ({x = args.n, y = [01]~'i8'})}"
     assert banf(source, "g = => 'i8'") == text("""
         g: i8
           entry(n: i8):
@@ -289,7 +289,7 @@ def test_struct_built_and_read():
 
 def test_unlabeled_fields_in_value_structs_and_data_forms():
     source = """
-    g = f -> {entry = args:{n = 'i8', p = {'i32', 'i8'}} -> (s -> s) ({args.n, y = [01]:'i8', [02]:'i8'})},
+    g = f -> {entry = args~{n = 'i8', p = {'i32', 'i8'}} -> (s -> s) ({args.n, y = [01]~'i8', [02]~'i8'})},
     pair = [2a01],
     """
     assert banf(source, "g = => {'i8', y = 'i8', 'i8'}, pair = {'i8', 'i8'}") == text("""
@@ -303,8 +303,8 @@ def test_unlabeled_fields_in_value_structs_and_data_forms():
 
 
 def test_struct_apply_reduces_away():
-    assert banf("g = f -> {entry = args:{n = 'i8'} -> {args.n} [00]}", "g = => 'i8'") == banf(
-        "g = f -> {entry = args:{n = 'i8'} -> args.n}", "g = => 'i8'"
+    assert banf("g = f -> {entry = args~{n = 'i8'} -> {args.n} [00]}", "g = => 'i8'") == banf(
+        "g = f -> {entry = args~{n = 'i8'} -> args.n}", "g = => 'i8'"
     )
 
 
@@ -318,7 +318,7 @@ def test_struct_apply_reduces_away():
 )
 def test_binders_are_not_structs(body):
     # module, blocks and args are accessed by a label only.
-    defs = f"g = f -> {{entry = args:{{}} -> {body}, b = args:{{}} -> [01]:'i8'}}"
+    defs = f"g = f -> {{entry = args~{{}} -> {body}, b = args~{{}} -> [01]~'i8'}}"
     assert error(defs, "g = => 'i8'") == (
         "Expected an op: 'opcode' {...}, module.f {...}, module.data, a struct or a projection."
     )
@@ -326,7 +326,7 @@ def test_binders_are_not_structs(body):
 
 @pytest.mark.parametrize('param_form', ["{x = 'i32', y = 'i8'}", "{'i32', 'i8'}"])
 def test_get_index_on_a_param(param_form):
-    source = f'g = f -> {{entry = args:{{p = {param_form}}} -> let y = args.p [01] in y}}'
+    source = f'g = f -> {{entry = args~{{p = {param_form}}} -> let y = args.p [01] in y}}'
     module = translate(parse(program(source, "g = => 'i8'")))
     let = module.bindings[0].blocks[0].lets[0]
     assert let.value == banf_terms.GetIndex(banf_terms.Var('p'), 1)
@@ -335,8 +335,8 @@ def test_get_index_on_a_param(param_form):
 
 def test_get_index_on_a_let():
     source = """
-    g = f -> {entry = args:{n = 'i8'} ->
-      let s = {[00000000]:'i32', args.n} in
+    g = f -> {entry = args~{n = 'i8'} ->
+      let s = {[00000000]~'i32', args.n} in
       let y = s [01] in y}
     """
     assert banf(source, "g = => 'i8'") == text("""
@@ -353,23 +353,23 @@ def test_get_index_on_a_let():
     [
         '[01]',
         '[0100]',
-        "[01]: 'i8'",
+        "[01]~'i8'",
         '((i -> i) [01])',
     ],
 )
 def test_get_index_reads_any_byte_array_literal(index):
-    source = f"g = f -> {{entry = args:{{p = {{'i32', 'i8'}}}} -> let y = args.p {index} in y}}"
+    source = f"g = f -> {{entry = args~{{p = {{'i32', 'i8'}}}} -> let y = args.p {index} in y}}"
     assert 'y = p.1' in banf(source, "g = => 'i8'")
 
 
 def test_get_index_past_the_last_field_keeps_the_index_as_written():
     # It reads the last field (its form is i8), but prints the source index.
-    source = "g = f -> {entry = args:{p = {'i32', 'i8'}} -> let y = args.p [02] in y}"
+    source = "g = f -> {entry = args~{p = {'i32', 'i8'}} -> let y = args.p [02] in y}"
     assert 'y = p.2' in banf(source, "g = => 'i8'")
 
 
 def test_get_index_through_an_atom_let():
-    source = "g = f -> {entry = args:{p = {'i32', 'i8'}} -> let i = [01] in let y = args.p i in y}"
+    source = "g = f -> {entry = args~{p = {'i32', 'i8'}} -> let i = [01] in let y = args.p i in y}"
     assert 'y = p.1' in banf(source, "g = => 'i8'")
 
 
@@ -384,7 +384,7 @@ def test_get_index_through_an_atom_let():
     ],
 )
 def test_get_index_errors(body, message):
-    source = f"g = f -> {{entry = args:{{n = 'i32', p = {{'i32', 'i8'}}}} -> {body}}}"
+    source = f"g = f -> {{entry = args~{{n = 'i32', p = {{'i32', 'i8'}}}} -> {body}}}"
     assert error(source, "g = => 'i8'") == message
 
 
@@ -408,13 +408,13 @@ def test_recursion_needs_no_let_form():
     # The return form is declared, so a block that only returns a recursive call needs nothing more.
     source = """
     loop = f -> {
-      entry = args:{c = 'i1'} -> if args.c then f.a {} else f.b {},
-      a = args:{} -> (t -> t) (module.loop {c = [00]:'i1'}),
-      b = args:{} -> [07]:'i8',
+      entry = args~{c = 'i1'} -> if args.c then f.a {} else f.b {},
+      a = args~{} -> (t -> t) (module.loop {c = [00]~'i1'}),
+      b = args~{} -> [07]~'i8',
     }
     """
     assert banf(source, "loop = => 'i8'").startswith('loop: i8\n')
-    assert banf('g = f -> {entry = args:{} -> (t -> t) (module.g {})}', "g = => 'i8'") == text("""
+    assert banf('g = f -> {entry = args~{} -> (t -> t) (module.g {})}', "g = => 'i8'") == text("""
         g: i8
           entry():
             t = call g()
@@ -423,7 +423,7 @@ def test_recursion_needs_no_let_form():
 
 
 def test_return_form_is_not_compared():
-    assert banf("g = f -> {entry = args:{} -> [01]:'i8'}", "g = => 'i32'") == text("""
+    assert banf("g = f -> {entry = args~{} -> [01]~'i8'}", "g = => 'i32'") == text("""
         g: i32
           entry():
             return [01]:i8
@@ -433,11 +433,11 @@ def test_return_form_is_not_compared():
 def test_explicit_join_block():
     source = """
     pick = f -> {
-      entry = args:{c = 'i1', x = 'i32', y = 'i32', z = 'i32'} ->
+      entry = args~{c = 'i1', x = 'i32', y = 'i32', z = 'i32'} ->
         if args.c then f.then0 {x = args.x, z = args.z} else f.else0 {y = args.y, z = args.z},
-      then0 = args:{x = 'i32', z = 'i32'} -> f.join0 {v = args.x, z = args.z},
-      else0 = args:{y = 'i32', z = 'i32'} -> f.join0 {v = args.y, z = args.z},
-      join0 = args:{v = 'i32', z = 'i32'} -> (t0 -> t0) ('add' {'i32', args.v, args.z}),
+      then0 = args~{x = 'i32', z = 'i32'} -> f.join0 {v = args.x, z = args.z},
+      else0 = args~{y = 'i32', z = 'i32'} -> f.join0 {v = args.y, z = args.z},
+      join0 = args~{v = 'i32', z = 'i32'} -> (t0 -> t0) ('add' {'i32', args.v, args.z}),
     }
     """
     assert banf(source, "pick = => 'i32'") == text("""
@@ -455,7 +455,7 @@ def test_explicit_join_block():
 
 
 def test_first_block_is_entry_whatever_its_name():
-    source = "g = f -> {start = args:{n = 'i8'} -> f.done args, done = args:{n = 'i8'} -> args.n}"
+    source = "g = f -> {start = args~{n = 'i8'} -> f.done args, done = args~{n = 'i8'} -> args.n}"
     assert banf(source, "g = => 'i8'") == text("""
         g: i8
           start(n: i8):
@@ -467,7 +467,7 @@ def test_first_block_is_entry_whatever_its_name():
 
 def test_lets_repeating_a_param_label_are_renamed():
     source = """
-    g = f -> {entry = args:{n = 'i8'} ->
+    g = f -> {entry = args~{n = 'i8'} ->
       (n -> (n -> n) ('mul' {'i8', n, n})) ('add' {'i8', args.n, args.n})}
     """
     assert banf(source, "g = => 'i8'") == text("""
@@ -481,7 +481,7 @@ def test_lets_repeating_a_param_label_are_renamed():
 
 def test_repeated_let_is_renamed():
     source = """
-    g = f -> {entry = args:{n = 'i8'} ->
+    g = f -> {entry = args~{n = 'i8'} ->
       (t -> (t -> t) ('add' {'i8', t, t})) ('add' {'i8', args.n, args.n})}
     """
     assert banf(source, "g = => 'i8'") == text("""
@@ -494,7 +494,7 @@ def test_repeated_let_is_renamed():
 
 
 def test_atom_let_is_substituted():
-    assert banf("g = f -> {entry = args:{n = 'i8'} -> (t -> t) (args.n)}", "g = => 'i8'") == text("""
+    assert banf("g = f -> {entry = args~{n = 'i8'} -> (t -> t) (args.n)}", "g = => 'i8'") == text("""
         g: i8
           entry(n: i8):
             return n
@@ -503,8 +503,8 @@ def test_atom_let_is_substituted():
 
 def test_let_bound_if_is_substituted_into_tail():
     source = """
-    g = f -> {entry = args:{c = 'i1'} -> (t -> t) (if args.c then f.a {} else f.b {}),
-              a = args:{} -> [01]:'i8', b = args:{} -> [02]:'i8'}
+    g = f -> {entry = args~{c = 'i1'} -> (t -> t) (if args.c then f.a {} else f.b {}),
+              a = args~{} -> [01]~'i8', b = args~{} -> [02]~'i8'}
     """
     assert banf(source, "g = => 'i8'") == text("""
         g: i8
@@ -517,11 +517,11 @@ def test_let_bound_if_is_substituted_into_tail():
     """)
 
 
-BRANCH_BLOCKS = "a = args:{} -> [01]:'i8', b = args:{} -> [02]:'i8'"
+BRANCH_BLOCKS = "a = args~{} -> [01]~'i8', b = args~{} -> [02]~'i8'"
 
 
 def branch_defs(body, condition_form="'i1'"):
-    return f'g = f -> {{entry = args:{{c = {condition_form}}} -> {body}, {BRANCH_BLOCKS}}}'
+    return f'g = f -> {{entry = args~{{c = {condition_form}}} -> {body}, {BRANCH_BLOCKS}}}'
 
 
 @pytest.mark.parametrize(
@@ -544,11 +544,11 @@ def test_struct_applied_to_a_condition_is_a_branch(body):
 def test_struct_branch_to_an_explicit_join_block():
     source = """
     pick = f -> {
-      entry = args:{c = 'i1', x = 'i32', y = 'i32', z = 'i32'} ->
+      entry = args~{c = 'i1', x = 'i32', y = 'i32', z = 'i32'} ->
         {f.else0 {y = args.y, z = args.z}, f.then0 {x = args.x, z = args.z}} args.c,
-      then0 = args:{x = 'i32', z = 'i32'} -> f.join0 {v = args.x, z = args.z},
-      else0 = args:{y = 'i32', z = 'i32'} -> f.join0 {v = args.y, z = args.z},
-      join0 = args:{v = 'i32', z = 'i32'} -> (t0 -> t0) ('add' {'i32', args.v, args.z}),
+      then0 = args~{x = 'i32', z = 'i32'} -> f.join0 {v = args.x, z = args.z},
+      else0 = args~{y = 'i32', z = 'i32'} -> f.join0 {v = args.y, z = args.z},
+      join0 = args~{v = 'i32', z = 'i32'} -> (t0 -> t0) ('add' {'i32', args.v, args.z}),
     }
     """
     assert '    branch c, then0(x, z), else0(y, z)\n' in banf(source, "pick = => 'i32'")
@@ -559,8 +559,8 @@ def test_struct_branch_to_an_explicit_join_block():
     [
         ('{f.a {}} args.c', 'A switch needs two or more fields; one is a jump.'),
         ('{} args.c', 'A switch needs two or more fields.'),
-        ("{f.b {}, [01]:'i8'} args.c", 'Both branches of an if must be jumps, such as blocks.then0 {}.'),
-        ("{f.a {}, [01]:'i8', f.b {}} args.c", 'Every field of a switch must be a jump, such as blocks.a {}.'),
+        ("{f.b {}, [01]~'i8'} args.c", 'Both branches of an if must be jumps, such as blocks.then0 {}.'),
+        ("{f.a {}, [01]~'i8', f.b {}} args.c", 'Every field of a switch must be a jump, such as blocks.a {}.'),
     ],
 )
 def test_struct_branch_errors(body, message):
@@ -578,12 +578,12 @@ def test_struct_branch_condition_form_is_not_compared():
 
 
 SWITCH_BLOCKS = (
-    "a = args:{} -> [01]:'i8', b = args:{} -> [02]:'i8', c = args:{x = 'i8'} -> args.x, d = args:{} -> [04]:'i8'"
+    "a = args~{} -> [01]~'i8', b = args~{} -> [02]~'i8', c = args~{x = 'i8'} -> args.x, d = args~{} -> [04]~'i8'"
 )
 
 
 def switch_defs(body, selector_form="'i8'"):
-    return f"g = f -> {{entry = args:{{k = {selector_form}, x = 'i8'}} -> {body}, {SWITCH_BLOCKS}}}"
+    return f"g = f -> {{entry = args~{{k = {selector_form}, x = 'i8'}} -> {body}, {SWITCH_BLOCKS}}}"
 
 
 @pytest.mark.parametrize(
@@ -629,7 +629,7 @@ def test_switch_may_repeat_a_target_with_the_same_args():
 
 
 def test_switch_rejects_different_args_to_a_repeated_target():
-    body = "{f.c {x = args.x}, f.a {}, f.c {x = [07]:'i8'}} args.k"
+    body = "{f.c {x = args.x}, f.a {}, f.c {x = [07]~'i8'}} args.k"
     assert error(switch_defs(body), "g = => 'i8'") == "A switch passes different args to 'c'."
 
 
@@ -637,46 +637,46 @@ def test_switch_rejects_different_args_to_a_repeated_target():
     ('defs', 'message'),
     [
         (
-            "g = f -> {entry = args:{n = 'i32'} -> (t -> t) ('add' {'i32', 'add' {'i32', args.n, args.n}, args.n})}",
+            "g = f -> {entry = args~{n = 'i32'} -> (t -> t) ('add' {'i32', 'add' {'i32', args.n, args.n}, args.n})}",
             'Expected an atom: a byte array, a let name, or args.label.',
         ),
         (
-            "g = f -> {entry = args:{n = 'i32'} -> 'add' {'i32', args.n, args.n}}",
+            "g = f -> {entry = args~{n = 'i32'} -> 'add' {'i32', args.n, args.n}}",
             'An op in tail position must be bound by a let, as in let t = op in t.',
         ),
         (
-            "g = f -> {entry = args:{c = 'i1'} -> if args.c then [01]:'i8' else f.b {}, b = args:{} -> [01]:'i8'}",
+            "g = f -> {entry = args~{c = 'i1'} -> if args.c then [01]~'i8' else f.b {}, b = args~{} -> [01]~'i8'}",
             'Both branches of an if must be jumps, such as blocks.then0 {}.',
         ),
         (
-            'g = f -> {entry = args:{} -> f.b {}, b = args:{} -> f.entry {}}',
+            'g = f -> {entry = args~{} -> f.b {}, b = args~{} -> f.entry {}}',
             'Cannot jump to the entry block.',
         ),
-        ('g = f -> {entry = args:{} -> f.nowhere {}}', "Unknown block 'nowhere'."),
-        ('g = f -> {entry = args:{} -> f}', "'blocks' cannot be used as a value."),
-        ('g = f -> {entry = args:{} -> args}', "'args' cannot be used as a value."),
-        ('g = f -> {entry = args:{} -> (t -> t) (module)}', "'module' cannot be used as a value."),
+        ('g = f -> {entry = args~{} -> f.nowhere {}}', "Unknown block 'nowhere'."),
+        ('g = f -> {entry = args~{} -> f}', "'blocks' cannot be used as a value."),
+        ('g = f -> {entry = args~{} -> args}', "'args' cannot be used as a value."),
+        ('g = f -> {entry = args~{} -> (t -> t) (module)}', "'module' cannot be used as a value."),
         (
-            'g = f -> {entry = args:{} -> (t -> t) ($fix module)}',
+            'g = f -> {entry = args~{} -> (t -> t) ($fix module)}',
             "Expected an op: 'opcode' {...}, module.f {...}, module.data, a struct or a projection.",
         ),
-        ('g = f -> {entry = args:{} -> (t -> t) (module.g)}', 'module.g must be applied.'),
-        ('g = f -> {entry = args:{} -> (t -> t) ($add_i8)}', '$add_i8 must be applied.'),
-        ('g = f -> {entry = args:{} -> let t = $fix in t}', '$fix must be applied.'),
+        ('g = f -> {entry = args~{} -> (t -> t) (module.g)}', 'module.g must be applied.'),
+        ('g = f -> {entry = args~{} -> (t -> t) ($add_i8)}', '$add_i8 must be applied.'),
+        ('g = f -> {entry = args~{} -> let t = $fix in t}', '$fix must be applied.'),
         (
-            "g = args:{} -> [01]:'i8'",
-            "Definition 'g' must be a struct of blocks, such as blocks -> {entry = args: {} -> ...}.",
+            "g = args~{} -> [01]~'i8'",
+            "Definition 'g' must be a struct of blocks, such as blocks -> {entry = args~{} -> ...}.",
         ),
         (
-            "g = f -> {entry = n:'i8' -> n}",
-            "Block 'entry' must be a lambda taking a struct, such as args: {n = 'i32'} -> ...",
+            "g = f -> {entry = n~'i8' -> n}",
+            "Block 'entry' must be a lambda taking a struct, such as args~{n = 'i32'} -> ...",
         ),
-        ('g = f -> {entry = args:{} -> args.n}', "Block has no param 'n'."),
-        ('g = f -> {entry = args:{} -> [01]}', 'Byte array: form must be written.'),
-        ('g = f -> {entry = args:{} -> (t -> t) (module.h {})}', "'h' is not declared."),
-        ('g = f -> {entry = args:{} -> (t -> t) ($add {})}', "Unknown built-in '$add'."),
+        ('g = f -> {entry = args~{} -> args.n}', "Block has no param 'n'."),
+        ('g = f -> {entry = args~{} -> [01]}', 'Byte array: form must be written.'),
+        ('g = f -> {entry = args~{} -> (t -> t) (module.h {})}', "'h' is not declared."),
+        ('g = f -> {entry = args~{} -> (t -> t) ($add {})}', "Unknown built-in '$add'."),
         (
-            "g = f -> {entry = args:{} -> [01]:'i8'}, g = f -> {entry = args:{} -> [01]:'i8'}",
+            "g = f -> {entry = args~{} -> [01]~'i8'}, g = f -> {entry = args~{} -> [01]~'i8'}",
             "Duplicate definition 'g'.",
         ),
     ],
@@ -686,12 +686,12 @@ def test_shape_errors(defs, message):
 
 
 def test_branch_condition_form_is_not_compared():
-    source = "g = f -> {entry = args:{c = 'i8'} -> if args.c then f.a {} else f.b {}, a = args:{} -> [01]:'i8', b = args:{} -> [01]:'i8'}"
+    source = "g = f -> {entry = args~{c = 'i8'} -> if args.c then f.a {} else f.b {}, a = args~{} -> [01]~'i8', b = args~{} -> [01]~'i8'}"
     assert 'branch c, a(), b()' in banf(source, "g = => 'i8'")
 
 
 def test_error_location_points_at_source():
-    source = program('g = f -> {entry = args:{} -> f.nowhere {}}', "g = => 'i8'")
+    source = program('g = f -> {entry = args~{} -> f.nowhere {}}', "g = => 'i8'")
     with pytest.raises(TranslationError) as info:
         translate(parse(source))
     location = info.value.location
@@ -703,8 +703,8 @@ DECLS = "putchar = {c = 'i8'} => 'i32', errno = 'i32', cfg = {w = 'i16', h = 'i1
 
 def test_imports():
     source = """
-    main = f -> {entry = args:{} ->
-      (t0 -> (t1 -> (c -> (w -> t0) (c.w)) (module.cfg)) (module.errno)) (module.putchar {c = [41]:'i8'})},
+    main = f -> {entry = args~{} ->
+      (t0 -> (t1 -> (c -> (w -> t0) (c.w)) (module.cfg)) (module.errno)) (module.putchar {c = [41]~'i8'})},
     """
     module = translate(parse(program(source, DECLS)))
     assert module.bindings[:3] == [
@@ -728,7 +728,7 @@ def test_imports():
 
 
 def test_bindings_are_in_declaration_order():
-    source = "main = f -> {entry = args:{} -> (t -> t) (module.putchar {c = [41]:'i8'})}"
+    source = "main = f -> {entry = args~{} -> (t -> t) (module.putchar {c = [41]~'i8'})}"
     assert banf(source, "main = => 'i32', putchar = {c = 'i8'} => 'i32', errno = 'i32'") == text("""
         main: i32
           entry():
@@ -740,24 +740,24 @@ def test_bindings_are_in_declaration_order():
     """)
 
 
-MAIN = "main = f -> {entry = args:{} -> [01]:'i8'}"
+MAIN = "main = f -> {entry = args~{} -> [01]~'i8'}"
 
 
 @pytest.mark.parametrize(
     ('defs', 'decls', 'message'),
     [
         (
-            "main = f -> {entry = args:{} -> (t -> t) (module.putchar {x = [41]:'i8'})}",
+            "main = f -> {entry = args~{} -> (t -> t) (module.putchar {x = [41]~'i8'})}",
             DECLS,
             'module.putchar takes {c}, got {x}.',
         ),
         (
-            'main = f -> {entry = args:{} -> (t -> t) (module.putchar)}',
+            'main = f -> {entry = args~{} -> (t -> t) (module.putchar)}',
             DECLS,
             'module.putchar must be applied.',
         ),
         (
-            'main = f -> {entry = args:{} -> (t -> t) (module.errno {})}',
+            'main = f -> {entry = args~{} -> (t -> t) (module.errno {})}',
             DECLS,
             'module.errno is data, so it cannot be applied.',
         ),
@@ -792,9 +792,9 @@ MAIN = "main = f -> {entry = args:{} -> [01]:'i8'}"
         ),
         (MAIN, "main = 'i8'", "'main' is declared as data, so its definition must be a byte array."),
         (
-            "main = [2a]:'i8'",
+            "main = [2a]~'i8'",
             "main = => 'i8'",
-            "Definition 'main' must be a struct of blocks, such as blocks -> {entry = args: {} -> ...}.",
+            "Definition 'main' must be a struct of blocks, such as blocks -> {entry = args~{} -> ...}.",
         ),
         (
             'answer = [2a], answer = [2a]',
@@ -816,20 +816,20 @@ def test_module_errors(defs, decls, message):
             "main = => 'i8', g = {'i8'} => 'i32'",
             "Declaration 'g': the param form needs a label on every field.",
         ),
-        (f"{MAIN}, [2a]:'i8'", "main = => 'i8'", 'The module body needs a label on every field.'),
-        ("main = f -> {args:{} -> [01]:'i8'}", "main = => 'i8'", "Definition 'main' needs a label on every field."),
+        (f"{MAIN}, [2a]~'i8'", "main = => 'i8'", 'The module body needs a label on every field.'),
+        ("main = f -> {args~{} -> [01]~'i8'}", "main = => 'i8'", "Definition 'main' needs a label on every field."),
         (
-            "main = f -> {entry = args:{'i8'} -> [01]:'i8'}",
+            "main = f -> {entry = args~{'i8'} -> [01]~'i8'}",
             "main = => 'i8'",
             "Block 'entry': the param form needs a label on every field.",
         ),
         (
-            "main = f -> {entry = args:{} -> (t -> t) (module.putchar {[41]:'i8'})}",
+            "main = f -> {entry = args~{} -> (t -> t) (module.putchar {[41]~'i8'})}",
             DECLS,
             'The argument to module.putchar needs a label on every field.',
         ),
         (
-            "main = f -> {entry = args:{} -> f.b {[01]:'i8'}, b = args:{n = 'i8'} -> args.n}",
+            "main = f -> {entry = args~{} -> f.b {[01]~'i8'}, b = args~{n = 'i8'} -> args.n}",
             "main = => 'i8'",
             "The argument to Block 'b' needs a label on every field.",
         ),
@@ -842,7 +842,7 @@ def test_labels_that_name_something_are_required(defs, decls, message):
 def test_defined_data():
     source = """
     answer = [2a000000],
-    main = f -> {entry = args:{} -> let t = module.answer in t},
+    main = f -> {entry = args~{} -> let t = module.answer in t},
     """
     module = translate(parse(program(source, "answer = 'i32', main = => 'i32'")))
     assert module.bindings[0] == banf_terms.Data('answer', I32, b'\x2a\x00\x00\x00')
@@ -858,7 +858,7 @@ def test_defined_data():
 
 def test_defined_data_drops_a_written_form():
     # The data's form is the declared one; a form written on the definition has no slot (decision 2).
-    assert banf("answer = [2a]:'i16'", "answer = 'i8'") == 'answer: i8 = [2a]\n'
+    assert banf("answer = [2a]~'i16'", "answer = 'i8'") == 'answer: i8 = [2a]\n'
 
 
 def test_defined_data_is_reduced():
@@ -866,44 +866,44 @@ def test_defined_data_is_reduced():
 
 
 def test_forms_must_be_literals():
-    assert error("main = f -> {entry = args: {n = (module)} -> [01]:'i8'}", "main = => 'i8'") == (
+    assert error("main = f -> {entry = args~{n = (module)} -> [01]~'i8'}", "main = => 'i8'") == (
         "Block 'entry': form must be a literal, got ($1)."
     )
-    assert error('main = f -> {entry = args: {} -> [01]: (module)}', "main = => 'i8'") == (
+    assert error('main = f -> {entry = args~{} -> [01]~(module)}', "main = => 'i8'") == (
         'Byte array: form must be a literal, got ($2).'
     )
 
 
 def test_form_must_be_known():
-    assert error('main = f -> {entry = args: {} -> [01]}', "main = => 'i8'") == 'Byte array: form must be written.'
+    assert error('main = f -> {entry = args~{} -> [01]}', "main = => 'i8'") == 'Byte array: form must be written.'
 
 
 def test_a_kernel_only_builtin_that_does_not_reduce_away():
     # `args.p` is a run-time value, so `$struct_to_fields` can't fire.
-    source = "g = f -> {entry = args:{p = {'i8'}} -> let t = $struct_to_fields args.p in t}"
+    source = "g = f -> {entry = args~{p = {'i8'}} -> let t = $struct_to_fields args.p in t}"
     assert error(source, "g = => 'i8'") == (
         '$struct_to_fields has no opcode, so it must reduce away: its argument must reduce to a struct.'
     )
 
 
 def test_unknown_builtin():
-    source = 'g = f -> {entry = args:{} -> let t = $nope {} in t}'
+    source = 'g = f -> {entry = args~{} -> let t = $nope {} in t}'
     assert error(source, "g = => 'i8'") == "Unknown built-in '$nope'."
 
 
 def test_program_shape_errors():
     with pytest.raises(TranslationError, match='Expected a program of the shape'):
-        translate(parse('prim -> module: {} -> {}'))
+        translate(parse('prim -> module~{} -> {}'))
     with pytest.raises(TranslationError, match='needs a struct form'):
         translate(parse('module -> {}'))
 
 
 def test_program_binders_are_renamed():
-    assert translate(parse('m: {} -> {}')).bindings == []
+    assert translate(parse('m~{} -> {}')).bindings == []
 
 
 def test_formed_byte_array_is_a_constant():
-    assert banf("main = f -> {entry = args:{} -> [2a]:'i8'}", "main = => 'i8'") == text("""
+    assert banf("main = f -> {entry = args~{} -> [2a]~'i8'}", "main = => 'i8'") == text("""
         main: i8
           entry():
             return [2a]:i8
@@ -912,12 +912,12 @@ def test_formed_byte_array_is_a_constant():
 
 def test_formed_atom_has_the_written_form():
     # A form is not a type: the written form replaces the atom's form, unchecked.
-    assert banf("main = f -> {entry = args:{n = 'i8'} -> args.n:'i32'}", "main = => 'i32'") == text("""
+    assert banf("main = f -> {entry = args~{n = 'i8'} -> args.n~'i32'}", "main = => 'i32'") == text("""
         main: i32
           entry(n: i8):
             return n:i32
     """)
-    assert banf("main = f -> {entry = args:{} -> ([2a]:'i8'):'i16'}", "main = => 'i16'") == text("""
+    assert banf("main = f -> {entry = args~{} -> ([2a]~'i8')~'i16'}", "main = => 'i16'") == text("""
         main: i16
           entry():
             return [2a]:i16
@@ -925,7 +925,7 @@ def test_formed_atom_has_the_written_form():
 
 
 def test_formed_let_name():
-    source = "main = f -> {entry = args:{n = 'i32'} -> let t = 'add' {'i32', args.n, args.n} in t:'i8'}"
+    source = "main = f -> {entry = args~{n = 'i32'} -> let t = 'add' {'i32', args.n, args.n} in t~'i8'}"
     assert banf(source, "main = => 'i8'") == text("""
         main: i8
           entry(n: i32):
@@ -936,7 +936,7 @@ def test_formed_let_name():
 
 def test_let_with_a_form_and_an_atom_reduces_to_a_formed_atom():
     # The let isn't an op, so it's beta-reduced, and beta carries its form: args.n: 'i32'.
-    source = "main = f -> {entry = args:{n = 'i32'} -> let m: 'i32' = args.n in m}"
+    source = "main = f -> {entry = args~{n = 'i32'} -> let m~'i32' = args.n in m}"
     assert banf(source, "main = => 'i32'") == text("""
         main: i32
           entry(n: i32):
@@ -948,7 +948,7 @@ def test_let_with_a_form_and_an_atom_reduces_to_a_formed_atom():
     ('defs', 'message'),
     [
         (
-            "main = f -> {entry = args:{} -> [2a]:'i8' => 'i8'}",
+            "main = f -> {entry = args~{} -> [2a]~'i8' => 'i8'}",
             'Byte array: function forms nested inside other forms are not supported.',
         ),
     ],

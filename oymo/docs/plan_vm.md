@@ -66,10 +66,10 @@ In the later case, we can leverage LLVM optimizer.
 | wasm3 | A pure interpreter: no JIT, no code generated at run time; bytecode is checked once at load, so the loop checks nothing but fuel and traps |
 
 ```
-module: {main = => 'i32', putchar = {c = 'i32'} => 'i32', ask = {c = 'i32'} => 'i32'} -> {
+module~{main = => 'i32', putchar = {c = 'i32'} => 'i32', ask = {c = 'i32'} => 'i32'} -> {
   main = f -> {
-    entry = args: {n = 'i32'} ->
-      let q = module.putchar {c = [68000000]: 'i32'} in
+    entry = args~{n = 'i32'} ->
+      let q = module.putchar {c = [68000000]~'i32'} in
       let a = module.ask {c = $after {args.n, q}} in
       let r = 'ctpop' {'i32', a} in
       'add' {'i32', r, [01000000]},
@@ -528,7 +528,7 @@ Commit: `oymomo: add the VM`
   - `vm_symbols`: every entry's `run` gives what `opcodes.evaluate` gave for every
     old opcode, on edge operands (the old table is kept in the test as the oracle).
   - `reduction`: `'add' {'i32', [01000000], [02000000]}` folds to
-    `[03000000]: 'i32'`; with a variable it stays; with `form` computed by β
+    `[03000000]~'i32'`; with a variable it stays; with `form` computed by β
     (`(f -> 'add' {f, ...}) 'i32'`) it folds; with a non-literal form it stays.
   - `banf_translate`: `'add' {'i32', args.n, ...}` is `add i32 n, ...`;
     `'zext' {'i8', x, 'i32'}` is `zext i8 x to i32`; `'sub'` with labels written in

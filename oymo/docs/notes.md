@@ -26,7 +26,7 @@ The [Glossary](#glossary) at the end defines words like *form*, *BANF*, *atom* o
 | See a program go from source to LLVM | [Overview › Walkthrough](#walkthrough-one-function-through-every-stage) |
 | Know which file does what | [Overview › Where the code lives](#where-the-code-lives) |
 | Write a struct, lambda, let, byte array… | [oymomo syntax › Cheat sheet](#cheat-sheet) |
-| Know how `f a: t` or `x: A => B` groups | [oymomo syntax › Precedence](#precedence) |
+| Know how `f a~t` or `x~A => B` groups | [oymomo syntax › Precedence](#precedence) |
 | Know what a form is and how it differs from a type | [The kernel › Forms](#forms) |
 | Know why a mistake isn't reported | [Overview › A generated IR](#a-generated-ir-no-checks-for-user-mistakes) |
 | Know how terms reduce (`reduce`, built-ins, `$fix`) | [The kernel](#the-kernel-forms-built-ins-reduction) |
@@ -126,6 +126,7 @@ rejected alternatives. When a plan lands, update the section it changes (see
   - [The lambda arrow](#the-lambda-arrow)
   - [Forms are terms](#forms-are-terms-1)
   - [Omitted forms are `Empty`, with no default](#omitted-forms-are-empty-with-no-default)
+  - [`~` binds a term to a form](#-binds-a-term-to-a-form)
   - [`Formed` binds tighter than application](#formed-binds-tighter-than-application)
   - [A byte array is only its bytes](#a-byte-array-is-only-its-bytes)
   - [Byte arrays are bracketed hex](#byte-arrays-are-bracketed-hex)
@@ -167,12 +168,12 @@ Int32    type: Int                    form: 'i32'                  LLVM layout: 
 Point    type: Point(x: Int, y: Int)  form: {x = 'i32', y = 'i32'}  LLVM layout: { i32, i32 }
 ```
 
-A form is **not** a type: nothing checks it. `(x: 'Int' -> x) 'hello': 'Str'` is
-fine and gives `'hello': 'Int'`. A param's form only replaces the argument's form.
+A form is **not** a type: nothing checks it. `(x~'Int' -> x) 'hello'~'Str'` is
+fine and gives `'hello'~'Int'`. A param's form only replaces the argument's form.
 Forms exist so the backend can generate machine code.
 
 Why three words: a backend fact such as "i32 is 4-byte aligned" must not leak into
-the kernel, where `[2a000000]: 'i32'` only means "these bytes, read as the form i32".
+the kernel, where `[2a000000]~'i32'` only means "these bytes, read as the form i32".
 More in [The kernel › Forms](#forms).
 
 ### A generated IR: no checks for user mistakes
@@ -183,9 +184,9 @@ no strict checks to catch a user's mistakes: it assumes whoever produced the pro
 knows exactly what they are doing.
 
 ```
-'add' {'i32', [01]:'i8', x}        accepted: the i8 operand is not compared with i32
-if c then ... else ...             accepted with c: 'i8'
-g = => 'i32', returning [01]:'i8'  accepted: the return form is not compared
+'add' {'i32', [01]~'i8', x}        accepted: the i8 operand is not compared with i32
+if c then ... else ...             accepted with c~'i8'
+g = => 'i32', returning [01]~'i8'  accepted: the return form is not compared
 ```
 
 - **Forms are never compared** with each other: not an argument with its param, an
@@ -227,14 +228,14 @@ golden tests run).
 definitions. `fact` is a struct of blocks; each block is a lambda over its params.
 
 ```
-module: {fact = => 'i32'} -> {
+module~{fact = => 'i32'} -> {
   fact = f -> {
-    entry = args:{n = 'i32'} ->
-      let t0 = 'icmp_eq' {'i32', args.n, [00000000]:'i32'} in
+    entry = args~{n = 'i32'} ->
+      let t0 = 'icmp_eq' {'i32', args.n, [00000000]~'i32'} in
       if t0 then f.then0 {} else f.else0 {n = args.n},
-    then0 = args:{} -> [01000000]:'i32',
-    else0 = args:{n = 'i32'} ->
-      let t1 = 'sub' {'i32', args.n, [01000000]:'i32'} in
+    then0 = args~{} -> [01000000]~'i32',
+    else0 = args~{n = 'i32'} ->
+      let t1 = 'sub' {'i32', args.n, [01000000]~'i32'} in
       let t2 = module.fact {n = t1} in
       let t3 = 'mul' {'i32', args.n, t2} in
       t3,
@@ -251,14 +252,14 @@ the structural binders renamed to `module`, `blocks`, `args`. This program was
 already in shape, so only `f` → `blocks` changed.
 
 ```
-module: {fact= ⇒ 'i32'} → {
+module~{fact= ⇒ 'i32'} → {
   fact= blocks → {
-    entry= args: {n= 'i32'} →
-      let t0 = 'icmp_eq' {'i32', args.n, [00000000]: 'i32'} in
+    entry= args~{n= 'i32'} →
+      let t0 = 'icmp_eq' {'i32', args.n, [00000000]~'i32'} in
       if t0 then blocks.then0 {} else blocks.else0 {n= args.n},
-    then0= args: {} → [01000000]: 'i32',
-    else0= args: {n= 'i32'} →
-      let t1 = 'sub' {'i32', args.n, [01000000]: 'i32'} in
+    then0= args~{} → [01000000]~'i32',
+    else0= args~{n= 'i32'} →
+      let t1 = 'sub' {'i32', args.n, [01000000]~'i32'} in
       let t2 = module.fact {n= t1} in
       let t3 = 'mul' {'i32', args.n, t2} in t3,
   },
@@ -374,7 +375,7 @@ The surface syntax of the oymomo kernel, parsed by
 ### Cheat sheet
 
 ```
-x: 'i32' -> body             Lambda (also x -> body, and → for ->)
+x~'i32' -> body              Lambda (also x -> body, and → for ->)
 f a b                        Apply: (f a) b
 {x = e1, y = e2}             Struct
 {e1, y = e2}                 Struct with an unlabeled field
@@ -386,7 +387,7 @@ $fix g                       Builtin, applied like a function
 $0                           BruijnIndex
 [2a 00 00 00]                Byte array (hex)
 'Hello'                      Byte array (text)
-e: 'i32'                     Formed: e with a form
+e~'i32'                      Formed: e with a form
 {c = 'i8'} => 'i32'          Function form (also ⇒)
 "a b"                        Quoted name
 // comment                   Line comment
@@ -413,7 +414,7 @@ names.
 ### Precedence
 
 Highest first. The rule: **values bind tighter than things that reduce**. `Formed`
-and `FunctionForm` never reduce, so `:` and `=>` bind tighter than application;
+and `FunctionForm` never reduce, so `~` and `=>` bind tighter than application;
 `.` binds tighter still, since `module.T` and `args.n` read as paths.
 
 | Level | Syntax | Associativity |
@@ -421,7 +422,7 @@ and `FunctionForm` never reduce, so `:` and `=>` bind tighter than application;
 | 1 | atoms: names, `$name`, `$0`, `[..]`, `'..'`, `{..}`, `(..)` | |
 | 2 | project `s.x` | left |
 | 3 | function form `P => R` | right |
-| 4 | formed `e: F` | right |
+| 4 | formed `e~F` | right |
 | 5 | apply `f a` | left |
 | 6 | `x -> body`, `if`, `let` | extend as far right as possible |
 
@@ -432,50 +433,50 @@ Examples:
 | `f a b` | `(f a) b` |
 | `f a.x b` | `(f a.x) b` |
 | `a -> b -> a b` | `a -> (b -> (a b))` |
-| `f [01]: 'u8' [02]` | `f ([01]: 'u8') [02]` |
-| `f a: g b` | `f (a: g) b` |
-| `$fix f: t` | `$fix (f: t)` |
-| `y: f a` | `(y: f) a`; write `y: (f a)` |
-| `a: b: c` | `a: (b: c)` |
-| `x: A => B` | `x: (A => B)` |
-| `A => B: C` | `(A => B): C` |
+| `f [01]~'u8' [02]` | `f ([01]~'u8') [02]` |
+| `f a~g b` | `f (a~g) b` |
+| `$fix f~t` | `$fix (f~t)` |
+| `y~f a` | `(y~f) a`; write `y~(f a)` |
+| `a~b~c` | `a~(b~c)` |
+| `x~A => B` | `x~(A => B)` |
+| `A => B~C` | `(A => B)~C` |
 | `f a => g b` | `f (a => g) b` |
 | `{a = 'i8'} => {b = 'i8'} => 'i32'` | `{a = 'i8'} => ({b = 'i8'} => 'i32')` |
-| `[00]: 'i8' => 'i32'` | `[00]: ('i8' => 'i32')`; write `([00]: 'i8') => 'i32'` |
+| `[00]~'i8' => 'i32'` | `[00]~('i8' => 'i32')`; write `([00]~'i8') => 'i32'` |
 | `s [00] [01]` | `(s [00]) [01]` |
 | `f s [00]` | `(f s) [00]` |
-| `s [00] : t` | `s ([00] : t)` |
+| `s [00]~t` | `s ([00]~t)` |
 | `'add' {'i32', x}.a` | `'add' ({'i32', x}.a)` |
 | `f $fix g` | `(f $fix) g` |
 | `let x = e in a b` | `let x = e in (a b)` |
 
 Things that need parentheses:
 - A lambda, `if` or `let` as an argument: `f (x -> x)`; `f x -> x` is a syntax error.
-- An application inside `:`: `y: (f a)`, `(f a): t`.
-- A param with a form on the left of `=>`: `([00]: 'i8') => 'i32'`.
+- An application inside `~`: `y~(f a)`, `(f a)~t`.
+- A param with a form on the left of `=>`: `([00]~'i8') => 'i32'`.
 
-Why `:` is above application, unlike Haskell, OCaml and Lean: see
+Why `~` is above application, unlike Haskell, OCaml and Lean: see
 [Design decisions](#formed-binds-tighter-than-application).
 
 ### Lambda
 
-`x: form -> body`, or `x -> body` with no form. One parameter, always.
+`x~form -> body`, or `x -> body` with no form. One parameter, always.
 
 ```
-x: 'i32' -> x
+x~'i32' -> x
 a -> b -> a b               same as  a -> (b -> (a b))
-x: {c = 'i8'} => 'i32' -> x
+x~{c = 'i8'} => 'i32' -> x
 ```
 
 - `->` and `→` (U+2192) are the same.
 - The param's form is an ordinary expression at the formed level (see
   [Forms are terms](#forms-are-terms)). It ends at the first `->`:
-  `x: a -> b -> c` is the lambda `x: a` with body `b -> c`. A lambda or an
-  application in it needs parentheses: `x: (a -> b) -> c`, `x: (f a) -> x`.
+  `x~a -> b -> c` is the lambda `x~a` with body `b -> c`. A lambda or an
+  application in it needs parentheses: `x~(a -> b) -> c`, `x~(f a) -> x`.
 - The form may be left out; then it is `Empty` (see
   [The kernel](#omitted-forms-are-empty)).
-- A lambda is tried before `:`, so `x: F -> body` is a lambda with a param form,
-  not `x: (F -> body)`.
+- A lambda is tried before `~`, so `x~F -> body` is a lambda with a param form,
+  not `x~(F -> body)`.
 
 ### Apply
 
@@ -490,7 +491,7 @@ struct: `'add' {'i32', x, y}`. See
 `let x = e in body` is sugar for `(x -> body) e`. No new term.
 
 ```
-let t0: 'i1' = 'icmp_eq' {'i32', args.n, [00000000]: 'i32'} in t0
+let t0~'i1' = 'icmp_eq' {'i32', args.n, [00000000]~'i32'} in t0
 ```
 
 - The optional form goes on the name, as on a lambda param.
@@ -581,20 +582,20 @@ if c then t else e           parses to   {e, t} c
 The kernel has no numbers, only bytes.
 
 ```
-[2a000000]: 'i32'            42, as an i32
+[2a000000]~'i32'             42, as an i32
 [2a00 0000]                  same bytes
 [2a 00 00 00]                same bytes
 []                           empty
 [deadbeef cafebabe
- 00112233 44556677]: {lo = 'i64', hi = 'i64'}
+ 00112233 44556677]~{lo = 'i64', hi = 'i64'}
 ```
 
 - Inside `[]`: groups of hex digits separated by whitespace (newlines included). A
   group may hold any number of bytes but must have an even number of digits.
 - No comments inside the brackets.
-- **Always little-endian, on every target**: `[2a000000]: 'i32'` is 42 everywhere.
+- **Always little-endian, on every target**: `[2a000000]~'i32'` is 42 everywhere.
   See [Design decisions](#byte-arrays-are-always-little-endian).
-- The `: form` is optional and is an ordinary `Formed`, not part of the literal: the
+- The `~form` is optional and is an ordinary `Formed`, not part of the literal: the
   same bytes `[01000000]` could be `'i32'` 1 or `{a = 'i16', b = 'i16'}`.
 
 #### Text byte arrays
@@ -618,14 +619,14 @@ result form `R`. A `FunctionForm(param, result)` term.
 ```
 
 - One param, matching one-argument lambdas, and no param name: callers use the
-  struct form's labels (`module.putchar {c = [41]: 'i8'}`).
+  struct form's labels (`module.putchar {c = [41]~'i8'}`).
 - `=> R` is not `{} => R`: the first has no param, the second a struct with no
   fields. In `module`, `=> R` declares a function the body defines (see
   [Programs](#module-declares-every-symbol)).
 - `=> => R` is `=> (=> R)`. With something on its left, `=>` takes it as the param,
   so `f => b` is `(f) => b`; as an argument it needs parentheses, `f (=> b)`.
 - A different arrow from `->` tells a form from a lambda at a glance: in
-  `module: {putchar = {c = 'i8'} => 'i32'} -> {...}`, `=>` is in a form and `->`
+  `module~{putchar = {c = 'i8'} => 'i32'} -> {...}`, `=>` is in a form and `->`
   binds a lambda. It also means a binder's form safely ends at `->`.
 
 Why a dedicated term instead of a tagged struct: see
@@ -676,14 +677,14 @@ What built-ins do: [The kernel › Built-ins](#built-ins).
 
 | Mode | Use | Output |
 |---|---|---|
-| compact (default) | tests | One line, parens only where needed: `a → b → a b`, `f (x → x)`, `(f a).x`. Forms without a space: `x:'i32' → x`. |
+| compact (default) | tests | One line, parens only where needed: `a → b → a b`, `f (x → x)`, `(f a).x`. |
 | `pretty=True` | people, goldens | Source that parses back to the same term (tested). Bytes in groups of four (`[deadbeef cafebabe]`) or as `'text'`. |
 | `name_indices=True` | either mode | Prints a `BruijnIndex` as its binder's name, so resolved terms read like source. |
 
 Rules in both modes:
 - An omitted form is not shown. Names are quoted when needed (`"if"`, `"a b"`).
-- An apply of a lambda prints as `let`: compact `let x:'i8' = e in body`, pretty
-  `let x: 'i8' = e in body`.
+- `~` has no space on either side: `x~'i32' → x`, `[01]~'i8'`.
+- An apply of a lambda prints as `let`: `let x~'i8' = e in body`.
 - `BruijnIndex` prints as `$0`, `Builtin` as `$fix`, `Variable` as its name.
   `$0` parses back as a `BruijnIndex`, so a resolved term round-trips.
 - With `name_indices=True`, `$i` is kept where an inner binder shadows the name
@@ -697,13 +698,13 @@ Pretty mode breaks a term wider than `width` (default 80), indenting by `indent`
 (default 2):
 - a struct puts one field per line, with a trailing comma;
 - a lambda's body goes on the next line, indented, unless the body is a struct or
-  another lambda (so `module: {...} → {` stays together);
+  another lambda (so `module~{...} → {` stays together);
 - an apply's argument goes on the next line, indented;
 - a `let` puts its body on the next line at the `let`'s own indentation, so a chain
   reads one let per line:
   ```
-  entry = args: {n = 'i32'} →
-    let t0 = 'icmp_eq' {'i32', args.n, [00000000]: 'i32'} in
+  entry = args~{n = 'i32'} →
+    let t0 = 'icmp_eq' {'i32', args.n, [00000000]~'i32'} in
     if t0 then f.then0 {} else f.else0 {n = args.n},
   ```
 - an `if` puts `then` and `else` on their own lines.
@@ -721,7 +722,7 @@ A **form** is a value's logical structure (`'i32'`, `{x = 'i32'}`), used to gene
 machine code. It is **not a type**: nothing checks one form against another.
 
 ```
-(x: 'Int' -> x) 'hello': 'Str'      gives  'hello': 'Int'
+(x~'Int' -> x) 'hello'~'Str'        gives  'hello'~'Int'
 ```
 
 A param's form is only used to replace the passed argument's form. See also
@@ -737,11 +738,11 @@ There is no separate form syntax or form class. A form is an ordinary term:
 | struct | `{x = 'i32', y = 'i8'}` | `Struct` |
 | function | `{c = 'i8'} => 'i32'` | `FunctionForm(param, result)` |
 
-- Any term may be a form. A binder's form (`x: F -> b`, `let x: F = v in b`) is the
-  same kind of expression as the `F` of `e: F`: `x: i32 -> x`,
-  `x: module.T -> x`, `x: 'i8' => 'i32' -> x`, `x: [00]: 'i8' -> x`.
+- Any term may be a form. A binder's form (`x~F -> b`, `let x~F = v in b`) is the
+  same kind of expression as the `F` of `e~F`: `x~i32 -> x`,
+  `x~module.T -> x`, `x~'i8' => 'i32' -> x`, `x~[00]~'i8' -> x`.
 - Forms are resolved like other terms: a variable in a lambda param's form is looked
-  up *outside* the lambda, so in `x: (x) -> x` the form refers to an outer `x`.
+  up *outside* the lambda, so in `x~(x) -> x` the form refers to an outer `x`.
 - BANF translation needs **literal** forms (named forms and structs of them) and
   rejects others with "form must be a literal".
 - Locations are left out of `==` on every term, so a parsed form equals the same
@@ -752,14 +753,14 @@ forms with the same machinery as values.
 
 #### Omitted forms are `Empty`
 
-Every binder's `: form` may be left out (`x -> body`, `let x = e in ...`). An omitted
+Every binder's `~form` may be left out (`x -> body`, `let x = e in ...`). An omitted
 form is `terms.Empty`, meaning **not written**.
 
-- `Empty` is not a void form. There is no void form; `: 'void'` is just the form
+- `Empty` is not a void form. There is no void form; `~'void'` is just the form
   named void.
 - `Empty` has no default meaning. Each position says what it means there, or rejects
   it. A BANF let takes its op's form, so `let t0 = 'icmp_eq' {'i32', ...} in t0` needs no
-  `t0: 'i1'`. A byte array with nothing giving it a form (`[01]` alone) is rejected:
+  `t0~'i1'`. A byte array with nothing giving it a form (`[01]` alone) is rejected:
   "form must be written".
 - A byte array has no form of its own: `[2a]` is just bytes.
 
@@ -767,15 +768,15 @@ Why: quick sketches stay short, and nothing is silently defaulted.
 
 #### `Formed`: any term with a form
 
-`e: F` is the term `Formed(e, F)`, "`e`, formed as `F`". Since `F` is an expression,
+`e~F` is the term `Formed(e, F)`, "`e`, formed as `F`". Since `F` is an expression,
 a form can come from a variable:
 
 ```
-(x -> y -> y: x) 'i1' [01]          gives  [01]: 'i1'
+(x -> y -> y~x) 'i1' [01]           gives  [01]~'i1'
 ```
 
-- A byte array is only its bytes: `[01]: 'i8'` is `Formed(ByteArray([01]), 'i8')`,
-  just as `y: 'i8'` is `Formed(y, 'i8')`. Every `:` that isn't on a binder is one
+- A byte array is only its bytes: `[01]~'i8'` is `Formed(ByteArray([01]), 'i8')`,
+  just as `y~'i8'` is `Formed(y, 'i8')`. Every `~` that isn't on a binder is one
   term with one meaning, and beta reduction alone gives a dynamic form.
 - `Formed` itself never reduces. `reduce_until_top_stable` reduces inside `Formed.term`, and a struct
   apply (so an `if`) sees through a form on its index.
@@ -784,8 +785,8 @@ a form can come from a variable:
 
 In BANF translation, a formed byte array becomes a constant; any other formed atom
 becomes that atom with the written form. **The written form replaces the atom's own
-form, unchecked**: `([01]: 'i8'): 'i16'` is the constant `[01]:i16`, and
-`args.n: 'i32'` is `n:i32` even when `n` is `i8`. LLVM translation rejects a formed
+form, unchecked**: `([01]~'i8')~'i16'` is the constant `[01]:i16`, and
+`args.n~'i32'` is `n:i32` even when `n` is `i8`. LLVM translation rejects a formed
 name whose LLVM type differs from the name's.
 
 ### Built-ins
@@ -825,7 +826,7 @@ however many fields there are.
 | `$fix g` | gives `g ($fix g)`; must reduce away |
 | `$fields_to_struct {more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}` | gives `{l1 = e1, ...}`; reduces `more`, `label` and `rest` of each node first, never a value; stuck on a malformed list; must reduce away |
 | `$struct_to_fields {l1 = e1, ...}` | gives `{more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}`: labels as UTF-8 bytes, values unreduced, order kept ([plan_struct_pack.md](implemented/plan_struct_pack.md)); must reduce away |
-| `'add' {...}` and every other opcode | on literal fields, the result LLVM would compute: `'add' {'i32', [01000000], [02000000]}` gives `[03000000]: 'i32'`; needs a struct literal with one field per param. Never where LLVM has no defined result ([plan_constant_folding.md](implemented/plan_constant_folding.md)). See [Opcodes › Folding](#folding) |
+| `'add' {...}` and every other opcode | on literal fields, the result LLVM would compute: `'add' {'i32', [01000000], [02000000]}` gives `[03000000]~'i32'`; needs a struct literal with one field per param. Never where LLVM has no defined result ([plan_constant_folding.md](implemented/plan_constant_folding.md)). See [Opcodes › Folding](#folding) |
 
 - Every built-in is **kernel-only**: reduction must remove it.
 - `reduce(call, reduce_part)` steps the whole call. It gives each part of the argument
@@ -853,11 +854,11 @@ Why built-ins instead of `module` names, a `prim` binder, or a `fix` term: see
 | Rule | Before | After |
 |---|---|---|
 | beta | `(x -> body) e` | `body` with `e` for `x` |
-| beta with form | `(x: F -> body) e` | `body` with `e: F` for `x` (`e`'s own form dropped) |
+| beta with form | `(x~F -> body) e` | `body` with `e~F` for `x` (`e`'s own form dropped) |
 | built-in | `$fix g` | `g ($fix g)` (by `BUILTIN_RULES[name]`, if it fires) |
 | built-in | `$struct_to_fields {a = e}` | `{more = [01], label = 'a', value = e, rest = {more = [00]}}` |
 | built-in | `$fields_to_struct {more = [01], label = 'a', value = e, rest = {more = [00]}}` | `{a = e}` |
-| opcode | `'add' {'i32', [01000000], [02000000]: 'i32'}` | `[03000000]: 'i32'` |
+| opcode | `'add' {'i32', [01000000], [02000000]~'i32'}` | `[03000000]~'i32'` |
 | projection | `{a = e, ...}.a` | `e` |
 | struct apply | `{e0, e1, ...} [01]` | `e1` |
 | if (struct apply) | `if [01] then a else b` / `if [00] ...` | `a` / `b` |
@@ -896,16 +897,16 @@ for a full example through every stage.
 A program is a lambda `module -> {...}` around a struct of definitions:
 
 ```
-module: {putchar = {c = 'i8'} => 'i32', errno = 'i32', main = => 'i32'} -> {
-  main = f -> {entry = args:{} -> let t0 = module.putchar {c = [41]:'i8'} in t0},
+module~{putchar = {c = 'i8'} => 'i32', errno = 'i32', main = => 'i32'} -> {
+  main = f -> {entry = args~{} -> let t0 = module.putchar {c = [41]~'i8'} in t0},
 }
 ```
 
 ```
-module: { declarations } -> {               the program
+module~{ declarations } -> {                the program
   name = f -> {                             a function: a struct of blocks
-    entry = args: { params } -> body,       a block: a lambda over its params
-    other = args: { params } -> body,
+    entry = args~{ params } -> body,        a block: a lambda over its params
+    other = args~{ params } -> body,
   },
   name = [bytes],                           defined data
 }
@@ -919,7 +920,7 @@ renames them to `module`, `blocks`, `args` (see
 
 `module`'s form declares every symbol of the module, imported or defined, in one
 struct. The body is passed back in as `module`, so functions call each other and
-imports the same way: `module.fact {n = t1}`, `module.putchar {c = [41]:'i8'}`,
+imports the same way: `module.fact {n = t1}`, `module.putchar {c = [41]~'i8'}`,
 `module.errno`.
 
 The shape of each declaration says what it is:
@@ -940,14 +941,14 @@ Rules:
   must be a byte array.").
 - The body field is reduced with `reduce_until_top_stable`, so `answer = (x -> x) [2a]` is fine. A data
   definition's form is the declared one; a form written on the byte array
-  (`[2a]: 'i16'`) is dropped.
+  (`[2a]~'i16'`) is dropped.
 - Every parameter list is written **once**: a defined function's only in its entry
   block, an imported function's only in its declaration.
 - Every return form is written, in the declaration (see
   [Return forms are declared](#return-forms-are-declared)).
 - A forgotten definition (declared `=> R`, not defined) is a translation error, not
   a link error.
-- A module with no symbols writes `module: {}`. The form is required.
+- A module with no symbols writes `module~{}`. The form is required.
 - BANF bindings come out in declaration order.
 - Recursion needs no `$fix`: functions call each other by projection on `module`,
   as LLVM functions call each other by symbol. A `$fix` in the source is only
@@ -967,12 +968,12 @@ Every declaration in `module` becomes one LLVM symbol, named after its label
 
 ```
 fact = f -> {
-  entry = args:{n = 'i32'} ->
-    let t0 = 'icmp_eq' {'i32', args.n, [00000000]:'i32'} in
+  entry = args~{n = 'i32'} ->
+    let t0 = 'icmp_eq' {'i32', args.n, [00000000]~'i32'} in
     if t0 then f.then0 {} else f.else0 {n = args.n},
-  then0 = args:{} -> [01000000]:'i32',
-  else0 = args:{n = 'i32'} ->
-    let t1 = 'sub' {'i32', args.n, [01000000]:'i32'} in
+  then0 = args~{} -> [01000000]~'i32',
+  else0 = args~{n = 'i32'} ->
+    let t1 = 'sub' {'i32', args.n, [01000000]~'i32'} in
     let t2 = module.fact {n = t1} in
     let t3 = 'mul' {'i32', args.n, t2} in
     t3,
@@ -982,12 +983,12 @@ fact = f -> {
 - The function's binder (`f`, renamed `blocks`) is its own struct of blocks, so
   `f.then0 {}` jumps to a sibling block. Same self-reference trick as `module`, one
   level down.
-- Each block is a lambda over one struct (`args:{n = 'i32'} -> ...`); the binder
+- Each block is a lambda over one struct (`args~{n = 'i32'} -> ...`); the binder
   (`args`) is the block's param struct.
 - **The first field is the entry block**, whatever its name. It can't be jumped to
   (see [BANF](#the-entry-block-cannot-be-jumped-to)).
 - A block body is a chain of lets ending in a terminator:
-  - return an atom: `[01000000]:'i32'`, `args.n`, or a let name;
+  - return an atom: `[01000000]~'i32'`, `args.n`, or a let name;
   - jump: `f.label {...}`;
   - branch: `if c then f.a {...} else f.b {...}`;
   - switch: `{f.a {...}, f.b {...}, f.c {...}} k`, three or more jumps.
@@ -1004,12 +1005,12 @@ arguments: `{minuend = x, subtrahend = y}`.
 Translation expands the struct **one level** into params, one-to-one with LLVM:
 
 ```
-oymomo: fact = f -> {entry = args:{n = 'i32'} -> ...}
+oymomo: fact = f -> {entry = args~{n = 'i32'} -> ...}
 BANF:   entry(n: i32)
 LLVM:   define i32 @fact(i32 %n)
 ```
 
-- Only one level: `args:{p = {x = 'i32', y = 'i32'}}` gives one param `p` whose form
+- Only one level: `args~{p = {x = 'i32', y = 'i32'}}` gives one param `p` whose form
   is a struct, i.e. one LLVM argument `{i32, i32} %p`.
 - A call or jump argument is a struct literal of atoms whose labels match the
   callee's params in order, or the block's own `args` forwarded as-is:
@@ -1028,28 +1029,28 @@ declaration (`main = => 'i32'`). A returned value's form is not compared with it
 nothing special:
 
 ```
-module: {loop = => 'i8'} -> {
+module~{loop = => 'i8'} -> {
   loop = f -> {
-    entry = args:{c = 'i1'} -> if args.c then f.a {} else f.b {},
-    a = args:{} -> let t = module.loop {c = [00]:'i1'} in t,
-    b = args:{} -> [07]:'i8',
+    entry = args~{c = 'i1'} -> if args.c then f.a {} else f.b {},
+    a = args~{} -> let t = module.loop {c = [00]~'i1'} in t,
+    b = args~{} -> [07]~'i8',
   },
 }
 ```
 
 Why declare instead of infer: the form is written once, where the symbol is
 declared. Inference had to iterate over the module to a fixed point, and a function
-with no base case (`entry = args:{} -> let t = module.g {} in t`) had no return form
+with no base case (`entry = args~{} -> let t = module.g {} in t`) had no return form
 at all.
 
 ### Nested function forms are rejected, for now
 
 A function form is accepted only as a `module` declaration's whole form. Rejected
 until their meaning is decided:
-- inside a data form: `module: {libc = {putchar = {c = 'i8'} => 'i32'}}`;
-- as a param or result: `module: {g = {c = 'i8'} => {d = 'i8'} => 'i32'}`,
+- inside a data form: `module~{libc = {putchar = {c = 'i8'} => 'i32'}}`;
+- as a param or result: `module~{g = {c = 'i8'} => {d = 'i8'} => 'i32'}`,
   `main = => => 'i32'`;
-- with a non-struct param: `module: {g = 'i8' => 'i32'}`.
+- with a non-struct param: `module~{g = 'i8' => 'i32'}`.
 
 `Empty` forms inside a declaration are rejected too ("form must be written"), since
 nothing infers a form. `Empty` alone (`main = `) can't be written: a struct field
@@ -1126,7 +1127,7 @@ The form is a field, not part of the name, as LLVM writes `add i32 %a, %b`.
   `[01000000]`, stays bare (a `Const` with no form): a byte array is only its bytes. The
   opcode's LLVM code (`llvm_opcodes.py`) reads a form field's bytes as a form, and a bare
   operand at `form`.
-- Operand forms are not compared with `form`: `'add' {'i32', [01]:'i8', ...}` is
+- Operand forms are not compared with `form`: `'add' {'i32', [01]~'i8', ...}` is
   accepted; LLVM may reject it. Convert explicitly with `'zext'`.
 
 ### Folding
@@ -1135,9 +1136,9 @@ An opcode whose fields are all literals reduces to its result, so a constant
 computed in oymomo doesn't reach BANF as an instruction:
 
 ```
-'add' {'i32', [01000000]: 'i32', [02000000]: 'i32'}   ⇒   [03000000]: 'i32'
-'add' {'i8', [ff], [01]}                             ⇒   [00]: 'i8'
-'add' {'i32', args.n, [01000000]: 'i32'}             stays: a run-time operand
+'add' {'i32', [01000000]~'i32', [02000000]~'i32'}   ⇒   [03000000]~'i32'
+'add' {'i8', [ff], [01]}                            ⇒   [00]~'i8'
+'add' {'i32', args.n, [01000000]~'i32'}             stays: a run-time operand
 ```
 
 - One rule for every opcode (`reduction.fold_opcode`), not one per opcode: it wraps
@@ -1155,9 +1156,9 @@ computed in oymomo doesn't reach BANF as an instruction:
   `sdiv`/`srem` of the signed minimum by -1, a shift by `N` or more.
 - **Operands**: a byte array of exactly `(N + 7) // 8` bytes, below `2^N`, bare or
   formed (`opcodes.decode_uint`). A written form is not compared with `form`: the
-  bytes are read at `form`, so `'add' {'i8', [01]: 'i32', [02]}` folds to `[03]: 'i8'`.
+  bytes are read at `form`, so `'add' {'i8', [01]~'i32', [02]}` folds to `[03]~'i8'`.
   Anything else doesn't fold, and the call stays.
-- **Result**: formed as the opcode's result (`[03000000]: 'i32'`), so BANF still
+- **Result**: formed as the opcode's result (`[03000000]~'i32'`), so BANF still
   knows its form, and an `if` on a folded comparison is a jump.
 - **Laziness**: `banf_shape` reduces the argument, then each field; the rule itself
   reduces nothing.
@@ -1364,7 +1365,7 @@ Some roots become a redex only after one part, their **blocker**, is reduced: in
 | `f a`, otherwise (including `$fix g`) | `f` |
 | `s.l` | `s` |
 | `if c then ...`, which is `{e, t} c` | `c` |
-| `t: F` | `t` |
+| `t~F` | `t` |
 | `$name a`, `name` in `BUILTIN_RULES`, or `'name' a`, `name` in `OPCODES` | the parts of `a` its `reduce` reads (none for `$fix`) |
 | anything else | none |
 
@@ -1465,7 +1466,7 @@ first let is level 3).
 | Lets | Become |
 |---|---|
 | `let t = ... in let t = ... in let t = ... in t` | `t, t_4, t_5` |
-| two lets `n` with `args: {n = 'i8'}` | `n_3, n_4` (param labels become BANF `Var`s) |
+| two lets `n` with `args~{n = 'i8'}` | `n_3, n_4` (param labels become BANF `Var`s) |
 | user's `t_4` after a renamed `t_4` | `t_4_5` |
 | `t, t_5, t` | `t, t_5, t__5` |
 | a let named `args` | `args_3` |
@@ -1495,13 +1496,13 @@ own. A let reference becomes a `banf.Var` named after the BANF let already built
 
 - **Let**: `let x = op in rest`, i.e. `(x -> rest) (op)`. With no form, the let's
   form is the op's. A written form must be a literal and **replaces** the op's form
-  unchecked: `let t0: 'i32' = 'icmp_eq' {'i32', ...} in t0` gives `t0` the form `i32`
+  unchecked: `let t0~'i32' = 'icmp_eq' {'i32', ...} in t0` gives `t0` the form `i32`
   (`'icmp_eq'` gives `i1`). BANF prints `t0: i32 = icmp_eq 'i32', ...`; LLVM translation then
   rejects it, since the LLVM types differ.
-- **Atom**: a byte array with a literal form (`[01]: 'i8'`), a let name, or
+- **Atom**: a byte array with a literal form (`[01]~'i8'`), a let name, or
   `args.label`. Any atom can be given a literal form, which replaces its own
-  (`args.n: 'i32'`, `t: 'i8'`). `let m: 'i32' = args.n in m` isn't a BANF let (its
-  value isn't an op), so it's beta-reduced to `args.n: 'i32'`.
+  (`args.n~'i32'`, `t~'i8'`). `let m~'i32' = args.n in m` isn't a BANF let (its
+  value isn't an op), so it's beta-reduced to `args.n~'i32'`.
 - **Op**, only as a let's value:
 
   | Source | BANF op |
@@ -1515,7 +1516,7 @@ own. A let reference becomes a `banf.Var` named after the BANF let already built
 
 - **`GetIndex`** `s i`: `s` is an atom with a struct form (a let-bound struct or a
   param such as `args.p`). `i` is read by `reduction.index_value`: any byte array
-  literal, unsigned little-endian, form ignored (`[01]`, `[0100]`, `[01]: 'i8'` are
+  literal, unsigned little-endian, form ignored (`[01]`, `[0100]`, `[01]~'i8'` are
   all 1). It's reduced first like any op argument, so `args.p ((i -> i) [01])` and
   `let i = [01] in args.p i` work. A run-time value (`args.n`, a let bound to an op)
   or `''` is an error ("An index must be a byte array literal, such as [01]."),
@@ -1536,7 +1537,7 @@ in: the module form, a signature's param form, the module body, a definition's
 blocks, the top level of a block's param form, and the argument struct of a call,
 jump or opcode ("The module form needs a label on every field.").
 
-Elsewhere (a value struct, a nested data form such as `args: {p = {'i32', 'i8'}}`) a
+Elsewhere (a value struct, a nested data form such as `args~{p = {'i32', 'i8'}}`) a
 field may be unlabeled, and several unlabeled fields aren't duplicates. BANF prints
 an unlabeled field alone (`{i32, i8}`), and LLVM names its `insertvalue` by index
 (`%"q.0"`).
@@ -1548,13 +1549,13 @@ first. Allowing it would mean flattening, i.e. inventing temporary names.
 
 ##### An op in tail position must be bound first
 
-Write `args:{} -> let t0 = module.putchar {c = [41]:'i8'} in t0`, not
-`args:{} -> module.putchar {c = [41]:'i8'}`. A BANF `Return` takes an atom, and the
+Write `args~{} -> let t0 = module.putchar {c = [41]~'i8'} in t0`, not
+`args~{} -> module.putchar {c = [41]~'i8'}`. A BANF `Return` takes an atom, and the
 explicit `let t0` keeps every name in the source.
 
 ##### `if` only in tail position
 
-`if c then [01]:'i8' else f.b {}` is an error. A let-bound `if` is substituted, so
+`if c then [01]~'i8' else f.b {}` is an error. A let-bound `if` is substituted, so
 `let t = if c then f.a {} else f.b {} in t` is fine, but an `if` that ends up as an
 operand is an error. All of this holds for `{e, t} c`, which is the same term.
 - Three or more fields are a BANF `Switch`: `{f.a {}, f.b {}, f.c {x = args.x}} args.k`
@@ -1649,8 +1650,8 @@ message text to find where it's raised.
 
 | Message | Cause | Fix |
 |---|---|---|
-| `Expected a program of the shape module: {...} -> {...}.` | The top level isn't a lambda around a struct. | See [Programs](#the-shape-of-a-program). |
-| `The module binder needs a struct form, such as module: {}.` | `module -> {...}` without a form. | Declare every symbol: `module: {main = => 'i32'} -> ...`. |
+| `Expected a program of the shape module~{...} -> {...}.` | The top level isn't a lambda around a struct. | See [Programs](#the-shape-of-a-program). |
+| `The module binder needs a struct form, such as module~{}.` | `module -> {...}` without a form. | Declare every symbol: `module~{main = => 'i32'} -> ...`. |
 | `'<f>' is defined but not declared.` | A body field with no `module` declaration. | Add `f = => R` (function) or `f = 'iN'` (data) to the module form. |
 | `'<f>' declares no params, so it must be defined.` | Declared `=> R` but missing from the body. | Define it, or declare it with params to import it. |
 | `'<f>' declares its params; a definition takes them from its entry block.` | Declared `{...} => R` and also defined. | Declare a defined function as `=> R`; params go on its entry block. |
@@ -1663,7 +1664,7 @@ message text to find where it's raised.
 
 | Message | Cause | Fix |
 |---|---|---|
-| `<what>: form must be written.` / `Byte array: form must be written.` | A form is needed but omitted (`Empty`); nothing infers one. | Write it: `[01]: 'i8'`, `args: {n = 'i32'}`. See [The kernel](#omitted-forms-are-empty). |
+| `<what>: form must be written.` / `Byte array: form must be written.` | A form is needed but omitted (`Empty`); nothing infers one. | Write it: `[01]~'i8'`, `args~{n = 'i32'}`. See [The kernel](#omitted-forms-are-empty). |
 | `<what>: form must be a literal, got <form>.` | A form that didn't reduce to a named form or struct of them. | Use a literal like `'i32'` or `{x = 'i32'}`, or make sure it reduces to one. |
 
 ### Block bodies (`banf_translate.py`)
@@ -1675,7 +1676,7 @@ message text to find where it's raised.
 | `An if must be in tail position.` | An `if` used as a value. | Branch to blocks and join explicitly. See [Translation](#if-only-in-tail-position). |
 | `A switch needs two or more fields; one is a jump.` | `{f.a {}} k` in tail position. | Write the jump: `f.a {}`. See [Translation](#if-only-in-tail-position). |
 | `A switch needs two or more fields.` | `{} k` in tail position. | Give it targets. |
-| `Every field of a switch must be a jump, such as blocks.a {}.` | `{f.a {}, [01]:'i8', f.b {}} k`. | Make each field a jump. |
+| `Every field of a switch must be a jump, such as blocks.a {}.` | `{f.a {}, [01]~'i8', f.b {}} k`. | Make each field a jump. |
 | `A jump must be in tail position.` | `f.label {...}` used as a value. | Put the jump last. |
 | `Cannot jump to the entry block.` | `f.entry {...}`. | Jump to a separate loop header. See [BANF](#the-entry-block-cannot-be-jumped-to). |
 | `'<args>' cannot be used as a value.` | `blocks`, `args` or `module` used alone. | Use `args.n`, `module.f {...}`, `blocks.b {...}`; `args` may only be forwarded whole as a call/jump argument. |
@@ -1711,7 +1712,7 @@ message text to find where it's raised.
 |---|---|---|
 | `<what> takes <n> arguments, got <m>.` | Wrong argument count. | Match the callee's params. |
 | `A switch needs a target.` | A BANF `Switch` with no targets. | Give it targets. |
-| `A switch passes different args to '<b>'.` | `{f.a {x = [01]:'i8'}, f.b {}, f.a {x = [02]:'i8'}} k`. | Pass the same args each time `a` is named (an LLVM phi needs equal entries from one block), or use another block. |
+| `A switch passes different args to '<b>'.` | `{f.a {x = [01]~'i8'}, f.b {}, f.a {x = [02]~'i8'}} k`. | Pass the same args each time `a` is named (an LLVM phi needs equal entries from one block), or use another block. |
 | `Form <form> has no field at index <i>.` | `GetIndex` on a form with no fields. | Index a struct with at least one field. |
 
 ### LLVM (`llvm_translate.py`)
@@ -1838,7 +1839,7 @@ rules; this file keeps the reasoning. Detailed history of larger changes is in t
 
 The kernel (oymomo) and BANF only know forms. Types belong to higher layers, layouts
 to the backend (LLVM). Keeping the words apart stops a backend detail like "i32 is
-4-byte aligned" from leaking into the kernel, where `[2a000000]: 'i32'` only says
+4-byte aligned" from leaking into the kernel, where `[2a000000]~'i32'` only says
 "these bytes, read as the form i32". → [Overview](#type-form-layout)
 
 ### BANF does not depend on LLVM
@@ -1912,21 +1913,37 @@ translation never fills in a value the source didn't write.
 → [The kernel](#omitted-forms-are-empty),
 [plan_banf_explicit.md](implemented/plan_banf_explicit.md)
 
+### `~` binds a term to a form
+
+`e~F` reads "`e` shaped as `F`".
+
+Rejected:
+- `:`: nearly every language reads `e : T` as a type annotation, and a form is not
+  a type: nothing checks it, and a param's form replaces the argument's
+  ([Type, Form, Layout](#type-form-layout)).
+- `@`: `@name` is an LLVM global, and LLVM IR sits beside oymomo throughout these
+  notes.
+- `as`: a new reserved word, read as a cast, and `f a as F` looks like
+  `(f a) as F` though `~` binds tighter than application.
+
+Written and printed without spaces (`x~'i32' -> x`), so it reads as part of its
+operand. One ASCII character, so no Unicode alias. → [oymomo syntax](#precedence)
+
 ### `Formed` binds tighter than application
 
 The rule is "values bind tighter than things that reduce". `Formed` and
-`FunctionForm` never reduce, so `:` and `=>` bind tighter than application, and
+`FunctionForm` never reduce, so `~` and `=>` bind tighter than application, and
 `.` tighter still since `module.T` and `args.n` read as paths.
 
-Rejected: `:` below application, as in Haskell, OCaml and Lean
-(`f a: g b` = `(f a): (g b)`). It made `:` the only value operator looser than
+Rejected: `~` below application, like `:` in Haskell, OCaml and Lean
+(`f a~g b` = `(f a)~(g b)`). It made `~` the only value operator looser than
 application. → [oymomo syntax](#precedence),
 [plan_annotation.md](implemented/plan_annotation.md)
 
 ### A byte array is only its bytes
 
-`[01]: 'i8'` is `Formed(ByteArray([01]), 'i8')`, not a literal with a built-in form.
-So every `:` not on a binder is one term with one meaning, and beta reduction alone
+`[01]~'i8'` is `Formed(ByteArray([01]), 'i8')`, not a literal with a built-in form.
+So every `~` not on a binder is one term with one meaning, and beta reduction alone
 gives a dynamic form. The same bytes can have many forms (`[01000000]` could be
 `'i32'` 1 or `{a = 'i16', b = 'i16'}`).
 
@@ -1945,7 +1962,7 @@ Rejected:
 
 ### Byte arrays are always little-endian
 
-`[2a000000]: 'i32'` is 42 on every target.
+`[2a000000]~'i32'` is 42 on every target.
 - Fixed, not a default: oymomo has no integer literals, so the byte order is what
   gives a literal its number. With an overridable default, one source would mean
   two numbers. Same idea as WebAssembly memory and the `.bc` encoding: the encoding
@@ -1965,7 +1982,7 @@ Rejected:
 the allowed characters to leave room for escapes later.
 
 The printer uses `'...'` only for a byte array with no form, all text bytes, at most
-128 bytes. A written form (`[41]: 'i8'`) usually means a number, so hex stays; a
+128 bytes. A written form (`[41]~'i8'`) usually means a number, so hex stays; a
 long blob reads better as grouped hex. The limit is fixed, not `width`, so output
 doesn't depend on layout settings.
 
@@ -2143,12 +2160,12 @@ Words used across the docs, in alphabetical order. Code names are in `code`.
 |---|---|---|
 | **apply** | `f a`: a function applied to one argument. `Apply` term. | [oymomo syntax](#apply) |
 | **args** | Fixed name of a block's param binder after renaming; `args.n` is the param `n`. | [Programs](#functions-are-structs-of-blocks) |
-| **atom** | A BANF operand: a constant (`[01]: 'i8'`), a let name, or `args.label`, optionally with a form. | [Translation](#what-the-shape-is) |
+| **atom** | A BANF operand: a constant (`[01]~'i8'`), a let name, or `args.label`, optionally with a form. | [Translation](#what-the-shape-is) |
 | **BANF** | *Block-based ANF*. The first-order IR between oymomo and LLVM: SSA with block params instead of phi nodes. | [BANF](#banf) |
 | **beta** | The reduction `(x -> body) e` → `body` with `e` put in for `x`. | [The kernel](#reduce-one-step-at-the-root) |
 | **blocker** | The part of a term that must reduce before the term can: an apply's callee, a projection's struct, an `if`'s condition… | [Translation](#blockers) |
 | **binder** | Anything that introduces a name: a lambda param or a let. | |
-| **block** | A BANF basic block: params, lets, one terminator. In oymomo, a lambda `args: {...} -> ...` in a function's struct. | [BANF](#blocks) |
+| **block** | A BANF basic block: params, lets, one terminator. In oymomo, a lambda `args~{...} -> ...` in a function's struct. | [BANF](#blocks) |
 | **blocks** | Fixed name of a function's self-binder after renaming; `blocks.then0 {}` jumps to block `then0`. | [Programs](#functions-are-structs-of-blocks) |
 | **BruijnIndex** | A variable written by position, `$0` = nearest binder. `reduction.resolve` turns names into these. | [oymomo syntax](#builtins-and-indices-name-and-0) |
 | **built-in** | A global constant written `$name` (`$fix`) with a reduction rule. | [The kernel](#built-ins) |
@@ -2156,7 +2173,7 @@ Words used across the docs, in alphabetical order. Code names are in `code`.
 | **convert** | Last pass of oymomo → BANF: reads a shaped term into BANF. Never reduces. | [Translation](#4-convert-read-the-shaped-term) |
 | **Empty** | `terms.Empty`: a form that was *not written*. Not void, not a default. | [The kernel](#omitted-forms-are-empty) |
 | **form** | The logical structure of a value: `'i32'`, `{x = 'i32'}`, `{c = 'i8'} => 'i32'`. Not a type; never checked. | [The kernel](#forms) |
-| **Formed** | The term `e: F`, "`e` formed as `F`". | [The kernel](#formed-any-term-with-a-form) |
+| **Formed** | The term `e~F`, "`e` formed as `F`". | [The kernel](#formed-any-term-with-a-form) |
 | **function form** | `P => R`, the form of a function. `FunctionForm` term. | [oymomo syntax](#function-forms) |
 | **golden test** | `tests/goldens/name.oymo` compiled and compared to approved `.shaped.oymo`, `.banf` and `.ll` files. | [How to…](#add-a-golden-test) |
 | **kernel-only** | What every built-in is (`$fix`): it must reduce away before BANF. | [The kernel](#built-ins) |

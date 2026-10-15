@@ -298,11 +298,11 @@ def switch_module(selector_form, terminator):
     returns it. Oymomo source can't write a switch yet, so `entry` is written as a jump and
     its terminator replaced."""
     source = f"""
-    module: {{f = => 'i32'}} -> {{f = blocks -> {{
-      entry = args: {{k = {selector_form}, x = 'i32'}} -> blocks.a {{}},
-      a = args: {{}} -> [00000000]:'i32',
-      b = args: {{}} -> [00000000]:'i32',
-      c = args: {{x = 'i32'}} -> args.x,
+    module~{{f = => 'i32'}} -> {{f = blocks -> {{
+      entry = args~{{k = {selector_form}, x = 'i32'}} -> blocks.a {{}},
+      a = args~{{}} -> [00000000]~'i32',
+      b = args~{{}} -> [00000000]~'i32',
+      c = args~{{x = 'i32'}} -> args.x,
     }}}}
     """
     module = banf_translate.translate(parse(source))

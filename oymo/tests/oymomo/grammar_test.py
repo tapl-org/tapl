@@ -45,11 +45,11 @@ def test_builtin_errors(source):
 
 
 def test_lambda():
-    assert show(parse("x: 'i32' -> x")) == "x:'i32' → x"
+    assert show(parse("x~'i32' -> x")) == "x~'i32' → x"
 
 
 def test_lambda_unicode_arrow_is_the_same_term():
-    assert show(parse("x: 'i32' → x")) == "x:'i32' → x"
+    assert show(parse("x~'i32' → x")) == "x~'i32' → x"
 
 
 def test_lambda_extends_right():
@@ -81,7 +81,7 @@ def test_struct():
 
 def test_let():
     assert show(parse('let x = e in x')) == 'let x = e in x'
-    assert show(parse("let t0: 'i1' = f a in t0")) == "let t0:'i1' = f a in t0"
+    assert show(parse("let t0~'i1' = f a in t0")) == "let t0~'i1' = f a in t0"
     assert show(parse('let x = e in f x')) == show(parse('let x = e in (f x)'))
     assert show(parse('let x = e1 in let y = e2 in y')) == show(parse('let x = e1 in (let y = e2 in y)'))
     assert show(parse('f (let x = e in x)')) == 'f (let x = e in x)'
@@ -120,24 +120,24 @@ def test_reserved_words_are_not_names():
 
 
 def test_byte_array():
-    assert show(parse("[2a000000]: 'i32'")) == "[2a000000]:'i32'"
-    assert show(parse("[2a 00 00 00]:'i32'")) == "[2a000000]:'i32'"
+    assert show(parse("[2a000000]~'i32'")) == "[2a000000]~'i32'"
+    assert show(parse("[2a 00 00 00]~'i32'")) == "[2a000000]~'i32'"
 
 
 def test_byte_array_multiline():
-    source = "[deadbeef cafebabe\n 00112233 44556677]: {lo = 'i64', hi = 'i64'}"
-    assert show(parse(source)) == "[deadbeefcafebabe0011223344556677]:{lo = 'i64', hi = 'i64'}"
+    source = "[deadbeef cafebabe\n 00112233 44556677]~{lo = 'i64', hi = 'i64'}"
+    assert show(parse(source)) == "[deadbeefcafebabe0011223344556677]~{lo = 'i64', hi = 'i64'}"
 
 
 def test_byte_array_empty():
-    assert show(parse('[]: {}')) == '[]:{}'
+    assert show(parse('[]~{}')) == '[]~{}'
 
 
 def test_text_byte_array():
     term = parse("'Hi there'")
     assert term == terms.ByteArray(value=b'Hi there')
     assert term.location == syntax.Location(0, 10)
-    assert show(parse("'Hi': 'i16'")) == "[4869]:'i16'"
+    assert show(parse("'Hi'~'i16'")) == "[4869]~'i16'"
     assert show(parse("''")) == "''"
     assert show(parse("f 'a' 'b'")) == show(parse("(f 'a') 'b'"))
 
@@ -152,10 +152,10 @@ def test_text_byte_array_rejects_non_text():
 
 
 def test_byte_array_as_argument():
-    # `:` binds tighter than apply, so a byte array with a form is an argument as it is.
-    assert parse("f [01]: 'u8' [02]") == parse("f ([01]: 'u8') [02]")
-    assert show(parse("f ([01]: 'u8') [02]")) == "f [01]:'u8' [02]"
-    assert parse("(f [01]): 'u8'") == terms.Formed(
+    # `~` binds tighter than apply, so a byte array with a form is an argument as it is.
+    assert parse("f [01]~'u8' [02]") == parse("f ([01]~'u8') [02]")
+    assert show(parse("f ([01]~'u8') [02]")) == "f [01]~'u8' [02]"
+    assert parse("(f [01])~'u8'") == terms.Formed(
         terms.Apply(terms.Variable('f'), terms.ByteArray(b'\x01')), terms.ByteArray(b'u8')
     )
 
@@ -166,11 +166,11 @@ def test_omitted_forms_are_empty():
 
 
 def test_forms_are_terms():
-    assert parse("[00]: {x = 'i8', y = 'i32'}").form == terms.Struct(
+    assert parse("[00]~{x = 'i8', y = 'i32'}").form == terms.Struct(
         [terms.Field('x', terms.ByteArray(b'i8')), terms.Field('y', terms.ByteArray(b'i32'))]
     )
-    assert parse("x: 'i32' -> x").param_form == terms.ByteArray(b'i32')
-    assert parse('x: [69 33 32] -> x').param_form == terms.ByteArray(b'i32')
+    assert parse("x~'i32' -> x").param_form == terms.ByteArray(b'i32')
+    assert parse('x~[69 33 32] -> x').param_form == terms.ByteArray(b'i32')
 
 
 def test_unlabeled_fields():
@@ -184,7 +184,7 @@ def test_unlabeled_fields():
     assert fields('{a = b}') == [('a', b)]
     assert fields('{x -> x}') == [('', terms.Lambda('x', terms.Empty, x))]  # `x ->` is not `x =`
     assert fields("{'1', b = '2'}") == [('', one), ('b', two)]
-    assert fields("{x: 'i8'}") == [('', terms.Formed(x, terms.ByteArray(b'i8')))]
+    assert fields("{x~'i8'}") == [('', terms.Formed(x, terms.ByteArray(b'i8')))]
     assert fields("{'1',}") == [('', one)]
     assert fields('{let y = a in y}')[0][0] == ''
     assert parse('{a}').fields[0].location == syntax.Location(1, 2)
@@ -195,56 +195,56 @@ def test_a_written_label_is_never_empty():
 
 
 def test_void_is_an_ordinary_form_name():
-    assert parse("x: 'void' -> x").param_form == terms.ByteArray(b'void')
+    assert parse("x~'void' -> x").param_form == terms.ByteArray(b'void')
 
 
 def test_binder_form_is_an_ordinary_expression():
-    assert parse('x: i32 -> x').param_form == terms.Variable('i32')
-    assert show(parse('x: i32 -> x')) == 'x:i32 → x'
-    assert show(parse('x: (i32) -> x')) == 'x:i32 → x'
-    assert parse('x: s.f -> x').param_form == terms.Project(terms.Variable('s'), 'f')
-    assert show(parse('x: decls.t -> x')) == 'x:decls.t → x'
-    assert show(parse('let x: decls.t = v in x')) == 'let x:decls.t = v in x'
+    assert parse('x~i32 -> x').param_form == terms.Variable('i32')
+    assert show(parse('x~i32 -> x')) == 'x~i32 → x'
+    assert show(parse('x~(i32) -> x')) == 'x~i32 → x'
+    assert parse('x~s.f -> x').param_form == terms.Project(terms.Variable('s'), 'f')
+    assert show(parse('x~decls.t -> x')) == 'x~decls.t → x'
+    assert show(parse('let x~decls.t = v in x')) == 'let x~decls.t = v in x'
     # The form never holds a lambda, so it ends at the first `->`.
-    term = parse('x: a -> b -> c')
+    term = parse('x~a -> b -> c')
     assert term.param_form == terms.Variable('a')
     assert term.body == terms.Lambda('b', terms.Empty, terms.Variable('c'))
     # A lambda or an application in a form needs parentheses.
-    assert show(parse('x: (a -> b) -> c')) == 'x:(a → b) → c'
-    assert isinstance(parse('x: (a -> b) -> c').param_form, terms.Lambda)
-    assert parse('x: (f a) -> x').param_form == terms.Apply(terms.Variable('f'), terms.Variable('a'))
-    assert show(parse('x: (f a) -> x')) == 'x:(f a) → x'
-    assert show(parse("x: 'i8': 'i16' -> x")) == "x:[6938]:'i16' → x"  # a formed byte array is hex
+    assert show(parse('x~(a -> b) -> c')) == 'x~(a → b) → c'
+    assert isinstance(parse('x~(a -> b) -> c').param_form, terms.Lambda)
+    assert parse('x~(f a) -> x').param_form == terms.Apply(terms.Variable('f'), terms.Variable('a'))
+    assert show(parse('x~(f a) -> x')) == 'x~(f a) → x'
+    assert show(parse("x~'i8'~'i16' -> x")) == "x~[6938]~'i16' → x"  # a formed byte array is hex
 
 
 def test_byte_array_form_stops_before_an_argument():
-    assert parse("f [00]: 'i32' y") == parse("(f ([00]: 'i32')) y")
+    assert parse("f [00]~'i32' y") == parse("(f ([00]~'i32')) y")
 
 
 def test_nested_struct_forms():
-    assert show(parse("p: {x = 'i32', y = {a = 'u8'}} -> p")) == "p:{x = 'i32', y = {a = 'u8'}} → p"
+    assert show(parse("p~{x = 'i32', y = {a = 'u8'}} -> p")) == "p~{x = 'i32', y = {a = 'u8'}} → p"
 
 
 def test_function_form_in_struct_form_field():
-    assert show(parse("d: {putchar = {c = 'i8'} => 'i32', errno = 'i32'} -> d")) == (
-        "d:{putchar = {c = 'i8'} ⇒ 'i32', errno = 'i32'} → d"
+    assert show(parse("d~{putchar = {c = 'i8'} => 'i32', errno = 'i32'} -> d")) == (
+        "d~{putchar = {c = 'i8'} ⇒ 'i32', errno = 'i32'} → d"
     )
 
 
 def test_function_form_after_colon_needs_no_parens():
-    assert show(parse("g: {c = 'i8'} => 'i32' -> g")) == "g:{c = 'i8'} ⇒ 'i32' → g"
-    assert show(parse("g: ({c = 'i8'} => 'i32') -> g")) == "g:{c = 'i8'} ⇒ 'i32' → g"
-    assert show(parse("[]: 'i8' => 'i32'")) == "[]:'i8' ⇒ 'i32'"
-    assert show(parse("let f: 'i8' => 'i32' = g in f")) == "let f:'i8' ⇒ 'i32' = g in f"
+    assert show(parse("g~{c = 'i8'} => 'i32' -> g")) == "g~{c = 'i8'} ⇒ 'i32' → g"
+    assert show(parse("g~({c = 'i8'} => 'i32') -> g")) == "g~{c = 'i8'} ⇒ 'i32' → g"
+    assert show(parse("[]~'i8' => 'i32'")) == "[]~'i8' ⇒ 'i32'"
+    assert show(parse("let f~'i8' => 'i32' = g in f")) == "let f~'i8' ⇒ 'i32' = g in f"
 
 
 def test_function_form_is_right_associative():
-    assert show(parse("d: {f = {a = 'i8'} => {b = 'i8'} => 'i32'} -> d")) == show(
-        parse("d: {f = {a = 'i8'} => ({b = 'i8'} => 'i32')} -> d")
+    assert show(parse("d~{f = {a = 'i8'} => {b = 'i8'} => 'i32'} -> d")) == show(
+        parse("d~{f = {a = 'i8'} => ({b = 'i8'} => 'i32')} -> d")
     )
     assert (
-        show(parse("d: {f = ({a = 'i8'} => {b = 'i8'}) => 'i32'} -> d"))
-        == "d:{f = ({a = 'i8'} ⇒ {b = 'i8'}) ⇒ 'i32'} → d"
+        show(parse("d~{f = ({a = 'i8'} => {b = 'i8'}) => 'i32'} -> d"))
+        == "d~{f = ({a = 'i8'} ⇒ {b = 'i8'}) ⇒ 'i32'} → d"
     )
 
 
@@ -283,25 +283,25 @@ def test_function_form_is_an_expression():
 
 
 def test_precedence_order():
-    """Loosest to tightest: `->`/`if`/`let`, apply, `:`, `=>`, `.`. Each pair, then each associativity."""
+    """Loosest to tightest: `->`/`if`/`let`, apply, `~`, `=>`, `.`. Each pair, then each associativity."""
     cases = [
         # `->`, `if`, `let` take everything to their right.
-        ('x -> y: t', 'x -> (y: t)'),
-        ('if c then a else b: t', 'if c then a else (b: t)'),
-        ('let x = v: t in b', 'let x = (v: t) in b'),
-        ('{a = e: t}', '{a = (e: t)}'),
+        ('x -> y~t', 'x -> (y~t)'),
+        ('if c then a else b~t', 'if c then a else (b~t)'),
+        ('let x = v~t in b', 'let x = (v~t) in b'),
+        ('{a = e~t}', '{a = (e~t)}'),
         ('x -> f a', 'x -> (f a)'),
         ('x -> $fix f', 'x -> ($fix f)'),
         ('x -> a => b', 'x -> (a => b)'),
         ('x -> s.a', 'x -> (s.a)'),
-        ('x -> f a: t', 'x -> (f (a: t))'),
+        ('x -> f a~t', 'x -> (f (a~t))'),
         ('if c then a else f a => b', 'if c then a else (f (a => b))'),
         ('let x = f a in g x => s.b', 'let x = (f a) in (g (x => (s.b)))'),
-        # apply against `:`, `=>` and `.`; a built-in applies like any function.
-        ('f a: g b', 'f (a: g) b'),
-        ('f y: x z', 'f (y: x) z'),
-        ('y: f a', '(y: f) a'),
-        ('$fix f: t', '$fix (f: t)'),
+        # apply against `~`, `=>` and `.`; a built-in applies like any function.
+        ('f a~g b', 'f (a~g) b'),
+        ('f y~x z', 'f (y~x) z'),
+        ('y~f a', '(y~f) a'),
+        ('$fix f~t', '$fix (f~t)'),
         ('$fix f a', '($fix f) a'),
         ('f $fix', '(f $fix)'),
         ('f a => b', 'f (a => b)'),
@@ -309,21 +309,21 @@ def test_precedence_order():
         ('$fix a => b', '$fix (a => b)'),
         ('f s.a', 'f (s.a)'),
         ('$fix s.a', '$fix (s.a)'),
-        # `:` against `=>` and `.`.
-        ('x: a => b', 'x: (a => b)'),
-        ('a => b: c', '(a => b): c'),
-        ('s.a: t.b', '(s.a): (t.b)'),
-        ('x: decls.t', 'x: (decls.t)'),
+        # `~` against `=>` and `.`.
+        ('x~a => b', 'x~(a => b)'),
+        ('a => b~c', '(a => b)~c'),
+        ('s.a~t.b', '(s.a)~(t.b)'),
+        ('x~decls.t', 'x~(decls.t)'),
         # `=>` against `.`.
         ('s.a => t.b', '(s.a) => (t.b)'),
-        # Associativity: apply left, `:` right, `=>` right, `.` left.
+        # Associativity: apply left, `~` right, `=>` right, `.` left.
         ('f a b', '(f a) b'),
-        ('a: b: c', 'a: (b: c)'),
+        ('a~b~c', 'a~(b~c)'),
         ('a => b => c', 'a => (b => c)'),
         ('s.a.b', '(s.a).b'),
         # All levels at once.
         ('x -> $fix f a => s.b c.d => e g', 'x -> (((($fix f) (a => (s.b))) ((c.d) => e)) g)'),
-        ('x -> f a.b => c: g d => e: h', 'x -> ((f (((a.b) => c): g)) ((d => e): h))'),
+        ('x -> f a.b => c~g d => e~h', 'x -> ((f (((a.b) => c)~g)) ((d => e)~h))'),
     ]
     for source, grouped in cases:
         if grouped == 'error':
@@ -337,9 +337,9 @@ def test_precedence_order():
 def test_parentheses_only_override_precedence():
     """Code that was an error only for lacking parentheses has a meaning (plan_annotation.md, problem 3)."""
     y, x = terms.Variable('y'), terms.Variable('x')
-    assert parse('y: x') == terms.Formed(y, x)
-    assert parse('x: i32 -> x') == terms.Lambda('x', terms.Variable('i32'), x)
-    assert parse('x: s.f -> x') == terms.Lambda('x', terms.Project(terms.Variable('s'), 'f'), x)
+    assert parse('y~x') == terms.Formed(y, x)
+    assert parse('x~i32 -> x') == terms.Lambda('x', terms.Variable('i32'), x)
+    assert parse('x~s.f -> x') == terms.Lambda('x', terms.Project(terms.Variable('s'), 'f'), x)
     # A lambda, `if` or `let` binds looser than any operand, so as an operand it needs parentheses.
     operands = [
         ('f x -> x', 'f (x -> x)'),
@@ -355,44 +355,44 @@ def test_parentheses_only_override_precedence():
 
 def test_formed():
     y, x = terms.Variable('y'), terms.Variable('x')
-    term = parse('y: x')
+    term = parse('y~x')
     assert term == terms.Formed(y, x)
-    assert term.location == syntax.Location(0, 4)
-    assert parse('(x -> y -> y: x) a b').function.function.body.body == terms.Formed(
+    assert term.location == syntax.Location(0, 3)
+    assert parse('(x -> y -> y~x) a b').function.function.body.body == terms.Formed(
         terms.Variable('y'), terms.Variable('x')
     )
-    assert parse("y: 'i8' => 'i32'") == terms.Formed(
+    assert parse("y~'i8' => 'i32'") == terms.Formed(
         y, terms.FunctionForm(terms.ByteArray(b'i8'), terms.ByteArray(b'i32'))
     )
 
 
 def test_formed_leaves_binder_forms_alone():
-    # A lambda is tried first. A byte array is only bytes, so its `: form` is a Formed.
-    assert isinstance(parse("x: 'i8' -> x"), terms.Lambda)
-    assert parse("x: 'i8'") == terms.Formed(terms.Variable('x'), terms.ByteArray(b'i8'))
-    assert parse("[01]: 'i8'") == terms.Formed(terms.ByteArray(b'\x01'), terms.ByteArray(b'i8'))
-    assert parse('[01]: y') == terms.Formed(terms.ByteArray(b'\x01'), terms.Variable('y'))
-    assert parse("[01]: 'i8'").location == syntax.Location(0, 10)
+    # A lambda is tried first. A byte array is only bytes, so its `~form` is a Formed.
+    assert isinstance(parse("x~'i8' -> x"), terms.Lambda)
+    assert parse("x~'i8'") == terms.Formed(terms.Variable('x'), terms.ByteArray(b'i8'))
+    assert parse("[01]~'i8'") == terms.Formed(terms.ByteArray(b'\x01'), terms.ByteArray(b'i8'))
+    assert parse('[01]~y') == terms.Formed(terms.ByteArray(b'\x01'), terms.Variable('y'))
+    assert parse("[01]~'i8'").location == syntax.Location(0, 9)
 
 
 def test_byte_array_with_a_form_in_a_binder_form():
     i8 = terms.ByteArray(b'i8')
-    assert parse("x: [00]: 'i8' -> x").param_form == terms.Formed(terms.ByteArray(b'\x00'), i8)
-    assert show(parse("x: [00]: 'i8' -> x")) == "x:[00]:'i8' → x"
-    assert show(parse("x: ([00]: 'i8') => 'i32' -> x")) == "x:([00]:'i8') ⇒ 'i32' → x"
+    assert parse("x~[00]~'i8' -> x").param_form == terms.Formed(terms.ByteArray(b'\x00'), i8)
+    assert show(parse("x~[00]~'i8' -> x")) == "x~[00]~'i8' → x"
+    assert show(parse("x~([00]~'i8') => 'i32' -> x")) == "x~([00]~'i8') ⇒ 'i32' → x"
 
 
 def test_function_form_param_with_a_form_needs_parens():
-    term = parse("([00]: 'i8') => 'i32'")
+    term = parse("([00]~'i8') => 'i32'")
     assert term.param == terms.Formed(terms.ByteArray(b'\x00'), terms.ByteArray(b'i8'))
-    assert show(term) == "([00]:'i8') ⇒ 'i32'"
-    assert parse("[00]: 'i8' => 'i32'").form == parse("'i8' => 'i32'")
+    assert show(term) == "([00]~'i8') ⇒ 'i32'"
+    assert parse("[00]~'i8' => 'i32'").form == parse("'i8' => 'i32'")
 
 
 def test_function_form_does_not_swallow_lambda_binder():
-    source = "decls: {f = {} => 'i32'} -> defs -> {}"
-    assert show(parse(source)) == "decls:{f = {} ⇒ 'i32'} → defs → {}"
-    assert show(parse("decls: {} => 'i32' -> defs -> {}")) == "decls:{} ⇒ 'i32' → defs → {}"
+    source = "decls~{f = {} => 'i32'} -> defs -> {}"
+    assert show(parse(source)) == "decls~{f = {} ⇒ 'i32'} → defs → {}"
+    assert show(parse("decls~{} => 'i32' -> defs -> {}")) == "decls~{} ⇒ 'i32' → defs → {}"
 
 
 def test_quoted_names():
@@ -400,7 +400,7 @@ def test_quoted_names():
     assert show(parse('"if" -> "if"')) == '"if" → "if"'
     assert show(parse('s."a b"')) == 's."a b"'
     assert show(parse('{"x y" = a}')) == '{"x y" = a}'
-    assert show(parse("x: 'my form' -> x")) == "x:'my form' → x"
+    assert show(parse("x~'my form' -> x")) == "x~'my form' → x"
 
 
 @pytest.mark.parametrize('word', sorted(RESERVED))
@@ -444,5 +444,5 @@ def test_locations_skip_leading_trivia():
 
 
 def test_golden_program():
-    source = "decls: {} -> defs -> {main = a:'i32' -> [00000000]: 'i32'}"
-    assert show(parse(source)) == "decls:{} → defs → {main = a:'i32' → [00000000]:'i32'}"
+    source = "decls~{} -> defs -> {main = a~'i32' -> [00000000]~'i32'}"
+    assert show(parse(source)) == "decls~{} → defs → {main = a~'i32' → [00000000]~'i32'}"

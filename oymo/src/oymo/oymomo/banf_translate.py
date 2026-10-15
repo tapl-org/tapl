@@ -102,10 +102,10 @@ def _unwrap(term):
         ) if module_name == MODULE:
             if not isinstance(module_form, terms.Struct):
                 raise TranslationError(
-                    'The module binder needs a struct form, such as module: {}.', module_lambda.location
+                    'The module binder needs a struct form, such as module~{}.', module_lambda.location
                 )
             return module_form, module_lambda.location, body
-    raise TranslationError('Expected a program of the shape module: {...} -> {...}.', _location(term))
+    raise TranslationError('Expected a program of the shape module~{...} -> {...}.', _location(term))
 
 
 def _declarations(module_form, location):
@@ -171,7 +171,7 @@ def _blocks(field):
             pass
         case _:
             raise TranslationError(
-                f'Definition {name!r} must be a struct of blocks, such as blocks -> {{entry = args: {{}} -> ...}}.',
+                f'Definition {name!r} must be a struct of blocks, such as blocks -> {{entry = args~{{}} -> ...}}.',
                 _location(field.value),
             )
     _check_labeled(block_fields, _location(field.value), f'Definition {name!r}')
@@ -185,7 +185,7 @@ def _blocks(field):
                 _check_data_form(form, block_field.location, what)
             case _:
                 raise TranslationError(
-                    f"Block {block_field.label!r} must be a lambda taking a struct, such as args: {{n = 'i32'}} -> ...",
+                    f"Block {block_field.label!r} must be a lambda taking a struct, such as args~{{n = 'i32'}} -> ...",
                     _location(block_field.value),
                 )
         if any(block.label == block_field.label for block in blocks):
