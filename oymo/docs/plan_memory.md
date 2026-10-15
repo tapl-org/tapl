@@ -16,8 +16,8 @@ Step 1 doesn't depend on the others: it orders effects, which memory ops are, as
 to imports already are. Step 2 makes and moves pointers, but nothing reads or writes
 through them until step 3. Step 4 needs step 3: it uses loads and stores to show why
 step 1 exists. Step 5 needs only forms, but its tests use step 3's loads and stores.
-Steps 2 and 3 need [plan_vm.md](plan_vm.md) step 3: memory ops are entries of its
-symbol table, called as `'name' {...}`, as every opcode is after that step.
+Steps 2 and 3 build on [plan_vm.md](plan_vm.md) step 3 (done): memory ops are
+entries of the opcode table, called as `'name' {...}`, as every opcode is.
 The kernel never folds a memory op (decision 13); LLVM does.
 No step is breaking.
 
@@ -114,7 +114,7 @@ return r
 
 1. **`$after {x, d1, ..., dn}` is `x`, and the kernel can't see that.** Field 0 is
    the value; the others are what it waits for. Fields are positional, and labels are
-   ignored, as in a branch. `after` has no rule and is not a VM symbol, so `reduce`
+   ignored, as in a branch. `after` has no rule and is not an opcode, so `reduce`
    never fires on it (a built-in with no rule is already not a redex): no kernel
    change. It keeps its `$` because `convert` treats it specially. Since `x`
    now uses every `dᵢ`, full β can't drop a `dᵢ`, and a let that uses `$after` comes
@@ -133,7 +133,7 @@ return r
    a jump argument, a branch condition, a return, or a let's value. This is one
    exception to [notes.md › Operands must be atoms](notes.md#operands-must-be-atoms),
    because it stands for its field 0, which is an atom. (The other is a form field of
-   a VM symbol, such as `form` ([plan_vm.md](plan_vm.md) decision 10).)
+   an opcode, such as `form` ([plan_vm.md](plan_vm.md) decision 10).)
 3. **`convert` drops it.** `$after {x, ...}` becomes the atom `x`, and
    `let c = $after {...}` binds no BANF let: `c` is an alias of `x`. So BANF, the
    verifier, `form_of` and LLVM never see it, and it needs no form. After `convert`,
@@ -160,7 +160,7 @@ return r
    `i32`, `{i32, i64}`, `[16 x i8]`. So they take it as a `form` field, as every
    opcode does after [plan_vm.md](plan_vm.md) step 3 (`'add' {'i32', a, b}`),
    and as forms are terms ([notes.md › Forms are terms](notes.md#forms-are-terms)).
-   They are four impure entries of the VM symbol table, named as in LLVM, with
+   They are four impure entries of the opcode table, named as in LLVM, with
    fields in LLVM's operand order:
 
    | Symbol | Fields | Gives | LLVM |
@@ -183,13 +183,13 @@ return r
      array or a vector may be known only at run time.
    - The first index of `'getelementptr'` steps by whole `F`s, so a byte offset is
      `'getelementptr' {'i8', p, {o}}`. It is not `inbounds`.
-   - Fields are positional and labels are ignored, as for every VM symbol
+   - Fields are positional and labels are ignored, as for every opcode
      ([plan_vm.md](plan_vm.md) decision 7): `'store' {v, p}` stores `v` at `p`, as
      LLVM's `store F v, ptr p`.
 8. **LLVM's other aggregate types are tagged pairs.** A plain struct form stays
    LLVM's struct, as today. Every other LLVM type that is not a named form is a
    two-field struct: a tag, a byte array naming the type, then a struct of its
-   parts, positional and in the order LLVM writes them, as for VM symbols:
+   parts, positional and in the order LLVM writes them, as for opcodes:
 
    | Form | LLVM | Parts |
    |---|---|---|
@@ -256,7 +256,7 @@ return r
     but memory has no literals, so the two never meet. A struct's layout (padding,
     field offsets) is LLVM's for the target. See open question 2.
 13. **Memory ops never fold in the kernel.** `alloca`, `getelementptr`, `load` and
-    `store` are impure VM symbols, and the kernel folds only pure ones
+    `store` are impure opcodes, and the kernel folds only pure ones
     ([plan_vm.md](plan_vm.md) decision 8), so they are stuck: no kernel change. The
     kernel has no memory to run them on. LLVM folds what can be folded (`mem2reg`,
     SROA, `instcombine`).
@@ -280,7 +280,7 @@ aliases, and `atom` returns the aliased atom for an alias.
 
 ### B. Pointers, `'alloca'`, `'getelementptr'` (step 2)
 
-Everything generic is already in plan_vm step 3: the call shape, the `VmCall` op,
+Everything generic is already in plan_vm step 3: the call shape, the `OpcodeCall` op,
 form params reduced in place and never let-bound, fields read by position, and
 lowering through an entry's `llvm`. What is left is two table entries and their
 checks.
@@ -288,7 +288,7 @@ checks.
 | Module | Change |
 |---|---|
 | `bruijn.py`, `banf_shape.py` | none (decision 13; form params are plan_vm's) |
-| `vm_symbols.py` | entries `alloca` (form param `form`, optional value param `count` of any integer form, result `'ptr'`) and `getelementptr` (form param `form`, `ptr: 'ptr'`, `indices`, result `'ptr'`), impure, each with a `check` for decision 7's rules and an `llvm`: `builder.alloca(llvm_type(form), size=count)`, `builder.gep(ptr, indices, source_etype=llvm_type(form))` |
+| `opcodes.py` | entries `alloca` (form param `form`, optional value param `count` of any integer form, result `'ptr'`) and `getelementptr` (form param `form`, `ptr: 'ptr'`, `indices`, result `'ptr'`), impure, each with a `check` for decision 7's rules and an `llvm`: `builder.alloca(llvm_type(form), size=count)`, `builder.gep(ptr, indices, source_etype=llvm_type(form))` |
 | `banf_terms.py` | `show_form` for `'ptr'`; printed `alloca {i32, i64}`, `getelementptr {i32, i64}, q, [00..]:i64, [01000000]:i32`; verifier: a `Const` of form `ptr` is an error (decision 6) |
 | `llvm_translate.py` | `llvm_type`: `'ptr'` → `ir.PointerType()` |
 
@@ -296,7 +296,7 @@ checks.
 
 | Module | Change |
 |---|---|
-| `vm_symbols.py` | entries `load` (form param `form`, `ptr: 'ptr'`, result `form`) and `store` (`value` of any form, `ptr: 'ptr'`, result `{}`), impure; `llvm`: `builder.load(ptr, typ=llvm_type(form))`, `builder.store(value, ptr)`, the let binding no LLVM value |
+| `opcodes.py` | entries `load` (form param `form`, `ptr: 'ptr'`, result `form`) and `store` (`value` of any form, `ptr: 'ptr'`, result `{}`), impure; `llvm`: `builder.load(ptr, typ=llvm_type(form))`, `builder.store(value, ptr)`, the let binding no LLVM value |
 | `banf_terms.py` | verifier: a name bound by a `store` let is used nowhere (decision 11); `$after` is gone by then, so any use is an error |
 | `banf_translate.py` | none: `ptr` must have form `'ptr'` is the table's param check: `'load' expects ptr: ptr, got i32.` |
 
@@ -407,7 +407,7 @@ result, an import declares them (`malloc = {size = 'i64'} => 'ptr'`).
 ## Breaking changes
 
 None here. `'ptr'` is a new named form, and `'alloca'`, `'getelementptr'`, `'load'`
-and `'store'` were unknown VM symbols, an error in `convert`. (Renaming `$add_i32` to
+and `'store'` were unknown opcodes, an error in `convert`. (Renaming `$add_i32` to
 `'add' {'i32', a, b}` is breaking, but it is [plan_vm.md](plan_vm.md) step 3.)
 Data symbols keep today's meaning. `$after` was an unknown built-in, and the parser
 already accepts any `$name`. A
@@ -490,7 +490,7 @@ Commit: `oymomo: add $after`
   - `banf_terms`: a `'ptr'` literal is `A pointer can't be a literal.`
   - golden `pointer.oymo`: an `alloca` of a struct, a field address passed to a call.
 - `docs/notes.md`: `'ptr'` in the BANF to LLVM table; Overview's Type/Form/Layout
-  table gets a pointer row; the memory entries in VM symbols (impure, form params);
+  table gets a pointer row; the memory entries in opcodes (impure, form params);
   the form field in Operands must be atoms; the messages in Error messages.
 
 Commit: `oymomo: add the ptr form`

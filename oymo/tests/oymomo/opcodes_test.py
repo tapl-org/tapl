@@ -1,114 +1,153 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import pytest
+
 from oymo.oymomo import terms
-from oymo.oymomo.opcodes import FOLDED_TEMPLATES, OPCODES, OpcodeSignature, byte_count, evaluate, form_bits
+from oymo.oymomo.opcodes import OPCODES, bit_width, byte_width, decode_uint, lookup
 
 I1, I8, I16, I32, I64 = (terms.ByteArray(name) for name in (b'i1', b'i8', b'i16', b'i32', b'i64'))
 
 
-def test_same_form_ops():
-    assert OPCODES['add_i32'] == OpcodeSignature('add_i32', 'add', (('a', I32), ('b', I32)), I32)
-    assert OPCODES['sub_i8'].params == (('minuend', I8), ('subtrahend', I8))
-    assert OPCODES['udiv_i64'].params == (('dividend', I64), ('divisor', I64))
-    assert OPCODES['shl_i16'].params == (('value', I16), ('amount', I16))
+def operand(form, value):
+    """`value` as the bare bytes of an operand read at `form`."""
+    return terms.ByteArray(value.to_bytes(byte_width(bit_width(form)), 'little'))
 
 
-def test_comparisons_return_i1():
-    assert OPCODES['eq_i1'] == OpcodeSignature('eq_i1', 'eq', (('a', I1), ('b', I1)), I1)
-    assert OPCODES['slt_i32'] == OpcodeSignature('slt_i32', 'slt', (('lhs', I32), ('rhs', I32)), I1)
+def ev(name, form, operands, to=None):
+    """`evaluate` on `{form, operands...}`, or `{form, operand, to}` for a conversion, as an
+    unsigned number (or None)."""
+    form = terms.ByteArray.from_str(form)
+    fields = [form, *(operand(form, value) for value in operands)]
+    if to is not None:
+        fields.append(terms.ByteArray.from_str(to))
+    result = OPCODES[name].evaluate(fields)
+    return None if result is None else int.from_bytes(result.value, 'little')
 
 
-def test_logic_includes_i1():
-    assert 'and_i1' in OPCODES
-    assert 'xor_i1' in OPCODES
-    assert 'ne_i1' in OPCODES
+def test_one_opcode_per_llvm_instruction():
+    assert set(OPCODES) == {
+        *('add', 'sub', 'mul', 'sdiv', 'udiv', 'srem', 'urem', 'shl', 'lshr', 'ashr', 'and', 'or', 'xor'),
+        *(f'icmp_{p}' for p in ('eq', 'ne', 'slt', 'sle', 'sgt', 'sge', 'ult', 'ule', 'ugt', 'uge')),
+        *('zext', 'sext', 'trunc'),
+    }
 
 
-def test_no_i1_arithmetic_shifts_or_ordered_comparisons():
-    for template in ('add', 'mul', 'sub', 'sdiv', 'udiv', 'srem', 'urem', 'shl', 'lshr', 'ashr', 'slt', 'uge'):
-        assert f'{template}_i1' not in OPCODES
+def test_form_of():
+    x = terms.Variable('x')
+    assert OPCODES['add'].form_of([I32, x, x]) == I32
+    assert OPCODES['icmp_eq'].form_of([I32, x, x]) == I1
+    assert OPCODES['zext'].form_of([I8, x, I32]) == I32
+    # The fields don't tell it: a wrong count, or a form that isn't a byte array.
+    assert OPCODES['add'].form_of([I32, x]) is None
+    assert OPCODES['add'].form_of([x, x, x]) is None
+    assert OPCODES['zext'].form_of([I8, x, x]) is None
 
 
-def test_conversions():
-    assert OPCODES['zext_i8_i32'] == OpcodeSignature('zext_i8_i32', 'zext', (('value', I8),), I32)
-    assert OPCODES['sext_i1_i64'].result == I64
-    assert OPCODES['trunc_i64_i32'] == OpcodeSignature('trunc_i64_i32', 'trunc', (('value', I64),), I32)
-    assert 'zext_i32_i8' not in OPCODES
-    assert 'trunc_i8_i32' not in OPCODES
-    assert 'zext_i32_i32' not in OPCODES
-    assert 'trunc_i32_i32' not in OPCODES
+def test_evaluate_gives_the_result_bytes():
+    assert OPCODES['add'].evaluate([I32, operand(I32, 1), operand(I32, 2)]) == operand(I32, 3)
+    assert OPCODES['icmp_eq'].evaluate([I8, operand(I8, 7), operand(I8, 7)]) == operand(I1, 1)
+    assert OPCODES['zext'].evaluate([I8, operand(I8, 0xFF), I32]) == operand(I32, 0xFF)
 
 
-def test_byte_count():
-    assert [byte_count(form_bits(form)) for form in (I1, I8, I16, I32, I64)] == [1, 1, 2, 4, 8]
+def test_evaluate_reads_bare_or_formed_operands():
+    formed = terms.Formed(operand(I8, 1), I8)
+    assert OPCODES['add'].evaluate([I8, formed, operand(I8, 2)]) == operand(I8, 3)
+    assert decode_uint(formed, I8) == 1
+    # A written form is not compared: the bytes are read at the opcode's form.
+    assert decode_uint(terms.Formed(operand(I8, 1), I32), I8) == 1
+
+
+def test_evaluate_needs_what_it_can_read():
+    x = terms.Variable('x')
+    assert OPCODES['add'].evaluate([I32, x, operand(I32, 1)]) is None  # a run-time operand
+    assert OPCODES['add'].evaluate([I32, operand(I8, 1), operand(I32, 1)]) is None  # wrong size
+    assert OPCODES['add'].evaluate([terms.ByteArray.from_str('ptr'), operand(I8, 1), operand(I8, 1)]) is None
+    assert OPCODES['add'].evaluate([I32, operand(I32, 1)]) is None  # wrong count
+
+
+def test_conversions_evaluate_only_where_llvm_converts():
+    assert ev('zext', 'i32', [1], to='i8') is None
+    assert ev('zext', 'i32', [1], to='i32') is None
+    assert ev('trunc', 'i8', [1], to='i32') is None
+    assert ev('trunc', 'i32', [1], to='i32') is None
+
+
+def test_lookup():
+    assert lookup(terms.ByteArray.from_str('add')) is OPCODES['add']
+    assert lookup(terms.ByteArray.from_str('add_i32')) is None
+    assert lookup(terms.ByteArray(b'\xff')) is None
+    assert lookup(terms.Variable('add')) is None
+
+
+def test_byte_width():
+    assert [byte_width(bit_width(form)) for form in (I1, I8, I16, I32, I64)] == [1, 1, 2, 4, 8]
 
 
 def test_evaluate_wraps_to_the_result_width():
-    assert evaluate(OPCODES['add_i8'], [0xFF, 0x01]) == 0x00
-    assert evaluate(OPCODES['sub_i8'], [0x00, 0x01]) == 0xFF
-    assert evaluate(OPCODES['mul_i16'], [0x100, 0x100]) == 0
-    assert evaluate(OPCODES['add_i64'], [2**64 - 1, 2]) == 1
+    assert ev('add', 'i8', [0xFF, 0x01]) == 0x00
+    assert ev('sub', 'i8', [0x00, 0x01]) == 0xFF
+    assert ev('mul', 'i16', [0x100, 0x100]) == 0
+    assert ev('add', 'i64', [2**64 - 1, 2]) == 1
 
 
 def test_evaluate_logic():
-    assert evaluate(OPCODES['and_i1'], [1, 1]) == 1
-    assert evaluate(OPCODES['xor_i1'], [1, 1]) == 0
-    assert evaluate(OPCODES['or_i8'], [0x0F, 0xF0]) == 0xFF
-
-
-def test_folded_templates_are_opcode_templates():
-    assert {signature.template for signature in OPCODES.values()} >= FOLDED_TEMPLATES
+    assert ev('and', 'i1', [1, 1]) == 1
+    assert ev('xor', 'i1', [1, 1]) == 0
+    assert ev('or', 'i8', [0x0F, 0xF0]) == 0xFF
 
 
 def test_evaluate_division_rounds_toward_zero():
-    assert evaluate(OPCODES['sdiv_i8'], [0xF9, 0x02]) == 0xFD  # -7 / 2 = -3
-    assert evaluate(OPCODES['srem_i8'], [0xF9, 0x02]) == 0xFF  # -7 % 2 = -1
-    assert evaluate(OPCODES['sdiv_i8'], [0x07, 0xFE]) == 0xFD  # 7 / -2 = -3
-    assert evaluate(OPCODES['srem_i8'], [0x07, 0xFE]) == 0x01  # 7 % -2 = 1
-    assert evaluate(OPCODES['udiv_i8'], [0xF9, 0x02]) == 0x7C  # 249 / 2
-    assert evaluate(OPCODES['urem_i8'], [0xF9, 0x02]) == 0x01
+    assert ev('sdiv', 'i8', [0xF9, 0x02]) == 0xFD  # -7 / 2 = -3
+    assert ev('srem', 'i8', [0xF9, 0x02]) == 0xFF  # -7 % 2 = -1
+    assert ev('sdiv', 'i8', [0x07, 0xFE]) == 0xFD  # 7 / -2 = -3
+    assert ev('srem', 'i8', [0x07, 0xFE]) == 0x01  # 7 % -2 = 1
+    assert ev('udiv', 'i8', [0xF9, 0x02]) == 0x7C  # 249 / 2
+    assert ev('urem', 'i8', [0xF9, 0x02]) == 0x01
 
 
 def test_evaluate_shifts():
-    assert evaluate(OPCODES['shl_i8'], [0x81, 0x01]) == 0x02
-    assert evaluate(OPCODES['lshr_i8'], [0x80, 0x07]) == 0x01
-    assert evaluate(OPCODES['ashr_i8'], [0x80, 0x07]) == 0xFF
-    assert evaluate(OPCODES['ashr_i8'], [0x40, 0x07]) == 0x00
+    assert ev('shl', 'i8', [0x81, 0x01]) == 0x02
+    assert ev('lshr', 'i8', [0x80, 0x07]) == 0x01
+    assert ev('ashr', 'i8', [0x80, 0x07]) == 0xFF
+    assert ev('ashr', 'i8', [0x40, 0x07]) == 0x00
+
+
+@pytest.mark.parametrize('name', ['sdiv', 'udiv', 'srem', 'urem'])
+def test_evaluate_division_by_zero_has_no_result(name):
+    assert ev(name, 'i32', [5, 0]) is None
 
 
 def test_evaluate_has_no_result_where_llvm_has_none():
-    for template in ('sdiv', 'udiv', 'srem', 'urem'):
-        assert evaluate(OPCODES[f'{template}_i32'], [5, 0]) is None
-    assert evaluate(OPCODES['sdiv_i8'], [0x80, 0xFF]) is None  # -128 / -1
-    assert evaluate(OPCODES['srem_i8'], [0x80, 0xFF]) is None
-    assert evaluate(OPCODES['udiv_i8'], [0x80, 0xFF]) == 0  # unsigned: 128 / 255
-    for template in ('shl', 'lshr', 'ashr'):
-        assert evaluate(OPCODES[f'{template}_i8'], [1, 8]) is None
-        assert evaluate(OPCODES[f'{template}_i8'], [1, 0xFF]) is None
-        assert evaluate(OPCODES[f'{template}_i8'], [1, 7]) is not None
+    assert ev('sdiv', 'i8', [0x80, 0xFF]) is None  # -128 / -1
+    assert ev('srem', 'i8', [0x80, 0xFF]) is None
+    assert ev('udiv', 'i8', [0x80, 0xFF]) == 0  # unsigned: 128 / 255
+    for name in ('shl', 'lshr', 'ashr'):
+        assert ev(name, 'i8', [1, 8]) is None
+        assert ev(name, 'i8', [1, 0xFF]) is None
+        assert ev(name, 'i8', [1, 7]) is not None
 
 
 def test_evaluate_comparisons():
-    assert evaluate(OPCODES['eq_i8'], [7, 7]) == 1
-    assert evaluate(OPCODES['ne_i1'], [1, 1]) == 0
+    assert ev('icmp_eq', 'i8', [7, 7]) == 1
+    assert ev('icmp_ne', 'i1', [1, 1]) == 0
     # 0xff is -1 signed, 255 unsigned.
-    assert evaluate(OPCODES['slt_i8'], [0xFF, 0x00]) == 1
-    assert evaluate(OPCODES['ult_i8'], [0xFF, 0x00]) == 0
-    assert evaluate(OPCODES['sge_i16'], [0x8000, 0x7FFF]) == 0
-    assert evaluate(OPCODES['uge_i16'], [0x8000, 0x7FFF]) == 1
-    assert evaluate(OPCODES['sle_i32'], [5, 5]) == 1
-    assert evaluate(OPCODES['ugt_i64'], [2**64 - 1, 0]) == 1
+    assert ev('icmp_slt', 'i8', [0xFF, 0x00]) == 1
+    assert ev('icmp_ult', 'i8', [0xFF, 0x00]) == 0
+    assert ev('icmp_sge', 'i16', [0x8000, 0x7FFF]) == 0
+    assert ev('icmp_uge', 'i16', [0x8000, 0x7FFF]) == 1
+    assert ev('icmp_sle', 'i32', [5, 5]) == 1
+    assert ev('icmp_ugt', 'i64', [2**64 - 1, 0]) == 1
 
 
 def test_evaluate_conversions():
-    assert evaluate(OPCODES['zext_i8_i32'], [0xFF]) == 0xFF
-    assert evaluate(OPCODES['sext_i8_i32'], [0xFF]) == 0xFFFFFFFF
-    assert evaluate(OPCODES['sext_i8_i32'], [0x7F]) == 0x7F
-    assert evaluate(OPCODES['sext_i1_i8'], [1]) == 0xFF
-    assert evaluate(OPCODES['zext_i1_i64'], [1]) == 1
-    assert evaluate(OPCODES['trunc_i32_i8'], [0x12345678]) == 0x78
-    assert evaluate(OPCODES['trunc_i8_i1'], [0xFE]) == 0
+    assert ev('zext', 'i8', [0xFF], to='i32') == 0xFF
+    assert ev('sext', 'i8', [0xFF], to='i32') == 0xFFFFFFFF
+    assert ev('sext', 'i8', [0x7F], to='i32') == 0x7F
+    assert ev('sext', 'i1', [1], to='i8') == 0xFF
+    assert ev('zext', 'i1', [1], to='i64') == 1
+    assert ev('trunc', 'i32', [0x12345678], to='i8') == 0x78
+    assert ev('trunc', 'i8', [0xFE], to='i1') == 0
 
 
-def test_every_opcode_folds():
-    assert {signature.template for signature in OPCODES.values()} == FOLDED_TEMPLATES
+def test_every_opcode_is_pure():
+    assert all(opcode.pure for opcode in OPCODES.values())

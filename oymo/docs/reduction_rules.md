@@ -36,7 +36,7 @@ Evaluation is **weak** (it never goes under a `λ` or into a struct field) and
 w ::= λx:F. t | {l1 = t1, ...} | [b] | x | $name | F -> G | stuck terms
 ```
 
-Here are some stuck terms: `args.n`, `blocks.done {...}`, `$add_i32 {a = args.n, ...}`,
+Here are some stuck terms: `args.n`, `blocks.done {...}`, `'add' {'i32', args.n, ...}`,
 `{e, t} c` when `c` is not a byte array, `s.l` when `s` has no field `l`, `{} [b]`,
 `$unknown t`.
 
@@ -71,10 +71,12 @@ $fields_to_struct fl(l1 = t1, ..., ln = tn)  →  {l1 = t1, ..., ln = tn}   (E-F
     (When E-FromFields reads a field list, it ignores extra fields and any
      form on more or label. Each label must be valid UTF-8.)
 
-$op {p1 = v1, ..., pn = vn}  →  [r] : R                         (E-Opcode)
-    $op is a folded opcode with params p1:iN1 ... pn:iNn (in this order)
-    and result form R.
-    Each vi is [b] or [b] : iNi, where |b| = ceil(Ni / 8) and le(b) < 2^Ni.
+'op' {v1, ..., vn}  →  [r] : R                                  (E-Opcode)
+    'op' is a pure opcode with params p1 ... pn, in this order; labels on
+    the fields are ignored. Each form param's vi is a literal form the
+    opcode accepts, and each value param's vi is [b] or [b] : iN, where iN
+    is the form its form param got, |b| = ceil(N / 8) and le(b) < 2^N.
+    R is the result form: a form param's vi, or fixed (i1).
     r = the bytes LLVM computes. There is no rule where LLVM leaves the
     result undefined: x / 0, x % 0, signed-min / -1, signed-min % -1, and
     shifts by the width or more.
@@ -114,7 +116,7 @@ after that step. Each built-in reads these parts:
 | `$fix` | none, so `t` in `$fix t` is never reduced |
 | `$struct_to_fields` | the argument |
 | `$fields_to_struct` | each node of the list, its `more`, and, if `more = [01]`, its `label` and `rest`; never `value` |
-| folded opcode | the argument, then each field in order, if the labels match the params |
+| opcode | the argument, then each field in order, if there is one field per param |
 
 There are no congruence rules for the body of a `λ`, a form, a struct field, or an
 ordinary argument.

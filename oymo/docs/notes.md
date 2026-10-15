@@ -28,6 +28,7 @@ The [Glossary](#glossary) at the end defines words like *form*, *BANF*, *atom* o
 | Write a struct, lambda, let, byte array… | [oymomo syntax › Cheat sheet](#cheat-sheet) |
 | Know how `f a: t` or `x: A => B` groups | [oymomo syntax › Precedence](#precedence) |
 | Know what a form is and how it differs from a type | [The kernel › Forms](#forms) |
+| Know why a mistake isn't reported | [Overview › A generated IR](#a-generated-ir-no-checks-for-user-mistakes) |
 | Know how terms reduce (`reduce`, built-ins, `$fix`) | [The kernel](#the-kernel-forms-built-ins-reduction) |
 | Declare and define functions, imports and data | [Programs](#programs) |
 | Find an opcode or its operand labels | [Opcodes](#opcodes) |
@@ -50,6 +51,7 @@ rejected alternatives. When a plan lands, update the section it changes (see
 
 - [Overview](#overview)
   - [Type, Form, Layout](#type-form-layout)
+  - [A generated IR: no checks for user mistakes](#a-generated-ir-no-checks-for-user-mistakes)
   - [The pipeline](#the-pipeline)
   - [Walkthrough: one function through every stage](#walkthrough-one-function-through-every-stage)
   - [Where the code lives](#where-the-code-lives)
@@ -86,8 +88,8 @@ rejected alternatives. When a plan lands, update the section it changes (see
 - [Opcodes](#opcodes)
   - [Table](#table)
   - [Naming](#naming)
-  - [Monomorphic: one op per signature](#monomorphic-one-op-per-signature)
-  - [Labels fit the op](#labels-fit-the-op)
+  - [Fields are positional, in LLVM's order](#fields-are-positional-in-llvms-order)
+  - [Polymorphic in `form`](#polymorphic-in-form)
   - [Folding](#folding)
 - [BANF](#banf)
   - [Module](#module)
@@ -139,7 +141,7 @@ rejected alternatives. When a plan lands, update the section it changes (see
   - [Functions are structs of blocks](#functions-are-structs-of-blocks-1)
   - [One argument, always a struct](#one-argument-always-a-struct-1)
   - [Return forms are declared, not inferred](#return-forms-are-declared-not-inferred)
-  - [Monomorphic opcodes](#monomorphic-opcodes)
+  - [Opcodes as LLVM writes them](#opcodes-as-llvm-writes-them)
   - [BANF](#banf-1)
   - [Translation only reduces](#translation-only-reduces)
   - [Renaming](#renaming)
@@ -173,6 +175,30 @@ Why three words: a backend fact such as "i32 is 4-byte aligned" must not leak in
 the kernel, where `[2a000000]: 'i32'` only means "these bytes, read as the form i32".
 More in [The kernel › Forms](#forms).
 
+### A generated IR: no checks for user mistakes
+
+oymomo is an IR for other programming languages: their compilers generate it, and no
+one writes it by hand. Its syntax exists only for debugging and tests. So oymomo has
+no strict checks to catch a user's mistakes: it assumes whoever produced the program
+knows exactly what they are doing.
+
+```
+'add' {'i32', [01]:'i8', x}        accepted: the i8 operand is not compared with i32
+if c then ... else ...             accepted with c: 'i8'
+g = => 'i32', returning [01]:'i8'  accepted: the return form is not compared
+```
+
+- **Forms are never compared** with each other: not an argument with its param, an
+  opcode operand with `form`, a branch condition with `i1`, nor a return value with
+  the declared return form. A form is not a type ([Type, Form, Layout](#type-form-layout)).
+- **Only what a pass can't go on without is rejected**: an unknown name, a wrong
+  number of arguments, a missing struct field, an opcode call whose fields don't tell
+  its result form.
+- **The backend may still reject** what it can't lower (`llvm_translate`, or LLVM
+  itself). That is the backend's business, not oymomo's.
+- When changing the code, don't add a check that only guards against a user mistake;
+  add one only when a pass needs it to produce its output.
+
 ### The pipeline
 
 ```
@@ -204,20 +230,20 @@ definitions. `fact` is a struct of blocks; each block is a lambda over its param
 module: {fact = => 'i32'} -> {
   fact = f -> {
     entry = args:{n = 'i32'} ->
-      let t0 = $eq_i32 {a = args.n, b = [00000000]:'i32'} in
+      let t0 = 'icmp_eq' {'i32', args.n, [00000000]:'i32'} in
       if t0 then f.then0 {} else f.else0 {n = args.n},
     then0 = args:{} -> [01000000]:'i32',
     else0 = args:{n = 'i32'} ->
-      let t1 = $sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'} in
+      let t1 = 'sub' {'i32', args.n, [01000000]:'i32'} in
       let t2 = module.fact {n = t1} in
-      let t3 = $mul_i32 {a = args.n, b = t2} in
+      let t3 = 'mul' {'i32', args.n, t2} in
       t3,
   },
 }
 ```
 
 - `fact = => 'i32'` declares a function returning `i32` that the body defines.
-- `$eq_i32`, `$sub_i32`, `$mul_i32` are opcodes. `module.fact {...}` is a call.
+- `'icmp_eq'`, `'sub'`, `'mul'` are opcodes. `module.fact {...}` is a call.
 - `f.then0 {}` jumps to the sibling block `then0`.
 
 **2. Shaped term** (`banf_translate.shape`). Reduced until it has BANF's shape, and
@@ -228,13 +254,13 @@ already in shape, so only `f` → `blocks` changed.
 module: {fact= ⇒ 'i32'} → {
   fact= blocks → {
     entry= args: {n= 'i32'} →
-      let t0 = $eq_i32 {a= args.n, b= [00000000]: 'i32'} in
+      let t0 = 'icmp_eq' {'i32', args.n, [00000000]: 'i32'} in
       if t0 then blocks.then0 {} else blocks.else0 {n= args.n},
     then0= args: {} → [01000000]: 'i32',
     else0= args: {n= 'i32'} →
-      let t1 = $sub_i32 {minuend= args.n, subtrahend= [01000000]: 'i32'} in
+      let t1 = 'sub' {'i32', args.n, [01000000]: 'i32'} in
       let t2 = module.fact {n= t1} in
-      let t3 = $mul_i32 {a= args.n, b= t2} in t3,
+      let t3 = 'mul' {'i32', args.n, t2} in t3,
   },
 }
 ```
@@ -245,14 +271,14 @@ block params; the `if` became a `branch`.
 ```
 fact: i32
   entry(n: i32):
-    t0 = eq_i32 n, [00000000]:i32
+    t0 = icmp_eq 'i32', n, [00000000]:i32
     branch t0, then0(), else0(n)
   then0():
     return [01000000]:i32
   else0(n: i32):
-    t1 = sub_i32 n, [01000000]:i32
+    t1 = sub 'i32', n, [01000000]:i32
     t2 = call fact(t1)
-    t3 = mul_i32 n, t2
+    t3 = mul 'i32', n, t2
     return t3
 ```
 
@@ -291,7 +317,7 @@ module has a test of the same name in `tests/oymomo/`.
 | [`banf_rename.py`](../src/oymo/oymomo/banf_rename.py) | Renames binders so none shadow each other |
 | [`banf_translate.py`](../src/oymo/oymomo/banf_translate.py) | `shape`, `convert`, `translate`: oymomo → BANF |
 | [`banf_terms.py`](../src/oymo/oymomo/banf_terms.py) | BANF classes, `form_of`, verifier, BANF printer |
-| [`opcodes.py`](../src/oymo/oymomo/opcodes.py) | Opcode signatures (`OPCODES`), no BANF and no LLVM; shared by the kernel, BANF and LLVM |
+| [`opcodes.py`](../src/oymo/oymomo/opcodes.py) | The opcodes (`OPCODES`): params, accepted forms, folding; no BANF and no LLVM; shared by the kernel, BANF and LLVM |
 | [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) | llvmlite code for each opcode (`DEFAULT_OPCODES`) |
 | [`llvm_translate.py`](../src/oymo/oymomo/llvm_translate.py) | BANF → LLVM IR, `Target` |
 
@@ -308,7 +334,7 @@ Target(triple='x86_64-unknown-linux-gnu', data_layout='', opcodes=DEFAULT_OPCODE
 ```
 
 - `opcodes` maps each opcode name to the LLVM instructions for it. BANF only names
-  the opcode (`add_i32`); the target supplies the implementation.
+  the opcode (`add`); the target supplies the implementation.
 - There is no `byte_order` field: byte arrays are always little-endian, and the
   target's byte order comes from `data_layout` (`e` or `E`). A separate field could
   disagree with it.
@@ -356,7 +382,7 @@ s.x                          Project: field by label
 s [00]                       Apply on a struct: field by position
 if c then a else b           Sugar for {b, a} c
 let x = e in body            Sugar for (x -> body) e
-$add_i32, $fix g             Builtin, applied like a function
+$fix g                       Builtin, applied like a function
 $0                           BruijnIndex
 [2a 00 00 00]                Byte array (hex)
 'Hello'                      Byte array (text)
@@ -419,7 +445,7 @@ Examples:
 | `s [00] [01]` | `(s [00]) [01]` |
 | `f s [00]` | `(f s) [00]` |
 | `s [00] : t` | `s ([00] : t)` |
-| `$add_i32 {...}.a` | `$add_i32 ({...}.a)` |
+| `'add' {'i32', x}.a` | `'add' ({'i32', x}.a)` |
 | `f $fix g` | `(f $fix) g` |
 | `let x = e in a b` | `let x = e in (a b)` |
 
@@ -456,7 +482,7 @@ x: {c = 'i8'} => 'i32' -> x
 `f a`: one argument. Left-associative: `f a b` is `(f a) b`.
 
 Every built-in and every function takes one argument; several operands go in a
-struct: `$add_i32 {a = x, b = y}`. See
+struct: `'add' {'i32', x, y}`. See
 [Programs › One argument, always a struct](#one-argument-always-a-struct).
 
 ### Let
@@ -464,7 +490,7 @@ struct: `$add_i32 {a = x, b = y}`. See
 `let x = e in body` is sugar for `(x -> body) e`. No new term.
 
 ```
-let t0: 'i1' = $eq_i32 {a = args.n, b = [00000000]: 'i32'} in t0
+let t0: 'i1' = 'icmp_eq' {'i32', args.n, [00000000]: 'i32'} in t0
 ```
 
 - The optional form goes on the name, as on a lambda param.
@@ -629,7 +655,7 @@ symbols, including mangled names from higher layers. More in
 | Syntax | Term | Bound by |
 |---|---|---|
 | `$0`, `$1`… | `BruijnIndex` | position (`$0` = nearest binder) |
-| `$add_i32`, `$fix` | `Builtin` | the kernel |
+| `$fix` | `Builtin` | the kernel |
 
 - An identifier can't start with a digit, so the two never overlap.
 - No space after `$`, and no quotes: `$ fix` and `$"fix"` are errors.
@@ -658,7 +684,7 @@ Rules in both modes:
 - An omitted form is not shown. Names are quoted when needed (`"if"`, `"a b"`).
 - An apply of a lambda prints as `let`: compact `let x:'i8' = e in body`, pretty
   `let x: 'i8' = e in body`.
-- `BruijnIndex` prints as `$0`, `Builtin` as `$add_i32`, `Variable` as its name.
+- `BruijnIndex` prints as `$0`, `Builtin` as `$fix`, `Variable` as its name.
   `$0` parses back as a `BruijnIndex`, so a resolved term round-trips.
 - With `name_indices=True`, `$i` is kept where an inner binder shadows the name
   (`x → x → $1`) or no binder is in scope, so the output still resolves to the
@@ -677,7 +703,7 @@ Pretty mode breaks a term wider than `width` (default 80), indenting by `indent`
   reads one let per line:
   ```
   entry = args: {n = 'i32'} →
-    let t0 = $eq_i32 {a = args.n, b = [00000000]: 'i32'} in
+    let t0 = 'icmp_eq' {'i32', args.n, [00000000]: 'i32'} in
     if t0 then f.then0 {} else f.else0 {n = args.n},
   ```
 - an `if` puts `then` and `else` on their own lines.
@@ -732,7 +758,7 @@ form is `terms.Empty`, meaning **not written**.
 - `Empty` is not a void form. There is no void form; `: 'void'` is just the form
   named void.
 - `Empty` has no default meaning. Each position says what it means there, or rejects
-  it. A BANF let takes its op's form, so `let t0 = $eq_i32 {...} in t0` needs no
+  it. A BANF let takes its op's form, so `let t0 = 'icmp_eq' {'i32', ...} in t0` needs no
   `t0: 'i1'`. A byte array with nothing giving it a form (`[01]` alone) is rejected:
   "form must be written".
 - A byte array has no form of its own: `[2a]` is just bytes.
@@ -764,13 +790,14 @@ name whose LLVM type differs from the name's.
 
 ### Built-ins
 
-Machine primitives (arithmetic, logic, comparison, conversion) and kernel helpers
-are **built-ins**, each a global constant written `$name`:
+Kernel helpers are **built-ins**, each a global constant written `$name`:
 
 ```
-$add_i32 {a = x, b = y}
 $fix g
 ```
+
+Machine instructions are not built-ins: they are opcodes, `'add' {'i32', x, y}`, a
+byte array applied to a struct ([Opcodes](#opcodes)).
 
 - Every built-in takes one argument; several operands go in a struct. A call is
   always `Apply(Builtin(name), arg)`.
@@ -778,34 +805,41 @@ $fix g
   apply, or unpack.
 - No names are reserved for them: `fix -> fix` is an ordinary lambda.
 
-A name can appear in two tables:
+Rules live in two places:
 
 | Table | File | Gives |
 |---|---|---|
-| `BUILTIN_RULES` (`BuiltinRule(name, reduce)`) | [`bruijn.py`](../src/oymo/oymomo/bruijn.py) | a reduction rule |
-| `OPCODES` / `DEFAULT_OPCODES` | [`opcodes.py`](../src/oymo/oymomo/opcodes.py) / [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) | machine code (an **opcode**) |
+| `BUILTIN_RULES` (`BuiltinRule(name, reduce)`) | [`bruijn.py`](../src/oymo/oymomo/bruijn.py) | a built-in's reduction rule |
+| `OPCODES` / `DEFAULT_OPCODES` | [`opcodes.py`](../src/oymo/oymomo/opcodes.py) / [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) | an opcode, and its machine code |
 
-| Name | Rule | Opcode |
-|---|---|---|
-| `fix` | `$fix g` gives `g ($fix g)` | no: it must reduce away |
-| `fields_to_struct` | `$fields_to_struct {more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}` gives `{l1 = e1, ...}`; reduces `more`, `label` and `rest` of each node first, never a value; stuck on a malformed list | no: it must reduce away |
-| `struct_to_fields` | `$struct_to_fields {l1 = e1, ...}` gives `{more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}`: labels as UTF-8 bytes, values unreduced, order kept ([plan_struct_pack.md](implemented/plan_struct_pack.md)) | no: it must reduce away |
-| `add_i32` and other opcodes | on literal operands, the result LLVM would compute: `$add_i32 {a = [01000000], b = [02000000]}` gives `[03000000]: 'i32'`; reduces the argument, then each field if the labels are the params'. Every opcode folds, never where LLVM has no defined result ([plan_constant_folding.md](implemented/plan_constant_folding.md)). See [Opcodes › Folding](#folding) | yes |
+`bruijn.rule_of(call)` gives a built-in's rule. An opcode has no rule of its own:
+`bruijn.fold_opcode(call)` folds it at the root, reducing nothing.
 
-- A built-in with a rule and no opcode is **kernel-only**. This follows from the
-  tables, with no flag to keep in sync. Reduction must remove it.
+The kernel has one rule for every `'name' arg` (a byte array applied to an argument):
+the argument must be a struct literal whose fields are byte arrays or structs. So
+`banf_shape` reduces the argument, then each of its fields, whatever the opcode and
+however many fields there are.
+
+| Call | Rule |
+|---|---|
+| `$fix g` | gives `g ($fix g)`; must reduce away |
+| `$fields_to_struct {more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}` | gives `{l1 = e1, ...}`; reduces `more`, `label` and `rest` of each node first, never a value; stuck on a malformed list; must reduce away |
+| `$struct_to_fields {l1 = e1, ...}` | gives `{more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}`: labels as UTF-8 bytes, values unreduced, order kept ([plan_struct_pack.md](implemented/plan_struct_pack.md)); must reduce away |
+| `'add' {...}` and every other opcode | on literal fields, the result LLVM would compute: `'add' {'i32', [01000000], [02000000]}` gives `[03000000]: 'i32'`; needs a struct literal with one field per param. Never where LLVM has no defined result ([plan_constant_folding.md](implemented/plan_constant_folding.md)). See [Opcodes › Folding](#folding) |
+
+- Every built-in is **kernel-only**: reduction must remove it.
 - `reduce(call, reduce_part)` steps the whole call. It gives each part of the argument
   it reads to `reduce_part` first, and returns the result if it fires, else `call` with
   the reduced parts put back, else `call` itself. `bruijn.reduce` passes `keep` (reduces
   nothing); `banf_shape` passes `reduce_until_top_stable`. See [Blockers](#blockers).
 - `$fix g` unfolds without reducing `g`: `_fix` never calls `reduce_part`.
-- What a leftover kernel-only built-in's argument must reduce to (e.g. `'a struct'`) is
+- What a leftover built-in's argument must reduce to (e.g. `'a struct'`) is
   in `banf_translate._MUST_REDUCE_TO`, for the error message.
-- `convert` is the only gate into BANF: `$name arg` becomes an `OpcodeCall` only if
-  `name` is in `OPCODES`. Leftovers are errors: see
+- `convert` is the only gate into BANF: `'name' {...}` becomes an `OpcodeCall` only if
+  `name` is in `OPCODES`, and a leftover `$name` is an error: see
   [Error messages › Built-ins](#built-ins-1).
 - BANF keeps the split between instructions and symbols: `OpcodeCall` for opcodes,
-  `Call` for `module` symbols. `$add_i32` never becomes an LLVM symbol.
+  `Call` for `module` symbols. An opcode never becomes an LLVM symbol.
 
 Why built-ins instead of `module` names, a `prim` binder, or a `fix` term: see
 [Design decisions › Built-ins](#built-ins-2) and
@@ -823,7 +857,7 @@ Why built-ins instead of `module` names, a `prim` binder, or a `fix` term: see
 | built-in | `$fix g` | `g ($fix g)` (by `BUILTIN_RULES[name]`, if it fires) |
 | built-in | `$struct_to_fields {a = e}` | `{more = [01], label = 'a', value = e, rest = {more = [00]}}` |
 | built-in | `$fields_to_struct {more = [01], label = 'a', value = e, rest = {more = [00]}}` | `{a = e}` |
-| opcode | `$add_i32 {a = [01000000], b = [02000000]: 'i32'}` | `[03000000]: 'i32'` |
+| opcode | `'add' {'i32', [01000000], [02000000]: 'i32'}` | `[03000000]: 'i32'` |
 | projection | `{a = e, ...}.a` | `e` |
 | struct apply | `{e0, e1, ...} [01]` | `e1` |
 | if (struct apply) | `if [01] then a else b` / `if [00] ...` | `a` / `b` |
@@ -831,8 +865,8 @@ Why built-ins instead of `module` names, a `prim` binder, or a `fix` term: see
 Not redexes:
 - an unknown built-in (`$nope g`), or a rule that doesn't fire, such as an opcode on
   a run-time operand
-  (`$add_i32 {a = args.n, b = ...}`), on a literal of the wrong form or size, or
-  where LLVM has no defined result (`$udiv_i32` by `[00000000]`);
+  (`'add' {'i32', args.n, ...}`), on a literal of the wrong form or size, or
+  where LLVM has no defined result (`'udiv'` by `[00000000]`);
 - a projection with a missing label;
 - a struct apply on `{}`, with `''`, or with an argument that isn't a byte array yet
   (index read by `bruijn.index_value`: unsigned little-endian, form ignored). An
@@ -934,13 +968,13 @@ Every declaration in `module` becomes one LLVM symbol, named after its label
 ```
 fact = f -> {
   entry = args:{n = 'i32'} ->
-    let t0 = $eq_i32 {a = args.n, b = [00000000]:'i32'} in
+    let t0 = 'icmp_eq' {'i32', args.n, [00000000]:'i32'} in
     if t0 then f.then0 {} else f.else0 {n = args.n},
   then0 = args:{} -> [01000000]:'i32',
   else0 = args:{n = 'i32'} ->
-    let t1 = $sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'} in
+    let t1 = 'sub' {'i32', args.n, [01000000]:'i32'} in
     let t2 = module.fact {n = t1} in
-    let t3 = $mul_i32 {a = args.n, b = t2} in
+    let t3 = 'mul' {'i32', args.n, t2} in
     t3,
 }
 ```
@@ -989,7 +1023,8 @@ names like `p.x`, and LLVM passes struct values anyway.
 ### Return forms are declared
 
 Every function's return form, imported or defined, is written in its `module`
-declaration (`main = => 'i32'`). Each return is checked against it. Recursion needs
+declaration (`main = => 'i32'`). A returned value's form is not compared with it
+([no checks](#a-generated-ir-no-checks-for-user-mistakes)). Recursion needs
 nothing special:
 
 ```
@@ -1028,87 +1063,104 @@ fine; one left over is an error.
 
 ## Opcodes
 
-An **opcode** is a built-in with machine code: `$add_i32 {a = x, b = y}`.
-Signatures are plain data in [`opcodes.py`](../src/oymo/oymomo/opcodes.py)
-(`OPCODES`, no BANF and no LLVM); their LLVM code is in
-[`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) (`DEFAULT_OPCODES`). A test
-checks that both tables have the same names.
+An **opcode** is one LLVM instruction, called as a byte array applied to a struct:
+`'add' {'i32', x, y}` is LLVM's `add i32 x, y`. It is not a built-in (no `$`): it is a
+function on values, the same in every program. The table is plain data in
+[`opcodes.py`](../src/oymo/oymomo/opcodes.py) (`OPCODES`, no BANF and no LLVM); the LLVM
+code is in [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) (`DEFAULT_OPCODES`).
+A test checks that both tables have the same names.
+
+`'name' {...}` is `Apply(ByteArray, Struct)`, a shape the kernel otherwise leaves stuck
+(no rule matches a byte array in function position), so it needs no new term.
 
 ### Table
 
-`T` is one of `i1 i8 i16 i32 i64`.
+An opcode has no declared params: it reads its fields itself, by position, and tells
+what it can from them (`opcodes.Opcode`). `form_of(fields)` gives the result's form;
+`evaluate(fields)` gives the result's bytes when the fields it needs are literals. `T`
+is one of `i1 i8 i16 i32 i64`.
 
-| Ops | Signature | Includes `i1`? | LLVM |
+| Opcodes | Fields | Result form | LLVM |
 |---|---|---|---|
-| `add mul` | `{a: T, b: T} => T` | no | `add`, `mul` |
-| `and or xor` | `{a: T, b: T} => T` | yes (boolean logic) | `and`, `or`, `xor` |
-| `sub` | `{minuend: T, subtrahend: T} => T` | no | `sub` |
-| `sdiv udiv srem urem` | `{dividend: T, divisor: T} => T` | no | same names |
-| `shl lshr ashr` | `{value: T, amount: T} => T` | no | same names |
-| `eq ne` | `{a: T, b: T} => i1` | yes | `icmp eq/ne` |
-| `slt sle sgt sge ult ule ugt uge` | `{lhs: T, rhs: T} => i1` | no | `icmp` signed / unsigned |
-| `zext sext` | `{value: F} => T`, `T` wider than `F` | yes | `zext`, `sext` |
-| `trunc` | `{value: F} => T`, `T` narrower than `F` | yes | `trunc` |
+| `add mul` | `{form, a, b}` | `form` | `add`, `mul` |
+| `sub` | `{form, minuend, subtrahend}` | `form` | `sub` |
+| `sdiv udiv srem urem` | `{form, dividend, divisor}` | `form` | same names |
+| `shl lshr ashr` | `{form, value, amount}` | `form` | same names |
+| `and or xor` | `{form, a, b}` | `form` | `and`, `or`, `xor` |
+| `icmp_eq icmp_ne icmp_slt icmp_sle icmp_sgt icmp_sge icmp_ult icmp_ule icmp_ugt icmp_uge` | `{form, lhs, rhs}` | `i1` | `icmp` and the predicate |
+| `zext sext trunc` | `{form, value, to}` | `to` | same names |
 
-There are no same-width conversions.
+Operands are read at `form`; `to` only gives the result form. Nothing checks which forms
+are given ([no checks](#a-generated-ir-no-checks-for-user-mistakes)): `'add' {'ptr', a, b}`
+reaches LLVM, which rejects it. `evaluate` only computes what LLVM defines, so it gives
+nothing for `form` other than a `T`, or a conversion that doesn't widen (`zext`, `sext`)
+or narrow (`trunc`).
 
 ### Naming
 
-- Same-form ops: `<op>_<form>`: `add_i32`, `eq_i8`.
-- Conversions name both forms, from then to: `zext_i8_i32`, `trunc_i64_i32`.
+- One opcode per LLVM instruction, named as LLVM names it: `add`, `udiv`, `zext`.
+- One opcode per comparison predicate, named `icmp_` and LLVM's predicate
+  (`icmp_slt`), rather than LLVM's one `icmp` with a predicate field.
 - No opcode may be named `call`, `jump`, `branch`, `switch` or `return` (they'd read as BANF
   keywords); `banf_terms.py` asserts this.
 
-### Monomorphic: one op per signature
+### Fields are positional, in LLVM's order
 
-There is no generic `add`; each signature is its own op (`add_i32`, `add_i64`…).
+`'sub' {'i32', x, y}` is `sub i32 x, y`, `x - y`, because LLVM writes `sub i32 %x, %y`;
+the form sits where LLVM writes the type (`'zext' {'i8', x, 'i32'}` is
+`zext i8 x to i32`). Labels are ignored, as in a branch: a label is free to write and
+means nothing, so `'sub' {form = 'i32', subtrahend = x, minuend = y}` is still `x - y`.
+BANF prints the fields in the same order: `sub 'i32', x, y`.
 
-- An `OpcodeCall`'s result form is a table lookup, like a `Call`'s comes from its
-  callee's signature. No width inference; conversions need no stored target form
-  (`zext_i8_i32` always returns `i32`).
-- Widths are strict: `$add_i32 {a = [01]:'i8', b = ...}` is an error
-  (`$add_i32 expects a: i32, got i8.`). Convert explicitly with `zext_i8_i32`.
-- Cost: many names. They're generated from templates, not written by hand.
+### Polymorphic in `form`
 
-### Labels fit the op
+The form is a field, not part of the name, as LLVM writes `add i32 %a, %b`.
 
-For non-commutative ops the label says the operand's role, so
-`$sub_i32 {minuend = x, subtrahend = y}` can't be read the wrong way round.
-Commutative ops use `a`/`b`.
+- The result form must be told by the fields: `form_of` needs a byte array where it
+  reads one (`form`, or `to`). It may be computed: `(f -> 'add' {f, x, y}) 'i32'`
+  reduces to `'add' {'i32', x, y}`. Otherwise:
+  `'add' cannot tell its result form from its fields.`
+- BANF's `OpcodeCall` stores that form once, so BANF never asks the opcode again, like a
+  `Call`'s comes from its callee's signature.
+- Each field becomes an atom. A bare byte array, the form `'i32'` or an operand
+  `[01000000]`, stays bare (a `Const` with no form): a byte array is only its bytes. The
+  opcode's LLVM code (`llvm_opcodes.py`) reads a form field's bytes as a form, and a bare
+  operand at `form`.
+- Operand forms are not compared with `form`: `'add' {'i32', [01]:'i8', ...}` is
+  accepted; LLVM may reject it. Convert explicitly with `'zext'`.
 
 ### Folding
 
-An opcode whose operands are all literals reduces to its result, so a constant
+An opcode whose fields are all literals reduces to its result, so a constant
 computed in oymomo doesn't reach BANF as an instruction:
 
 ```
-$add_i32 {a = [01000000]: 'i32', b = [02000000]: 'i32'}   ⇒   [03000000]: 'i32'
-$add_i8 {a = [ff], b = [01]}                             ⇒   [00]: 'i8'
-$add_i32 {a = args.n, b = [01000000]: 'i32'}             stays: a run-time operand
+'add' {'i32', [01000000]: 'i32', [02000000]: 'i32'}   ⇒   [03000000]: 'i32'
+'add' {'i8', [ff], [01]}                             ⇒   [00]: 'i8'
+'add' {'i32', args.n, [01000000]: 'i32'}             stays: a run-time operand
 ```
 
-- Each folded opcode has a rule in `bruijn.BUILTIN_RULES`, generated from its
-  signature; `opcodes.evaluate` computes the result on unsigned integers, with no LLVM.
-  Every template folds: `add sub mul and or xor sdiv udiv srem urem shl lshr ashr eq ne slt sle sgt sge ult ule ugt uge zext sext trunc` (`opcodes.FOLDED_TEMPLATES`;
-  `bruijn_test.test_every_opcode_has_a_rule`).
+- One rule for every opcode (`bruijn.fold_opcode`), not one per opcode: it wraps
+  `opcode.evaluate(fields)` in `opcode.form_of(fields)`. `evaluate` computes on unsigned
+  integers, with no LLVM. Every opcode is `pure`, so every opcode folds.
 - **Same bytes as LLVM**: little-endian, `(N + 7) // 8` bytes for `iN`, arithmetic
-  wrapping modulo `2^N`; signed templates (`sdiv srem ashr slt sle sgt sge sext`) read
-  operands as two's complement; `sdiv` rounds toward zero and `srem` has the
-  dividend's sign; comparisons give `i1` (`[01]` or `[00]`); `zext`, `sext` and
-  `trunc` change the width as LLVM does.
-  `llvm_translate_test.test_fold_matches_llvm` runs each folded opcode through LLVM's
-  JIT on edge operands and compares.
+  wrapping modulo `2^N`; signed opcodes (`sdiv srem ashr icmp_slt icmp_sle icmp_sgt
+  icmp_sge sext`) read operands as two's complement; `sdiv` rounds toward zero and
+  `srem` has the dividend's sign; comparisons give `i1` (`[01]` or `[00]`); `zext`,
+  `sext` and `trunc` change the width as LLVM does.
+  `llvm_translate_test.test_fold_matches_llvm` runs each opcode, at each `T` (and each
+  conversion LLVM defines), through LLVM's JIT on edge operands and compares.
 - **No undefined behaviour is folded**: where LLVM gives poison or undefined
   behaviour, `evaluate` returns None and the call stays: division or remainder by 0,
   `sdiv`/`srem` of the signed minimum by -1, a shift by `N` or more.
 - **Operands**: a byte array of exactly `(N + 7) // 8` bytes, below `2^N`, bare or
-  with the param's form, under the params' labels in order. A bare literal folds
-  (the signature says how to read it); a wrong form or size doesn't, so `convert`
-  still reports it (`$add_i8 expects a: i8, got i32.`).
-- **Result**: formed as the signature's result (`[03000000]: 'i32'`), so BANF still
+  formed (`opcodes.decode_uint`). A written form is not compared with `form`: the
+  bytes are read at `form`, so `'add' {'i8', [01]: 'i32', [02]}` folds to `[03]: 'i8'`.
+  Anything else doesn't fold, and the call stays.
+- **Result**: formed as the opcode's result (`[03000000]: 'i32'`), so BANF still
   knows its form, and an `if` on a folded comparison is a jump.
-- **Laziness**: the rule reduces its argument, then each field only if the labels
-  are the params'.
+- **Laziness**: `banf_shape` reduces the argument, then each field; the rule itself
+  reduces nothing.
 - In BANF, a let whose value folds is no longer an op, so it is substituted.
 
 Adding an opcode: [How to… › Add an opcode](#add-an-opcode).
@@ -1123,14 +1175,14 @@ Adding an opcode: [How to… › Add an opcode](#add-an-opcode).
 ```
 fact: i32
   entry(n: i32):
-    t0 = eq_i32 n, [00000000]:i32
+    t0 = icmp_eq 'i32', n, [00000000]:i32
     branch t0, then0(), else0(n)
   then0():
     return [01000000]:i32
   else0(n: i32):
-    t1 = sub_i32 n, [01000000]:i32
+    t1 = sub 'i32', n, [01000000]:i32
     t2 = call fact(t1)
-    t3 = mul_i32 n, t2
+    t3 = mul 'i32', n, t2
     return t3
 ```
 
@@ -1167,7 +1219,7 @@ then0(x: i32, z: i32):
 else0(y: i32, z: i32):
   jump join0(y, z)
 join0(v: i32, z: i32):
-  t0 = add_i32 v, z
+  t0 = add 'i32', v, z
 ```
 
 The LLVM translator turns these back into phis where needed (see
@@ -1205,7 +1257,7 @@ out; `form_of(op, forms, module)` computes the rest:
 
 | Op | oymomo source | Result form |
 |---|---|---|
-| `OpcodeCall` | `$add_i32 {...}` | the op's result form from `opcodes.py` |
+| `OpcodeCall` | `'add' {'i32', ...}` | its stored `form`, told by the opcode's `form_of` in `convert` |
 | `Call` | `module.g {...}` | the callee's `return_form` (`Function` or `Signature`) |
 | `MakeStruct` | `{x = a, y = b}` | each label paired with its field atom's form |
 | `GetField` | `args.p.x` | that field's form inside the struct's form |
@@ -1231,8 +1283,8 @@ else `form_of` its op. They add it to the block's name table.
 
 | Prints | Example | Note |
 |---|---|---|
-| a let | `t0 = eq_i32 n, [00000000]:i32` | no `let` keyword, no form (unless written: `t0: i32 = ...`) |
-| an opcode | `t3 = mul_i32 n, t2` | assembly style: no parens, no `$` |
+| a let | `t0 = icmp_eq 'i32', n, [00000000]:i32` | no `let` keyword, no form (unless written: `t0: i32 = ...`) |
+| an opcode | `t3 = mul 'i32', n, t2` | assembly style: no parens, no `$` |
 | a call | `t2 = call fact(t1)` | keyword `call`, parens, commas |
 | a data read | `t0 = errno` | bare name (an opcode always has operands) |
 | a `GetIndex` | `y = p.1` | a digit label would need quotes (`p."1"`), so never a `GetField` |
@@ -1281,8 +1333,8 @@ until each position has BANF's shape. `convert` only reads the result. So:
 - **Unneeded forms are dropped.** A form where BANF has no slot (on the `blocks`
   binder, on a data definition) is dropped, not rejected.
 - **A form is not a type.** A written form is never checked against a computed one;
-  it replaces it (a let's form, a formed atom). `banf.verify` still checks arguments,
-  branch conditions and returns against the forms they're *required* to have, and
+  it replaces it (a let's form, a formed atom). `banf.verify` checks names and counts,
+  never forms ([no checks](#a-generated-ir-no-checks-for-user-mistakes)), and
   `llvm_translate` rejects a replaced form whose LLVM type differs.
 
 A term without BANF's shape after reduction is rejected, and the source fixes it
@@ -1313,7 +1365,7 @@ Some roots become a redex only after one part, their **blocker**, is reduced: in
 | `s.l` | `s` |
 | `if c then ...`, which is `{e, t} c` | `c` |
 | `t: F` | `t` |
-| `$name a`, `name` in `BUILTIN_RULES` | the parts of `a` its `reduce` reads (none for `$fix`) |
+| `$name a`, `name` in `BUILTIN_RULES`, or `'name' a`, `name` in `OPCODES` | the parts of `a` its `reduce` reads (none for `$fix`) |
 | anything else | none |
 
 - So `step` reduces an apply's callee to a struct, then the index, then the root:
@@ -1336,12 +1388,12 @@ reduce_until_top_stable(t) = reduce_until_top_stable(step(t))    if step(t) is n
 ```
 
 `reduce_until_top_stable` stops at every Lambda, Struct, ByteArray, BruijnIndex and
-Builtin, and at stuck terms such as `$add_i32 {a = args.n, ...}`, `args.n`, `blocks.done {...}` or
+Builtin, and at stuck terms such as `'add' {'i32', args.n, ...}`, `args.n`, `blocks.done {...}` or
 `if t0 then a else b`.
 
 - "Reduce `t` until it is X" means take `reduce_until_top_stable(t)`, *then* look at its
   constructor. Looking first is wrong: `{f = x -> ...}.f args.n` is already an apply,
-  but its callee must be reduced before it is a call such as `$add_i32 {...}`.
+  but its callee must be reduced before it is a call such as `'add' {'i32', ...}`.
 - A position that already has a wanted constructor isn't reduced further, since
   `reduce_until_top_stable` stops there. So a let-bound struct stays a `MakeStruct`.
 
@@ -1443,8 +1495,8 @@ own. A let reference becomes a `banf.Var` named after the BANF let already built
 
 - **Let**: `let x = op in rest`, i.e. `(x -> rest) (op)`. With no form, the let's
   form is the op's. A written form must be a literal and **replaces** the op's form
-  unchecked: `let t0: 'i32' = $eq_i32 {...} in t0` gives `t0` the form `i32`
-  (`eq_i32` gives `i1`). BANF prints `t0: i32 = eq_i32 ...`; LLVM translation then
+  unchecked: `let t0: 'i32' = 'icmp_eq' {'i32', ...} in t0` gives `t0` the form `i32`
+  (`'icmp_eq'` gives `i1`). BANF prints `t0: i32 = icmp_eq 'i32', ...`; LLVM translation then
   rejects it, since the LLVM types differ.
 - **Atom**: a byte array with a literal form (`[01]: 'i8'`), a let name, or
   `args.label`. Any atom can be given a literal form, which replaces its own
@@ -1454,7 +1506,7 @@ own. A let reference becomes a `banf.Var` named after the BANF let already built
 
   | Source | BANF op |
   |---|---|
-  | `$opcode {...}` | `OpcodeCall` |
+  | `'opcode' {...}` | `OpcodeCall` |
   | `module.g {...}` (imported or defined) | `Call` |
   | struct literal of atoms | `MakeStruct` |
   | projection on an atom: `args.p.x` | `GetField` |
@@ -1491,7 +1543,7 @@ an unlabeled field alone (`{i32, i8}`), and LLVM names its `insertvalue` by inde
 
 ##### Operands must be atoms
 
-`$add_i32 {a = $add_i32 {...}, b = ...}` is an error; bind the inner call with a let
+`'add' {'i32', 'add' {'i32', ...}, ...}` is an error; bind the inner call with a let
 first. Allowing it would mean flattening, i.e. inventing temporary names.
 
 ##### An op in tail position must be bound first
@@ -1522,8 +1574,8 @@ operand is an error. All of this holds for `{e, t} c`, which is the same term.
 
 `blocks`, `args` and `module` alone are errors ("'args' cannot be used as a
 value."; the message uses the fixed name), except `args` forwarded as a whole call
-or jump argument. So are `module.g` and `$add_i8` without an argument
-("$add_i8 must be applied."). They have no runtime value.
+or jump argument. So are `module.g` and `$fix` without an argument
+("$fix must be applied."). They have no runtime value.
 
 ### BANF to LLVM
 
@@ -1585,7 +1637,7 @@ message text to find where it's raised.
 
 | Message | Cause | Fix |
 |---|---|---|
-| `Unknown name '<x>'.` | A variable that no lambda or let binds. | Bind it, or check spelling. Built-ins need `$` (`$add_i32`). |
+| `Unknown name '<x>'.` | A variable that no lambda or let binds. | Bind it, or check spelling. Built-ins need `$` (`$fix`). |
 
 ### Shaping (`banf_shape.py`)
 
@@ -1618,7 +1670,7 @@ message text to find where it's raised.
 
 | Message | Cause | Fix |
 |---|---|---|
-| `Expected an atom: a byte array, a let name, or args.label.` | An operand that is an op, e.g. a nested call. | Bind it first: `let t = $add_i32 {...} in ... t ...`. See [Translation](#operands-must-be-atoms). |
+| `Expected an atom: a byte array, a let name, or args.label.` | An operand that is an op, e.g. a nested call. | Bind it first: `let t = 'add' {'i32', ...} in ... t ...`. See [Translation](#operands-must-be-atoms). |
 | `A let's value must be an op, not an atom.` | A let in BANF position whose value is an atom. | Use the atom directly. |
 | `An if must be in tail position.` | An `if` used as a value. | Branch to blocks and join explicitly. See [Translation](#if-only-in-tail-position). |
 | `A switch needs two or more fields; one is a jump.` | `{f.a {}} k` in tail position. | Write the jump: `f.a {}`. See [Translation](#if-only-in-tail-position). |
@@ -1640,35 +1692,40 @@ message text to find where it's raised.
 
 | Message | Cause | Fix |
 |---|---|---|
-| `$fix must be applied.` / `$<name> must be applied.` | A built-in used without an argument. | Apply it: `$add_i8 {...}`. |
-| `$<name> has no opcode, so it must reduce away: its argument must reduce to <needs>.` | A kernel-only built-in whose rule didn't fire. | Make its argument reduce to what the rule needs (e.g. a struct). |
-| `Unknown built-in '$<name>'.` | In neither `BUILTIN_RULES` nor `OPCODES`. | Check spelling against [Opcodes](#opcodes). |
-| `Target has no implementation of $<name>.` | The LLVM `Target.opcodes` lacks the op. | Add it to `llvm_opcodes.py`. |
+| `$fix must be applied.` / `$<name> must be applied.` | A built-in used without an argument. | Apply it: `$fix g`. |
+| `$<name> has no opcode, so it must reduce away: its argument must reduce to <needs>.` | A built-in whose rule didn't fire. | Make its argument reduce to what the rule needs (e.g. a struct). |
+| `Unknown built-in '$<name>'.` | Not in `BUILTIN_RULES`. Opcodes have no `$`. | Check spelling; an opcode is written `'add' {'i32', a, b}` ([Opcodes](#opcodes)). |
+| `Target has no implementation of '<name>'.` | The LLVM `Target.opcodes` lacks the op. | Add it to `llvm_opcodes.py`. |
+
+### Opcodes
+
+| Message | Cause | Fix |
+|---|---|---|
+| `Unknown opcode '<name>'.` | `'<name>' {...}` with a name not in `OPCODES`. | Check spelling against [Opcodes](#opcodes). |
+| `'add' cannot tell its result form from its fields.` | The fields don't give the result form: a wrong number of fields, or a non-literal where the form goes (`'add' {f, a, b}` with `f` not reducing to a byte array). | Write the fields in LLVM's order, with a literal form: `'add' {'i32', a, b}`. |
+| `The argument to 'add' must be a struct literal.` | e.g. `'add' args`. | Write the fields: `'add' {'i32', a, b}`. |
 
 ### BANF verifier (`banf_terms.py`)
 
 | Message | Cause | Fix |
 |---|---|---|
-| `$add_i32 expects a: i32, got i8.` (`<what> expects <label>: <form>, got <form>.`) | Argument form doesn't match. Widths are strict. | Convert explicitly, e.g. `$zext_i8_i32`. |
 | `<what> takes <n> arguments, got <m>.` | Wrong argument count. | Match the callee's params. |
-| `Branch condition must be i1, got <form>.` | `if` on a non-`i1` value. | Compare first, e.g. `$ne_i32`. |
 | `A switch needs a target.` | A BANF `Switch` with no targets. | Give it targets. |
 | `A switch passes different args to '<b>'.` | `{f.a {x = [01]:'i8'}, f.b {}, f.a {x = [02]:'i8'}} k`. | Pass the same args each time `a` is named (an LLVM phi needs equal entries from one block), or use another block. |
-| `Function '<f>' returns <form>, got <form>.` | A return value's form differs from the declared return form. | Fix the value's form or the declaration. |
 | `Form <form> has no field at index <i>.` | `GetIndex` on a form with no fields. | Index a struct with at least one field. |
 
 ### LLVM (`llvm_translate.py`)
 
 | Message | Cause | Fix |
 |---|---|---|
-| `'<n>' is formed as i32, but its LLVM type is i8.` | A formed atom whose form maps to a different LLVM type. | Forms don't convert; use an opcode such as `$zext_i8_i32`. |
+| `'<n>' is formed as i32, but its LLVM type is i8.` | A formed atom whose form maps to a different LLVM type. | Forms don't convert; use an opcode such as `'zext'`. |
 | `Let '<t0>' is formed as i32, but its op gives i1.` | A let's written form differs in LLVM type from its op. | Remove the form, or convert explicitly. |
 | `A i32 constant needs 4 bytes.` | Wrong byte count for an `iN` constant (`(N + 7) // 8` bytes). | Write the right number of bytes: `[2a000000]`. |
 | `Constant does not fit in <form>.` | e.g. an `i1` byte that isn't `00` or `01`. | Fix the bytes. |
 | `Only integer constants are supported, got <form>.` | A struct constant. | Not supported yet. |
 | `A branch cannot have the same block as both targets.` | `if c then f.a {} else f.a {}`; valid BANF (Cranelift allows it). | Use two blocks (LLVM phis can't tell the edges apart). See [Translation](#if-only-in-tail-position). |
 | `Switch selector must be an integer form, got <form>.` | A switch on a non-`iN` value. | Switch on an integer. |
-| `A switch on i1 has 4 targets; it holds 3.` | More targets than the selector's form has values, plus one for the default. | Widen the selector, e.g. `$zext_i1_i8`. |
+| `A switch on i1 has 4 targets; it holds 3.` | More targets than the selector's form has values, plus one for the default. | Widen the selector, e.g. `'zext' {'i1', s, 'i8'}`. |
 
 ## How to…
 
@@ -1719,16 +1776,16 @@ gives the same BANF), and checks the shaped output compiles to the same BANF.
 
 ### Add an opcode
 
-1. In [`opcodes.py`](../src/oymo/oymomo/opcodes.py), add the template to
-   `_generate()` (same-form ops with `_same_form`, conversions with `_conversions`).
-   Pick labels that say each operand's role (see
-   [Opcodes](#labels-fit-the-op)).
-2. In [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py), map the template to
-   its llvmlite builder method in `_BINARY`, `_COMPARE` or `_CONVERT`.
+1. In [`opcodes.py`](../src/oymo/oymomo/opcodes.py), add an `Opcode` to
+   `_generate()` (`_binary` for `{form, a, b}`, `_convert` for `{form, value, to}`, or a
+   new shape): its `form_of(fields)` and its `evaluate(fields)`, which reads its fields by
+   position, in LLVM's operand order, and returns None where it can't read them or LLVM
+   has no defined result.
+2. In [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py), add its LLVM code: it
+   reads the BANF fields by position (`_BINARY`, `_COMPARE` or `_CONVERT` for the
+   existing shapes).
 3. Don't name it `call`, `jump`, `branch`, `switch` or `return` (`banf_terms.py` checks).
-4. To fold it, give `opcodes.evaluate` its template (in `_BINARY`, or a new group)
-   so it lands in `FOLDED_TEMPLATES`; `test_fold_matches_llvm` then checks it.
-   Return None where LLVM has no defined result.
+4. A `pure` opcode folds; `test_fold_matches_llvm` checks `evaluate` against LLVM.
 5. Add tests in `opcodes_test.py` and `llvm_translate_test.py`; a test checks
    both tables have the same names.
 6. Update [Opcodes](#opcodes).
@@ -1787,7 +1844,7 @@ to the backend (LLVM). Keeping the words apart stops a backend detail like "i32 
 ### BANF does not depend on LLVM
 
 How each opcode becomes LLVM instructions is a backend detail, so BANF only names
-the opcode (`add_i32`) and the `Target` supplies the implementation. `Target` has no
+the opcode (`add`) and the `Target` supplies the implementation. `Target` has no
 `byte_order` field because `data_layout` already says it, and two sources could
 disagree. → [Overview](#where-the-code-lives)
 
@@ -1893,7 +1950,7 @@ Rejected:
   gives a literal its number. With an overridable default, one source would mean
   two numbers. Same idea as WebAssembly memory and the `.bc` encoding: the encoding
   is fixed; the machine's byte order is a target detail.
-- An evaluator (beta reduction plus opcodes) can run `add_i32` without a target and
+- An evaluator (beta reduction plus opcodes) can run `'add'` without a target and
   agree with compiled code, so constant folding is safe.
 - A big-endian target still gets big-endian bytes in memory: the LLVM translator
   emits the number (`i32 42`) and LLVM lays it out per `data_layout`.
@@ -1924,7 +1981,7 @@ Rejected: Zig-style `@"..."`, only worth it if strings come.
 
 ### `$` for built-ins and indices
 
-`$` marks a reference that no user name binds: `$0` by position, `$add_i32` by the
+`$` marks a reference that no user name binds: `$0` by position, `$fix` by the
 kernel. User names are always written bare. `#` stays unused (comments kept `//`
 after byte arrays moved to `[]`).
 
@@ -1956,9 +2013,9 @@ reading like source; pretty mode round-trips, so goldens are valid source.
 
 ### Built-ins
 
-`$add_i32` is a global constant, not a name in `module` and not a binder.
-- **Not in `module`**: machine instructions and symbols are different things.
-  `$add_i32` never becomes an LLVM symbol, while every `module` entry does (`@putchar`,
+`$fix` is a global constant, not a name in `module` and not a binder.
+- **Not in `module`**: kernel helpers and machine instructions are not symbols.
+  Neither `$fix` nor an opcode ever becomes an LLVM symbol, while every `module` entry does (`@putchar`,
   `@fact`). BANF keeps the split: `OpcodeCall` vs `Call`.
 - **Not a binder**: a binder's index depends on depth (the program used to start
   with `prim ->`, and `prim` was `$3` under three lambdas), so `reduce`, which sees
@@ -1967,8 +2024,8 @@ reading like source; pretty mode round-trips, so goldens are valid source.
   project from, apply or unpack.
 - **`fix` is a built-in, not its own term**: a new kernel built-in is one table entry,
   instead of a term, a grammar rule, a reserved word and cases in five modules.
-- **Kernel-only comes from the tables**: a rule and no opcode, with no flag to keep
-  in sync. Each built-in's `needs` gives its own error message.
+- **Every built-in is kernel-only**: machine instructions are opcodes, not
+  built-ins. Each built-in's `needs` gives its own error message.
 
 → [The kernel](#built-ins), [plan_builtin.md](implemented/plan_builtin.md)
 
@@ -2009,11 +2066,14 @@ Written once, where the symbol is declared; nothing is computed. Inference had t
 iterate over the whole module to a fixed point, and a function with no base case had
 no return form at all.
 
-### Monomorphic opcodes
+### Opcodes as LLVM writes them
 
-A result form is a table lookup; nothing needs width inference; conversions need no
-stored target form. Cost: many names, generated from templates. Labels that name the
-operand's role make non-commutative ops impossible to read backwards.
+One opcode per LLVM instruction, with the form as a field, as LLVM writes
+`add i32 %a, %b`: about 25 entries instead of a generated name per signature. Fields
+are positional in LLVM's operand order, so the order to remember is LLVM's, which the
+BANF and LLVM printouts show. An opcode declares no params: it reads its fields by
+position (`form_of`, `evaluate`, and its LLVM code), so BANF needs no opcode schema and
+stores the result form in the call. Operand widths are not compared with `form`.
 → [Opcodes](#opcodes)
 
 ### BANF
@@ -2091,7 +2151,7 @@ Words used across the docs, in alphabetical order. Code names are in `code`.
 | **block** | A BANF basic block: params, lets, one terminator. In oymomo, a lambda `args: {...} -> ...` in a function's struct. | [BANF](#blocks) |
 | **blocks** | Fixed name of a function's self-binder after renaming; `blocks.then0 {}` jumps to block `then0`. | [Programs](#functions-are-structs-of-blocks) |
 | **BruijnIndex** | A variable written by position, `$0` = nearest binder. `bruijn.resolve` turns names into these. | [oymomo syntax](#builtins-and-indices-name-and-0) |
-| **built-in** | A global constant written `$name` (`$add_i32`, `$fix`). Has a reduction rule, an opcode, or both. | [The kernel](#built-ins) |
+| **built-in** | A global constant written `$name` (`$fix`) with a reduction rule. | [The kernel](#built-ins) |
 | **byte array** | The only literal: `[2a000000]` or `'text'`. Has no form unless one is written. | [oymomo syntax](#byte-arrays) |
 | **convert** | Last pass of oymomo → BANF: reads a shaped term into BANF. Never reduces. | [Translation](#4-convert-read-the-shaped-term) |
 | **Empty** | `terms.Empty`: a form that was *not written*. Not void, not a default. | [The kernel](#omitted-forms-are-empty) |
@@ -2099,13 +2159,13 @@ Words used across the docs, in alphabetical order. Code names are in `code`.
 | **Formed** | The term `e: F`, "`e` formed as `F`". | [The kernel](#formed-any-term-with-a-form) |
 | **function form** | `P => R`, the form of a function. `FunctionForm` term. | [oymomo syntax](#function-forms) |
 | **golden test** | `tests/goldens/name.oymo` compiled and compared to approved `.shaped.oymo`, `.banf` and `.ll` files. | [How to…](#add-a-golden-test) |
-| **kernel-only** | A built-in with a reduction rule but no opcode (`$fix`). Must reduce away before BANF. | [The kernel](#built-ins) |
+| **kernel-only** | What every built-in is (`$fix`): it must reduce away before BANF. | [The kernel](#built-ins) |
 | **label** | A struct field's name. Optional (`''` = none), may repeat. | [oymomo syntax](#structs) |
 | **layout** | The physical memory representation (`{ i32, i32 }` in LLVM). Belongs to the backend. | [Overview](#type-form-layout) |
 | **let** | `let x = e in body`, sugar for `(x -> body) e`. In BANF, one instruction `x = op`. | [oymomo syntax](#let) |
 | **module** | The program's outer binder; its form declares every symbol. `module.fact {...}` calls a function. | [Programs](#module-declares-every-symbol) |
 | **op** | A BANF let's value: `OpcodeCall`, `Call`, `MakeStruct`, `GetField`, `GetIndex`, `GetData`. | [BANF](#ops-and-their-forms) |
-| **opcode** | A built-in with machine code (`add_i32`). Listed in `opcodes.OPCODES`. | [Opcodes](#opcodes) |
+| **opcode** | One LLVM instruction, written `'add' {'i32', a, b}`. Listed in `opcodes.OPCODES`. | [Opcodes](#opcodes) |
 | **oymomo** | The kernel lambda-calculus language. | [oymomo syntax](#oymomo-syntax) |
 | **position** | A place in the program that wants a certain shape (a lambda, a struct, an atom…). | [Translation](#positions) |
 | **project** | `s.x`: pick a field by label. `Project` term. | [oymomo syntax](#projection-and-struct-apply) |

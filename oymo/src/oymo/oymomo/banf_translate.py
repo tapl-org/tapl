@@ -259,6 +259,29 @@ class _Translator:
             raise TranslationError(f'{name!r} is not declared.', location)
         return binding
 
+    def opcode_call(self, name, argument, block, location):
+        """`'add' {'i32', a, b}`. Fields are positional and their labels are ignored. Each
+        field becomes an atom; a bare byte array (a form such as `'i32'`, or an operand)
+        becomes a `Const` with no form, read by the opcode. The opcode must tell the
+        result's form from the fields."""
+        opcode = opcodes.lookup(name)
+        if opcode is None:
+            shown = repr(name.as_str) if name.as_str is not None else f'[{name.value.hex()}]'
+            raise TranslationError(f'Unknown opcode {shown}.', location)
+        if not isinstance(argument, terms.Struct):
+            raise TranslationError(f'The argument to {opcode.name!r} must be a struct literal.', _location(argument))
+        values = [f.value for f in argument.fields]
+        form = opcode.form_of(values)
+        if form is None:
+            raise TranslationError(f'{opcode.name!r} cannot tell its result form from its fields.', location)
+        fields = [
+            banf.Const(value.value, terms.Empty, _location(value))
+            if isinstance(value, terms.ByteArray)
+            else self.atom(value, block)
+            for value in values
+        ]
+        return banf.OpcodeCall(opcode.name, fields, form, location)
+
     def op(self, term, block):
         location = _location(term)
         match term:
@@ -268,17 +291,16 @@ class _Translator:
                 if position is None:
                     raise TranslationError('An index must be a byte array literal, such as [01].', _location(index))
                 return banf.GetIndex(self.atom(function, block), position, location)
-            case terms.Apply(function=terms.Builtin(name=name), argument=arg):
-                # The only way into BANF for a built-in. A kernel-only one (a rule and no
-                # opcode) should have reduced away; it is left only when its rule couldn't fire.
-                if name not in opcodes.OPCODES:
-                    if name in bruijn.BUILTIN_RULES:
-                        must = _MUST_REDUCE_TO.get(name)
-                        needs = f': its argument must reduce to {must}' if must else ''
-                        raise TranslationError(f'${name} has no opcode, so it must reduce away{needs}.', location)
-                    raise TranslationError(f"Unknown built-in '${name}'.", location)
-                params = opcodes.OPCODES[name].params
-                return banf.OpcodeCall(name, self.args(arg, params, f'${name}', block), location)
+            case terms.Apply(function=terms.ByteArray() as name, argument=arg):
+                return self.opcode_call(name, arg, block, location)
+            case terms.Apply(function=terms.Builtin(name=name)):
+                # A built-in is kernel-only: it should have reduced away, and is left only
+                # when its rule couldn't fire.
+                if name in bruijn.BUILTIN_RULES:
+                    must = _MUST_REDUCE_TO.get(name)
+                    needs = f': its argument must reduce to {must}' if must else ''
+                    raise TranslationError(f'${name} has no opcode, so it must reduce away{needs}.', location)
+                raise TranslationError(f"Unknown built-in '${name}'.", location)
             case terms.Apply(function=terms.Project(struct=struct, label=name), argument=arg):
                 base = block.binder(struct)
                 if base == MODULE:
@@ -310,7 +332,7 @@ class _Translator:
         if self.is_atom(term, block):
             raise TranslationError("A let's value must be an op, not an atom.", location)
         raise TranslationError(
-            'Expected an op: $opcode {...}, module.f {...}, module.data, a struct or a projection.', location
+            "Expected an op: 'opcode' {...}, module.f {...}, module.data, a struct or a projection.", location
         )
 
     def jump(self, term, block):

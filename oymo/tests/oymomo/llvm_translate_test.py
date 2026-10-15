@@ -8,7 +8,7 @@ import llvmlite.binding as llvm
 import pytest
 from llvmlite import ir
 
-from oymo.oymomo import banf_translate, opcodes
+from oymo.oymomo import banf_terms, banf_translate, opcodes, terms
 from oymo.oymomo.grammar import parse
 from oymo.oymomo.llvm_opcodes import DEFAULT_OPCODES
 from oymo.oymomo.llvm_translate import LlvmTranslationError, Target, translate
@@ -48,13 +48,13 @@ def test_fact():
     source = """
     fact = blocks -> {
       entry = args: {n = 'i32'} ->
-        let t0 = $eq_i32 {a = args.n, b = [00000000]:'i32'} in
+        let t0 = 'icmp_eq' {'i32', args.n, [00000000]:'i32'} in
         if t0 then blocks.then0 {} else blocks.else0 {n = args.n},
       then0 = args: {} -> [01000000]:'i32',
       else0 = args: {n = 'i32'} ->
-        let t1 = $sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'} in
+        let t1 = 'sub' {'i32', args.n, [01000000]:'i32'} in
         let t2 = module.fact {n = t1} in
-        let t3 = $mul_i32 {a = args.n, b = t2} in
+        let t3 = 'mul' {'i32', args.n, t2} in
         t3,
     }
     """
@@ -82,7 +82,7 @@ def test_signature_data_and_get_data():
       entry = args: {} ->
         let t0 = module.errno in
         let t1 = module.putchar {c = [41]:'i8'} in
-        let t2 = $add_i32 {a = t0, b = t1} in
+        let t2 = 'add' {'i32', t0, t1} in
         t2,
     }
     """
@@ -178,7 +178,7 @@ def test_single_predecessor_binds_params_and_multiple_predecessors_get_phis():
       entry = args: {c = 'i1', x = 'i32', z = 'i32'} -> if args.c then blocks.a {x = args.x} else blocks.b {},
       a = args: {x = 'i32'} -> blocks.join0 {v = args.x, w = args.x},
       b = args: {} -> blocks.join0 {v = [00000000]:'i32', w = [07000000]:'i32'},
-      join0 = args: {v = 'i32', w = 'i32'} -> let t0 = $add_i32 {a = args.v, b = args.w} in t0,
+      join0 = args: {v = 'i32', w = 'i32'} -> let t0 = 'add' {'i32', args.v, args.w} in t0,
     }
     """
     assert ir_text(source, "pick = => 'i32'") == text("""
@@ -206,7 +206,7 @@ def test_struct_branch_lowers_like_if():
           entry = args: {{c = 'i1', x = 'i32', z = 'i32'}} -> {entry_body},
           a = args: {{x = 'i32'}} -> blocks.join0 {{v = args.x, w = args.x}},
           b = args: {{}} -> blocks.join0 {{v = [00000000]:'i32', w = [07000000]:'i32'}},
-          join0 = args: {{v = 'i32', w = 'i32'}} -> let t0 = $add_i32 {{a = args.v, b = args.w}} in t0,
+          join0 = args: {{v = 'i32', w = 'i32'}} -> let t0 = 'add' {{'i32', args.v, args.w}} in t0,
         }}
         """
 
@@ -329,7 +329,7 @@ def test_rejects_let_form_with_another_llvm_type():
     # BANF accepts any let form, but LLVM never converts: no bitcast, no widening.
     source = """
     g = blocks -> {
-      entry = args: {n = 'i32'} -> let t0: 'i32' = $eq_i32 {a = args.n, b = [00000000]:'i32'} in t0,
+      entry = args: {n = 'i32'} -> let t0: 'i32' = 'icmp_eq' {'i32', args.n, [00000000]:'i32'} in t0,
     }
     """
     assert ir_error(source, "g = => 'i32'") == "Let 't0' is formed as i32, but its op gives i1."
@@ -381,34 +381,66 @@ def _resize(builder, value, bits):
     return value
 
 
-FOLDED = sorted(name for name, signature in opcodes.OPCODES.items() if signature.template in opcodes.FOLDED_TEMPLATES)
+# Conversions, by name: whether LLVM's `to` must be wider (else narrower) than `form`.
+_CONVERSIONS = {'zext': True, 'sext': True, 'trunc': False}
+
+
+def _instances():
+    """Each opcode with each choice of integer forms, as `(name, forms)`: `(form,)`, or
+    `(form, to)` for a conversion, where LLVM converts."""
+    for name in opcodes.OPCODES:
+        if name not in _CONVERSIONS:
+            for form in opcodes.INT_FORMS:
+                yield name, (form,)
+            continue
+        for form, to in itertools.product(opcodes.INT_FORMS, repeat=2):
+            source, target = (opcodes.bit_width(terms.ByteArray.from_str(f)) for f in (form, to))
+            if target != source and (target > source) == _CONVERSIONS[name]:
+                yield name, (form, to)
+
+
+INSTANCES = list(_instances())
+
+
+def _instance_id(instance):
+    name, forms = instance
+    return '_'.join([name, *forms])
+
+
+def _operand_count(name):
+    return 1 if name in _CONVERSIONS else 2
 
 
 @pytest.fixture(scope='module')
 def jit():
-    """Each folded opcode, compiled by LLVM from its `DEFAULT_OPCODES` code (what
+    """Each opcode instance, compiled by LLVM from its `DEFAULT_OPCODES` code (what
     `llvm_translate` emits for an `OpcodeCall`), as `i64 name(i64, ...)`: each operand is
-    truncated to its param's width, and the result zero-extended to 64 bits."""
+    truncated to the `form` field's width, and the result zero-extended to 64 bits."""
     module = ir.Module()
     i64 = ir.IntType(64)
-    for name in FOLDED:
-        signature = opcodes.OPCODES[name]
-        function = ir.Function(module, ir.FunctionType(i64, [i64] * len(signature.params)), name)
+    for instance in INSTANCES:
+        name, forms = instance
+        count = _operand_count(name)
+        function = ir.Function(module, ir.FunctionType(i64, [i64] * count), _instance_id(instance))
         builder = ir.IRBuilder(function.append_basic_block())
-        args = [
-            _resize(builder, arg, opcodes.form_bits(form))
-            for arg, (_, form) in zip(function.args, signature.params, strict=True)
+        bits = opcodes.bit_width(terms.ByteArray.from_str(forms[0]))
+        args = {f'x{i}': _resize(builder, arg, bits) for i, arg in enumerate(function.args)}
+        fields = [
+            banf_terms.Const(forms[0].encode(), terms.Empty),
+            *(banf_terms.Var(name) for name in args),
+            *(banf_terms.Const(form.encode(), terms.Empty) for form in forms[1:]),
         ]
-        builder.ret(_resize(builder, DEFAULT_OPCODES[name](builder, args), 64))
+        result = DEFAULT_OPCODES[name](builder, fields, lambda atom, _form, args=args: args[atom.name])
+        builder.ret(_resize(builder, result, 64))
     llvm.initialize_native_target()
     llvm.initialize_native_asmprinter()
     machine = llvm.Target.from_default_triple().create_target_machine()
     engine = llvm.create_mcjit_compiler(llvm.parse_assembly(str(module)), machine)
     engine.finalize_object()
 
-    def run(name, operands):
+    def run(function_name, operands):
         prototype = ctypes.CFUNCTYPE(ctypes.c_uint64, *[ctypes.c_uint64] * len(operands))
-        return prototype(engine.get_function_address(name))(*operands)
+        return prototype(engine.get_function_address(function_name))(*operands)
 
     return run
 
@@ -420,11 +452,17 @@ def _edges(bits):
     return sorted(edge for edge in edges if edge < 1 << bits)
 
 
-@pytest.mark.parametrize('name', FOLDED)
-def test_fold_matches_llvm(jit, name):
-    signature = opcodes.OPCODES[name]
-    edges = [_edges(opcodes.form_bits(form)) for _, form in signature.params]
-    for operands in itertools.product(*edges):
-        folded = opcodes.evaluate(signature, list(operands))
+@pytest.mark.parametrize('instance', INSTANCES, ids=_instance_id)
+def test_fold_matches_llvm(jit, instance):
+    name, forms = instance
+    form = terms.ByteArray.from_str(forms[0])
+    bits = opcodes.bit_width(form)
+    for operands in itertools.product(*[_edges(bits)] * _operand_count(name)):
+        fields = [
+            form,
+            *(terms.ByteArray(value.to_bytes(opcodes.byte_width(bits), 'little')) for value in operands),
+            *(terms.ByteArray.from_str(f) for f in forms[1:]),
+        ]
+        folded = opcodes.OPCODES[name].evaluate(fields)
         if folded is not None:
-            assert folded == jit(name, operands), (name, operands)
+            assert int.from_bytes(folded.value, 'little') == jit(_instance_id(instance), operands), (instance, operands)

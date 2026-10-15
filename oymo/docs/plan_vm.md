@@ -1,6 +1,16 @@
 # Plan: Spindle, a virtual machine that runs BANF without LLVM
 
-Status: **paused**, with open questions; 0 of 6 steps.
+Status: **paused**, with open questions; 1 of 6 steps.
+
+> [!NOTE]
+> Step 3 was done ahead of the rest, with no VM code, under the name **opcode**: the
+> table is `opcodes.py` (`Opcode`, `OPCODES`), the BANF op is
+> `OpcodeCall(opcode, forms, args)`, an entry computes with `evaluate`, and the kernel
+> folds through `bruijn.rule_of`. Where this plan says *VM symbol*, `vm_symbols.py`,
+> `VmSymbol`, `VmCall` or `run`, read *opcode*, `opcodes.py`, `Opcode`,
+> `OpcodeCall` or `evaluate`. Old `$add_i32` names are a plain
+> `Unknown built-in '$add_i32'.`, with no hint of the new spelling, and an unaccepted
+> form reads `'add': form must be one of i8, i16, i32, i64, got ptr.`
 
 ## Steps
 
@@ -8,7 +18,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 
 - [ ] 1. Stack bytecode, and a compiler from BANF to it (`oymomo: add VM bytecode`)
 - [ ] 2. The VM: `Spindle` and `Fiber` objects, host functions, host calls back into the VM (`oymomo: add the VM`)
-- [ ] 3. Opcodes are VM symbols, polymorphic in `form`: `$add_i32 {a, b}` becomes `'add' {'i32', a, b}`, fields in LLVM's order (`oymomo: opcodes are VM symbols`) — **breaking**
+- [x] 3. Opcodes are VM symbols, polymorphic in `form`: `$add_i32 {a, b}` becomes `'add' {'i32', a, b}`, fields in LLVM's order (`oymomo: opcodes are VM symbols`) — **breaking**
 - [ ] 4. Coroutines: a host function yields the fiber, the host resumes it, yields cross host calls by continuations (`oymomo: VM coroutines`)
 - [ ] 5. VM symbols that are not LLVM instructions: `'ctpop'`, `'trace'`, as host functions (`oymomo: add VM-only symbols`)
 - [ ] 6. Memory as a host library (`oymomo: add memory to the VM`)
@@ -39,6 +49,15 @@ LLVM read it too, so it is not Spindle's alone.
 convert(term) → BANF → verify → spindle_compile → bytecode → Spindle(program, host) → fiber.resume
                               ↘ llvm_translate → LLVM IR → JIT / object file
 ```
+
+OR
+
+```
+convert(term) → BANF → verify → llvm_translate → LLVM IR -> spindle_compile → bytecode → Spindle(program, host) → fiber.resume
+                                                         ↘ JIT / object file
+```
+
+In the later case, we can leverage LLVM optimizer.
 
 | Like | What we take |
 |---|---|
@@ -378,7 +397,7 @@ host, and the next `resume` gives the call its result. (`$after` is
 | Module | Change |
 |---|---|
 | `vm_symbols.py` (new) | `VmSymbol(name, params, result, accepts, pure, core, run)`, `VM_SYMBOLS`; one entry per LLVM instruction of decision 10, all `core`, `run` taken from `opcodes.evaluate`'s templates |
-| `opcodes.py` | removed; `form_bits` and `byte_count` move to `vm_symbols.py` |
+| `opcodes.py` | removed; `bit_width` and `byte_width` move to `vm_symbols.py` |
 | `bruijn.py` | `_fold` rules replaced by one rule for `Apply(ByteArray, Struct)` (decision 8) |
 | `banf_shape.py` | a VM symbol call: form params reduced to normal form in place, value params reduced as atoms |
 | `banf_terms.py` | `OpcodeCall(opcode, args)` → `VmCall(symbol, forms, args)`; `form_of` from `result`; verifier from `params` and `accepts`; printed as LLVM writes it |

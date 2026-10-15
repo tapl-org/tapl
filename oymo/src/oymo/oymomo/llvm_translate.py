@@ -3,7 +3,7 @@
 """Translates BANF into LLVM IR, one-to-one. Everything LLVM-specific comes in through Target."""
 
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 from llvmlite import ir
@@ -25,7 +25,15 @@ class LlvmTranslationError(Exception):
 class Target:
     triple: str
     data_layout: str
-    opcodes: Mapping[str, Callable[[ir.IRBuilder, list[ir.Value]], ir.Value]]
+    # By opcode name: gets the builder, the call's fields (by position), and a function that
+    # turns a field into an LLVM value read at a form (a formless `Const` takes that form).
+    opcodes: Mapping[
+        str,
+        Callable[
+            [ir.IRBuilder, Sequence[banf.Atom], Callable[[banf.Atom, terms.Term], ir.Value]],
+            ir.Value,
+        ],
+    ]
 
 
 def llvm_type(form: terms.Term) -> ir.Type:
@@ -94,6 +102,13 @@ class _FunctionTranslator:
             )
         return value
 
+    def operand(self, atom, form, values):
+        """An opcode field as an LLVM value, read at `form`: a `Const` with no form (a bare
+        byte array) takes it; any other atom is its own value."""
+        if isinstance(atom, banf.Const) and atom.form is terms.Empty:
+            return _const(banf.Const(atom.value, form, atom.location))
+        return self.value(atom, values)
+
     def translate(self):
         entry = self.function.blocks[0]
         for block in self.function.blocks:
@@ -150,10 +165,16 @@ class _FunctionTranslator:
     def op(self, builder, let, values, forms):
         op = let.value
         match op:
-            case banf.OpcodeCall(opcode=name, args=args):
+            case banf.OpcodeCall(opcode=name, fields=fields):
                 if name not in self.target.opcodes:
-                    raise LlvmTranslationError(f'Target has no implementation of ${name}.', op.location)
-                return self.target.opcodes[name](builder, [self.value(arg, values) for arg in args])
+                    raise LlvmTranslationError(f'Target has no implementation of {name!r}.', op.location)
+                try:
+                    return self.target.opcodes[name](
+                        builder, fields, lambda atom, form: self.operand(atom, form, values)
+                    )
+                except LlvmTranslationError as error:
+                    error.location = error.location or op.location
+                    raise
             case banf.Call(function=name, args=args):
                 return builder.call(self.globals[name], [self.value(arg, values) for arg in args])
             case banf.MakeStruct(fields=fields):

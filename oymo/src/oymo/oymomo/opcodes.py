@@ -1,86 +1,86 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Abstract opcode signatures, generated from per-op templates.
+"""The opcodes: one entry per LLVM instruction, polymorphic in `form`.
 
-Shared by the kernel (`bruijn`), BANF (`banf_terms`, `banf_translate`) and LLVM
-(`llvm_opcodes`), so it holds no BANF and no LLVM and imports only `terms`.
+An opcode is called as a byte array applied to a struct, `'add' {'i32', a, b}`, which is
+LLVM's `add i32 a, b`. Fields are positional, in LLVM's operand order; labels are
+ignored. An opcode has no declared params: it reads its fields itself, by position, and
+tells what it can from them. `form_of` gives the result's form, `evaluate` the result's
+bytes when every field it needs is a literal.
+
+Shared by the kernel (`bruijn`), BANF (`banf_translate`) and LLVM (`llvm_opcodes`), so it
+holds no BANF and no LLVM and imports only `terms`.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from oymo.oymomo import terms
 
 INT_FORMS = ('i1', 'i8', 'i16', 'i32', 'i64')
 
+type Fields = Sequence[terms.Term]
+
+# Every opcode so far has three fields: `{form, a, b}`, or `{form, value, to}`.
+FIELD_COUNT = 3
+
 
 @dataclass(frozen=True)
-class OpcodeSignature:
+class Opcode:
+    """An opcode: how it reads its fields.
+
+    `form_of(fields)`: the result's form, or None if the fields don't tell it.
+    `evaluate(fields)`: the result's bytes, as LLVM computes them, or None if a field it
+    needs isn't a literal it can read, or LLVM has no defined result.
+    `pure`: it reads and writes nothing but its fields and result, so the kernel may
+    evaluate it.
+    """
+
     name: str
-    template: str
-    params: tuple[tuple[str, terms.Term], ...]
-    result: terms.Term
+    form_of: Callable[[Fields], terms.Term | None]
+    evaluate: Callable[[Fields], terms.ByteArray | None]
+    pure: bool = True
 
 
-def int_bits(form: str) -> int:
-    return int(form[1:])
-
-
-def _same_form(templates, labels, *, result=None, include_i1):
-    for template in templates:
-        for form in INT_FORMS:
-            if form == 'i1' and not include_i1:
-                continue
-            params = tuple((label, terms.ByteArray.from_str(form)) for label in labels)
-            yield OpcodeSignature(f'{template}_{form}', template, params, terms.ByteArray.from_str(result or form))
-
-
-def _conversions(templates, *, widening):
-    for template in templates:
-        for source in INT_FORMS:
-            for target in INT_FORMS:
-                wider = int_bits(target) > int_bits(source)
-                if source != target and wider == widening:
-                    params = (('value', terms.ByteArray.from_str(source)),)
-                    yield OpcodeSignature(
-                        f'{template}_{source}_{target}', template, params, terms.ByteArray.from_str(target)
-                    )
-
-
-def _generate():
-    yield from _same_form(('add', 'mul'), ('a', 'b'), include_i1=False)
-    yield from _same_form(('and', 'or', 'xor'), ('a', 'b'), include_i1=True)
-    yield from _same_form(('sub',), ('minuend', 'subtrahend'), include_i1=False)
-    yield from _same_form(('sdiv', 'udiv', 'srem', 'urem'), ('dividend', 'divisor'), include_i1=False)
-    yield from _same_form(('shl', 'lshr', 'ashr'), ('value', 'amount'), include_i1=False)
-    yield from _same_form(('eq', 'ne'), ('a', 'b'), result='i1', include_i1=True)
-    yield from _same_form(
-        ('slt', 'sle', 'sgt', 'sge', 'ult', 'ule', 'ugt', 'uge'), ('lhs', 'rhs'), result='i1', include_i1=False
-    )
-    yield from _conversions(('zext', 'sext'), widening=True)
-    yield from _conversions(('trunc',), widening=False)
-
-
-OPCODES: dict[str, OpcodeSignature] = {signature.name: signature for signature in _generate()}
-
-
-def form_bits(form: terms.Term) -> int:
-    """The width of an integer form such as `'i32'` (a signature's param or result)."""
+def find_bit_width(form: terms.Term) -> int | None:
+    """The width of an integer form such as `'i32'` (32), or None for any other term."""
     name = form.as_str if isinstance(form, terms.ByteArray) else None
-    if name is None or name not in INT_FORMS:
+    return int(name[1:]) if name is not None and name in INT_FORMS else None
+
+
+def bit_width(form: terms.Term) -> int:
+    """`find_bit_width`, for a form known to be an integer form: raises ValueError otherwise."""
+    if (width := find_bit_width(form)) is None:
         raise ValueError(f'Not an integer form: {form!r}.')
-    return int_bits(name)
+    return width
 
 
-def byte_count(bits: int) -> int:
+def byte_width(bits: int) -> int:
     """How many bytes hold an `iN` value: `(N + 7) // 8`, so `i1` is one byte."""
     return (bits + 7) // 8
 
 
-# How each template computes its result, on unsigned operands of `bits` bits (the first
-# param's width). The result may be out of range (`evaluate` wraps it to the result's
-# width); None means LLVM has no defined result.
-type _Evaluator = Callable[..., int | None]
+def decode_uint(term: terms.Term, form: terms.Term) -> int | None:
+    """The unsigned value of `term` read at the integer form `form`, or None.
+
+    `term` must be a byte array of exactly `(N + 7) // 8` bytes, below `2^N`, bare or
+    formed. A written form is not compared with `form`: the bytes are read at `form`.
+    """
+    match term:
+        case terms.ByteArray(value=data) | terms.Formed(term=terms.ByteArray(value=data)):
+            pass
+        case _:
+            return None
+    bits = find_bit_width(form)
+    if bits is None or len(data) != byte_width(bits):
+        return None
+    number = int.from_bytes(data, 'little')
+    return number if number < 1 << bits else None
+
+
+def _encode(value: int, bits: int) -> terms.ByteArray:
+    """`value` wrapped modulo `2^bits`, as the little-endian bytes of an `iN`."""
+    return terms.ByteArray((value % (1 << bits)).to_bytes(byte_width(bits), 'little'))
 
 
 def _signed(bits: int, value: int) -> int:
@@ -114,74 +114,114 @@ def _urem(_bits: int, dividend: int, divisor: int) -> int | None:
     return None if divisor == 0 else dividend % divisor
 
 
-def _shift(shift: Callable[[int, int, int], int]) -> _Evaluator:
+# How an opcode computes, on unsigned operands of `bits` bits (the operands' width). The
+# result may be out of range (it is wrapped to the result's width); None means LLVM has
+# no defined result.
+type _Compute = Callable[..., int | None]
+
+
+def _shift(shift: Callable[[int, int, int], int]) -> _Compute:
     """A shift that is None (LLVM: poison) when the amount is the width or more."""
     return lambda bits, value, amount: None if amount >= bits else shift(bits, value, amount)
 
 
-_BINARY: dict[str, _Evaluator] = {
-    'add': lambda _bits, a, b: a + b,
-    'sub': lambda _bits, minuend, subtrahend: minuend - subtrahend,
-    'mul': lambda _bits, a, b: a * b,
-    'and': lambda _bits, a, b: a & b,
-    'or': lambda _bits, a, b: a | b,
-    'xor': lambda _bits, a, b: a ^ b,
-    'sdiv': _sdiv,
-    'udiv': _udiv,
-    'srem': _srem,
-    'urem': _urem,
-    'shl': _shift(lambda _bits, value, amount: value << amount),
-    'lshr': _shift(lambda _bits, value, amount: value >> amount),
-    'ashr': _shift(lambda bits, value, amount: _signed(bits, value) >> amount),
-}
-
-
-def _compare(compare: Callable[[int, int], bool], *, signed: bool) -> _Evaluator:
+def _compare(compare: Callable[[int, int], bool], *, signed: bool) -> _Compute:
     """A comparison giving 1 or 0 (an `i1`), on operands read as unsigned or two's complement."""
 
-    def evaluate(bits: int, lhs: int, rhs: int) -> int:
+    def compute(bits: int, lhs: int, rhs: int) -> int:
         if signed:
             lhs, rhs = _signed(bits, lhs), _signed(bits, rhs)
         return int(compare(lhs, rhs))
 
-    return evaluate
+    return compute
 
 
-_COMPARE: dict[str, _Evaluator] = {
-    'eq': _compare(lambda a, b: a == b, signed=False),
-    'ne': _compare(lambda a, b: a != b, signed=False),
-    'slt': _compare(lambda a, b: a < b, signed=True),
-    'sle': _compare(lambda a, b: a <= b, signed=True),
-    'sgt': _compare(lambda a, b: a > b, signed=True),
-    'sge': _compare(lambda a, b: a >= b, signed=True),
-    'ult': _compare(lambda a, b: a < b, signed=False),
-    'ule': _compare(lambda a, b: a <= b, signed=False),
-    'ugt': _compare(lambda a, b: a > b, signed=False),
-    'uge': _compare(lambda a, b: a >= b, signed=False),
-}
-
-# `bits` is the source width; `evaluate` wraps to the target width, so `trunc` keeps the
-# low bits and a negative `sext` result becomes the target's two's complement.
-_CONVERT: dict[str, _Evaluator] = {
-    'zext': lambda _bits, value: value,
-    'sext': lambda bits, value: _signed(bits, value),
-    'trunc': lambda _bits, value: value,
-}
-
-_TEMPLATES: dict[str, _Evaluator] = _BINARY | _COMPARE | _CONVERT
-
-# The templates `evaluate` knows. An opcode of another template is never folded.
-FOLDED_TEMPLATES: frozenset[str] = frozenset(_TEMPLATES)
+_I1 = terms.ByteArray.from_str('i1')
 
 
-def evaluate(signature: OpcodeSignature, operands: list[int]) -> int | None:
-    """The unsigned result of `signature` on unsigned operands, as LLVM computes it.
+def _binary(name: str, compute: _Compute, *, result: terms.Term | None = None) -> Opcode:
+    """`{form, a, b}`: two operands read at `form`. The result is formed as `form`, or as
+    `result` if given (`i1` for a comparison)."""
 
-    Each operand must be below `2^N` for its param's `iN`. Arithmetic wraps modulo `2^N`
-    of the result form. None where LLVM has no defined result.
-    """
-    bits = form_bits(signature.params[0][1])
-    result = _TEMPLATES[signature.template](bits, *operands)
-    if result is None:
-        return None
-    return result % (1 << form_bits(signature.result))
+    def form_of(fields: Fields) -> terms.Term | None:
+        if len(fields) != FIELD_COUNT or not isinstance(fields[0], terms.ByteArray):
+            return None
+        return fields[0] if result is None else result
+
+    def evaluate(fields: Fields) -> terms.ByteArray | None:
+        if (form := form_of(fields)) is None or (bits := find_bit_width(fields[0])) is None:
+            return None
+        a, b = decode_uint(fields[1], fields[0]), decode_uint(fields[2], fields[0])
+        if a is None or b is None or (value := compute(bits, a, b)) is None:
+            return None
+        return _encode(value, bit_width(form))
+
+    return Opcode(name, form_of, evaluate)
+
+
+def _convert(name: str, compute: _Compute, *, widening: bool) -> Opcode:
+    """`{form, value, to}`: one operand read at `form`, the result formed as `to`.
+    It evaluates only where LLVM converts: `to` wider than `form` (`zext`, `sext`), or
+    narrower (`trunc`)."""
+
+    def form_of(fields: Fields) -> terms.Term | None:
+        if len(fields) != FIELD_COUNT or not isinstance(fields[2], terms.ByteArray):
+            return None
+        return fields[2]
+
+    def evaluate(fields: Fields) -> terms.ByteArray | None:
+        if form_of(fields) is None:
+            return None
+        source, target = find_bit_width(fields[0]), find_bit_width(fields[2])
+        if source is None or target is None or (target > source) != widening or target == source:
+            return None
+        if (value := decode_uint(fields[1], fields[0])) is None or (result := compute(source, value)) is None:
+            return None
+        return _encode(result, target)
+
+    return Opcode(name, form_of, evaluate)
+
+
+def _generate():
+    yield _binary('add', lambda _bits, a, b: a + b)
+    yield _binary('sub', lambda _bits, minuend, subtrahend: minuend - subtrahend)
+    yield _binary('mul', lambda _bits, a, b: a * b)
+    yield _binary('sdiv', _sdiv)
+    yield _binary('udiv', _udiv)
+    yield _binary('srem', _srem)
+    yield _binary('urem', _urem)
+    yield _binary('shl', _shift(lambda _bits, value, amount: value << amount))
+    yield _binary('lshr', _shift(lambda _bits, value, amount: value >> amount))
+    yield _binary('ashr', _shift(lambda bits, value, amount: _signed(bits, value) >> amount))
+    yield _binary('and', lambda _bits, a, b: a & b)
+    yield _binary('or', lambda _bits, a, b: a | b)
+    yield _binary('xor', lambda _bits, a, b: a ^ b)
+    # One opcode per predicate, named `icmp_` and LLVM's predicate.
+    for predicate, compare, signed in (
+        ('eq', lambda a, b: a == b, False),
+        ('ne', lambda a, b: a != b, False),
+        ('slt', lambda a, b: a < b, True),
+        ('sle', lambda a, b: a <= b, True),
+        ('sgt', lambda a, b: a > b, True),
+        ('sge', lambda a, b: a >= b, True),
+        ('ult', lambda a, b: a < b, False),
+        ('ule', lambda a, b: a <= b, False),
+        ('ugt', lambda a, b: a > b, False),
+        ('uge', lambda a, b: a >= b, False),
+    ):
+        yield _binary(f'icmp_{predicate}', _compare(compare, signed=signed), result=_I1)
+    # `compute` gets the source width; the result wraps to the target width, so `trunc`
+    # keeps the low bits and a negative `sext` result becomes the target's two's complement.
+    yield _convert('zext', lambda _bits, value: value, widening=True)
+    yield _convert('sext', lambda bits, value: _signed(bits, value), widening=True)
+    yield _convert('trunc', lambda _bits, value: value, widening=False)
+
+
+OPCODES: dict[str, Opcode] = {opcode.name: opcode for opcode in _generate()}
+
+
+def lookup(term: terms.Term) -> Opcode | None:
+    """The opcode a term in function position names: a byte array spelling its name."""
+    if isinstance(term, terms.ByteArray) and (name := term.as_str) is not None:
+        return OPCODES.get(name)
+    return None

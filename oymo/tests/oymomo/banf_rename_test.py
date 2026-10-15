@@ -41,12 +41,12 @@ def test_structural_binders_get_fixed_names():
 
 
 def test_references_follow_their_binders():
-    source = "m: {} -> {main = b -> {entry = x: {n = 'i8'} -> let t = $add_i8 {a = x.n, b = x.n} in b.next t}}"
+    source = "m: {} -> {main = b -> {entry = x: {n = 'i8'} -> let t = 'add' {'i8', x.n, x.n} in b.next t}}"
     assert pretty(source) == dedent("""
         module: {} → {
           main= blocks → {
             entry= args: {n= 'i8'} →
-              let t = $add_i8 {a= args.n, b= args.n} in blocks.next t,
+              let t = 'add' {'i8', args.n, args.n} in blocks.next t,
           },
         }
     """)
@@ -164,11 +164,11 @@ def test_a_second_run_changes_nothing():
 
 
 def test_shows_as_source():
-    source = program("main = f -> {entry = args: {n = 'i8'} -> let n = $add_i8 {a = args.n, b = args.n} in n}")
+    source = program("main = f -> {entry = args: {n = 'i8'} -> let n = 'add' {'i8', args.n, args.n} in n}")
     assert show(renamed(source), pretty=True, name_indices=True, width=60) == textwrap.dedent("""\
         module: {} → {
           main= blocks → {
             entry= args: {n= 'i8'} →
-              let n_3 = $add_i8 {a= args.n, b= args.n} in n_3,
+              let n_3 = 'add' {'i8', args.n, args.n} in n_3,
           },
         }""")

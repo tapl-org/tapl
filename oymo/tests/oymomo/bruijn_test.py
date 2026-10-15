@@ -28,7 +28,7 @@ def test_resolve_quoted_keyword(word):
 
 
 def test_resolve_keeps_builtins():
-    assert resolved('x -> $add_i32 {a = x, b = x}') == parse('x -> $add_i32 {a = $0, b = $0}')
+    assert resolved("x -> 'add' {'i32', x, x}") == parse("x -> 'add' {'i32', $0, $0}")
     # `prim` is no longer a binder of the program, so it is a plain name.
     assert show(resolved('prim -> prim')) == 'prim → $0'
 
@@ -140,7 +140,7 @@ def test_reduce_one_step(source, expected):
         '{a = e}',
         '[01]',
         'e',
-        '$add_i32 {a = e, b = e}',
+        "'add' {'i32', e, e}",
         'args.n',
         'if e then a else b',
         '{a = e}.b',
@@ -166,31 +166,34 @@ def test_reduce_one_step(source, expected):
         'if ((x -> x) [01]) then a else b',
         'x -> (y -> y) x',
         '{e}.a',
-        # An opcode folds only on literals of its params' size, bare or with the param's
-        # form, under the params' labels in order.
-        "$add_i32 {a = [01000000]: 'i8', b = [02000000]: 'i32'}",
-        '$add_i32 {a = [01], b = [02000000]}',
-        '$and_i1 {a = [02], b = [01]}',
-        '$add_i32 {a = e, b = [02000000]}',
-        '$add_i32 {b = [01000000], a = [02000000]}',
-        '$add_i32 {a = [01000000], b = [02000000], c = [00]}',
-        '$add_i32 {a = [01000000]}',
-        '$add_i32 [01000000]',
+        # An opcode folds only where it can evaluate its fields: an integer form, and
+        # operands of its size (bare or formed; a written form is not compared), three fields.
+        "'add' {'i32', [01]: 'i32', [02000000]: 'i32'}",
+        "'add' {'i32', [01], [02000000]}",
+        "'and' {'i1', [02], [01]}",
+        "'add' {'i32', e, [02000000]}",
+        "'add' {g, [01000000], [02000000]}",
+        "'add' {'ptr', [01], [00]}",
+        "'zext' {'i32', [01000000], 'i8'}",
+        "'add' {'i32': 'f', [01000000], [02000000]}",
+        "'add' {'i32', [01000000], [02000000], [00]}",
+        "'add' {'i32', [01000000]}",
+        "'add' [01000000]",
         # `reduce` is root-only: a field must already be a literal.
-        '$add_i32 {a = (x -> x) [01000000], b = [02000000]}',
+        "'add' {'i32', (x -> x) [01000000], [02000000]}",
         # No fold where LLVM has no defined result.
-        '$sdiv_i32 {dividend = [07000000], divisor = [00000000]}',
-        '$udiv_i8 {dividend = [07], divisor = [00]}',
-        '$srem_i16 {dividend = [0700], divisor = [0000]}',
-        '$urem_i64 {dividend = [0700000000000000], divisor = [0000000000000000]}',
-        '$sdiv_i8 {dividend = [80], divisor = [ff]}',
-        '$srem_i8 {dividend = [80], divisor = [ff]}',
-        '$shl_i8 {value = [01], amount = [08]}',
-        '$lshr_i32 {value = [01000000], amount = [20000000]}',
-        '$ashr_i16 {value = [0100], amount = [ffff]}',
+        "'sdiv' {'i32', [07000000], [00000000]}",
+        "'udiv' {'i8', [07], [00]}",
+        "'srem' {'i16', [0700], [0000]}",
+        "'urem' {'i64', [0700000000000000], [0000000000000000]}",
+        "'sdiv' {'i8', [80], [ff]}",
+        "'srem' {'i8', [80], [ff]}",
+        "'shl' {'i8', [01], [08]}",
+        "'lshr' {'i32', [01000000], [20000000]}",
+        "'ashr' {'i16', [0100], [ffff]}",
         # A conversion's operand has the source's size and form.
-        "$zext_i8_i32 {value = [ff000000]: 'i32'}",
-        '$zext_i8_i32 {value = [ff00]}',
+        "'zext' {'i8', [ff000000]: 'i32', 'i32'}",
+        "'zext' {'i8', [ff00], 'i32'}",
     ],
 )
 def test_reduce_returns_the_term_itself(source):
@@ -201,44 +204,46 @@ def test_reduce_returns_the_term_itself(source):
 @pytest.mark.parametrize(
     ('source', 'expected'),
     [
-        ("$add_i32 {a = [01000000]: 'i32', b = [02000000]: 'i32'}", "[03000000]: 'i32'"),
+        ("'add' {'i32', [01000000]: 'i32', [02000000]: 'i32'}", "[03000000]: 'i32'"),
         # A bare literal folds: the signature says how to read it.
-        ('$add_i32 {a = [01000000], b = [02000000]}', "[03000000]: 'i32'"),
-        ("$add_i32 {a = [01000000], b = [02000000]: 'i32'}", "[03000000]: 'i32'"),
+        ("'add' {'i32', [01000000], [02000000]}", "[03000000]: 'i32'"),
+        ("'add' {'i32', [01000000], [02000000]: 'i32'}", "[03000000]: 'i32'"),
         # Arithmetic wraps.
-        ('$add_i8 {a = [ff], b = [01]}', "[00]: 'i8'"),
-        ('$sub_i8 {minuend = [00], subtrahend = [01]}', "[ff]: 'i8'"),
-        ('$sub_i16 {minuend = [0500], subtrahend = [0300]}', "[0200]: 'i16'"),
-        ('$mul_i16 {a = [0001], b = [0001]}', "[0000]: 'i16'"),
-        ('$mul_i64 {a = [0300000000000000], b = [0500000000000000]}', "[0f00000000000000]: 'i64'"),
+        ("'add' {'i8', [ff], [01]}", "[00]: 'i8'"),
+        ("'sub' {'i8', [00], [01]}", "[ff]: 'i8'"),
+        # Fields are positional: labels are ignored, so this is still 0 - 1.
+        ("'sub' {form = 'i8', subtrahend = [00], minuend = [01]}", "[ff]: 'i8'"),
+        ("'sub' {'i16', [0500], [0300]}", "[0200]: 'i16'"),
+        ("'mul' {'i16', [0001], [0001]}", "[0000]: 'i16'"),
+        ("'mul' {'i64', [0300000000000000], [0500000000000000]}", "[0f00000000000000]: 'i64'"),
         # Logic, including on i1.
-        ('$and_i1 {a = [01], b = [01]}', "[01]: 'i1'"),
-        ('$or_i1 {a = [00], b = [01]}', "[01]: 'i1'"),
-        ('$xor_i1 {a = [01], b = [01]}', "[00]: 'i1'"),
-        ('$and_i8 {a = [0f], b = [3c]}', "[0c]: 'i8'"),
-        ('$or_i32 {a = [01000000], b = [00000080]}', "[01000080]: 'i32'"),
-        ('$xor_i16 {a = [ffff], b = [0ff0]}', "[f00f]: 'i16'"),
+        ("'and' {'i1', [01], [01]}", "[01]: 'i1'"),
+        ("'or' {'i1', [00], [01]}", "[01]: 'i1'"),
+        ("'xor' {'i1', [01], [01]}", "[00]: 'i1'"),
+        ("'and' {'i8', [0f], [3c]}", "[0c]: 'i8'"),
+        ("'or' {'i32', [01000000], [00000080]}", "[01000080]: 'i32'"),
+        ("'xor' {'i16', [ffff], [0ff0]}", "[f00f]: 'i16'"),
         # Division rounds toward zero; a remainder has the dividend's sign.
-        ('$sdiv_i8 {dividend = [f9], divisor = [02]}', "[fd]: 'i8'"),
-        ('$srem_i8 {dividend = [f9], divisor = [02]}', "[ff]: 'i8'"),
-        ('$udiv_i8 {dividend = [f9], divisor = [02]}', "[7c]: 'i8'"),
-        ('$urem_i32 {dividend = [07000000], divisor = [03000000]}', "[01000000]: 'i32'"),
-        ('$udiv_i8 {dividend = [80], divisor = [ff]}', "[00]: 'i8'"),
+        ("'sdiv' {'i8', [f9], [02]}", "[fd]: 'i8'"),
+        ("'srem' {'i8', [f9], [02]}", "[ff]: 'i8'"),
+        ("'udiv' {'i8', [f9], [02]}", "[7c]: 'i8'"),
+        ("'urem' {'i32', [07000000], [03000000]}", "[01000000]: 'i32'"),
+        ("'udiv' {'i8', [80], [ff]}", "[00]: 'i8'"),
         # Shifts by less than the width.
-        ('$shl_i8 {value = [81], amount = [01]}', "[02]: 'i8'"),
-        ('$lshr_i16 {value = [0080], amount = [0f00]}', "[0100]: 'i16'"),
-        ('$ashr_i16 {value = [0080], amount = [0f00]}', "[ffff]: 'i16'"),
+        ("'shl' {'i8', [81], [01]}", "[02]: 'i8'"),
+        ("'lshr' {'i16', [0080], [0f00]}", "[0100]: 'i16'"),
+        ("'ashr' {'i16', [0080], [0f00]}", "[ffff]: 'i16'"),
         # Comparisons give an i1.
-        ("$eq_i8 {a = [07]: 'i8', b = [07]: 'i8'}", "[01]: 'i1'"),
-        ('$ne_i32 {a = [07000000], b = [07000000]}', "[00]: 'i1'"),
-        ('$slt_i8 {lhs = [ff], rhs = [00]}', "[01]: 'i1'"),
-        ('$ult_i8 {lhs = [ff], rhs = [00]}', "[00]: 'i1'"),
+        ("'icmp_eq' {'i8', [07]: 'i8', [07]: 'i8'}", "[01]: 'i1'"),
+        ("'icmp_ne' {'i32', [07000000], [07000000]}", "[00]: 'i1'"),
+        ("'icmp_slt' {'i8', [ff], [00]}", "[01]: 'i1'"),
+        ("'icmp_ult' {'i8', [ff], [00]}", "[00]: 'i1'"),
         # Conversions change the width.
-        ("$zext_i8_i32 {value = [ff]: 'i8'}", "[ff000000]: 'i32'"),
-        ('$sext_i8_i32 {value = [ff]}', "[ffffffff]: 'i32'"),
-        ('$sext_i1_i16 {value = [01]}', "[ffff]: 'i16'"),
-        ('$trunc_i32_i8 {value = [78563412]}', "[78]: 'i8'"),
-        ('$trunc_i16_i1 {value = [0300]}', "[01]: 'i1'"),
+        ("'zext' {'i8', [ff]: 'i8', 'i32'}", "[ff000000]: 'i32'"),
+        ("'sext' {'i8', [ff], 'i32'}", "[ffffffff]: 'i32'"),
+        ("'sext' {'i1', [01], 'i16'}", "[ffff]: 'i16'"),
+        ("'trunc' {'i32', [78563412], 'i8'}", "[78]: 'i8'"),
+        ("'trunc' {'i16', [0300], 'i1'}", "[01]: 'i1'"),
     ],
 )
 def test_reduce_folds_an_opcode(source, expected):
@@ -411,5 +416,8 @@ def test_struct_to_fields_undoes_fields_to_struct():
     assert bruijn.reduce(terms.Apply(terms.Builtin('struct_to_fields'), struct)) == field_list
 
 
-def test_every_opcode_has_a_rule():
-    assert set(opcodes.OPCODES) <= set(bruijn.BUILTIN_RULES)
+def test_opcodes_fold_without_a_builtin_rule():
+    for name in opcodes.OPCODES:
+        assert bruijn.rule_of(terms.Apply(terms.ByteArray.from_str(name), terms.Struct([]))) is None
+    unknown = resolved("'add_i32' {[01000000], [02000000]}")
+    assert bruijn.reduce(unknown) is unknown

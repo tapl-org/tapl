@@ -57,7 +57,7 @@ it finishes without error, layer 0 type-checks. This mirrors TAPL's `a1.py`.
 |---|---|
 | Ints `i1..i64`, int opcodes | Floats (`f32`, `f64`) and their ops and conversions |
 | Structs as values, by-value params | **C ABI lowering**: LLVM passes `{i32, i32}` as an aggregate; C on x86-64 SysV passes it as one `i64` |
-| Imported functions and data, one LLVM symbol each | Linkage and visibility (`internal`, exported), C name ≠ label |
+| Imported functions and data, one LLopcode each | Linkage and visibility (`internal`, exported), C name ≠ label |
 | Every function returns a value | `void` functions (`=> {}`) |
 | First-order calls by symbol | Function pointers and indirect calls (callbacks, `qsort`) |
 | Immutable values | Memory: regions, load, store ([plan_memory.md](plan_memory.md)); a raw `'ptr'` and the bridge between C memory and regions |

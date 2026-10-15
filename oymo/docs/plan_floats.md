@@ -14,15 +14,15 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 
 Step 1 needs nothing but forms: a float can be passed, returned, stored in a struct
 and given to an import (`sqrt` from libm) before oymomo can compute with it. Steps 2
-to 5 are VM symbols, so they need [plan_vm.md](plan_vm.md) step 3 (opcodes are VM
-symbols, polymorphic in `form`). This is [plan_c_interop.md](plan_c_interop.md) 1.3.
+to 5 are opcodes, polymorphic in `form`, as [plan_vm.md](plan_vm.md) step 3 (done)
+made every opcode. This is [plan_c_interop.md](plan_c_interop.md) 1.3.
 No step is breaking.
 
 ## Goal
 
 **A program computes with IEEE 754 floats exactly as LLVM does.** `'f32'` is LLVM's
 `float`, `'f64'` its `double`. Each operation is one LLVM instruction or intrinsic,
-written as a VM symbol with the form as a field, like every opcode:
+written as an opcode with the form as a field:
 
 ```
 module: {hypot = => 'f64', sqrt = {x = 'f64'} => 'f64'} -> {
@@ -113,7 +113,7 @@ VM runs them in Python with the same bits ([plan_vm.md](plan_vm.md)).
 
 ### Operations (steps 2 to 5)
 
-All are VM symbols ([plan_vm.md](plan_vm.md) decisions 7 to 10): pure, form as a
+All are opcodes ([plan_vm.md](plan_vm.md) decisions 7 to 10): pure, form as a
 field, folded on literals except where decisions 6 and 7 say not.
 
 8. **Arithmetic**, LLVM's instructions:
@@ -180,7 +180,7 @@ field, folded on literals except where decisions 6 and 7 say not.
     (narrow an integer): open question 4. `fma` is exact in Python with
     `math.fma` (3.13) or with `fractions.Fraction` on older versions. Transcendental
     functions (`sin`, `exp`, `log`, `pow`) have no one right answer across libms, so
-    they are imports from libm, not VM symbols: a program declares
+    they are imports from libm, not opcodes: a program declares
     `sin = {x = 'f64'} => 'f64'`.
 
 ---
@@ -194,13 +194,13 @@ field, folded on literals except where decisions 6 and 7 say not.
 | `banf_terms.py` | nothing: `'f32'` and `'f64'` are named forms |
 | `llvm_translate.py` | `llvm_type`: `'f32'` → `ir.FloatType()`, `'f64'` → `ir.DoubleType()`; `_const`: a float constant from its bits (`struct.unpack('<f' / '<d', ...)`), and for a NaN with a payload, the bits bitcast from an integer constant, so no payload is lost |
 | `vm_compile.py`, `vm.py` | a float value is a Python `float`; an `'f32'` value is always one an `f32` can hold; constants decoded with `struct`, results encoded the same way |
-| `vm_symbols.py` | `FLOAT_FORMS = ('f32', 'f64')`, next to the integer forms, for `accepts` |
+| `opcodes.py` | `FLOAT_FORMS = ('f32', 'f64')`, next to the integer forms, for `accepts` |
 
 ### B. Arithmetic, comparisons, conversions, intrinsics (steps 2 to 5)
 
 | Module | Change |
 |---|---|
-| `vm_symbols.py` | an entry per symbol of decisions 8 to 11; `run` on Python floats, rounding to `f32` where `form` is `'f32'`; `accepts` float forms (and integer forms for `'sitofp'`, `'uitofp'`, `'bitcast'`) |
+| `opcodes.py` | an entry per symbol of decisions 8 to 11; `run` on Python floats, rounding to `f32` where `form` is `'f32'`; `accepts` float forms (and integer forms for `'sitofp'`, `'uitofp'`, `'bitcast'`) |
 | `bruijn.py` | none: the one fold rule of [plan_vm.md](plan_vm.md) decision 8 folds float forms too, except a NaN result (decision 6) and an undefined conversion (decision 7); `run` returns `None` for both, as `opcodes.evaluate` does for division by zero |
 | `llvm_opcodes.py` | `builder.fadd`, `fsub`, `fmul`, `fdiv`, `frem`, `fneg`; `builder.fcmp_ordered` / `fcmp_unordered`; `fpext`, `fptrunc`, `fptosi`, `fptoui`, `sitofp`, `uitofp`, `bitcast`; intrinsics through `module.declare_intrinsic` |
 | `banf_terms.py` | printed as LLVM writes them: `fadd f64 a, b`, `fcmp olt f64 a, b`, `fptosi f64 x to i32` |
@@ -262,7 +262,7 @@ Commit: `oymomo: add float forms`
 
 - B, for decision 8.
 - Tests:
-  - `vm_symbols`: each op on edge operands (`±0`, `±1`, the smallest subnormal, the
+  - `opcodes`: each op on edge operands (`±0`, `±1`, the smallest subnormal, the
     largest finite, `±∞`, a NaN) for both forms gives what LLVM's JIT gives, bit for
     bit except NaN results, which are NaN on both sides.
   - `bruijn`: `'fadd' {'f64', [000000000000f03f], [0000000000000040]}`
@@ -278,7 +278,7 @@ Commit: `oymomo: add float arithmetic`
 
 - B, for decision 9.
 - Tests:
-  - `vm_symbols`: every predicate on every pair of `{-∞, -1, -0, +0, 1, +∞, NaN}`
+  - `opcodes`: every predicate on every pair of `{-∞, -1, -0, +0, 1, +∞, NaN}`
     matches LLVM's JIT.
   - `bruijn`: `'fcmp_olt'` of literals folds to `[01]: 'i1'` or `[00]: 'i1'`;
     `'fcmp_uno'` with a NaN operand folds to `[01]: 'i1'`.
@@ -292,7 +292,7 @@ Commit: `oymomo: add float comparisons`
 
 - B, for decision 10.
 - Tests:
-  - `vm_symbols`: `fptrunc` of a `'f64'` that isn't an `f32` rounds to nearest even;
+  - `opcodes`: `fptrunc` of a `'f64'` that isn't an `f32` rounds to nearest even;
     `sitofp` of `2^53 + 1` to `'f64'` rounds; `fptosi` of `-1.5` to `'i32'` is `-1`;
     `fptoui` of `-1.0`, of a NaN and of `2^32` to `'i32'` don't fold and are
     `VmError` in the VM; `'bitcast'` of `1.0: 'f32'` to `'i32'` is `[0000803f]`.
@@ -310,7 +310,7 @@ Open question 4 is decided first.
 
 - B, for decision 11.
 - Tests:
-  - `vm_symbols`: each intrinsic on the edge operands of step 2 matches LLVM's JIT;
+  - `opcodes`: each intrinsic on the edge operands of step 2 matches LLVM's JIT;
     `fma` of operands where `a × b + c` rounded twice differs from once gives the
     once-rounded result; `minnum` of a NaN and `1.0` is `1.0`, `minimum` of them is
     a NaN; `minimum(-0.0, +0.0)` is `-0.0`.

@@ -33,8 +33,8 @@ def test_builtin():
     assert parse('$0') == terms.BruijnIndex(index=0)
     # Nothing is reserved after `$`, and a built-in applies like a variable.
     assert parse('$fix g a') == terms.Apply(terms.Apply(terms.Builtin('fix'), terms.Variable('g')), terms.Variable('a'))
-    assert parse('$add_i32 {a = x}.a') == terms.Apply(
-        terms.Builtin('add_i32'), terms.Project(terms.Struct([terms.Field('a', terms.Variable('x'))]), 'a')
+    assert parse('$fix {a = x}.a') == terms.Apply(
+        terms.Builtin('fix'), terms.Project(terms.Struct([terms.Field('a', terms.Variable('x'))]), 'a')
     )
     assert parse('f $fix g') == parse('(f $fix) g')
 

@@ -91,38 +91,38 @@ def test_reduce_until_top_stable_leaves_a_struct_apply_or_an_argument(source):
     [
         # A helper is inlined.
         (
-            '(id -> let t = $add_i8 {a = id args.n, b = args.n} in t) (x -> x)',
-            'let t = $add_i8 {a = args.n, b = args.n} in t',
+            "(id -> let t = 'add' {'i8', id args.n, args.n} in t) (x -> x)",
+            "let t = 'add' {'i8', args.n, args.n} in t",
         ),
         # An atom let is substituted.
         ('let t = args.n in t', 'args.n'),
         (
-            'let t = args.n in let u = $add_i8 {a = t, b = t} in u',
-            'let u = $add_i8 {a = args.n, b = args.n} in u',
+            "let t = args.n in let u = 'add' {'i8', t, t} in u",
+            "let u = 'add' {'i8', args.n, args.n} in u",
         ),
         # $fix unfolds.
         ('$fix (self -> n -> n) args.n', 'args.n'),
         # Heads.
         ('((a -> {n = a.n}) args).n', 'args.n'),
         (
-            'let t = {g = x -> $add_i8 {a = x, b = x}}.g args.n in t',
-            'let t = $add_i8 {a = args.n, b = args.n} in t',
+            "let t = {g = x -> 'add' {'i8', x, x}}.g args.n in t",
+            "let t = 'add' {'i8', args.n, args.n} in t",
         ),
         (
-            '(x -> y -> let t = $add_i8 {a = x, b = y} in t) args.n ($mul_i8 {a = args.n, b = args.n})',
-            'let y = $mul_i8 {a = args.n, b = args.n} in let t = $add_i8 {a = args.n, b = y} in t',
+            "(x -> y -> let t = 'add' {'i8', x, y} in t) args.n ('mul' {'i8', args.n, args.n})",
+            "let y = 'mul' {'i8', args.n, args.n} in let t = 'add' {'i8', args.n, y} in t",
         ),
         # Projection.
         (
-            'let t = $add_i8 {a = {a = args.n}.a, b = args.n} in t',
-            'let t = $add_i8 {a = args.n, b = args.n} in t',
+            "let t = 'add' {'i8', {a = args.n}.a, args.n} in t",
+            "let t = 'add' {'i8', args.n, args.n} in t",
         ),
         ('{p = {a = args.n}}.p.a', 'args.n'),
         ('(mk -> (mk args).n) (a -> {n = a.n})', 'args.n'),
         # A let whose op has a redex operand stays a let.
         (
-            'let t = $add_i8 {a = (x -> x) args.n, b = args.n} in t',
-            'let t = $add_i8 {a = args.n, b = args.n} in t',
+            "let t = 'add' {'i8', (x -> x) args.n, args.n} in t",
+            "let t = 'add' {'i8', args.n, args.n} in t",
         ),
         # A let-bound struct and a GetField on a param stay lets.
         ('let s = {a = args.n} in s', 'let s = {a = args.n} in s'),
@@ -189,7 +189,7 @@ def test_forms_are_ignored():
     [
         "[01]: 'i8'",
         'args.n',
-        'let t = $add_i8 {a = args.n, b = args.n} in t',
+        "let t = 'add' {'i8', args.n, args.n} in t",
         'f.a {}',
         'if args.n then f.a {} else f.b {}',
         '{f.b {}, f.a {}} args.n',
@@ -206,7 +206,7 @@ def test_terminals_stay(body):
         'main = x -> x',
         block('{a = args.n}.b'),
         block('args'),
-        block('$add_i8'),
+        block("'add'"),
     ],
 )
 def test_terms_that_cannot_reach_the_shape_are_left(defs):
@@ -217,13 +217,13 @@ def test_already_shaped_is_unchanged():
     source = """
     fact = f -> {
       entry = args:{n = 'i32'} ->
-        let t0 = $eq_i32 {a = args.n, b = [00000000]:'i32'} in
+        let t0 = 'icmp_eq' {'i32', args.n, [00000000]:'i32'} in
         if t0 then f.then0 {} else f.else0 {n = args.n},
       then0 = args:{} -> [01000000]:'i32',
       else0 = args:{n = 'i32'} ->
-        let t1 = $sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'} in
+        let t1 = 'sub' {'i32', args.n, [01000000]:'i32'} in
         let t2 = module.fact {n = t1} in
-        let t3 = $mul_i32 {a = args.n, b = t2} in
+        let t3 = 'mul' {'i32', args.n, t2} in
         t3,
     }
     """
@@ -311,38 +311,39 @@ def test_an_endless_field_list_runs_out_of_fuel():
 
 
 def test_an_opcode_reduces_its_fields_then_folds():
-    term = resolved("$add_i32 {a = (x -> x) [01000000]: 'i32', b = {c = [02000000]}.c}", FREE)
+    term = resolved("'add' {(f -> f) 'i32', (x -> x) [01000000]: 'i32', {c = [02000000]}.c}", FREE)
     assert banf_shape.reduce_until_top_stable(term) == resolved("[03000000]: 'i32'", FREE)
 
 
-def test_an_opcode_with_wrong_labels_reduces_no_field():
-    term = resolved('$add_i32 {x = (i -> i) [01000000], y = (i -> i) [02000000]}', FREE)
-    assert banf_shape.reduce_until_top_stable(term) is term
+def test_an_opcode_with_the_wrong_number_of_fields_reduces_its_fields_but_does_not_fold():
+    # The kernel's rule for `'name' {...}` doesn't depend on the opcode: it reduces every field.
+    term = resolved("'add' {'i32', (i -> i) [01000000]}", FREE)
+    assert banf_shape.reduce_until_top_stable(term) == resolved("'add' {'i32', [01000000]}", FREE)
 
 
 def test_an_opcode_on_a_run_time_operand_keeps_the_fields_it_reduced():
-    term = resolved('$add_i32 {a = e, b = (i -> i) [02000000]}', FREE)
-    assert show(banf_shape.reduce_until_top_stable(term)) == show(resolved('$add_i32 {a = e, b = [02000000]}', FREE))
+    term = resolved("'add' {'i32', e, (i -> i) [02000000]}", FREE)
+    assert show(banf_shape.reduce_until_top_stable(term)) == show(resolved("'add' {'i32', e, [02000000]}", FREE))
 
 
 @pytest.mark.parametrize(
     ('body', 'expected'),
     [
         # A let whose op folds is no longer an op, so it is substituted.
-        ("let t = $add_i8 {a = [01]: 'i8', b = [02]: 'i8'} in t", "[03]: 'i8'"),
+        ("let t = 'add' {'i8', [01]: 'i8', [02]: 'i8'} in t", "[03]: 'i8'"),
         (
-            "let t = $add_i8 {a = [01]: 'i8', b = [02]: 'i8'} in let u = $add_i8 {a = args.n, b = t} in u",
-            "let u = $add_i8 {a = args.n, b = [03]: 'i8'} in u",
+            "let t = 'add' {'i8', [01]: 'i8', [02]: 'i8'} in let u = 'add' {'i8', args.n, t} in u",
+            "let u = 'add' {'i8', args.n, [03]: 'i8'} in u",
         ),
         # An if on a folded comparison picks its arm.
-        ("let c = $eq_i8 {a = [07]: 'i8', b = [07]: 'i8'} in if c then f.a {} else f.b {}", 'f.a {}'),
+        ("let c = 'icmp_eq' {'i8', [07]: 'i8', [07]: 'i8'} in if c then f.a {} else f.b {}", 'f.a {}'),
         (
-            "let c = $ult_i8 {lhs = [ff]: 'i8', rhs = args.n} in if c then f.a {} else f.b {}",
-            "let c = $ult_i8 {lhs = [ff]: 'i8', rhs = args.n} in if c then f.a {} else f.b {}",
+            "let c = 'icmp_ult' {'i8', [ff]: 'i8', args.n} in if c then f.a {} else f.b {}",
+            "let c = 'icmp_ult' {'i8', [ff]: 'i8', args.n} in if c then f.a {} else f.b {}",
         ),
         # A fold can feed the next one.
         (
-            "let t = $add_i8 {a = [01]: 'i8', b = [02]: 'i8'} in let u = $mul_i8 {a = t, b = t} in u",
+            "let t = 'add' {'i8', [01]: 'i8', [02]: 'i8'} in let u = 'mul' {'i8', t, t} in u",
             "[09]: 'i8'",
         ),
     ],
@@ -459,7 +460,7 @@ def _opcode_samples(signature):
     """Calls of an opcode: one that folds, one that reduces its argument and fields first,
     one stuck on a run-time operand (`e`), and one with wrong labels."""
     form = signature.params[0][1]
-    one = f"[{(1).to_bytes(opcodes.byte_count(opcodes.form_bits(form)), 'little').hex()}]: '{form.as_str}'"
+    one = f"[{(1).to_bytes(opcodes.byte_width(opcodes.bit_width(form)), 'little').hex()}]: '{form.as_str}'"
     labels = [label for label, _ in signature.params]
 
     def call(values, labels=labels):

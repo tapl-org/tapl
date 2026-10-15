@@ -10,7 +10,7 @@ from oymo.oymomo import opcodes, printer, terms
 
 Location = terms.Location
 
-# An OpcodeCall prints its name bare (`add_i32 a, b`), so an opcode named like a BANF
+# An OpcodeCall prints its name bare (`add i32 a, b`), so an opcode named like a BANF
 # keyword would read like a call or a terminator.
 _BANF_KEYWORDS = frozenset({'call', 'jump', 'branch', 'switch', 'return'})
 if _BANF_KEYWORDS & opcodes.OPCODES.keys():
@@ -38,8 +38,14 @@ type Atom = Var | Const
 
 @dataclass
 class OpcodeCall:
+    """`'add' {'i32', a, b}`: `fields` are the call's fields as atoms, by position; a bare
+    byte array, such as the form `'i32'` or an operand `[01000000]`, is a `Const` with no
+    form. `form` is the result's form, as the opcode tells it. Printed positionally:
+    `add 'i32', a, b`."""
+
     opcode: str
-    args: list[Atom]
+    fields: list[Atom]
+    form: terms.Term
     location: Location | None = field(default=None, compare=False)
 
 
@@ -206,10 +212,8 @@ def callee(op: Call, module: Module) -> Function | Signature:
 def form_of(op: Op, forms: Mapping[str, terms.Term], module: Module) -> terms.Term:
     """The result form of `op`, given the forms of the names in scope."""
     match op:
-        case OpcodeCall(opcode=name):
-            if name not in opcodes.OPCODES:
-                raise FormError(f"Unknown built-in '${name}'.", op.location)
-            return opcodes.OPCODES[name].result
+        case OpcodeCall(form=form):
+            return form
         case Call():
             return callee(op, module).return_form
         case MakeStruct(fields=fields):
@@ -260,22 +264,22 @@ def indexed_field(form: terms.Term, index: int, location: Location | None = None
 
 
 def _check_args(what, params, args, forms, location):
+    """`args` match `params` in number. A form isn't a type, so an arg's form is not
+    compared with its param's."""
     if len(args) != len(params):
         raise FormError(f'{what} takes {len(params)} arguments, got {len(args)}.', location)
-    for (label, param_form), arg in zip(params, args, strict=True):
-        arg_form = atom_form(arg, forms)
-        if arg_form != param_form:
-            raise FormError(
-                f'{what} expects {label}: {show_form(param_form)}, got {show_form(arg_form)}.',
-                arg.location or location,
-            )
+    for arg in args:
+        atom_form(arg, forms)
 
 
 def _check_op(op, forms, module):
     match op:
-        case OpcodeCall(opcode=name, args=args):
-            form_of(op, forms, module)
-            _check_args(f'${name}', opcodes.OPCODES[name].params, args, forms, op.location)
+        case OpcodeCall(opcode=name, fields=fields):
+            # The opcode reads its fields itself; here only the names in them must resolve.
+            if name not in opcodes.OPCODES:
+                raise FormError(f'Unknown opcode {name!r}.', op.location)
+            for atom in fields:
+                atom_form(atom, forms)
         case Call(function=name, args=args):
             _check_args(name, callee(op, module).params, args, forms, op.location)
         case _:
@@ -312,9 +316,9 @@ def _verify_function(function, module):
             case Jump(target=target, args=args) as jump:
                 _check_jump(function, target, args, forms, jump.location)
             case Branch() as branch:
-                condition_form = atom_form(branch.condition, forms)
-                if condition_form != terms.ByteArray(b'i1'):
-                    raise FormError(f'Branch condition must be i1, got {show_form(condition_form)}.', branch.location)
+                # Nothing about the condition's form, as a form isn't a type: which
+                # conditions can be lowered is up to the backend.
+                atom_form(branch.condition, forms)
                 _check_jump(function, branch.then_target, branch.then_args, forms, branch.location)
                 _check_jump(function, branch.else_target, branch.else_args, forms, branch.location)
             case Switch() as switch:
@@ -332,14 +336,9 @@ def _verify_function(function, module):
                     # agree, so a repeated target must get the same args.
                     if passed.setdefault(target, args) != args:
                         raise FormError(f'A switch passes different args to {target!r}.', switch.location)
-            case Return(value=value) as ret:
-                value_form = atom_form(value, forms)
-                if value_form != function.return_form:
-                    raise FormError(
-                        f'Function {function.name!r} returns {show_form(function.return_form)}, '
-                        f'got {show_form(value_form)}.',
-                        value.location or ret.location,
-                    )
+            case Return(value=value):
+                # Not compared with the function's return form, as a form isn't a type.
+                atom_form(value, forms)
 
 
 def verify(module: Module) -> None:
@@ -396,6 +395,9 @@ def show_atom(atom: Atom) -> str:
     match atom:
         case Var(name=name, form=form):
             return show_name(name) if form is terms.Empty else f'{show_name(name)}:{show_form(form)}'
+        case Const(value=value, form=form) if form is terms.Empty:
+            # A bare byte array, as oymomo writes it: `'i32'` or `[01000000]`.
+            return printer.show(terms.ByteArray(value))
         case Const(value=value, form=form):
             return f'[{value.hex()}]:{show_form(form)}'
     raise AssertionError(atom)
@@ -405,12 +407,16 @@ def _show_args(args):
     return '(' + ', '.join(show_atom(arg) for arg in args) + ')'
 
 
+def _show_opcode_call(op: OpcodeCall) -> str:
+    """The name and the fields, by position: `add 'i32', a, b`, `zext 'i8', x, 'i32'`. An
+    opcode call always has fields, so a bare name (`t0 = errno`) is always a data read."""
+    return f'{show_name(op.opcode)} ' + ', '.join(show_atom(atom) for atom in op.fields)
+
+
 def show_op(op: Op) -> str:
     match op:
-        case OpcodeCall(opcode=name, args=args):
-            # Assembly style, as in Cranelift: `eq_i32 n, [00000000]:i32`. An opcode always has
-            # operands, so a bare name (`t0 = errno`) is always a data read.
-            return f'{show_name(name)} ' + ', '.join(show_atom(arg) for arg in args)
+        case OpcodeCall():
+            return _show_opcode_call(op)
         case Call(function=name, args=args):
             return f'call {show_name(name)}{_show_args(args)}'
         case MakeStruct(fields=fields):

@@ -255,78 +255,45 @@ def _fields_to_struct(call: terms.Apply, reduce_part: ReducePart) -> syntax.Term
     return call if field_list is call.argument else replace(call, argument=field_list)
 
 
-def _literal_operand(value: syntax.Term, form: syntax.Term) -> int | None:
-    """The unsigned value of a literal operand for a param of form `form` (an `iN`), or None.
+def fold_opcode(call: terms.Apply) -> syntax.Term:
+    """`'name' {fields}` on literals gives the result: the bytes LLVM would compute
+    (`opcode.evaluate`), formed as the opcode's result (`opcode.form_of`). Returns `call`
+    itself where it doesn't fold: an unknown name, an impure opcode, or fields the opcode
+    can't evaluate (a run-time operand, no defined result in LLVM).
 
-    It must be a byte array of exactly `(N + 7) // 8` bytes, below `2^N`, bare or under
-    `form` itself. A wrong form or size is not folded, so `convert` still reports it.
+    Root-only: it reduces nothing. The argument must already be a struct literal; reducing
+    it to one, and its fields, is the kernel's job (`banf_shape`). Fields are positional and
+    labels are ignored.
     """
-    match value:
-        case terms.ByteArray(value=data):
-            pass
-        case terms.Formed(term=terms.ByteArray(value=data), form=written) if written == form:
-            pass
-        case _:
-            return None
-    bits = opcodes.form_bits(form)
-    if len(data) != opcodes.byte_count(bits):
-        return None
-    number = int.from_bytes(data, 'little')
-    return number if number < 1 << bits else None
+    opcode = opcodes.lookup(call.function)
+    argument = call.argument
+    if opcode is None or not opcode.pure or not isinstance(argument, terms.Struct):
+        return call
+    fields = [field.value for field in argument.fields]
+    if (result := opcode.evaluate(fields)) is None or (form := opcode.form_of(fields)) is None:
+        return call
+    return terms.Formed(terms.ByteArray(result.value, call.location), form, call.location)
 
 
-def _literal_operands(signature: opcodes.OpcodeSignature, argument: syntax.Term) -> list[int] | None:
-    """The operands of a call of `signature`, or None unless `argument` is a struct with the
-    params' labels, in order, and every field is a literal operand."""
-    if not isinstance(argument, terms.Struct) or len(argument.fields) != len(signature.params):
-        return None
-    operands = []
-    for field, (label, form) in zip(argument.fields, signature.params, strict=True):
-        if field.label != label or (operand := _literal_operand(field.value, form)) is None:
-            return None
-        operands.append(operand)
-    return operands
-
-
-def _fold(signature: opcodes.OpcodeSignature) -> BuiltinRule:
-    """The rule of an opcode: on literal operands it gives the result, formed as the
-    signature's result, the bytes LLVM would compute. Stuck where LLVM has no defined result.
-
-    It reduces the argument, then, if it is a struct with the params' labels, each field in
-    order. With other labels the call is stuck, so no field is reduced.
-    """
-    labels = [label for label, _ in signature.params]
-
-    def reduce(call: terms.Apply, reduce_part: ReducePart) -> syntax.Term:
-        argument = reduce_part(call.argument)
-        if isinstance(argument, terms.Struct) and [field.label for field in argument.fields] == labels:
-            for position, field in enumerate(argument.fields):
-                argument = _with_value(argument, position, reduce_part(field.value))
-        call = call if argument is call.argument else replace(call, argument=argument)
-        operands = _literal_operands(signature, argument)
-        if operands is None:
-            return call
-        result = opcodes.evaluate(signature, operands)
-        if result is None:
-            return call
-        data = result.to_bytes(opcodes.byte_count(opcodes.form_bits(signature.result)), 'little')
-        return terms.Formed(terms.ByteArray(data, call.location), signature.result, call.location)
-
-    return BuiltinRule(signature.name, reduce)
-
-
-# Reduction rules, by built-in name. A built-in with a rule and no opcode
-# (`opcodes.OPCODES`) is kernel-only: it must reduce away before BANF. An opcode with a
-# rule folds on literal operands and stays an opcode call otherwise.
+# Reduction rules of the kernel-only built-ins, by name: each must reduce away before BANF.
+# Opcodes (`'add' {...}`) are not built-ins: `fold_opcode` folds them.
 BUILTIN_RULES: dict[str, BuiltinRule] = {
     rule.name: rule
     for rule in (
         BuiltinRule('fix', _fix),
         BuiltinRule('struct_to_fields', _struct_to_fields),
         BuiltinRule('fields_to_struct', _fields_to_struct),
-        *(_fold(signature) for signature in opcodes.OPCODES.values() if signature.template in opcodes.FOLDED_TEMPLATES),
     )
 }
+
+
+def rule_of(term: terms.Apply) -> Callable[[terms.Apply, ReducePart], syntax.Term] | None:
+    """How the built-in call `term` (`$fix g`) steps, as a `BuiltinRule.reduce`, or None
+    for any other Apply."""
+    match term.function:
+        case terms.Builtin(name=name) if (builtin := BUILTIN_RULES.get(name)) is not None:
+            return builtin.reduce
+    return None
 
 
 def project(term: terms.Project) -> syntax.Term | None:
@@ -370,9 +337,11 @@ def reduce(term: syntax.Term) -> syntax.Term:
     match term:
         case terms.Apply(function=terms.Lambda() as lambda_, argument=argument):
             return beta(lambda_, argument)
-        case terms.Apply(function=terms.Builtin(name=name)) if (builtin := BUILTIN_RULES.get(name)) is not None:
+        case terms.Apply(function=terms.ByteArray()):
+            return fold_opcode(term)
+        case terms.Apply() if (rule := rule_of(term)) is not None:
             # `keep` reduces no part, so the rule fires only if the parts it reads are already reduced.
-            return builtin.reduce(term, keep)
+            return rule(term, keep)
         case terms.Project(struct=terms.Struct()):
             projected = project(term)
             return term if projected is None else projected

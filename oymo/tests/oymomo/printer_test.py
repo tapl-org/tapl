@@ -13,12 +13,12 @@ decls: {} -> defs -> {
 fact = f -> {
   entry = args:{n = 'i32'} ->
     (t0 -> if t0 then f.then0 {} else f.else0 {n = args.n})
-      ($eq_i32 {a = args.n, b = [00000000]:'i32'}),
+      ('icmp_eq' {'i32', args.n, [00000000]:'i32'}),
   then0 = args:{} -> [01000000]:'i32',
   else0 = args:{n = 'i32'} ->
-    (t1 -> (t2 -> (t3 -> t3) ($mul_i32 {a = args.n, b = t2}))
+    (t1 -> (t2 -> (t3 -> t3) ('mul' {'i32', args.n, t2}))
              (defs.fact {n = t1}))
-      ($sub_i32 {minuend = args.n, subtrahend = [01000000]:'i32'}),
+      ('sub' {'i32', args.n, [01000000]:'i32'}),
 }}
 """
 
@@ -168,13 +168,13 @@ def test_pretty_breaks_long_terms():
         decls: {} → defs → {
           fact= f → {
             entry= args: {n= 'i32'} →
-              let t0 = $eq_i32 {a= args.n, b= [00000000]: 'i32'} in
+              let t0 = 'icmp_eq' {'i32', args.n, [00000000]: 'i32'} in
               if t0 then f.then0 {} else f.else0 {n= args.n},
             then0= args: {} → [01000000]: 'i32',
             else0= args: {n= 'i32'} →
-              let t1 = $sub_i32 {minuend= args.n, subtrahend= [01000000]: 'i32'} in
+              let t1 = 'sub' {'i32', args.n, [01000000]: 'i32'} in
               let t2 = defs.fact {n= t1} in
-              let t3 = $mul_i32 {a= args.n, b= t2} in t3,
+              let t3 = 'mul' {'i32', args.n, t2} in t3,
           },
         }""")
 
@@ -291,7 +291,7 @@ def test_width_and_indent_flags():
         '{a}',
         '{x -> x, let y = a in y, a: t}',
         '$add_i32',
-        '$add_i32 {a = x, b = x}',
+        "'add' {'i32', x, x}",
         '$0',
         'f $fix ($fix g).a',
     ],

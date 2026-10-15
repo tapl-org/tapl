@@ -56,11 +56,16 @@ class _Shaper:
                 # Other arguments stay lazy.
                 new = self.reduce_until_top_stable(index)
                 return term if new is index else replace(term, argument=new)
-            case terms.Apply(function=terms.Builtin(name=name)) if (
-                builtin := bruijn.BUILTIN_RULES.get(name)
-            ) is not None:
+            case terms.Apply(function=terms.ByteArray(), argument=argument):
+                # An opcode call `'name' {...}`: its argument must be a struct literal whose fields
+                # are byte arrays or structs. So the argument is reduced, then each of its fields.
+                new = self.reduce_until_top_stable(argument)
+                if isinstance(new, terms.Struct):
+                    new = self.reduce_fields(new)
+                return term if new is argument else replace(term, argument=new)
+            case terms.Apply() if (rule := bruijn.rule_of(term)) is not None:
                 # A built-in reduces the parts of its argument that it reads, and may fire.
-                return builtin.reduce(term, self.reduce_until_top_stable)
+                return rule(term, self.reduce_until_top_stable)
             case terms.Apply(function=function):
                 new = self.reduce_until_top_stable(function)
                 return term if new is function else replace(term, function=new)
@@ -72,6 +77,13 @@ class _Shaper:
                 new = self.reduce_until_top_stable(inner)
                 return term if new is inner else replace(term, term=new)
         return term
+
+    def reduce_fields(self, struct):
+        """`struct` with each field reduced by `reduce_until_top_stable`; `struct` itself if none changes."""
+        values = [self.reduce_until_top_stable(f.value) for f in struct.fields]
+        if all(new is f.value for new, f in zip(values, struct.fields, strict=True)):
+            return struct
+        return replace(struct, fields=[replace(f, value=new) for f, new in zip(struct.fields, values, strict=True)])
 
     # Positions 1 to 5: the fixed outer structure.
 

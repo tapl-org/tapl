@@ -37,6 +37,13 @@ I1, I8, I16, I32, I64 = (terms.ByteArray(name) for name in (b'i1', b'i8', b'i16'
 
 ZERO = Const(bytes(4), I32)
 ONE = Const(bytes([1, 0, 0, 0]), I32)
+
+
+def field(form):
+    """A form as an opcode field: a bare byte array, a `Const` with no form."""
+    return Const(form.value, terms.Empty)
+
+
 POINT = terms.Struct([terms.Field('x', I32), terms.Field('y', I32)])
 
 
@@ -48,7 +55,7 @@ def fact():
             Block(
                 'entry',
                 [('n', I32)],
-                [Let('t0', OpcodeCall('eq_i32', [Var('n'), ZERO]))],
+                [Let('t0', OpcodeCall('icmp_eq', [field(I32), Var('n'), ZERO], I1))],
                 Branch(Var('t0'), 'then0', [], 'else0', [Var('n')]),
             ),
             Block('then0', [], [], Return(ONE)),
@@ -56,9 +63,9 @@ def fact():
                 'else0',
                 [('n', I32)],
                 [
-                    Let('t1', OpcodeCall('sub_i32', [Var('n'), ONE])),
+                    Let('t1', OpcodeCall('sub', [field(I32), Var('n'), ONE], I32)),
                     Let('t2', Call('fact', [Var('t1')])),
-                    Let('t3', OpcodeCall('mul_i32', [Var('n'), Var('t2')])),
+                    Let('t3', OpcodeCall('mul', [field(I32), Var('n'), Var('t2')], I32)),
                 ],
                 Return(Var('t3')),
             ),
@@ -72,14 +79,14 @@ def test_show_fact():
     assert show(module) == (
         'fact: i32\n'
         '  entry(n: i32):\n'
-        '    t0 = eq_i32 n, [00000000]:i32\n'
+        "    t0 = icmp_eq 'i32', n, [00000000]:i32\n"
         '    branch t0, then0(), else0(n)\n'
         '  then0():\n'
         '    return [01000000]:i32\n'
         '  else0(n: i32):\n'
-        '    t1 = sub_i32 n, [01000000]:i32\n'
+        "    t1 = sub 'i32', n, [01000000]:i32\n"
         '    t2 = call fact(t1)\n'
-        '    t3 = mul_i32 n, t2\n'
+        "    t3 = mul 'i32', n, t2\n"
         '    return t3\n'
     )
 
@@ -95,7 +102,7 @@ def imports_module():
                 [
                     Let('t0', GetData('errno')),
                     Let('t1', Call('putchar', [Const(bytes([0x41]), I8)])),
-                    Let('t2', OpcodeCall('add_i32', [Var('t0'), Var('t1')])),
+                    Let('t2', OpcodeCall('add', [field(I32), Var('t0'), Var('t1')], I32)),
                 ],
                 Return(Var('t2')),
             )
@@ -115,7 +122,7 @@ def test_show_signature_data_and_get_data():
         '  entry():\n'
         '    t0 = errno\n'
         '    t1 = call putchar([41]:i8)\n'
-        '    t2 = add_i32 t0, t1\n'
+        "    t2 = add 'i32', t0, t1\n"
         '    return t2\n'
     )
 
@@ -173,8 +180,8 @@ def test_show_form():
 def test_form_of_each_op():
     module = imports_module()
     forms = {'n': I32, 'p': POINT}
-    assert form_of(OpcodeCall('eq_i32', [Var('n'), ZERO]), forms, module) == I1
-    assert form_of(OpcodeCall('zext_i8_i32', [Const(b'\x01', I8)]), forms, module) == I32
+    assert form_of(OpcodeCall('icmp_eq', [field(I32), Var('n'), ZERO], I1), forms, module) == I1
+    assert form_of(OpcodeCall('zext', [field(I8), Const(b'\x01', I8), field(I32)], I32), forms, module) == I32
     assert form_of(Call('putchar', [Const(b'\x41', I8)]), forms, module) == I32
     assert form_of(MakeStruct([('a', Var('n')), ('b', Var('p'))]), forms, module) == terms.Struct(
         [terms.Field('a', I32), terms.Field('b', POINT)]
@@ -235,36 +242,47 @@ def test_verify_checks_get_index():
     verify(one_block([Let('t0', GetIndex(Var('p'), 0))], Return(Var('t0')), params))
     with pytest.raises(FormError, match='has no field at index 0'):
         verify(one_block([Let('t0', GetIndex(Var('p'), 0))], Return(Var('t0')), [('p', I32)]))
-    with pytest.raises(FormError, match='returns i32, got i8'):
-        verify(one_block([Let('t0', GetIndex(Var('p'), 1))], Return(Var('t0')), params))
-    with pytest.raises(FormError, match='returns i32, got i8'):
-        verify(one_block([Let('t0', GetIndex(Var('p'), 2))], Return(Var('t0')), params))
+    # The i8 fields returned from an i32 function: the return form is not compared.
+    verify(one_block([Let('t0', GetIndex(Var('p'), 1))], Return(Var('t0')), params))
+    verify(one_block([Let('t0', GetIndex(Var('p'), 2))], Return(Var('t0')), params))
 
 
 def one_block(lets, terminator, params=(), return_form=I32):
     return Module([Function('f', return_form, [Block('entry', list(params), lets, terminator)])])
 
 
-def test_verify_rejects_wrong_opcode_operand_form():
-    module = one_block([Let('t0', OpcodeCall('add_i32', [Const(b'\x01', I8), ZERO]))], Return(Var('t0')))
-    with pytest.raises(FormError, match=r'\$add_i32 expects a: i32, got i8'):
-        verify(module)
+def test_verify_does_not_compare_opcode_operand_form():
+    verify(one_block([Let('t0', OpcodeCall('add', [field(I32), Const(b'\x01', I8), ZERO], I32))], Return(Var('t0'))))
 
 
-def test_verify_rejects_wrong_argument_count():
-    module = one_block([Let('t0', OpcodeCall('add_i32', [ZERO]))], Return(Var('t0')))
-    with pytest.raises(FormError, match='takes 2 arguments, got 1'):
-        verify(module)
+@pytest.mark.parametrize(
+    'op',
+    [
+        OpcodeCall('add', [field(I1), ZERO, ZERO], I1),
+        OpcodeCall('zext', [field(I32), ZERO, field(I8)], I8),
+        OpcodeCall('add', [field(I32), ZERO], I32),
+    ],
+)
+def test_verify_leaves_opcode_fields_to_the_opcode(op):
+    # Any forms, any number of fields: the opcode reads them, and the backend may reject them.
+    verify(one_block([Let('t0', op)], Return(Var('t0'))))
 
 
-def test_verify_rejects_wrong_return_form():
-    with pytest.raises(FormError, match="'f' returns i32, got i8"):
-        verify(one_block([], Return(Const(b'\x01', I8))))
+def test_verify_rejects_unknown_opcode_and_name():
+    with pytest.raises(FormError, match="Unknown opcode 'foo'"):
+        verify(one_block([Let('t0', OpcodeCall('foo', [ZERO], I32))], Return(Var('t0'))))
+    with pytest.raises(FormError, match="Unknown name 'n'"):
+        verify(one_block([Let('t0', OpcodeCall('add', [field(I32), Var('n'), ZERO], I32))], Return(Var('t0'))))
 
 
-def test_verify_rejects_non_i1_condition():
-    with pytest.raises(FormError, match='must be i1'):
-        verify(one_block([], Branch(ZERO, 'a', [], 'b', [])))
+def test_verify_does_not_compare_return_form():
+    verify(one_block([], Return(Const(b'\x01', I8))))
+
+
+def test_verify_does_not_compare_condition_form():
+    entry = Block('entry', [], [], Branch(ZERO, 'a', [], 'b', []))
+    a, b = Block('a', [], [], Return(ZERO)), Block('b', [], [], Return(ZERO))
+    verify(Module([Function('f', I32, [entry, a, b])]))
 
 
 def test_verify_rejects_jump_to_entry_and_unknown_block():
@@ -336,19 +354,21 @@ def test_formed_var_has_the_written_form():
     assert atom_form(Var('n'), {'n': I8}) == I8
     with pytest.raises(FormError, match="Unknown name 'm'"):
         atom_form(Var('m', I32), {})
-    module = one_block([Let('t0', OpcodeCall('add_i32', [Var('n', I32), ZERO]))], Return(Var('t0')), params=[('n', I8)])
+    module = one_block(
+        [Let('t0', OpcodeCall('add', [field(I32), Var('n', I32), ZERO], I32))], Return(Var('t0')), params=[('n', I8)]
+    )
     verify(module)
-    assert show(module).splitlines()[2] == '    t0 = add_i32 n:i32, [00000000]:i32'
+    assert show(module).splitlines()[2] == "    t0 = add 'i32', n:i32, [00000000]:i32"
 
 
 def test_let_form_replaces_op_form():
-    # eq_i32 gives i1; the written i32 replaces it, and the return is checked against i32.
-    let = Let('t0', OpcodeCall('eq_i32', [ZERO, ZERO]), I32)
+    # icmp_eq gives i1; the written i32 replaces it, and the return is checked against i32.
+    let = Let('t0', OpcodeCall('icmp_eq', [field(I32), ZERO, ZERO], I1), I32)
     module = one_block([let], Return(Var('t0')))
     verify(module)
     assert let_form(let, {}, module) == I32
-    assert let_form(Let('t0', OpcodeCall('eq_i32', [ZERO, ZERO])), {}, module) == I1
-    assert show(module).splitlines()[2] == '    t0: i32 = eq_i32 [00000000]:i32, [00000000]:i32'
+    assert let_form(Let('t0', OpcodeCall('icmp_eq', [field(I32), ZERO, ZERO], I1)), {}, module) == I1
+    assert show(module).splitlines()[2] == "    t0: i32 = icmp_eq 'i32', [00000000]:i32, [00000000]:i32"
 
 
 def test_verify_rejects_duplicate_names_and_closed_block_violation():
