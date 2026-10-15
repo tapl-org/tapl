@@ -6,11 +6,11 @@ Status: **proposed**, with open questions; 0 of 5 steps.
 
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
-- [ ] 1. `$wait {x, d1, ...}`: gives `x` once every `dᵢ` is a literal, so an effect it waits for stays (`oymomo: add $wait`)
+- [ ] 1. `$seq {d1, ..., x}`: gives `x` once every `dᵢ` is a literal, so an effect it waits for stays (`oymomo: add $seq`)
 - [ ] 2. The `'ptr'` form, `'alloca'` and `'getelementptr'` (`oymomo: add the ptr form`)
 - [ ] 3. `'load'` and `'store'` (`oymomo: add load and store`)
-- [ ] 4. Tests: what full β does to effects without `$wait` (`oymomo: test unordered effects`)
-- [ ] 5. Arrays, vectors and packed structs as tagged pairs (`{'array', {element, count}}`) (`oymomo: add aggregate forms`)
+- [ ] 4. Tests: what full β does to effects without `$seq` (`oymomo: test unordered effects`)
+- [ ] 5. Arrays, vectors and packed structs as tagged structs (`{'array', count, element}`) (`oymomo: add aggregate forms`)
 
 Step 1 doesn't depend on the others: it orders effects, which memory ops are, as calls
 to imports already are. Step 2 makes and moves pointers, but nothing reads or writes
@@ -32,7 +32,7 @@ a type, oymomo passes the form as a value (`form = 'i32'`, `form = {x = 'i32', y
 no bounds checks, no regions, no tokens.
 
 Memory ops are effects, like calls to imports. The term doesn't order them; a
-program orders them by hand with `$wait` (decisions 1 to 4), as it orders calls to
+program orders them by hand with `$seq` (decisions 1 to 4), as it orders calls to
 imports. [plan_confluence.md](plan_confluence.md)'s guarantee covers the term, not the
 order of effects (decision 4).
 
@@ -45,7 +45,7 @@ module~{bump = => 'i32'} -> {
     entry = args~{n = 'i32'} ->
       let p = 'alloca' {'i32'} in
       let s = 'store' {args.n, p} in
-      let v = 'load' {'i32', $wait {p, s}} in
+      let v = 'load' {'i32', $seq {s, p}} in
       let w = 'add' {'i32', v, [01000000]} in
       w,
   },
@@ -74,7 +74,7 @@ entry:
 }
 ```
 
-`$wait {p, s}` is `p`, but it makes the load wait for the store (decision 1), and
+`$seq {s, p}` is `p`, but it makes the load wait for the store (decision 1), and
 `convert` drops it, so BANF and LLVM never see it. Without it nothing uses `s`, and
 full β could drop the store. With `[29000000]~'i32'` in place of `args.n`, reduction
 still leaves the three memory lets alone (decision 13), and LLVM's `mem2reg` turns the
@@ -94,11 +94,11 @@ let y = 'getelementptr' {{x = 'i32', y = 'i64'}, q,
   %"y" = getelementptr {i32, i64}, ptr %"q", i64 0, i32 1
 ```
 
-`$wait` also orders calls to imports:
+`$seq` also orders calls to imports:
 
 ```
 let q = module.putchar {c = [68000000]~'i32'} in
-let r = module.putchar {c = $wait {[69000000]~'i32', q}} in
+let r = module.putchar {c = $seq {q, [69000000]~'i32'}} in
 r
 ```
 
@@ -112,42 +112,46 @@ return r
 
 ### Ordering effects (step 1)
 
-1. **`$wait {x, d1, ..., dn}` gives `x` once every `dᵢ` is ready.** Field 0 is the
-   value; the others are what it waits for. Fields are positional, and labels are
+1. **`$seq {d1, ..., dn, x}` gives `x` once every `dᵢ` is ready.** The last field
+   is the value; the ones before it are what it waits for. It is named after
+   Haskell's `seq a b`, with any number of fields: `$seq {a, b, x}` is
+   `seq a (seq b x)`. Fields read in time order and the result comes last, as in
+   `seq` and `a >> b`; `banf_shape` lets them in that order too (step 4). Unlike
+   Haskell's `seq`, it forces nothing in reduction. Fields are positional, and labels are
    ignored, as in a branch. A `dᵢ` is *ready* when it is a byte array, formed or not:
    a literal has no effect left to wait for. Then `reduce` gives `x`:
-   `$wait {x, [01]}` → `x`, and `$wait {x}` → `x`. Otherwise it is stuck: an effect
+   `$seq {[01], x}` → `x`, and `$seq {x}` → `x`. Otherwise it is stuck: an effect
    (`'store' {...}`, `module.putchar {...}`) never reduces to a literal (decision
-   13), so `$wait` releases `x` only at run time, where `convert` drops it (decision
+   13), so `$seq` releases `x` only at run time, where `convert` drops it (decision
    3). A lambda or a struct is not ready, even with no effect inside: the rule reads
-   only the root of each `dᵢ`. `wait` is not an opcode; it keeps its `$` because
+   only the root of each `dᵢ`. `seq` is not an opcode; it keeps its `$` because
    `convert` treats it specially. Since `x` uses every `dᵢ` that isn't ready, full β
-   can't drop one, and a let that uses `$wait` comes after every let it waits for:
+   can't drop one, and a let that uses `$seq` comes after every let it waits for:
 
    ```
    let q = module.putchar {c = [68000000]~'i32'} in
-   let r = module.putchar {c = $wait {[69000000]~'i32', q}} in
+   let r = module.putchar {c = $seq {q, [69000000]~'i32'}} in
    r
    ```
 
-   Without `$wait`, nothing uses `q`, so full β drops the first call and the program
-   prints `i`. `$wait` orders calls to imports and memory ops
-   (`'load' {'i32', $wait {p, s}}`).
-2. **`$wait` may be an operand.** With atoms as fields it is an atom: an op argument,
+   Without `$seq`, nothing uses `q`, so full β drops the first call and the program
+   prints `i`. `$seq` orders calls to imports and memory ops
+   (`'load' {'i32', $seq {s, p}}`).
+2. **`$seq` may be an operand.** With atoms as fields it is an atom: an op argument,
    a jump argument, a branch condition, a return, or a let's value. This is one
    exception to [notes.md › Operands must be atoms](notes.md#operands-must-be-atoms),
-   because it stands for its field 0, which is an atom. (The other is a form field of
+   because it stands for its last field, which is an atom. (The other is a form field of
    an opcode, such as `form` ([plan_vm.md](plan_vm.md) decision 10).)
-3. **`convert` drops what reduction leaves.** A stuck `$wait {x, ...}` becomes the
+3. **`convert` drops what reduction leaves.** A stuck `$seq {..., x}` becomes the
    atom `x`, and
-   `let c = $wait {...}` binds no BANF let: `c` is an alias of `x`. So BANF, the
+   `let c = $seq {...}` binds no BANF let: `c` is an alias of `x`. So BANF, the
    verifier, `form_of` and LLVM never see it, and it needs no form. After `convert`,
    order is let order alone, which BANF keeps: no BANF pass reorders or removes a let,
    and LLVM keeps calls to imports and memory ops in order.
 4. **Ordering is by hand and unchecked.** An effect that nothing uses, directly or
-   through `$wait`, can still be dropped by full β; two effects with no chain between
+   through `$seq`, can still be dropped by full β; two effects with no chain between
    them have no order; a let used twice can be copied, so a load can run twice, once
-   on each side of a store. `$wait` gives a program a way to order effects, not a
+   on each side of a store. `$seq` gives a program a way to order effects, not a
    guarantee. A check is open question 1.
 
 ### Pointers and memory ops (steps 2, 3)
@@ -175,7 +179,7 @@ return r
    | `'load'` | `form`, `ptr` | `F` | `load F, ptr ptr` |
    | `'store'` | `value`, `ptr` | `{}` | `store F value, ptr ptr` |
 
-   - `form` must reduce to a literal form (a named form, a struct, or a tagged pair of
+   - `form` must reduce to a literal form (a named form, a struct, or a tagged struct of
      decision 8, of literal forms), as a binder's form must for BANF; it is a form,
      not an operand, so it stays in place and is never let-bound. `'ptr'` is a literal
      form too, so a pointer can be stored and loaded.
@@ -191,50 +195,54 @@ return r
    - Fields are positional and labels are ignored, as for every opcode
      ([plan_vm.md](plan_vm.md) decision 7): `'store' {v, p}` stores `v` at `p`, as
      LLVM's `store F v, ptr p`.
-8. **LLVM's other aggregate types are tagged pairs.** A plain struct form stays
-   LLVM's struct, as today. Every other LLVM type that is not a named form is a
-   two-field struct: a tag, a byte array naming the type, then a struct of its
-   parts, positional and in the order LLVM writes them, as for opcodes:
+8. **LLVM's other aggregate types are tagged structs.** A plain struct form stays
+   LLVM's struct, as today. Every other LLVM type that is not a named form is a flat
+   struct: field 0 is a tag, a byte array naming the type, and the fields after it
+   are its parts, positional and in the order LLVM writes them, as an opcode's
+   operands (`'add' {'i32', a, b}`):
 
    | Form | LLVM | Parts |
    |---|---|---|
    | `{x = 'i32', y = 'i64'}` | `{i32, i64}` | the fields, as today |
-   | `{'packed', {x = 'i8', y = 'i32'}}` | `<{i8, i32}>` | the fields, as for a struct; no padding |
-   | `{'array', {[03000000]~'i32', 'i32'}}` | `[3 x i32]` | `count`, `element` |
-   | `{'vector', {[04000000]~'i32', 'i32'}}` | `<4 x i32>` | `count`, `element` |
-   | `{'scalable_vector', {[04000000]~'i32', 'i32'}}` | `<vscale x 4 x i32>` | `count`, `element` |
+   | `{'packed', x = 'i8', y = 'i32'}` | `<{i8, i32}>` | the fields, as for a struct; no padding |
+   | `{'array', [03000000]~'i32', 'i32'}` | `[3 x i32]` | `count`, `element` |
+   | `{'vector', [04000000]~'i32', 'i32'}` | `<4 x i32>` | `count`, `element` |
+   | `{'scalable_vector', [04000000]~'i32', 'i32'}` | `<vscale x 4 x i32>` | `count`, `element` |
 
-   - **Only BANF and LLVM read the tag.** To reduction a tagged pair is a struct like
+   - **Only BANF and LLVM read the tag.** To reduction a tagged struct is a struct like
      any other: no rule, no built-in, no change to reduction. β builds them as it builds
-     any struct: `let bytes = n -> {'array', {n, 'i8'}} in ...`.
+     any struct: `let bytes = n -> {'array', n, 'i8'} in ...`.
      BANF needs them literal, as every form.
    - **The tag can't be mistaken for a field's form.** The named forms LLVM accepts
      are a closed set (`'i1'` to `'i64'`, and `'ptr'` from step 2), so `'array'` is
      never a data form, and no plain struct that reaches LLVM has it as field 0.
-     `{'i32', {x = 'i8'}}` is still a plain struct,
-     `{i32, {i8}}`. The four tags are reserved names: a later plan that lets a
+     `{'i32', x = 'i8'}` is still a plain struct,
+     `{i32, i8}`. The four tags are reserved names: a later plan that lets a
      program name its own forms can't use them.
-   - The pair has exactly two fields; anything else whose field 0 is a reserved tag
-     is an error: `'array' form must be {'array', {count, element}}.` Labels are
-     ignored, in the pair and in its parts (a packed struct's own field labels
-     excepted, as a struct's).
+   - An array or a vector has exactly three fields: `'array' form must be
+     {'array', count, element}.` A packed struct has its tag and then any number of
+     fields, `{'packed'}` being `<{}>`. The tag's label is ignored, and so are the
+     labels of `count` and `element`; a packed struct's own field labels are kept,
+     as a struct's.
    - `count` is a literal of any integer form, read unsigned; a vector's is above 0.
      `element` is a literal form; a vector's is an integer form or `'ptr'`. A
      scalable vector can't be inside a struct, a packed struct or an array, as in
      LLVM.
-   - `'alloca'`'s `count` stays: `'alloca' {{'array', {[10000000]~'i32', 'i32'}}}` is
+   - `'alloca'`'s `count` stays: `'alloca' {{'array', [10000000]~'i32', 'i32'}}` is
      a `[16 x i32]` slot, and `'alloca' {'i32', n}` is `n` slots, where `n` may be known only at run time, as in LLVM.
    - Rejected:
      - a tag field (`{tag = 'array', element = 'i32', ...}`): it reserves the label
        `tag`, so `{tag = 'i8', data = ...}`, an ordinary struct, would read as a
        tagged form; or every struct writes `{tag = 'struct', ...}`, which breaks
-       every program. The pair's tag is a position, not a label, and its value is a
+       every program. The tag is a position, not a label, and its value is a
        name no data form has.
      - `$array {...}` and friends: a `$` built-in is for something with special
        behaviour, and these have none.
      - `'array' {...}`, a byte array applied to a struct: that shape is kept for
        calls to virtual machine symbols ([plan_vm.md](plan_vm.md)).
      - `{...}~'array'`: `~` means a value with a form, and here there is no value.
+     - a pair, `{'array', {count, element}}`: one more struct for nothing, and unlike
+       an opcode call, whose operands follow the opcode's form in one struct.
    - Not here: LLVM's named (identified) structs (`%T = type {...}`), which allow
      recursive types, and opaque structs. Floating-point forms are their own plan;
      once they exist, a vector's element may be one.
@@ -246,10 +254,10 @@ return r
     it knows two `alloca`s are distinct, and that an `alloca` that doesn't escape
     isn't reached through a param. Saying more (`noalias`, `!alias.scope`) is open
     question 4.
-11. **A store gives `{}`, which only `$wait` may use.** LLVM's `store` gives no
+11. **A store gives `{}`, which only `$seq` may use.** LLVM's `store` gives no
     value, and oymomo has no `void` yet ([plan_c_interop.md](plan_c_interop.md) 1.2).
     The result form is the empty struct, so the let has a name to wait for, and the
-    verifier rejects any other use: `'s' is the result of a store; only $wait can
+    verifier rejects any other use: `'s' is the result of a store; only $seq can
     use it.` In LLVM the let binds nothing.
 12. **Accesses are as LLVM's defaults: target byte order, ABI alignment, no checks.**
     A load or store carries no `align`, so LLVM assumes the type's ABI alignment, and
@@ -270,13 +278,13 @@ return r
 
 ## Design
 
-### A. `$wait` (step 1)
+### A. `$seq` (step 1)
 
 | Module | Change |
 |---|---|
-| `reduction.py` | `'wait'` in `BUILTINS`; a case in `reduce`: `$wait {x, d1, ..., dn}` with every `dᵢ` a byte array (`bytes_of` is not None) gives `x`. Root-only, as every rule: it reduces no field |
-| `banf_shape.py` | `unblock`: for `$wait`, the argument is reduced to a struct, then fields 1 to n with `reduce_until_top_stable` (field 0 stays lazy), so `$wait {x, {a = [01]}.a}` fires; `atom`: a stuck `$wait {...}` has each field reduced as an atom, so `$wait {{a = q}.a, r}` reaches `$wait {q, r}` |
-| `banf_translate.py` | `WAIT = 'wait'`, checked in `op` before anything else; `_Translator.atom` reads a stuck `$wait {x, d1, ..., dn}` as the atom of `x`, after checking that each `dᵢ` is an atom; `body` binds `let c = $wait {...}` as an alias of that atom, not a `Let` |
+| `reduction.py` | `'seq'` in `BUILTINS`; a case in `reduce`: `$seq {d1, ..., dn, x}` with every `dᵢ` a byte array (`bytes_of` is not None) gives `x`. Root-only, as every rule: it reduces no field |
+| `banf_shape.py` | `unblock`: for `$seq`, the argument is reduced to a struct, then every field but the last with `reduce_until_top_stable` (the last stays lazy), so `$seq {{a = [01]}.a, x}` fires; `atom`: a stuck `$seq {...}` has each field reduced as an atom, so `$seq {{a = q}.a, r}` reaches `$seq {q, r}` |
+| `banf_translate.py` | `SEQ = 'seq'`, checked in `op` before anything else; `_Translator.atom` reads a stuck `$seq {d1, ..., dn, x}` as the atom of `x`, after checking that each `dᵢ` is an atom; `body` binds `let c = $seq {...}` as an alias of that atom, not a `Let` |
 | `banf_terms.py`, `llvm_translate.py` | none |
 
 `_Block.binder` counts lets to resolve an index, so an alias still takes a binder
@@ -302,17 +310,17 @@ checks.
 | Module | Change |
 |---|---|
 | `opcodes.py` | entries `load` (form param `form`, `ptr~'ptr'`, result `form`) and `store` (`value` of any form, `ptr~'ptr'`, result `{}`), impure; `llvm`: `builder.load(ptr, typ=llvm_type(form))`, `builder.store(value, ptr)`, the let binding no LLVM value |
-| `banf_terms.py` | verifier: a name bound by a `store` let is used nowhere (decision 11); `$wait` is gone by then, so any use is an error |
+| `banf_terms.py` | verifier: a name bound by a `store` let is used nowhere (decision 11); `$seq` is gone by then, so any use is an error |
 | `banf_translate.py` | none: `ptr` must have form `'ptr'` is the table's param check: `'load' expects ptr: ptr, got i32.` |
 
-### D. Tagged pairs for arrays, vectors and packed structs (step 5)
+### D. Tagged structs for arrays, vectors and packed structs (step 5)
 
 | Module | Change |
 |---|---|
-| `reduction.py`, `terms.py` | none: a tagged pair is a struct |
+| `reduction.py`, `terms.py` | none: a tagged struct is a struct |
 | `banf_shape.py` | none: a struct form is already reduced to normal form in place |
 | `banf_terms.py` | `FORM_TAGS = {'array', 'vector', 'scalable_vector', 'packed'}` and `tagged_form(form) -> (tag, parts) \| None`, the one reader every BANF and LLVM stage uses; `show_form`: `[3 x i32]`, `<4 x i32>`, `<vscale x 4 x i32>`, `<{i8, i32}>`, as LLVM prints them; the verifier compares forms with `==`, which already covers structs |
-| `banf_translate.py` | `_check_data_form` reads a struct with `tagged_form` first, and checks a tagged pair by the rules of decision 8, recursively; `count` read as an unsigned little-endian integer |
+| `banf_translate.py` | `_check_data_form` reads a struct with `tagged_form` first, and checks a tagged struct by the rules of decision 8, recursively; `count` read as an unsigned little-endian integer |
 | `llvm_translate.py` | `llvm_type`: `ir.ArrayType(e, n)`, `ir.VectorType(e, n)`, `ir.LiteralStructType(fs, packed=True)`; a scalable vector raises, as llvmlite has no scalable vector type; `GetElementPtr` accepts a run-time index into an array or vector |
 
 ---
@@ -335,12 +343,12 @@ How Cranelift IR (CLIF) does memory, next to LLVM and this plan.
 | Atomics | `atomic_load`, `atomic_store`, `atomic_rmw`, `atomic_cas`, `fence`; sequentially consistent only | `load atomic`, `store atomic`, `atomicrmw`, `cmpxchg`, `fence`; every ordering | no |
 | Bulk | no instruction: `FunctionBuilder::call_memcpy`, `call_memset`, `call_memmove` call libc, and `emit_small_memory_copy` inlines small ones | `llvm.memcpy`, `llvm.memmove`, `llvm.memset` | no (open question 3) |
 | Bounds-checked heaps | there was a `heap` entity and `heap_addr`; it was removed from CLIF, and Wasmtime's translator now emits the checks as plain compares and traps | none | none: the regions of the earlier draft were this, and were dropped |
-| Effect order | a block's side-effecting instructions stay in order; the optimizer moves only pure ones, and loads flagged `readonly` and `can_move` | instruction order, then alias analysis | let order after `convert`, set by hand with `$wait` (decision 4) |
+| Effect order | a block's side-effecting instructions stay in order; the optimizer moves only pure ones, and loads flagged `readonly` and `can_move` | instruction order, then alias analysis | let order after `convert`, set by hand with `$seq` (decision 4) |
 
 Two things to take from it. A pointer-width integer address (Cranelift) would save the
 `'ptr'` form, but then an imported function's `T *` param and an `i64` would look the
 same, and LLVM, which this plan follows, would need `inttoptr` everywhere. And both
-IRs keep effects in instruction order; oymomo's term doesn't, which is why `$wait`
+IRs keep effects in instruction order; oymomo's term doesn't, which is why `$seq`
 comes first.
 
 ---
@@ -414,7 +422,7 @@ result, an import declares them (`malloc = {size = 'i64'} => 'ptr'`).
 None here. `'ptr'` is a new named form, and `'alloca'`, `'getelementptr'`, `'load'`
 and `'store'` were unknown opcodes, an error in `convert`. (Renaming `$add_i32` to
 `'add' {'i32', a, b}` is breaking, but it is [plan_vm.md](plan_vm.md) step 3.)
-Data symbols keep today's meaning. `$wait` was an unknown built-in, and the parser
+Data symbols keep today's meaning. `$seq` was an unknown built-in, and the parser
 already accepts any `$name`. A
 plain struct form keeps its meaning; a struct whose field 0 is `'array'`, `'vector'`,
 `'scalable_vector'` or `'packed'` had no LLVM type before, so no working program
@@ -426,10 +434,10 @@ changes meaning.
 
 > [!IMPORTANT]
 > 1. **Checking order** (decision 4). `convert` could check, before it drops
->    `$wait`, that the effects of a block (memory ops, calls to imports, and calls to
+>    `$seq`, that the effects of a block (memory ops, calls to imports, and calls to
 >    functions that make them) form one chain by data dependency, and that the
 >    terminator depends on the last: `'store' at line 4 is not ordered after 'load' at
->    line 3; chain them with $wait.` A token (`'io'`, as GHC's `RealWorld`) that every
+>    line 3; chain them with $seq.` A token (`'io'`, as GHC's `RealWorld`) that every
 >    effect takes and gives would make the chain part of the signature. Later, or in
 >    step 1?
 > 2. **Alignment and byte order** (decision 12). An optional `align` field, as LLVM's
@@ -452,34 +460,34 @@ changes meaning.
 Each step is one commit and leaves `hatch run full-check` green. Each step updates
 `docs/notes.md` for its own part.
 
-### Step 1: `$wait`
+### Step 1: `$seq`
 
 - A.
 - Tests:
-  - `reduction`: `$wait {x, [01]}`, `$wait {x, [01]~'i8'}` and `$wait {x}` reduce to
-    `x`; `$wait {x, s}` with `s` a variable, `$wait {x, {}}` and `$wait {x, [01], s}`
-    are not redexes; `$wait {[01], {a = [02]}.a}` is not a redex, as the rule
+  - `reduction`: `$seq {[01], x}`, `$seq {[01]~'i8', x}` and `$seq {x}` reduce to
+    `x`; `$seq {s, x}` with `s` a variable, `$seq {{}, x}` and `$seq {[01], s, x}`
+    are not redexes; `$seq {{a = [02]}.a, [01]}` is not a redex, as the rule
     reduces no field; normalizing the `hi` program keeps the first `putchar`, and
-    normalizing it without `$wait` drops it (why the step exists).
-  - `banf_shape`: `$wait {x, {a = [01]}.a}` reduces to `x`; a field of a stuck
-    `$wait` that reduces (`{a = q}.a`) is reduced to `q`.
+    normalizing it without `$seq` drops it (why the step exists).
+  - `banf_shape`: `$seq {{a = [01]}.a, x}` reduces to `x`; a field of a stuck
+    `$seq` that reduces (`{a = q}.a`) is reduced to `q`.
   - `banf_translate`: `hi` gives two `putchar` lets in order, the second on
-    `[69000000]:i32`; `$wait` inline in an op argument, as a jump argument, as a
-    branch condition and as a return; `let c = $wait {...}` makes `c` an alias, and a
-    later let still resolves to the right name; labels in `$wait` are ignored;
-    `$wait {}` is `$wait needs a value.`; a field that isn't an atom is
-    `$wait: every field must be an atom.`
-  - `llvm_translate`: `hi`'s IR has both calls, in order, and no trace of `$wait`.
+    `[69000000]:i32`; `$seq` inline in an op argument, as a jump argument, as a
+    branch condition and as a return; `let c = $seq {...}` makes `c` an alias, and a
+    later let still resolves to the right name; labels in `$seq` are ignored;
+    `$seq {}` is `$seq needs a value.`; a field that isn't an atom is
+    `$seq: every field must be an atom.`
+  - `llvm_translate`: `hi`'s IR has both calls, in order, and no trace of `$seq`.
   - confluence: `hi` gives the same BANF from `t` and from `normalize(t)`.
-  - golden `wait.oymo`: `hi`, and a loop that calls `putchar` once per iteration and
-    ties the call to the counter with `$wait`.
-- `docs/notes.md`: a row for `wait` in Built-ins and in reduction_rules.md (gives
-  field 0 once fields 1 to n are byte arrays; a stuck one is dropped by `convert`);
+  - golden `seq.oymo`: `hi`, and a loop that calls `putchar` once per iteration and
+    ties the call to the counter with `$seq`.
+- `docs/notes.md`: a row for `seq` in Built-ins and in reduction_rules.md (gives
+  the last field once the others are byte arrays; a stuck one is dropped by `convert`);
   the `BUILTINS` docstring no longer says every built-in reduces away before BANF;
-  `$wait` in Translation › oymomo → BANF and in Operands must be atoms; the messages
+  `$seq` in Translation › oymomo → BANF and in Operands must be atoms; the messages
   in Error messages › Built-ins.
 
-Commit: `oymomo: add $wait`
+Commit: `oymomo: add $seq`
 
 ### Step 2: the `'ptr'` form, `'alloca'` and `'getelementptr'`
 
@@ -511,27 +519,27 @@ Commit: `oymomo: add the ptr form`
 - Tests:
   - `reduction`: a store then a load stay stuck (decision 13).
   - `banf_translate`: the goal program gives its BANF, with the load after the store
-    (without `$wait`: step 4);
+    (without `$seq`: step 4);
     `'store' {v}` is `'store' takes 2 fields, got 1.`;
     `'load' {'i32', args.n}` with `args~{n = 'i32'}` is
     `'load' expects ptr: ptr, got i32.`; returning a store's result is
-    `'s' is the result of a store; only $wait can use it.`
+    `'s' is the result of a store; only $seq can use it.`
   - `llvm_translate`: the goal program's IR; a store then a load of each integer
     form, of `'ptr'` and of a struct form through LLVM's JIT gives the stored value;
     the goal with `[29000000]~'i32'` for `args.n` is `ret i32 42` after LLVM's `-O2`
     pipeline.
   - golden `memory.oymo`: the goal example, and a loop that sums into an `alloca`,
-    chained with `$wait`.
-- `docs/notes.md`: memory symbols and `$wait` in Translation; byte order,
+    chained with `$seq`.
+- `docs/notes.md`: memory symbols and `$seq` in Translation; byte order,
   alignment and layout in Design decisions (decision 12).
 
 Commit: `oymomo: add load and store`
 
-### Step 4: effects without `$wait`
+### Step 4: effects without `$seq`
 
 No code change. Memory ops are stuck (decision 13), but the let around them is not:
 `let x = e in body` is `(x -> body) e`, a β-redex whatever `e` is. These tests pin
-down the three things full β does to effects that `$wait` doesn't chain (decision
+down the three things full β does to effects that `$seq` doesn't chain (decision
 4), so a later change to reduction or to `banf_shape` that alters them fails a test.
 Each case is checked on `normalize(t)` in `reduction`, and on `convert(t)` in
 `banf_translate`, which gives the same BANF as `convert(normalize(t))` (confluence).
@@ -543,54 +551,53 @@ Each case is checked on `normalize(t)` in `reduction`, and on `convert(t)` in
       since nothing uses `s`.
     - `banf_translate`: the block is `p = alloca i32`, `v = load i32, p`, with no
       `store`.
-    - The same program with `$wait {p, s}` as the load's pointer keeps the store (the
+    - The same program with `$seq {s, p}` as the load's pointer keeps the store (the
       goal program).
   - **Effects get copied.**
     `let v = 'load' {'i32', p} in let s = 'store' {args.n, p} in
-    'add' {'i32', $wait {v, s}, v}`, one load written before the store:
+    'add' {'i32', $seq {s, v}, v}`, one load written before the store:
     - `reduction`: the normal form has two `'load' {'i32', p}` subterms.
-    - `banf_translate`: the block is `load`, `store`, `load`, `add`: one load on each
-      side of the store.
+    - `banf_translate`: the block is `store`, `load`, `load`, `add`: the one load
+      became two, both after the store.
     - `llvm_translate`: with `p` first stored `[01000000]~'i32'`, `bump(41)` under
-      LLVM's JIT is `42` (`41 + 1`), not `2` (`1 + 1`), what the source order says.
-  - **The order is lost.**
-    `let s = 'store' {args.n, p} in let v = 'load' {'i32', p}
-    in $wait {v, s}`, the store written before the load, and both kept:
-    - `reduction`: the normal form is `$wait {'load' {...}, 'store' {...}}`; no let is
+      LLVM's JIT is `82` (`41 + 41`), not `2` (`1 + 1`), what the source order says.
+  - **Let order is lost; field order stays.**
+    `let v = 'load' {'i32', p} in let s = 'store' {args.n, p}
+    in $seq {s, v}`, the load written before the store, and both kept:
+    - `reduction`: the normal form is `$seq {'store' {...}, 'load' {...}}`; no let is
       left.
-    - `banf_translate`: the block is `load` then `store`: `banf_shape` lets the fields
-      of `$wait` in field order, so the load comes first, the reverse of the source.
-    - The same program with `ptr = $wait {p, s}` in the load gives `store` then
-      `load`.
-- `docs/notes.md`: under `$wait` in Built-ins, the three cases, one line each, with
+    - `banf_translate`: the block is `store` then `load`: `banf_shape` lets the fields
+      of `$seq` in field order, so the store comes first, the reverse of the source.
+    - The same program with the store written first gives `store` then `load` too.
+- `docs/notes.md`: under `$seq` in Built-ins, the three cases, one line each, with
   a link to these tests.
 
 Commit: `oymomo: test unordered effects`
 
-### Step 5: tagged pairs for arrays, vectors and packed structs
+### Step 5: tagged structs for arrays, vectors and packed structs
 
 - D.
 - Tests:
-  - `reduction`: none needed: a tagged pair is a struct. One test that β builds one:
-    `(e -> {'array', {element = e, count = ...}}) 'i8'` normalizes to
-    `{'array', {element = 'i8', ...}}`.
-  - `banf_translate`: each tagged pair as a block param's form, a function param's
+  - `reduction`: none needed: a tagged struct is a struct. One test that β builds one:
+    `(e -> {'array', [03000000]~'i32', e}) 'i8'` normalizes to
+    `{'array', [03000000]~'i32', 'i8'}`.
+  - `banf_translate`: each tagged struct as a block param's form, a function param's
     form and a memory op's `form`; nested (an array of packed structs, a struct
-    holding an array); `{'i32', {x = 'i8'}}` stays a plain struct; every message of
-    decision 8: a reserved tag with labeled or extra fields, missing or extra parts,
-    a count that isn't a literal, a vector of a struct, a scalable vector inside a
-    struct or an array.
+    holding an array); `{'i32', x = 'i8'}` stays a plain struct; every message of
+    decision 8: an array or a vector with two or four fields,
+    a count that isn't a literal, a vector of a struct, a scalable
+    vector inside a struct or an array; a packed struct keeps its field labels.
   - `banf_terms`: `show_form` prints `[3 x i32]`, `<4 x i32>`, `<vscale x 4 x i32>`,
     `<{i8, i32}>`.
   - `llvm_translate`: `llvm_type` gives `[3 x i32]`, `<4 x i32>`, `<{i8, i32}>`;
     `'getelementptr'` into an array with a run-time index; through LLVM's JIT, a
     store then a load of an array and of a packed struct gives the stored value, and
-    a `{'packed', {a = 'i8', b = 'i32'}}` alloca is 5 bytes (`'getelementptr'` to
+    a `{'packed', a = 'i8', b = 'i32'}` alloca is 5 bytes (`'getelementptr'` to
     field `b` is offset 1); a scalable vector is
     `Form <vscale x 4 x i32> has no LLVM type in llvmlite.`
   - golden `aggregate.oymo`: a function that sums an array of `'i32'` in memory with
     a loop and a run-time `'getelementptr'` index.
-- `docs/notes.md`: tagged pairs in Forms are terms (a row each) and in the BANF to
+- `docs/notes.md`: tagged structs in Forms are terms (a row each) and in the BANF to
   LLVM table; the reserved tags; the messages in Error messages.
 - Status of this plan: **implemented**.
 
