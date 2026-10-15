@@ -658,7 +658,7 @@ def test_switch_rejects_different_args_to_a_repeated_target():
         ('g = f -> {entry = args~{} -> (t -> t) (module)}', "'module' cannot be used as a value."),
         (
             'g = f -> {entry = args~{} -> (t -> t) ($fix module)}',
-            "Expected an op: 'opcode' {...}, module.f {...}, module.data, a struct or a projection.",
+            '$fix has no opcode, so it must reduce away: its argument must reduce to a lambda.',
         ),
         ('g = f -> {entry = args~{} -> (t -> t) (module.g)}', 'module.g must be applied.'),
         ('g = f -> {entry = args~{} -> (t -> t) ($add_i8)}', '$add_i8 must be applied.'),

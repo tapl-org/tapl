@@ -24,6 +24,7 @@ class TranslationError(Exception):
 # For a kernel-only built-in left in the term: what its argument must reduce to for it to
 # reduce away. Used only in the error message.
 _MUST_REDUCE_TO = {
+    'fix': 'a lambda',
     'struct_to_fields': 'a struct',
     'fields_to_struct': 'a list of fields',
 }
@@ -296,7 +297,7 @@ class _Translator:
             case terms.Apply(function=terms.Builtin(name=name)):
                 # A built-in is kernel-only: it should have reduced away, and is left only
                 # when its rule couldn't fire.
-                if name in reduction.BUILTIN_RULES:
+                if name in reduction.BUILTINS:
                     must = _MUST_REDUCE_TO.get(name)
                     needs = f': its argument must reduce to {must}' if must else ''
                     raise TranslationError(f'${name} has no opcode, so it must reduce away{needs}.', location)

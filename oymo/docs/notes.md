@@ -313,7 +313,7 @@ module has a test of the same name in `tests/oymomo/`.
 | [`rule_names.py`](../src/oymo/oymomo/rule_names.py) | Names of the grammar rules |
 | [`terms.py`](../src/oymo/oymomo/terms.py) | oymomo term classes (`Lambda`, `Apply`, `Struct`, `Formed`…) |
 | [`printer.py`](../src/oymo/oymomo/printer.py) | Prints terms, compact or pretty |
-| [`reduction.py`](../src/oymo/oymomo/reduction.py) | `resolve`, `shift`, `substitute`, `reduce`, `BUILTIN_RULES` |
+| [`reduction.py`](../src/oymo/oymomo/reduction.py) | `resolve`, `shift`, `substitute`, `reduce`, `BUILTINS` |
 | [`banf_shape.py`](../src/oymo/oymomo/banf_shape.py) | Reduces a term until it has BANF's shape |
 | [`banf_rename.py`](../src/oymo/oymomo/banf_rename.py) | Renames binders so none shadow each other |
 | [`banf_translate.py`](../src/oymo/oymomo/banf_translate.py) | `shape`, `convert`, `translate`: oymomo → BANF |
@@ -810,11 +810,11 @@ Rules live in two places:
 
 | Table | File | Gives |
 |---|---|---|
-| `BUILTIN_RULES` (`BuiltinRule(name, reduce)`) | [`reduction.py`](../src/oymo/oymomo/reduction.py) | a built-in's reduction rule |
+| `BUILTINS` | [`reduction.py`](../src/oymo/oymomo/reduction.py) | the kernel-only built-ins' names; each has a case in `reduction.reduce` |
 | `OPCODES` / `DEFAULT_OPCODES` | [`opcodes.py`](../src/oymo/oymomo/opcodes.py) / [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) | an opcode, and its machine code |
 
-`reduction.rule_of(call)` gives a built-in's rule. An opcode has no rule of its own:
-`reduction.fold_opcode(call)` folds it at the root, reducing nothing.
+A built-in's rule is a case in `reduction.reduce`, root-only. An opcode has no rule of
+its own: `reduction.fold_opcode(call)` folds it at the root, reducing nothing.
 
 The kernel has one rule for every `'name' arg` (a byte array applied to an argument):
 the argument must be a struct literal whose fields are byte arrays or structs. So
@@ -823,17 +823,15 @@ however many fields there are.
 
 | Call | Rule |
 |---|---|
-| `$fix g` | gives `g ($fix g)`; must reduce away |
+| `$fix g` | gives `g ($fix g)` once `g` is a lambda; `g` is reduced to one first, never under it; must reduce away |
 | `$fields_to_struct {more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}` | gives `{l1 = e1, ...}`; reduces `more`, `label` and `rest` of each node first, never a value; stuck on a malformed list; must reduce away |
 | `$struct_to_fields {l1 = e1, ...}` | gives `{more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}`: labels as UTF-8 bytes, values unreduced, order kept ([plan_struct_pack.md](implemented/plan_struct_pack.md)); must reduce away |
 | `'add' {...}` and every other opcode | on literal fields, the result LLVM would compute: `'add' {'i32', [01000000], [02000000]}` gives `[03000000]~'i32'`; needs a struct literal with one field per param. Never where LLVM has no defined result ([plan_constant_folding.md](implemented/plan_constant_folding.md)). See [Opcodes › Folding](#folding) |
 
 - Every built-in is **kernel-only**: reduction must remove it.
-- `reduce(call, reduce_part)` steps the whole call. It gives each part of the argument
-  it reads to `reduce_part` first, and returns the result if it fires, else `call` with
-  the reduced parts put back, else `call` itself. `reduction.reduce` passes `keep` (reduces
-  nothing); `banf_shape` passes `reduce_until_top_stable`. See [Blockers](#blockers).
-- `$fix g` unfolds without reducing `g`: `_fix` never calls `reduce_part`.
+- `reduction.reduce` fires a built-in only once its argument has the constructor it
+  needs; it never reduces a part. `banf_shape.unblock` reduces the parts each built-in
+  reads. See [Blockers](#blockers).
 - What a leftover built-in's argument must reduce to (e.g. `'a struct'`) is
   in `banf_translate._MUST_REDUCE_TO`, for the error message.
 - `convert` is the only gate into BANF: `'name' {...}` becomes an `OpcodeCall` only if
@@ -855,7 +853,7 @@ Why built-ins instead of `module` names, a `prim` binder, or a `fix` term: see
 |---|---|---|
 | beta | `(x -> body) e` | `body` with `e` for `x` |
 | beta with form | `(x~F -> body) e` | `body` with `e~F` for `x` (`e`'s own form dropped) |
-| built-in | `$fix g` | `g ($fix g)` (by `BUILTIN_RULES[name]`, if it fires) |
+| built-in | `$fix (x -> b)` | `(x -> b) ($fix (x -> b))` (only on a lambda) |
 | built-in | `$struct_to_fields {a = e}` | `{more = [01], label = 'a', value = e, rest = {more = [00]}}` |
 | built-in | `$fields_to_struct {more = [01], label = 'a', value = e, rest = {more = [00]}}` | `{a = e}` |
 | opcode | `'add' {'i32', [01000000], [02000000]~'i32'}` | `[03000000]~'i32'` |
@@ -1366,17 +1364,18 @@ Some roots become a redex only after one part, their **blocker**, is reduced: in
 | `s.l` | `s` |
 | `if c then ...`, which is `{e, t} c` | `c` |
 | `t~F` | `t` |
-| `$name a`, `name` in `BUILTIN_RULES`, or `'name' a`, `name` in `OPCODES` | the parts of `a` its `reduce` reads (none for `$fix`) |
+| `$fix g`, `$struct_to_fields s` | `g`, `s` (only the top: not under the lambda, not the fields) |
+| `$fields_to_struct l` | the spine of `l`: each node, its `more`, and if `more` is `[01]`, its `label` and `rest`; never a `value` |
+| `'name' a` (an opcode call) | `a`, then each of its fields |
 | anything else | none |
 
 - So `step` reduces an apply's callee to a struct, then the index, then the root:
   in `{a = x} ((y -> y) [00])` the index must become a byte array first.
-- An argument is reduced only when the callee is a struct, so ordinary applications
-  stay lazy: `f ((x -> x) a)` keeps its argument. `$fix g` unfolds without reducing `g`.
-- A built-in reduces its own blockers: `unblock` calls `builtin.reduce(t,
-  reduce_until_top_stable)` and takes what comes back, which may be the fired result.
-  Returning `t` itself means stuck for good. Its `reduce` reads a part only after giving
-  it to `reduce_part`, so no part it reads can still change.
+- An argument is reduced only when the callee is a struct, a built-in or an opcode, so
+  ordinary applications stay lazy: `f ((x -> x) a)` keeps its argument.
+- A built-in fires in `reduce` only once its argument has the constructor it needs
+  (a lambda, a struct, a literal field list). `unblock` reduces its blockers; if none
+  changes, the call is stuck for good.
 
 ```
 step(t) = reduce(t)           if reduce(t) is not t                  -- fire the rule at the root
@@ -1695,7 +1694,7 @@ message text to find where it's raised.
 |---|---|---|
 | `$fix must be applied.` / `$<name> must be applied.` | A built-in used without an argument. | Apply it: `$fix g`. |
 | `$<name> has no opcode, so it must reduce away: its argument must reduce to <needs>.` | A built-in whose rule didn't fire. | Make its argument reduce to what the rule needs (e.g. a struct). |
-| `Unknown built-in '$<name>'.` | Not in `BUILTIN_RULES`. Opcodes have no `$`. | Check spelling; an opcode is written `'add' {'i32', a, b}` ([Opcodes](#opcodes)). |
+| `Unknown built-in '$<name>'.` | Not in `BUILTINS`. Opcodes have no `$`. | Check spelling; an opcode is written `'add' {'i32', a, b}` ([Opcodes](#opcodes)). |
 | `Target has no implementation of '<name>'.` | The LLVM `Target.opcodes` lacks the op. | Add it to `llvm_opcodes.py`. |
 
 ### Opcodes
@@ -1793,18 +1792,17 @@ gives the same BANF), and checks the shaped output compiles to the same BANF.
 
 ### Add a built-in reduction rule
 
-1. In [`reduction.py`](../src/oymo/oymomo/reduction.py), write
-   `reduce(call, reduce_part) -> Term` and add `BuiltinRule(name, reduce)` to
-   `BUILTIN_RULES`.
-   - Give each part of the argument to `reduce_part` before reading it; a part you
-     don't give stays lazy. No change in `banf_shape`.
-   - Return the result if it fires, else `call` with the changed parts put back, else
-     `call` itself (only if no part changed).
-2. The parser accepts any `$name`, and `convert` rejects a leftover kernel-only
+1. In [`reduction.py`](../src/oymo/oymomo/reduction.py), add the name to `BUILTINS`
+   and a case to `reduce` that fires only when the argument has the constructor it
+   needs (root-only: `reduce` never reduces a part).
+2. In [`banf_shape.py`](../src/oymo/oymomo/banf_shape.py), add a case to `unblock`
+   that reduces the parts the rule reads (its blockers). A part not reduced there stays
+   lazy. Return `t` itself if no part changed.
+3. The parser accepts any `$name`, and `convert` rejects a leftover kernel-only
    built-in. Add what its argument must reduce to in
    `banf_translate._MUST_REDUCE_TO`, for the message.
-3. Add tests in `reduction_test.py` and `banf_shape_test.py`, and samples in
-   `banf_shape_test.SAMPLES` for the `reduce` contract; update
+4. Add tests in `reduction_test.py` and `banf_shape_test.py` (what is reduced, what
+   stays lazy, stuck calls keep what they reduced); update
    [The kernel › Built-ins](#built-ins).
 
 ### Write a design change

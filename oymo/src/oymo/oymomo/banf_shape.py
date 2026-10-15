@@ -63,9 +63,14 @@ class _Shaper:
                 if isinstance(new, terms.Struct):
                     new = self.reduce_fields(new)
                 return term if new is argument else replace(term, argument=new)
-            case terms.Apply() if (rule := reduction.rule_of(term)) is not None:
-                # A built-in reduces the parts of its argument that it reads, and may fire.
-                return rule(term, self.reduce_until_top_stable)
+            case terms.Apply(function=terms.Builtin(name='fix' | 'struct_to_fields'), argument=argument):
+                # `$fix` needs a lambda and `$struct_to_fields` a struct literal. Only the top is
+                # reduced: the lambda's body and the struct's fields stay lazy.
+                new = self.reduce_until_top_stable(argument)
+                return term if new is argument else replace(term, argument=new)
+            case terms.Apply(function=terms.Builtin(name='fields_to_struct'), argument=argument):
+                new = self.reduce_field_list(argument)
+                return term if new is argument else replace(term, argument=new)
             case terms.Apply(function=function):
                 new = self.reduce_until_top_stable(function)
                 return term if new is function else replace(term, function=new)
@@ -84,6 +89,32 @@ class _Shaper:
         if all(new is f.value for new, f in zip(values, struct.fields, strict=True)):
             return struct
         return replace(struct, fields=[replace(f, value=new) for f, new in zip(struct.fields, values, strict=True)])
+
+    def reduce_field_list(self, field_list):
+        """Reduces what `reduction.from_field_list` reads: each node, its `more`, and if `more`
+        is [01], its `label` and its `rest`. Never a `value`. `field_list` itself if nothing changes.
+
+        A loop, not recursion, so a long (or endless) list costs fuel, not Python stack.
+        """
+        parents = []  # (node, position of its rest), outermost first
+        node = self.reduce_until_top_stable(field_list)
+        while isinstance(node, terms.Struct) and (more := reduction.field_position(node, 'more')) is not None:
+            node = self.reduce_field(node, more)
+            if reduction.bytes_of(node.fields[more].value) != b'\x01':
+                break
+            if (label := reduction.field_position(node, 'label')) is not None:
+                node = self.reduce_field(node, label)
+            if (rest := reduction.field_position(node, 'rest')) is None:
+                break
+            parents.append((node, rest))
+            node = self.reduce_until_top_stable(node.fields[rest].value)
+        for parent, rest in reversed(parents):
+            node = _with_value(parent, rest, node)
+        return node
+
+    def reduce_field(self, struct, position):
+        """`struct` with the field at `position` reduced; `struct` itself if it doesn't change."""
+        return _with_value(struct, position, self.reduce_until_top_stable(struct.fields[position].value))
 
     # Positions 1 to 5: the fixed outer structure.
 
@@ -194,6 +225,15 @@ class _Shaper:
 
 def _location(term):
     return getattr(term, 'location', None)
+
+
+def _with_value(struct, position, value):
+    """`struct` with the value at `position` replaced; `struct` itself if `value` is already there."""
+    if value is struct.fields[position].value:
+        return struct
+    fields = list(struct.fields)
+    fields[position] = replace(fields[position], value=value)
+    return replace(struct, fields=fields)
 
 
 def _is_op(term, k):

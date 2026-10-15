@@ -116,7 +116,7 @@ def test_beta_propagates_form(source, expected):
     ('source', 'expected'),
     [
         ('(x -> x) y', 'y'),
-        ('$fix g', 'g ($fix g)'),
+        ('$fix (s -> g)', '(s -> g) ($fix (s -> g))'),
         ('{a = e}.a', 'e'),
         ('if [01] then a else b', 'a'),
         ('if [00] then a else b', 'b'),
@@ -148,6 +148,9 @@ def test_reduce_one_step(source, expected):
         '((x -> x) (y -> y)) e',
         '$fix g a',
         '$fix',
+        # `$fix` fires only on a lambda, and `reduce` doesn't reduce its argument to one.
+        '$fix g',
+        '$fix ((x -> x) (s -> s))',
         '$nope g',
         # `reduce` is root-only: the argument must already be a struct literal.
         '$struct_to_fields e',
@@ -418,8 +421,7 @@ def test_struct_to_fields_undoes_fields_to_struct():
     assert reduction.reduce(terms.Apply(terms.Builtin('struct_to_fields'), struct)) == field_list
 
 
-def test_opcodes_fold_without_a_builtin_rule():
-    for name in opcodes.OPCODES:
-        assert reduction.rule_of(terms.Apply(terms.ByteArray.from_str(name), terms.Struct([]))) is None
+def test_opcodes_are_not_builtins():
+    assert not set(opcodes.OPCODES) & reduction.BUILTINS
     unknown = resolved("'add_i32' {[01000000], [02000000]}")
     assert reduction.reduce(unknown) is unknown

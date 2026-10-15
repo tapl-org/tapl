@@ -92,7 +92,7 @@ hides it, because the written form replaces the atom's form
    is `$fix`, which isn't strict and doesn't look at its argument. Strict rules
    ([plan_struct_pack.md](implemented/plan_struct_pack.md),
    [plan_constant_folding.md](implemented/plan_constant_folding.md)) read their argument, so they need
-   a contract, in the `BuiltinRule` docstring:
+   a contract, kept by the `reduce` case of each built-in:
 
    > If `rule(call, a)` gives `r`, and `a →* a'`, then `rule(call, a')` gives some `r'`, and
    > `r` and `r'` can be joined. A rule may give `None` on `a` and a result on `a'`, but not
@@ -104,7 +104,7 @@ hides it, because the written form replaces the atom's form
    forms. A rule must not read a field that is not yet in normal form and then return
    `None` for one shape of that field and a result for another.
 
-6. **Step 3's test checks each rule in `BUILTIN_RULES`**, on sample arguments, through
+6. **Step 3's test checks each built-in in `BUILTINS`**, on sample arguments, through
    step 1's harness: reduce the argument in every order and compare. A plan that adds a
    rule adds samples.
 

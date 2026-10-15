@@ -1,10 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from dataclasses import replace
-
 import pytest
 
-from oymo.oymomo import banf_shape, opcodes, reduction, terms
+from oymo.oymomo import banf_shape, reduction, terms
 from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show
 
@@ -32,6 +30,9 @@ def resolved(source, free):
     return term
 
 
+FREE = ('e', 'g', 'x')
+
+
 def test_reduce_until_top_stable():
     free = ('a', 'e')
     assert show(banf_shape.reduce_until_top_stable(resolved('{p = {a = e}}.p.a', free))) == show(resolved('e', free))
@@ -40,10 +41,22 @@ def test_reduce_until_top_stable():
     )
 
 
-def test_fix_does_not_reduce_its_argument():
-    # `$fix g` unfolds without reducing `g`.
-    term = resolved('$fix ((x -> x) g)', ('g',))
-    assert show(banf_shape.step(term)) == show(resolved('(x -> x) g ($fix ((x -> x) g))', ('g',)))
+def test_fix_reduces_its_argument_to_a_lambda_then_unfolds():
+    term = resolved('$fix ((x -> x) (self -> n -> n))', ())
+    stepped = banf_shape.step(term)
+    assert show(stepped) == show(resolved('$fix (self -> n -> n)', ()))
+    assert show(banf_shape.step(stepped)) == show(resolved('(self -> n -> n) ($fix (self -> n -> n))', ()))
+
+
+def test_fix_does_not_reduce_under_the_lambda():
+    term = resolved('$fix (self -> (x -> x) self)', ())
+    assert show(reduction.reduce(term)) == show(resolved('(self -> (x -> x) self) ($fix (self -> (x -> x) self))', ()))
+
+
+@pytest.mark.parametrize('source', ['$fix g', '$fix {a = g}', "$fix 'i8'"])
+def test_fix_on_a_non_lambda_is_stuck(source):
+    term = resolved(source, FREE)
+    assert banf_shape.reduce_until_top_stable(term) is term
 
 
 def test_step_fires_the_root_rule_or_else_unblocks():
@@ -261,6 +274,30 @@ def test_struct_to_fields_on_a_run_time_value_is_stuck():
     assert banf_shape.reduce_until_top_stable(term) is term
 
 
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        ('$struct_to_fields ((i -> i) e)', '$struct_to_fields e'),
+        ('$fix ((i -> i) g)', '$fix g'),
+        # `more` reduces to [02], so the list is malformed: `label` and `rest` are not read.
+        (
+            "$fields_to_struct {more = (y -> y) [02], label = (y -> y) 'a', rest = (y -> y) e}",
+            "$fields_to_struct {more = [02], label = (y -> y) 'a', rest = (y -> y) e}",
+        ),
+        # Stuck on `rest`: the parts read before it stay reduced.
+        (
+            "$fields_to_struct {more = (y -> y) [01], label = (y -> y) 'a', value = (y -> y) x, rest = e}",
+            "$fields_to_struct {more = [01], label = 'a', value = (y -> y) x, rest = e}",
+        ),
+    ],
+)
+def test_a_stuck_builtin_keeps_what_it_reduced(source, expected):
+    term = resolved(source, FREE)
+    stepped = banf_shape.step(term)
+    assert show(stepped) == show(resolved(expected, FREE))
+    assert banf_shape.step(stepped) is stepped
+
+
 def test_fields_to_struct_goal():
     source = "(l -> v -> $fields_to_struct {more = [01], label = l, value = v, rest = {more = [00]}}) 'a' '23'"
     assert banf_shape.reduce_until_top_stable(reduction.resolve(parse(source))) == parse("{a = '23'}")
@@ -275,17 +312,9 @@ def test_fields_to_struct_reduces_more_label_and_rest_but_not_values():
     assert show(reduced) == show(resolved('{a = (y -> y) x}', FREE))
 
 
-def test_fields_to_struct_reads_label_and_rest_only_after_more_is_01():
-    given = []
-
-    def record(part):
-        given.append(show(part))
-        return banf_shape.reduce_until_top_stable(part)
-
-    source = "$fields_to_struct {more = [00], label = (y -> y) 'a', value = (y -> y) x, rest = (y -> y) e}"
-    call = resolved(source, FREE)
-    assert reduction.BUILTIN_RULES['fields_to_struct'].reduce(call, record) == terms.Struct([])
-    assert given == [show(call.argument), '[00]']
+def test_fields_to_struct_ends_at_more_00():
+    source = "$fields_to_struct {more = (y -> y) [00], label = (y -> y) 'a', value = (y -> y) x, rest = (y -> y) e}"
+    assert banf_shape.reduce_until_top_stable(resolved(source, FREE)) == terms.Struct([])
 
 
 def test_fields_to_struct_maps_a_struct():
@@ -350,197 +379,3 @@ def test_an_opcode_on_a_run_time_operand_keeps_the_fields_it_reduced():
 )
 def test_block_body_folds(body, expected):
     assert shaped(block(body)) == same(block(expected))
-
-
-# A built-in reduces its own call (plan_struct_pack decision 1). The rules below are test-only.
-
-
-def _reduce_fields(struct, positions, reduce_part):
-    fields = list(struct.fields)
-    for i in positions:
-        fields[i] = replace(fields[i], value=reduce_part(fields[i].value))
-    if all(new.value is old.value for new, old in zip(fields, struct.fields, strict=True)):
-        return struct
-    return replace(struct, fields=fields)
-
-
-def _put_back(call, argument):
-    return call if argument is call.argument else replace(call, argument=argument)
-
-
-def _first(call, reduce_part):
-    """`$first {a, ...}` gives `a`, once the argument is a struct."""
-    argument = reduce_part(call.argument)
-    if isinstance(argument, terms.Struct) and argument.fields:
-        return argument.fields[0].value
-    return _put_back(call, argument)
-
-
-def _both(call, reduce_part):
-    """`$both {a, b}` joins the bytes of `a` and `b`, once both are byte arrays."""
-    argument = reduce_part(call.argument)
-    if isinstance(argument, terms.Struct):
-        argument = _reduce_fields(argument, range(len(argument.fields)), reduce_part)
-        values = [f.value for f in argument.fields]
-        if all(isinstance(v, terms.ByteArray) for v in values):
-            return terms.ByteArray(b''.join(v.value for v in values))
-    return _put_back(call, argument)
-
-
-def _gate(call, reduce_part):
-    """`$gate {c, t}` gives `t` reduced if `c` is [01]. `t` is read only then."""
-    argument = reduce_part(call.argument)
-    if isinstance(argument, terms.Struct) and len(argument.fields) == 2:
-        argument = _reduce_fields(argument, [0], reduce_part)
-        if reduction.index_value(argument.fields[0].value) == 1:
-            return reduce_part(argument.fields[1].value)
-    return _put_back(call, argument)
-
-
-@pytest.fixture
-def test_rules(monkeypatch):
-    for name, reduce in (('first', _first), ('both', _both), ('gate', _gate)):
-        monkeypatch.setitem(reduction.BUILTIN_RULES, name, reduction.BuiltinRule(name, reduce))
-
-
-FREE = ('e', 'g', 'x')
-
-
-@pytest.mark.usefixtures('test_rules')
-def test_a_builtin_reduces_its_argument_and_fires_in_one_step():
-    term = resolved('$first ({p = {a = x}}.p)', FREE)
-    assert show(banf_shape.step(term)) == show(resolved('x', FREE))
-
-
-@pytest.mark.usefixtures('test_rules')
-def test_reduction_reduce_does_not_reduce_parts():
-    term = resolved('$first ({p = {a = x}}.p)', FREE)
-    assert reduction.reduce(term) is term
-
-
-@pytest.mark.usefixtures('test_rules')
-def test_a_builtin_reduces_each_field_then_fires():
-    term = resolved('$both {a = (i -> i) [01], b = {c = [02]}.c}', FREE)
-    assert banf_shape.reduce_until_top_stable(term) == terms.ByteArray(b'\x01\x02')
-
-
-@pytest.mark.usefixtures('test_rules')
-def test_a_stuck_builtin_keeps_the_parts_it_reduced():
-    term = resolved('$both {a = e, b = (i -> i) [02]}', FREE)
-    stepped = banf_shape.step(term)
-    assert show(stepped) == show(resolved('$both {a = e, b = [02]}', FREE))
-    assert banf_shape.step(stepped) is stepped
-
-
-@pytest.mark.usefixtures('test_rules')
-def test_a_builtin_picks_what_to_reduce_by_what_it_sees():
-    stays = resolved('$gate {(i -> i) [00], (i -> i) [02]}', FREE)
-    assert show(banf_shape.reduce_until_top_stable(stays)) == show(resolved('$gate {[00], (i -> i) [02]}', FREE))
-    fires = resolved('$gate {(i -> i) [01], (i -> i) [02]}', FREE)
-    assert banf_shape.reduce_until_top_stable(fires) == terms.ByteArray(b'\x02')
-
-
-# The rules of decision 1, checked for every built-in on sample calls.
-SAMPLES = {
-    'fix': ['$fix g', '$fix ((x -> x) g)', '$fix {a = g}'],
-    'struct_to_fields': ['$struct_to_fields {a = x}', '$struct_to_fields ({p = {a = x}}.p)', '$struct_to_fields e'],
-    'fields_to_struct': [
-        "$fields_to_struct {more = (y -> y) [01], label = (y -> y) 'a', value = x, rest = (y -> y) {more = [00]}}",
-        "$fields_to_struct {more = [01], label = 'a', value = x, rest = e}",
-        '$fields_to_struct {more = [00]}',
-        '$fields_to_struct e',
-    ],
-    'first': ['$first ({p = {a = x}}.p)', '$first e', '$first {a = x}'],
-    'both': ['$both {a = (i -> i) [01], b = {c = [02]}.c}', '$both {a = e, b = (i -> i) [02]}', '$both [01]'],
-    'gate': ['$gate {(i -> i) [00], (i -> i) [02]}', '$gate {(i -> i) [01], (i -> i) [02]}'],
-}
-
-
-def _opcode_samples(signature):
-    """Calls of an opcode: one that folds, one that reduces its argument and fields first,
-    one stuck on a run-time operand (`e`), and one with wrong labels."""
-    form = signature.params[0][1]
-    one = f"[{(1).to_bytes(opcodes.byte_width(opcodes.bit_width(form)), 'little').hex()}]~'{form.as_str}'"
-    labels = [label for label, _ in signature.params]
-
-    def call(values, labels=labels):
-        return '{' + ', '.join(f'{label} = {value}' for label, value in zip(labels, values, strict=True)) + '}'
-
-    reducible = [f'(i -> i) {one}'] * len(labels)
-    return [
-        f'${signature.name} {call([one] * len(labels))}',
-        f'${signature.name} ({{p = {call(reducible)}}}.p)',
-        f'${signature.name} {call(["e", *reducible[1:]])}',
-        f'${signature.name} {call(reducible, [f"x{i}" for i in range(len(labels))])}',
-    ]
-
-
-SAMPLES |= {
-    name: _opcode_samples(signature) for name, signature in opcodes.OPCODES.items() if name in reduction.BUILTIN_RULES
-}
-
-
-def test_every_builtin_has_samples():
-    assert set(reduction.BUILTIN_RULES) <= set(SAMPLES)
-
-
-def _fired(call, result):
-    """Whether `result` is not the call (or the call with parts reduced)."""
-    return not (isinstance(result, terms.Apply) and result.function == call.function)
-
-
-# Catches a built-in whose `reduce` is written wrong. Each check below is shown with a
-# broken version of a test rule above that it catches, on one of the samples.
-#
-# Check 1: it must not look at a part without giving it to `reduce_part` first.
-#
-#     def first(call, reduce_part):                       # broken: never reduces
-#         if isinstance(call.argument, terms.Struct):
-#             return call.argument.fields[0].value
-#         return call
-#
-#   On `$first {a = x}` it fires without asking `reduce_part` for anything, so the test
-#   swaps the argument for the variable `e`: `$first e` doesn't fire. Firing depended on
-#   a part it never reduced, so it would also miss `$first ({p = {a = x}}.p)`. Fails.
-#
-# Check 2: with `keep` (reduce nothing) it must fire or return `call` itself.
-#
-#     def first(call, reduce_part):                       # broken: always a new call
-#         argument = reduce_part(call.argument)
-#         if isinstance(argument, terms.Struct):
-#             return argument.fields[0].value
-#         return replace(call, argument=argument)
-#
-#   On `$first e` with `keep`, it returns a copy of `call`. `reduction.reduce(t) is t` is
-#   then false although nothing happened, and `reduce_until_top_stable` loops. Fails.
-#
-# Check 3: one call does all it can, so if it doesn't fire, calling it again on what it
-# returned gives back that same object (stuck for good).
-#
-#     def both(call, reduce_part):                        # broken: one field per call
-#         ... reduces only the first field that changes, then returns ...
-#
-#   On `$both {a = (i -> i) [01], b = {c = [02]}.c}` the first call returns
-#   `$both {a = [01], b = {c = [02]}.c}`, and the second one still changes `b`. Fails.
-@pytest.mark.usefixtures('test_rules')
-@pytest.mark.parametrize('source', [source for sources in SAMPLES.values() for source in sources])
-def test_builtin_reduce_contract(source):
-    call = resolved(source, FREE)
-    rule = reduction.BUILTIN_RULES[call.function.name]
-    given = []
-
-    def record(part):
-        given.append(part)
-        return banf_shape.reduce_until_top_stable(part)
-
-    result = rule.reduce(call, record)
-
-    if not any(part is call.argument for part in given):
-        other = replace(call, argument=terms.BruijnIndex(len(FREE) - 1))  # `e`
-        assert _fired(other, rule.reduce(other, record)) == _fired(call, result)
-
-    kept = rule.reduce(call, reduction.keep)
-    assert kept is call or _fired(call, kept)
-
-    if not _fired(call, result):
-        assert rule.reduce(result, banf_shape.reduce_until_top_stable) is result

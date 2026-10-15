@@ -6,7 +6,7 @@ Status: **paused**, with open questions; 1 of 6 steps.
 > Step 3 was done ahead of the rest, with no VM code, under the name **opcode**: the
 > table is `opcodes.py` (`Opcode`, `OPCODES`), the BANF op is
 > `OpcodeCall(opcode, forms, args)`, an entry computes with `evaluate`, and the kernel
-> folds through `reduction.rule_of`. Where this plan says *VM symbol*, `vm_symbols.py`,
+> folds through `reduction.fold_opcode`. Where this plan says *VM symbol*, `vm_symbols.py`,
 > `VmSymbol`, `VmCall` or `run`, read *opcode*, `opcodes.py`, `Opcode`,
 > `OpcodeCall` or `evaluate`. Old `$add_i32` names are a plain
 > `Unknown built-in '$add_i32'.`, with no hint of the new spelling, and an unaccepted
@@ -202,7 +202,7 @@ host, and the next `resume` gives the call its result. (`$after` is
    folds on (integer forms, for now), and every value param a literal of its form,
    `run` gives the result, formed as `result`. This is today's constant folding
    ([plan_constant_folding.md](implemented/plan_constant_folding.md)) with the
-   per-opcode rules of `BUILTIN_RULES` replaced by this one. An impure symbol never
+   per-opcode rules replaced by this one. An impure symbol never
    folds; it stays a call, ordered by `$after` like an import. The rule reads only
    literals, so it commutes with reduction, as [plan_confluence.md](plan_confluence.md)
    asks of every built-in rule. `vm_symbols.py` imports only `terms`, so `reduction` can

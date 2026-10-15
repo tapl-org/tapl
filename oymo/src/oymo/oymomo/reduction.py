@@ -6,8 +6,7 @@ A `BruijnIndex(i)` refers to the binder `i` lambdas out: `x -> y -> x` is `x -> 
 Binder names stay on `Lambda.param_name`; references don't carry them.
 """
 
-from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import replace
 
 from oymo.core import syntax
 from oymo.oymomo import opcodes, terms
@@ -110,34 +109,14 @@ def beta(lambda_: terms.Lambda, argument: syntax.Term) -> syntax.Term:
     return shift(substitute(lambda_.body, 0, shift(argument, 1)), -1)
 
 
-ReducePart = Callable[[syntax.Term], syntax.Term]
-"""Reduces a part of a built-in's argument until its top constructor can't change.
-Returns the part itself if it doesn't change."""
+BUILTINS = frozenset({'fix', 'struct_to_fields', 'fields_to_struct'})
+"""The kernel-only built-ins: each must reduce away before BANF. Opcodes (`'add' {...}`) are
+not built-ins: `fold_opcode` folds them.
 
-
-def keep(part: syntax.Term) -> syntax.Term:
-    """The `ReducePart` that reduces nothing. `reduce` passes it, so it stays root-only."""
-    return part
-
-
-@dataclass(frozen=True)
-class BuiltinRule:
-    """How `$name arg` steps.
-
-    `reduce(call, reduce_part)` gets the whole call. It gives each part of the argument that
-    it reads to `reduce_part` before reading it, and returns:
-    - the result, if the call fires;
-    - `call` with the changed parts put back, if a part changed but the call can't fire yet;
-    - `call` itself, if nothing changed.
-    """
-
-    name: str
-    reduce: Callable[[terms.Apply, ReducePart], syntax.Term]
-
-
-def _fix(call: terms.Apply, _reduce_part: ReducePart) -> syntax.Term:
-    """`$fix g` becomes `g ($fix g)`. `g` stays lazy: it is never given to `reduce_part`."""
-    return terms.Apply(function=call.argument, argument=call, location=getattr(call, 'location', None))
+Each fires in `reduce` only once its argument has the constructor it needs (a lambda, a
+struct, a literal list of fields). Reducing the argument to it is the kernel's job
+(`banf_shape`).
+"""
 
 
 def to_field_list(struct: terms.Struct) -> terms.Struct:
@@ -162,34 +141,17 @@ def to_field_list(struct: terms.Struct) -> terms.Struct:
     return field_list
 
 
-def _struct_to_fields(call: terms.Apply, reduce_part: ReducePart) -> syntax.Term:
-    """`$struct_to_fields s` gives `to_field_list(s)` once `s` reduces to a struct literal."""
-    argument = reduce_part(call.argument)
-    if isinstance(argument, terms.Struct):
-        return to_field_list(argument)
-    return call if argument is call.argument else replace(call, argument=argument)
-
-
-def _field_position(struct: terms.Struct, label: str) -> int | None:
+def field_position(struct: terms.Struct, label: str) -> int | None:
     """The position of the first field labeled `label`, or None."""
     return next((i for i, field in enumerate(struct.fields) if field.label == label), None)
 
 
-def _bytes(term: syntax.Term) -> bytes | None:
+def bytes_of(term: syntax.Term) -> bytes | None:
     """The bytes of a byte array, with a form on it ignored. None for anything else."""
     match term:
         case terms.ByteArray(value=value) | terms.Formed(term=terms.ByteArray(value=value)):
             return value
     return None
-
-
-def _with_value(struct: terms.Struct, position: int, value: syntax.Term) -> terms.Struct:
-    """`struct` with the value at `position` replaced; `struct` itself if `value` is already there."""
-    if value is struct.fields[position].value:
-        return struct
-    fields = list(struct.fields)
-    fields[position] = replace(fields[position], value=value)
-    return replace(struct, fields=fields)
 
 
 def from_field_list(field_list: syntax.Term) -> terms.Struct | None:
@@ -202,19 +164,19 @@ def from_field_list(field_list: syntax.Term) -> terms.Struct | None:
     fields = []
     node = field_list
     while True:
-        if not isinstance(node, terms.Struct) or (more := _field_position(node, 'more')) is None:
+        if not isinstance(node, terms.Struct) or (more := field_position(node, 'more')) is None:
             return None
-        match _bytes(node.fields[more].value):
+        match bytes_of(node.fields[more].value):
             case b'\x00':
                 return terms.Struct(fields, getattr(field_list, 'location', None))
             case b'\x01':
                 pass
             case _:
                 return None
-        label, value, rest = (_field_position(node, name) for name in ('label', 'value', 'rest'))
+        label, value, rest = (field_position(node, name) for name in ('label', 'value', 'rest'))
         if label is None or value is None or rest is None:
             return None
-        name = _bytes(node.fields[label].value)
+        name = bytes_of(node.fields[label].value)
         if name is None:
             return None
         try:
@@ -222,37 +184,6 @@ def from_field_list(field_list: syntax.Term) -> terms.Struct | None:
         except UnicodeDecodeError:
             return None
         node = node.fields[rest].value
-
-
-def _reduce_field_list(field_list: syntax.Term, reduce_part: ReducePart) -> syntax.Term:
-    """Reduces what `from_field_list` reads: each node, its `more`, and if `more` is [01],
-    its `label` and its `rest`. Never a `value`. `field_list` itself if nothing changes.
-
-    A loop, not recursion, so a long (or endless) list costs fuel, not Python stack.
-    """
-    parents = []  # (node, position of its rest), outermost first
-    node = reduce_part(field_list)
-    while isinstance(node, terms.Struct) and (more := _field_position(node, 'more')) is not None:
-        node = _with_value(node, more, reduce_part(node.fields[more].value))
-        if _bytes(node.fields[more].value) != b'\x01':
-            break
-        if (label := _field_position(node, 'label')) is not None:
-            node = _with_value(node, label, reduce_part(node.fields[label].value))
-        if (rest := _field_position(node, 'rest')) is None:
-            break
-        parents.append((node, rest))
-        node = reduce_part(node.fields[rest].value)
-    for parent, rest in reversed(parents):
-        node = _with_value(parent, rest, node)
-    return node
-
-
-def _fields_to_struct(call: terms.Apply, reduce_part: ReducePart) -> syntax.Term:
-    """`$fields_to_struct l` gives `from_field_list(l)` once `l` reduces to a literal list."""
-    field_list = _reduce_field_list(call.argument, reduce_part)
-    if (struct := from_field_list(field_list)) is not None:
-        return struct
-    return call if field_list is call.argument else replace(call, argument=field_list)
 
 
 def fold_opcode(call: terms.Apply) -> syntax.Term:
@@ -273,27 +204,6 @@ def fold_opcode(call: terms.Apply) -> syntax.Term:
     if (result := opcode.evaluate(fields)) is None or (form := opcode.form_of(fields)) is None:
         return call
     return terms.Formed(terms.ByteArray(result.value, call.location), form, call.location)
-
-
-# Reduction rules of the kernel-only built-ins, by name: each must reduce away before BANF.
-# Opcodes (`'add' {...}`) are not built-ins: `fold_opcode` folds them.
-BUILTIN_RULES: dict[str, BuiltinRule] = {
-    rule.name: rule
-    for rule in (
-        BuiltinRule('fix', _fix),
-        BuiltinRule('struct_to_fields', _struct_to_fields),
-        BuiltinRule('fields_to_struct', _fields_to_struct),
-    )
-}
-
-
-def rule_of(term: terms.Apply) -> Callable[[terms.Apply, ReducePart], syntax.Term] | None:
-    """How the built-in call `term` (`$fix g`) steps, as a `BuiltinRule.reduce`, or None
-    for any other Apply."""
-    match term.function:
-        case terms.Builtin(name=name) if (builtin := BUILTIN_RULES.get(name)) is not None:
-            return builtin.reduce
-    return None
 
 
 def project(term: terms.Project) -> syntax.Term | None:
@@ -339,9 +249,15 @@ def reduce(term: syntax.Term) -> syntax.Term:
             return beta(lambda_, argument)
         case terms.Apply(function=terms.ByteArray()):
             return fold_opcode(term)
-        case terms.Apply() if (rule := rule_of(term)) is not None:
-            # `keep` reduces no part, so the rule fires only if the parts it reads are already reduced.
-            return rule(term, keep)
+        case terms.Apply(function=terms.Builtin(name='fix'), argument=terms.Lambda() as g):
+            # `$fix g` becomes `g ($fix g)`.
+            return terms.Apply(g, term, term.location)
+        case terms.Apply(function=terms.Builtin(name='struct_to_fields'), argument=terms.Struct() as struct):
+            return to_field_list(struct)
+        case terms.Apply(function=terms.Builtin(name='fields_to_struct'), argument=field_list) if (
+            struct := from_field_list(field_list)
+        ) is not None:
+            return struct
         case terms.Project(struct=terms.Struct()):
             projected = project(term)
             return term if projected is None else projected

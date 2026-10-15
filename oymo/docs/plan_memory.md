@@ -269,7 +269,7 @@ return r
 
 | Module | Change |
 |---|---|
-| `reduction.py` | none: `after` has no rule in `BUILTIN_RULES`, and a built-in with no rule is not a redex |
+| `reduction.py` | none: `after` is not in `BUILTINS` and has no case in `reduce`, so it is not a redex |
 | `banf_shape.py` | `atom`: for `$after {...}`, each field is reduced as an atom, so `$after {{a = q}.a, r}` reaches `$after {q, r}` |
 | `banf_translate.py` | `AFTER = 'after'`, checked in `op` before anything else; `_Translator.atom` reads `$after {x, d1, ..., dn}` as the atom of `x`, after checking `n ≥ 1` and that each `dᵢ` is an atom; `body` binds `let c = $after {...}` as an alias of that atom, not a `Let` |
 | `banf_terms.py`, `llvm_translate.py` | none |
