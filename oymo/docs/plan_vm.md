@@ -1,61 +1,81 @@
-# Plan: a virtual machine that runs BANF without LLVM
+# Plan: Spindle, a virtual machine that runs BANF without LLVM
 
-Status: **proposed**, with open questions; 0 of 5 steps.
+Status: **paused**, with open questions; 0 of 6 steps.
 
 ## Steps
 
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
-- [ ] 1. Bytecode, and a compiler from BANF to it (`oymomo: add VM bytecode`)
-- [ ] 2. The interpreter: run bytecode, imports bound by the host (`oymomo: add the VM`)
+- [ ] 1. Stack bytecode, and a compiler from BANF to it (`oymomo: add VM bytecode`)
+- [ ] 2. The VM: `Spindle` and `Fiber` objects, host functions, host calls back into the VM (`oymomo: add the VM`)
 - [ ] 3. Opcodes are VM symbols, polymorphic in `form`: `$add_i32 {a, b}` becomes `'add' {'i32', a, b}`, fields in LLVM's order (`oymomo: opcodes are VM symbols`) — **breaking**
-- [ ] 4. VM symbols that are not LLVM instructions: `'ctpop'`, `'trace'` (`oymomo: add VM-only symbols`)
-- [ ] 5. Memory in the VM (`oymomo: add memory to the VM`)
+- [ ] 4. Coroutines: a host function yields the fiber, the host resumes it, yields cross host calls by continuations (`oymomo: VM coroutines`)
+- [ ] 5. VM symbols that are not LLVM instructions: `'ctpop'`, `'trace'`, as host functions (`oymomo: add VM-only symbols`)
+- [ ] 6. Memory as a host library (`oymomo: add memory to the VM`)
 
 Steps 1 and 2 need nothing new in the kernel or BANF: the VM runs the BANF that
 LLVM gets today. Step 3 is the one breaking step: it renames every opcode, moves
 `opcodes.py`, constant folding and `llvm_opcodes.py` into one table, and makes the
 form an operand. [plan_memory.md](plan_memory.md) steps 2 and 3 need step 3 (memory
-ops are entries of its table), and step 5 needs them.
+ops are entries of its table), and step 6 needs them.
 
 ## Goal
 
-**A verified BANF module runs in Python, with the same results as under LLVM.** Tests
-and, later, a REPL run a program without building LLVM IR or starting a JIT:
+**A verified BANF module runs in Python, with the same results as under LLVM, in a
+VM that is tiny and embedded like Lua.** The VM knows integers, control flow and
+calls; everything else (structs, memory, imports, coroutine scheduling) is a host
+function. Its state is a pair of host objects, `Spindle` and `Fiber`, that the host
+creates, runs, resumes, and calls into from inside its own functions.
+
+**Why "Spindle".** A drop spindle is a stick until a hand spins it: it holds nothing
+and makes nothing; the spinner gives it motion and the fleece its material. So is
+this VM without a host: inert bytecode that runs only when the host resumes it, on
+the host's data. And a spindle spins fibers. Its modules are `spindle.py`,
+`spindle_bytecode.py`, `spindle_compile.py`, `spindle_lib.py`, `spindle_layout.py`.
+The table of VM symbols keeps its name (`vm_symbols.py`, `VmCall`): the kernel and
+LLVM read it too, so it is not Spindle's alone.
 
 ```
-convert(term) → BANF → verify → vm_compile → bytecode → vm.run
+convert(term) → BANF → verify → spindle_compile → bytecode → Spindle(program, host) → fiber.resume
                               ↘ llvm_translate → LLVM IR → JIT / object file
 ```
 
-Everything up to BANF is shared, so the VM and LLVM see the same program. Every
-operation that isn't a call into the program is a **VM symbol**, written
-`'name' {args}`, from one table that says, for each, its signature, how the VM runs
-it, how LLVM lowers it, and whether the kernel may fold it. The kernel, the VM and
-LLVM read the same table, and differential tests check that they agree.
+| Like | What we take |
+|---|---|
+| Lua | The VM is a value in the host, with no globals; a fiber (Lua's `lua_State`) is created, resumed and yields; host functions call back into the VM, and a yield crosses them by a continuation (Lua 5.2's `lua_callk`) |
+| Wren | A stack machine: a function's params and lets are slots in its window of one value stack per fiber |
+| wasm3 | A pure interpreter: no JIT, no code generated at run time; bytecode is checked once at load, so the loop checks nothing but fuel and traps |
 
 ```
-module: {main = => 'i32', putchar = {c = 'i32'} => 'i32'} -> {
+module: {main = => 'i32', putchar = {c = 'i32'} => 'i32', ask = {c = 'i32'} => 'i32'} -> {
   main = f -> {
     entry = args: {n = 'i32'} ->
       let q = module.putchar {c = [68000000]: 'i32'} in
-      let r = 'ctpop' {'i32', $after {args.n, q}} in
+      let a = module.ask {c = $after {args.n, q}} in
+      let r = 'ctpop' {'i32', a} in
       'add' {'i32', r, [01000000]},
   },
 }
 ```
 
 ```python
-program = vm_compile.compile(banf_translate.convert(term))
+program = spindle_compile.compile(banf_translate.convert(term))
 output = []
-vm.run(program, 'main', [7], host={'putchar': lambda c: output.append(c) or c})
-# 4, and output == [0x68]
+machine = spindle.Spindle(program, symbols=spindle_lib.default(), imports={
+    'putchar': lambda fiber, c: output.append(c) or c,
+    'ask': lambda fiber, c: spindle.Yield(c),   # suspend; the resumed value is the result
+})
+fiber = machine.fiber('main', [7])
+fiber.resume()     # Yielded(7), and output == [0x68]
+fiber.resume(15)   # Returned(5): ctpop(15) + 1
 ```
 
-`'add'` is LLVM's `add`, and `'ctpop'` LLVM's `llvm.ctpop`: the VM runs both in
-Python, LLVM lowers them, and with literal arguments the kernel folds them (decision
-8). `module.putchar` is an import: the host binds it in the VM, the linker binds it
-in LLVM. (`$after` is [plan_memory.md](plan_memory.md) step 1.)
+`'add'` is LLVM's `add`, run by the VM core; `'ctpop'` is LLVM's `llvm.ctpop`, run by
+a host function from `spindle_lib`; with literal arguments the kernel folds both
+(decision 8). `module.putchar` and `module.ask` are imports: the host binds them in
+the VM, the linker in LLVM. `ask` yields: the fiber stops, `resume` returns to the
+host, and the next `resume` gives the call its result. (`$after` is
+[plan_memory.md](plan_memory.md) step 1.)
 
 ## Decisions
 
@@ -63,59 +83,68 @@ in LLVM. (`$after` is [plan_memory.md](plan_memory.md) step 1.)
 
 1. **The VM runs bytecode compiled from verified BANF.** Not the kernel terms (the
    kernel has no blocks, no calls, no effects order) and not BANF directly: compiling
-   resolves every name to a register and every block label to an offset once, so the
-   interpreter loop does no lookups. `vm_compile` takes only modules that
+   resolves every name to a slot and every block label to an offset once, so the
+   interpreter loop does no lookups. `spindle_compile` takes only modules that
    `banf_terms.verify` accepts, so it never checks a form.
-2. **Values are Python values, never bytes.** An integer of form `iN` is a Python
-   `int`, unsigned, below `2^N`, which is what `opcodes.evaluate` takes and gives. A
-   struct is a tuple of its fields' values, in field order; labels are gone after
-   compiling. Bytes appear only at the edges: a `Const` is decoded once, at compile
-   time, little-endian as every byte array
-   ([notes.md › Byte arrays are always little-endian](notes.md#byte-arrays-are-always-little-endian)),
-   and `vm.run` takes and gives Python values.
-3. **The bytecode is a register machine, one instruction per BANF let or terminator.**
-   Each function is a flat list of instructions over numbered registers. A block's
-   params are registers; a jump is a parallel move into the target's params, then a
-   go-to. `GetField` is compiled to an index, since the forms are known after verify.
+2. **The VM knows integers; every other value is the host's.** An integer of form
+   `iN` is a Python `int`, unsigned, below `2^N`, which is what `opcodes.evaluate`
+   takes and gives. Any other value on the stack (a struct, a pointer, a fiber) is
+   an opaque host value: the VM moves it, passes it to host functions, and never
+   looks inside. Constants are decoded once, at compile time, little-endian as
+   every byte array
+   ([notes.md › Byte arrays are always little-endian](notes.md#byte-arrays-are-always-little-endian)).
+3. **The bytecode is a stack machine, as Wren's.** Each function is a flat list of
+   instructions. A fiber has one value stack; a frame is a window of it, whose first
+   slots are the function's params (the caller pushed them), then one slot per
+   block param and let, then the operand stack. A jump pushes its args, then stores
+   them into the target's params last to first, so a parallel move (a swap
+   `jump loop(b, a)` into `loop(a, b)`) needs no temporaries.
 
-   | Instruction | BANF | Does |
+   | Instruction | Stack | BANF |
    |---|---|---|
-   | `op r, name, a...` | `OpcodeCall` (`VmCall` from step 3) | `r = run(a...)` |
-   | `call r, f, a...` | `Call` to a function | push a frame for `f` |
-   | `host r, f, a...` | `Call` to an import (`Signature`) | `r = host[f](a...)` |
-   | `struct r, a...` | `MakeStruct` | `r = (a, ...)` |
-   | `index r, s, i` | `GetField`, `GetIndex` | `r = s[i]` |
-   | `data r, d` | `GetData` | `r = data[d]` |
-   | `jump L, moves` | `Jump` | parallel move, go to `L` |
-   | `branch c, L1, moves1, L2, moves2` | `Branch` | as `jump`, on `c != 0` |
-   | `switch s, (L, moves)...` | `Switch` | the `s`-th target, or the last |
-   | `return r` | `Return` | pop the frame, give `r` |
+   | `const k` | → v | a constant atom, defined data |
+   | `get s` | → v | a variable |
+   | `set s` | v → | a let, a block param |
+   | `op o` | a... → r | `OpcodeCall` (a core `VmCall` from step 3) |
+   | `call f` | a... → r | `Call` to a function |
+   | `host h, n` | a... → r | `Call` to an import; `MakeStruct`, `GetField`, `GetIndex`; a non-core `VmCall` (step 3) |
+   | `jump L` | | `Jump`, after its moves |
+   | `jump_if L` | c → | `Branch`: to `L` on `c != 0`, else the next instruction |
+   | `switch n, L0 ... Ln` | s → | `Switch`: the `s`-th target, or the last |
+   | `return` | r → | `Return`: pop the frame, push `r` in the caller's |
 
-   An operand is a register or a constant, decoded at compile time.
+   Each edge of a `Branch` or `Switch` with moves gets a stub (moves, then `jump`).
+   Ten instructions: the core is these, and nothing else.
 4. **An operation whose result LLVM leaves undefined stops the VM.** Where
    `opcodes.evaluate` gives `None` (division by zero, a shift by the width or more),
    LLVM's result is undefined or poison; the VM raises
-   `VmError: udiv i32: division by zero, in 'main' block 'entry'.` rather than pick a
+   `SpindleError: udiv i32: division by zero, in 'main' block 'entry'.` rather than pick a
    value. The kernel already doesn't fold these.
-5. **Calls don't use the Python stack.** The interpreter is one loop over an explicit
-   stack of frames, so a deep oymomo recursion costs memory, not Python recursion
-   depth, as `bruijn`'s list loops cost fuel, not stack. `vm.run` takes `fuel`, the
-   number of instructions it may run, and raises `VmError: out of fuel.` past it, so
-   a test of an endless loop ends.
+5. **VM calls don't use the Python stack; fuel suspends.** The interpreter is one
+   loop over the fiber's frames, so a deep oymomo recursion costs memory, not Python
+   recursion depth. Only a host function calling back into the VM nests a loop
+   (decision 14). `resume` takes `fuel`, the number of instructions it may run; past
+   it the fiber stops between two instructions and `resume` returns `OutOfFuel()`.
+   The next `resume` goes on where it stopped, so fuel is both a test's guard against
+   an endless loop and the host's way to time-slice fibers.
 
-### Host functions and VM symbols (steps 2, 3, 4)
+### Host functions and VM symbols (steps 2, 3, 5)
 
-6. **Two kinds of host function: imports and VM symbols.**
+6. **Two kinds of host function: imports and VM symbols; both bound by the host.**
    - An **import** (`module.putchar {...}`) is declared by the program, as today, and
-     bound by whoever runs it: in the VM, by `vm.run(..., host={'putchar': f})`; in
-     LLVM, by the linker. `vm.load` checks that every import the program calls is
-     bound: `VmError: import 'putchar' is not bound.` Imported data is bound the same
-     way.
-   - A **VM symbol** (`'add' {...}`) is defined by the VM itself, the same in every
-     program, in a fixed table in `vm_symbols.py`.
+     bound by whoever runs it: in the VM, by `Spindle(..., imports={'putchar': f})`; in
+     LLVM, by the linker. Imported data is bound the same way, to a value.
+   - A **VM symbol** (`'add' {...}`) is the same in every program, from the fixed
+     table in `vm_symbols.py`. The core runs the integer ones (decision 11); every
+     other symbol is a host function in `Spindle(..., symbols=...)`. `spindle_lib.default()`
+     binds each to the table's `run`; a host may replace any.
+   - The compiler emits two symbols of its own: `'struct'` for `MakeStruct` and
+     `'field'` for `GetField` and `GetIndex` (the index pushed as a constant).
+     `spindle_lib.default()` makes a struct a Python tuple. This is how the VM has no data
+     structures: a host that embeds the VM can make a struct anything it likes.
 
-   That is "both": the program declares what it needs from outside, the VM defines
-   what it always has.
+   `Spindle(...)` checks that every import and symbol the program calls is bound:
+   `SpindleError: import 'putchar' is not bound.`, `SpindleError: symbol 'ctpop' is not bound.`
 7. **A VM symbol is called as a byte array applied to a struct.** `'name' {args}` is
    `Apply(ByteArray, Struct)`, a shape the kernel already leaves stuck (no rule
    matches a byte array in function position), so it needs no new term. Each table
@@ -127,7 +156,8 @@ in LLVM. (`$after` is [plan_memory.md](plan_memory.md) step 1.)
    | `result` | the result form, fixed or named by a form param |
    | `accepts` | which forms each form param may be: `'add' takes an integer form, got ptr.` |
    | `pure` | it reads and writes nothing but its arguments and result |
-   | `run` | the Python function the VM calls, on Python values (decision 2) |
+   | `core` | the VM core runs it as `op`; otherwise it is a host function (decision 6) |
+   | `run` | the Python function on Python values (decision 2): the core's `op`, `spindle_lib`'s default, and the kernel's fold |
    | `llvm` | how LLVM lowers it, or `None` |
 
    `convert` turns `'name' {...}` into a BANF op `VmCall(name, forms, args)`: the
@@ -158,7 +188,8 @@ in LLVM. (`$after` is [plan_memory.md](plan_memory.md) step 1.)
    literals, so it commutes with reduction, as [plan_confluence.md](plan_confluence.md)
    asks of every built-in rule. `vm_symbols.py` imports only `terms`, so `bruijn` can
    use it; LLVM lowerings are attached in `llvm_opcodes.py`, keyed by name, so the
-   table stays free of llvmlite.
+   table stays free of llvmlite. Folding uses `run` from the table, never the host's
+   binding, so a host that replaces a symbol can't change what the kernel computes.
 9. **`$` is kept only where the kernel or `convert` treats a term specially.** A VM
    symbol is a function on values, so it has no `$`. What keeps it:
 
@@ -215,22 +246,114 @@ in LLVM. (`$after` is [plan_memory.md](plan_memory.md) step 1.)
     - **BANF ops carry their form params**, as LLVM's instructions carry their type.
       [notes.md › BANF](notes.md#banf)'s "ops carry no form, as in Cranelift" no
       longer holds for `VmCall`.
-11. **The table replaces three files.** `opcodes.py`'s generated names become about
-    25 entries; `opcodes.evaluate` becomes each entry's `run`; `llvm_opcodes.py`'s
-    builders become each entry's `llvm`. `OpcodeCall` becomes `VmCall`.
+11. **The table replaces three files, and draws the core's line.** `opcodes.py`'s
+    generated names become about 25 entries; `opcodes.evaluate` becomes each
+    entry's `run`; `llvm_opcodes.py`'s builders become each entry's `llvm`.
+    `OpcodeCall` becomes `VmCall`. The entries that were opcodes (integer
+    arithmetic, bitwise, comparisons, `zext`, `sext`, `trunc`) are `core`: the VM
+    runs them as `op`, with no host call. Every symbol added later (`ctpop`,
+    floats, memory) is a host function unless it is moved into the core on
+    purpose, so the core does not grow with the table.
 
-### Memory (step 5)
+### The VM as a host object (steps 2, 4)
 
-12. **Memory is one `bytearray`, and a pointer is an offset into it.** Laid out as LLVM
-    lays it out for the target: sizes, alignment and struct padding come from LLVM's
-    data layout (llvmlite's `get_abi_size` and `get_element_offset` on the target
-    data), and byte order is the target's, as [plan_memory.md](plan_memory.md)
+12. **The VM's state is two host objects, and nothing global.** As Lua splits
+    `global_State` from `lua_State`:
+    - `Spindle(program, symbols, imports)` holds the loaded program and the bindings,
+      shared by its fibers. Two `Spindle`s share nothing.
+    - `Fiber`, from `machine.fiber(function, args)`, holds a value stack, a frame stack,
+      and a status: `'suspended'` (new, yielded, or out of fuel), `'running'`,
+      `'normal'` (it resumed another fiber, which is running), `'dead'` (returned or
+      failed). `fiber.resume(value=None, fuel=None)` runs it and returns
+      `Returned(value)`, `Yielded(value)` or `OutOfFuel()`; an error raises
+      `SpindleError` and leaves it dead. Resuming a fiber that isn't suspended is
+      `SpindleError: cannot resume a running fiber.`
+    - `fiber.frames()` lists `(function, block)` from the top, for messages and
+      debuggers; `fiber.host` is a slot the host may set (Lua's extra space), where
+      a host library keeps per-fiber state (decision 17).
+    - `machine.call(function, args, fuel=None)` is the short form: a new fiber, resumed to
+      the end; a yield is `SpindleError: 'main' yielded, but machine.call can't resume it.`
+13. **A host function is a Python function `f(fiber, *args)`.** It gets the fiber it
+    runs on and the args as VM values, in field order, and returns one of:
+
+    | Return | The fiber |
+    |---|---|
+    | a value | goes on, with the value as the call's result |
+    | `Yield(value, k=None)` | stops; `resume` returns `Yielded(value)`; the next `resume(v)` calls `k(fiber, v)`, and with no `k`, `v` is the call's result |
+    | `Call(function, args, k=None)` | calls a program function on the same fiber, in the same loop; its result `r` goes to `k(fiber, r)`, or with no `k` is the call's result |
+
+    `k` returns any of the three again, so a host function is a chain of steps.
+    This is Lua 5.2's continuation (`lua_KFunction`) without `longjmp`: the host
+    function returns before the VM runs anything else, so nothing on the Python
+    stack has to be unwound. A Python exception from a host function is
+    `SpindleError: host function 'putchar' failed: ...`, chained, with `fiber.frames()`.
+14. **A host function may call back into the VM, recursively.** Two ways:
+
+    ```python
+    def twice(fiber, x):        # nested: simple, but nothing inside may yield
+        return fiber.call('double', [fiber.call('double', [x])])
+
+    def twice_k(fiber, x):      # through the loop: anything inside may yield
+        return spindle.Call('double', [x], lambda fiber, y: spindle.Call('double', [y]))
+    ```
+
+    - `fiber.call(function, args)` runs a nested loop on the same fiber, above the
+      host function's frame, and returns the result, as `lua_call`. The VM may call
+      the host again inside it, to any depth up to `Spindle(..., max_host_depth=200)`
+      (Lua's `LUAI_MAXCCALLS`): `SpindleError: host calls nested deeper than 200.` A
+      yield inside is
+      `SpindleError: 'ask' yielded inside fiber.call from host function 'twice'; return spindle.Call(...) to let it yield.`,
+      and so is running out of fuel inside.
+    - `Call(...)` (decision 13) nests nothing: the loop runs the call and then
+      `k`. A host function that may run code that yields uses it.
+    - An error inside `fiber.call` raises `SpindleError` in the host function, with the
+      nested frames already popped: a host function that catches it goes on, and
+      the fiber with it (Lua's `pcall`, for free). Uncaught, it kills the fiber.
+    - A host function may also resume *another* fiber; that nests a loop too, and
+      its fiber is `'normal'` meanwhile.
+15. **Coroutines are host functions, not instructions.** The core has no `yield`:
+    a program yields by calling an import or symbol whose host function returns
+    `Yield`. `spindle_lib.coroutines()` gives `'yield' {form, value}`, which yields
+    `value` and gives back what `resume` was given, so the host can drive a fiber as
+    a generator. Creating and resuming fibers from oymomo code needs function values
+    ([plan_c_interop.md](plan_c_interop.md) 1.6): until then, only the host does.
+16. **A pure interpreter, written so a C port is a straight translation.**
+    - **No JIT, nothing generated at run time.** `Spindle(...)` checks the bytecode once,
+      as wasm3 validates at load: every jump target in range, the stack depth at
+      every label the same along every path and within the function's
+      `max_stack`, every `call` and `host` of the right arity, every binding
+      present. The loop then checks only fuel and traps.
+    - **Plain data.** A `Program` is a code array of integers (an opcode, then its
+      immediates, each opcode of a fixed size), a constant pool, a function table
+      (entry, arity, slots, `max_stack`) and a table of host slots (name, arity).
+      A fiber is one value list and one frame list of `(function, pc, base)`
+      records. The loop is a `while` over a `match` on the opcode. No Python
+      closures, generators or exceptions in the core, except host continuations,
+      which in C are a function pointer and a context.
+    - In C, the loop is a `switch`, computed `goto`, or wasm3's tail-call threading
+      over pre-decoded handlers; the bytecode allows each, since every opcode has a
+      fixed size and every check was done at load.
+
+### Memory (step 6)
+
+17. **Memory is a host library; the VM never learns of it.** `spindle_lib.memory(layout)`
+    binds `'alloca'`, `'getelementptr'`, `'load'`, `'store'`
+    ([plan_memory.md](plan_memory.md)'s entries) to one `bytearray` per `Spindle`; a
+    pointer is an `int` offset into it, an ordinary integer to the VM. It is laid out
+    as LLVM lays it out for the target: sizes, alignment and struct padding come from
+    LLVM's data layout (llvmlite's `get_abi_size` and `get_element_offset` on the
+    target data), and byte order is the target's, as [plan_memory.md](plan_memory.md)
     decision 12 says. So a program that reads memory reads the same bytes in the VM
-    and under LLVM. `alloca` takes space from a stack area that a frame gives back
-    when it returns; offset 0 is never handed out, so a stray zero pointer faults. An
-    access outside what was allocated raises
-    `VmError: load of 4 bytes at 0x10 is outside memory.` where LLVM would be
-    undefined.
+    and under LLVM.
+    - `alloca` takes space from a per-fiber stack area, kept in `fiber.host`. A
+      function that calls `alloca` is compiled with `'stacksave'` on entry and
+      `'stackrestore'` before each return (LLVM's `llvm.stacksave` and
+      `llvm.stackrestore`), two more symbols of the library, so memory is given back
+      on return without the VM knowing.
+    - Offset 0 is never handed out, so a stray zero pointer faults. An access outside
+      what was allocated is
+      `SpindleError: load of 4 bytes at 0x10 is outside memory.` where LLVM would be
+      undefined.
 
 ---
 
@@ -240,20 +363,21 @@ in LLVM. (`$after` is [plan_memory.md](plan_memory.md) step 1.)
 
 | Module | Change |
 |---|---|
-| `vm_bytecode.py` (new) | `Instruction` classes of decision 3, `Function(name, registers, params, code)`, `Program(functions, data, imports)`; `show(program)`, an assembly listing |
-| `vm_compile.py` (new) | `compile(module) -> Program`: a register per block param and let, in order; block labels to offsets in a second pass; `GetField` to an index with `banf_terms.field_index`; constants decoded with their form |
+| `spindle_bytecode.py` (new) | the opcodes of decision 3 and their sizes; `Function(name, arity, slots, max_stack, entry)`, `HostSlot(kind, name, arity)`, `Program(code, constants, functions, host_slots, data)`; `show(program)`, an assembly listing with block labels |
+| `spindle_compile.py` (new) | `compile(module) -> Program`: a slot per param, block param and let, in order; operands pushed, the result `set`; jumps push args then `set` last to first; branch and switch edges with moves get stubs; labels to offsets in a second pass; `max_stack` per function; `MakeStruct` is `host 'struct', n`, `GetField` `const i; host 'field', 2` with `banf_terms.field_index`; constants decoded with their form |
 
-### B. The interpreter (step 2)
+### B. The VM (step 2)
 
 | Module | Change |
 |---|---|
-| `vm.py` (new) | `load(program, host) -> Machine`, which checks imports; `Machine.run(function, args, fuel)`; `run(program, function, args, host, fuel)` for both; `op` runs `opcodes.evaluate`; `VmError` with the function and block |
+| `spindle.py` (new) | `Spindle(program, symbols, imports, max_host_depth)`, which checks the bytecode and bindings (decision 16); `Fiber` with `resume`, `call`, `status`, `frames`, `host`; `Returned`, `OutOfFuel`, `Call`; `SpindleError` with the function and block; `op` runs `opcodes.evaluate` |
+| `spindle_lib.py` (new) | `default()`: `'struct'` (a tuple) and `'field'` (an index); later steps add to it |
 
 ### C. Opcodes are VM symbols (step 3)
 
 | Module | Change |
 |---|---|
-| `vm_symbols.py` (new) | `VmSymbol(name, params, result, accepts, pure, run)`, `VM_SYMBOLS`; one entry per LLVM instruction of decision 10, `run` taken from `opcodes.evaluate`'s templates |
+| `vm_symbols.py` (new) | `VmSymbol(name, params, result, accepts, pure, core, run)`, `VM_SYMBOLS`; one entry per LLVM instruction of decision 10, all `core`, `run` taken from `opcodes.evaluate`'s templates |
 | `opcodes.py` | removed; `form_bits` and `byte_count` move to `vm_symbols.py` |
 | `bruijn.py` | `_fold` rules replaced by one rule for `Apply(ByteArray, Struct)` (decision 8) |
 | `banf_shape.py` | a VM symbol call: form params reduced to normal form in place, value params reduced as atoms |
@@ -261,23 +385,34 @@ in LLVM. (`$after` is [plan_memory.md](plan_memory.md) step 1.)
 | `banf_translate.py` | `'name' {...}` read as `VmCall`; `$name` is only `$fix`, `$struct_to_fields`, `$fields_to_struct`, `$after`; any other `$name` is `Unknown built-in '$add_i32'; opcodes are VM symbols now: 'add' {'i32', a, b}.` |
 | `llvm_opcodes.py` | builders keyed by symbol name, taking the form params |
 | `printer.py` | prints `'add' {'i32', x, y}` |
-| `vm_compile.py`, `vm.py` | `op` runs the entry's `run` |
+| `spindle_compile.py` | a `core` `VmCall` is `op`, any other `host`, with its form params as immediates |
+| `spindle.py` | `op` runs the entry's `run` |
+| `spindle_lib.py` | `default()` binds every non-`core` entry to its `run` (none yet) |
 | tests, goldens, `docs/notes.md` | every `$name_iN` rewritten |
 
-### D. VM-only and intrinsic symbols (step 4)
+### D. Coroutines (step 4)
 
 | Module | Change |
 |---|---|
-| `vm_symbols.py` | `ctpop` (form param `form`, `value`, pure; LLVM `llvm.ctpop`) and `trace` (form param `form`, `value`, impure: appends to the machine's trace and gives `value`; no `llvm`) |
+| `spindle.py` | `Yield`; `resume(value)` after a yield; `k` in `Yield` and `Call`; `'normal'` status; the errors of decision 14 for a yield or fuel out inside `fiber.call` |
+| `vm_symbols.py` | `yield` (form param `form`, `value`, impure, not `core`; no `llvm`) |
+| `spindle_lib.py` | `coroutines()`: `'yield'` |
+
+### E. VM-only and intrinsic symbols (step 5)
+
+| Module | Change |
+|---|---|
+| `vm_symbols.py` | `ctpop` (form param `form`, `value`, pure, not `core`; LLVM `llvm.ctpop`) and `trace` (form param `form`, `value`, impure, not `core`; no `llvm`) |
+| `spindle_lib.py` | `default()` binds `ctpop`; `tracer(out)` binds `'trace'` to append to the host's list `out` and give `value` back |
 | `llvm_translate.py` | a `VmCall` with no lowering is `'trace' runs only in the VM.` |
-| `vm.py` | `Machine.trace` |
 
-### E. Memory (step 5)
+### F. Memory (step 6)
 
 | Module | Change |
 |---|---|
-| `vm_layout.py` (new) | size, alignment and field offsets of a form, from llvmlite's target data, so the VM and LLVM share one layout |
-| `vm_symbols.py`, `vm.py` | `run` for `alloca`, `getelementptr`, `load`, `store` (their entries are [plan_memory.md](plan_memory.md)'s) on the machine's memory; a pointer is an `int` offset; loads and stores encode and decode values in the target's byte order |
+| `spindle_layout.py` (new) | size, alignment and field offsets of a form, from llvmlite's target data, so the VM and LLVM share one layout |
+| `spindle_lib.py` | `memory(layout)`: `'alloca'`, `'getelementptr'`, `'load'`, `'store'`, `'stacksave'`, `'stackrestore'` on one `bytearray`; loads and stores encode and decode in the target's byte order |
+| `spindle_compile.py` | `'stacksave'` and `'stackrestore'` around a function that calls `'alloca'` |
 
 ---
 
@@ -292,8 +427,9 @@ Step 3: every opcode is renamed and takes its form as a field.
 | `$zext_i8_i32 {value = x}` | `'zext' {'i8', x, 'i32'}` |
 | BANF `add_i32 x, y` | BANF `add i32 x, y` |
 
-The old names give an error that names the new spelling (design C). Steps 1, 2, 4 and
-5 break nothing: `'name' {args}` was stuck in the kernel and an error in `convert`.
+The old names give an error that names the new spelling (design C). Steps 1, 2, 4, 5
+and 6 break nothing: `'name' {args}` was stuck in the kernel and an error in
+`convert`.
 
 ---
 
@@ -303,20 +439,24 @@ The old names give an error that names the new spelling (design C). Steps 1, 2, 
 > 1. **Trap or not** (decision 4). Stopping on an undefined operation makes the VM
 >    stricter than LLVM, which is what tests want. A program that relies on what
 >    LLVM happens to give would then run under LLVM and stop in the VM.
-> 2. **Which VM-only symbols first** (step 4). `trace` is there for tests; Anvil's
+> 2. **Which VM-only symbols first** (step 5). `trace` is there for tests; Anvil's
 >    layer-1 helpers (type values, errors) are the likely next users.
-> 3. **Imports as VM symbols.** Could the VM define common imports (`putchar`,
->    `malloc`) itself, so a test needs no `host`? Then an import bound by neither is
->    still an error.
-> 4. **Calling oymomo from a VM symbol.** A symbol that takes a function (a callback)
->    would need the VM to run a nested call: later, with function pointers
+> 3. **Imports in `spindle_lib`.** Could `spindle_lib` give common imports (`putchar`,
+>    `malloc`), so a test binds less? An import bound by no one is still an error.
+> 4. **Function values.** A host function names program functions by name
+>    (decision 14). Passing a function to the host as a value, and creating fibers
+>    from oymomo, wait for function pointers
 >    ([plan_c_interop.md](plan_c_interop.md) 1.6).
-> 5. **A REPL and a CLI.** There is no driver yet. `oymo run --vm a.oymo` and a REPL
+> 5. **A REPL and a CLI.** There is no driver yet. `oymo run --spindle a.oymo` and a REPL
 >    that converts and runs one expression are the obvious users; a plan of their
 >    own.
-> 6. **Speed.** A Python loop is slow next to a JIT. Fine for tests; if Anvil's layer
->    1 runs in the VM at compile time, a faster dispatch (instructions as closures)
->    may be needed.
+> 6. **Speed.** A Python loop is slow next to a JIT, and every struct and field is a
+>    host call. Fine for tests; if Anvil's layer 1 runs in the VM at compile time,
+>    `struct` and `field` could become core instructions, against "the VM has no
+>    data structures".
+> 7. **Values in a C port** (decision 16). An `iN` up to 64 bits fits a machine
+>    word; wider integers and host values need handles, and someone must release a
+>    handle a dead fiber held: the VM has no GC, so the host, when a fiber dies.
 
 ---
 
@@ -325,31 +465,40 @@ The old names give an error that names the new spelling (design C). Steps 1, 2, 
 Each step is one commit and leaves `hatch run full-check` green. Each step updates
 `docs/notes.md` for its own part.
 
-### Step 1: bytecode and compiler
+### Step 1: stack bytecode and compiler
 
 - A.
 - Tests:
-  - `vm_compile`: every BANF op and terminator compiles to the instruction of
-    decision 3; block params get registers; a jump to a block with two params is a
-    two-register parallel move; a swap (`jump loop(b, a)` into `loop(a, b)`) is still
-    correct; `GetField` becomes `index` with the field's position.
-  - goldens: each `.banf` golden gets a `.vm` listing beside it.
-- `docs/notes.md`: a VM section: the pipeline and the instruction table.
+  - `spindle_compile`: every BANF op and terminator compiles to the instructions of
+    decision 3; params and block params get slots; a jump to a block with two
+    params pushes two and sets two; a swap (`jump loop(b, a)` into `loop(a, b)`)
+    is still correct; `GetField` becomes `const i; host 'field', 2` with the
+    field's position; `max_stack` is the deepest the operand stack gets.
+  - goldens: each `.banf` golden gets a `.spindle` listing beside it.
+- `docs/notes.md`: a VM section: the pipeline, the instruction table, the frame
+  window.
 
 Commit: `oymomo: add VM bytecode`
 
-### Step 2: the interpreter
+### Step 2: the VM
 
 - B.
 - Tests:
-  - `vm`: each opcode on edge operands (0, 1, the top bit, all ones) gives
+  - `spindle`: each opcode on edge operands (0, 1, the top bit, all ones) gives
     `opcodes.evaluate`'s result; a loop (sum 1 to n) gives the sum; a recursive
-    function 10000 deep returns (no Python recursion); `udiv` by zero is `VmError`;
-    an endless loop is `out of fuel`; a call to an unbound import is
-    `import 'putchar' is not bound.`; an import reaches the host.
+    function 10000 deep returns (no Python recursion); `udiv` by zero is `SpindleError`
+    and kills the fiber; an endless loop returns `OutOfFuel()`, and resuming it
+    with more fuel goes on from where it stopped; an unbound import is
+    `import 'putchar' is not bound.`; bad bytecode (a jump out of range, uneven
+    stack depth at a label) is rejected by `Spindle(...)`; an import reaches the host;
+    two `Spindle`s of one program don't share state.
+  - callbacks: a host function that `fiber.call`s a program function that calls
+    the host again, three deep, gives the right result; past `max_host_depth` is
+    `SpindleError`; an error inside `fiber.call` caught by the host function lets the
+    fiber go on; `Call(f, args, k)` gives `k` the result.
   - differential: every golden and every program in `llvm_translate_test` that runs
     under the JIT gives the same result in the VM.
-- `docs/notes.md`: values, traps, fuel, host binding.
+- `docs/notes.md`: values, `Spindle` and `Fiber`, host functions, callbacks, traps, fuel.
 
 Commit: `oymomo: add the VM`
 
@@ -367,42 +516,61 @@ Commit: `oymomo: add the VM`
     the wrong order still subtracts by position; every message of decisions 7 and
     10 (field count, `accepts`, operand size, `to` width, unknown symbol);
     `$add_i32` names the new spelling.
+  - `spindle_compile`: a `core` symbol is `op`; a non-`core` test symbol is `host`.
   - `llvm_translate`: `test_fold_matches_llvm` over the new table; every lowering
     matches the old one.
   - every existing test and golden passes after the rewrite.
 - `docs/notes.md`: Opcodes rewritten (polymorphic in `form`, and why still strict);
-  Built-ins lists only the four `$` built-ins; BANF's `VmCall`; folding.
+  Built-ins lists only the four `$` built-ins; BANF's `VmCall`; folding; the core
+  line.
 
 Commit: `oymomo: opcodes are VM symbols`
 
-### Step 4: VM-only and intrinsic symbols
+### Step 4: coroutines
 
 - D.
 - Tests:
-  - `vm`: `'ctpop' {'i32', 7}` is 3; `trace` records its argument and
-    gives it back; two `trace`s chained with `$after` record in order.
-  - `bruijn`: `ctpop` folds on a literal; `trace` never does.
-  - `llvm_translate`: `ctpop` is `call i32 @llvm.ctpop.i32` and runs under the JIT
-    with the VM's result; `trace` is `'trace' runs only in the VM.`
-  - golden `vm_symbol.oymo`: the goal program.
-- `docs/notes.md`: VM-only symbols.
+  - `spindle`: the goal program, with `'ctpop'` replaced by an identity, yields `7`,
+    and resumed with `15` returns `16`; a generator (a loop that yields `i` for `i`
+    in 0 to 4) gives 0 to 4 over five resumes, then `Returned`; a yield inside a
+    host function's `Call` crosses it, and `k` runs after the resume; a yield inside
+    `fiber.call` is the `SpindleError` of decision 14; resuming a running or dead fiber is
+    `SpindleError`; a host function that resumes another fiber sees that fiber's yields,
+    and its own fiber is `'normal'` meanwhile.
+- `docs/notes.md`: coroutines, `Yield`, `Call`, continuations.
 
-Commit: `oymomo: add VM-only symbols`
+Commit: `oymomo: VM coroutines`
 
-### Step 5: memory
-
-Needs [plan_memory.md](plan_memory.md) steps 2 and 3.
+### Step 5: VM-only and intrinsic symbols
 
 - E.
 - Tests:
-  - `vm_layout`: sizes and offsets of `{i8, i32}`, `<{i8, i32}>`, `[3 x i32]` match
+  - `spindle`: `'ctpop' {'i32', 7}` is 3; `trace` records its argument in the host's
+    list and gives it back; two `trace`s chained with `$after` record in order; a
+    host that rebinds `'ctpop'` changes what the VM gives, not what the kernel folds.
+  - `bruijn`: `ctpop` folds on a literal; `trace` never does.
+  - `llvm_translate`: `ctpop` is `call i32 @llvm.ctpop.i32` and runs under the JIT
+    with the VM's result; `trace` is `'trace' runs only in the VM.`
+  - golden `vm_symbol.oymo`: the goal program, run to the end.
+- `docs/notes.md`: VM-only symbols, `spindle_lib`.
+
+Commit: `oymomo: add VM-only symbols`
+
+### Step 6: memory
+
+Needs [plan_memory.md](plan_memory.md) steps 2 and 3.
+
+- F.
+- Tests:
+  - `spindle_layout`: sizes and offsets of `{i8, i32}`, `<{i8, i32}>`, `[3 x i32]` match
     llvmlite's for the host target.
-  - `vm`: the goal of [plan_memory.md](plan_memory.md) gives 42; a store of `'i32'`
+  - `spindle`: the goal of [plan_memory.md](plan_memory.md) gives 42; a store of `'i32'`
     and a load of `'i8'` at the same pointer gives the target's low or high byte; an
-    out-of-bounds load is `VmError`; memory from `alloca` is given back on return.
+    out-of-bounds load is `SpindleError`; memory from `alloca` is given back on return;
+    two fibers' `alloca`s don't overlap.
   - differential: every memory program in `llvm_translate_test` gives the same
     result in the VM.
-- `docs/notes.md`: the VM's memory.
+- `docs/notes.md`: memory in `spindle_lib`.
 - Status of this plan: **implemented**.
 
 Commit: `oymomo: add memory to the VM`
@@ -418,4 +586,5 @@ hatch run full-check
 ```
 
 The final check: every program that runs under LLVM's JIT in the test suite runs in
-the VM with the same result, and the goal program gives 4 and calls `putchar` once.
+the VM with the same result, and the goal program calls `putchar` once, yields `7`,
+and resumed with `15` returns `5`.
