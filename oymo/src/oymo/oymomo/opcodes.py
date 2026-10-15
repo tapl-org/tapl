@@ -27,13 +27,12 @@ FIELD_COUNT = 3
 
 @dataclass(frozen=True)
 class Opcode:
-    """An opcode: how it reads its fields.
+    """One LLVM instruction.
 
-    `form_of(fields)`: the result's form, or None if the fields don't tell it.
-    `evaluate(fields)`: the result's bytes, as LLVM computes them, or None if a field it
-    needs isn't a literal it can read, or LLVM has no defined result.
-    `pure`: it reads and writes nothing but its fields and result, so the kernel may
-    evaluate it.
+    `form_of`: the result's form, or None if unknown.
+    `evaluate`: the result's value as LLVM computes it, or None if the needed fields
+    aren't literals or LLVM leaves the result undefined.
+    `pure`: has no side effects, so the kernel may evaluate it.
     """
 
     name: str

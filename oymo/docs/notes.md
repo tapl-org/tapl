@@ -16,13 +16,13 @@ New here? Read these sections in order:
 3. [Programs](#programs): what a whole program must look like.
 4. [How to…](#how-to): run the tests and make common changes.
 
-The [Glossary](#glossary) at the end defines words like *form*, *BANF*, *atom* or *blocker*.
+The [Glossary](glossary.md) defines words like *form*, *BANF*, *atom* or *blocker*.
 
 ## Find an answer
 
 | I want to… | Go to |
 |---|---|
-| Understand what a word means | [Glossary](#glossary) |
+| Understand what a word means | [Glossary](glossary.md) |
 | See a program go from source to LLVM | [Overview › Walkthrough](#walkthrough-one-function-through-every-stage) |
 | Know which file does what | [Overview › Where the code lives](#where-the-code-lives) |
 | Write a struct, lambda, let, byte array… | [oymomo syntax › Cheat sheet](#cheat-sheet) |
@@ -147,7 +147,7 @@ rejected alternatives. When a plan lands, update the section it changes (see
   - [Translation only reduces](#translation-only-reduces)
   - [Renaming](#renaming)
   - [LLVM translation converts nothing](#llvm-translation-converts-nothing)
-- [Glossary](#glossary)
+- [Glossary](glossary.md)
 
 ## Overview
 
@@ -1825,7 +1825,7 @@ Each step updates the section of `docs/notes.md` it changes:
 | shaping, renaming, `convert`, LLVM | [Translation](#translation-oymomo--banf--llvm) |
 | a new or changed error message | [Error messages](#error-messages) |
 | the reason for a choice, rejected alternatives | [Design decisions](#design-decisions) |
-| a new word | [Glossary](#glossary) |
+| a new word | [Glossary](glossary.md) |
 
 ## Design decisions
 
@@ -2150,45 +2150,3 @@ A formed name or let with a written form is used as-is only if its LLVM type
 matches; otherwise it's rejected. No `bitcast`, no widening, no narrowing, because a
 form is not a type and conversions are explicit opcodes.
 
-## Glossary
-
-Words used across the docs, in alphabetical order. Code names are in `code`.
-
-| Word | Meaning | More |
-|---|---|---|
-| **apply** | `f a`: a function applied to one argument. `Apply` term. | [oymomo syntax](#apply) |
-| **args** | Fixed name of a block's param binder after renaming; `args.n` is the param `n`. | [Programs](#functions-are-structs-of-blocks) |
-| **atom** | A BANF operand: a constant (`[01]~'i8'`), a let name, or `args.label`, optionally with a form. | [Translation](#what-the-shape-is) |
-| **BANF** | *Block-based ANF*. The first-order IR between oymomo and LLVM: SSA with block params instead of phi nodes. | [BANF](#banf) |
-| **beta** | The reduction `(x -> body) e` → `body` with `e` put in for `x`. | [The kernel](#reduce-one-step-at-the-root) |
-| **blocker** | The part of a term that must reduce before the term can: an apply's callee, a projection's struct, an `if`'s condition… | [Translation](#blockers) |
-| **binder** | Anything that introduces a name: a lambda param or a let. | |
-| **block** | A BANF basic block: params, lets, one terminator. In oymomo, a lambda `args~{...} -> ...` in a function's struct. | [BANF](#blocks) |
-| **blocks** | Fixed name of a function's self-binder after renaming; `blocks.then0 {}` jumps to block `then0`. | [Programs](#functions-are-structs-of-blocks) |
-| **BruijnIndex** | A variable written by position, `$0` = nearest binder. `reduction.resolve` turns names into these. | [oymomo syntax](#builtins-and-indices-name-and-0) |
-| **built-in** | A global constant written `$name` (`$fix`) with a reduction rule. | [The kernel](#built-ins) |
-| **byte array** | The only literal: `[2a000000]` or `'text'`. Has no form unless one is written. | [oymomo syntax](#byte-arrays) |
-| **convert** | Last pass of oymomo → BANF: reads a shaped term into BANF. Never reduces. | [Translation](#4-convert-read-the-shaped-term) |
-| **Empty** | `terms.Empty`: a form that was *not written*. Not void, not a default. | [The kernel](#omitted-forms-are-empty) |
-| **form** | The logical structure of a value: `'i32'`, `{x = 'i32'}`, `{c = 'i8'} => 'i32'`. Not a type; never checked. | [The kernel](#forms) |
-| **Formed** | The term `e~F`, "`e` formed as `F`". | [The kernel](#formed-any-term-with-a-form) |
-| **function form** | `P => R`, the form of a function. `FunctionForm` term. | [oymomo syntax](#function-forms) |
-| **golden test** | `tests/goldens/name.oymo` compiled and compared to approved `.shaped.oymo`, `.banf` and `.ll` files. | [How to…](#add-a-golden-test) |
-| **kernel-only** | What every built-in is (`$fix`): it must reduce away before BANF. | [The kernel](#built-ins) |
-| **label** | A struct field's name. Optional (`''` = none), may repeat. | [oymomo syntax](#structs) |
-| **layout** | The physical memory representation (`{ i32, i32 }` in LLVM). Belongs to the backend. | [Overview](#type-form-layout) |
-| **let** | `let x = e in body`, sugar for `(x -> body) e`. In BANF, one instruction `x = op`. | [oymomo syntax](#let) |
-| **module** | The program's outer binder; its form declares every symbol. `module.fact {...}` calls a function. | [Programs](#module-declares-every-symbol) |
-| **op** | A BANF let's value: `OpcodeCall`, `Call`, `MakeStruct`, `GetField`, `GetIndex`, `GetData`. | [BANF](#ops-and-their-forms) |
-| **opcode** | One LLVM instruction, written `'add' {'i32', a, b}`. Listed in `opcodes.OPCODES`. | [Opcodes](#opcodes) |
-| **oymomo** | The kernel lambda-calculus language. | [oymomo syntax](#oymomo-syntax) |
-| **position** | A place in the program that wants a certain shape (a lambda, a struct, an atom…). | [Translation](#positions) |
-| **project** | `s.x`: pick a field by label. `Project` term. | [oymomo syntax](#projection-and-struct-apply) |
-| **redex** | A term that can take a reduction step at its root. | [The kernel](#reduce-one-step-at-the-root) |
-| **reduce_until_top_stable** | Fire the root rule or reduce the blocker, until neither changes the term. Its top constructor then can't change. | [Translation](#blockers) |
-| **shape / shaped term** | An oymomo term reduced until every position looks like BANF. Output of `banf_translate.shape`. | [Translation](#translation-oymomo--banf--llvm) |
-| **struct** | `{x = e, y = e}`: ordered fields. Also used as struct forms. | [oymomo syntax](#structs) |
-| **struct apply** | `s [01]`: pick a field by position. | [oymomo syntax](#projection-and-struct-apply) |
-| **symbol** | An LLVM global (`@fact`, `@putchar`, `@errno`). One per `module` declaration. | [Programs](#symbols) |
-| **terminator** | The last instruction of a block: `return`, `jump`, `branch`, `switch`. | [BANF](#blocks) |
-| **type** | Program-level meaning. Belongs to higher layers; the kernel has none. | [Overview](#type-form-layout) |
