@@ -106,7 +106,10 @@ hides it, because the written form replaces the atom's form
 
 6. **Step 3's test checks each built-in in `BUILTINS`**, on sample arguments, through
    step 1's harness: reduce the argument in every order and compare. A plan that adds a
-   rule adds samples.
+   rule adds samples. [plan_memory.md](plan_memory.md)'s `$seq {d1, ..., dn, x}` gives
+   `x` once every `dᵢ` is a byte array; it reads only whether each `dᵢ` is a byte
+   array, a normal form, so it keeps the contract. Samples: `$seq {[01], x}`,
+   `$seq {{a = [01]}.a, x}` (not a redex until the field reduces), `$seq {s, x}`.
 
 ### `shape`
 
@@ -126,9 +129,33 @@ hides it, because the written form replaces the atom's form
    `args.n`. Confluence promises one normal form; it doesn't promise that every
    strategy reaches it. See open question 2.
 
+9. **Effects aren't in the value.** With [plan_memory.md](plan_memory.md), a term has
+   effects: memory ops and calls to imports, which never reduce. Full β treats the
+   let around one as any other redex, so a strategy may drop an effect nothing uses,
+   copy a let used twice (a load runs twice), and leave two unchained effects with no
+   order: a value has none. `shape` keeps every let whose value is an op, once, in
+   let order (plan_memory decision 4). Decision 7 still holds:
+   `normalize(shape(t)) == normalize(t)`, because the value doesn't record an effect
+   nothing uses. `$seq` puts an effect into the value, so every strategy keeps it.
+
+   Samples, from plan_memory, each checked as `normalize(t)` with every strategy and
+   `normalize(shape(t)) == normalize(t)`:
+
+   | Program | `normalize(t)` |
+   |---|---|
+   | `hi`: `let q = putchar 'h' in let r = putchar {c = $seq {q, 'i'}} in r` | both calls |
+   | `hi` without `$seq` | only `putchar 'i'`: the first call is dropped |
+   | `let s = 'store' {n, p} in let v = 'load' {'i32', p} in v` | `'load' {'i32', p}`, no store |
+   | the same with `$seq {s, p}` as the load's pointer | the store is kept |
+   | `let v = 'load' {...} in let s = 'store' {...} in let w = 'add' {'i32', $seq {s, v}, v} in w` | two `'load'` subterms |
+   | `let a = putchar 'h' in let b = putchar 'i' in $seq {a, b}` | `$seq {putchar 'h', putchar 'i'}`, no let |
+
+   These tests land with whichever of this plan's step 4 and plan_memory's step 3
+   comes second.
+
 ### Testing
 
-9. **A full-β reference reducer, test-only.** `tests/oymomo/full_beta.py`:
+10. **A full-β reference reducer, test-only.** `tests/oymomo/full_beta.py`:
 
    ```python
    def reducts(term) -> Iterator[Term]:
@@ -142,10 +169,11 @@ hides it, because the written form replaces the atom's form
    `Lambda.body`, `Lambda.param_form`, struct fields, arguments and forms. Strategies
    are `choose` functions: leftmost-outermost, innermost, and seeded random.
 
-10. **The confluence test.** For each term in a corpus, normalize it with each strategy,
+11. **The confluence test.** For each term in a corpus, normalize it with each strategy,
     with fuel. Every strategy that terminates must give the same term. The corpus is:
     - The counterexample above, and hand-written terms for each critical pair (decision 4).
     - Every source in `banf_reduce_test.py` and `banf_translate_test.py`.
+    - The effect samples of decision 9.
     - Small random terms from a seeded generator over the term constructors, with a few
       free variables, byte arrays and `$fix`.
 

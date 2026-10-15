@@ -9,13 +9,12 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [ ] 1. `$seq {d1, ..., x}`: gives `x` once every `dᵢ` is a literal, so an effect it waits for stays (`oymomo: add $seq`)
 - [ ] 2. The `'ptr'` form, `'alloca'` and `'getelementptr'` (`oymomo: add the ptr form`)
 - [ ] 3. `'load'` and `'store'` (`oymomo: add load and store`)
-- [ ] 4. Tests: what full β does to effects without `$seq` (`oymomo: test unordered effects`)
+- [ ] 4. Tests: what `translate` does to effects without `$seq` (`oymomo: test unordered effects`)
 - [ ] 5. Arrays, vectors and packed structs as tagged structs (`{'array', count, element}`) (`oymomo: add aggregate forms`)
 
 Step 1 doesn't depend on the others: it orders effects, which memory ops are, as calls
 to imports already are. Step 2 makes and moves pointers, but nothing reads or writes
-through them until step 3. Step 4 needs step 3: it uses loads and stores to show why
-step 1 exists. Step 5 needs only forms, but its tests use step 3's loads and stores.
+through them until step 3. Step 4 needs step 3: it uses loads and stores. Step 5 needs only forms, but its tests use step 3's loads and stores.
 Steps 2 and 3 build on [plan_vm.md](plan_vm.md) step 3 (done): memory ops are
 entries of the opcode table, called as `'name' {...}`, as every opcode is.
 Reduction never folds a memory op (decision 13); LLVM does.
@@ -75,8 +74,9 @@ entry:
 ```
 
 `$seq {s, p}` is `p`, but it makes the load wait for the store (decision 1), and
-`convert` drops it, so BANF and LLVM never see it. Without it nothing uses `s`, and
-full β could drop the store. With `[29000000]~'i32'` in place of `args.n`, reduction
+`convert` drops it, so BANF and LLVM never see it. Without it nothing uses `s`:
+`translate` still keeps the store (decision 4), but the term no longer says the load
+needs it. With `[29000000]~'i32'` in place of `args.n`, reduction
 still leaves the three memory lets alone (decision 13), and LLVM's `mem2reg` turns the
 body into `ret i32 42`.
 
@@ -116,7 +116,7 @@ return r
    is the value; the ones before it are what it waits for. It is named after
    Haskell's `seq a b`, with any number of fields: `$seq {a, b, x}` is
    `seq a (seq b x)`. Fields read in time order and the result comes last, as in
-   `seq` and `a >> b`; `banf_shape` lets them in that order too (step 4). Unlike
+   `seq` and `a >> b`. The effects themselves run in let order (decision 4). Unlike
    Haskell's `seq`, it forces nothing in reduction. Fields are positional, and labels are
    ignored, as in a branch. A `dᵢ` is *ready* when it is a byte array, formed or not:
    a literal has no effect left to wait for. Then `reduce` gives `x`:
@@ -125,8 +125,9 @@ return r
    13), so `$seq` releases `x` only at run time, where `convert` drops it (decision
    3). A lambda or a struct is not ready, even with no effect inside: the rule reads
    only the root of each `dᵢ`. `seq` is not an opcode; it keeps its `$` because
-   `convert` treats it specially. Since `x` uses every `dᵢ` that isn't ready, full β
-   can't drop one, and a let that uses `$seq` comes after every let it waits for:
+   `convert` treats it specially. Since `x` uses every `dᵢ` that isn't ready, the
+   term itself says `x` needs them, and a let that uses `$seq` comes after every let
+   it waits for:
 
    ```
    let q = module.putchar {c = [68000000]~'i32'} in
@@ -134,8 +135,9 @@ return r
    r
    ```
 
-   Without `$seq`, nothing uses `q`, so full β drops the first call and the program
-   prints `i`. `$seq` orders calls to imports and memory ops
+   Without `$seq`, nothing uses `q`: `translate` still keeps the first call (decision
+   4), but the term doesn't say it is needed
+   ([plan_confluence.md](plan_confluence.md) decision 9). `$seq` orders calls to imports and memory ops
    (`'load' {'i32', $seq {s, p}}`).
 2. **`$seq` may be an operand.** With atoms as fields it is an atom: an op argument,
    a jump argument, a branch condition, a return, or a let's value. This is one
@@ -148,11 +150,15 @@ return r
    verifier, `form_of` and LLVM never see it, and it needs no form. After `convert`,
    order is let order alone, which BANF keeps: no BANF pass reorders or removes a let,
    and LLVM keeps calls to imports and memory ops in order.
-4. **Ordering is by hand and unchecked.** An effect that nothing uses, directly or
-   through `$seq`, can still be dropped by full β; two effects with no chain between
-   them have no order; a let used twice can be copied, so a load can run twice, once
-   on each side of a store. `$seq` gives a program a way to order effects, not a
-   guarantee. A check is open question 1.
+4. **Ordering is by hand and unchecked.** `banf_shape` keeps every let whose value
+   is an op (`_is_op`), used or not, once, in source order, so `translate` never
+   drops, copies or reorders an effect, chained or not. What other reduction
+   strategies do to an unchained effect is
+   [plan_confluence.md](plan_confluence.md) decision 9. `$seq` gives a program a way
+   to say which effects a value needs, not a guarantee. Nothing checks it: an unchained effect may be a mistake or the
+   program's intent, and the program is trusted to chain what it means to. A
+   warning may come later; an error, or a token every effect takes and gives
+   (`'io'`, as GHC's `RealWorld`), is rejected.
 
 ### Pointers and memory ops (steps 2, 3)
 
@@ -162,7 +168,7 @@ return r
    a let, and a param or result of an imported function, where it is C's `T *` (a
    step toward [plan_c_interop.md](plan_c_interop.md) 1.1).
 6. **A pointer can't be a literal.** oymomo's byte arrays have no address to
-   name, and a null pointer is open question 3. The verifier rejects
+   name, and a null pointer is open question 2. The verifier rejects
    `[0000000000000000]~'ptr'`: `A pointer can't be a literal.`
 7. **Memory ops are LLVM's instructions, with the form as an operand.** LLVM's
    `alloca`, `getelementptr` and `load` take a type, and the type can be any type:
@@ -253,7 +259,7 @@ return r
 10. **Two different pointers may alias.** LLVM's own alias analysis is all there is:
     it knows two `alloca`s are distinct, and that an `alloca` that doesn't escape
     isn't reached through a param. Saying more (`noalias`, `!alias.scope`) is open
-    question 4.
+    question 3.
 11. **A store gives `{}`, which only `$seq` may use.** LLVM's `store` gives no
     value, and oymomo has no `void` yet ([plan_c_interop.md](plan_c_interop.md) 1.2).
     The result form is the empty struct, so the let has a name to wait for, and the
@@ -267,7 +273,7 @@ return r
     literals, which are little-endian everywhere
     ([notes.md › Byte arrays are always little-endian](notes.md#byte-arrays-are-always-little-endian)),
     but memory has no literals, so the two never meet. A struct's layout (padding,
-    field offsets) is LLVM's for the target. See open question 2.
+    field offsets) is LLVM's for the target. See open question 1.
 13. **Memory ops never fold in reduction.** `alloca`, `getelementptr`, `load` and
     `store` are impure opcodes, and reduction folds only pure ones
     ([plan_vm.md](plan_vm.md) decision 8), so they are stuck: no change to reduction.
@@ -283,7 +289,7 @@ return r
 | Module | Change |
 |---|---|
 | `reduction.py` | `'seq'` in `BUILTINS`; a case in `reduce`: `$seq {d1, ..., dn, x}` with every `dᵢ` a byte array (`bytes_of` is not None) gives `x`. Root-only, as every rule: it reduces no field |
-| `banf_shape.py` | `unblock`: for `$seq`, the argument is reduced to a struct, then every field but the last with `reduce_until_top_stable` (the last stays lazy), so `$seq {{a = [01]}.a, x}` fires; `atom`: a stuck `$seq {...}` has each field reduced as an atom, so `$seq {{a = q}.a, r}` reaches `$seq {q, r}` |
+| `banf_shape.py` | `unblock`: `$seq` joins the opcode-call case: the argument is reduced to a struct, then every field with `reduce_fields`, the result too, so `$seq {{a = [01]}.a, x}` fires; `atom`: a stuck `$seq {...}` has each field reduced as an atom, so `$seq {{a = q}.a, r}` reaches `$seq {q, r}` |
 | `banf_translate.py` | `SEQ = 'seq'`, checked in `op` before anything else; `_Translator.atom` reads a stuck `$seq {d1, ..., dn, x}` as the atom of `x`, after checking that each `dᵢ` is an atom; `body` binds `let c = $seq {...}` as an alias of that atom, not a `Let` |
 | `banf_terms.py`, `llvm_translate.py` | none |
 
@@ -337,11 +343,11 @@ How Cranelift IR (CLIF) does memory, next to LLVM and this plan.
 | Narrow access | `uload8`, `sload8`, `uload16`, `sload16`, `uload32`, `sload32` extend; `istore8`, `istore16`, `istore32` truncate | `load i8` then `zext`/`sext`; `trunc` then `store i8` | the same as LLVM: `'load' {'i8', p}` then `'zext'` |
 | Stack | `ss0 = explicit_slot 8` in the function preamble, sized in bytes; `stack_load`, `stack_store`, `stack_addr`; `dynamic_stack_slot` for scalable vectors | `alloca T` or `alloca T, iN n` anywhere | `'alloca'` (decisions 7 to 9) |
 | Field address | integer arithmetic: the frontend computes the offset | `getelementptr` with struct and array indices | `'getelementptr'` with struct indices (decision 7) |
-| Globals | `global_value` entities: `symbol` (a linker symbol), `vmctx`, `load` and `iadd_imm` chains; `symbol_value`, `global_value`, `tls_value` instructions | a global is a `ptr` constant | open question 5 |
+| Globals | `global_value` entities: `symbol` (a linker symbol), `vmctx`, `load` and `iadd_imm` chains; `symbol_value`, `global_value`, `tls_value` instructions | a global is a `ptr` constant | open question 4 |
 | Flags on an access | `MemFlags`: can trap or not (`notrap`, trap code), `aligned`, `readonly`, `can_move`, `checked`, byte order `little`/`big` per access, an alias region | `align`, `volatile`, `atomic`; `!noalias`, `!tbaa`, `!invariant.load` metadata; byte order is the target's | none (decision 12) |
 | Aliasing | alias regions on `MemFlags`: two accesses in different regions don't alias; regions are named by the frontend | `noalias`, scopes, TBAA, and its own analysis | LLVM's own analysis (decision 10) |
 | Atomics | `atomic_load`, `atomic_store`, `atomic_rmw`, `atomic_cas`, `fence`; sequentially consistent only | `load atomic`, `store atomic`, `atomicrmw`, `cmpxchg`, `fence`; every ordering | no |
-| Bulk | no instruction: `FunctionBuilder::call_memcpy`, `call_memset`, `call_memmove` call libc, and `emit_small_memory_copy` inlines small ones | `llvm.memcpy`, `llvm.memmove`, `llvm.memset` | no (open question 3) |
+| Bulk | no instruction: `FunctionBuilder::call_memcpy`, `call_memset`, `call_memmove` call libc, and `emit_small_memory_copy` inlines small ones | `llvm.memcpy`, `llvm.memmove`, `llvm.memset` | no (open question 2) |
 | Bounds-checked heaps | there was a `heap` entity and `heap_addr`; it was removed from CLIF, and Wasmtime's translator now emits the checks as plain compares and traps | none | none: the regions of the earlier draft were this, and were dropped |
 | Effect order | a block's side-effecting instructions stay in order; the optimizer moves only pure ones, and loads flagged `readonly` and `can_move` | instruction order, then alias analysis | let order after `convert`, set by hand with `$seq` (decision 4) |
 
@@ -371,17 +377,17 @@ describes memory, and where it stands in this plan. "Used" means a step emits it
 | `atomicrmw` | atomic read-modify-write (`add`, `xchg`, ...) | no: no threads |
 | `cmpxchg` | atomic compare and exchange | no: no threads |
 | `fence` | order accesses between threads | no: no threads |
-| `ptrtoint`, `inttoptr` | pointer to integer and back | no: open question 3 |
-| `icmp` on `ptr` | compare pointers | no: open question 3 |
+| `ptrtoint`, `inttoptr` | pointer to integer and back | no: open question 2 |
+| `icmp` on `ptr` | compare pointers | no: open question 2 |
 | `addrspacecast` | change a pointer's address space | no: one address space |
 
 ### Intrinsics
 
 | LLVM | What it does | Here |
 |---|---|---|
-| `llvm.memcpy`, `llvm.memcpy.inline` | copy bytes; source and destination don't overlap | no: open question 3 |
-| `llvm.memmove` | copy bytes that may overlap | no: open question 3 |
-| `llvm.memset`, `llvm.memset.inline` | fill bytes with one byte | no: open question 3 |
+| `llvm.memcpy`, `llvm.memcpy.inline` | copy bytes; source and destination don't overlap | no: open question 2 |
+| `llvm.memmove` | copy bytes that may overlap | no: open question 2 |
+| `llvm.memset`, `llvm.memset.inline` | fill bytes with one byte | no: open question 2 |
 | `llvm.experimental.memset.pattern` | fill bytes with a repeated value | no |
 | `llvm.lifetime.start`, `llvm.lifetime.end` | where an `alloca` is live | no |
 | `llvm.invariant.start`, `llvm.invariant.end` | memory that doesn't change for a while | no |
@@ -402,10 +408,10 @@ describes memory, and where it stands in this plan. "Used" means a step emits it
 
 | LLVM | What it says | Here |
 |---|---|---|
-| `align` on an access | the address is a multiple of N | not emitted: ABI alignment (decision 12, open question 2) |
+| `align` on an access | the address is a multiple of N | not emitted: ABI alignment (decision 12, open question 1) |
 | `inbounds` on `getelementptr` | the result stays inside the object | no (decision 7) |
-| `!alias.scope`, `!noalias` | which accesses don't alias | no: open question 4 |
-| `noalias` on a param | the param's memory is reached only through it | no: open question 4 |
+| `!alias.scope`, `!noalias` | which accesses don't alias | no: open question 3 |
+| `noalias` on a param | the param's memory is reached only through it | no: open question 3 |
 | `dereferenceable(N)`, `nonnull` | the pointer reaches N bytes | no |
 | `!tbaa` | type-based alias analysis | no |
 | `!invariant.load` | the loaded memory never changes | no |
@@ -433,24 +439,17 @@ changes meaning.
 ## Open questions
 
 > [!IMPORTANT]
-> 1. **Checking order** (decision 4). `convert` could check, before it drops
->    `$seq`, that the effects of a block (memory ops, calls to imports, and calls to
->    functions that make them) form one chain by data dependency, and that the
->    terminator depends on the last: `'store' at line 4 is not ordered after 'load' at
->    line 3; chain them with $seq.` A token (`'io'`, as GHC's `RealWorld`) that every
->    effect takes and gives would make the chain part of the signature. Later, or in
->    step 1?
-> 2. **Alignment and byte order** (decision 12). An optional `align` field, as LLVM's
+> 1. **Alignment and byte order** (decision 12). An optional `align` field, as LLVM's
 >    `align N`, for packed data; a byte order field for portable formats, as
 >    Cranelift's per-access `little`/`big`.
-> 3. **More ops.** `'ptrtoint'`, `'inttoptr'`, comparing pointers, a null pointer
+> 2. **More ops.** `'ptrtoint'`, `'inttoptr'`, comparing pointers, a null pointer
 >    (`'null'` or a literal exception to decision 6), `'memcpy'`, `'memmove'`, `'memset'`.
-> 4. **Aliasing** (decision 10). `noalias` on `'ptr'` params, or alias scopes, need a
+> 3. **Aliasing** (decision 10). `noalias` on `'ptr'` params, or alias scopes, need a
 >    promise the program makes and nothing checks.
-> 5. **Globals.** `module.x` reads a data symbol (`GetData`). Writing one needs its
+> 4. **Globals.** `module.x` reads a data symbol (`GetData`). Writing one needs its
 >    address: a data symbol of form `'ptr'`? `'address' {module.x}` as a new reading of
 >    `module.x` under one built-in? LLVM's answer is that a global *is* a `ptr`.
-> 6. **Names.** `ptr` or `address`; the field `form` or `type` (LLVM says type, oymomo
+> 5. **Names.** `ptr` or `address`; the field `form` or `type` (LLVM says type, oymomo
 >    says form).
 
 ---
@@ -467,8 +466,7 @@ Each step is one commit and leaves `hatch run full-check` green. Each step updat
   - `reduction`: `$seq {[01], x}`, `$seq {[01]~'i8', x}` and `$seq {x}` reduce to
     `x`; `$seq {s, x}` with `s` a variable, `$seq {{}, x}` and `$seq {[01], s, x}`
     are not redexes; `$seq {{a = [02]}.a, [01]}` is not a redex, as the rule
-    reduces no field; normalizing the `hi` program keeps the first `putchar`, and
-    normalizing it without `$seq` drops it (why the step exists).
+    reduces no field.
   - `banf_shape`: `$seq {{a = [01]}.a, x}` reduces to `x`; a field of a stuck
     `$seq` that reduces (`{a = q}.a`) is reduced to `q`.
   - `banf_translate`: `hi` gives two `putchar` lets in order, the second on
@@ -478,7 +476,6 @@ Each step is one commit and leaves `hatch run full-check` green. Each step updat
     `$seq {}` is `$seq needs a value.`; a field that isn't an atom is
     `$seq: every field must be an atom.`
   - `llvm_translate`: `hi`'s IR has both calls, in order, and no trace of `$seq`.
-  - confluence: `hi` gives the same BANF from `t` and from `normalize(t)`.
   - golden `seq.oymo`: `hi`, and a loop that calls `putchar` once per iteration and
     ties the call to the counter with `$seq`.
 - `docs/notes.md`: a row for `seq` in Built-ins and in reduction_rules.md (gives
@@ -538,37 +535,26 @@ Commit: `oymomo: add load and store`
 ### Step 4: effects without `$seq`
 
 No code change. Memory ops are stuck (decision 13), but the let around them is not:
-`let x = e in body` is `(x -> body) e`, a β-redex whatever `e` is. These tests pin
-down the three things full β does to effects that `$seq` doesn't chain (decision
-4), so a later change to reduction or to `banf_shape` that alters them fails a test.
-Each case is checked on `normalize(t)` in `reduction`, and on `convert(t)` in
-`banf_translate`, which gives the same BANF as `convert(normalize(t))` (confluence).
+`let x = e in body` is `(x -> body) e`, a β-redex whatever `e` is. `banf_shape`
+keeps a let whose value is an op (decision 4). These tests pin down what `translate`
+does to effects that `$seq` doesn't chain, so a later change to `banf_shape` that
+alters it fails a test. What full β does to the same programs is
+[plan_confluence.md](plan_confluence.md) decision 9, which uses them as samples.
 
-- Tests:
-  - **Unused effects disappear.**
-    `let s = 'store' {args.n, p} in 'load' {'i32', p}`:
-    - `reduction`: normalizes to `'load' {'i32', p}`; no `'store'` is left,
-      since nothing uses `s`.
-    - `banf_translate`: the block is `p = alloca i32`, `v = load i32, p`, with no
-      `store`.
-    - The same program with `$seq {s, p}` as the load's pointer keeps the store (the
-      goal program).
-  - **Effects get copied.**
+- Tests (`banf_translate`, and `llvm_translate` where it says so):
+  - **An unused effect is kept.**
+    `let s = 'store' {args.n, p} in let v = 'load' {'i32', p} in v`: the block is
+    `alloca`, `store`, `load`; the store's let is kept, unused.
+  - **An effect used twice runs once.**
     `let v = 'load' {'i32', p} in let s = 'store' {args.n, p} in
-    'add' {'i32', $seq {s, v}, v}`, one load written before the store:
-    - `reduction`: the normal form has two `'load' {'i32', p}` subterms.
-    - `banf_translate`: the block is `store`, `load`, `load`, `add`: the one load
-      became two, both after the store.
-    - `llvm_translate`: with `p` first stored `[01000000]~'i32'`, `bump(41)` under
-      LLVM's JIT is `82` (`41 + 41`), not `2` (`1 + 1`), what the source order says.
-  - **Let order is lost; field order stays.**
-    `let v = 'load' {'i32', p} in let s = 'store' {args.n, p}
-    in $seq {s, v}`, the load written before the store, and both kept:
-    - `reduction`: the normal form is `$seq {'store' {...}, 'load' {...}}`; no let is
-      left.
-    - `banf_translate`: the block is `store` then `load`: `banf_shape` lets the fields
-      of `$seq` in field order, so the store comes first, the reverse of the source.
-    - The same program with the store written first gives `store` then `load` too.
+    let w = 'add' {'i32', $seq {s, v}, v} in w`, the load written before the store:
+    the block is `load`, `store`, `add`, one load, in source order. With `p` first
+    stored `[01000000]~'i32'`, `bump(41)` under LLVM's JIT is `2` (`1 + 1`).
+  - **Order is let order.**
+    `let a = module.putchar {c = [68000000]~'i32'} in
+    let b = module.putchar {c = [69000000]~'i32'} in $seq {a, b}`: the block is
+    `putchar h` then `putchar i`; with `$seq {b, a}` it is the same: `$seq` keeps an
+    effect, it doesn't move it.
 - `docs/notes.md`: under `$seq` in Built-ins, the three cases, one line each, with
   a link to these tests.
 
@@ -579,7 +565,7 @@ Commit: `oymomo: test unordered effects`
 - D.
 - Tests:
   - `reduction`: none needed: a tagged struct is a struct. One test that β builds one:
-    `(e -> {'array', [03000000]~'i32', e}) 'i8'` normalizes to
+    `(e -> {'array', [03000000]~'i32', e}) 'i8'` reduces to
     `{'array', [03000000]~'i32', 'i8'}`.
   - `banf_translate`: each tagged struct as a block param's form, a function param's
     form and a memory op's `form`; nested (an array of packed structs, a struct
@@ -615,5 +601,5 @@ hatch run full-check
 
 The final check: the goal program's LLVM IR runs under `llvmlite`'s JIT and `bump(41)`
 returns 42; with a literal 41, the goal keeps its three memory lets in BANF and is
-`ret i32 42` after LLVM's optimizer; the `hi` program of step 1 gives the same BANF
-from `t` and from `normalize(t)`, with both `putchar` calls, in order.
+`ret i32 42` after LLVM's optimizer; the `hi` program of step 1 translates with both
+`putchar` calls, in order.
