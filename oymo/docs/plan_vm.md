@@ -70,7 +70,7 @@ module~{main = => 'i32', putchar = {c = 'i32'} => 'i32', ask = {c = 'i32'} => 'i
   main = f -> {
     entry = args~{n = 'i32'} ->
       let q = module.putchar {c = [68000000]~'i32'} in
-      let a = module.ask {c = $after {args.n, q}} in
+      let a = module.ask {c = $wait {args.n, q}} in
       let r = 'ctpop' {'i32', a} in
       'add' {'i32', r, [01000000]},
   },
@@ -93,7 +93,7 @@ fiber.resume(15)   # Returned(5): ctpop(15) + 1
 a host function from `spindle_lib`; with literal arguments reduction folds both
 (decision 8). `module.putchar` and `module.ask` are imports: the host binds them in
 the VM, the linker in LLVM. `ask` yields: the fiber stops, `resume` returns to the
-host, and the next `resume` gives the call its result. (`$after` is
+host, and the next `resume` gives the call its result. (`$wait` is
 [plan_memory.md](plan_memory.md) step 1.)
 
 ## Decisions
@@ -184,7 +184,7 @@ host, and the next `resume` gives the call its result. (`$after` is
    LLVM writes the instruction: `add i32 a, b`, `zext i8 x to i32`.
 
    **Fields are positional, in LLVM's operand order, and labels are ignored**, as in
-   `$after` and in a branch. `'sub' {'i32', x, y}` is `sub i32 x, y`, `x - y`,
+   `$wait` and in a branch. `'sub' {'i32', x, y}` is `sub i32 x, y`, `x - y`,
    because LLVM writes `sub i32 %x, %y`; a form param sits where LLVM writes the
    type. Only the number of fields is checked: `'sub' takes 3 fields, got 2.`
    Optional params come last (`'alloca' {form, count}`), so leaving one out is
@@ -203,7 +203,7 @@ host, and the next `resume` gives the call its result. (`$after` is
    `run` gives the result, formed as `result`. This is today's constant folding
    ([plan_constant_folding.md](implemented/plan_constant_folding.md)) with the
    per-opcode rules replaced by this one. An impure symbol never
-   folds; it stays a call, ordered by `$after` like an import. The rule reads only
+   folds; it stays a call, ordered by `$wait` like an import. The rule reads only
    literals, so it commutes with reduction, as [plan_confluence.md](plan_confluence.md)
    asks of every built-in rule. `vm_symbols.py` imports only `terms`, so `reduction` can
    use it; LLVM lowerings are attached in `llvm_opcodes.py`, keyed by name, so the
@@ -216,7 +216,7 @@ host, and the next `resume` gives the call its result. (`$after` is
    |---|---|
    | `$fix` | a reduction rule on terms, not values |
    | `$struct_to_fields`, `$fields_to_struct` | they rewrite terms, and must reduce away before BANF |
-   | `$after` | reduction must not see through it, and `convert` drops it ([plan_memory.md](plan_memory.md)) |
+   | `$wait` | gives field 0 only once the other fields are literals, and `convert` drops a stuck one ([plan_memory.md](plan_memory.md)) |
 
 ### Opcodes polymorphic in `form` (step 3)
 
@@ -225,7 +225,7 @@ host, and the next `resume` gives the call its result. (`$after` is
     literal form; it is a form, not an operand, so it stays in place and is never
     let-bound (the other exception to
     [notes.md › Operands must be atoms](notes.md#operands-must-be-atoms), with
-    `$after`).
+    `$wait`).
 
     | Today | Step 3 | LLVM |
     |---|---|---|
@@ -401,7 +401,7 @@ host, and the next `resume` gives the call its result. (`$after` is
 | `reduction.py` | `_fold` rules replaced by one rule for `Apply(ByteArray, Struct)` (decision 8) |
 | `banf_shape.py` | a VM symbol call: form params reduced to normal form in place, value params reduced as atoms |
 | `banf_terms.py` | `OpcodeCall(opcode, args)` → `VmCall(symbol, forms, args)`; `form_of` from `result`; verifier from `params` and `accepts`; printed as LLVM writes it |
-| `banf_translate.py` | `'name' {...}` read as `VmCall`; `$name` is only `$fix`, `$struct_to_fields`, `$fields_to_struct`, `$after`; any other `$name` is `Unknown built-in '$add_i32'; opcodes are VM symbols now: 'add' {'i32', a, b}.` |
+| `banf_translate.py` | `'name' {...}` read as `VmCall`; `$name` is only `$fix`, `$struct_to_fields`, `$fields_to_struct`, `$wait`; any other `$name` is `Unknown built-in '$add_i32'; opcodes are VM symbols now: 'add' {'i32', a, b}.` |
 | `llvm_opcodes.py` | builders keyed by symbol name, taking the form params |
 | `printer.py` | prints `'add' {'i32', x, y}` |
 | `spindle_compile.py` | a `core` `VmCall` is `op`, any other `host`, with its form params as immediates |
@@ -565,7 +565,7 @@ Commit: `oymomo: VM coroutines`
 - E.
 - Tests:
   - `spindle`: `'ctpop' {'i32', 7}` is 3; `trace` records its argument in the host's
-    list and gives it back; two `trace`s chained with `$after` record in order; a
+    list and gives it back; two `trace`s chained with `$wait` record in order; a
     host that rebinds `'ctpop'` changes what the VM gives, not what reduction folds.
   - `reduction`: `ctpop` folds on a literal; `trace` never does.
   - `llvm_translate`: `ctpop` is `call i32 @llvm.ctpop.i32` and runs under the JIT

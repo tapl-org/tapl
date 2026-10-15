@@ -6,10 +6,10 @@ Status: **proposed**, with open questions; 0 of 5 steps.
 
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
-- [ ] 1. `$after`: an identity reduction can't see through orders effects (`oymomo: add $after`)
+- [ ] 1. `$wait {x, d1, ...}`: gives `x` once every `dᵢ` is a literal, so an effect it waits for stays (`oymomo: add $wait`)
 - [ ] 2. The `'ptr'` form, `'alloca'` and `'getelementptr'` (`oymomo: add the ptr form`)
 - [ ] 3. `'load'` and `'store'` (`oymomo: add load and store`)
-- [ ] 4. Tests: what full β does to effects without `$after` (`oymomo: test unordered effects`)
+- [ ] 4. Tests: what full β does to effects without `$wait` (`oymomo: test unordered effects`)
 - [ ] 5. Arrays, vectors and packed structs as tagged pairs (`{'array', {element, count}}`) (`oymomo: add aggregate forms`)
 
 Step 1 doesn't depend on the others: it orders effects, which memory ops are, as calls
@@ -32,7 +32,7 @@ a type, oymomo passes the form as a value (`form = 'i32'`, `form = {x = 'i32', y
 no bounds checks, no regions, no tokens.
 
 Memory ops are effects, like calls to imports. The term doesn't order them; a
-program orders them by hand with `$after` (decisions 1 to 4), as it orders calls to
+program orders them by hand with `$wait` (decisions 1 to 4), as it orders calls to
 imports. [plan_confluence.md](plan_confluence.md)'s guarantee covers the term, not the
 order of effects (decision 4).
 
@@ -45,7 +45,7 @@ module~{bump = => 'i32'} -> {
     entry = args~{n = 'i32'} ->
       let p = 'alloca' {'i32'} in
       let s = 'store' {args.n, p} in
-      let v = 'load' {'i32', $after {p, s}} in
+      let v = 'load' {'i32', $wait {p, s}} in
       let w = 'add' {'i32', v, [01000000]} in
       w,
   },
@@ -74,7 +74,7 @@ entry:
 }
 ```
 
-`$after {p, s}` is `p`, but it makes the load wait for the store (decision 1), and
+`$wait {p, s}` is `p`, but it makes the load wait for the store (decision 1), and
 `convert` drops it, so BANF and LLVM never see it. Without it nothing uses `s`, and
 full β could drop the store. With `[29000000]~'i32'` in place of `args.n`, reduction
 still leaves the three memory lets alone (decision 13), and LLVM's `mem2reg` turns the
@@ -94,11 +94,11 @@ let y = 'getelementptr' {{x = 'i32', y = 'i64'}, q,
   %"y" = getelementptr {i32, i64}, ptr %"q", i64 0, i32 1
 ```
 
-`$after` also orders calls to imports:
+`$wait` also orders calls to imports:
 
 ```
 let q = module.putchar {c = [68000000]~'i32'} in
-let r = module.putchar {c = $after {[69000000]~'i32', q}} in
+let r = module.putchar {c = $wait {[69000000]~'i32', q}} in
 r
 ```
 
@@ -112,37 +112,42 @@ return r
 
 ### Ordering effects (step 1)
 
-1. **`$after {x, d1, ..., dn}` is `x`, and reduction can't see that.** Field 0 is
-   the value; the others are what it waits for. Fields are positional, and labels are
-   ignored, as in a branch. `after` has no rule and is not an opcode, so `reduce`
-   never fires on it (a built-in with no rule is already not a redex): no change
-   to reduction. It keeps its `$` because `convert` treats it specially. Since `x`
-   now uses every `dᵢ`, full β can't drop a `dᵢ`, and a let that uses `$after` comes
-   after every let it waits for:
+1. **`$wait {x, d1, ..., dn}` gives `x` once every `dᵢ` is ready.** Field 0 is the
+   value; the others are what it waits for. Fields are positional, and labels are
+   ignored, as in a branch. A `dᵢ` is *ready* when it is a byte array, formed or not:
+   a literal has no effect left to wait for. Then `reduce` gives `x`:
+   `$wait {x, [01]}` → `x`, and `$wait {x}` → `x`. Otherwise it is stuck: an effect
+   (`'store' {...}`, `module.putchar {...}`) never reduces to a literal (decision
+   13), so `$wait` releases `x` only at run time, where `convert` drops it (decision
+   3). A lambda or a struct is not ready, even with no effect inside: the rule reads
+   only the root of each `dᵢ`. `wait` is not an opcode; it keeps its `$` because
+   `convert` treats it specially. Since `x` uses every `dᵢ` that isn't ready, full β
+   can't drop one, and a let that uses `$wait` comes after every let it waits for:
 
    ```
    let q = module.putchar {c = [68000000]~'i32'} in
-   let r = module.putchar {c = $after {[69000000]~'i32', q}} in
+   let r = module.putchar {c = $wait {[69000000]~'i32', q}} in
    r
    ```
 
-   Without `$after`, nothing uses `q`, so full β drops the first call and the program
-   prints `i`. `$after` orders calls to imports and memory ops
-   (`'load' {'i32', $after {p, s}}`).
-2. **`$after` may be an operand.** With atoms as fields it is an atom: an op argument,
+   Without `$wait`, nothing uses `q`, so full β drops the first call and the program
+   prints `i`. `$wait` orders calls to imports and memory ops
+   (`'load' {'i32', $wait {p, s}}`).
+2. **`$wait` may be an operand.** With atoms as fields it is an atom: an op argument,
    a jump argument, a branch condition, a return, or a let's value. This is one
    exception to [notes.md › Operands must be atoms](notes.md#operands-must-be-atoms),
    because it stands for its field 0, which is an atom. (The other is a form field of
    an opcode, such as `form` ([plan_vm.md](plan_vm.md) decision 10).)
-3. **`convert` drops it.** `$after {x, ...}` becomes the atom `x`, and
-   `let c = $after {...}` binds no BANF let: `c` is an alias of `x`. So BANF, the
+3. **`convert` drops what reduction leaves.** A stuck `$wait {x, ...}` becomes the
+   atom `x`, and
+   `let c = $wait {...}` binds no BANF let: `c` is an alias of `x`. So BANF, the
    verifier, `form_of` and LLVM never see it, and it needs no form. After `convert`,
    order is let order alone, which BANF keeps: no BANF pass reorders or removes a let,
    and LLVM keeps calls to imports and memory ops in order.
 4. **Ordering is by hand and unchecked.** An effect that nothing uses, directly or
-   through `$after`, can still be dropped by full β; two effects with no chain between
+   through `$wait`, can still be dropped by full β; two effects with no chain between
    them have no order; a let used twice can be copied, so a load can run twice, once
-   on each side of a store. `$after` gives a program a way to order effects, not a
+   on each side of a store. `$wait` gives a program a way to order effects, not a
    guarantee. A check is open question 1.
 
 ### Pointers and memory ops (steps 2, 3)
@@ -241,10 +246,10 @@ return r
     it knows two `alloca`s are distinct, and that an `alloca` that doesn't escape
     isn't reached through a param. Saying more (`noalias`, `!alias.scope`) is open
     question 4.
-11. **A store gives `{}`, which only `$after` may use.** LLVM's `store` gives no
+11. **A store gives `{}`, which only `$wait` may use.** LLVM's `store` gives no
     value, and oymomo has no `void` yet ([plan_c_interop.md](plan_c_interop.md) 1.2).
     The result form is the empty struct, so the let has a name to wait for, and the
-    verifier rejects any other use: `'s' is the result of a store; only $after can
+    verifier rejects any other use: `'s' is the result of a store; only $wait can
     use it.` In LLVM the let binds nothing.
 12. **Accesses are as LLVM's defaults: target byte order, ABI alignment, no checks.**
     A load or store carries no `align`, so LLVM assumes the type's ABI alignment, and
@@ -265,13 +270,13 @@ return r
 
 ## Design
 
-### A. `$after` (step 1)
+### A. `$wait` (step 1)
 
 | Module | Change |
 |---|---|
-| `reduction.py` | none: `after` is not in `BUILTINS` and has no case in `reduce`, so it is not a redex |
-| `banf_shape.py` | `atom`: for `$after {...}`, each field is reduced as an atom, so `$after {{a = q}.a, r}` reaches `$after {q, r}` |
-| `banf_translate.py` | `AFTER = 'after'`, checked in `op` before anything else; `_Translator.atom` reads `$after {x, d1, ..., dn}` as the atom of `x`, after checking `n ≥ 1` and that each `dᵢ` is an atom; `body` binds `let c = $after {...}` as an alias of that atom, not a `Let` |
+| `reduction.py` | `'wait'` in `BUILTINS`; a case in `reduce`: `$wait {x, d1, ..., dn}` with every `dᵢ` a byte array (`bytes_of` is not None) gives `x`. Root-only, as every rule: it reduces no field |
+| `banf_shape.py` | `unblock`: for `$wait`, the argument is reduced to a struct, then fields 1 to n with `reduce_until_top_stable` (field 0 stays lazy), so `$wait {x, {a = [01]}.a}` fires; `atom`: a stuck `$wait {...}` has each field reduced as an atom, so `$wait {{a = q}.a, r}` reaches `$wait {q, r}` |
+| `banf_translate.py` | `WAIT = 'wait'`, checked in `op` before anything else; `_Translator.atom` reads a stuck `$wait {x, d1, ..., dn}` as the atom of `x`, after checking that each `dᵢ` is an atom; `body` binds `let c = $wait {...}` as an alias of that atom, not a `Let` |
 | `banf_terms.py`, `llvm_translate.py` | none |
 
 `_Block.binder` counts lets to resolve an index, so an alias still takes a binder
@@ -297,7 +302,7 @@ checks.
 | Module | Change |
 |---|---|
 | `opcodes.py` | entries `load` (form param `form`, `ptr~'ptr'`, result `form`) and `store` (`value` of any form, `ptr~'ptr'`, result `{}`), impure; `llvm`: `builder.load(ptr, typ=llvm_type(form))`, `builder.store(value, ptr)`, the let binding no LLVM value |
-| `banf_terms.py` | verifier: a name bound by a `store` let is used nowhere (decision 11); `$after` is gone by then, so any use is an error |
+| `banf_terms.py` | verifier: a name bound by a `store` let is used nowhere (decision 11); `$wait` is gone by then, so any use is an error |
 | `banf_translate.py` | none: `ptr` must have form `'ptr'` is the table's param check: `'load' expects ptr: ptr, got i32.` |
 
 ### D. Tagged pairs for arrays, vectors and packed structs (step 5)
@@ -330,12 +335,12 @@ How Cranelift IR (CLIF) does memory, next to LLVM and this plan.
 | Atomics | `atomic_load`, `atomic_store`, `atomic_rmw`, `atomic_cas`, `fence`; sequentially consistent only | `load atomic`, `store atomic`, `atomicrmw`, `cmpxchg`, `fence`; every ordering | no |
 | Bulk | no instruction: `FunctionBuilder::call_memcpy`, `call_memset`, `call_memmove` call libc, and `emit_small_memory_copy` inlines small ones | `llvm.memcpy`, `llvm.memmove`, `llvm.memset` | no (open question 3) |
 | Bounds-checked heaps | there was a `heap` entity and `heap_addr`; it was removed from CLIF, and Wasmtime's translator now emits the checks as plain compares and traps | none | none: the regions of the earlier draft were this, and were dropped |
-| Effect order | a block's side-effecting instructions stay in order; the optimizer moves only pure ones, and loads flagged `readonly` and `can_move` | instruction order, then alias analysis | let order after `convert`, set by hand with `$after` (decision 4) |
+| Effect order | a block's side-effecting instructions stay in order; the optimizer moves only pure ones, and loads flagged `readonly` and `can_move` | instruction order, then alias analysis | let order after `convert`, set by hand with `$wait` (decision 4) |
 
 Two things to take from it. A pointer-width integer address (Cranelift) would save the
 `'ptr'` form, but then an imported function's `T *` param and an `i64` would look the
 same, and LLVM, which this plan follows, would need `inttoptr` everywhere. And both
-IRs keep effects in instruction order; oymomo's term doesn't, which is why `$after`
+IRs keep effects in instruction order; oymomo's term doesn't, which is why `$wait`
 comes first.
 
 ---
@@ -409,7 +414,7 @@ result, an import declares them (`malloc = {size = 'i64'} => 'ptr'`).
 None here. `'ptr'` is a new named form, and `'alloca'`, `'getelementptr'`, `'load'`
 and `'store'` were unknown opcodes, an error in `convert`. (Renaming `$add_i32` to
 `'add' {'i32', a, b}` is breaking, but it is [plan_vm.md](plan_vm.md) step 3.)
-Data symbols keep today's meaning. `$after` was an unknown built-in, and the parser
+Data symbols keep today's meaning. `$wait` was an unknown built-in, and the parser
 already accepts any `$name`. A
 plain struct form keeps its meaning; a struct whose field 0 is `'array'`, `'vector'`,
 `'scalable_vector'` or `'packed'` had no LLVM type before, so no working program
@@ -421,10 +426,10 @@ changes meaning.
 
 > [!IMPORTANT]
 > 1. **Checking order** (decision 4). `convert` could check, before it drops
->    `$after`, that the effects of a block (memory ops, calls to imports, and calls to
+>    `$wait`, that the effects of a block (memory ops, calls to imports, and calls to
 >    functions that make them) form one chain by data dependency, and that the
 >    terminator depends on the last: `'store' at line 4 is not ordered after 'load' at
->    line 3; chain them with $after.` A token (`'io'`, as GHC's `RealWorld`) that every
+>    line 3; chain them with $wait.` A token (`'io'`, as GHC's `RealWorld`) that every
 >    effect takes and gives would make the chain part of the signature. Later, or in
 >    step 1?
 > 2. **Alignment and byte order** (decision 12). An optional `align` field, as LLVM's
@@ -447,29 +452,34 @@ changes meaning.
 Each step is one commit and leaves `hatch run full-check` green. Each step updates
 `docs/notes.md` for its own part.
 
-### Step 1: `$after`
+### Step 1: `$wait`
 
 - A.
 - Tests:
-  - `reduction`: `$after {[01], [02]}` is not a redex; normalizing the `hi` program keeps
-    the first `putchar`, and normalizing it without `$after` drops it (why the step
-    exists).
-  - `banf_shape`: a field of `$after` that reduces (`{a = q}.a`) is reduced to `q`.
+  - `reduction`: `$wait {x, [01]}`, `$wait {x, [01]~'i8'}` and `$wait {x}` reduce to
+    `x`; `$wait {x, s}` with `s` a variable, `$wait {x, {}}` and `$wait {x, [01], s}`
+    are not redexes; `$wait {[01], {a = [02]}.a}` is not a redex, as the rule
+    reduces no field; normalizing the `hi` program keeps the first `putchar`, and
+    normalizing it without `$wait` drops it (why the step exists).
+  - `banf_shape`: `$wait {x, {a = [01]}.a}` reduces to `x`; a field of a stuck
+    `$wait` that reduces (`{a = q}.a`) is reduced to `q`.
   - `banf_translate`: `hi` gives two `putchar` lets in order, the second on
-    `[69000000]:i32`; `$after` inline in an op argument, as a jump argument, as a
-    branch condition and as a return; `let c = $after {...}` makes `c` an alias, and a
-    later let still resolves to the right name; labels in `$after` are ignored;
-    `$after {x}` is `$after needs a value and at least one field to wait for.`; a field
-    that isn't an atom is `$after: every field must be an atom.`
-  - `llvm_translate`: `hi`'s IR has both calls, in order, and no trace of `$after`.
+    `[69000000]:i32`; `$wait` inline in an op argument, as a jump argument, as a
+    branch condition and as a return; `let c = $wait {...}` makes `c` an alias, and a
+    later let still resolves to the right name; labels in `$wait` are ignored;
+    `$wait {}` is `$wait needs a value.`; a field that isn't an atom is
+    `$wait: every field must be an atom.`
+  - `llvm_translate`: `hi`'s IR has both calls, in order, and no trace of `$wait`.
   - confluence: `hi` gives the same BANF from `t` and from `normalize(t)`.
-  - golden `after.oymo`: `hi`, and a loop that calls `putchar` once per iteration and
-    ties the call to the counter with `$after`.
-- `docs/notes.md`: a row for `after` in Built-ins (no rule, no opcode, dropped by
-  `convert`); `$after` in Translation › oymomo → BANF and in Operands must be atoms;
-  the messages in Error messages › Built-ins.
+  - golden `wait.oymo`: `hi`, and a loop that calls `putchar` once per iteration and
+    ties the call to the counter with `$wait`.
+- `docs/notes.md`: a row for `wait` in Built-ins and in reduction_rules.md (gives
+  field 0 once fields 1 to n are byte arrays; a stuck one is dropped by `convert`);
+  the `BUILTINS` docstring no longer says every built-in reduces away before BANF;
+  `$wait` in Translation › oymomo → BANF and in Operands must be atoms; the messages
+  in Error messages › Built-ins.
 
-Commit: `oymomo: add $after`
+Commit: `oymomo: add $wait`
 
 ### Step 2: the `'ptr'` form, `'alloca'` and `'getelementptr'`
 
@@ -501,27 +511,27 @@ Commit: `oymomo: add the ptr form`
 - Tests:
   - `reduction`: a store then a load stay stuck (decision 13).
   - `banf_translate`: the goal program gives its BANF, with the load after the store
-    (without `$after`: step 4);
+    (without `$wait`: step 4);
     `'store' {v}` is `'store' takes 2 fields, got 1.`;
     `'load' {'i32', args.n}` with `args~{n = 'i32'}` is
     `'load' expects ptr: ptr, got i32.`; returning a store's result is
-    `'s' is the result of a store; only $after can use it.`
+    `'s' is the result of a store; only $wait can use it.`
   - `llvm_translate`: the goal program's IR; a store then a load of each integer
     form, of `'ptr'` and of a struct form through LLVM's JIT gives the stored value;
     the goal with `[29000000]~'i32'` for `args.n` is `ret i32 42` after LLVM's `-O2`
     pipeline.
   - golden `memory.oymo`: the goal example, and a loop that sums into an `alloca`,
-    chained with `$after`.
-- `docs/notes.md`: memory symbols and `$after` in Translation; byte order,
+    chained with `$wait`.
+- `docs/notes.md`: memory symbols and `$wait` in Translation; byte order,
   alignment and layout in Design decisions (decision 12).
 
 Commit: `oymomo: add load and store`
 
-### Step 4: effects without `$after`
+### Step 4: effects without `$wait`
 
 No code change. Memory ops are stuck (decision 13), but the let around them is not:
 `let x = e in body` is `(x -> body) e`, a β-redex whatever `e` is. These tests pin
-down the three things full β does to effects that `$after` doesn't chain (decision
+down the three things full β does to effects that `$wait` doesn't chain (decision
 4), so a later change to reduction or to `banf_shape` that alters them fails a test.
 Each case is checked on `normalize(t)` in `reduction`, and on `convert(t)` in
 `banf_translate`, which gives the same BANF as `convert(normalize(t))` (confluence).
@@ -533,11 +543,11 @@ Each case is checked on `normalize(t)` in `reduction`, and on `convert(t)` in
       since nothing uses `s`.
     - `banf_translate`: the block is `p = alloca i32`, `v = load i32, p`, with no
       `store`.
-    - The same program with `$after {p, s}` as the load's pointer keeps the store (the
+    - The same program with `$wait {p, s}` as the load's pointer keeps the store (the
       goal program).
   - **Effects get copied.**
     `let v = 'load' {'i32', p} in let s = 'store' {args.n, p} in
-    'add' {'i32', $after {v, s}, v}`, one load written before the store:
+    'add' {'i32', $wait {v, s}, v}`, one load written before the store:
     - `reduction`: the normal form has two `'load' {'i32', p}` subterms.
     - `banf_translate`: the block is `load`, `store`, `load`, `add`: one load on each
       side of the store.
@@ -545,14 +555,14 @@ Each case is checked on `normalize(t)` in `reduction`, and on `convert(t)` in
       LLVM's JIT is `42` (`41 + 1`), not `2` (`1 + 1`), what the source order says.
   - **The order is lost.**
     `let s = 'store' {args.n, p} in let v = 'load' {'i32', p}
-    in $after {v, s}`, the store written before the load, and both kept:
-    - `reduction`: the normal form is `$after {'load' {...}, 'store' {...}}`; no let is
+    in $wait {v, s}`, the store written before the load, and both kept:
+    - `reduction`: the normal form is `$wait {'load' {...}, 'store' {...}}`; no let is
       left.
     - `banf_translate`: the block is `load` then `store`: `banf_shape` lets the fields
-      of `$after` in field order, so the load comes first, the reverse of the source.
-    - The same program with `ptr = $after {p, s}` in the load gives `store` then
+      of `$wait` in field order, so the load comes first, the reverse of the source.
+    - The same program with `ptr = $wait {p, s}` in the load gives `store` then
       `load`.
-- `docs/notes.md`: under `$after` in Built-ins, the three cases, one line each, with
+- `docs/notes.md`: under `$wait` in Built-ins, the three cases, one line each, with
   a link to these tests.
 
 Commit: `oymomo: test unordered effects`
