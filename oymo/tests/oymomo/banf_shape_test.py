@@ -257,6 +257,13 @@ def test_reduce_until_top_stable_reduces_inside_formed():
     assert reduced == terms.Formed(one, i1)
 
 
+def test_reduce_until_top_stable_drops_a_form_found_inside_formed():
+    # `(x~'i1' -> x) ((y -> y) [01]~'i8')` puts `((y -> y) [01]~'i8')~'i1'` in for `x`: the
+    # argument is lazy, so its form shows up only once reduction enters the Formed.
+    term = reduction.resolve(parse("(x~'i1' -> x) ((y -> y) [01]~'i8')"))
+    assert banf_shape.reduce_until_top_stable(term) == parse("[01]~'i1'")
+
+
 def test_dynamic_byte_array_form():
     reduced = banf_shape.reduce_until_top_stable(reduction.resolve(parse("(x -> y -> y~x) 'i1' [01]")))
     assert reduced == parse("[01]~'i1'")

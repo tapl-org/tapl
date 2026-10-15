@@ -91,8 +91,13 @@ class _Shaper:
                 new = self.reduce_until_top_stable(struct)
                 return term if new is struct else replace(term, struct=new)
             case terms.Formed(term=inner):
-                # TODO: what about Formed.form?
+                # TODO: what about substitution in Formed.form?
                 new = self.reduce_until_top_stable(inner)
+                if isinstance(new, terms.Formed):
+                    # The outer form replaces the inner one, as in `reduction.beta`: `beta` puts
+                    # `a~F` in for a lazy `a`, and `a` may reduce to a formed term only now.
+                    # TODO: what if new.term is also instance of terms.Formed?
+                    new = new.term
                 return term if new is inner else replace(term, term=new)
         return term
 

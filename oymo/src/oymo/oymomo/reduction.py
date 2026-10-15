@@ -232,12 +232,25 @@ def fold_opcode(call: terms.Apply) -> syntax.Term:
     return terms.Formed(terms.ByteArray(result.value, call.location), form, call.location)
 
 
-def project(term: terms.Project) -> syntax.Term | None:
-    """`{a = e, ...}.a` becomes `e`. None if the struct has no such label."""
-    struct = term.struct
-    if not isinstance(struct, terms.Struct):
-        return None
-    return next((field.value for field in struct.fields if field.label == term.label), None)
+def project(struct: syntax.Term, label: str) -> syntax.Term | None:
+    """`{a = e, ...}.a` becomes `e`. None if the struct has no such label.
+
+    Through a form: `({a = e, ...}~{a = F, ...}).a` becomes `e~F`, the form replacing `e`'s own
+    form as in `beta`. None if the form is not a struct literal or has no such label.
+    """
+    match struct:
+        case terms.Struct(fields=fields):
+            return next((field.value for field in fields if field.label == label), None)
+        case terms.Formed(term=terms.Struct() as inner, form=terms.Struct() as form_struct):
+            value = project(inner, label)
+            form = project(form_struct, label)
+            if value is None or form is None:
+                return None
+            # TODO: do we need this? or is there a way to restrict multi layer Formed terms.
+            if isinstance(value, terms.Formed):
+                value = value.term
+            return terms.Formed(term=value, form=form, location=getattr(value, 'location', None))
+    return None
 
 
 def index_value(term: syntax.Term) -> int | None:
@@ -284,9 +297,8 @@ def reduce(term: syntax.Term) -> syntax.Term:
             struct := from_field_list(field_list)
         ) is not None:
             return struct
-        case terms.Project(struct=terms.Struct()):
-            projected = project(term)
-            return term if projected is None else projected
+        case terms.Project(struct=struct, label=label) if (projected := project(struct, label)) is not None:
+            return projected
         case terms.Apply(function=terms.Struct(fields=fields), argument=argument) if (
             fields and (position := index_value(argument)) is not None
         ):

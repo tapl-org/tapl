@@ -33,3 +33,23 @@ def test_collatz_steps():
         in collatz [07000000]
     """
     assert run(source) == parse("[10000000]~'i32'")
+
+
+# Special BANF shaped code.
+def test_gcd_blocks():
+    # Euclid on blocks that jump to each other: gcd 48 18 = 6.
+    source = """
+        let module = module -> {gcd = blocks -> {
+            entry = args~{a = 'i32', b = 'i32'} -> blocks.loop {a = args.a, b = args.b},
+            loop = args~{a = 'i32', b = 'i32'} ->
+                let t0 = 'icmp_eq' {'i32', args.b, [00000000]} in
+                if t0 then blocks.done {a = args.a} else blocks.step {a = args.a, b = args.b},
+            step = args~{a = 'i32', b = 'i32'} ->
+                let t1 = 'urem' {'i32', args.a, args.b} in
+                blocks.loop {a = args.b, b = t1},
+            done = args~{a = 'i32'} -> args.a,
+        }} in
+        let gcd = ($fix ($fix module).gcd).entry in
+            gcd {a = [30000000], b = [12000000]}
+    """
+    assert run(source) == parse("[06000000]~'i32'")

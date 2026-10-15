@@ -126,6 +126,9 @@ def test_beta_propagates_form(source, expected):
         ('(x -> y) ((w -> w w) (w -> w w))', 'y'),
         ('{a = e, a = b}.a', 'e'),
         ('{e, a = b}.a', 'b'),
+        # Through a form, the field's form goes with the value and replaces its own.
+        ("({a = e, b = y}~{a = 'f', b = 'g'}).a", "e~'f'"),
+        ("({a = e~'g'}~{a = 'f'}).a", "e~'f'"),
     ],
 )
 def test_reduce_one_step(source, expected):
@@ -169,6 +172,10 @@ def test_reduce_one_step(source, expected):
         'if ((x -> x) [01]) then a else b',
         'x -> (y -> y) x',
         '{e}.a',
+        # Through a form: it must be a struct literal with the label, too.
+        "({a = e}~{b = 'f'}).a",
+        "({a = e}~'f').a",
+        '({a = e}~g).a',
         # An opcode folds only where it can evaluate its fields: an integer form, and
         # operands of its size (bare or formed; a written form is not compared), three fields.
         "'add' {'i32', [01]~'i32', [02000000]~'i32'}",
