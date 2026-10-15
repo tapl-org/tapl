@@ -109,7 +109,8 @@ $fields_to_struct {more = (x -> x) [01], label = l, value = v, rest = (x -> x) {
 
 ### 2. Two built-ins, `$struct_to_fields s` and `$fields_to_struct l`
 
-- Kernel-only: no opcode, so they must reduce away before BANF (plan_builtin decision 10).
+- Reduction-only: no opcode, so they must reduce away before BANF (plan_builtin
+  decision 10).
 - The names say both sides of the conversion and mirror each other.
 
 Rejected names: `$pack` / `$unpack` (elsewhere they mean bytes), `$construct_struct` /
@@ -118,7 +119,7 @@ Rejected names: `$pack` / `$unpack` (elsewhere they mean bytes), `$construct_str
 
 ### 3. A list of fields is a chain of `{more, label, value, rest}` structs
 
-The kernel has no lists, so a list is plain structs that today's syntax can build and read:
+oymomo has no lists, so a list is plain structs that today's syntax can build and read:
 
 ```
 empty    = {more = [00]}
@@ -161,7 +162,7 @@ Non-UTF-8 labels are stuck so that every struct stays one a literal could write.
 ### 8. `banf_shape` reduces both away; a stuck one is rejected
 
 `banf_shape` reduces each call with its `reduce` (decision 1). A call still stuck reaches
-`banf_translate.convert`, which rejects it like any kernel-only built-in:
+`banf_translate.convert`, which rejects it like any reduction-only built-in:
 
 ```
 $struct_to_fields has no opcode, so it must reduce away: its argument must reduce to a struct.

@@ -276,7 +276,7 @@ def test_switch_past_its_last_target_takes_the_last_target():
     engine = llvm.create_mcjit_compiler(llvm_module, machine)
     engine.finalize_object()
     pick = ctypes.CFUNCTYPE(ctypes.c_uint32, ctypes.c_uint8, ctypes.c_uint32)(engine.get_function_address('pick'))
-    # Read as unsigned, as the kernel reads an index: 255 is past the last target, not -1.
+    # Read as unsigned, as reduction reads an index: 255 is past the last target, not -1.
     assert [pick(k, 5) for k in (0, 1, 2, 3, 128, 255)] == [5, 0, 7, 7, 7, 7]
 
 

@@ -33,7 +33,7 @@ class BruijnIndex(Term):
 
 @dataclass
 class Builtin(Term):
-    """A kernel built-in, written `$name`, applied like a function: `$fix g`.
+    """A built-in, written `$name`, applied like a function: `$fix g`.
 
     No binder introduces it, so it means the same at any depth.
     """

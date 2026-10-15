@@ -58,8 +58,8 @@ entry:
 }
 ```
 
-A literal is its bits: `[000000000000f03f]~'f64'` is 1.0. With literal arguments the
-kernel folds `'fmul'` and `'fadd'` to the bits LLVM would compute (decision 5); the
+A literal is its bits: `[000000000000f03f]~'f64'` is 1.0. With literal arguments
+reduction folds `'fmul'` and `'fadd'` to the bits LLVM would compute (decision 5); the
 VM runs them in Python with the same bits ([plan_vm.md](plan_vm.md)).
 
 ## Decisions
@@ -90,7 +90,7 @@ VM runs them in Python with the same bits ([plan_vm.md](plan_vm.md)).
 5. **LLVM's default floating-point environment, and nothing else.** Round to nearest,
    ties to even; no traps; no fast-math flags (`nnan`, `ninf`, `nsz`, `reassoc`,
    ...); no constrained intrinsics. A result is the correctly rounded IEEE 754
-   result, so the kernel, the VM and LLVM agree bit for bit on every non-NaN
+   result, so reduction, the VM and LLVM agree bit for bit on every non-NaN
    result:
    - **`'f64'`** is Python's `float`: `+ - * /` and `math.sqrt` are correctly
      rounded binary64, `math.fmod` is exact.
@@ -99,14 +99,14 @@ VM runs them in Python with the same bits ([plan_vm.md](plan_vm.md)).
      has more than `2 × 24 + 2` bits, so rounding twice gives the same result as
      rounding once.
 6. **A NaN result is never folded.** LLVM doesn't fix which NaN an operation gives
-   (payload and sign may vary by target), so the kernel leaves an operation whose
+   (payload and sign may vary by target), so reduction leaves an operation whose
    result is a NaN unfolded, as it leaves an integer division by zero, and LLVM or
    the hardware picks. The VM gives some NaN; differential tests compare NaNs as
    "is a NaN", not by bits. A NaN *operand* is fine to fold when the result isn't
    a NaN (`'fcmp_uno'` of a NaN is `[01]~'i1'`).
 7. **A conversion LLVM leaves undefined stops the VM.** `fptosi` and `fptoui` of a
-   NaN, an infinity, or a value out of the target's range are poison in LLVM; the
-   kernel doesn't fold them, and the VM raises
+   NaN, an infinity, or a value out of the target's range are poison in LLVM;
+   reduction doesn't fold them, and the VM raises
    `VmError: fptosi f64 to i32: 3e10 is out of range.`, as for integer division by
    zero ([plan_vm.md](plan_vm.md) decision 4). The saturating
    `llvm.fptosi.sat` is open question 3.
@@ -164,8 +164,8 @@ field, folded on literals except where decisions 6 and 7 say not.
     (`'bitcast' {'f32', x, 'i32'}`, LLVM's `bitcast float %x to i32`). It works on any two forms of
     the same size that LLVM can bitcast (not structs), so it is not float-only.
 11. **Intrinsics, only the exact ones.** Each is LLVM's `llvm.NAME` intrinsic, named
-    without the prefix, and each has one correctly rounded or exact result, so the
-    kernel and the VM can compute it with Python:
+    without the prefix, and each has one correctly rounded or exact result, so
+    reduction and the VM can compute it with Python:
 
     | Symbol | Fields | LLVM |
     |---|---|---|
@@ -221,7 +221,7 @@ None. `'f32'` and `'f64'` had no LLVM type before, and the new symbols were unkn
 >    `f32`; `'f128'` and `x86_fp80` need software arithmetic in the VM. Which, and
 >    when?
 > 2. **Decimal literals** (decision 2). `1.5~'f64'` as parser sugar for the bytes
->    `[000000000000f83f]`, so the kernel still sees only byte arrays. Hex float
+>    `[000000000000f83f]`, so oymomo still sees only byte arrays. Hex float
 >    (`0x1.8p0`) would be exact; decimal needs a rounding rule (nearest, as C).
 >    The printer would show floats the same way.
 > 3. **Saturating conversions** (decision 7). `llvm.fptosi.sat` and
@@ -232,7 +232,7 @@ None. `'f32'` and `'f64'` had no LLVM type before, and the new symbols were unkn
 >    depends on `form` (as `'add'` and `'fadd'` are kept apart, that would be the
 >    only overload), or a distinct name (`'trunc_toward_zero'`, `'ftrunc'`)?
 > 5. **Float vectors.** Once [plan_memory.md](plan_memory.md) step 5 adds vectors,
->    every symbol here accepts a float vector where LLVM does; the kernel folds only
+>    every symbol here accepts a float vector where LLVM does; reduction folds only
 >    scalars.
 
 ---

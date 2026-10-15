@@ -89,7 +89,7 @@ if c then t else e           parses to   {e, t} c
        return None
    ```
 
-### Kernel
+### Reduction
 
 4. **No new reduction rule.** `reduction.reduce` already steps `Apply(Struct, index)`. The
    `If` case and `_TRUE`/`_FALSE` go.
@@ -155,7 +155,7 @@ if c then t else e           parses to   {e, t} c
 ### Scope
 
 12. **A branch has exactly two fields.** `banf_translate` rejects any other count with
-    `'A branch needs two fields, {else, then}.'`. The kernel already reduces
+    `'A branch needs two fields, {else, then}.'`. Reduction already reduces
     `{a, b, c} [02]`; only BANF limits the count. Allowing N fields is an N-way switch,
     which needs a new terminator, a selector form, a default, and a rule for repeated
     targets. That is a feature, while this plan is a refactor, so it gets its own plan

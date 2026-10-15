@@ -345,7 +345,7 @@ def test_an_opcode_reduces_its_fields_then_folds():
 
 
 def test_an_opcode_with_the_wrong_number_of_fields_reduces_its_fields_but_does_not_fold():
-    # The kernel's rule for `'name' {...}` doesn't depend on the opcode: it reduces every field.
+    # Reduction's rule for `'name' {...}` doesn't depend on the opcode: it reduces every field.
     term = resolved("'add' {'i32', (i -> i) [01000000]}", FREE)
     assert banf_shape.reduce_until_top_stable(term) == resolved("'add' {'i32', [01000000]}", FREE)
 

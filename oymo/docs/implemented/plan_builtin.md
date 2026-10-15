@@ -26,7 +26,7 @@ entry.** Today there are two kinds:
 | Kind | Today | Cost of a new one |
 |---|---|---|
 | opcodes (`add_i32`) | `prim.add_i32 {...}`, where `prim` is the program's outermost binder | a table entry |
-| kernel built-ins (`fix`) | `fix g`, its own term and keyword | a term, a rule, a keyword, cases in 5 modules |
+| built-ins (`fix`) | `fix g`, its own term and keyword | a term, a rule, a keyword, cases in 5 modules |
 
 `prim` can't hold `fix`: it is a binder, so its index depends on depth (`$3` under three
 lambdas), and `reduce`, which sees only the term, can't recognize `prim.fix`.
@@ -49,11 +49,11 @@ prim -> fix -> prim fix              plain names: nothing is reserved
 
 1. **A value struct applied to a literal index is a BANF op, `GetIndex`.** `s [01]`,
    where `s` is an atom (a let name or `args.p`), reads field 1, as `s.y` reads field
-   `y`. The kernel's struct apply rule already gives `s i` this meaning; BANF now keeps
+   `y`. Reduction's struct apply rule already gives `s i` this meaning; BANF now keeps
    it when `s` is a value instead of a struct literal. LLVM translates it to
    `extractvalue`, as it does `GetField`.
 2. **`prim.extractvalue`, `DynamicPrim`, `DYNAMIC_PRIMS` and `PrimFormError` go.** They
-   existed only for this. One syntax, `s [01]`, reads a field by index in the kernel
+   existed only for this. One syntax, `s [01]`, reads a field by index in reduction
    and in BANF.
 3. **The index is a byte array literal, read by `reduction.index_value`**: unsigned
    little-endian, any length, a form on it ignored. It needs no int form, unlike
@@ -70,7 +70,7 @@ prim -> fix -> prim fix              plain names: nothing is reserved
 5. **One leaf term, `Builtin(name)`, written `$name`.** `$` followed by digits stays a
    `BruijnIndex` (`$0`); an identifier can't start with a digit, so the two never
    overlap. `$` marks a reference that no user name binds: `$0` is bound by position,
-   `$fix` by the kernel. User names are always written bare. No trivia between `$` and
+   `$fix` by oymomo. User names are always written bare. No trivia between `$` and
    the name; the name is a plain identifier.
 6. **Every built-in is a separate constant**, not a field of a global struct: there is
    no `$` value to project from, apply, or unpack.
@@ -89,9 +89,9 @@ prim -> fix -> prim fix              plain names: nothing is reserved
    | `add_i32` and the other prims | later: constant folding | yes |
    | `unpack`, `pack` (plan_struct_pack) | yes | no |
 
-10. **Kernel-only built-ins never reach BANF.** A built-in is kernel-only when it has a
-    rule and no opcode (`fix`, `unpack`, `pack`). This comes from the tables, with
-    no flag to keep in sync. An opcode is a name in `OPCODES`, and the existing test
+10. **Reduction-only built-ins never reach BANF.** A built-in is reduction-only when it
+    has a rule and no opcode (`fix`, `unpack`, `pack`). This comes from the tables,
+    with no flag to keep in sync. An opcode is a name in `OPCODES`, and the existing test
     keeps `OPCODES` and `DEFAULT_OPCODES` in step.
     - **Reduction removes them.** Every position `banf_reduce` visits is taken to whnf,
       and an applied built-in whose rule fires is gone: `$fix g` always fires, and
@@ -100,7 +100,7 @@ prim -> fix -> prim fix              plain names: nothing is reserved
       `Apply(Builtin(name), arg)` to `OpcodeCall`, and that case accepts only names in
       `OPCODES`. Any other position that still holds a `Builtin` is not a BANF shape and
       is rejected anyway. `banf.verify` checks `OPCODES` again, as it does today.
-    - **One message for each way a kernel-only built-in can be left over:**
+    - **One message for each way a reduction-only built-in can be left over:**
 
       | Left over | Why | Message |
       |---|---|---|
@@ -135,7 +135,7 @@ prim -> fix -> prim fix              plain names: nothing is reserved
     matches on them.
 15. **"prim" goes from the code (step 2).** Everything written `$name` is a
     **built-in**. A built-in with machine code is an **opcode**, the word Cranelift and
-    LLVM use for `iadd` / `add`; a kernel-only built-in has a rule and no opcode. The
+    LLVM use for `iadd` / `add`; a reduction-only built-in has a rule and no opcode. The
     printed name (`add_i32` in `t3 = add_i32 n, t2`) is the opcode's mnemonic.
 
     | Today | After |
@@ -177,7 +177,7 @@ class GetIndex:
 ```python
 @dataclass
 class Builtin(Term):
-    """A kernel built-in, written `$name`, applied like a function: `$fix g`."""
+    """A built-in, written `$name`, applied like a function: `$fix g`."""
 
     name: str
     location: Location | None = field(default=None, compare=False)
@@ -341,7 +341,7 @@ Commit: `oymomo: prims are $name built-ins`
   - `banf_reduce`: `$fix (self -> n -> n) a` → `a`.
   - `banf_translate`: `let t = $fix in t` is `$fix must be applied.`
   - Every `fix g` in the tests becomes `$fix g`. `fix -> fix` is a lambda.
-- `docs/notes.md`: the kernel syntax table, precedence, reserved words
+- `docs/notes.md`: the oymomo syntax table, precedence, reserved words
   (`if then else let in`), the `reduce` list, "Heads", the fuel example, and
   "Why recursion needs no `fix`".
 
@@ -387,7 +387,7 @@ reduces to `[03000000]: 'i32'`. It must decide at least:
 
 Also rewrite `plan_struct_pack.md` on this plan: `unpack s` and `pack l` become
 `$unpack s` and `$pack l`, two entries in `reduction.BUILTIN_RULES` (both strict, both
-kernel-only), instead of two terms and two reserved words. Its decision 1 and its
+reduction-only), instead of two terms and two reserved words. Its decision 1 and its
 affected modules change; its open questions stay.
 
 - Status of this plan: **implemented**; `plans.md` moves it to Closed.

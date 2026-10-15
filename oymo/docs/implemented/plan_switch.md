@@ -7,12 +7,12 @@ Status: **implemented**.
 One commit each. Each step leaves `hatch run full-check` green. Details are in
 [Implementation steps](#implementation-steps).
 
-- [x] 1. A struct applied to an index past its last field selects the last field, in the kernel and in BANF `GetIndex` (`oymomo: an index past the last field selects the last field`)
+- [x] 1. A struct applied to an index past its last field selects the last field, in reduction and in BANF `GetIndex` (`oymomo: an index past the last field selects the last field`)
 - [x] 2. BANF `Switch` terminator, verified and lowered to LLVM `switch`, additive (`oymomo: banf Switch terminator`)
 - [x] 3. `{a0, a1, ..., an} i` with three or more fields is a `Switch` (`oymomo: a struct of jumps applied to an index is a switch`)
 - [x] 4. A switch may repeat a target with the same args (`oymomo: a switch may repeat a target`)
 
-Step 1 changes what the kernel means, so that step 2's `Switch` keeps the kernel's
+Step 1 changes what reduction means, so that step 2's `Switch` keeps reduction's
 meaning instead of adding one. Step 2 only adds BANF and LLVM code, tested on BANF
 modules built directly. Step 3 is the only step that changes what oymomo source
 translates to. Step 4 is independent of step 3 and could be dropped. Built on
@@ -23,7 +23,7 @@ atom is a BANF `Branch` (its decision 12 leaves out other counts).
 ## Goal
 
 **A struct of jumps applied to a run-time index jumps to the field at that index.**
-After step 1 the kernel gives `{a0, ..., an} i` that meaning for a literal `i`, with an
+After step 1 reduction gives `{a0, ..., an} i` that meaning for a literal `i`, with an
 index past the last field selecting the last field (decision 1). BANF keeps it when
 `i` is a value, as it does for two fields:
 
@@ -45,7 +45,7 @@ blocks needs N-1 compares and branches, each in its own block.
 
 ## Decisions
 
-### Kernel (step 1)
+### Reduction (step 1)
 
 1. **A struct applied to an index at or past its length selects its last field.**
    In [`reduce`](../../src/oymo/oymomo/reduction.py): `{a, b, c} [07]` → `c`, where today it
@@ -80,14 +80,14 @@ blocks needs N-1 compares and branches, each in its own block.
    `Branch` keeps its printing (`branch c, a(), b()`), its `i1` check and its `br`
    lowering, so every `if` stays exactly as it is. Merging the two would change every
    printed BANF branch and every LLVM `br` for no gain.
-5. **BANF puts no requirement on the selector's form**, as the kernel puts none on an
+5. **BANF puts no requirement on the selector's form**, as reduction puts none on an
    index. `verify` checks the selector's scope and each target's arg count, nothing
    about the selector's form or how many targets it can hold. Which selectors can be
    lowered is LLVM translation's concern (decision 11). A switch with no targets is
    rejected ("A switch needs a target."), as `{} i` is stuck: there is no last target.
 6. **Target `k` is taken when the selector equals `k`**, read as unsigned, as
    `reduction.index_value` reads an index.
-7. **An index past the last target takes the last target**, as in the kernel
+7. **An index past the last target takes the last target**, as in reduction
    (decision 1). It needs no default in BANF, so it keeps
    [plan_banf_explicit.md](plan_banf_explicit.md)'s "no defaults".
    Undefined behavior (`unreachable`) and requiring exactly as many targets as the

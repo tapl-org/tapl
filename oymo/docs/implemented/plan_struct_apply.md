@@ -36,7 +36,7 @@ index with `prim.extractvalue {struct = s, index = [01]: 'i8'}`, as well as by l
 
 ## Decisions
 
-### Kernel
+### Reduction
 
 1. **A field's label is optional.** `{'1', b = '2'}` has an unlabeled field and a field
    `b`. An unlabeled field's label is the empty string (`Field.label == ''`). A written
@@ -68,7 +68,7 @@ index with `prim.extractvalue {struct = s, index = [01]: 'i8'}`, as well as by l
 ### BANF
 
 10. **`prim`, `module`, `blocks` and `args` are always accessed by a label.** They are
-    binders, not structs. In the kernel a struct apply works on any struct, so a struct of
+    binders, not structs. In reduction a struct apply works on any struct, so a struct of
     functions can be called by index: `(blocks -> blocks [01] x) {a = f, b = g}` reduces
     to `g x`. In BANF, `args [00]`, `blocks [01] {...}`, `module [00] {...}` and
     `prim [00] {...}` stay stuck, and `convert` rejects them with today's messages. A

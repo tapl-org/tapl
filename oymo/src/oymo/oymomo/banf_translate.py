@@ -21,7 +21,7 @@ class TranslationError(Exception):
         self.location = location
 
 
-# For a kernel-only built-in left in the term: what its argument must reduce to for it to
+# For a reduction-only built-in left in the term: what its argument must reduce to for it to
 # reduce away. Used only in the error message.
 _MUST_REDUCE_TO = {
     'fix': 'a lambda',
@@ -295,7 +295,7 @@ class _Translator:
             case terms.Apply(function=terms.ByteArray() as name, argument=arg):
                 return self.opcode_call(name, arg, block, location)
             case terms.Apply(function=terms.Builtin(name=name)):
-                # A built-in is kernel-only: it should have reduced away, and is left only
+                # A built-in is reduction-only: it should have reduced away, and is left only
                 # when its rule couldn't fire.
                 if name in reduction.BUILTINS:
                     must = _MUST_REDUCE_TO.get(name)

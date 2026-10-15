@@ -8,7 +8,7 @@ ignored. An opcode has no declared params: it reads its fields itself, by positi
 tells what it can from them. `form_of` gives the result's form, `evaluate` the result's
 bytes when every field it needs is a literal.
 
-Shared by the kernel (`reduction`), BANF (`banf_translate`) and LLVM (`llvm_opcodes`), so it
+Shared by `reduction`, BANF (`banf_translate`) and LLVM (`llvm_opcodes`), so it
 holds no BANF and no LLVM and imports only `terms`.
 """
 
@@ -32,7 +32,7 @@ class Opcode:
     `form_of`: the result's form, or None if unknown.
     `evaluate`: the result's value as LLVM computes it, or None if the needed fields
     aren't literals or LLVM leaves the result undefined.
-    `pure`: has no side effects, so the kernel may evaluate it.
+    `pure`: has no side effects, so reduction may fold it.
     """
 
     name: str

@@ -253,7 +253,7 @@ def field_index(form: terms.Term, label: str) -> int:
 
 def indexed_field(form: terms.Term, index: int, location: Location | None = None) -> tuple[int, terms.Term]:
     """The position and form of the field `GetIndex` reads: `index`, or the last field if
-    `index` is past it, as in the kernel."""
+    `index` is past it, as in reduction."""
     if isinstance(form, terms.Struct) and form.fields:
         position = min(index, len(form.fields) - 1)
         return position, form.fields[position].value
@@ -322,7 +322,7 @@ def _verify_function(function, module):
                 _check_jump(function, branch.then_target, branch.then_args, forms, branch.location)
                 _check_jump(function, branch.else_target, branch.else_args, forms, branch.location)
             case Switch() as switch:
-                # Nothing about the selector's form, as the kernel puts nothing on an index:
+                # Nothing about the selector's form, as reduction puts nothing on an index:
                 # which selectors can be lowered is up to the backend.
                 atom_form(switch.selector, forms)
                 if not switch.targets:

@@ -5,7 +5,7 @@ Status: **paused**, with open questions; 1 of 6 steps.
 > [!NOTE]
 > Step 3 was done ahead of the rest, with no VM code, under the name **opcode**: the
 > table is `opcodes.py` (`Opcode`, `OPCODES`), the BANF op is
-> `OpcodeCall(opcode, forms, args)`, an entry computes with `evaluate`, and the kernel
+> `OpcodeCall(opcode, forms, args)`, an entry computes with `evaluate`, and reduction
 > folds through `reduction.fold_opcode`. Where this plan says *VM symbol*, `vm_symbols.py`,
 > `VmSymbol`, `VmCall` or `run`, read *opcode*, `opcodes.py`, `Opcode`,
 > `OpcodeCall` or `evaluate`. Old `$add_i32` names are a plain
@@ -23,7 +23,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [ ] 5. VM symbols that are not LLVM instructions: `'ctpop'`, `'trace'`, as host functions (`oymomo: add VM-only symbols`)
 - [ ] 6. Memory as a host library (`oymomo: add memory to the VM`)
 
-Steps 1 and 2 need nothing new in the kernel or BANF: the VM runs the BANF that
+Steps 1 and 2 need nothing new in reduction or BANF: the VM runs the BANF that
 LLVM gets today. Step 3 is the one breaking step: it renames every opcode, moves
 `opcodes.py`, constant folding and `llvm_opcodes.py` into one table, and makes the
 form an operand. [plan_memory.md](plan_memory.md) steps 2 and 3 need step 3 (memory
@@ -42,7 +42,7 @@ and makes nothing; the spinner gives it motion and the fleece its material. So i
 this VM without a host: inert bytecode that runs only when the host resumes it, on
 the host's data. And a spindle spins fibers. Its modules are `spindle.py`,
 `spindle_bytecode.py`, `spindle_compile.py`, `spindle_lib.py`, `spindle_layout.py`.
-The table of VM symbols keeps its name (`vm_symbols.py`, `VmCall`): the kernel and
+The table of VM symbols keeps its name (`vm_symbols.py`, `VmCall`): reduction and
 LLVM read it too, so it is not Spindle's alone.
 
 ```
@@ -90,7 +90,7 @@ fiber.resume(15)   # Returned(5): ctpop(15) + 1
 ```
 
 `'add'` is LLVM's `add`, run by the VM core; `'ctpop'` is LLVM's `llvm.ctpop`, run by
-a host function from `spindle_lib`; with literal arguments the kernel folds both
+a host function from `spindle_lib`; with literal arguments reduction folds both
 (decision 8). `module.putchar` and `module.ask` are imports: the host binds them in
 the VM, the linker in LLVM. `ask` yields: the fiber stops, `resume` returns to the
 host, and the next `resume` gives the call its result. (`$after` is
@@ -100,8 +100,8 @@ host, and the next `resume` gives the call its result. (`$after` is
 
 ### What the VM runs (steps 1, 2)
 
-1. **The VM runs bytecode compiled from verified BANF.** Not the kernel terms (the
-   kernel has no blocks, no calls, no effects order) and not BANF directly: compiling
+1. **The VM runs bytecode compiled from verified BANF.** Not the oymomo terms (oymomo
+   has no blocks, no calls, no effects order) and not BANF directly: compiling
    resolves every name to a slot and every block label to an offset once, so the
    interpreter loop does no lookups. `spindle_compile` takes only modules that
    `banf_terms.verify` accepts, so it never checks a form.
@@ -138,7 +138,7 @@ host, and the next `resume` gives the call its result. (`$after` is
    `opcodes.evaluate` gives `None` (division by zero, a shift by the width or more),
    LLVM's result is undefined or poison; the VM raises
    `SpindleError: udiv i32: division by zero, in 'main' block 'entry'.` rather than pick a
-   value. The kernel already doesn't fold these.
+   value. Reduction already doesn't fold these.
 5. **VM calls don't use the Python stack; fuel suspends.** The interpreter is one
    loop over the fiber's frames, so a deep oymomo recursion costs memory, not Python
    recursion depth. Only a host function calling back into the VM nests a loop
@@ -165,7 +165,7 @@ host, and the next `resume` gives the call its result. (`$after` is
    `Spindle(...)` checks that every import and symbol the program calls is bound:
    `SpindleError: import 'putchar' is not bound.`, `SpindleError: symbol 'ctpop' is not bound.`
 7. **A VM symbol is called as a byte array applied to a struct.** `'name' {args}` is
-   `Apply(ByteArray, Struct)`, a shape the kernel already leaves stuck (no rule
+   `Apply(ByteArray, Struct)`, a shape reduction already leaves stuck (no rule
    matches a byte array in function position), so it needs no new term. Each table
    entry has:
 
@@ -176,7 +176,7 @@ host, and the next `resume` gives the call its result. (`$after` is
    | `accepts` | which forms each form param may be: `'add' takes an integer form, got ptr.` |
    | `pure` | it reads and writes nothing but its arguments and result |
    | `core` | the VM core runs it as `op`; otherwise it is a host function (decision 6) |
-   | `run` | the Python function on Python values (decision 2): the core's `op`, `spindle_lib`'s default, and the kernel's fold |
+   | `run` | the Python function on Python values (decision 2): the core's `op`, `spindle_lib`'s default, and reduction's fold |
    | `llvm` | how LLVM lowers it, or `None` |
 
    `convert` turns `'name' {...}` into a BANF op `VmCall(name, forms, args)`: the
@@ -197,7 +197,7 @@ host, and the next `resume` gives the call its result. (`$after` is
    `llvm` is `'name' runs only in the VM.` This is also why decision 8 of
    [plan_memory.md](plan_memory.md) writes LLVM's aggregate types as tagged pairs
    (`{'array', {...}}`) and not as `'array' {...}`: that shape is a call.
-8. **The kernel folds a pure VM symbol on literal arguments**, one rule for every
+8. **Reduction folds a pure VM symbol on literal arguments**, one rule for every
    symbol: when the name is a pure symbol, every form param is a literal form it
    folds on (integer forms, for now), and every value param a literal of its form,
    `run` gives the result, formed as `result`. This is today's constant folding
@@ -208,15 +208,15 @@ host, and the next `resume` gives the call its result. (`$after` is
    asks of every built-in rule. `vm_symbols.py` imports only `terms`, so `reduction` can
    use it; LLVM lowerings are attached in `llvm_opcodes.py`, keyed by name, so the
    table stays free of llvmlite. Folding uses `run` from the table, never the host's
-   binding, so a host that replaces a symbol can't change what the kernel computes.
-9. **`$` is kept only where the kernel or `convert` treats a term specially.** A VM
+   binding, so a host that replaces a symbol can't change what reduction computes.
+9. **`$` is kept only where reduction or `convert` treats a term specially.** A VM
    symbol is a function on values, so it has no `$`. What keeps it:
 
    | Built-in | Why it isn't a VM symbol |
    |---|---|
-   | `$fix` | a kernel rule on terms, not values |
+   | `$fix` | a reduction rule on terms, not values |
    | `$struct_to_fields`, `$fields_to_struct` | they rewrite terms, and must reduce away before BANF |
-   | `$after` | the kernel must not see through it, and `convert` drops it ([plan_memory.md](plan_memory.md)) |
+   | `$after` | reduction must not see through it, and `convert` drops it ([plan_memory.md](plan_memory.md)) |
 
 ### Opcodes polymorphic in `form` (step 3)
 
@@ -261,7 +261,7 @@ host, and the next `resume` gives the call its result. (`$after` is
       `or`, `xor`, `icmp_eq`, `icmp_ne` also `'i1'`, as today; `zext` and `sext` need `to`
       wider than `form`, `trunc` narrower: `'zext': to must be wider than i32, got i8.`
       Once [plan_memory.md](plan_memory.md) step 5 adds vectors, an integer vector is
-      accepted wherever LLVM accepts one; the kernel folds only scalar integer forms.
+      accepted wherever LLVM accepts one; reduction folds only scalar integer forms.
     - **BANF ops carry their form params**, as LLVM's instructions carry their type.
       [notes.md › BANF](notes.md#banf)'s "ops carry no form, as in Cranelift" no
       longer holds for `VmCall`.
@@ -447,7 +447,7 @@ Step 3: every opcode is renamed and takes its form as a field.
 | BANF `add_i32 x, y` | BANF `add i32 x, y` |
 
 The old names give an error that names the new spelling (design C). Steps 1, 2, 4, 5
-and 6 break nothing: `'name' {args}` was stuck in the kernel and an error in
+and 6 break nothing: `'name' {args}` was stuck in reduction and an error in
 `convert`.
 
 ---
@@ -566,7 +566,7 @@ Commit: `oymomo: VM coroutines`
 - Tests:
   - `spindle`: `'ctpop' {'i32', 7}` is 3; `trace` records its argument in the host's
     list and gives it back; two `trace`s chained with `$after` record in order; a
-    host that rebinds `'ctpop'` changes what the VM gives, not what the kernel folds.
+    host that rebinds `'ctpop'` changes what the VM gives, not what reduction folds.
   - `reduction`: `ctpop` folds on a literal; `trace` never does.
   - `llvm_translate`: `ctpop` is `call i32 @llvm.ctpop.i32` and runs under the JIT
     with the VM's result; `trace` is `'trace' runs only in the VM.`

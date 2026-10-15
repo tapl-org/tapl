@@ -44,7 +44,7 @@ argument first (shape):     (x~'i16' -> x) (a~'i8')   →  a~'i16'
 
 No rule takes `(a~'i8')~'i16'` to `a~'i16'`, so the two never meet. Translation
 hides it, because the written form replaces the atom's form
-([notes.md › Forms](notes.md#forms)), but the kernel itself is not confluent.
+([notes.md › Forms](notes.md#forms)), but reduction itself is not confluent.
 
 ## Decisions
 
@@ -186,7 +186,7 @@ hides it, because the written form replaces the atom's form
 3. **Random terms: a seeded hand-written generator, or `hypothesis`?** Hypothesis
    shrinks counterexamples, but it adds a dependency to `hatch-test`.
 4. **Should `normalize` live in `src`, as `reduction.normalize`?** It could serve as a
-   debugging and printing aid. Test-only keeps the kernel small.
+   debugging and printing aid. Test-only keeps `reduction` small.
 
 ## Out of scope
 

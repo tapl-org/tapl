@@ -10,7 +10,7 @@ is checked off when all its plans are closed. The language is called **Anvil**
 ## Steps
 
 - [ ] 0. Decisions: name, syntax, layer semantics, memory model ([Phase 0](#phase-0--decisions))
-- [ ] 1. oymomo kernel gaps for C ([Phase 1](#phase-1--oymomo-kernel-gaps-for-c))
+- [ ] 1. oymomo gaps for C ([Phase 1](#phase-1--oymomo-gaps-for-c))
 - [ ] 2. Toolchain: from oymomo to a running binary ([Phase 2](#phase-2--toolchain-from-oymomo-to-a-running-binary))
 - [ ] 3. C ABI lowering in `llvm_abi.py` ([Phase 3](#phase-3--c-abi-lowering-llvm_abipy))
 - [ ] 4. Anvil frontend, layer 0 only ([Phase 4](#phase-4--anvil-frontend-layer-0-only))
@@ -124,14 +124,14 @@ function's layer-1 version checks its arguments' types; an error stops the build
 **0.4 Memory model.** Manual (`malloc` / `free`, as C and Zig) to start. No GC, so
 pointers pass freely to C.
 
-### Phase 1 — oymomo kernel gaps for C
+### Phase 1 — oymomo gaps for C
 
 | # | Plan | Why C needs it |
 |---|---|---|
 | 1.1 | Memory: regions, load, store (exists: [plan_memory.md](plan_memory.md)); then `'ptr'`, `$region {address, size}` and `$address {mem}` to cross between C memory and regions, with a token for imports | Pointers are C's main data type |
 | 1.2 | `void`: `=> {}` returns, a call as a statement | Most C APIs return `void` |
 | 1.3 | Floats: `'f32'`, `'f64'`, arithmetic, comparisons, int↔float (exists: [plan_floats.md](plan_floats.md)) | `double` everywhere in libc and libm |
-| 1.4 | Field and element addresses: `$gep` on a struct or array form | `&s->x`, `a[i]`; offsets stay in LLVM, not in the kernel |
+| 1.4 | Field and element addresses: `$gep` on a struct or array form | `&s->x`, `a[i]`; offsets stay in LLVM, not in oymomo |
 | 1.5 | Array form `T[N]`, and a decision on unions | C structs contain arrays and unions |
 | 1.6 | Function pointers: `module.f` as an address, indirect call | Callbacks (`qsort`, `atexit`) |
 | 1.7 | Varargs declarations and calls | `printf`, `open` |
@@ -161,7 +161,7 @@ Fallback if 2 is too costly at first: reject by-value structs at the C boundary 
 
 - Grammar on the PEG engine; syntax tree classes with `separate()`, as in TAPL.
 - Lower layer 0 to an oymomo program (the `module -> {...}` shape).
-- Surface constructs map to kernel ones: functions → structs of blocks, `if` / `while`
+- Surface constructs map to oymomo ones: functions → structs of blocks, `if` / `while`
   → blocks and jumps, locals → `alloca`, structs → struct forms.
 - `extern` declarations → `module` imports; `export` → exported symbols.
 - **Milestone: hello world** calling `puts`, built and run.
@@ -199,7 +199,7 @@ closures (they would not cross into C). C++ is out of scope.
 ```mermaid
 flowchart TD
   P0["0 Decisions"] --> P4["4 Frontend, layer 0"]
-  P1["1 Kernel gaps"] --> P2["2 Toolchain"]
+  P1["1 oymomo gaps"] --> P2["2 Toolchain"]
   P2 --> P3["3 C ABI"]
   P1 --> P4
   P4 --> P5["5 Layer 1"]
@@ -218,5 +218,5 @@ flowchart TD
 3. ABI lowering: our own Python code (control, more work) or clang's CodeGen (exact, but
    a C++ dependency on top of llvmlite)?
 4. Unions: a form of their own, or a byte array with a size and alignment (a layout fact
-   the kernel avoids today)?
+   oymomo avoids today)?
 5. Does layer 1 run only on the host (JIT), and may it call C (e.g. `printf` for errors)?

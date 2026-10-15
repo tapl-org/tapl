@@ -137,12 +137,11 @@ def beta(lambda_: terms.Lambda, argument: syntax.Term) -> syntax.Term:
 
 
 BUILTINS = frozenset({'fix', 'struct_to_fields', 'fields_to_struct'})
-"""The kernel-only built-ins: each must reduce away before BANF. Opcodes (`'add' {...}`) are
+"""The reduction-only built-ins: each must reduce away before BANF. Opcodes (`'add' {...}`) are
 not built-ins: `fold_opcode` folds them.
 
 Each fires in `reduce` only once its argument has the constructor it needs (a lambda, a
-struct, a literal list of fields). Reducing the argument to it is the kernel's job
-(`banf_shape`).
+struct, a literal list of fields). Reducing the argument to it is `banf_shape`'s job.
 """
 
 
@@ -220,7 +219,7 @@ def fold_opcode(call: terms.Apply) -> syntax.Term:
     can't evaluate (a run-time operand, no defined result in LLVM).
 
     Root-only: it reduces nothing. The argument must already be a struct literal; reducing
-    it to one, and its fields, is the kernel's job (`banf_shape`). Fields are positional and
+    it to one, and its fields, is `banf_shape`'s job. Fields are positional and
     labels are ignored.
     """
     opcode = opcodes.lookup(call.function)

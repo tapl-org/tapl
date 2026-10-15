@@ -878,7 +878,7 @@ def test_form_must_be_known():
     assert error('main = f -> {entry = args~{} -> [01]}', "main = => 'i8'") == 'Byte array: form must be written.'
 
 
-def test_a_kernel_only_builtin_that_does_not_reduce_away():
+def test_a_reduction_only_builtin_that_does_not_reduce_away():
     # `args.p` is a run-time value, so `$struct_to_fields` can't fire.
     source = "g = f -> {entry = args~{p = {'i8'}} -> let t = $struct_to_fields args.p in t}"
     assert error(source, "g = => 'i8'") == (

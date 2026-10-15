@@ -45,16 +45,16 @@ is the jump `f.a {}`.
    No new term and no new syntax: `$add_i32 {...}` is already a call of a built-in, and a
    name may be in both tables (plan_builtin decision 9). The opcode keeps its entry in
    `opcodes.OPCODES` and `llvm_opcodes.DEFAULT_OPCODES`, so a call that doesn't fold
-   is still an `OpcodeCall`. An opcode is not kernel-only (it has an opcode), so
+   is still an `OpcodeCall`. An opcode is not reduction-only (it has an opcode), so
    `convert` is unchanged and `banf_translate._MUST_REDUCE_TO` gets no entry.
 2. **Signatures and the evaluator live in a neutral `opcodes.py`.** Today's
    `banf_opcodes.py` is renamed: it holds no BANF and no LLVM, only `OpcodeSignature`,
-   `OPCODES` and their generators, and imports only `terms`. So the kernel (`reduction`),
+   `OPCODES` and their generators, and imports only `terms`. So `reduction`,
    BANF (`banf_terms`, `banf_translate`) and LLVM (`llvm_opcodes`) all import it, and no
    layer imports one above it. The one BANF-specific line, the check that no opcode is
    named like a BANF keyword (`_BANF_KEYWORDS`), moves to `banf_terms.py`, which prints
    `OpcodeCall`s.
-   Rejected: `reduction` importing `banf_opcodes` (the kernel would depend on BANF), and
+   Rejected: `reduction` importing `banf_opcodes` (reduction would depend on BANF), and
    `banf_opcodes` registering rules into `reduction.BUILTIN_RULES` (an import side effect:
    whether `$add_i32` folds would depend on what was imported).
 3. **The evaluator is plain Python on integers, next to the signatures.**
@@ -198,7 +198,7 @@ def _fold(signature: opcodes.OpcodeSignature) -> BuiltinRule:
   range, bare or under the param's form (decision 6), read by `_literal_operand`.
 
 `BUILTIN_RULES` gets one such rule per name in `opcodes.OPCODES` whose template is
-folded so far. The comment above `BUILTIN_RULES` (kernel-only means "a rule and no
+folded so far. The comment above `BUILTIN_RULES` (reduction-only means "a rule and no
 opcode") still holds.
 
 ---
@@ -212,7 +212,7 @@ opcode") still holds.
 | `banf_opcodes_test.py` → `opcodes_test.py`, `llvm_translate_test.py` | 1 | renamed import |
 | `reduction.py` | 1 | the `BUILTIN_RULES` comment names `opcodes.OPCODES` |
 | `reduction.py` | 2 | the opcode rules (D), `_literal_operands`, `_literal_operand` |
-| `banf_shape.py`, `banf_translate.py` | — | none: B is in place; an opcode isn't kernel-only |
+| `banf_shape.py`, `banf_translate.py` | — | none: B is in place; an opcode isn't reduction-only |
 | `reduction_test.py` | 2, 3, 4 | the rule under `reduce` (`keep`) |
 | `banf_shape_test.py` | 2 | the rule under `reduce_until_top_stable`; `SAMPLES` for the `reduce` contract |
 | `opcodes_test.py`, `llvm_translate_test.py` | 2 | `evaluate`; fold vs LLVM JIT, per folded opcode |
@@ -231,7 +231,7 @@ Each step is one commit and leaves `hatch run full-check` green. Each step updat
 ### Step 1: opcode signatures move to `opcodes.py`
 
 - `git mv` `banf_opcodes.py` → `opcodes.py` and `banf_opcodes_test.py` →
-  `opcodes_test.py`; the module docstring says it is shared by the kernel, BANF and LLVM.
+  `opcodes_test.py`; the module docstring says it is shared by reduction, BANF and LLVM.
 - `_BANF_KEYWORDS` and its check move to `banf_terms.py`.
 - Imports in `banf_terms.py`, `banf_translate.py`, `llvm_opcodes.py`,
   `llvm_translate_test.py`; the `reduction.BUILTIN_RULES` comment.

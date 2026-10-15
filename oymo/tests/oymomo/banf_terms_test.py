@@ -211,7 +211,7 @@ def test_form_of_get_index():
     # Unlabeled fields are reached the same way.
     unlabeled = terms.Struct([terms.Field('', I8), terms.Field('', I64)])
     assert form_of(GetIndex(Var('p'), 1), {'p': unlabeled}, imports_module()) == I64
-    # Past the last field: the last field, as in the kernel.
+    # Past the last field: the last field, as in reduction.
     assert form_of(GetIndex(Var('p'), 2), {'p': XY}, imports_module()) == I8
     assert form_of(GetIndex(Var('p'), 256), {'p': XY}, imports_module()) == I8
 
@@ -322,7 +322,7 @@ def test_show_switch():
 
 
 def test_verify_accepts_any_selector_form():
-    # BANF puts nothing on the selector's form, as the kernel puts nothing on an index.
+    # BANF puts nothing on the selector's form, as reduction puts nothing on an index.
     verify(switch_module("'i1'", THREE_WAY))
     verify(switch_module("{x = 'i8'}", THREE_WAY))
 

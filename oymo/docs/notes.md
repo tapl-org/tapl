@@ -1,8 +1,8 @@
 # Oymo notes
 
-Oymo compiles **oymomo**, a small lambda-calculus kernel language, to LLVM IR. The
-kernel knows only byte arrays, structs, lambdas and a few built-ins; everything
-else is meant to be built on top of it by higher layers.
+Oymo compiles **oymomo**, a small core lambda-calculus language, to LLVM IR. oymomo
+knows only byte arrays, structs, lambdas and a few built-ins; everything else is
+meant to be built on top of it by higher layers.
 
 ```
 oymomo source --parse--> terms --banf_translate--> BANF --llvm_translate--> LLVM IR
@@ -27,9 +27,9 @@ The [Glossary](glossary.md) defines words like *form*, *BANF*, *atom* or *blocke
 | Know which file does what | [Overview › Where the code lives](#where-the-code-lives) |
 | Write a struct, lambda, let, byte array… | [oymomo syntax › Cheat sheet](#cheat-sheet) |
 | Know how `f a~t` or `x~A => B` groups | [oymomo syntax › Precedence](#precedence) |
-| Know what a form is and how it differs from a type | [The kernel › Forms](#forms) |
+| Know what a form is and how it differs from a type | [oymomo › Forms](#forms) |
 | Know why a mistake isn't reported | [Overview › A generated IR](#a-generated-ir-no-checks-for-user-mistakes) |
-| Know how terms reduce (`reduce`, built-ins, `$fix`) | [The kernel](#the-kernel-forms-built-ins-reduction) |
+| Know how terms reduce (`reduce`, built-ins, `$fix`) | [oymomo](#oymomo-forms-built-ins-reduction) |
 | Declare and define functions, imports and data | [Programs](#programs) |
 | Find an opcode or its operand labels | [Opcodes](#opcodes) |
 | Read BANF output | [BANF](#banf) |
@@ -72,7 +72,7 @@ rejected alternatives. When a plan lands, update the section it changes (see
   - [Builtins and indices: `$name` and `$0`](#builtins-and-indices-name-and-0)
   - [Comments](#comments)
   - [Printer](#printer)
-- [The kernel: forms, built-ins, reduction](#the-kernel-forms-built-ins-reduction)
+- [oymomo: forms, built-ins, reduction](#oymomo-forms-built-ins-reduction)
   - [Forms](#forms)
   - [Built-ins](#built-ins)
   - [`reduce`: one step at the root](#reduce-one-step-at-the-root)
@@ -158,8 +158,8 @@ layouts.
 
 | Word | Meaning | Who knows about it |
 |---|---|---|
-| **Type** | Program-level meaning | Higher layers (not the kernel) |
-| **Form** | Logical structure: how components are arranged | The kernel (oymomo) and BANF |
+| **Type** | Program-level meaning | Higher layers (not oymomo) |
+| **Form** | Logical structure: how components are arranged | oymomo and BANF |
 | **Layout** | Physical memory representation | The backend (LLVM) |
 
 ```
@@ -173,8 +173,8 @@ fine and gives `'hello'~'Int'`. A param's form only replaces the argument's form
 Forms exist so the backend can generate machine code.
 
 Why three words: a backend fact such as "i32 is 4-byte aligned" must not leak into
-the kernel, where `[2a000000]~'i32'` only means "these bytes, read as the form i32".
-More in [The kernel › Forms](#forms).
+oymomo, where `[2a000000]~'i32'` only means "these bytes, read as the form i32".
+More in [oymomo › Forms](#forms).
 
 ### A generated IR: no checks for user mistakes
 
@@ -215,7 +215,7 @@ terms --reduction.resolve--> BruijnIndex terms --banf_shape.shape--> BANF-shaped
 
 | Stage | What it is |
 |---|---|
-| oymomo | The lambda-calculus kernel. Syntax in `grammar.py`, terms in `terms.py`. See [oymomo syntax](#oymomo-syntax). |
+| oymomo | The lambda-calculus language. Syntax in `grammar.py`, terms in `terms.py`. See [oymomo syntax](#oymomo-syntax). |
 | BANF | A first-order IR shaped like LLVM, with block params instead of phi nodes. See [BANF](#banf). |
 | LLVM | Generated with llvmlite. See [Translation › BANF to LLVM](#banf-to-llvm). |
 
@@ -318,7 +318,7 @@ module has a test of the same name in `tests/oymomo/`.
 | [`banf_rename.py`](../src/oymo/oymomo/banf_rename.py) | Renames binders so none shadow each other |
 | [`banf_translate.py`](../src/oymo/oymomo/banf_translate.py) | `shape`, `convert`, `translate`: oymomo → BANF |
 | [`banf_terms.py`](../src/oymo/oymomo/banf_terms.py) | BANF classes, `form_of`, verifier, BANF printer |
-| [`opcodes.py`](../src/oymo/oymomo/opcodes.py) | The opcodes (`OPCODES`): params, accepted forms, folding; no BANF and no LLVM; shared by the kernel, BANF and LLVM |
+| [`opcodes.py`](../src/oymo/oymomo/opcodes.py) | The opcodes (`OPCODES`): params, accepted forms, folding; no BANF and no LLVM; shared by reduction, BANF and LLVM |
 | [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) | llvmlite code for each opcode (`DEFAULT_OPCODES`) |
 | [`llvm_translate.py`](../src/oymo/oymomo/llvm_translate.py) | BANF → LLVM IR, `Target` |
 
@@ -326,7 +326,7 @@ Import rules:
 - Only `llvm_*.py` imports llvmlite.
 - No `banf_*.py` imports an `llvm_*.py`. BANF depends only on `oymomo.terms` and
   `opcodes.py`.
-- `opcodes.py` imports only `terms`, so the kernel, BANF and LLVM can all import it.
+- `opcodes.py` imports only `terms`, so reduction, BANF and LLVM can all import it.
 
 Anything LLVM needs that BANF doesn't have is passed to the LLVM translator:
 
@@ -366,10 +366,10 @@ subpackage, without extra `__init__.py` files and import paths.
 
 ## oymomo syntax
 
-The surface syntax of the oymomo kernel, parsed by
+The surface syntax of oymomo, parsed by
 [`grammar.py`](../src/oymo/oymomo/grammar.py) into the terms in
 [`terms.py`](../src/oymo/oymomo/terms.py). What terms *mean* is in
-[The kernel](#the-kernel-forms-built-ins-reduction); what a whole program looks like is in
+[oymomo](#oymomo-forms-built-ins-reduction); what a whole program looks like is in
 [Programs](#programs).
 
 ### Cheat sheet
@@ -474,7 +474,7 @@ x~{c = 'i8'} => 'i32' -> x
   `x~a -> b -> c` is the lambda `x~a` with body `b -> c`. A lambda or an
   application in it needs parentheses: `x~(a -> b) -> c`, `x~(f a) -> x`.
 - The form may be left out; then it is `Empty` (see
-  [The kernel](#omitted-forms-are-empty)).
+  [oymomo](#omitted-forms-are-empty)).
 - A lambda is tried before `~`, so `x~F -> body` is a lambda with a param form,
   not `x~(F -> body)`.
 
@@ -539,7 +539,7 @@ Two ways to pick a field:
 - `s.a` is a `Project` term. `s.` can't be written, so projection never reaches an
   unlabeled field.
 - `s i` is an ordinary `Apply` with a reduction rule (see
-  [The kernel](#reduce-one-step-at-the-root)). It ignores labels, so every
+  [oymomo](#reduce-one-step-at-the-root)). It ignores labels, so every
   field is reachable, unlabeled and duplicate ones included. `i` can be computed at
   run time.
 - An index is an unsigned little-endian integer of any length, starting at 0:
@@ -579,7 +579,7 @@ if c then t else e           parses to   {e, t} c
 
 ### Byte arrays
 
-The kernel has no numbers, only bytes.
+oymomo has no numbers, only bytes.
 
 ```
 [2a000000]~'i32'             42, as an i32
@@ -656,14 +656,14 @@ symbols, including mangled names from higher layers. More in
 | Syntax | Term | Bound by |
 |---|---|---|
 | `$0`, `$1`… | `BruijnIndex` | position (`$0` = nearest binder) |
-| `$fix` | `Builtin` | the kernel |
+| `$fix` | `Builtin` | oymomo |
 
 - An identifier can't start with a digit, so the two never overlap.
 - No space after `$`, and no quotes: `$ fix` and `$"fix"` are errors.
 - Nothing is reserved after `$`; the parser accepts any `$name`.
 - `$name` is an atom, like a variable.
 
-What built-ins do: [The kernel › Built-ins](#built-ins).
+What built-ins do: [oymomo › Built-ins](#built-ins).
 
 ### Comments
 
@@ -712,7 +712,7 @@ Pretty mode breaks a term wider than `width` (default 80), indenting by `indent`
 Compact mode lets grammar tests check nesting by comparing with parenthesized
 source: `show(parse('f a b')) == show(parse('(f a) b'))`.
 
-## The kernel: forms, built-ins, reduction
+## oymomo: forms, built-ins, reduction
 
 What oymomo terms mean. Syntax is in [oymomo syntax](#oymomo-syntax).
 
@@ -791,7 +791,7 @@ name whose LLVM type differs from the name's.
 
 ### Built-ins
 
-Kernel helpers are **built-ins**, each a global constant written `$name`:
+oymomo's helpers are **built-ins**, each a global constant written `$name`:
 
 ```
 $fix g
@@ -810,13 +810,13 @@ Rules live in two places:
 
 | Table | File | Gives |
 |---|---|---|
-| `BUILTINS` | [`reduction.py`](../src/oymo/oymomo/reduction.py) | the kernel-only built-ins' names; each has a case in `reduction.reduce` |
+| `BUILTINS` | [`reduction.py`](../src/oymo/oymomo/reduction.py) | the reduction-only built-ins' names; each has a case in `reduction.reduce` |
 | `OPCODES` / `DEFAULT_OPCODES` | [`opcodes.py`](../src/oymo/oymomo/opcodes.py) / [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) | an opcode, and its machine code |
 
 A built-in's rule is a case in `reduction.reduce`, root-only. An opcode has no rule of
 its own: `reduction.fold_opcode(call)` folds it at the root, reducing nothing.
 
-The kernel has one rule for every `'name' arg` (a byte array applied to an argument):
+Reduction has one rule for every `'name' arg` (a byte array applied to an argument):
 the argument must be a struct literal whose fields are byte arrays or structs. So
 `banf_shape` reduces the argument, then each of its fields, whatever the opcode and
 however many fields there are.
@@ -828,7 +828,7 @@ however many fields there are.
 | `$struct_to_fields {l1 = e1, ...}` | gives `{more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}`: labels as UTF-8 bytes, values unreduced, order kept ([plan_struct_pack.md](implemented/plan_struct_pack.md)); must reduce away |
 | `'add' {...}` and every other opcode | on literal fields, the result LLVM would compute: `'add' {'i32', [01000000], [02000000]}` gives `[03000000]~'i32'`; needs a struct literal with one field per param. Never where LLVM has no defined result ([plan_constant_folding.md](implemented/plan_constant_folding.md)). See [Opcodes › Folding](#folding) |
 
-- Every built-in is **kernel-only**: reduction must remove it.
+- Every built-in is **reduction-only**: reduction must remove it.
 - `reduction.reduce` fires a built-in only once its argument has the constructor it
   needs; it never reduces a part. `banf_shape.unblock` reduces the parts each built-in
   reads. See [Blockers](#blockers).
@@ -1015,7 +1015,7 @@ LLVM:   define i32 @fact(i32 %n)
   `module.add args`, `f.body args`.
 - The expansion happens in oymomo → BANF, so BANF → LLVM stays one-to-one.
 
-Why: the kernel stays a one-argument lambda calculus, and labels at every call site
+Why: oymomo stays a one-argument lambda calculus, and labels at every call site
 stop arguments being mixed up silently. A deeper expansion would have to invent
 names like `p.x`, and LLVM passes struct values anyway.
 
@@ -1069,7 +1069,7 @@ function on values, the same in every program. The table is plain data in
 code is in [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) (`DEFAULT_OPCODES`).
 A test checks that both tables have the same names.
 
-`'name' {...}` is `Apply(ByteArray, Struct)`, a shape the kernel otherwise leaves stuck
+`'name' {...}` is `Apply(ByteArray, Struct)`, a shape reduction otherwise leaves stuck
 (no rule matches a byte array in function position), so it needs no new term.
 
 ### Table
@@ -1342,7 +1342,7 @@ explicitly. Background: [plan_banf_explicit.md](implemented/plan_banf_explicit.m
 #### 1. `reduction.resolve`
 
 Turns names into indices by counting enclosing lambdas. See
-[The kernel › reduce](#reduce-one-step-at-the-root) for the one-step
+[oymomo › reduce](#reduce-one-step-at-the-root) for the one-step
 reducer the next pass uses.
 
 #### 2. `banf_shape.shape`: reduce until each position has its shape
@@ -1520,7 +1520,7 @@ own. A let reference becomes a `banf.Var` named after the BANF let already built
   `let i = [01] in args.p i` work. A run-time value (`args.n`, a let bound to an op)
   or `''` is an error ("An index must be a byte array literal, such as [01]."),
   since LLVM's `extractvalue` needs a constant. Past the last field it reads the last
-  field, as in the kernel (`args.p [02]` on `{i32, i8}` is `p.2`, an `i8`, lowered to
+  field, as in reduction (`args.p [02]` on `{i32, i8}` is `p.2`, an `i8`, lowered to
   `extractvalue ..., 1`); a form with no fields is "Form i32 has no field at index
   0.". Binders are read only by label, so `args [00]` is an
   error.
@@ -1559,7 +1559,7 @@ explicit `let t0` keeps every name in the source.
 operand is an error. All of this holds for `{e, t} c`, which is the same term.
 - Three or more fields are a BANF `Switch`: `{f.a {}, f.b {}, f.c {x = args.x}} args.k`
   is `switch k, a(), b(), c(x)`, which jumps to field `k`, or to the last field if `k`
-  is past it, as in the kernel. BANF puts nothing on `k`'s form; LLVM translation
+  is past it, as in reduction. BANF puts nothing on `k`'s form; LLVM translation
   needs an `iN` with room for the cases (`i1` holds 3 targets). A let-bound switch is
   substituted into the tail, as an `if` is. One field is "A switch needs two or more
   fields; one is a jump.". A switch may name a block more than once, only with the
@@ -1663,7 +1663,7 @@ message text to find where it's raised.
 
 | Message | Cause | Fix |
 |---|---|---|
-| `<what>: form must be written.` / `Byte array: form must be written.` | A form is needed but omitted (`Empty`); nothing infers one. | Write it: `[01]~'i8'`, `args~{n = 'i32'}`. See [The kernel](#omitted-forms-are-empty). |
+| `<what>: form must be written.` / `Byte array: form must be written.` | A form is needed but omitted (`Empty`); nothing infers one. | Write it: `[01]~'i8'`, `args~{n = 'i32'}`. See [oymomo](#omitted-forms-are-empty). |
 | `<what>: form must be a literal, got <form>.` | A form that didn't reduce to a named form or struct of them. | Use a literal like `'i32'` or `{x = 'i32'}`, or make sure it reduces to one. |
 
 ### Block bodies (`banf_translate.py`)
@@ -1798,12 +1798,12 @@ gives the same BANF), and checks the shaped output compiles to the same BANF.
 2. In [`banf_shape.py`](../src/oymo/oymomo/banf_shape.py), add a case to `unblock`
    that reduces the parts the rule reads (its blockers). A part not reduced there stays
    lazy. Return `t` itself if no part changed.
-3. The parser accepts any `$name`, and `convert` rejects a leftover kernel-only
+3. The parser accepts any `$name`, and `convert` rejects a leftover reduction-only
    built-in. Add what its argument must reduce to in
    `banf_translate._MUST_REDUCE_TO`, for the message.
 4. Add tests in `reduction_test.py` and `banf_shape_test.py` (what is reduced, what
    stays lazy, stuck calls keep what they reduced); update
-   [The kernel › Built-ins](#built-ins).
+   [oymomo › Built-ins](#built-ins).
 
 ### Write a design change
 
@@ -1818,7 +1818,7 @@ Each step updates the section of `docs/notes.md` it changes:
 | Change to | Update |
 |---|---|
 | syntax, precedence, printer | [oymomo syntax](#oymomo-syntax) |
-| forms, built-ins, `reduce` | [The kernel](#the-kernel-forms-built-ins-reduction) |
+| forms, built-ins, `reduce` | [oymomo](#oymomo-forms-built-ins-reduction) |
 | program shape, `module`, declarations | [Programs](#programs) |
 | opcodes | [Opcodes](#opcodes) |
 | BANF classes, ops, printer | [BANF](#banf) |
@@ -1835,10 +1835,10 @@ rules; this file keeps the reasoning. Detailed history of larger changes is in t
 
 ### Type, Form, Layout are three words
 
-The kernel (oymomo) and BANF only know forms. Types belong to higher layers, layouts
-to the backend (LLVM). Keeping the words apart stops a backend detail like "i32 is
-4-byte aligned" from leaking into the kernel, where `[2a000000]~'i32'` only says
-"these bytes, read as the form i32". → [Overview](#type-form-layout)
+oymomo and BANF only know forms. Types belong to higher layers, layouts to the
+backend (LLVM). Keeping the words apart stops a backend detail like "i32 is 4-byte
+aligned" from leaking into oymomo, where `[2a000000]~'i32'` only says "these
+bytes, read as the form i32". → [Overview](#type-form-layout)
 
 ### BANF does not depend on LLVM
 
@@ -1900,7 +1900,7 @@ accepted. The printer prints `→`.
 ### Forms are terms
 
 One syntax and one set of terms for values and forms, so later stages can compute
-forms with the same machinery as values. → [The kernel](#forms-are-terms),
+forms with the same machinery as values. → [oymomo](#forms-are-terms),
 [plan_term_as_form.md](implemented/plan_term_as_form.md)
 
 ### Omitted forms are `Empty`, with no default
@@ -1908,7 +1908,7 @@ forms with the same machinery as values. → [The kernel](#forms-are-terms),
 Quick sketches stay short, and `Empty` has no default meaning: each position says
 what it means there or rejects it. It used to mean `void`; that was dropped so that
 translation never fills in a value the source didn't write.
-→ [The kernel](#omitted-forms-are-empty),
+→ [oymomo](#omitted-forms-are-empty),
 [plan_banf_explicit.md](implemented/plan_banf_explicit.md)
 
 ### `~` binds a term to a form
@@ -1947,7 +1947,7 @@ gives a dynamic form. The same bytes can have many forms (`[01000000]` could be
 
 ### Byte arrays are bracketed hex
 
-The kernel has only byte arrays, so literals are written as bytes, not numbers.
+oymomo has only byte arrays, so literals are written as bytes, not numbers.
 `[]` was freed when structs took `{}`, and the brackets bound the literal, so no
 prefix or quotes are needed.
 
@@ -1986,18 +1986,18 @@ doesn't depend on layout settings.
 
 ### Quoted names
 
-LLVM does the same (`@main` vs `@"foo bar"`), so kernel names map directly to
+LLVM does the same (`@main` vs `@"foo bar"`), so oymomo names map directly to
 symbols, including mangled names from higher-level languages. SQL also uses `"..."`.
 Plain identifiers stay ASCII, which avoids Unicode identifier rules and confusable
 characters.
 
-Cost: `"` is not available for string literals; the kernel has none.
+Cost: `"` is not available for string literals; oymomo has none.
 Rejected: Zig-style `@"..."`, only worth it if strings come.
 
 ### `$` for built-ins and indices
 
-`$` marks a reference that no user name binds: `$0` by position, `$fix` by the
-kernel. User names are always written bare. `#` stays unused (comments kept `//`
+`$` marks a reference that no user name binds: `$0` by position, `$fix` by
+oymomo. User names are always written bare. `#` stays unused (comments kept `//`
 after byte arrays moved to `[]`).
 
 ### `let` is sugar
@@ -2029,7 +2029,7 @@ reading like source; pretty mode round-trips, so goldens are valid source.
 ### Built-ins
 
 `$fix` is a global constant, not a name in `module` and not a binder.
-- **Not in `module`**: kernel helpers and machine instructions are not symbols.
+- **Not in `module`**: built-ins and machine instructions are not symbols.
   Neither `$fix` nor an opcode ever becomes an LLVM symbol, while every `module` entry does (`@putchar`,
   `@fact`). BANF keeps the split: `OpcodeCall` vs `Call`.
 - **Not a binder**: a binder's index depends on depth (the program used to start
@@ -2037,12 +2037,12 @@ reading like source; pretty mode round-trips, so goldens are valid source.
   only the term, couldn't recognize `prim.fix`. A `Builtin` is the same at any depth.
 - **Separate constants**, not fields of one global struct: there is no `$` value to
   project from, apply or unpack.
-- **`fix` is a built-in, not its own term**: a new kernel built-in is one table entry,
+- **`fix` is a built-in, not its own term**: a new built-in is one table entry,
   instead of a term, a grammar rule, a reserved word and cases in five modules.
-- **Every built-in is kernel-only**: machine instructions are opcodes, not
+- **Every built-in is reduction-only**: machine instructions are opcodes, not
   built-ins. Each built-in's `needs` gives its own error message.
 
-→ [The kernel](#built-ins), [plan_builtin.md](implemented/plan_builtin.md)
+→ [oymomo](#built-ins), [plan_builtin.md](implemented/plan_builtin.md)
 
 ### One `module` binder
 
@@ -2069,7 +2069,7 @@ and every name in the BANF output comes from the source.
 
 ### One argument, always a struct
 
-The kernel stays a plain one-argument lambda calculus, and labels name the arguments
+oymomo stays a plain one-argument lambda calculus, and labels name the arguments
 at every call site (`{minuend = x, subtrahend = y}`), so argument order can't be
 mixed up silently. The struct is expanded one level, in oymomo → BANF, so BANF stays
 LLVM-shaped and BANF → LLVM has no expansion of its own. A deeper expansion would

@@ -6,7 +6,7 @@ Status: **proposed**, with open questions; 0 of 5 steps.
 
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
-- [ ] 1. `$after`: an identity the kernel can't see through orders effects (`oymomo: add $after`)
+- [ ] 1. `$after`: an identity reduction can't see through orders effects (`oymomo: add $after`)
 - [ ] 2. The `'ptr'` form, `'alloca'` and `'getelementptr'` (`oymomo: add the ptr form`)
 - [ ] 3. `'load'` and `'store'` (`oymomo: add load and store`)
 - [ ] 4. Tests: what full β does to effects without `$after` (`oymomo: test unordered effects`)
@@ -18,7 +18,7 @@ through them until step 3. Step 4 needs step 3: it uses loads and stores to show
 step 1 exists. Step 5 needs only forms, but its tests use step 3's loads and stores.
 Steps 2 and 3 build on [plan_vm.md](plan_vm.md) step 3 (done): memory ops are
 entries of the opcode table, called as `'name' {...}`, as every opcode is.
-The kernel never folds a memory op (decision 13); LLVM does.
+Reduction never folds a memory op (decision 13); LLVM does.
 No step is breaking.
 
 ## Goal
@@ -76,7 +76,7 @@ entry:
 
 `$after {p, s}` is `p`, but it makes the load wait for the store (decision 1), and
 `convert` drops it, so BANF and LLVM never see it. Without it nothing uses `s`, and
-full β could drop the store. With `[29000000]~'i32'` in place of `args.n`, the kernel
+full β could drop the store. With `[29000000]~'i32'` in place of `args.n`, reduction
 still leaves the three memory lets alone (decision 13), and LLVM's `mem2reg` turns the
 body into `ret i32 42`.
 
@@ -112,11 +112,11 @@ return r
 
 ### Ordering effects (step 1)
 
-1. **`$after {x, d1, ..., dn}` is `x`, and the kernel can't see that.** Field 0 is
+1. **`$after {x, d1, ..., dn}` is `x`, and reduction can't see that.** Field 0 is
    the value; the others are what it waits for. Fields are positional, and labels are
    ignored, as in a branch. `after` has no rule and is not an opcode, so `reduce`
-   never fires on it (a built-in with no rule is already not a redex): no kernel
-   change. It keeps its `$` because `convert` treats it specially. Since `x`
+   never fires on it (a built-in with no rule is already not a redex): no change
+   to reduction. It keeps its `$` because `convert` treats it specially. Since `x`
    now uses every `dᵢ`, full β can't drop a `dᵢ`, and a let that uses `$after` comes
    after every let it waits for:
 
@@ -152,7 +152,7 @@ return r
    value like any other: a block param, a function param or result, a struct field,
    a let, and a param or result of an imported function, where it is C's `T *` (a
    step toward [plan_c_interop.md](plan_c_interop.md) 1.1).
-6. **A pointer can't be a literal.** The kernel's byte arrays have no address to
+6. **A pointer can't be a literal.** oymomo's byte arrays have no address to
    name, and a null pointer is open question 3. The verifier rejects
    `[0000000000000000]~'ptr'`: `A pointer can't be a literal.`
 7. **Memory ops are LLVM's instructions, with the form as an operand.** LLVM's
@@ -199,8 +199,8 @@ return r
    | `{'vector', {[04000000]~'i32', 'i32'}}` | `<4 x i32>` | `count`, `element` |
    | `{'scalable_vector', {[04000000]~'i32', 'i32'}}` | `<vscale x 4 x i32>` | `count`, `element` |
 
-   - **Only BANF and LLVM read the tag.** To the kernel a tagged pair is a struct like
-     any other: no rule, no built-in, no kernel change. β builds them as it builds
+   - **Only BANF and LLVM read the tag.** To reduction a tagged pair is a struct like
+     any other: no rule, no built-in, no change to reduction. β builds them as it builds
      any struct: `let bytes = n -> {'array', {n, 'i8'}} in ...`.
      BANF needs them literal, as every form.
    - **The tag can't be mistaken for a field's form.** The named forms LLVM accepts
@@ -255,10 +255,10 @@ return r
     ([notes.md › Byte arrays are always little-endian](notes.md#byte-arrays-are-always-little-endian)),
     but memory has no literals, so the two never meet. A struct's layout (padding,
     field offsets) is LLVM's for the target. See open question 2.
-13. **Memory ops never fold in the kernel.** `alloca`, `getelementptr`, `load` and
-    `store` are impure opcodes, and the kernel folds only pure ones
-    ([plan_vm.md](plan_vm.md) decision 8), so they are stuck: no kernel change. The
-    kernel has no memory to run them on. LLVM folds what can be folded (`mem2reg`,
+13. **Memory ops never fold in reduction.** `alloca`, `getelementptr`, `load` and
+    `store` are impure opcodes, and reduction folds only pure ones
+    ([plan_vm.md](plan_vm.md) decision 8), so they are stuck: no change to reduction.
+    oymomo has no memory to run them on. LLVM folds what can be folded (`mem2reg`,
     SROA, `instcombine`).
 
 ---
@@ -522,7 +522,7 @@ Commit: `oymomo: add load and store`
 No code change. Memory ops are stuck (decision 13), but the let around them is not:
 `let x = e in body` is `(x -> body) e`, a β-redex whatever `e` is. These tests pin
 down the three things full β does to effects that `$after` doesn't chain (decision
-4), so a later change to the kernel or to `banf_shape` that alters them fails a test.
+4), so a later change to reduction or to `banf_shape` that alters them fails a test.
 Each case is checked on `normalize(t)` in `reduction`, and on `convert(t)` in
 `banf_translate`, which gives the same BANF as `convert(normalize(t))` (confluence).
 
