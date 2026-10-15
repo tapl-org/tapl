@@ -57,7 +57,7 @@ hides it, because the written form replaces the atom's form
              (t : G) : F  →  t : F                        (E-Reform)
    ```
 
-   It fires at the root, in `bruijn.reduce`, so `whnf` uses it too.
+   It fires at the root, in `reduction.reduce`, so `whnf` uses it too.
 
 2. **Beta always wraps; `strip` goes.** With E-Reform, `strip` is no longer needed.
    E-Beta and E-BetaForm become:
@@ -138,7 +138,7 @@ hides it, because the written form replaces the atom's form
        """Steps with `choose(reducts)` until no reduct, or raises when out of fuel."""
    ```
 
-   `reducts` uses `bruijn.reduce` at the root and recurses into every child, including
+   `reducts` uses `reduction.reduce` at the root and recurses into every child, including
    `Lambda.body`, `Lambda.param_form`, struct fields, arguments and forms. Strategies
    are `choose` functions: leftmost-outermost, innermost, and seeded random.
 
@@ -159,7 +159,7 @@ hides it, because the written form replaces the atom's form
   `whnf` and `shape` are strategies within it.
 - [notes.md › Forms](notes.md#forms): "`Formed` itself never reduces" becomes "a form on
   a form is replaced (E-Reform)".
-- `bruijn.beta` docstring: the form goes with the argument, and E-Reform drops the
+- `reduction.beta` docstring: the form goes with the argument, and E-Reform drops the
   argument's own form.
 - [plan_struct_pack.md](implemented/plan_struct_pack.md), [plan_constant_folding.md](implemented/plan_constant_folding.md):
   each rule names its decision 5 samples.
@@ -185,7 +185,7 @@ hides it, because the written form replaces the atom's form
    but not `let x = loop in if c then x else [00]`.
 3. **Random terms: a seeded hand-written generator, or `hypothesis`?** Hypothesis
    shrinks counterexamples, but it adds a dependency to `hatch-test`.
-4. **Should `normalize` live in `src`, as `bruijn.normalize`?** It could serve as a
+4. **Should `normalize` live in `src`, as `reduction.normalize`?** It could serve as a
    debugging and printing aid. Test-only keeps the kernel small.
 
 ## Out of scope

@@ -4,7 +4,7 @@ import textwrap
 
 import pytest
 
-from oymo.oymomo import bruijn, terms
+from oymo.oymomo import reduction, terms
 from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show, show_form
 
@@ -211,7 +211,7 @@ def test_pretty_keeps_single_let_on_one_line():
 
 
 def test_bruijn_index():
-    term = bruijn.resolve(parse('a -> b -> let x = a in b x'))
+    term = reduction.resolve(parse('a -> b -> let x = a in b x'))
     assert show(term) == 'a → b → let x = $1 in $1 $0'
     assert show(term, pretty=True) == 'a → b → let x = $1 in $1 $0'
     assert show(parse(show(term))) == show(term)
@@ -233,11 +233,11 @@ def test_bruijn_index_and_variable_print_as_they_are():
     ],
 )
 def test_name_indices_where_safe(source, expected):
-    term = bruijn.resolve(parse(source))
+    term = reduction.resolve(parse(source))
     for pretty in (False, True):
         named = show(term, pretty=pretty, name_indices=True)
         assert named == expected
-        assert show(bruijn.resolve(parse(named))) == show(term)
+        assert show(reduction.resolve(parse(named))) == show(term)
 
 
 def test_width_and_indent_flags():

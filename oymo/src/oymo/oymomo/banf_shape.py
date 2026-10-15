@@ -10,7 +10,7 @@ the wanted constructor is left as it is, for `banf_translate.convert` to report.
 from dataclasses import replace
 
 from oymo.core import syntax
-from oymo.oymomo import bruijn, terms
+from oymo.oymomo import reduction, terms
 
 FUEL = 10_000
 
@@ -21,7 +21,7 @@ class _Shaper:
 
     def use_fuel(self, term):
         if self.fuel <= 0:
-            raise bruijn.BruijnError('Did not reach BANF shape: ran out of reduction steps.', _location(term))
+            raise reduction.ReductionError('Did not reach BANF shape: ran out of reduction steps.', _location(term))
         self.fuel -= 1
 
     # Reduction. Nothing is reduced under a Lambda, inside a Struct's fields, or in a lazy argument.
@@ -36,7 +36,7 @@ class _Shaper:
 
     def step(self, term):
         """Fires the rule at the root, or else unblocks it. Returns `term` itself when neither changes it."""
-        reduced = bruijn.reduce(term)
+        reduced = reduction.reduce(term)
         if reduced is not term:
             self.use_fuel(term)
             return reduced
@@ -63,7 +63,7 @@ class _Shaper:
                 if isinstance(new, terms.Struct):
                     new = self.reduce_fields(new)
                 return term if new is argument else replace(term, argument=new)
-            case terms.Apply() if (rule := bruijn.rule_of(term)) is not None:
+            case terms.Apply() if (rule := reduction.rule_of(term)) is not None:
                 # A built-in reduces the parts of its argument that it reads, and may fire.
                 return rule(term, self.reduce_until_top_stable)
             case terms.Apply(function=function):
@@ -139,7 +139,7 @@ class _Shaper:
                         rest = self.block_body(let.body, k + 1)
                         return replace(term, function=replace(let, body=rest), argument=value)
                     self.use_fuel(term)
-                    term = bruijn.beta(let, value)
+                    term = reduction.beta(let, value)
                 case _:
                     stepped = self.step(term)
                     if stepped is term:

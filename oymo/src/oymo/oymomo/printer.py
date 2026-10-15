@@ -12,7 +12,7 @@ an apply puts its argument on the next line, and an `if` puts `then` and `else` 
 their own lines.
 
 A struct with two unlabeled fields applied to anything, `{e, t} c`, prints as
-`if c then t else e`, which parses back to it (`bruijn.branch`).
+`if c then t else e`, which parses back to it (`reduction.branch`).
 
 An apply of a lambda, `(x → body) e`, prints as `let x = e in body`; a broken let puts
 its body on the next line, so a chain of lets reads one let per line. In pretty mode a
@@ -24,7 +24,7 @@ shadows that name or no binder is in scope; there it stays `$i`, so the output s
 
 from oymo.core import syntax
 from oymo.core.terminals import IDENT_CONTINUE, IDENT_START
-from oymo.oymomo import bruijn, terms
+from oymo.oymomo import reduction, terms
 from oymo.oymomo.grammar import ASCII_TEXT, RESERVED
 
 # Binding levels, loosest first. A term printed where a tighter level is needed gets parentheses.
@@ -63,7 +63,7 @@ def _compact(term, names, level=_EXPRESSION):
             value = _compact(argument, names)
             suffix = _compact_suffix(form, names)
             text = f'let {_name(name)}{suffix} = {value} in {_compact(body, _bind(names, name))}'
-        case terms.Apply() if (branch := bruijn.branch(term)) is not None:
+        case terms.Apply() if (branch := reduction.branch(term)) is not None:
             c, t, e = branch
             text = f'if {_compact(c, names)} then {_compact(t, names)} else {_compact(e, names)}'
         case terms.Apply(function=function, argument=argument):
@@ -135,7 +135,7 @@ def _loosest(term):
     match term:
         case terms.Lambda() | terms.Apply(function=terms.Lambda()):
             return _EXPRESSION
-        case terms.Apply() if bruijn.branch(term) is not None:
+        case terms.Apply() if reduction.branch(term) is not None:
             return _EXPRESSION  # printed as `if`
         case terms.Formed():
             return _FORMED
@@ -175,7 +175,7 @@ def _flat(term, level, names):
             value = _flat(argument, _EXPRESSION, names)
             suffix = _form_suffix(form, names)
             text = f'let {_name(name)}{suffix} = {value} in {_flat(body, _EXPRESSION, _bind(names, name))}'
-        case terms.Apply() if (branch := bruijn.branch(term)) is not None:
+        case terms.Apply() if (branch := reduction.branch(term)) is not None:
             c, t, e = branch
             text = (
                 f'if {_flat(c, _EXPRESSION, names)} then {_flat(t, _EXPRESSION, names)}'
@@ -226,7 +226,7 @@ def _pretty(term, level, depth, column, width, indent, names):
             header = f'let {_name(name)}{_form_suffix(form, names)} = '
             value = sub(argument, _EXPRESSION, depth, column + len(header))
             text = f'{header}{value} in\n{pad}{sub(body, _EXPRESSION, depth, len(pad), _bind(names, name))}'
-        case terms.Apply() if (branch := bruijn.branch(term)) is not None:
+        case terms.Apply() if (branch := reduction.branch(term)) is not None:
             c, t, e = branch
             text = (
                 f'if {sub(c, _EXPRESSION, depth, column + 3)}\n'

@@ -55,7 +55,7 @@ prim -> fix -> prim fix              plain names: nothing is reserved
 2. **`prim.extractvalue`, `DynamicPrim`, `DYNAMIC_PRIMS` and `PrimFormError` go.** They
    existed only for this. One syntax, `s [01]`, reads a field by index in the kernel
    and in BANF.
-3. **The index is a byte array literal, read by `bruijn.index_value`**: unsigned
+3. **The index is a byte array literal, read by `reduction.index_value`**: unsigned
    little-endian, any length, a form on it ignored. It needs no int form, unlike
    `prim.extractvalue`'s index, since it is never a run-time value: `args.p [01]` is
    enough. The index is reduced first, as any op argument is, so
@@ -80,7 +80,7 @@ prim -> fix -> prim fix              plain names: nothing is reserved
    a struct, as prims do today. So a call is always `Apply(Builtin(name), arg)`, with no
    arity and no partial application. `$fix g a` is `($fix g) a`: the root is not a
    redex, and `$fix g` is its head, as `(fix g) a` is today.
-9. **A name can be in two tables.** Reduction rules are in `bruijn.BUILTIN_RULES`;
+9. **A name can be in two tables.** Reduction rules are in `reduction.BUILTIN_RULES`;
    machine code is in `banf_opcodes.OPCODES` and `llvm_opcodes.DEFAULT_OPCODES`:
 
    | Name | Rule | Machine code |
@@ -162,7 +162,7 @@ class GetIndex:
 ```
 
 - `banf_translate.op`: before today's cases,
-  `Apply(function=f, argument=i)` where `f` is an atom and `bruijn.index_value(i)` is
+  `Apply(function=f, argument=i)` where `f` is an atom and `reduction.index_value(i)` is
   not None gives `GetIndex(atom(f), index)`. An atom applied to anything else is
   `An index must be a byte array literal, such as [01].`
 - `banf_terms.form_of`: the field at `index` of the struct atom's form, or
@@ -195,7 +195,7 @@ rn.BUILTIN: Seq(_punct('$'), Identifier(reserved=frozenset(), skip=(), ...), act
 ```
 
 - Printer: `$name`, at the `_PROJECT` level, like a variable.
-- `bruijn`, `banf_rename`: a leaf, so `_map_children` and `other` need no case.
+- `reduction`, `banf_rename`: a leaf, so `_map_children` and `other` need no case.
 
 BANF without the `prim` binder:
 
@@ -262,7 +262,7 @@ case terms.Apply(function=terms.Builtin(name=name), argument=argument) if (
 | `terms.py` | 2, 3 | add `Builtin` (2); remove `Fix` (3) |
 | `rule_names.py`, `grammar.py` | 2, 3 | the `BUILTIN` rule (2); remove `FIX` and `fix` from `RESERVED` (3) |
 | `printer.py` | 2, 3 | `$name` (2); remove the `Fix` cases (3) |
-| `bruijn.py` | 3 | `BuiltinRule`, `BUILTIN_RULES`, the `reduce` case; remove `unfold` and the `Fix` cases |
+| `reduction.py` | 3 | `BuiltinRule`, `BUILTIN_RULES`, the `reduce` case; remove `unfold` and the `Fix` cases |
 | `banf_reduce.py` | 2, 4 | no position 1 (2); the strict head (4) |
 | `banf_rename.py` | 2, 3 | no `PRIM` fixed name (2); remove the `Fix` case (3) |
 | `banf_translate.py` | 1, 2, 3 | `GetIndex`, no dynamic prims (1); B (2); the gate and messages of decision 10 (3) |
@@ -331,10 +331,10 @@ Commit: `oymomo: prims are $name built-ins`
 
 ### Step 3: rules, and `fix` is `$fix`
 
-- `bruijn.py`: C. `banf_translate.py`: the gate and the messages of decision 10; the
+- `reduction.py`: C. `banf_translate.py`: the gate and the messages of decision 10; the
   `OpcodeCall` case accepts only names in `OPCODES`.
 - Remove `Fix`, `FIX`, `fix` from both `RESERVED` sets, the printer's `Fix` cases,
-  `unfold`, and the `Fix` cases in `bruijn` and `banf_rename`.
+  `unfold`, and the `Fix` cases in `reduction` and `banf_rename`.
 - Tests:
   - `reduce`: `$fix g` → `g ($fix g)`; stuck: `$fix` alone, `$fix g a` (the root only),
     `$nope g`.
@@ -351,7 +351,7 @@ Commit: `oymomo: fix is $fix`
 
 - `banf_reduce.py`: D.
 - Tests in `banf_reduce_test.py`, with a test-only strict rule (monkeypatched
-  `bruijn.BUILTIN_RULES`), such as `$first s` giving the first field of a struct:
+  `reduction.BUILTIN_RULES`), such as `$first s` giving the first field of a struct:
   - `$first ((x -> x) {a = '1'})` → `'1'`: the argument is reduced, then the rule fires.
   - `$first e`, with `e` a free name, is stuck and unchanged.
   - `$fix g` still doesn't reduce `g`.
@@ -363,7 +363,7 @@ Commit: `oymomo: banf_reduce reduces a strict built-in's argument`
 
 Docs only. Write `docs/plan_constant_folding.md` in the same format as this plan, with
 its own steps, and add it to `plans.md` as open. It gives opcodes a rule in
-`bruijn.BUILTIN_RULES`, so `$add_i32 {a = [01000000]: 'i32', b = [02000000]: 'i32'}`
+`reduction.BUILTIN_RULES`, so `$add_i32 {a = [01000000]: 'i32', b = [02000000]: 'i32'}`
 reduces to `[03000000]: 'i32'`. It must decide at least:
 
 - **Same result as LLVM.** Folding must give the bytes the compiled code would give:
@@ -386,7 +386,7 @@ reduces to `[03000000]: 'i32'`. It must decide at least:
   apply).
 
 Also rewrite `plan_struct_pack.md` on this plan: `unpack s` and `pack l` become
-`$unpack s` and `$pack l`, two entries in `bruijn.BUILTIN_RULES` (both strict, both
+`$unpack s` and `$pack l`, two entries in `reduction.BUILTIN_RULES` (both strict, both
 kernel-only), instead of two terms and two reserved words. Its decision 1 and its
 affected modules change; its open questions stay.
 
@@ -405,4 +405,4 @@ hatch run full-check
 ```
 
 The final check: `plan_struct_pack.md` can add `$unpack` and `$pack` by adding two
-entries to `bruijn.BUILTIN_RULES` (and their tests), with no other module changed.
+entries to `reduction.BUILTIN_RULES` (and their tests), with no other module changed.

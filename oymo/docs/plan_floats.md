@@ -201,7 +201,7 @@ field, folded on literals except where decisions 6 and 7 say not.
 | Module | Change |
 |---|---|
 | `opcodes.py` | an entry per symbol of decisions 8 to 11; `run` on Python floats, rounding to `f32` where `form` is `'f32'`; `accepts` float forms (and integer forms for `'sitofp'`, `'uitofp'`, `'bitcast'`) |
-| `bruijn.py` | none: the one fold rule of [plan_vm.md](plan_vm.md) decision 8 folds float forms too, except a NaN result (decision 6) and an undefined conversion (decision 7); `run` returns `None` for both, as `opcodes.evaluate` does for division by zero |
+| `reduction.py` | none: the one fold rule of [plan_vm.md](plan_vm.md) decision 8 folds float forms too, except a NaN result (decision 6) and an undefined conversion (decision 7); `run` returns `None` for both, as `opcodes.evaluate` does for division by zero |
 | `llvm_opcodes.py` | `builder.fadd`, `fsub`, `fmul`, `fdiv`, `frem`, `fneg`; `builder.fcmp_ordered` / `fcmp_unordered`; `fpext`, `fptrunc`, `fptosi`, `fptoui`, `sitofp`, `uitofp`, `bitcast`; intrinsics through `module.declare_intrinsic` |
 | `banf_terms.py` | printed as LLVM writes them: `fadd f64 a, b`, `fcmp olt f64 a, b`, `fptosi f64 x to i32` |
 
@@ -265,7 +265,7 @@ Commit: `oymomo: add float forms`
   - `opcodes`: each op on edge operands (`±0`, `±1`, the smallest subnormal, the
     largest finite, `±∞`, a NaN) for both forms gives what LLVM's JIT gives, bit for
     bit except NaN results, which are NaN on both sides.
-  - `bruijn`: `'fadd' {'f64', [000000000000f03f], [0000000000000040]}`
+  - `reduction`: `'fadd' {'f64', [000000000000f03f], [0000000000000040]}`
     (1.0 + 2.0) folds to `[0000000000000840]: 'f64'` (3.0); `0.0 / 0.0` (a NaN)
     stays; `'fneg'` of a NaN folds with its sign flipped; an `'f32'` result
     that rounds differently from `'f64'` (`0.1 + 0.2`) folds to the `f32` bits.
@@ -280,7 +280,7 @@ Commit: `oymomo: add float arithmetic`
 - Tests:
   - `opcodes`: every predicate on every pair of `{-∞, -1, -0, +0, 1, +∞, NaN}`
     matches LLVM's JIT.
-  - `bruijn`: `'fcmp_olt'` of literals folds to `[01]: 'i1'` or `[00]: 'i1'`;
+  - `reduction`: `'fcmp_olt'` of literals folds to `[01]: 'i1'` or `[00]: 'i1'`;
     `'fcmp_uno'` with a NaN operand folds to `[01]: 'i1'`.
   - `banf_translate`: `'icmp_ult' {'f32', a, b}` is
     `'icmp_ult' takes an integer form, got f32; for floats use 'fcmp_ult'.`

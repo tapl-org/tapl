@@ -100,7 +100,7 @@ rejected alternatives. When a plan lands, update the section it changes (see
   - [oymomo → BANF](#oymomo--banf)
   - [BANF to LLVM](#banf-to-llvm)
 - [Error messages](#error-messages)
-  - [Names and resolution (`bruijn.py`)](#names-and-resolution-bruijnpy)
+  - [Names and resolution (`reduction.py`)](#names-and-resolution-bruijnpy)
   - [Shaping (`banf_shape.py`)](#shaping-banf_shapepy)
   - [Program shape (`banf_translate.py`)](#program-shape-banf_translatepy)
   - [Forms (`banf_translate.py`)](#forms-banf_translatepy)
@@ -208,7 +208,7 @@ oymomo source --parse--> oymomo terms --banf_translate--> BANF --llvm_translate-
 `banf_translate` is a pipeline of four passes (details in [Translation](#translation-oymomo--banf--llvm)):
 
 ```
-terms --bruijn.resolve--> BruijnIndex terms --banf_shape.shape--> BANF-shaped term
+terms --reduction.resolve--> BruijnIndex terms --banf_shape.shape--> BANF-shaped term
       --banf_rename.rename--> no shadowing --banf_translate.convert--> BANF
 ```
 
@@ -312,7 +312,7 @@ module has a test of the same name in `tests/oymomo/`.
 | [`rule_names.py`](../src/oymo/oymomo/rule_names.py) | Names of the grammar rules |
 | [`terms.py`](../src/oymo/oymomo/terms.py) | oymomo term classes (`Lambda`, `Apply`, `Struct`, `Formed`…) |
 | [`printer.py`](../src/oymo/oymomo/printer.py) | Prints terms, compact or pretty |
-| [`bruijn.py`](../src/oymo/oymomo/bruijn.py) | `resolve`, `shift`, `substitute`, `reduce`, `BUILTIN_RULES` |
+| [`reduction.py`](../src/oymo/oymomo/reduction.py) | `resolve`, `shift`, `substitute`, `reduce`, `BUILTIN_RULES` |
 | [`banf_shape.py`](../src/oymo/oymomo/banf_shape.py) | Reduces a term until it has BANF's shape |
 | [`banf_rename.py`](../src/oymo/oymomo/banf_rename.py) | Renames binders so none shadow each other |
 | [`banf_translate.py`](../src/oymo/oymomo/banf_translate.py) | `shape`, `convert`, `translate`: oymomo → BANF |
@@ -345,7 +345,7 @@ subpackage, without extra `__init__.py` files and import paths.
 ### Testing
 
 - Unit tests per stage: `grammar_test.py`, `printer_test.py`, `opcodes_test.py`,
-  `banf_terms_test.py`, `bruijn_test.py`, `banf_shape_test.py`,
+  `banf_terms_test.py`, `reduction_test.py`, `banf_shape_test.py`,
   `banf_rename_test.py`, `banf_translate_test.py`, `llvm_translate_test.py`.
 - BANF tests build modules by hand, so they don't depend on the translator.
 - Every LLVM test parses the IR with `llvmlite.binding` and verifies it.
@@ -570,7 +570,7 @@ if c then t else e           parses to   {e, t} c
 ```
 
 - There is no `If` term. The printer prints every struct with two unlabeled fields,
-  applied to anything, as `if` (`bruijn.branch`), so the output parses back to the
+  applied to anything, as `if` (`reduction.branch`), so the output parses back to the
   same term.
 - In BANF, `{e, t} c` in tail position is a branch, labeled or not. See
   [Translation](#if-only-in-tail-position).
@@ -809,11 +809,11 @@ Rules live in two places:
 
 | Table | File | Gives |
 |---|---|---|
-| `BUILTIN_RULES` (`BuiltinRule(name, reduce)`) | [`bruijn.py`](../src/oymo/oymomo/bruijn.py) | a built-in's reduction rule |
+| `BUILTIN_RULES` (`BuiltinRule(name, reduce)`) | [`reduction.py`](../src/oymo/oymomo/reduction.py) | a built-in's reduction rule |
 | `OPCODES` / `DEFAULT_OPCODES` | [`opcodes.py`](../src/oymo/oymomo/opcodes.py) / [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) | an opcode, and its machine code |
 
-`bruijn.rule_of(call)` gives a built-in's rule. An opcode has no rule of its own:
-`bruijn.fold_opcode(call)` folds it at the root, reducing nothing.
+`reduction.rule_of(call)` gives a built-in's rule. An opcode has no rule of its own:
+`reduction.fold_opcode(call)` folds it at the root, reducing nothing.
 
 The kernel has one rule for every `'name' arg` (a byte array applied to an argument):
 the argument must be a struct literal whose fields are byte arrays or structs. So
@@ -830,7 +830,7 @@ however many fields there are.
 - Every built-in is **kernel-only**: reduction must remove it.
 - `reduce(call, reduce_part)` steps the whole call. It gives each part of the argument
   it reads to `reduce_part` first, and returns the result if it fires, else `call` with
-  the reduced parts put back, else `call` itself. `bruijn.reduce` passes `keep` (reduces
+  the reduced parts put back, else `call` itself. `reduction.reduce` passes `keep` (reduces
   nothing); `banf_shape` passes `reduce_until_top_stable`. See [Blockers](#blockers).
 - `$fix g` unfolds without reducing `g`: `_fix` never calls `reduce_part`.
 - What a leftover built-in's argument must reduce to (e.g. `'a struct'`) is
@@ -847,7 +847,7 @@ Why built-ins instead of `module` names, a `prim` binder, or a `fix` term: see
 
 ### `reduce`: one step at the root
 
-`bruijn.reduce(term)` takes one step if the root is a redex; otherwise it returns
+`reduction.reduce(term)` takes one step if the root is a redex; otherwise it returns
 `term` itself, so `reduce(t) is t` means "not a redex". It never looks inside.
 
 | Rule | Before | After |
@@ -869,7 +869,7 @@ Not redexes:
   where LLVM has no defined result (`'udiv'` by `[00000000]`);
 - a projection with a missing label;
 - a struct apply on `{}`, with `''`, or with an argument that isn't a byte array yet
-  (index read by `bruijn.index_value`: unsigned little-endian, form ignored). An
+  (index read by `reduction.index_value`: unsigned little-endian, form ignored). An
   index past the end selects the last field, so `if [02] then a else b` and
   `if [0100] then a else b` are both `a`.
 
@@ -1140,7 +1140,7 @@ computed in oymomo doesn't reach BANF as an instruction:
 'add' {'i32', args.n, [01000000]: 'i32'}             stays: a run-time operand
 ```
 
-- One rule for every opcode (`bruijn.fold_opcode`), not one per opcode: it wraps
+- One rule for every opcode (`reduction.fold_opcode`), not one per opcode: it wraps
   `opcode.evaluate(fields)` in `opcode.form_of(fields)`. `evaluate` computes on unsigned
   integers, with no LLVM. Every opcode is `pure`, so every opcode folds.
 - **Same bytes as LLVM**: little-endian, `(N + 7) // 8` bytes for `iN`, arithmetic
@@ -1313,7 +1313,7 @@ and returns an oymomo term in BANF's shape; `convert(shaped)` runs the last.
 
 | # | Pass | Does |
 |---|---|---|
-| 1 | `bruijn.resolve` | Each `Variable` becomes a `BruijnIndex`. Names stay on `Lambda.param_name`. Unbound name → error. |
+| 1 | `reduction.resolve` | Each `Variable` becomes a `BruijnIndex`. Names stay on `Lambda.param_name`. Unbound name → error. |
 | 2 | `banf_shape.shape` | Reduces only where the term doesn't have BANF's shape yet. |
 | 3 | `banf_rename.rename` | Renames binders: fixed structural names, no shadowing. |
 | 4 | `banf_translate.convert` | Reads the shaped term into BANF; `TranslationError` with a source location on any mismatch. |
@@ -1340,7 +1340,7 @@ until each position has BANF's shape. `convert` only reads the result. So:
 A term without BANF's shape after reduction is rejected, and the source fixes it
 explicitly. Background: [plan_banf_explicit.md](implemented/plan_banf_explicit.md).
 
-#### 1. `bruijn.resolve`
+#### 1. `reduction.resolve`
 
 Turns names into indices by counting enclosing lambdas. See
 [The kernel › reduce](#reduce-one-step-at-the-root) for the one-step
@@ -1514,7 +1514,7 @@ own. A let reference becomes a `banf.Var` named after the BANF let already built
   | `module.errno` | `GetData` |
 
 - **`GetIndex`** `s i`: `s` is an atom with a struct form (a let-bound struct or a
-  param such as `args.p`). `i` is read by `bruijn.index_value`: any byte array
+  param such as `args.p`). `i` is read by `reduction.index_value`: any byte array
   literal, unsigned little-endian, form ignored (`[01]`, `[0100]`, `[01]: 'i8'` are
   all 1). It's reduced first like any op argument, so `args.p ((i -> i) [01])` and
   `let i = [01] in args.p i` work. A run-time value (`args.n`, a let bound to an op)
@@ -1633,7 +1633,7 @@ stage that raises them. `<…>` marks a part that varies.
 Every translation error carries a source location. Search the source for the
 message text to find where it's raised.
 
-### Names and resolution (`bruijn.py`)
+### Names and resolution (`reduction.py`)
 
 | Message | Cause | Fix |
 |---|---|---|
@@ -1792,7 +1792,7 @@ gives the same BANF), and checks the shaped output compiles to the same BANF.
 
 ### Add a built-in reduction rule
 
-1. In [`bruijn.py`](../src/oymo/oymomo/bruijn.py), write
+1. In [`reduction.py`](../src/oymo/oymomo/reduction.py), write
    `reduce(call, reduce_part) -> Term` and add `BuiltinRule(name, reduce)` to
    `BUILTIN_RULES`.
    - Give each part of the argument to `reduce_part` before reading it; a part you
@@ -1802,7 +1802,7 @@ gives the same BANF), and checks the shaped output compiles to the same BANF.
 2. The parser accepts any `$name`, and `convert` rejects a leftover kernel-only
    built-in. Add what its argument must reduce to in
    `banf_translate._MUST_REDUCE_TO`, for the message.
-3. Add tests in `bruijn_test.py` and `banf_shape_test.py`, and samples in
+3. Add tests in `reduction_test.py` and `banf_shape_test.py`, and samples in
    `banf_shape_test.SAMPLES` for the `reduce` contract; update
    [The kernel › Built-ins](#built-ins).
 
@@ -2150,7 +2150,7 @@ Words used across the docs, in alphabetical order. Code names are in `code`.
 | **binder** | Anything that introduces a name: a lambda param or a let. | |
 | **block** | A BANF basic block: params, lets, one terminator. In oymomo, a lambda `args: {...} -> ...` in a function's struct. | [BANF](#blocks) |
 | **blocks** | Fixed name of a function's self-binder after renaming; `blocks.then0 {}` jumps to block `then0`. | [Programs](#functions-are-structs-of-blocks) |
-| **BruijnIndex** | A variable written by position, `$0` = nearest binder. `bruijn.resolve` turns names into these. | [oymomo syntax](#builtins-and-indices-name-and-0) |
+| **BruijnIndex** | A variable written by position, `$0` = nearest binder. `reduction.resolve` turns names into these. | [oymomo syntax](#builtins-and-indices-name-and-0) |
 | **built-in** | A global constant written `$name` (`$fix`) with a reduction rule. | [The kernel](#built-ins) |
 | **byte array** | The only literal: `[2a000000]` or `'text'`. Has no form unless one is written. | [oymomo syntax](#byte-arrays) |
 | **convert** | Last pass of oymomo → BANF: reads a shaped term into BANF. Never reduces. | [Translation](#4-convert-read-the-shaped-term) |

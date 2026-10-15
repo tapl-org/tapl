@@ -12,7 +12,7 @@ Status: **implemented**.
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
 - [x] 1. A struct field's label is optional (`oymomo: a struct field's label is optional`)
-- [x] 2. The struct apply rule in `bruijn.reduce` (`oymomo: a struct applied to an index selects the field`)
+- [x] 2. The struct apply rule in `reduction.reduce` (`oymomo: a struct applied to an index selects the field`)
 - [x] 3. `banf_reduce` reduces the index of a struct apply (`oymomo: banf_reduce reduces a struct apply's index`)
 - [x] 4. `prim.extractvalue`: a field of a value struct by index, in BANF (`oymomo: add prim.extractvalue`)
 
@@ -43,7 +43,7 @@ index with `prim.extractvalue {struct = s, index = [01]: 'i8'}`, as well as by l
    name is still never empty: `{"" = x}` stays a parse error, so `''` only ever means
    "no label".
 2. **Labels can be duplicated, and `Project` picks the first.** This is today's
-   behavior (`bruijn.project`), now written down: `{a = '1', a = '2'}.a` gives `'1'`.
+   behavior (`reduction.project`), now written down: `{a = '1', a = '2'}.a` gives `'1'`.
    Unlabeled fields are many fields with the label `''`.
 3. **Labels by name, positions by index.** `Project` is the only way to pick a field by
    its label. A struct apply never looks at labels. An unlabeled field can only be reached
@@ -166,7 +166,7 @@ text goes through one helper that checks for `''` first.
 
 ### B. Reduction rule
 
-One new case in `bruijn.reduce`, next to projection, and a helper that reads an index:
+One new case in `reduction.reduce`, next to projection, and a helper that reads an index:
 
 ```python
 case terms.Apply(function=terms.Struct(fields=fields), argument=argument) if (
@@ -193,12 +193,12 @@ def index_value(term: syntax.Term) -> int | None:
   (BANF has no such shape). So no existing program changes meaning.
 - A long index such as `[ffffffffffffffffff]` is just a large number past the last field:
   stuck, with no overflow.
-- `bruijn.project` doesn't change: it already picks the first field with the label, and
+- `reduction.project` doesn't change: it already picks the first field with the label, and
   no `Project` label is `''`.
 
 ### C. Heads in `banf_reduce`
 
-`bruijn.reduce` only looks at the root, so `{a = x} ((y -> y) [00])` is not a redex until
+`reduction.reduce` only looks at the root, so `{a = x} ((y -> y) [00])` is not a redex until
 the argument is reduced. The argument becomes the head of an apply **once its callee is a
 struct**:
 
@@ -281,7 +281,7 @@ DYNAMIC_PRIMS: dict[str, DynamicPrim] = {
 ```
 
 `banf_prim` only imports `terms`, so it reads the index with `int.from_bytes` itself, the
-same rule as `bruijn.index_value` (decision 5). A name in `PRIMS` is never in
+same rule as `reduction.index_value` (decision 5). A name in `PRIMS` is never in
 `DYNAMIC_PRIMS`.
 
 **BANF term.** None: it stays a `PrimCall('extractvalue', [struct, index])`. It prints with
@@ -354,7 +354,7 @@ Nothing new: a struct apply is an application.
 |---|---|
 | `grammar.py` | an unlabeled field (A) |
 | `printer.py` | an unlabeled field prints only its value (A) |
-| `bruijn.py` | `index_value` and the struct apply case in `reduce` (B) |
+| `reduction.py` | `index_value` and the struct apply case in `reduce` (B) |
 | `banf_reduce.py` | `_head` / `_with_head`: the argument of a struct apply (C) |
 | `banf_prim.py` | `PrimFormError`, `DynamicPrim`, `DYNAMIC_PRIMS` with `extractvalue` (D) |
 | `banf_translate.py` | unlabeled fields (A); the prim case looks in `DYNAMIC_PRIMS` too (D) |
@@ -396,10 +396,10 @@ Each step is one commit and leaves `hatch run full-check` green. Each step updat
 
 Commit: `oymomo: a struct field's label is optional`
 
-### Step 2: the struct apply rule in `bruijn.reduce`
+### Step 2: the struct apply rule in `reduction.reduce`
 
-- `bruijn.py`: `index_value` and the `reduce` case (B).
-- Tests in `bruijn_test.py`, each on `reduce` of a resolved term:
+- `reduction.py`: `index_value` and the `reduce` case (B).
+- Tests in `reduction_test.py`, each on `reduce` of a resolved term:
   - `{a = '23'} [00]` → `'23'`; `{a = '23', b = '45'} [01]` → `'45'`.
   - Unlabeled fields: `{'1', '2'} [01]` → `'2'`; `{'1', b = '2'} [00]` → `'1'`.
   - Duplicate labels: `{a = '1', a = '2'} [01]` → `'2'`.
@@ -468,7 +468,7 @@ The final checks are the goals:
 
 ```python
 def test_dynamic_index():
-    term = bruijn.resolve(parse("(i -> {a = '23', b = '45'} i) [01]"))
+    term = reduction.resolve(parse("(i -> {a = '23', b = '45'} i) [01]"))
     assert banf_reduce.whnf(term) == parse("'45'")
 
 

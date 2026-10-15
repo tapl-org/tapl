@@ -40,7 +40,7 @@ in $fields_to_struct (map g ($struct_to_fields {a = x, b = y}))
 1. **Step 1** lets a built-in reduce parts of its argument. Today
    `$struct_to_fields ({p = s}.p)` is stuck: the rule sees a projection, not a struct,
    and nothing reduces it.
-2. **Steps 2 and 3** add the two built-ins. Each is one entry in `bruijn.BUILTIN_RULES`:
+2. **Steps 2 and 3** add the two built-ins. Each is one entry in `reduction.BUILTIN_RULES`:
    no new term, no grammar change, no reserved word.
 
 ## Decisions
@@ -76,7 +76,7 @@ The caller replaces the call with what comes back. There are two callers:
 
 | Caller | Passes as `reduce_part` | Effect |
 |---|---|---|
-| `bruijn.reduce` | `keep` (returns the part unchanged) | Root-only, as today: fires only if the parts are already reduced |
+| `reduction.reduce` | `keep` (returns the part unchanged) | Root-only, as today: fires only if the parts are already reduced |
 | `banf_shape.unblock` | `reduce_until_top_stable` | Reduces the parts; one case for every built-in |
 
 Example, `$fields_to_struct` on a list whose parts need reducing:
@@ -180,14 +180,14 @@ reports it, in a dict by built-in name (`'a struct'`, `'a list of fields'`). So
 None. They are built-ins and apply like any function: `$struct_to_fields s.a` is
 `$struct_to_fields (s.a)`; write `f ($fields_to_struct l)`, not `f $fields_to_struct l`.
 
-### Step 1: `bruijn.py` and `banf_shape.py`
+### Step 1: `reduction.py` and `banf_shape.py`
 
 ```python
 ReducePart = Callable[[syntax.Term], syntax.Term]
 
 
 def keep(part):
-    """Reduces nothing: `bruijn.reduce` passes it, so it stays root-only."""
+    """Reduces nothing: `reduction.reduce` passes it, so it stays root-only."""
     return part
 
 
@@ -200,12 +200,12 @@ class BuiltinRule:
 The two call sites:
 
 ```python
-# bruijn.reduce
+# reduction.reduce
 case terms.Apply(function=terms.Builtin(name=name)) if (builtin := BUILTIN_RULES.get(name)) is not None:
     return builtin.reduce(term, keep)
 
 # banf_shape._Shaper.unblock, before the generic apply
-case terms.Apply(function=terms.Builtin(name=name)) if (builtin := bruijn.BUILTIN_RULES.get(name)) is not None:
+case terms.Apply(function=terms.Builtin(name=name)) if (builtin := reduction.BUILTIN_RULES.get(name)) is not None:
     return builtin.reduce(term, self.reduce_until_top_stable)
 ```
 
@@ -261,9 +261,9 @@ def _reduce_field_list(field_list, reduce_part):
 
 | Module | Step | Change |
 |---|---|---|
-| `bruijn.py` | 1 | `ReducePart`, `keep`, `BuiltinRule.reduce`, no `needs`, `reduce` passes `keep` |
+| `reduction.py` | 1 | `ReducePart`, `keep`, `BuiltinRule.reduce`, no `needs`, `reduce` passes `keep` |
 | `banf_translate.py` | 1, 2, 3 | the "must reduce to" texts, by built-in name, replace `builtin.needs` (1); one entry per built-in (2, 3) |
-| `bruijn.py` | 2, 3 | `to_field_list`, `from_field_list`, `_reduce_field_list`, the two rules |
+| `reduction.py` | 2, 3 | `to_field_list`, `from_field_list`, `_reduce_field_list`, the two rules |
 | `banf_shape.py` | 1 | the built-in case in `unblock` |
 | `banf_shape_test.py`, `banf_translate_test.py` | 1 | test rules use `reduce(call, reduce_part)` |
 | `docs/notes.md` | 1, 2, 3 | "Blockers", "How to add a built-in" (1); built-ins table (2, 3) |
@@ -296,7 +296,7 @@ Each step is one commit, leaves `hatch run full-check` green, and updates
   - `$both {a = (i -> i) [01], b = {c = [02]}.c}` reduces both fields, then fires.
   - `$both {a = e, b = (i -> i) [02]}` (`e` free) comes back with `b = [02]`, unfired.
   - A rule that reduces field 1 only when field 0 is `[01]`.
-  - `$fix g` doesn't reduce `g`; `bruijn.reduce` alone doesn't reduce parts.
+  - `$fix g` doesn't reduce `g`; `reduction.reduce` alone doesn't reduce parts.
 - Tests of the three rules of decision 1, for every built-in.
 - Docs: notes "Blockers" and "How to add a built-in"; `reduction_rules.md` `E-Builtin`.
 
@@ -336,5 +336,5 @@ Commit: `oymomo: add $fields_to_struct`
 ```python
 def test_dynamic_struct():
     source = "(l -> v -> $fields_to_struct {more = [01], label = l, value = v, rest = {more = [00]}}) 'a' '23'"
-    assert banf_shape.reduce_until_top_stable(bruijn.resolve(parse(source))) == parse("{a = '23'}")
+    assert banf_shape.reduce_until_top_stable(reduction.resolve(parse(source))) == parse("{a = '23'}")
 ```

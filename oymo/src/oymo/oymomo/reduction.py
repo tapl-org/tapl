@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""De Bruijn indices for oymomo terms: name resolution, the kernel helpers, and `reduce`.
+"""Reduction of oymomo terms: name resolution to De Bruijn indices, substitution, the built-in rules, and `reduce`.
 
 A `BruijnIndex(i)` refers to the binder `i` lambdas out: `x -> y -> x` is `x -> y -> $1`.
 Binder names stay on `Lambda.param_name`; references don't carry them.
@@ -13,7 +13,7 @@ from oymo.core import syntax
 from oymo.oymomo import opcodes, terms
 
 
-class BruijnError(Exception):
+class ReductionError(Exception):
     def __init__(self, message: str, location: syntax.Location | None) -> None:
         super().__init__(message)
         self.message = message
@@ -31,7 +31,7 @@ def _resolve(term, names):
             for distance, bound in enumerate(reversed(names)):
                 if bound == name:
                     return terms.BruijnIndex(distance, location)
-            raise BruijnError(f'Unknown name {name!r}.', location)
+            raise ReductionError(f'Unknown name {name!r}.', location)
         case terms.Lambda(param_name=name, param_form=form, body=body):
             # The param's form is outside the param's scope.
             form = _resolve(form, names)

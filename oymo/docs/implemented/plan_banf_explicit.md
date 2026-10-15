@@ -202,10 +202,10 @@ Each step leaves `hatch run full-check` green and updates `docs/notes.md` for it
 ### Step 1: `Void` → `Empty`
 
 - `terms.py`: `Empty = syntax.Empty`, comment "An omitted form: not written."
-- `grammar.py`, `printer.py`, `bruijn.py`, `banf_terms.py`, `banf_translate.py`: rename
+- `grammar.py`, `printer.py`, `reduction.py`, `banf_terms.py`, `banf_translate.py`: rename
   every use. `show_form(Empty)` prints nothing, as the oymomo printer does.
 - `_check_data_form`: "form must be written" instead of "form must be known".
-- Tests: `grammar_test.py`, `bruijn_test.py`, `banf_reduce_test.py`, `printer_test.py`,
+- Tests: `grammar_test.py`, `reduction_test.py`, `banf_reduce_test.py`, `printer_test.py`,
   `banf_terms_test.py` (`show_form(Empty) == ''`, `{f: => i32}`).
 - `notes.md`: "Forms are optional; omitted means void" becomes "omitted means `Empty`",
   without "each later stage decides what it can infer".

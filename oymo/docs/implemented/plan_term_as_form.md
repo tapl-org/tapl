@@ -59,7 +59,7 @@ member on `Struct` (nominal typing; deferred), `Lambda` as a Π type, and a dedi
 - The `None` default lets code build forms without a location (`form_of`, prim signatures).
   `location` is already the last field everywhere, so positional construction still works.
 - Cost: `==` no longer checks locations in tests. Only 4 asserts relied on that:
-  `grammar_test.py:10, 14, 111` and `bruijn_test.py:30`. Add explicit
+  `grammar_test.py:10, 14, 111` and `reduction_test.py:30`. Add explicit
   `.location == Location(...)` asserts there, as `grammar_test.py:200-202` already do.
 
 ## Decision 3: what may follow `:`
@@ -129,7 +129,7 @@ and fix it only if something breaks.
 - Lambda, let and byte array use the new `FORM_OPT`.
 - Update `rule_names.py` to match.
 
-### [bruijn.py](file:///usr/local/google/home/orti/github/tapl/oymo/src/oymo/oymomo/bruijn.py)
+### [reduction.py](file:///usr/local/google/home/orti/github/tapl/oymo/src/oymo/oymomo/reduction.py)
 - Forms can contain variables now. `_resolve` resolves a lambda's `param_form` in the
   **outer** scope (before the param is pushed), and resolves a byte array's `form`.
 - `_map_children` / `_map_indices` also map `Lambda.param_form` (at the outer depth) and `ByteArray.form`.
@@ -173,7 +173,7 @@ and fix it only if something breaks.
   Add explicit location asserts at lines 10, 14, 111 (Decision 2). Remove `{x, y: i32}` (no omitted field values).
   Add tests for Decision 3: `x: (i32) -> x`, `x: (a -> b) -> c`, `x: i32 -> x` is an error,
   and `=>` as a field value.
-- `bruijn_test.py`: add an explicit location assert at line 30. Add tests that variables in forms resolve
+- `reduction_test.py`: add an explicit location assert at line 30. Add tests that variables in forms resolve
   in the outer scope, and that `shift` / `substitute` reach forms.
 - `printer_test.py`: `test_pretty_omits_unknown_forms` becomes `x -> x` → `x → x`.
   Add a case where `x: (unknown) -> x` keeps its form. Line 197 builds forms with the helpers.

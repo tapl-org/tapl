@@ -2,14 +2,14 @@
 
 import pytest
 
-from oymo.oymomo import bruijn, opcodes, terms
+from oymo.oymomo import opcodes, reduction, terms
 from oymo.oymomo.grammar import RESERVED, parse
 from oymo.oymomo.printer import show
 
 
 def resolved(source, free=()):
     """Resolves `source` with the names in `free` bound outside it, outermost first."""
-    term = bruijn.resolve(parse(' -> '.join([*free, source])))
+    term = reduction.resolve(parse(' -> '.join([*free, source])))
     for _ in free:
         term = term.body
     return term
@@ -42,14 +42,14 @@ def test_resolve_inside_function_form():
 
 
 def test_resolve_keeps_location():
-    term = bruijn.resolve(parse('x -> x'))
+    term = reduction.resolve(parse('x -> x'))
     assert term.body == terms.BruijnIndex(0)
     assert term.body.location == terms.Location(5, 6)
 
 
 def test_resolve_unknown_name():
-    with pytest.raises(bruijn.BruijnError) as info:
-        bruijn.resolve(parse('x -> y'))
+    with pytest.raises(reduction.ReductionError) as info:
+        reduction.resolve(parse('x -> y'))
     assert info.value.message == "Unknown name 'y'."
     assert info.value.location == terms.Location(5, 6)
 
@@ -58,35 +58,35 @@ def test_resolve_forms_in_the_outer_scope():
     # A param's form can't see the param itself; it sees the binders around the lambda.
     assert show(resolved('x: (a) -> x: (x) -> x', free=('a',))) == 'x:$0 → x:$0 → $0'
     assert show(resolved('[00]: {f = (a)} => (a)', free=('a',))) == '[00]:{f = $0} ⇒ $0'
-    with pytest.raises(bruijn.BruijnError, match="Unknown name 'x'"):
-        bruijn.resolve(parse('x: (x) -> x'))
+    with pytest.raises(reduction.ReductionError, match="Unknown name 'x'"):
+        reduction.resolve(parse('x: (x) -> x'))
 
 
 def test_shift_and_substitute_reach_forms():
     term = resolved('x: (a) -> [00]: (x)', free=('a',))
     assert show(term) == 'x:$0 → [00]:$0'
-    assert show(bruijn.shift(term, 1)) == 'x:$1 → [00]:$0'
-    assert show(bruijn.substitute(term, 0, terms.BruijnIndex(5))) == 'x:$5 → [00]:$0'
+    assert show(reduction.shift(term, 1)) == 'x:$1 → [00]:$0'
+    assert show(reduction.substitute(term, 0, terms.BruijnIndex(5))) == 'x:$5 → [00]:$0'
 
 
 def test_shift():
     term = resolved('x -> a b x', free=('a', 'b'))
     assert show(term) == 'x → $2 $1 $0'
-    assert show(bruijn.shift(term, 1)) == 'x → $3 $2 $0'
-    assert show(bruijn.shift(term, 1, cutoff=1)) == 'x → $3 $1 $0'
+    assert show(reduction.shift(term, 1)) == 'x → $3 $2 $0'
+    assert show(reduction.shift(term, 1, cutoff=1)) == 'x → $3 $1 $0'
 
 
 def test_substitute():
     term = resolved('x -> a b x', free=('a', 'b'))
     # Replaces b (index 0 from the root, $1 under x) with $5, shifted under x to $6.
-    assert show(bruijn.substitute(term, 0, terms.BruijnIndex(5))) == 'x → $2 $6 $0'
-    assert show(bruijn.substitute(term, 1, terms.BruijnIndex(5))) == 'x → $6 $1 $0'
+    assert show(reduction.substitute(term, 0, terms.BruijnIndex(5))) == 'x → $2 $6 $0'
+    assert show(reduction.substitute(term, 1, terms.BruijnIndex(5))) == 'x → $6 $1 $0'
 
 
 def test_beta_avoids_capture():
     # (x -> y -> x) y gives y' -> y, where y is the free y, not the inner binder.
     apply = resolved('(x -> y -> x) y', free=('y',))
-    assert show(bruijn.beta(apply.function, apply.argument)) == 'y → $1'
+    assert show(reduction.beta(apply.function, apply.argument)) == 'y → $1'
 
 
 @pytest.mark.parametrize(
@@ -109,7 +109,7 @@ def test_beta_avoids_capture():
 def test_beta_propagates_form(source, expected):
     free = ('f', 't', 'y')
     apply = resolved(source, free)
-    assert bruijn.beta(apply.function, apply.argument) == resolved(expected, free)
+    assert reduction.beta(apply.function, apply.argument) == resolved(expected, free)
 
 
 @pytest.mark.parametrize(
@@ -130,7 +130,7 @@ def test_beta_propagates_form(source, expected):
 )
 def test_reduce_one_step(source, expected):
     free = ('a', 'b', 'e', 'g', 'y', 'z')
-    assert show(bruijn.reduce(resolved(source, free))) == show(resolved(expected, free))
+    assert show(reduction.reduce(resolved(source, free))) == show(resolved(expected, free))
 
 
 @pytest.mark.parametrize(
@@ -198,7 +198,7 @@ def test_reduce_one_step(source, expected):
 )
 def test_reduce_returns_the_term_itself(source):
     term = resolved(source, ('a', 'b', 'e', 'g', 'args'))
-    assert bruijn.reduce(term) is term
+    assert reduction.reduce(term) is term
 
 
 @pytest.mark.parametrize(
@@ -247,17 +247,19 @@ def test_reduce_returns_the_term_itself(source):
     ],
 )
 def test_reduce_folds_an_opcode(source, expected):
-    assert bruijn.reduce(resolved(source)) == resolved(expected)
+    assert reduction.reduce(resolved(source)) == resolved(expected)
 
 
 def test_shift_and_substitute_reach_formed():
     term = terms.Formed(terms.BruijnIndex(0), terms.BruijnIndex(1))
-    assert bruijn.shift(term, 1) == terms.Formed(terms.BruijnIndex(1), terms.BruijnIndex(2))
-    assert bruijn.substitute(term, 1, terms.BruijnIndex(5)) == terms.Formed(terms.BruijnIndex(0), terms.BruijnIndex(5))
+    assert reduction.shift(term, 1) == terms.Formed(terms.BruijnIndex(1), terms.BruijnIndex(2))
+    assert reduction.substitute(term, 1, terms.BruijnIndex(5)) == terms.Formed(
+        terms.BruijnIndex(0), terms.BruijnIndex(5)
+    )
 
 
 def test_resolve_reaches_formed():
-    term = bruijn.resolve(
+    term = reduction.resolve(
         terms.Lambda(
             'x', terms.Empty, terms.Lambda('y', terms.Empty, terms.Formed(terms.Variable('y'), terms.Variable('x')))
         )
@@ -271,7 +273,7 @@ def test_reduce_if_sees_through_a_form(value, expected):
     a, b = terms.BruijnIndex(1), terms.BruijnIndex(0)
     condition = terms.Formed(terms.ByteArray(value), terms.ByteArray(b'i1'))
     branch = terms.Apply(terms.Struct([terms.Field('', b), terms.Field('', a)]), condition)
-    assert bruijn.reduce(branch) == {'a': a, 'b': b}[expected]
+    assert reduction.reduce(branch) == {'a': a, 'b': b}[expected]
 
 
 def test_if_parses_to_a_struct_apply():
@@ -289,7 +291,7 @@ def test_if_parses_to_a_struct_apply():
     ],
 )
 def test_branch(source, expected):
-    found = bruijn.branch(parse(source))
+    found = reduction.branch(parse(source))
     assert (None if found is None else tuple(v.name for v in found)) == expected
 
 
@@ -318,7 +320,7 @@ def test_branch(source, expected):
     ],
 )
 def test_reduce_struct_apply(source, expected):
-    assert bruijn.reduce(resolved(source)) == resolved(expected)
+    assert reduction.reduce(resolved(source)) == resolved(expected)
 
 
 @pytest.mark.parametrize(
@@ -334,7 +336,7 @@ def test_reduce_struct_apply(source, expected):
 )
 def test_reduce_struct_apply_stuck(source):
     term = resolved(source, ('i',))
-    assert bruijn.reduce(term) is term
+    assert reduction.reduce(term) is term
 
 
 @pytest.mark.parametrize(
@@ -342,7 +344,7 @@ def test_reduce_struct_apply_stuck(source):
     [('[01]', 1), ('[0001]', 256), ("''", None), ('i', None), ("[02]: 'i8'", 2)],
 )
 def test_index_value(source, expected):
-    assert bruijn.index_value(resolved(source, ('i',))) == expected
+    assert reduction.index_value(resolved(source, ('i',))) == expected
 
 
 @pytest.mark.parametrize(
@@ -363,11 +365,11 @@ def test_index_value(source, expected):
     ],
 )
 def test_reduce_struct_to_fields(source, expected):
-    assert show(bruijn.reduce(resolved(source, ('x',)))) == show(resolved(expected, ('x',)))
+    assert show(reduction.reduce(resolved(source, ('x',)))) == show(resolved(expected, ('x',)))
 
 
 def test_struct_to_fields_labels_are_bare_byte_arrays():
-    field_list = bruijn.reduce(resolved('$struct_to_fields {a = x}', ('x',)))
+    field_list = reduction.reduce(resolved('$struct_to_fields {a = x}', ('x',)))
     assert field_list.fields[1] == terms.Field('label', terms.ByteArray(b'a'))
 
 
@@ -397,14 +399,14 @@ def test_struct_to_fields_labels_are_bare_byte_arrays():
     ],
 )
 def test_reduce_fields_to_struct(source, expected):
-    assert show(bruijn.reduce(resolved(source, ('x',)))) == show(resolved(expected, ('x',)))
+    assert show(reduction.reduce(resolved(source, ('x',)))) == show(resolved(expected, ('x',)))
 
 
 @pytest.mark.parametrize('source', ['{}', '{a = x, "λ" = \'2\', x, a = (y -> y) x}'])
 def test_fields_to_struct_undoes_struct_to_fields(source):
     struct = resolved(source, ('x',))
-    field_list = bruijn.reduce(terms.Apply(terms.Builtin('struct_to_fields'), struct))
-    assert bruijn.reduce(terms.Apply(terms.Builtin('fields_to_struct'), field_list)) == struct
+    field_list = reduction.reduce(terms.Apply(terms.Builtin('struct_to_fields'), struct))
+    assert reduction.reduce(terms.Apply(terms.Builtin('fields_to_struct'), field_list)) == struct
 
 
 def test_struct_to_fields_undoes_fields_to_struct():
@@ -412,12 +414,12 @@ def test_struct_to_fields_undoes_fields_to_struct():
         "{more = [01], label = 'a', value = x, rest = {more = [01], label = '', value = '2', rest = {more = [00]}}}",
         ('x',),
     )
-    struct = bruijn.reduce(terms.Apply(terms.Builtin('fields_to_struct'), field_list))
-    assert bruijn.reduce(terms.Apply(terms.Builtin('struct_to_fields'), struct)) == field_list
+    struct = reduction.reduce(terms.Apply(terms.Builtin('fields_to_struct'), field_list))
+    assert reduction.reduce(terms.Apply(terms.Builtin('struct_to_fields'), struct)) == field_list
 
 
 def test_opcodes_fold_without_a_builtin_rule():
     for name in opcodes.OPCODES:
-        assert bruijn.rule_of(terms.Apply(terms.ByteArray.from_str(name), terms.Struct([]))) is None
+        assert reduction.rule_of(terms.Apply(terms.ByteArray.from_str(name), terms.Struct([]))) is None
     unknown = resolved("'add_i32' {[01000000], [02000000]}")
-    assert bruijn.reduce(unknown) is unknown
+    assert reduction.reduce(unknown) is unknown

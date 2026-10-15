@@ -3,7 +3,7 @@
 TAPL-style rules for oymomo evaluation:
 
 - `t → t'` (one step) is [`banf_shape.step`](../src/oymo/oymomo/banf_shape.py): the
-  computation rules come from [`bruijn.reduce`](../src/oymo/oymomo/bruijn.py), and the
+  computation rules come from [`reduction.reduce`](../src/oymo/oymomo/reduction.py), and the
   congruence rules from `banf_shape.unblock`.
 - `t ⇓ w` is `reduce_until_top_stable`: apply `→` until no rule applies.
 - `shape` goes under binders, but only along BANF's skeleton.

@@ -6,7 +6,7 @@ Status: **paused**, with open questions; 1 of 6 steps.
 > Step 3 was done ahead of the rest, with no VM code, under the name **opcode**: the
 > table is `opcodes.py` (`Opcode`, `OPCODES`), the BANF op is
 > `OpcodeCall(opcode, forms, args)`, an entry computes with `evaluate`, and the kernel
-> folds through `bruijn.rule_of`. Where this plan says *VM symbol*, `vm_symbols.py`,
+> folds through `reduction.rule_of`. Where this plan says *VM symbol*, `vm_symbols.py`,
 > `VmSymbol`, `VmCall` or `run`, read *opcode*, `opcodes.py`, `Opcode`,
 > `OpcodeCall` or `evaluate`. Old `$add_i32` names are a plain
 > `Unknown built-in '$add_i32'.`, with no hint of the new spelling, and an unaccepted
@@ -205,7 +205,7 @@ host, and the next `resume` gives the call its result. (`$after` is
    per-opcode rules of `BUILTIN_RULES` replaced by this one. An impure symbol never
    folds; it stays a call, ordered by `$after` like an import. The rule reads only
    literals, so it commutes with reduction, as [plan_confluence.md](plan_confluence.md)
-   asks of every built-in rule. `vm_symbols.py` imports only `terms`, so `bruijn` can
+   asks of every built-in rule. `vm_symbols.py` imports only `terms`, so `reduction` can
    use it; LLVM lowerings are attached in `llvm_opcodes.py`, keyed by name, so the
    table stays free of llvmlite. Folding uses `run` from the table, never the host's
    binding, so a host that replaces a symbol can't change what the kernel computes.
@@ -398,7 +398,7 @@ host, and the next `resume` gives the call its result. (`$after` is
 |---|---|
 | `vm_symbols.py` (new) | `VmSymbol(name, params, result, accepts, pure, core, run)`, `VM_SYMBOLS`; one entry per LLVM instruction of decision 10, all `core`, `run` taken from `opcodes.evaluate`'s templates |
 | `opcodes.py` | removed; `bit_width` and `byte_width` move to `vm_symbols.py` |
-| `bruijn.py` | `_fold` rules replaced by one rule for `Apply(ByteArray, Struct)` (decision 8) |
+| `reduction.py` | `_fold` rules replaced by one rule for `Apply(ByteArray, Struct)` (decision 8) |
 | `banf_shape.py` | a VM symbol call: form params reduced to normal form in place, value params reduced as atoms |
 | `banf_terms.py` | `OpcodeCall(opcode, args)` → `VmCall(symbol, forms, args)`; `form_of` from `result`; verifier from `params` and `accepts`; printed as LLVM writes it |
 | `banf_translate.py` | `'name' {...}` read as `VmCall`; `$name` is only `$fix`, `$struct_to_fields`, `$fields_to_struct`, `$after`; any other `$name` is `Unknown built-in '$add_i32'; opcodes are VM symbols now: 'add' {'i32', a, b}.` |
@@ -527,7 +527,7 @@ Commit: `oymomo: add the VM`
 - Tests:
   - `vm_symbols`: every entry's `run` gives what `opcodes.evaluate` gave for every
     old opcode, on edge operands (the old table is kept in the test as the oracle).
-  - `bruijn`: `'add' {'i32', [01000000], [02000000]}` folds to
+  - `reduction`: `'add' {'i32', [01000000], [02000000]}` folds to
     `[03000000]: 'i32'`; with a variable it stays; with `form` computed by β
     (`(f -> 'add' {f, ...}) 'i32'`) it folds; with a non-literal form it stays.
   - `banf_translate`: `'add' {'i32', args.n, ...}` is `add i32 n, ...`;
@@ -567,7 +567,7 @@ Commit: `oymomo: VM coroutines`
   - `spindle`: `'ctpop' {'i32', 7}` is 3; `trace` records its argument in the host's
     list and gives it back; two `trace`s chained with `$after` record in order; a
     host that rebinds `'ctpop'` changes what the VM gives, not what the kernel folds.
-  - `bruijn`: `ctpop` folds on a literal; `trace` never does.
+  - `reduction`: `ctpop` folds on a literal; `trace` never does.
   - `llvm_translate`: `ctpop` is `call i32 @llvm.ctpop.i32` and runs under the JIT
     with the VM's result; `trace` is `'trace' runs only in the VM.`
   - golden `vm_symbol.oymo`: the goal program, run to the end.

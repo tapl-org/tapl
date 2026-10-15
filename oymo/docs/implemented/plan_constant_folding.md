@@ -14,7 +14,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 Step 1 comes first; steps 2 to 4 each add templates to the same evaluator, and step 2
 adds the test that checks it against LLVM. Built on [plan_builtin.md](plan_builtin.md):
 opcodes are built-ins (`$add_i32`), and a built-in can have a rule in
-`bruijn.BUILTIN_RULES`. Also built on [plan_struct_pack.md](plan_struct_pack.md)
+`reduction.BUILTIN_RULES`. Also built on [plan_struct_pack.md](plan_struct_pack.md)
 (implemented): a built-in reduces its own call through
 `BuiltinRule.reduce(call, reduce_part)`, and `banf_shape.unblock` already passes
 `reduce_until_top_stable` to every built-in in `BUILTIN_RULES`.
@@ -41,7 +41,7 @@ is the jump `f.a {}`.
 
 ## Decisions
 
-1. **Each opcode gets a rule in `bruijn.BUILTIN_RULES`, generated from its signature.**
+1. **Each opcode gets a rule in `reduction.BUILTIN_RULES`, generated from its signature.**
    No new term and no new syntax: `$add_i32 {...}` is already a call of a built-in, and a
    name may be in both tables (plan_builtin decision 9). The opcode keeps its entry in
    `opcodes.OPCODES` and `llvm_opcodes.DEFAULT_OPCODES`, so a call that doesn't fold
@@ -49,13 +49,13 @@ is the jump `f.a {}`.
    `convert` is unchanged and `banf_translate._MUST_REDUCE_TO` gets no entry.
 2. **Signatures and the evaluator live in a neutral `opcodes.py`.** Today's
    `banf_opcodes.py` is renamed: it holds no BANF and no LLVM, only `OpcodeSignature`,
-   `OPCODES` and their generators, and imports only `terms`. So the kernel (`bruijn`),
+   `OPCODES` and their generators, and imports only `terms`. So the kernel (`reduction`),
    BANF (`banf_terms`, `banf_translate`) and LLVM (`llvm_opcodes`) all import it, and no
    layer imports one above it. The one BANF-specific line, the check that no opcode is
    named like a BANF keyword (`_BANF_KEYWORDS`), moves to `banf_terms.py`, which prints
    `OpcodeCall`s.
-   Rejected: `bruijn` importing `banf_opcodes` (the kernel would depend on BANF), and
-   `banf_opcodes` registering rules into `bruijn.BUILTIN_RULES` (an import side effect:
+   Rejected: `reduction` importing `banf_opcodes` (the kernel would depend on BANF), and
+   `banf_opcodes` registering rules into `reduction.BUILTIN_RULES` (an import side effect:
    whether `$add_i32` folds would depend on what was imported).
 3. **The evaluator is plain Python on integers, next to the signatures.**
    `opcodes.evaluate(signature, operands: list[int]) -> int | None` computes the
@@ -100,7 +100,7 @@ is the jump `f.a {}`.
    (`$add_i32 expects a: i32, got i8.`). A form is not a type, but folding a mismatched
    form would hide that error.
 
-   So the operand reader can't be `bruijn._bytes`, which ignores forms: it compares
+   So the operand reader can't be `reduction._bytes`, which ignores forms: it compares
    the form with the param's (term `==` ignores locations).
 7. **The result has the signature's result form**: `Formed(ByteArray(bytes), result)`,
    such as `[03000000]: 'i32'` or `[01]: 'i1'`. So BANF still knows the constant's form,
@@ -113,7 +113,7 @@ is the jump `f.a {}`.
    each field to `reduce_part`, in order. With wrong labels the call is stuck anyway, so
    no field is reduced. No change in `banf_shape`.
 
-   Fields stay lazy where they are not read. `bruijn.reduce` itself stays root-only:
+   Fields stay lazy where they are not read. `reduction.reduce` itself stays root-only:
    it passes `keep`, so the rule only checks that the fields are already literals.
 9. **BANF output changes where operands are literals.** `banf_shape.block_body`
    reduces a let's value with `reduce_until_top_stable` before `_is_op` looks at it, so
@@ -138,7 +138,7 @@ is the jump `f.a {}`.
 change in content except `_BANF_KEYWORDS`, which moves to `banf_terms.py`. Imports:
 
 ```
-terms  ←  opcodes  ←  bruijn, banf_terms, banf_translate, llvm_opcodes
+terms  ←  opcodes  ←  reduction, banf_terms, banf_translate, llvm_opcodes
 ```
 
 ### B. Reducing the operands
@@ -169,7 +169,7 @@ their opcodes get a rule. Helpers: `form_bits(form)` and `byte_count(bits)`.
 
 ### D. The rule (step 2)
 
-Uses `_with_value`, already in `bruijn.py` (from `$fields_to_struct`):
+Uses `_with_value`, already in `reduction.py` (from `$fields_to_struct`):
 
 ```python
 def _fold(signature: opcodes.OpcodeSignature) -> BuiltinRule:
@@ -210,10 +210,10 @@ opcode") still holds.
 | `banf_opcodes.py` → `opcodes.py` | 1, 2, 3, 4 | renamed (A); `evaluate` (C), a template group per step |
 | `banf_terms.py`, `banf_translate.py`, `llvm_opcodes.py` | 1 | import `opcodes`; `banf_terms` gets the keyword check |
 | `banf_opcodes_test.py` → `opcodes_test.py`, `llvm_translate_test.py` | 1 | renamed import |
-| `bruijn.py` | 1 | the `BUILTIN_RULES` comment names `opcodes.OPCODES` |
-| `bruijn.py` | 2 | the opcode rules (D), `_literal_operands`, `_literal_operand` |
+| `reduction.py` | 1 | the `BUILTIN_RULES` comment names `opcodes.OPCODES` |
+| `reduction.py` | 2 | the opcode rules (D), `_literal_operands`, `_literal_operand` |
 | `banf_shape.py`, `banf_translate.py` | — | none: B is in place; an opcode isn't kernel-only |
-| `bruijn_test.py` | 2, 3, 4 | the rule under `reduce` (`keep`) |
+| `reduction_test.py` | 2, 3, 4 | the rule under `reduce` (`keep`) |
 | `banf_shape_test.py` | 2 | the rule under `reduce_until_top_stable`; `SAMPLES` for the `reduce` contract |
 | `opcodes_test.py`, `llvm_translate_test.py` | 2 | `evaluate`; fold vs LLVM JIT, per folded opcode |
 | `banf_translate_test.py` | 2, 4 | folded lets and jumps; the bare-literal case |
@@ -234,7 +234,7 @@ Each step is one commit and leaves `hatch run full-check` green. Each step updat
   `opcodes_test.py`; the module docstring says it is shared by the kernel, BANF and LLVM.
 - `_BANF_KEYWORDS` and its check move to `banf_terms.py`.
 - Imports in `banf_terms.py`, `banf_translate.py`, `llvm_opcodes.py`,
-  `llvm_translate_test.py`; the `bruijn.BUILTIN_RULES` comment.
+  `llvm_translate_test.py`; the `reduction.BUILTIN_RULES` comment.
 - `docs/notes.md`: every `banf_opcodes` reference (module table, unit test list,
   built-in names table, Opcodes section, `OpcodeCall` form row, "Add an opcode",
   glossary). `docs/plan_memory.md`. Implemented plans stay as they are.
@@ -244,9 +244,9 @@ Commit: `oymomo: move opcode signatures to opcodes.py`
 
 ### Step 2: fold `add sub mul and or xor`
 
-- `opcodes.py`: `evaluate` for these templates. `bruijn.py`: D.
+- `opcodes.py`: `evaluate` for these templates. `reduction.py`: D.
 - Tests:
-  - `bruijn_test` (`reduce`): the goal's `$add_i32`, with forms and bare; wrapping
+  - `reduction_test` (`reduce`): the goal's `$add_i32`, with forms and bare; wrapping
     (`$add_i8` of `ff` and `01` is `00`); a wrong form or byte count is stuck, a
     run-time operand is stuck, wrong labels are stuck.
   - `banf_shape_test` (`reduce_until_top_stable`):
@@ -294,5 +294,5 @@ After every step:
 hatch run full-check
 ```
 
-The final check: for every name in `opcodes.OPCODES`, `bruijn.BUILTIN_RULES` has a
+The final check: for every name in `opcodes.OPCODES`, `reduction.BUILTIN_RULES` has a
 rule, and the fold-vs-LLVM test passes for it on every edge operand.

@@ -28,7 +28,7 @@ if [01] then t else e        ⇒  t      same as {e, t} [01]
 ```
 
 So `if c then t else e` is `{e, t} c`. The else arm comes first because `[00]` (false)
-picks field 0. `If` is a term with cases in 7 modules (`terms`, `grammar`, `bruijn`,
+picks field 0. `If` is a term with cases in 7 modules (`terms`, `grammar`, `reduction`,
 `banf_reduce`, `banf_rename`, `banf_translate`, `printer`), all for a special case of a
 rule that already exists.
 
@@ -77,7 +77,7 @@ if c then t else e           parses to   {e, t} c
 3. **A shape helper** tells the printer when to print `if`. BANF does not use it, since it accepts labels (decision 10):
 
    ```python
-   # bruijn.py
+   # reduction.py
    def branch(term: syntax.Term) -> tuple[syntax.Term, syntax.Term, syntax.Term] | None:
        """`(condition, then, else)` if `term` is `{e, t} c` with both fields unlabeled, else None."""
        match term:
@@ -91,9 +91,9 @@ if c then t else e           parses to   {e, t} c
 
 ### Kernel
 
-4. **No new reduction rule.** `bruijn.reduce` already steps `Apply(Struct, index)`. The
+4. **No new reduction rule.** `reduction.reduce` already steps `Apply(Struct, index)`. The
    `If` case and `_TRUE`/`_FALSE` go.
-5. **The condition is read by `bruijn.index_value`**, as for any struct apply: unsigned
+5. **The condition is read by `reduction.index_value`**, as for any struct apply: unsigned
    little-endian, any length, with a form ignored. `if [0100] then t else e` ⇒ `t`, which
    `If` didn't accept (it wanted exactly one byte). `if [02] ...` stays stuck, as before.
 6. **The arms stay lazy.** `banf_reduce._head` makes the index the head of an
@@ -164,7 +164,7 @@ if c then t else e           parses to   {e, t} c
 ### Removal (step 3)
 
 13. **`terms.If` goes**, along with every `If` case. The printer's `if` cases now match
-    `bruijn.branch(term)` instead of `terms.If`, so `_compact`, `_flat`, `_pretty`,
+    `reduction.branch(term)` instead of `terms.If`, so `_compact`, `_flat`, `_pretty`,
     `_has_let_chain` and `_loosest` keep their layout. A branch prints at the
     expression level, as `If` did.
 
@@ -184,12 +184,12 @@ if c then t else e           parses to   {e, t} c
 |---|---|
 | [terms.py](../../src/oymo/oymomo/terms.py#L97-L107) | Delete `If`. |
 | [grammar.py](../../src/oymo/oymomo/grammar.py#L146-L148) | `_if` builds `{e, t} c` (decision 1). `rn.IF`, `RESERVED` unchanged. |
-| [bruijn.py](../../src/oymo/oymomo/bruijn.py#L55-L56) | Delete the `If` cases in `_map_children` and `reduce`, and `_TRUE`/`_FALSE`. Add `branch` (decision 3). |
+| [reduction.py](../../src/oymo/oymomo/reduction.py#L55-L56) | Delete the `If` cases in `_map_children` and `reduce`, and `_TRUE`/`_FALSE`. Add `branch` (decision 3). |
 | [banf_reduce.py](../../src/oymo/oymomo/banf_reduce.py#L101-L107) | Delete the `If` cases in `terminal`, `_head`, `_with_head`. |
 | [banf_rename.py](../../src/oymo/oymomo/banf_rename.py) | Delete the `If` case. `Apply` and `Struct` already cover a branch. |
 | [banf_translate.py](../../src/oymo/oymomo/banf_translate.py#L299-L342) | Delete the `If` cases in `op` and `body`. |
-| [printer.py](../../src/oymo/oymomo/printer.py) | In `_compact`, `_flat`, `_pretty`, `_has_let_chain`, `_loosest`: `case terms.If(...)` becomes `case terms.Apply() if (b := bruijn.branch(term))`, placed before the generic `Apply` case. |
-| tests | `bruijn_test.test_reduce_if_sees_through_a_form` builds `If` directly: build it with `grammar.parse` or a `Struct` instead. Add printer round-trip tests (decision 2). The other `if` tests parse source, so they stay as they are. |
+| [printer.py](../../src/oymo/oymomo/printer.py) | In `_compact`, `_flat`, `_pretty`, `_has_let_chain`, `_loosest`: `case terms.If(...)` becomes `case terms.Apply() if (b := reduction.branch(term))`, placed before the generic `Apply` case. |
+| tests | `reduction_test.test_reduce_if_sees_through_a_form` builds `If` directly: build it with `grammar.parse` or a `Struct` instead. Add printer round-trip tests (decision 2). The other `if` tests parse source, so they stay as they are. |
 | [notes.md](../notes.md#L527-L530) | The **If** section: `if` is sugar for `{e, t} c`, with the printing rule. The `reduce` table (l. 798): the `if` row points at struct apply. Heads (l. 1248): the head of `if c ...` is still `c`, through the struct apply rule. The BANF shape grammar (l. 1295) and the tail-position rules (l. 1404, 1431-1437) stay, worded in terms of `{e, t} c`. |
 
 ### Step 4: Write the switch plan
@@ -225,7 +225,7 @@ with every field a jump, is an N-way jump. It must decide:
   - Printer: `{e, t} c` prints as `if c then t else e`, and so do `{'1', '2'} [01]`
     (`if [01] then '2' else '1'`) and the stuck `{a, b} [02]:'i8'`. `{x = a, y = b} c`
     and `{a, b, d} c` print as written. `parse(print(t)) == t` for each.
-  - `bruijn_test`: `if [0100] then a else b` ⇒ `a`, and `if [02] ...` is stuck.
+  - `reduction_test`: `if [0100] then a else b` ⇒ `a`, and `if [02] ...` is stuck.
   - Every existing `if` test passes unchanged, except the one that builds `If`.
 - Each step, the docs-only ones included, must pass this from `oymo/` before its commit:
 

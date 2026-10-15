@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import pytest
 
-from oymo.oymomo import banf_shape, bruijn, opcodes, terms
+from oymo.oymomo import banf_shape, opcodes, reduction, terms
 from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show
 
@@ -14,11 +14,11 @@ def program(defs):
 
 
 def shaped(defs):
-    return show(banf_shape.shape(bruijn.resolve(parse(program(defs)))))
+    return show(banf_shape.shape(reduction.resolve(parse(program(defs)))))
 
 
 def same(defs):
-    return show(bruijn.resolve(parse(program(defs))))
+    return show(reduction.resolve(parse(program(defs))))
 
 
 def block(body, params="{n = 'i8'}"):
@@ -26,7 +26,7 @@ def block(body, params="{n = 'i8'}"):
 
 
 def resolved(source, free):
-    term = bruijn.resolve(parse(' -> '.join([*free, source])))
+    term = reduction.resolve(parse(' -> '.join([*free, source])))
     for _ in free:
         term = term.body
     return term
@@ -177,7 +177,7 @@ def test_a_def_produced_by_an_application():
     ],
 )
 def test_positions(source, expected):
-    assert show(banf_shape.shape(bruijn.resolve(parse(source)))) == show(bruijn.resolve(parse(expected)))
+    assert show(banf_shape.shape(reduction.resolve(parse(source)))) == show(reduction.resolve(parse(expected)))
 
 
 def test_forms_are_ignored():
@@ -231,8 +231,8 @@ def test_already_shaped_is_unchanged():
 
 
 def test_runs_out_of_fuel():
-    term = bruijn.resolve(parse(program(block('$fix (self -> self) args.n'))))
-    with pytest.raises(bruijn.BruijnError, match='ran out of reduction steps'):
+    term = reduction.resolve(parse(program(block('$fix (self -> self) args.n'))))
+    with pytest.raises(reduction.ReductionError, match='ran out of reduction steps'):
         banf_shape.shape(term, fuel=100)
 
 
@@ -245,7 +245,7 @@ def test_reduce_until_top_stable_reduces_inside_formed():
 
 
 def test_dynamic_byte_array_form():
-    reduced = banf_shape.reduce_until_top_stable(bruijn.resolve(parse("(x -> y -> y: x) 'i1' [01]")))
+    reduced = banf_shape.reduce_until_top_stable(reduction.resolve(parse("(x -> y -> y: x) 'i1' [01]")))
     assert reduced == parse("[01]:'i1'")
     assert show(reduced) == "[01]:'i1'"
 
@@ -263,7 +263,7 @@ def test_struct_to_fields_on_a_run_time_value_is_stuck():
 
 def test_fields_to_struct_goal():
     source = "(l -> v -> $fields_to_struct {more = [01], label = l, value = v, rest = {more = [00]}}) 'a' '23'"
-    assert banf_shape.reduce_until_top_stable(bruijn.resolve(parse(source))) == parse("{a = '23'}")
+    assert banf_shape.reduce_until_top_stable(reduction.resolve(parse(source))) == parse("{a = '23'}")
 
 
 def test_fields_to_struct_reduces_more_label_and_rest_but_not_values():
@@ -284,7 +284,7 @@ def test_fields_to_struct_reads_label_and_rest_only_after_more_is_01():
 
     source = "$fields_to_struct {more = [00], label = (y -> y) 'a', value = (y -> y) x, rest = (y -> y) e}"
     call = resolved(source, FREE)
-    assert bruijn.BUILTIN_RULES['fields_to_struct'].reduce(call, record) == terms.Struct([])
+    assert reduction.BUILTIN_RULES['fields_to_struct'].reduce(call, record) == terms.Struct([])
     assert given == [show(call.argument), '[00]']
 
 
@@ -306,7 +306,7 @@ def test_fields_to_struct_maps_a_struct():
 
 def test_an_endless_field_list_runs_out_of_fuel():
     term = resolved("$fields_to_struct ($fix (l -> {more = [01], label = 'a', value = x, rest = l}))", FREE)
-    with pytest.raises(bruijn.BruijnError, match='ran out of reduction steps'):
+    with pytest.raises(reduction.ReductionError, match='ran out of reduction steps'):
         banf_shape.reduce_until_top_stable(term)
 
 
@@ -392,7 +392,7 @@ def _gate(call, reduce_part):
     argument = reduce_part(call.argument)
     if isinstance(argument, terms.Struct) and len(argument.fields) == 2:
         argument = _reduce_fields(argument, [0], reduce_part)
-        if bruijn.index_value(argument.fields[0].value) == 1:
+        if reduction.index_value(argument.fields[0].value) == 1:
             return reduce_part(argument.fields[1].value)
     return _put_back(call, argument)
 
@@ -400,7 +400,7 @@ def _gate(call, reduce_part):
 @pytest.fixture
 def test_rules(monkeypatch):
     for name, reduce in (('first', _first), ('both', _both), ('gate', _gate)):
-        monkeypatch.setitem(bruijn.BUILTIN_RULES, name, bruijn.BuiltinRule(name, reduce))
+        monkeypatch.setitem(reduction.BUILTIN_RULES, name, reduction.BuiltinRule(name, reduce))
 
 
 FREE = ('e', 'g', 'x')
@@ -413,9 +413,9 @@ def test_a_builtin_reduces_its_argument_and_fires_in_one_step():
 
 
 @pytest.mark.usefixtures('test_rules')
-def test_bruijn_reduce_does_not_reduce_parts():
+def test_reduction_reduce_does_not_reduce_parts():
     term = resolved('$first ({p = {a = x}}.p)', FREE)
-    assert bruijn.reduce(term) is term
+    assert reduction.reduce(term) is term
 
 
 @pytest.mark.usefixtures('test_rules')
@@ -476,12 +476,12 @@ def _opcode_samples(signature):
 
 
 SAMPLES |= {
-    name: _opcode_samples(signature) for name, signature in opcodes.OPCODES.items() if name in bruijn.BUILTIN_RULES
+    name: _opcode_samples(signature) for name, signature in opcodes.OPCODES.items() if name in reduction.BUILTIN_RULES
 }
 
 
 def test_every_builtin_has_samples():
-    assert set(bruijn.BUILTIN_RULES) <= set(SAMPLES)
+    assert set(reduction.BUILTIN_RULES) <= set(SAMPLES)
 
 
 def _fired(call, result):
@@ -511,7 +511,7 @@ def _fired(call, result):
 #             return argument.fields[0].value
 #         return replace(call, argument=argument)
 #
-#   On `$first e` with `keep`, it returns a copy of `call`. `bruijn.reduce(t) is t` is
+#   On `$first e` with `keep`, it returns a copy of `call`. `reduction.reduce(t) is t` is
 #   then false although nothing happened, and `reduce_until_top_stable` loops. Fails.
 #
 # Check 3: one call does all it can, so if it doesn't fire, calling it again on what it
@@ -526,7 +526,7 @@ def _fired(call, result):
 @pytest.mark.parametrize('source', [source for sources in SAMPLES.values() for source in sources])
 def test_builtin_reduce_contract(source):
     call = resolved(source, FREE)
-    rule = bruijn.BUILTIN_RULES[call.function.name]
+    rule = reduction.BUILTIN_RULES[call.function.name]
     given = []
 
     def record(part):
@@ -539,7 +539,7 @@ def test_builtin_reduce_contract(source):
         other = replace(call, argument=terms.BruijnIndex(len(FREE) - 1))  # `e`
         assert _fired(other, rule.reduce(other, record)) == _fired(call, result)
 
-    kept = rule.reduce(call, bruijn.keep)
+    kept = rule.reduce(call, reduction.keep)
     assert kept is call or _fired(call, kept)
 
     if not _fired(call, result):

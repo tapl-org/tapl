@@ -48,7 +48,7 @@ blocks needs N-1 compares and branches, each in its own block.
 ### Kernel (step 1)
 
 1. **A struct applied to an index at or past its length selects its last field.**
-   In [`reduce`](../../src/oymo/oymomo/bruijn.py): `{a, b, c} [07]` → `c`, where today it
+   In [`reduce`](../../src/oymo/oymomo/reduction.py): `{a, b, c} [07]` → `c`, where today it
    is stuck. The last field is a catch-all: `{a, b, other} k` is case 0, case 1,
    default. With two fields, `if` gets any nonzero index as true: `{e, t} [02]` → `t`.
    The rule is still a function of the literal, so confluence
@@ -86,7 +86,7 @@ blocks needs N-1 compares and branches, each in its own block.
    lowered is LLVM translation's concern (decision 11). A switch with no targets is
    rejected ("A switch needs a target."), as `{} i` is stuck: there is no last target.
 6. **Target `k` is taken when the selector equals `k`**, read as unsigned, as
-   `bruijn.index_value` reads an index.
+   `reduction.index_value` reads an index.
 7. **An index past the last target takes the last target**, as in the kernel
    (decision 1). It needs no default in BANF, so it keeps
    [plan_banf_explicit.md](plan_banf_explicit.md)'s "no defaults".
@@ -136,7 +136,7 @@ blocks needs N-1 compares and branches, each in its own block.
 
 | Module | Step | Change |
 |---|---|---|
-| [bruijn.py](../../src/oymo/oymomo/bruijn.py) | 1 | `reduce`: the struct apply case selects the last field for an index at or past the length (decisions 1, 2). |
+| [reduction.py](../../src/oymo/oymomo/reduction.py) | 1 | `reduce`: the struct apply case selects the last field for an index at or past the length (decisions 1, 2). |
 | [banf_terms.py](../../src/oymo/oymomo/banf_terms.py), [llvm_translate.py](../../src/oymo/oymomo/llvm_translate.py) | 1 | `GetIndex`: `op_form` and lowering read the last field for an index past it (decision 3). |
 | [banf_terms.py](../../src/oymo/oymomo/banf_terms.py) | 2 | `Switch`, `Terminator`, `_verify_function` (decision 5), `show_terminator` (decision 8). |
 | [llvm_translate.py](../../src/oymo/oymomo/llvm_translate.py) | 2 | `_successors`, `terminator`: `builder.switch` to the last target, with `add_case` per other target (decision 9); the selector checks (decision 11). |
@@ -149,7 +149,7 @@ blocks needs N-1 compares and branches, each in its own block.
 
 ### Step 1: an index past the last field selects the last field
 
-- `bruijn.reduce`: `fields[min(position, len(fields) - 1)]` when `fields` is non-empty.
+- `reduction.reduce`: `fields[min(position, len(fields) - 1)]` when `fields` is non-empty.
 - `banf_terms.op_form` and `llvm_translate` for `GetIndex`: the same clamp.
 - Tests:
   - `reduce`: `{a, b, c} [07]` → `c`, `{a, b} [0001]` → `b`, `{x = .., y = ..} [05]`

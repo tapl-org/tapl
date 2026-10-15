@@ -8,7 +8,7 @@ ignored. An opcode has no declared params: it reads its fields itself, by positi
 tells what it can from them. `form_of` gives the result's form, `evaluate` the result's
 bytes when every field it needs is a literal.
 
-Shared by the kernel (`bruijn`), BANF (`banf_translate`) and LLVM (`llvm_opcodes`), so it
+Shared by the kernel (`reduction`), BANF (`banf_translate`) and LLVM (`llvm_opcodes`), so it
 holds no BANF and no LLVM and imports only `terms`.
 """
 

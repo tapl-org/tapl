@@ -269,7 +269,7 @@ return r
 
 | Module | Change |
 |---|---|
-| `bruijn.py` | none: `after` has no rule in `BUILTIN_RULES`, and a built-in with no rule is not a redex |
+| `reduction.py` | none: `after` has no rule in `BUILTIN_RULES`, and a built-in with no rule is not a redex |
 | `banf_shape.py` | `atom`: for `$after {...}`, each field is reduced as an atom, so `$after {{a = q}.a, r}` reaches `$after {q, r}` |
 | `banf_translate.py` | `AFTER = 'after'`, checked in `op` before anything else; `_Translator.atom` reads `$after {x, d1, ..., dn}` as the atom of `x`, after checking `n ≥ 1` and that each `dᵢ` is an atom; `body` binds `let c = $after {...}` as an alias of that atom, not a `Let` |
 | `banf_terms.py`, `llvm_translate.py` | none |
@@ -287,7 +287,7 @@ checks.
 
 | Module | Change |
 |---|---|
-| `bruijn.py`, `banf_shape.py` | none (decision 13; form params are plan_vm's) |
+| `reduction.py`, `banf_shape.py` | none (decision 13; form params are plan_vm's) |
 | `opcodes.py` | entries `alloca` (form param `form`, optional value param `count` of any integer form, result `'ptr'`) and `getelementptr` (form param `form`, `ptr: 'ptr'`, `indices`, result `'ptr'`), impure, each with a `check` for decision 7's rules and an `llvm`: `builder.alloca(llvm_type(form), size=count)`, `builder.gep(ptr, indices, source_etype=llvm_type(form))` |
 | `banf_terms.py` | `show_form` for `'ptr'`; printed `alloca {i32, i64}`, `getelementptr {i32, i64}, q, [00..]:i64, [01000000]:i32`; verifier: a `Const` of form `ptr` is an error (decision 6) |
 | `llvm_translate.py` | `llvm_type`: `'ptr'` → `ir.PointerType()` |
@@ -304,7 +304,7 @@ checks.
 
 | Module | Change |
 |---|---|
-| `bruijn.py`, `terms.py` | none: a tagged pair is a struct |
+| `reduction.py`, `terms.py` | none: a tagged pair is a struct |
 | `banf_shape.py` | none: a struct form is already reduced to normal form in place |
 | `banf_terms.py` | `FORM_TAGS = {'array', 'vector', 'scalable_vector', 'packed'}` and `tagged_form(form) -> (tag, parts) \| None`, the one reader every BANF and LLVM stage uses; `show_form`: `[3 x i32]`, `<4 x i32>`, `<vscale x 4 x i32>`, `<{i8, i32}>`, as LLVM prints them; the verifier compares forms with `==`, which already covers structs |
 | `banf_translate.py` | `_check_data_form` reads a struct with `tagged_form` first, and checks a tagged pair by the rules of decision 8, recursively; `count` read as an unsigned little-endian integer |
@@ -451,7 +451,7 @@ Each step is one commit and leaves `hatch run full-check` green. Each step updat
 
 - A.
 - Tests:
-  - `bruijn`: `$after {[01], [02]}` is not a redex; normalizing the `hi` program keeps
+  - `reduction`: `$after {[01], [02]}` is not a redex; normalizing the `hi` program keeps
     the first `putchar`, and normalizing it without `$after` drops it (why the step
     exists).
   - `banf_shape`: a field of `$after` that reduces (`{a = q}.a`) is reduced to `q`.
@@ -475,7 +475,7 @@ Commit: `oymomo: add $after`
 
 - B.
 - Tests:
-  - `bruijn`: `'alloca' {'i32'}` is not a redex.
+  - `reduction`: `'alloca' {'i32'}` is not a redex.
   - `banf_shape`: a `form` that reduces (`{f = 'i32'}.f`) is reduced to `'i32'` and
     not let-bound.
   - `banf_translate`: `'alloca'` without `form`, or with a form that isn't a literal,
@@ -499,7 +499,7 @@ Commit: `oymomo: add the ptr form`
 
 - C.
 - Tests:
-  - `bruijn`: a store then a load stay stuck (decision 13).
+  - `reduction`: a store then a load stay stuck (decision 13).
   - `banf_translate`: the goal program gives its BANF, with the load after the store
     (without `$after`: step 4);
     `'store' {v}` is `'store' takes 2 fields, got 1.`;
@@ -523,13 +523,13 @@ No code change. Memory ops are stuck (decision 13), but the let around them is n
 `let x = e in body` is `(x -> body) e`, a β-redex whatever `e` is. These tests pin
 down the three things full β does to effects that `$after` doesn't chain (decision
 4), so a later change to the kernel or to `banf_shape` that alters them fails a test.
-Each case is checked on `normalize(t)` in `bruijn`, and on `convert(t)` in
+Each case is checked on `normalize(t)` in `reduction`, and on `convert(t)` in
 `banf_translate`, which gives the same BANF as `convert(normalize(t))` (confluence).
 
 - Tests:
   - **Unused effects disappear.**
     `let s = 'store' {args.n, p} in 'load' {'i32', p}`:
-    - `bruijn`: normalizes to `'load' {'i32', p}`; no `'store'` is left,
+    - `reduction`: normalizes to `'load' {'i32', p}`; no `'store'` is left,
       since nothing uses `s`.
     - `banf_translate`: the block is `p = alloca i32`, `v = load i32, p`, with no
       `store`.
@@ -538,7 +538,7 @@ Each case is checked on `normalize(t)` in `bruijn`, and on `convert(t)` in
   - **Effects get copied.**
     `let v = 'load' {'i32', p} in let s = 'store' {args.n, p} in
     'add' {'i32', $after {v, s}, v}`, one load written before the store:
-    - `bruijn`: the normal form has two `'load' {'i32', p}` subterms.
+    - `reduction`: the normal form has two `'load' {'i32', p}` subterms.
     - `banf_translate`: the block is `load`, `store`, `load`, `add`: one load on each
       side of the store.
     - `llvm_translate`: with `p` first stored `[01000000]: 'i32'`, `bump(41)` under
@@ -546,7 +546,7 @@ Each case is checked on `normalize(t)` in `bruijn`, and on `convert(t)` in
   - **The order is lost.**
     `let s = 'store' {args.n, p} in let v = 'load' {'i32', p}
     in $after {v, s}`, the store written before the load, and both kept:
-    - `bruijn`: the normal form is `$after {'load' {...}, 'store' {...}}`; no let is
+    - `reduction`: the normal form is `$after {'load' {...}, 'store' {...}}`; no let is
       left.
     - `banf_translate`: the block is `load` then `store`: `banf_shape` lets the fields
       of `$after` in field order, so the load comes first, the reverse of the source.
@@ -561,7 +561,7 @@ Commit: `oymomo: test unordered effects`
 
 - D.
 - Tests:
-  - `bruijn`: none needed: a tagged pair is a struct. One test that β builds one:
+  - `reduction`: none needed: a tagged pair is a struct. One test that β builds one:
     `(e -> {'array', {element = e, count = ...}}) 'i8'` normalizes to
     `{'array', {element = 'i8', ...}}`.
   - `banf_translate`: each tagged pair as a block param's form, a function param's

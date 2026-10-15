@@ -9,7 +9,7 @@
 from dataclasses import dataclass, replace
 
 from oymo.core import syntax
-from oymo.oymomo import banf_rename, banf_shape, bruijn, opcodes, terms
+from oymo.oymomo import banf_rename, banf_shape, opcodes, reduction, terms
 from oymo.oymomo import banf_terms as banf
 from oymo.oymomo.banf_rename import ARGS, BLOCKS, MODULE
 
@@ -287,7 +287,7 @@ class _Translator:
         match term:
             case terms.Apply(function=function, argument=index) if self.is_atom(function, block):
                 # A value struct applied to an index reads that field, as a struct literal does in `reduce`.
-                position = bruijn.index_value(index)
+                position = reduction.index_value(index)
                 if position is None:
                     raise TranslationError('An index must be a byte array literal, such as [01].', _location(index))
                 return banf.GetIndex(self.atom(function, block), position, location)
@@ -296,7 +296,7 @@ class _Translator:
             case terms.Apply(function=terms.Builtin(name=name)):
                 # A built-in is kernel-only: it should have reduced away, and is left only
                 # when its rule couldn't fire.
-                if name in bruijn.BUILTIN_RULES:
+                if name in reduction.BUILTIN_RULES:
                     must = _MUST_REDUCE_TO.get(name)
                     needs = f': its argument must reduce to {must}' if must else ''
                     raise TranslationError(f'${name} has no opcode, so it must reduce away{needs}.', location)
@@ -410,8 +410,8 @@ class _Translator:
 def shape(term: syntax.Term) -> syntax.Term:
     """Resolves names, reduces to BANF's shape and renames binders."""
     try:
-        return banf_rename.rename(banf_shape.shape(bruijn.resolve(term)))
-    except bruijn.BruijnError as error:
+        return banf_rename.rename(banf_shape.shape(reduction.resolve(term)))
+    except reduction.ReductionError as error:
         raise TranslationError(error.message, error.location) from error
 
 

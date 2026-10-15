@@ -2,13 +2,13 @@
 
 import textwrap
 
-from oymo.oymomo import banf_rename, bruijn
+from oymo.oymomo import banf_rename, reduction
 from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show
 
 
 def renamed(source):
-    return banf_rename.rename(bruijn.resolve(parse(source)))
+    return banf_rename.rename(reduction.resolve(parse(source)))
 
 
 def pretty(source):

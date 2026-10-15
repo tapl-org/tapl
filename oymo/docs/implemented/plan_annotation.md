@@ -78,7 +78,7 @@ The closest encoding without a new term is a formed lambda parameter,
 (x -> y -> let v:(x) = y in v) 'i1' [01]   ⇒   [01]      (expected [01]:'i1')
 ```
 
-I checked this with `banf_reduce.whnf`. `bruijn.beta` substitutes the argument and never
+I checked this with `banf_reduce.whnf`. `reduction.beta` substitutes the argument and never
 looks at `param_form`, and no other rule moves a form onto a value.
 
 **Solved by:** nothing has to be moved any more. `y : x` is `Formed(y, x)`, and beta puts
@@ -275,7 +275,7 @@ No new reduction rule. `Formed` itself never reduces. Two existing things learn 
 - **C1. `whnf` reduces inside `Formed.term`.** It becomes a head position in `banf_reduce`
   (`_head` and `_with_head`), next to `Apply.function`, `Project.struct` and
   `If.condition`. So `((x -> x) [01]) : 'i1'` reduces to `[01] : 'i1'`, which is an atom.
-- **C2. `if` sees through a form.** In `bruijn.reduce`, the `if` rule matches a condition
+- **C2. `if` sees through a form.** In `reduction.reduce`, the `if` rule matches a condition
   `[01]` or `Formed([01], F)`, so `if [01]:'i1' then a else b` still reduces to `a`.
 
 #### The example, step by step
@@ -296,7 +296,7 @@ No new reduction rule. `Formed` itself never reduces. Two existing things learn 
 | `rule_names.py` | add `FORMED`, remove `FORM` and `FORM_ATOM` (done) |
 | `grammar.py` | A1–A2: `FORMED` above `APPLY` and below `ARROW`, binder forms at formed level, `BYTE_ARRAY` without a form (done) |
 | `printer.py` | levels in A1 order: `_EXPRESSION, _APPLY, _FORMED, _ARROW, _PROJECT`. An apply argument and a `fix` operand print at `_FORMED`. `Formed(t, f)` prints `t:f` (compact) or `t: f` (pretty), with `t` at `_ARROW` and `f` at `_FORMED`. Binder forms at `_FORMED` (`x:(i32)` → `x:i32`). `_form_text` and `_form_atom_text` go away (done) |
-| `bruijn.py` | `Formed` in `_map_children`, C2 in `reduce` (done) |
+| `reduction.py` | `Formed` in `_map_children`, C2 in `reduce` (done) |
 | `banf_reduce.py` | C1: `Formed.term` is a head position (done) |
 | `banf_rename.py` | `other` walks into both sides of `Formed` (done) |
 | `banf_translate.py` | `atom`: `Formed(ByteArray(v), F)` → `banf.Const(v, F)` (done) |
@@ -381,7 +381,7 @@ binder forms use it, so they must be done in order.
 Nothing parses to `Formed` yet. Tests build it in Python.
 
 - `terms.py`: add `Formed`.
-- `bruijn.py`: a `Formed` case in `_map_children`. C2: the `if` rule sees through `Formed`.
+- `reduction.py`: a `Formed` case in `_map_children`. C2: the `if` rule sees through `Formed`.
 - `banf_reduce.py`: C1, so `Formed.term` is a head position.
 - `printer.py`: the `_FORMED` level. `Formed(t, f)` prints `t:f` / `t: f`, and gets
   parentheses where something tighter is needed.
@@ -406,7 +406,7 @@ Commit: `oymomo: parse e : F as Formed`
   `FORM_ATOM` accepts a byte array with its own `: form` (as a `Formed`) until step 5.
 - `printer.py`: a formed byte array prints its bytes as hex, and a bare one uses the
   `'text'` rule. `_arrow_param` and `_ends_with_form` are gone.
-- `bruijn.py`, `banf_translate.py`: match `Formed(ByteArray(v), F)`.
+- `reduction.py`, `banf_translate.py`: match `Formed(ByteArray(v), F)`.
 - Tests: every place that built or read `ByteArray.form`; the motivating example compares
   terms: `whnf(...) == parse("[01]:'i1'")`.
 
@@ -466,5 +466,5 @@ The final check is the motivating example, as a term comparison:
 
 ```python
 def test_dynamic_byte_array_form():
-    assert banf_reduce.whnf(bruijn.resolve(parse("(x -> y -> y : x) 'i1' [01]"))) == parse("[01]:'i1'")
+    assert banf_reduce.whnf(reduction.resolve(parse("(x -> y -> y : x) 'i1' [01]"))) == parse("[01]:'i1'")
 ```
