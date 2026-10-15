@@ -18,6 +18,8 @@ FUEL = 10_000
 class _Shaper:
     def __init__(self, fuel: int) -> None:
         self.fuel = fuel
+        # id(term) -> (term, its reduce_until_top_stable). The term is kept so its id isn't reused.
+        self.top_stable = {}
 
     def use_fuel(self, term):
         if self.fuel <= 0:
@@ -27,12 +29,23 @@ class _Shaper:
     # Reduction. Nothing is reduced under a Lambda, inside a Struct's fields, or in a lazy argument.
 
     def reduce_until_top_stable(self, term):
-        """Reduces `term` until its top constructor can't change."""
+        """Reduces `term` until its top constructor can't change.
+
+        Memoized by identity: the result depends only on the term (de Bruijn indices, no
+        effects), and substitution shares a value instead of copying it. So an argument
+        used more than once is reduced once (call-by-need), and costs fuel once.
+        """
+        cached = self.top_stable.get(id(term))
+        if cached is not None and cached[0] is term:
+            return cached[1]
+        original = term
         while True:
             stepped = self.step(term)
             if stepped is term:
-                return term
+                break
             term = stepped
+        self.top_stable[id(original)] = (original, term)
+        return term
 
     def step(self, term):
         """Fires the rule at the root, or else unblocks it. Returns `term` itself when neither changes it."""

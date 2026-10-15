@@ -58,30 +58,57 @@ def _map_children(term, f):
     return term
 
 
-def _map_indices(term, on_index, depth=0):
+def free_bound(term: syntax.Term) -> int:
+    """One more than the largest index free in `term`, seen from its root: 0 for a closed term.
+
+    Cached on the term: terms are never changed after they are built.
+    """
+    cached = term.__dict__.get('_free_bound')
+    if cached is not None:
+        return cached
+    match term:
+        case terms.BruijnIndex(index=index):
+            bound = index + 1
+        case terms.Lambda(param_form=form, body=body):
+            bound = max(free_bound(form), free_bound(body) - 1)
+        case _:
+            bound = max((free_bound(child) for child in term.children()), default=0)
+    term.__dict__['_free_bound'] = bound
+    return bound
+
+
+def _map_indices(term, on_index, threshold, depth=0):
     """Rebuilds `term` with `on_index(index_term, depth)` applied to each BruijnIndex, where `depth`
-    counts the lambdas entered inside `term`."""
+    counts the lambdas entered inside `term`.
+
+    `on_index` must leave an index below `threshold + depth` as it is. So a subterm with no
+    such index is returned itself, not rebuilt: a closed value is shared, not copied.
+    """
+    if free_bound(term) <= threshold + depth:
+        return term
     match term:
         case terms.BruijnIndex():
             return on_index(term, depth)
         case terms.Lambda(param_form=form, body=body):
             return replace(
                 term,
-                param_form=_map_indices(form, on_index, depth),
-                body=_map_indices(body, on_index, depth + 1),
+                param_form=_map_indices(form, on_index, threshold, depth),
+                body=_map_indices(body, on_index, threshold, depth + 1),
             )
-    return _map_children(term, lambda child: _map_indices(child, on_index, depth))
+    return _map_children(term, lambda child: _map_indices(child, on_index, threshold, depth))
 
 
 def shift(term: syntax.Term, by: int, cutoff: int = 0) -> syntax.Term:
     """Adds `by` to every index that points at or beyond `cutoff` binders out of `term`."""
+    if by == 0:
+        return term
 
     def on_index(index_term, depth):
         if index_term.index >= cutoff + depth:
             return replace(index_term, index=index_term.index + by)
         return index_term
 
-    return _map_indices(term, on_index)
+    return _map_indices(term, on_index, cutoff)
 
 
 def substitute(term: syntax.Term, index: int, value: syntax.Term) -> syntax.Term:
@@ -92,7 +119,7 @@ def substitute(term: syntax.Term, index: int, value: syntax.Term) -> syntax.Term
             return shift(value, depth)
         return index_term
 
-    return _map_indices(term, on_index)
+    return _map_indices(term, on_index, index)
 
 
 def beta(lambda_: terms.Lambda, argument: syntax.Term) -> syntax.Term:
