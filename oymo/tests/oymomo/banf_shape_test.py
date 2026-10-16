@@ -362,6 +362,32 @@ def test_an_opcode_on_a_run_time_operand_keeps_the_fields_it_reduced():
     assert show(banf_shape.reduce_until_top_stable(term)) == show(resolved("'add' {'i32', e, [02000000]}", FREE))
 
 
+def test_seq_reduces_its_fields_then_fires():
+    term = resolved('$seq {{a = [01]}.a, (i -> i) [02], x}', FREE)
+    assert banf_shape.reduce_until_top_stable(term) == resolved('x', FREE)
+
+
+def test_a_stuck_seq_keeps_the_fields_it_reduced():
+    # `e` is a run-time value: `$seq` stays, with every field reduced, the value too.
+    term = resolved('$seq {{a = e}.a, (i -> i) [01], {b = x}.b}', FREE)
+    assert show(banf_shape.reduce_until_top_stable(term)) == show(resolved('$seq {e, [01], x}', FREE))
+
+
+@pytest.mark.parametrize(
+    ('body', 'expected'),
+    [
+        # A stuck `$seq` is an atom, so a let on it is substituted, as is one that fires.
+        (
+            "let t = 'add' {'i8', args.n, args.n} in let c = $seq {t, args.n} in let u = 'mul' {'i8', c, c} in u",
+            "let t = 'add' {'i8', args.n, args.n} in let u = 'mul' {'i8', $seq {t, args.n}, $seq {t, args.n}} in u",
+        ),
+        ("let c = $seq {[01]~'i8', args.n} in c", 'args.n'),
+    ],
+)
+def test_block_body_seq(body, expected):
+    assert shaped(block(body)) == same(block(expected))
+
+
 @pytest.mark.parametrize(
     ('body', 'expected'),
     [

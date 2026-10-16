@@ -1,12 +1,12 @@
 # Plan: memory as in LLVM: the `'ptr'` form, alloca, getelementptr, load and store
 
-Status: **proposed**; 0 of 7 steps.
+Status: **in progress**; 1 of 7 steps.
 
 ## Steps
 
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
-- [ ] 1. `$seq {d1, ..., x}`: gives `x` once every `dᵢ` is a literal, so an effect it waits for stays (`oymomo: add $seq`)
+- [x] 1. `$seq {d1, ..., x}`: gives `x` once every `dᵢ` is a literal, so an effect it waits for stays (`oymomo: add $seq`)
 - [ ] 2. The `'ptr'` form, `'alloca'` and `'getelementptr'` (`oymomo: add the ptr form`)
 - [ ] 3. `'load'` and `'store'` (`oymomo: add load and store`)
 - [ ] 4. Tests: what `translate` does to effects without `$seq` (`oymomo: test unordered effects`)
@@ -151,8 +151,8 @@ return r
    because it stands for its last field, which is an atom. (The other is a form field of
    an opcode, such as `form` ([plan_vm.md](plan_vm.md) decision 10).)
 3. **`convert` drops what reduction leaves.** A stuck `$seq {..., x}` becomes the
-   atom `x`, and
-   `let c = $seq {...}` binds no BANF let: `c` is an alias of `x`. So BANF, the
+   atom `x`, and `let c = $seq {...}` binds no BANF let: a let on an atom,
+   `banf_shape` beta-reduces it, so each use of `c` gets the `$seq`. So BANF, the
    verifier, `form_of` and LLVM never see it, and it needs no form. After `convert`,
    order is let order alone, which BANF keeps: no BANF pass reorders or removes a let,
    and LLVM keeps calls to imports and memory ops in order.
@@ -398,13 +398,9 @@ return r
 | Module | Change |
 |---|---|
 | `reduction.py` | `'seq'` in `BUILTINS`; a case in `reduce`: `$seq {d1, ..., dn, x}` with every `dᵢ` a byte array (`bytes_of` is not None) gives `x`. Root-only, as every rule: it reduces no field |
-| `banf_shape.py` | `unblock`: `$seq` joins the opcode-call case: the argument is reduced to a struct, then every field with `reduce_fields`, the result too, so `$seq {{a = [01]}.a, x}` fires; `atom`: a stuck `$seq {...}` has each field reduced as an atom, so `$seq {{a = q}.a, r}` reaches `$seq {q, r}` |
-| `banf_translate.py` | `SEQ = 'seq'`, checked in `op` before anything else; `_Translator.atom` reads a stuck `$seq {d1, ..., dn, x}` as the atom of `x`, after checking that each `dᵢ` is an atom; `body` binds `let c = $seq {...}` as an alias of that atom, not a `Let` |
+| `banf_shape.py` | `_is_op`: a stuck `$seq` is not an op, so `let c = $seq {...} in b` is beta-reduced, as a let on an atom is, and each use of `c` gets the `$seq`; `unblock`: `$seq` joins the opcode-call case: the argument is reduced to a struct, then every field with `reduce_fields`, the result too, so `$seq {{a = [01]}.a, x}` fires; `atom`: a stuck `$seq {...}` has each field reduced as an atom, so `$seq {{a = q}.a, r}` reaches `$seq {q, r}` |
+| `banf_translate.py` | `SEQ = 'seq'`, checked in `op` before anything else; `_Translator.atom` reads a stuck `$seq {d1, ..., dn, x}` as the atom of `x`, after checking that each `dᵢ` is an atom |
 | `banf_terms.py`, `llvm_translate.py` | none |
-
-`_Block.binder` counts lets to resolve an index, so an alias still takes a binder
-slot: `_Block` keeps one entry per let binder, a `Let` it emitted or the atom it
-aliases, and `atom` returns the aliased atom for an alias.
 
 ### B. Pointers, `'alloca'`, `'getelementptr'` (step 2)
 
@@ -578,8 +574,8 @@ Each step is one commit and leaves `hatch run full-check` green. Each step updat
     `$seq` that reduces (`{a = q}.a`) is reduced to `q`.
   - `banf_translate`: `hi` gives two `putchar` lets in order, the second on
     `[69000000]:i32`; `$seq` inline in an op argument, as a jump argument, as a
-    branch condition and as a return; `let c = $seq {...}` makes `c` an alias, and a
-    later let still resolves to the right name; labels in `$seq` are ignored;
+    branch condition and as a return; `let c = $seq {...}` is substituted, so it
+    binds no BANF let, and a later let still resolves to the right name; labels in `$seq` are ignored;
     `$seq {}` is `$seq needs a value.`; a field that isn't an atom is
     `$seq: every field must be an atom.`
   - `llvm_translate`: `hi`'s IR has both calls, in order, and no trace of `$seq`.

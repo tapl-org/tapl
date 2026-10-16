@@ -69,9 +69,10 @@ class _Shaper:
                 # Other arguments stay lazy.
                 new = self.reduce_until_top_stable(index)
                 return term if new is index else replace(term, argument=new)
-            case terms.Apply(function=terms.ByteArray(), argument=argument):
+            case terms.Apply(function=terms.ByteArray() | terms.Builtin(name='seq'), argument=argument):
                 # An opcode call `'name' {...}`: its argument must be a struct literal whose fields
                 # are byte arrays or structs. So the argument is reduced, then each of its fields.
+                # `$seq {d1, ..., x}` too: its rule reads whether each `di` is a byte array.
                 new = self.reduce_until_top_stable(argument)
                 if isinstance(new, terms.Struct):
                     new = self.reduce_fields(new)
@@ -257,10 +258,12 @@ def _with_value(struct, position, value):
 def _is_op(term, k):
     """An Apply, a Struct, or a Project other than `args.label` (`$k.label`).
 
-    A struct literal applied to a condition (`{e, t} c`) is a branch, not an op.
+    A struct literal applied to a condition (`{e, t} c`) is a branch, not an op. A stuck
+    `$seq {d1, ..., x}` is an atom, standing for `x`: a let on it is beta-reduced, so each
+    use gets the `$seq`, and `convert` drops it there.
     """
     match term:
-        case terms.Apply(function=terms.Struct()):
+        case terms.Apply(function=terms.Struct()) | terms.Apply(function=terms.Builtin(name='seq')):
             return False
         case terms.Apply() | terms.Struct():
             return True

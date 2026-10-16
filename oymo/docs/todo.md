@@ -1,5 +1,6 @@
 - [ ] Review redution_rules.md doc.
 - [ ] Create a form alias. like Point = {x='i32', y='i32'}.
+- [ ] maybe "f" is a good choice instead of "blocks".
 
 
 Someday/Maybe

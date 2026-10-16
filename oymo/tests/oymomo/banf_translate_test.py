@@ -955,3 +955,84 @@ def test_let_with_a_form_and_an_atom_reduces_to_a_formed_atom():
 )
 def test_formed_errors(defs, message):
     assert error(defs, "main = => 'i8'") == message
+
+
+HI_DECLS = "putchar = {c = 'i32'} => 'i32', main = => 'i32'"
+
+
+def hi(second):
+    """The `hi` program: two calls to `putchar`, the second written as `second`."""
+    return f"""
+    main = f -> {{entry = args~{{}} ->
+      let q = module.putchar {{c = [68000000]~'i32'}} in
+      let r = module.putchar {{c = {second}}} in
+      r}},
+    """
+
+
+def test_seq_keeps_and_orders_an_effect():
+    assert banf(hi("$seq {q, [69000000]~'i32'}"), HI_DECLS) == text("""
+        putchar(c: i32): i32
+
+        main: i32
+          entry():
+            q = call putchar([68000000]:i32)
+            r = call putchar([69000000]:i32)
+            return r
+    """)
+
+
+@pytest.mark.parametrize(
+    ('body', 'expected'),
+    [
+        # An op argument; labels are ignored.
+        (
+            "let s = 'add' {'i8', args.n, args.n} in let t = 'add' {'i8', $seq {a = s, b = args.n}, s} in t",
+            "add 'i8', n, s",
+        ),
+        # A jump argument.
+        (
+            "let s = 'add' {'i8', args.n, args.n} in f.b {m = $seq {s, args.n}}",
+            'jump b(n)',
+        ),
+        # A branch condition.
+        (
+            "let s = 'add' {'i8', args.n, args.n} in if $seq {s, args.c} then f.b {m = s} else f.b {m = args.n}",
+            'branch c, b(s), b(n)',
+        ),
+        # A return.
+        ("let s = 'add' {'i8', args.n, args.n} in $seq {s, args.n}", 'return n'),
+    ],
+)
+def test_seq_is_an_atom(body, expected):
+    defs = f"main = f -> {{entry = args~{{n = 'i8', c = 'i1'}} -> {body}, b = args~{{m = 'i8'}} -> args.m}}"
+    assert expected in banf(defs, "main = => 'i8'")
+
+
+def test_a_let_on_seq_is_substituted():
+    # `banf_shape` substitutes `c`, so it binds no BANF let; `t` reads `$seq {s, args.n}` as `n`.
+    body = "let s = 'add' {'i8', args.n, args.n} in let c = $seq {s, args.n} in let t = 'mul' {'i8', c, s} in t"
+    defs = f"main = f -> {{entry = args~{{n = 'i8'}} -> {body}}}"
+    assert banf(defs, "main = => 'i8'") == text("""
+        main: i8
+          entry(n: i8):
+            s = add 'i8', n, n
+            t = mul 'i8', n, s
+            return t
+    """)
+
+
+@pytest.mark.parametrize(
+    ('body', 'message'),
+    [
+        ('let c = $seq {} in c', '$seq needs a value.'),
+        ("let s = 'add' {'i8', args.n, args.n} in $seq {s, {x = args.n}}", '$seq: every field must be an atom.'),
+        (
+            "let s = 'add' {'i8', args.n, args.n} in let c = $seq {{x = s}, args.n} in c",
+            '$seq: every field must be an atom.',
+        ),
+        ('let c = $seq args.n in c', 'The argument to $seq must be a struct literal.'),
+    ],
+)
+def test_seq_errors(body, message):
+    assert error(f"main = f -> {{entry = args~{{n = 'i8'}} -> {body}}}", "main = => 'i8'") == message

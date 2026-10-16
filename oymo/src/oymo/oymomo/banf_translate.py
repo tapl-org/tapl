@@ -13,6 +13,9 @@ from oymo.oymomo import banf_rename, banf_shape, opcodes, reduction, terms
 from oymo.oymomo import banf_terms as banf
 from oymo.oymomo.banf_rename import ARGS, BLOCKS, MODULE
 
+# `$seq {d1, ..., dn, x}`: `x`, once `d1` to `dn` are done. A stuck one is the atom of `x`.
+SEQ = 'seq'
+
 
 class TranslationError(Exception):
     def __init__(self, message: str, location: syntax.Location | None) -> None:
@@ -221,6 +224,8 @@ class _Translator:
                         return banf.Var(name, location=location)
                     case str() as name:
                         raise _not_a_value(name, location)
+            case terms.Apply(function=terms.Builtin(name=name), argument=argument) if name == SEQ:
+                return self.seq(argument, block, location)
             case terms.Builtin(name=name):
                 raise TranslationError(f'${name} must be applied.', location)
             case terms.Project(struct=struct, label=label) if block.binder(struct) == ARGS:
@@ -228,6 +233,18 @@ class _Translator:
                     return banf.Var(label, location=location)
                 raise TranslationError(f'Block has no param {label!r}.', location)
         raise TranslationError('Expected an atom: a byte array, a let name, or args.label.', location)
+
+    def seq(self, argument, block, location):
+        """A stuck `$seq {d1, ..., dn, x}` is the atom of `x`. Each `di` must be an atom, and is
+        dropped: its let is already in the block, and BANF keeps let order. Labels are ignored."""
+        if not isinstance(argument, terms.Struct):
+            raise TranslationError('The argument to $seq must be a struct literal.', _location(argument))
+        if not argument.fields:
+            raise TranslationError('$seq needs a value.', location)
+        for f in argument.fields:
+            if not self.is_atom(f.value, block):
+                raise TranslationError('$seq: every field must be an atom.', _location(f.value) or location)
+        return self.atom(argument.fields[-1].value, block)
 
     def is_atom(self, term, block):
         try:
@@ -286,6 +303,10 @@ class _Translator:
     def op(self, term, block):
         location = _location(term)
         match term:
+            case terms.Apply(function=terms.Builtin(name=name)) if name == SEQ:
+                # A stuck `$seq` is an atom, not an op: `banf_shape` substitutes a let on it.
+                # Reading it here reports a malformed one.
+                self.atom(term, block)
             case terms.Apply(function=function, argument=index) if self.is_atom(function, block):
                 # A value struct applied to an index reads that field, as a struct literal does in `reduce`.
                 position = reduction.index_value(index)

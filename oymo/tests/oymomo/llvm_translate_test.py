@@ -101,6 +101,29 @@ def test_signature_data_and_get_data():
     """)
 
 
+def test_seq_leaves_no_trace():
+    decls = "putchar = {c = 'i32'} => 'i32', main = => 'i32'"
+    source = """
+    main = blocks -> {
+      entry = args~{} ->
+        let q = module.putchar {c = [68000000]~'i32'} in
+        let r = module.putchar {c = $seq {q, [69000000]~'i32'}} in
+        r,
+    }
+    """
+    assert ir_text(source, decls) == text("""
+        declare i32 @"putchar"(i32 %"c")
+
+        define i32 @"main"()
+        {
+        entry:
+          %"q" = call i32 @"putchar"(i32 104)
+          %"r" = call i32 @"putchar"(i32 105)
+          ret i32 %"r"
+        }
+    """)
+
+
 def test_struct_param_make_struct_and_get_field():
     source = """
     swap = blocks -> {

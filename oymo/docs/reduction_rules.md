@@ -71,6 +71,11 @@ $fields_to_struct fl(l1 = t1, ..., ln = tn)  →  {l1 = t1, ..., ln = tn}   (E-F
     (When E-FromFields reads a field list, it ignores extra fields and any
      form on more or label. Each label must be valid UTF-8.)
 
+$seq {d1, ..., dn, t}  →  t                                    (E-Seq)
+    Each di is [b] or [b]~F: a literal has no effect left to wait for.
+    n may be 0. Labels are ignored. With a di that isn't a literal, there
+    is no rule: a stuck $seq reaches convert, which drops it.
+
 'op' {v1, ..., vn}  →  [r]~R                                    (E-Opcode)
     'op' is a pure opcode with params p1 ... pn, in this order; labels on
     the fields are ignored. Each form param's vi is a literal form the
@@ -116,6 +121,7 @@ after that step. Each built-in reads these parts:
 | `$fix` | none, so `t` in `$fix t` is never reduced |
 | `$struct_to_fields` | the argument |
 | `$fields_to_struct` | each node of the list, its `more`, and, if `more = [01]`, its `label` and `rest`; never `value` |
+| `$seq` | the argument, then each field in order, the last one too |
 | opcode | the argument, then each field in order, if there is one field per param |
 
 There are no congruence rules for the body of a `λ`, a form, a struct field, or an

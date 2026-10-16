@@ -108,3 +108,4 @@ def run_golden_test(test_name: str) -> None:
 
 def test_goldens():
     run_golden_test('simplest')
+    run_golden_test('seq')

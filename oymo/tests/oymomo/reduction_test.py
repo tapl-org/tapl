@@ -204,6 +204,14 @@ def test_reduce_one_step(source, expected):
         # A conversion's operand has the source's size and form.
         "'zext' {'i8', [ff000000]~'i32', 'i32'}",
         "'zext' {'i8', [ff00], 'i32'}",
+        # `$seq` waits for a field that isn't a byte array: a variable, a struct, an
+        # unreduced field (`reduce` is root-only). With no fields there is no value.
+        '$seq {e, a}',
+        '$seq {{}, a}',
+        '$seq {[01], e, a}',
+        '$seq {{a = [02]}.a, [01]}',
+        '$seq {}',
+        '$seq e',
     ],
 )
 def test_reduce_returns_the_term_itself(source):
@@ -432,3 +440,19 @@ def test_opcodes_are_not_builtins():
     assert not set(opcodes.OPCODES) & reduction.BUILTINS
     unknown = resolved("'add_i32' {[01000000], [02000000]}")
     assert reduction.reduce(unknown) is unknown
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        ('$seq {[01], x}', 'x'),
+        ("$seq {[01]~'i8', x}", 'x'),
+        ('$seq {[01], [0200], x}', 'x'),
+        # Nothing to wait for.
+        ('$seq {x}', 'x'),
+        # The value need not be ready, and labels are ignored.
+        ('$seq {a = [01], b = {c = x}}', '{c = x}'),
+    ],
+)
+def test_reduce_seq(source, expected):
+    assert show(reduction.reduce(resolved(source, ('x',)))) == show(resolved(expected, ('x',)))

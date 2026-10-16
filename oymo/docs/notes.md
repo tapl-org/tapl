@@ -810,7 +810,7 @@ Rules live in two places:
 
 | Table | File | Gives |
 |---|---|---|
-| `BUILTINS` | [`reduction.py`](../src/oymo/oymomo/reduction.py) | the reduction-only built-ins' names; each has a case in `reduction.reduce` |
+| `BUILTINS` | [`reduction.py`](../src/oymo/oymomo/reduction.py) | the built-ins' names; each has a case in `reduction.reduce` |
 | `OPCODES` / `DEFAULT_OPCODES` | [`opcodes.py`](../src/oymo/oymomo/opcodes.py) / [`llvm_opcodes.py`](../src/oymo/oymomo/llvm_opcodes.py) | an opcode, and its machine code |
 
 A built-in's rule is a case in `reduction.reduce`, root-only. An opcode has no rule of
@@ -826,9 +826,11 @@ however many fields there are.
 | `$fix g` | gives `g ($fix g)` once `g` is a lambda; `g` is reduced to one first, never under it; must reduce away |
 | `$fields_to_struct {more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}` | gives `{l1 = e1, ...}`; reduces `more`, `label` and `rest` of each node first, never a value; stuck on a malformed list; must reduce away |
 | `$struct_to_fields {l1 = e1, ...}` | gives `{more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}`: labels as UTF-8 bytes, values unreduced, order kept ([plan_struct_pack.md](implemented/plan_struct_pack.md)); must reduce away |
+| `$seq {d1, ..., dn, x}` | gives `x` once every `di` is a byte array, formed or not: a literal has no effect left to wait for. Every field is reduced first, the last one too; labels are ignored. Otherwise stuck, and `convert` drops it: it is the atom of `x`. It orders effects by hand ([plan_memory.md](plan_memory.md) decisions 1 to 4) |
 | `'add' {...}` and every other opcode | on literal fields, the result LLVM would compute: `'add' {'i32', [01000000], [02000000]}` gives `[03000000]~'i32'`; needs a struct literal with one field per param. Never where LLVM has no defined result ([plan_constant_folding.md](implemented/plan_constant_folding.md)). See [Opcodes › Folding](#folding) |
 
-- Every built-in is **reduction-only**: reduction must remove it.
+- Every built-in but `$seq` is **reduction-only**: reduction must remove it. A stuck
+  `$seq` is dropped by `convert`.
 - `reduction.reduce` fires a built-in only once its argument has the constructor it
   needs; it never reduces a part. `banf_shape.unblock` reduces the parts each built-in
   reads. See [Blockers](#blockers).
@@ -856,6 +858,7 @@ Why built-ins instead of `module` names, a `prim` binder, or a `fix` term: see
 | built-in | `$fix (x -> b)` | `(x -> b) ($fix (x -> b))` (only on a lambda) |
 | built-in | `$struct_to_fields {a = e}` | `{more = [01], label = 'a', value = e, rest = {more = [00]}}` |
 | built-in | `$fields_to_struct {more = [01], label = 'a', value = e, rest = {more = [00]}}` | `{a = e}` |
+| built-in | `$seq {[01], [02]~'i8', x}` | `x` |
 | opcode | `'add' {'i32', [01000000], [02000000]~'i32'}` | `[03000000]~'i32'` |
 | projection | `{a = e, ...}.a` | `e` |
 | struct apply | `{e0, e1, ...} [01]` | `e1` |
@@ -1366,7 +1369,7 @@ Some roots become a redex only after one part, their **blocker**, is reduced: in
 | `t~F` | `t` |
 | `$fix g`, `$struct_to_fields s` | `g`, `s` (only the top: not under the lambda, not the fields) |
 | `$fields_to_struct l` | the spine of `l`: each node, its `more`, and if `more` is `[01]`, its `label` and `rest`; never a `value` |
-| `'name' a` (an opcode call) | `a`, then each of its fields |
+| `'name' a` (an opcode call), `$seq a` | `a`, then each of its fields |
 | anything else | none |
 
 - So `step` reduces an apply's callee to a struct, then the index, then the root:
@@ -1502,6 +1505,12 @@ own. A let reference becomes a `banf.Var` named after the BANF let already built
   `args.label`. Any atom can be given a literal form, which replaces its own
   (`args.n~'i32'`, `t~'i8'`). `let m~'i32' = args.n in m` isn't a BANF let (its
   value isn't an op), so it's beta-reduced to `args.n~'i32'`.
+- **`$seq {d1, ..., dn, x}`**, stuck because some `di` isn't a literal: the atom of
+  `x`. Every field must be an atom; the `di` are dropped, as their lets are already
+  in the block and BANF keeps let order. It may stand wherever an atom does: an op
+  argument, a jump argument, a branch condition, a return. A let on a stuck `$seq` is
+  a let on an atom, so `banf_shape` beta-reduces it (`_is_op`): each use gets the
+  `$seq`. BANF and LLVM never see `$seq`.
 - **Op**, only as a let's value:
 
   | Source | BANF op |
@@ -1545,6 +1554,7 @@ an unlabeled field alone (`{i32, i8}`), and LLVM names its `insertvalue` by inde
 
 `'add' {'i32', 'add' {'i32', ...}, ...}` is an error; bind the inner call with a let
 first. Allowing it would mean flattening, i.e. inventing temporary names.
+`$seq {d1, ..., x}` with atoms as fields is an atom, since it stands for `x`.
 
 ##### An op in tail position must be bound first
 
@@ -1695,6 +1705,9 @@ message text to find where it's raised.
 | `$fix must be applied.` / `$<name> must be applied.` | A built-in used without an argument. | Apply it: `$fix g`. |
 | `$<name> has no opcode, so it must reduce away: its argument must reduce to <needs>.` | A built-in whose rule didn't fire. | Make its argument reduce to what the rule needs (e.g. a struct). |
 | `Unknown built-in '$<name>'.` | Not in `BUILTINS`. Opcodes have no `$`. | Check spelling; an opcode is written `'add' {'i32', a, b}` ([Opcodes](#opcodes)). |
+| `$seq needs a value.` | `$seq {}`. | Write the value last: `$seq {s, p}`. |
+| `$seq: every field must be an atom.` | A stuck `$seq` with a field that isn't an atom, e.g. `$seq {s, {x = p}}`. | Bind it with a let first. |
+| `The argument to $seq must be a struct literal.` | e.g. `$seq args.n`. | Write the fields: `$seq {s, p}`. |
 | `Target has no implementation of '<name>'.` | The LLVM `Target.opcodes` lacks the op. | Add it to `llvm_opcodes.py`. |
 
 ### Opcodes

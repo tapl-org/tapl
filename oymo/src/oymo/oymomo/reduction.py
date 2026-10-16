@@ -136,12 +136,12 @@ def beta(lambda_: terms.Lambda, argument: syntax.Term) -> syntax.Term:
     return shift(substitute(lambda_.body, 0, shift(argument, 1)), -1)
 
 
-BUILTINS = frozenset({'fix', 'struct_to_fields', 'fields_to_struct'})
-"""The reduction-only built-ins: each must reduce away before BANF. Opcodes (`'add' {...}`) are
-not built-ins: `fold_opcode` folds them.
+BUILTINS = frozenset({'fix', 'struct_to_fields', 'fields_to_struct', 'seq'})
+"""The built-ins. Opcodes (`'add' {...}`) are not built-ins: `fold_opcode` folds them.
 
 Each fires in `reduce` only once its argument has the constructor it needs (a lambda, a
 struct, a literal list of fields). Reducing the argument to it is `banf_shape`'s job.
+All but `$seq` must reduce away before BANF; a stuck `$seq` is dropped by `convert`.
 """
 
 
@@ -297,6 +297,12 @@ def reduce(term: syntax.Term) -> syntax.Term:
             struct := from_field_list(field_list)
         ) is not None:
             return struct
+        case terms.Apply(function=terms.Builtin(name='seq'), argument=terms.Struct(fields=[*waits, last])) if all(
+            bytes_of(field.value) is not None for field in waits
+        ):
+            # `$seq {d1, ..., dn, x}` gives `x` once every `di` is a byte array: a literal
+            # has no effect left to wait for. It reads only the root of each `di`.
+            return last.value
         case terms.Project(struct=struct, label=label) if (projected := project(struct, label)) is not None:
             return projected
         case terms.Apply(function=terms.Struct(fields=fields), argument=argument) if (
