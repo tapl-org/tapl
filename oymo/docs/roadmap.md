@@ -620,7 +620,7 @@ repository with `clang` alone.
 | From | Work |
 |---|---|
 | new | **three-stage build**: the compiler built by the Python compiler (stage 1) builds itself (stage 2), which builds itself again (stage 3); stages 2 and 3 must be byte-identical |
-| new | **the seed**: the compiler's own LLVM IR, committed as `oymo/bootstrap/oymo.ll`. Building from scratch is `clang bootstrap/oymo.ll -o oymo-seed`, then the seed builds today's source. The seed is regenerated when the compiler's source starts using a feature the old seed doesn't know ([Open questions](#open-questions) 3) |
+| new | **the seed**: the compiler's own LLVM IR, committed as `oymo/bootstrap/oymo.ll`. Building from scratch is `clang bootstrap/oymo.ll -o oymo-seed`, then the seed builds today's source. The seed is regenerated when the compiler's source starts using a feature the old seed doesn't know ([Open questions](#open-questions) 3). An oymomo seed instead, split into the oymomo core and the Tenon frontend, is proposed in [plan_bootstrap.md](plan_bootstrap.md) |
 | new | the Python compiler is frozen |
 | new | the docs move from `oymo-py/docs/` to `oymo/docs/`; `build.sh` builds from the seed |
 | new | **the export**: `oymo/` becomes its own repository, with its history; `oymo-py/` is removed from tapl, tagged `oymo-py-final` ([layout](#repository-layout)) |
@@ -1179,7 +1179,10 @@ After 1.0, the 1.x targets, translate-c and Spindle in Tenon are independent tra
    more file per 1.x target. Options: commit it as is and regenerate only when the
    source needs a newer compiler; keep it in Git LFS; publish it as a release artifact
    instead of committing it; or a target-independent seed, as Zig's `zig1.wasm` with a
-   small WebAssembly interpreter in C. Decide before 0.15.
+   small WebAssembly interpreter in C; or **an oymomo seed**, in two files (the oymomo
+   core and the Tenon frontend as a language library), proposed and discussed in
+   [plan_bootstrap.md](plan_bootstrap.md). Decide before 0.13, since the oymomo seed
+   shapes how the Tenon-written compiler is split.
 
 Each release's plans have their own open questions (for example
 [plan_tenon.md](plan_tenon.md)'s Phase 0 syntax decisions, before 0.4).
