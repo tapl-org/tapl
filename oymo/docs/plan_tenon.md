@@ -15,18 +15,21 @@ types become Tenon types ([Phase 4](#phase-4--c-headers-in-both-layers)), and Te
 types make a generated header read as hand-written ([Phase 3](#phase-3--c-calls-tenon)).
 Types are Tenon's, not oymomo's.
 
-**When each phase ships** is set by [roadmap.md](roadmap.md): Phases 0 and 1 are
-oymo 0.3, Phase 2 is 0.4, Phase 3 is 0.5, Phase 4 is 0.7, and Phase 5 is 1.0 and
-after.
+**When each phase ships** is set by [roadmap.md](roadmap.md): Phase 0 and the first
+part of Phase 1 (functions, integers) are oymo 0.3, as early as possible, run in the
+JIT; the rest of Phase 1 (memory, `extern`) is 0.4, and the Tenon API for language
+authors 0.7. Phase 2 is 0.8 (layer 1) and 0.9 (module interfaces), Phase 3 is 0.10
+(function values) and 0.11 (`export`, headers), Phase 4 is 0.18, and Phase 5 is spread
+over 0.19–0.28 (threads in 0.26–0.28) and after 1.0.
 
 ## Steps
 
 - [ ] 0. Decisions: name, syntax, layer semantics, memory model, undefined behaviour ([Phase 0](#phase-0--decisions)) — oymo 0.3
-- [ ] 1. Tenon frontend, layer 0 only ([Phase 1](#phase-1--tenon-frontend-layer-0-only)) — oymo 0.3
-- [ ] 2. Layer 1: the type checker as code, module interfaces ([Phase 2](#phase-2--layer-1-the-type-checker-as-code)) — oymo 0.4
-- [ ] 3. C calls Tenon: `export`, function values, generated headers ([Phase 3](#phase-3--c-calls-tenon)) — oymo 0.5
-- [ ] 4. C headers in both layers ([Phase 4](#phase-4--c-headers-in-both-layers)) — oymo 0.7
-- [ ] 5. Later: closures, separate compilation, debug info, safety checks, standard library ([Phase 5](#phase-5--later)) — oymo 1.0 and after
+- [ ] 1. Tenon frontend, layer 0 only ([Phase 1](#phase-1--tenon-frontend-layer-0-only)) — oymo 0.3, 0.4, 0.7
+- [ ] 2. Layer 1: the type checker as code, module interfaces ([Phase 2](#phase-2--layer-1-the-type-checker-as-code)) — oymo 0.8, 0.9
+- [ ] 3. C calls Tenon: `export`, function values, generated headers ([Phase 3](#phase-3--c-calls-tenon)) — oymo 0.10, 0.11
+- [ ] 4. C headers in both layers ([Phase 4](#phase-4--c-headers-in-both-layers)) — oymo 0.18
+- [ ] 5. Later: closures, separate compilation, debug info, safety checks, standard library ([Phase 5](#phase-5--later)) — oymo 0.19–0.28 and after 1.0
 
 ## Goal
 
@@ -164,8 +167,8 @@ dereference and a use after free do. Proposal, as Zig and C3: two build modes. A
 **checked** build traps with a message and the source location on overflow,
 out-of-bounds and null; an **optimized** build leaves them undefined, as C and LLVM
 do, so the code is as fast as C. Use after free is not checked in either. The survey
-(0.2) compares how the five languages do it; decided before Phase 1, implemented by
-1.0 ([roadmap.md](roadmap.md#10--production), "Safety checks").
+(0.2) compares how the five languages do it; decided before Phase 1, implemented in
+oymo 0.21 ([roadmap.md](roadmap.md#021--safety-checks-and-sanitizers)).
 
 ### Phase 1 — Tenon frontend, layer 0 only
 
@@ -190,7 +193,7 @@ do, so the code is as fast as C. Use after free is not checked in either. The su
   same shape as `c_import`'s `CDecl(form, ctype)`. Files import each other through
   them, and so do languages on oymo: a frontend that lowers to Tenon writes both
   halves; one that lowers to oymomo writes forms only, and its names are unchecked in
-  layer 1. The generated C header (roadmap 0.5) is made from the same interface.
+  layer 1. The generated C header (roadmap 0.11) is made from the same interface.
 - **Milestone:** a type error in layer 0 stops the build with a message; a call from
   one file into another, or into a `language calc` file, is type-checked across the
   file boundary.
@@ -235,7 +238,7 @@ Rules:
 
 ### Phase 5 — later
 
-Each a plan of its own, in [roadmap.md](roadmap.md) 1.0 unless said otherwise:
+Each a plan of its own, in a [roadmap.md](roadmap.md) release between 0.19 and 1.0, or after 1.0:
 
 - Closures, and splitting a closure into code plus a `void *` environment when it is
   passed to C (Phase 3).
