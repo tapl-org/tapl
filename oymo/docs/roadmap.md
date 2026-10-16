@@ -173,7 +173,7 @@ release for people who are not compiler writers.
 
 | From | Work |
 |---|---|
-| [plan_tenon.md](plan_tenon.md) Phase 0 | syntax, memory model: decided |
+| [plan_tenon.md](plan_tenon.md) Phase 0 | syntax (from a survey of Zig, C3, Odin, Hare and Jai, pros and cons per topic), memory model: decided |
 | [plan_tenon.md](plan_tenon.md) Phase 1 | grammar on the PEG engine, lowering of layer 0 to oymomo |
 | new | `extern` declarations written by hand, to call C (no header import yet) |
 | new | `oymo build app.oymo util.c`: `.c` files in the same command are compiled with `cc`, and Tenon calls them |

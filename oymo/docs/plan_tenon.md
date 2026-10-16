@@ -86,6 +86,45 @@ decision of its own, listed here with its reason.
   the colon is a layer-1 expression, computed like any other (`m: Matrix(^2, ^3)`).
   The keyword for functions (`fn` above) and the exact forms are open.
 
+**How the rest of the syntax is designed: learn from the C successors first.** Zig,
+C3, Odin, Hare and Jai have each answered "C, but modern" already, and in different
+ways. Before a syntax decision is taken, the survey is written, and each decision
+cites it.
+
+1. **Survey**, in `tenon_syntax_survey.md`. It starts with each language's status and
+   aim (as of October 2026: Zig 0.16, pre-1.0; C3 0.8, 1.0 planned for 2028; Odin,
+   stable with no 1.0 label; Hare 0.26, pre-1.0; Jai, closed beta). Then one section
+   per topic, and in each a table of how the five languages write it, with pros and
+   cons, and what C writes. Topics, in the order Tenon needs them:
+
+   | Topic | Questions to answer |
+   |---|---|
+   | Declarations | `name: Type`, `:=` inference, `const` / `var` / `let`, `::` constants (Odin, Jai) |
+   | Functions | keyword or none (`fn`, `proc`, `name :: (...)`), parameters, results, multiple results |
+   | Types | pointer and array syntax (`*T`, `[*]T`, `[]T`, `[N]T`), slices, optionals, integer names (`i32`, `u8`, C's `int`) |
+   | Structs, enums, unions | declaration, literals, field access through a pointer (`.` or `->`) |
+   | Control flow | `if` / `while` / `for`, `switch` and its fallthrough, `defer`, labelled `break` |
+   | Errors | error unions (Zig `!T`), optionals and faults (C3), multiple results (Odin), tagged unions (Hare) |
+   | Compile-time code | Zig `comptime`, Jai `#run`, C3 macros; how close each is to Tenon's layer 1 |
+   | Generics | Zig types as values, Odin `$T`, C3 generic modules; which map onto layer-1 functions (`Matrix(^2, ^3)`) |
+   | Modules and C | imports, visibility, `extern` / `export`, C header import (Zig `@cImport`) |
+   | Memory | allocators as parameters (Zig, Odin's context), `defer free`, no hidden allocation |
+   | Lexical details | semicolons, comments, string and number literals, keyword count |
+
+2. **Decide**, here as `0.2.n` entries: for each topic, what Tenon takes, from whom,
+   and what it rejects and why, with one example. The rules for choosing:
+   - **A C programmer reads it at once.** Prefer C's form unless a change fixes a known
+     C problem (the declaration spiral, `switch` fallthrough, header files).
+   - **It fits the two layers.** A type is a layer-1 expression; a construct that only
+     exists because another language has no layer 1 (C3 macros, Zig's `comptime`
+     keyword) may not be needed.
+   - **It lowers simply to oymomo**, and a language author's tree can build it (the
+     Tenon API).
+   - **Borrowed, not invented**: when two of the five agree, that is the default.
+
+3. **Check** with the sample programs below, written in the chosen syntax, then the
+   grammar sketch and precedence table.
+
 Still to settle with sample programs: hello world, a struct with a function on it, a
 function passed as an argument, a type-level function (`Matrix(^2, ^3)`), and a C
 header import. Then a grammar sketch and precedence table in the style of
