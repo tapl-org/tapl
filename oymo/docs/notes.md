@@ -166,6 +166,7 @@ layouts.
 Bool     type: Bool                   form: 'i1'                   LLVM layout: i1
 Int32    type: Int                    form: 'i32'                  LLVM layout: i32
 Point    type: Point(x: Int, y: Int)  form: {x = 'i32', y = 'i32'}  LLVM layout: { i32, i32 }
+Ref      type: Ref Point              form: 'ptr'                  LLVM layout: ptr
 ```
 
 A form is **not** a type: nothing checks it. `(x~'Int' -> x) 'hello'~'Str'` is
@@ -1091,8 +1092,14 @@ is one of `i1 i8 i16 i32 i64`.
 | `and or xor` | `{form, a, b}` | `form` | `and`, `or`, `xor` |
 | `icmp_eq icmp_ne icmp_slt icmp_sle icmp_sgt icmp_sge icmp_ult icmp_ule icmp_ugt icmp_uge` | `{form, lhs, rhs}` | `i1` | `icmp` and the predicate |
 | `zext sext trunc` | `{form, value, to}` | `to` | same names |
+| `alloca` | `{form}`, `{form, count}` | `ptr` | `alloca F`, `alloca F, iN count` |
+| `getelementptr` | `{form, ptr, i0, ..., in}` | `ptr` | `getelementptr F, ptr p, iN i0, ...` |
 
-Operands are read at `form`; `to` only gives the result form. Nothing checks which forms
+Operands are read at `form`; `to` only gives the result form. The memory opcodes are
+impure, so they never fold; their `form` may be any literal form, a struct included,
+and their other fields bring their own forms (`[1000000000000000]~'i64'`, a let). Into a
+struct, a `getelementptr` index past the first must be a literal `'i32'` below the field
+count, as in LLVM. See [plan_memory.md](plan_memory.md) decisions 5 to 9. Nothing checks which forms
 are given ([no checks](#a-generated-ir-no-checks-for-user-mistakes)): `'add' {'ptr', a, b}`
 reaches LLVM, which rejects it. `evaluate` only computes what LLVM defines, so it gives
 nothing for `form` other than a `T`, or a conversion that doesn't widen (`zext`, `sext`)
@@ -1125,9 +1132,10 @@ The form is a field, not part of the name, as LLVM writes `add i32 %a, %b`.
 - BANF's `OpcodeCall` stores that form once, so BANF never asks the opcode again, like a
   `Call`'s comes from its callee's signature.
 - Each field becomes an atom. A bare byte array, the form `'i32'` or an operand
-  `[01000000]`, stays bare (a `Const` with no form): a byte array is only its bytes. The
-  opcode's LLVM code (`llvm_opcodes.py`) reads a form field's bytes as a form, and a bare
-  operand at `form`.
+  `[01000000]`, stays bare (a `Const` with no form): a byte array is only its bytes. A
+  struct literal is a form, since an operand must be an atom: it becomes a `FormField`
+  (`'alloca' {{x = 'i32', y = 'i64'}}`). The opcode's LLVM code (`llvm_opcodes.py`)
+  reads a form field as a form, and a bare operand at `form`.
 - Operand forms are not compared with `form`: `'add' {'i32', [01]~'i8', ...}` is
   accepted; LLVM may reject it. Convert explicitly with `'zext'`.
 
@@ -1554,7 +1562,8 @@ an unlabeled field alone (`{i32, i8}`), and LLVM names its `insertvalue` by inde
 
 `'add' {'i32', 'add' {'i32', ...}, ...}` is an error; bind the inner call with a let
 first. Allowing it would mean flattening, i.e. inventing temporary names.
-`$seq {d1, ..., x}` with atoms as fields is an atom, since it stands for `x`.
+`$seq {d1, ..., x}` with atoms as fields is an atom, since it stands for `x`. A struct
+literal in an opcode call is a form, not an operand (`'alloca' {{x = 'i32'}}`).
 
 ##### An op in tail position must be bound first
 
@@ -1611,6 +1620,7 @@ else0:
 |---|---|
 | form `iN` | `iN` |
 | struct form | literal struct type, fields in order (other form names rejected) |
+| form `ptr` | opaque `ptr`; a pointer can't be a literal |
 | `[2a000000]:i32` | `i32 42` (little-endian bytes → number) |
 | block param, one predecessor | the value that predecessor passes (no phi) |
 | block param, several predecessors | `phi`, one incoming value per edge: `%v = phi i32 [%x, %a], [0, %b]` |
@@ -1726,6 +1736,7 @@ message text to find where it's raised.
 | `A switch needs a target.` | A BANF `Switch` with no targets. | Give it targets. |
 | `A switch passes different args to '<b>'.` | `{f.a {x = [01]~'i8'}, f.b {}, f.a {x = [02]~'i8'}} k`. | Pass the same args each time `a` is named (an LLVM phi needs equal entries from one block), or use another block. |
 | `Form <form> has no field at index <i>.` | `GetIndex` on a form with no fields. | Index a struct with at least one field. |
+| `A pointer can't be a literal.` | `[0000000000000000]~'ptr'`. | Get a pointer from `'alloca'`, `'getelementptr'` or a call. |
 
 ### LLVM (`llvm_translate.py`)
 
@@ -1738,6 +1749,10 @@ message text to find where it's raised.
 | `Only integer constants are supported, got <form>.` | A struct constant. | Not supported yet. |
 | `A branch cannot have the same block as both targets.` | `if c then f.a {} else f.a {}`; valid BANF (Cranelift allows it). | Use two blocks (LLVM phis can't tell the edges apart). See [Translation](#if-only-in-tail-position). |
 | `Switch selector must be an integer form, got <form>.` | A switch on a non-`iN` value. | Switch on an integer. |
+| `'getelementptr': index <i> into <form> must be a literal 'i32' below <n>.` | A run-time or out-of-range index into a struct. | Index a struct field with a literal `[01000000]~'i32'`. |
+| `'getelementptr': index <i> goes into <form>, which has no parts.` | More indices than the form has levels. | Drop the extra index. |
+| `'<name>': <what> must have a form, such as [01000000]~'i32'.` | A bare byte array as a count, pointer or index. | Write its form: `[1000000000000000]~'i64'`. |
+| `'getelementptr' expects a pointer, got <type>.` | The pointer field isn't a `'ptr'`. | Pass a pointer. |
 | `A switch on i1 has 4 targets; it holds 3.` | More targets than the selector's form has values, plus one for the default. | Widen the selector, e.g. `'zext' {'i1', s, 'i8'}`. |
 
 ## How to…

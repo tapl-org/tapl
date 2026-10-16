@@ -212,6 +212,9 @@ def test_reduce_one_step(source, expected):
         '$seq {{a = [02]}.a, [01]}',
         '$seq {}',
         '$seq e',
+        # Memory opcodes are impure: reduction never folds them (plan_memory.md decision 13).
+        "'alloca' {'i32'}",
+        "'getelementptr' {'i8', e, [01000000]~'i32'}",
     ],
 )
 def test_reduce_returns_the_term_itself(source):

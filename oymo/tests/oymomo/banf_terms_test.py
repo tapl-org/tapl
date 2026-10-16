@@ -10,6 +10,7 @@ from oymo.oymomo.banf_terms import (
     Const,
     Data,
     FormError,
+    FormField,
     Function,
     GetData,
     GetField,
@@ -266,6 +267,24 @@ def test_verify_does_not_compare_opcode_operand_form():
 def test_verify_leaves_opcode_fields_to_the_opcode(op):
     # Any forms, any number of fields: the opcode reads them, and the backend may reject them.
     verify(one_block([Let('t0', op)], Return(Var('t0'))))
+
+
+PTR = terms.ByteArray(b'ptr')
+
+
+def test_a_pointer_can_not_be_a_literal():
+    with pytest.raises(FormError, match="A pointer can't be a literal"):
+        verify(one_block([], Return(Const(bytes(8), PTR)), return_form=PTR))
+
+
+def test_show_memory_opcodes():
+    alloca = OpcodeCall('alloca', [FormField(POINT)], PTR)
+    assert show_op(alloca) == 'alloca {x: i32, y: i32}'
+    gep = OpcodeCall('getelementptr', [FormField(POINT), Var('q'), Const(bytes(8), I64), ONE], PTR)
+    assert show_op(gep) == 'getelementptr {x: i32, y: i32}, q, [0000000000000000]:i64, [01000000]:i32'
+    assert show_op(OpcodeCall('alloca', [field(I32)], PTR)) == "alloca 'i32'"
+    # A form field is not a name: the verifier doesn't look it up.
+    verify(one_block([Let('q', alloca)], Return(Var('q')), return_form=PTR))
 
 
 def test_verify_rejects_unknown_opcode_and_name():

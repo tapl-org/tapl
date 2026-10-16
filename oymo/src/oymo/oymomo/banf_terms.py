@@ -37,14 +37,23 @@ type Atom = Var | Const
 
 
 @dataclass
+class FormField:
+    """A struct form passed to an opcode, such as `alloca`'s `{x: i32, y: i64}`. A named form
+    (`'i32'`) is a `Const` with no form, as every bare byte array is."""
+
+    form: terms.Term
+    location: Location | None = field(default=None, compare=False)
+
+
+@dataclass
 class OpcodeCall:
     """`'add' {'i32', a, b}`: `fields` are the call's fields as atoms, by position; a bare
     byte array, such as the form `'i32'` or an operand `[01000000]`, is a `Const` with no
-    form. `form` is the result's form, as the opcode tells it. Printed positionally:
-    `add 'i32', a, b`."""
+    form, and a struct form is a `FormField`. `form` is the result's form, as the opcode
+    tells it. Printed positionally: `add 'i32', a, b`."""
 
     opcode: str
-    fields: list[Atom]
+    fields: list[Atom | FormField]
     form: terms.Term
     location: Location | None = field(default=None, compare=False)
 
@@ -192,6 +201,9 @@ class FormError(Exception):
 
 def atom_form(atom: Atom, forms: Mapping[str, terms.Term]) -> terms.Term:
     match atom:
+        case Const(form=form) if form == opcodes.PTR:
+            # A byte array has no address to name (plan_memory.md decision 6).
+            raise FormError("A pointer can't be a literal.", atom.location)
         case Const(form=form):
             return form
         case Var(name=name, form=form):
@@ -279,7 +291,8 @@ def _check_op(op, forms, module):
             if name not in opcodes.OPCODES:
                 raise FormError(f'Unknown opcode {name!r}.', op.location)
             for atom in fields:
-                atom_form(atom, forms)
+                if not isinstance(atom, FormField):
+                    atom_form(atom, forms)
         case Call(function=name, args=args):
             _check_args(name, callee(op, module).params, args, forms, op.location)
         case _:
@@ -410,7 +423,8 @@ def _show_args(args):
 def _show_opcode_call(op: OpcodeCall) -> str:
     """The name and the fields, by position: `add 'i32', a, b`, `zext 'i8', x, 'i32'`. An
     opcode call always has fields, so a bare name (`t0 = errno`) is always a data read."""
-    return f'{show_name(op.opcode)} ' + ', '.join(show_atom(atom) for atom in op.fields)
+    fields = (show_form(f.form) if isinstance(f, FormField) else show_atom(f) for f in op.fields)
+    return f'{show_name(op.opcode)} ' + ', '.join(fields)
 
 
 def show_op(op: Op) -> str:

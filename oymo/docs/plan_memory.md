@@ -1,13 +1,13 @@
 # Plan: memory as in LLVM: the `'ptr'` form, alloca, getelementptr, load and store
 
-Status: **in progress**; 1 of 7 steps.
+Status: **in progress**; 2 of 7 steps.
 
 ## Steps
 
 One commit each. Details are in [Implementation steps](#implementation-steps).
 
 - [x] 1. `$seq {d1, ..., x}`: gives `x` once every `dᵢ` is a literal, so an effect it waits for stays (`oymomo: add $seq`)
-- [ ] 2. The `'ptr'` form, `'alloca'` and `'getelementptr'` (`oymomo: add the ptr form`)
+- [x] 2. The `'ptr'` form, `'alloca'` and `'getelementptr'` (`oymomo: add the ptr form`)
 - [ ] 3. `'load'` and `'store'` (`oymomo: add load and store`)
 - [ ] 4. Tests: what `translate` does to effects without `$seq` (`oymomo: test unordered effects`)
 - [ ] 5. Arrays, vectors and packed structs as tagged structs (`{'array', count, element}`) (`oymomo: add aggregate forms`)
@@ -91,7 +91,7 @@ A struct in memory, and the address of its second field:
 ```
 let q = 'alloca' {{x = 'i32', y = 'i64'}} in
 let y = 'getelementptr' {{x = 'i32', y = 'i64'}, q,
-                         {[0000000000000000]~'i64', [01000000]~'i32'}} in
+                         [0000000000000000]~'i64', [01000000]~'i32'} in
 ...
 ```
 
@@ -190,7 +190,7 @@ return r
    | Symbol | Fields | Gives | LLVM |
    |---|---|---|---|
    | `'alloca'` | `form`, and `count` if not 1 | `ptr` | `alloca F` / `alloca F, iN count` |
-   | `'getelementptr'` | `form`, `ptr`, `indices` | `ptr` | `getelementptr F, ptr ptr, iN i0, ...` |
+   | `'getelementptr'` | `form`, `ptr`, `i0`, ..., `in` | `ptr` | `getelementptr F, ptr ptr, iN i0, ...` |
    | `'load'` | `form`, `ptr` | `F` | `load F, ptr ptr` |
    | `'store'` | `value`, `ptr` | `{}` | `store F value, ptr ptr` |
 
@@ -205,8 +205,13 @@ return r
      LLVM: `'getelementptr': index 1 into {x: i32} must be a literal 'i32' below 1.`
      Struct fields are indexed by position, not label, as in LLVM. An index into an
      array or a vector may be known only at run time.
-   - The first index of `'getelementptr'` steps by whole `F`s, so a byte offset is
-     `'getelementptr' {'i8', p, {o}}`. It is not `inbounds`.
+   - The indices of `'getelementptr'` are fields after `ptr`, flat, as LLVM writes
+     them. The first steps by whole `F`s, so a byte offset is
+     `'getelementptr' {'i8', p, o}`. It is not `inbounds`.
+   - A struct form is a struct literal in the call: an operand must be an atom, so a
+     struct literal there can only be a form. BANF keeps it as a `FormField`.
+   - `count`, `ptr` and each index bring their own form: a bare byte array is an error
+     (`'alloca': count must have a form, such as [01000000]~'i32'.`).
    - Fields are positional and labels are ignored, as for every opcode
      ([plan_vm.md](plan_vm.md) decision 7): `'store' {v, p}` stores `v` at `p`, as
      LLVM's `store F v, ptr p`.
@@ -412,8 +417,10 @@ checks.
 | Module | Change |
 |---|---|
 | `reduction.py`, `banf_shape.py` | none (decision 13; form params are plan_vm's) |
-| `opcodes.py` | entries `alloca` (form param `form`, optional value param `count` of any integer form, result `'ptr'`) and `getelementptr` (form param `form`, `ptr~'ptr'`, `indices`, result `'ptr'`), impure, each with a `check` for decision 7's rules and an `llvm`: `builder.alloca(llvm_type(form), size=count)`, `builder.gep(ptr, indices, source_etype=llvm_type(form))` |
-| `banf_terms.py` | `show_form` for `'ptr'`; printed `alloca {i32, i64}`, `getelementptr {i32, i64}, q, [00..]:i64, [01000000]:i32`; verifier: a `Const` of form `ptr` is an error (decision 6) |
+| `opcodes.py` | entries `alloca` (`{form}` or `{form, count}`) and `getelementptr` (`{form, ptr, i0, ..., in}`), impure, `form_of` giving `'ptr'` when `form` is a literal form (`is_literal_form`); `evaluate` never gives a value |
+| `banf_translate.py` | `opcode_field`: a struct literal in an opcode call is a form, kept as a `FormField` after `_check_data_form` |
+| `banf_terms.py` | `FormField(form)`, printed with `show_form`: `alloca {x: i32, y: i64}`, `getelementptr {x: i32, y: i64}, q, [00..]:i64, [01000000]:i32`; the verifier skips it; `atom_form` rejects a `Const` of form `ptr` (decision 6) |
+| `llvm_opcodes.py` | `alloca`: `builder.alloca(llvm_type(form), size=count)`; `getelementptr`: `builder.gep(ptr, indices, source_etype=llvm_type(form))`, after checking each index into a struct is a literal `'i32'` below its field count; `count`, `ptr` and the indices must bring their own form; each result's type is set to the opaque `ptr`, as llvmlite types a pointer by what it points to |
 | `llvm_translate.py` | `llvm_type`: `'ptr'` → `ir.PointerType()` |
 
 ### C. `'load'` and `'store'` (step 3)

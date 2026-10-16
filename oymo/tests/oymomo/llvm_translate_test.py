@@ -411,7 +411,9 @@ _CONVERSIONS = {'zext': True, 'sext': True, 'trunc': False}
 def _instances():
     """Each opcode with each choice of integer forms, as `(name, forms)`: `(form,)`, or
     `(form, to)` for a conversion, where LLVM converts."""
-    for name in opcodes.OPCODES:
+    for name, opcode in opcodes.OPCODES.items():
+        if not opcode.pure:
+            continue
         if name not in _CONVERSIONS:
             for form in opcodes.INT_FORMS:
                 yield name, (form,)
@@ -489,3 +491,120 @@ def test_fold_matches_llvm(jit, instance):
         folded = opcodes.OPCODES[name].evaluate(fields)
         if folded is not None:
             assert int.from_bytes(folded.value, 'little') == jit(_instance_id(instance), operands), (instance, operands)
+
+
+def test_a_ptr_param_and_result():
+    source = "g = blocks -> {entry = args~{h = 'ptr'} -> args.h}"
+    assert ir_text(source, "g = => 'ptr'") == text("""
+        define ptr @"g"(ptr %"h")
+        {
+        entry:
+          ret ptr %"h"
+        }
+    """)
+
+
+def test_an_import_with_a_ptr_param_and_result():
+    decls = "malloc = {size = 'i64'} => 'ptr', free = {p = 'ptr'} => 'i32', main = => 'i32'"
+    source = """
+    main = blocks -> {entry = args~{} ->
+      let p = module.malloc {size = [1000000000000000]~'i64'} in
+      let r = module.free {p = p} in
+      r},
+    """
+    assert ir_text(source, decls) == text("""
+        declare ptr @"malloc"(i64 %"size")
+
+        declare i32 @"free"(ptr %"p")
+
+        define i32 @"main"()
+        {
+        entry:
+          %"p" = call ptr @"malloc"(i64 16)
+          %"r" = call i32 @"free"(ptr %"p")
+          ret i32 %"r"
+        }
+    """)
+
+
+@pytest.mark.parametrize(
+    ('op', 'expected'),
+    [
+        ("'alloca' {'i32'}", 'alloca i32'),
+        ("'alloca' {'i32', [1000000000000000]~'i64'}", 'alloca i32, i64 16'),
+        ("'alloca' {'i32', args.n}", 'alloca i32, i64 %"n"'),
+        ("'alloca' {{x = 'i32', y = 'i64'}}", 'alloca {i32, i64}'),
+        ("'alloca' {'ptr'}", 'alloca ptr'),
+    ],
+)
+def test_alloca(op, expected):
+    source = f"g = blocks -> {{entry = args~{{n = 'i64'}} -> let p = {op} in p}}"
+    assert f'%"p" = {expected}\n' in ir_text(source, "g = => 'ptr'")
+
+
+@pytest.mark.parametrize(
+    ('op', 'expected'),
+    [
+        # The address of a struct's second field, as in the plan's goal.
+        (
+            "'getelementptr' {{x = 'i32', y = 'i64'}, args.q, [0000000000000000]~'i64', [01000000]~'i32'}",
+            'getelementptr {i32, i64}, ptr %"q", i64 0, i32 1',
+        ),
+        # A byte offset, known only at run time.
+        ("'getelementptr' {'i8', args.q, args.n}", 'getelementptr i8, ptr %"q", i64 %"n"'),
+        # Into a nested struct.
+        (
+            "'getelementptr' {{a = 'i8', b = {c = 'i16', d = 'i32'}}, args.q, args.n, [01000000]~'i32', [01000000]~'i32'}",
+            'getelementptr {i8, {i16, i32}}, ptr %"q", i64 %"n", i32 1, i32 1',
+        ),
+    ],
+)
+def test_getelementptr(op, expected):
+    source = f"g = blocks -> {{entry = args~{{q = 'ptr', n = 'i64'}} -> let p = {op} in p}}"
+    assert f'%"p" = {expected}\n' in ir_text(source, "g = => 'ptr'")
+
+
+def test_a_pointer_passed_to_a_loop_is_a_phi():
+    source = """
+    g = blocks -> {
+      entry = args~{n = 'i64'} ->
+        let p = 'alloca' {'i8', args.n} in
+        blocks.loop {p = p, i = args.n},
+      loop = args~{p = 'ptr', i = 'i64'} ->
+        let q = 'getelementptr' {'i8', args.p, [0100000000000000]~'i64'} in
+        let j = 'sub' {'i64', args.i, [0100000000000000]~'i64'} in
+        let done = 'icmp_eq' {'i64', j, [0000000000000000]~'i64'} in
+        if done then blocks.exit {p = q} else blocks.loop {p = q, i = j},
+      exit = args~{p = 'ptr'} -> args.p,
+    }
+    """
+    assert '%"p" = phi  ptr [%"p.1", %"entry"], [%"q", %"loop"]' in ir_text(source, "g = => 'ptr'")
+
+
+@pytest.mark.parametrize(
+    ('op', 'message'),
+    [
+        (
+            "'getelementptr' {{x = 'i32', y = 'i64'}, args.q, args.n, args.i}",
+            "'getelementptr': index 1 into {x: i32, y: i64} must be a literal 'i32' below 2.",
+        ),
+        (
+            "'getelementptr' {{x = 'i32'}, args.q, args.n, [01000000]~'i32'}",
+            "'getelementptr': index 1 into {x: i32} must be a literal 'i32' below 1.",
+        ),
+        (
+            "'getelementptr' {'i32', args.q, args.n, [00000000]~'i32'}",
+            "'getelementptr': index 1 goes into i32, which has no parts.",
+        ),
+        (
+            "'getelementptr' {'i8', args.q, [01]}",
+            "'getelementptr': index 0 must have a form, such as [01000000]~'i32'.",
+        ),
+        ("'getelementptr' {'i8', args.n, args.n}", "'getelementptr' expects a pointer, got i64."),
+        ("'alloca' {'i32', [10]}", "'alloca': count must have a form, such as [01000000]~'i32'."),
+        ("'alloca' {'i32', args.q}", "'alloca': count must be an integer, got ptr."),
+    ],
+)
+def test_memory_opcode_errors(op, message):
+    source = f"g = blocks -> {{entry = args~{{q = 'ptr', n = 'i64', i = 'i32'}} -> let p = {op} in p}}"
+    assert ir_error(source, "g = => 'ptr'") == message

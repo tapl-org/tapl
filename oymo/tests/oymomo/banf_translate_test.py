@@ -1036,3 +1036,30 @@ def test_a_let_on_seq_is_substituted():
 )
 def test_seq_errors(body, message):
     assert error(f"main = f -> {{entry = args~{{n = 'i8'}} -> {body}}}", "main = => 'i8'") == message
+
+
+def test_a_struct_form_field_is_a_form():
+    body = "let q = 'alloca' {{x = 'i32', y = 'i64'}} in let y = 'getelementptr' {{x = 'i32', y = 'i64'}, q, [0000000000000000]~'i64', [01000000]~'i32'} in y"
+    assert banf(f'g = f -> {{entry = args~{{}} -> {body}}}', "g = => 'ptr'") == text("""
+        g: ptr
+          entry():
+            q = alloca {x: i32, y: i64}
+            y = getelementptr {x: i32, y: i64}, q, [0000000000000000]:i64, [01000000]:i32
+            return y
+    """)
+
+
+@pytest.mark.parametrize(
+    ('body', 'message'),
+    [
+        ("let p = 'alloca' {} in p", "'alloca' cannot tell its result form from its fields."),
+        # The form must be a literal: a run-time value, or the fields out of order.
+        ("let p = 'alloca' {args.n} in p", "'alloca' cannot tell its result form from its fields."),
+        ("let p = 'alloca' {[10]~'i8', 'i32'} in p", "'alloca' cannot tell its result form from its fields."),
+        ("let p = 'getelementptr' {'i8', args.n} in p", "'getelementptr' cannot tell its result form from its fields."),
+        ("let p = 'alloca' {{x = 'i32', x = 'i8'}} in p", "'alloca' form: duplicate field labels in {x: i32, x: i8}."),
+        ("[0000000000000000]~'ptr'", "A pointer can't be a literal."),
+    ],
+)
+def test_memory_opcode_errors(body, message):
+    assert error(f"g = f -> {{entry = args~{{n = 'i8'}} -> {body}}}", "g = => 'ptr'") == message

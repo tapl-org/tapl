@@ -3,7 +3,7 @@
 import pytest
 
 from oymo.oymomo import terms
-from oymo.oymomo.opcodes import OPCODES, bit_width, byte_width, decode_uint, lookup
+from oymo.oymomo.opcodes import OPCODES, PTR, bit_width, byte_width, decode_uint, lookup
 
 I1, I8, I16, I32, I64 = (terms.ByteArray(name) for name in (b'i1', b'i8', b'i16', b'i32', b'i64'))
 
@@ -29,6 +29,7 @@ def test_one_opcode_per_llvm_instruction():
         *('add', 'sub', 'mul', 'sdiv', 'udiv', 'srem', 'urem', 'shl', 'lshr', 'ashr', 'and', 'or', 'xor'),
         *(f'icmp_{p}' for p in ('eq', 'ne', 'slt', 'sle', 'sgt', 'sge', 'ult', 'ule', 'ugt', 'uge')),
         *('zext', 'sext', 'trunc'),
+        *('alloca', 'getelementptr'),
     }
 
 
@@ -149,5 +150,19 @@ def test_evaluate_conversions():
     assert ev('trunc', 'i8', [0xFE], to='i1') == 0
 
 
-def test_every_opcode_is_pure():
-    assert all(opcode.pure for opcode in OPCODES.values())
+def test_only_memory_opcodes_are_impure():
+    assert {name for name, opcode in OPCODES.items() if not opcode.pure} == {'alloca', 'getelementptr'}
+
+
+def test_memory_opcodes_give_a_pointer_and_never_evaluate():
+    x = terms.Variable('x')
+    point = terms.Struct([terms.Field('x', I32), terms.Field('y', I64)])
+    assert OPCODES['alloca'].form_of([I32]) == PTR
+    assert OPCODES['alloca'].form_of([point, x]) == PTR
+    assert OPCODES['getelementptr'].form_of([point, x, x, x]) == PTR
+    # A form that isn't a literal, or a wrong count.
+    assert OPCODES['alloca'].form_of([x]) is None
+    assert OPCODES['alloca'].form_of([]) is None
+    assert OPCODES['alloca'].form_of([I32, x, x]) is None
+    assert OPCODES['getelementptr'].form_of([I32, x]) is None
+    assert OPCODES['alloca'].evaluate([I32]) is None

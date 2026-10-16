@@ -280,7 +280,7 @@ class _Translator:
     def opcode_call(self, name, argument, block, location):
         """`'add' {'i32', a, b}`. Fields are positional and their labels are ignored. Each
         field becomes an atom; a bare byte array (a form such as `'i32'`, or an operand)
-        becomes a `Const` with no form, read by the opcode. The opcode must tell the
+        becomes a `Const` with no form, read by the opcode, and a struct form a `FormField`. The opcode must tell the
         result's form from the fields."""
         opcode = opcodes.lookup(name)
         if opcode is None:
@@ -292,13 +292,19 @@ class _Translator:
         form = opcode.form_of(values)
         if form is None:
             raise TranslationError(f'{opcode.name!r} cannot tell its result form from its fields.', location)
-        fields = [
-            banf.Const(value.value, terms.Empty, _location(value))
-            if isinstance(value, terms.ByteArray)
-            else self.atom(value, block)
-            for value in values
-        ]
-        return banf.OpcodeCall(opcode.name, fields, form, location)
+        return banf.OpcodeCall(opcode.name, [self.opcode_field(opcode, v, block) for v in values], form, location)
+
+    def opcode_field(self, opcode, value, block):
+        """A bare byte array (a named form such as `'i32'`, or an operand) is a `Const` with no
+        form; a struct literal is a form, since an operand must be an atom; anything else is
+        an atom."""
+        location = _location(value)
+        if isinstance(value, terms.ByteArray):
+            return banf.Const(value.value, terms.Empty, location)
+        if isinstance(value, terms.Struct):
+            _check_data_form(value, location, f'{opcode.name!r} form')
+            return banf.FormField(value, location)
+        return self.atom(value, block)
 
     def op(self, term, block):
         location = _location(term)

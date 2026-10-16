@@ -1,0 +1,10 @@
+language oymomo
+module~{fill= {p= 'ptr', n= 'i64'} ⇒ 'i32', main= ⇒ 'i32'} → {
+  main= blocks → {
+    entry= args~{} →
+      let q = 'alloca' {{x= 'i32', y= 'i64'}} in
+      let y = 'getelementptr'
+        {{x= 'i32', y= 'i64'}, q, [00000000 00000000]~'i64', [01000000]~'i32'} in
+      let r = module.fill {p= y, n= [08000000 00000000]~'i64'} in r,
+  },
+}

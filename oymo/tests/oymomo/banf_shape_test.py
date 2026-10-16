@@ -362,6 +362,14 @@ def test_an_opcode_on_a_run_time_operand_keeps_the_fields_it_reduced():
     assert show(banf_shape.reduce_until_top_stable(term)) == show(resolved("'add' {'i32', e, [02000000]}", FREE))
 
 
+def test_a_form_field_reduces_in_place():
+    # The form of an `'alloca'` reduces to a literal and is not let-bound; the call stays.
+    term = resolved("'alloca' {{f = 'i32'}.f}", FREE)
+    assert banf_shape.reduce_until_top_stable(term) == resolved("'alloca' {'i32'}", FREE)
+    defs = block("let p = 'alloca' {{f = {x = 'i32'}}.f} in args.n")
+    assert shaped(defs) == same(block("let p = 'alloca' {{x = 'i32'}} in args.n"))
+
+
 def test_seq_reduces_its_fields_then_fires():
     term = resolved('$seq {{a = [01]}.a, (i -> i) [02], x}', FREE)
     assert banf_shape.reduce_until_top_stable(term) == resolved('x', FREE)

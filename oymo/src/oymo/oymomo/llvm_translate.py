@@ -30,7 +30,7 @@ class Target:
     opcodes: Mapping[
         str,
         Callable[
-            [ir.IRBuilder, Sequence[banf.Atom], Callable[[banf.Atom, terms.Term], ir.Value]],
+            [ir.IRBuilder, Sequence[banf.Atom | banf.FormField], Callable[[banf.Atom, terms.Term], ir.Value]],
             ir.Value,
         ],
     ]
@@ -40,6 +40,9 @@ def llvm_type(form: terms.Term) -> ir.Type:
     name = form.as_str if isinstance(form, terms.ByteArray) else None
     if name is not None and (match := _INT_FORM.fullmatch(name)):
         return ir.IntType(int(match.group(1)))
+    if name == 'ptr':
+        # LLVM's opaque pointer: it says nothing about what it points to.
+        return ir.PointerType()
     if isinstance(form, terms.Struct):
         return ir.LiteralStructType([llvm_type(f.value) for f in form.fields])
     raise LlvmTranslationError(f'Form {banf.show_form(form)} has no LLVM type.')

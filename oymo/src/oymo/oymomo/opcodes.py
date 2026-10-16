@@ -21,7 +21,8 @@ INT_FORMS = ('i1', 'i8', 'i16', 'i32', 'i64')
 
 type Fields = Sequence[terms.Term]
 
-# Every opcode so far has three fields: `{form, a, b}`, or `{form, value, to}`.
+# Every integer opcode has three fields: `{form, a, b}`, or `{form, value, to}`. Memory
+# opcodes count their own.
 FIELD_COUNT = 3
 
 
@@ -181,6 +182,35 @@ def _convert(name: str, compute: _Compute, *, widening: bool) -> Opcode:
     return Opcode(name, form_of, evaluate)
 
 
+PTR = terms.ByteArray.from_str('ptr')
+
+# `getelementptr` takes a form, a pointer and at least one index.
+GEP_MIN_FIELDS = 3
+
+
+def is_literal_form(term: terms.Term) -> bool:
+    """A named form (`'i32'`, `'ptr'`) or a struct of literal forms: what a form field must be."""
+    if isinstance(term, terms.ByteArray):
+        return term.as_str is not None
+    if isinstance(term, terms.Struct):
+        return all(is_literal_form(f.value) for f in term.fields)
+    return False
+
+
+def _never(_fields: Fields) -> terms.ByteArray | None:
+    return None
+
+
+def _alloca_form_of(fields: Fields) -> terms.Term | None:
+    """`{form}` or `{form, count}`: a pointer to a stack slot for one `form`, or `count` of them."""
+    return PTR if len(fields) in (1, 2) and is_literal_form(fields[0]) else None
+
+
+def _getelementptr_form_of(fields: Fields) -> terms.Term | None:
+    """`{form, ptr, i0, ..., in}`: `ptr` moved by `i0` whole `form`s, then into `form`'s parts."""
+    return PTR if len(fields) >= GEP_MIN_FIELDS and is_literal_form(fields[0]) else None
+
+
 def _generate():
     yield _binary('add', lambda _bits, a, b: a + b)
     yield _binary('sub', lambda _bits, minuend, subtrahend: minuend - subtrahend)
@@ -214,6 +244,9 @@ def _generate():
     yield _convert('zext', lambda _bits, value: value, widening=True)
     yield _convert('sext', lambda bits, value: _signed(bits, value), widening=True)
     yield _convert('trunc', lambda _bits, value: value, widening=False)
+    # Memory: impure, so reduction never folds them; oymomo has no memory to run them on.
+    yield Opcode('alloca', _alloca_form_of, _never, pure=False)
+    yield Opcode('getelementptr', _getelementptr_form_of, _never, pure=False)
 
 
 OPCODES: dict[str, Opcode] = {opcode.name: opcode for opcode in _generate()}

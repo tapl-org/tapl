@@ -1,0 +1,8 @@
+fill(p: ptr, n: i64): i32
+
+main: i32
+  entry():
+    q = alloca {x: i32, y: i64}
+    y = getelementptr {x: i32, y: i64}, q, [0000000000000000]:i64, [01000000]:i32
+    r = call fill(y, [0800000000000000]:i64)
+    return r
