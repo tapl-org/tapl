@@ -1,17 +1,17 @@
 language oymomo
 module~{bump= ⇒ 'i32', sum= ⇒ 'i32'} → {
-  bump= blocks → {
+  bump= f → {
     entry= args~{n= 'i32'} →
       let p = 'alloca' {'i32'} in
       let s = 'store' {args.n, p} in
       let v = 'load' {'i32', $seq {s, p}} in
       let w = 'add' {'i32', v, [01000000]} in w,
   },
-  sum= blocks → {
+  sum= f → {
     entry= args~{n= 'i32'} →
       let acc = 'alloca' {'i32'} in
       let z = 'store' {[00000000]~'i32', acc} in
-      blocks.loop {acc= $seq {z, acc}, i= args.n},
+      f.loop {acc= $seq {z, acc}, i= args.n},
     loop= args~{acc= 'ptr', i= 'i32'} →
       let old = 'load' {'i32', args.acc} in
       let new = 'add' {'i32', old, args.i} in
@@ -19,8 +19,8 @@ module~{bump= ⇒ 'i32', sum= ⇒ 'i32'} → {
       let j = 'sub' {'i32', args.i, [01000000]~'i32'} in
       let done = 'icmp_eq' {'i32', j, [00000000]~'i32'} in
       if done
-      then blocks.exit {acc= $seq {s, args.acc}}
-      else blocks.loop {acc= $seq {s, args.acc}, i= j},
+      then f.exit {acc= $seq {s, args.acc}}
+      else f.loop {acc= $seq {s, args.acc}, i= j},
     exit= args~{acc= 'ptr'} → let r = 'load' {'i32', args.acc} in r,
   },
 }

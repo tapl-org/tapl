@@ -36,7 +36,7 @@ Evaluation is **weak** (it never goes under a `λ` or into a struct field) and
 w ::= λx~F. t | {l1 = t1, ...} | [b] | x | $name | F -> G | stuck terms
 ```
 
-Here are some stuck terms: `args.n`, `blocks.done {...}`, `'add' {'i32', args.n, ...}`,
+Here are some stuck terms: `args.n`, `f.done {...}`, `'add' {'i32', args.n, ...}`,
 `{e, t} c` when `c` is not a byte array, `s.l` when `s` has no field `l`, `{} [b]`,
 `$unknown t`.
 
@@ -146,7 +146,7 @@ body((λx. t) v), with v ⇓ w:
     otherwise        ⟹  body([x ↦ w] t)  (by E-Beta/E-BetaForm) (S-Inline)
 body(t):         t → t'  ⟹  body(t');  else terminal(t)
 
-terminal(blocks.l a)    = blocks.l arg(a)                       jump
+terminal(f.l a)         = f.l arg(a)                            jump
 terminal({fi = ti} c)   = {fi = jump(ti)} atom(c)               branch (2 fields), switch (3+)
 terminal(t)             = t                                     [b], args.l, $i, ...
 
@@ -154,7 +154,7 @@ op(t a)          = t arg(a)
 op({li = ti})    = {li = atom(ti)}
 op(t)            = t                                            (a projection)
 arg(a):          a ⇓ {li = ti}  ⟹  {li = atom(ti)};  else a ⇓
-jump(t):         t ⇓ blocks.l a  ⟹  blocks.l arg(a);  else t ⇓
+jump(t):         t ⇓ f.l a  ⟹  f.l arg(a);  else t ⇓
 atom(t)          = t ⇓
 ```
 

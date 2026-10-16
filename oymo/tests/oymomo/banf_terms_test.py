@@ -307,7 +307,7 @@ def test_show_and_verify_load_and_store():
     module = _store_then(Return(Var('v')), load)
     verify(module)
     assert show(module) == (
-        'f: i32\n  entry():\n    p = alloca \'i32\'\n    s = store [00000000]:i32, p\n'
+        "f: i32\n  entry():\n    p = alloca 'i32'\n    s = store [00000000]:i32, p\n"
         "    v = load 'i32', p\n    return v\n"
     )
 
@@ -376,8 +376,8 @@ def switch_module(selector_form, terminator):
     returns it. Oymomo source can't write a switch yet, so `entry` is written as a jump and
     its terminator replaced."""
     source = f"""
-    module~{{f = => 'i32'}} -> {{f = blocks -> {{
-      entry = args~{{k = {selector_form}, x = 'i32'}} -> blocks.a {{}},
+    module~{{f = => 'i32'}} -> {{f = f -> {{
+      entry = args~{{k = {selector_form}, x = 'i32'}} -> f.a {{}},
       a = args~{{}} -> [00000000]~'i32',
       b = args~{{}} -> [00000000]~'i32',
       c = args~{{x = 'i32'}} -> args.x,

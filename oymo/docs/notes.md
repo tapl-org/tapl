@@ -249,15 +249,15 @@ module~{fact = => 'i32'} -> {
 - `f.then0 {}` jumps to the sibling block `then0`.
 
 **2. Shaped term** (`banf_translate.shape`). Reduced until it has BANF's shape, and
-the structural binders renamed to `module`, `blocks`, `args`. This program was
-already in shape, so only `f` → `blocks` changed.
+the structural binders renamed to `module`, `f`, `args`. This program was
+already in shape and already used those names, so only the printing changed.
 
 ```
 module~{fact= ⇒ 'i32'} → {
-  fact= blocks → {
+  fact= f → {
     entry= args~{n= 'i32'} →
       let t0 = 'icmp_eq' {'i32', args.n, [00000000]~'i32'} in
-      if t0 then blocks.then0 {} else blocks.else0 {n= args.n},
+      if t0 then f.then0 {} else f.else0 {n= args.n},
     then0= args~{} → [01000000]~'i32',
     else0= args~{n= 'i32'} →
       let t1 = 'sub' {'i32', args.n, [01000000]~'i32'} in
@@ -914,8 +914,8 @@ module~{ declarations } -> {                the program
 }
 ```
 
-The binder names (`module`, `f`, `args`) can be anything in the source; shaping
-renames them to `module`, `blocks`, `args` (see
+The binder names can be anything in the source; shaping renames them to
+`module`, `f`, `args` (see
 [Translation](#3-banf_renamerename-fixed-names-and-no-shadowing)).
 
 ### `module` declares every symbol
@@ -938,7 +938,7 @@ The shape of each declaration says what it is:
 
 Rules:
 - A body label must be declared: "'f' is defined but not declared."
-- A definition must fit its declaration: `=> R` needs `blocks -> {...}`; a data
+- A definition must fit its declaration: `=> R` needs `f -> {...}`; a data
   declaration needs a byte array ("'answer' is declared as data, so its definition
   must be a byte array.").
 - The body field is reduced with `reduce_until_top_stable`, so `answer = (x -> x) [2a]` is fine. A data
@@ -982,7 +982,7 @@ fact = f -> {
 }
 ```
 
-- The function's binder (`f`, renamed `blocks`) is its own struct of blocks, so
+- The function's binder (`f`, its fixed name) is its own struct of blocks, so
   `f.then0 {}` jumps to a sibling block. Same self-reference trick as `module`, one
   level down.
 - Each block is a lambda over one struct (`args~{n = 'i32'} -> ...`); the binder
@@ -1244,7 +1244,7 @@ it with `branch t0, then0(), else0(n)`.
 - Why: each block reads on its own, with no dominance or live-in analysis. Names are
   scoped to their block, so a passed value can keep its name (`else0(n: i32)`).
 - In oymomo this holds by construction: a block lambda only sees its `args`, its
-  lets, and the outer binders `blocks` and `module`; built-ins are global.
+  lets, and the outer binders `f` and `module`; built-ins are global.
 
 #### The entry block cannot be jumped to
 
@@ -1340,7 +1340,7 @@ until each position has BANF's shape. `convert` only reads the result. So:
   A position that needs a form rejects it ("form must be written").
 - **Nothing inferred.** Every form BANF stores is written in the source, return
   forms included, and every parameter list and form is written once.
-- **Unneeded forms are dropped.** A form where BANF has no slot (on the `blocks`
+- **Unneeded forms are dropped.** A form where BANF has no slot (on the `f`
   binder, on a data definition) is dropped, not rejected.
 - **A form is not a type.** A written form is never checked against a computed one;
   it replaces it (a let's form, a formed atom). `banf.verify` checks names and counts,
@@ -1399,7 +1399,7 @@ reduce_until_top_stable(t) = reduce_until_top_stable(step(t))    if step(t) is n
 ```
 
 `reduce_until_top_stable` stops at every Lambda, Struct, ByteArray, BruijnIndex and
-Builtin, and at stuck terms such as `'add' {'i32', args.n, ...}`, `args.n`, `blocks.done {...}` or
+Builtin, and at stuck terms such as `'add' {'i32', args.n, ...}`, `args.n`, `f.done {...}` or
 `if t0 then a else b`.
 
 - "Reduce `t` until it is X" means take `reduce_until_top_stable(t)`, *then* look at its
@@ -1414,7 +1414,7 @@ As numbered in [`banf_shape.py`](../src/oymo/oymomo/banf_shape.py):
 
 1. The term, until a Lambda: `module -> <body>`.
 2. `<body>`, until a Struct: `{label = <func>, ...}`.
-3. `<func>`, until a Lambda: `blocks -> <func_body>`.
+3. `<func>`, until a Lambda: `f -> <func_body>`.
 4. `<func_body>`, until a Struct: `{label = <block>, ...}`.
 5. `<block>`, until a Lambda: `args -> <block_body>`.
 6. `<block_body>`, a chain of lets ending in a terminal:
@@ -1423,7 +1423,7 @@ As numbered in [`banf_shape.py`](../src/oymo/oymomo/banf_shape.py):
    terminal   := [bytes]                                    -- return a constant
                | args.label                                 -- return a param
                | $i, where i < k                            -- return a let
-               | blocks.label <op_arg>                      -- jump
+               | f.label <op_arg>                           -- jump
                | {<jump>, ..., <jump>} <atom>               -- branch (two jumps) or switch (three or more)
    ```
    `k` counts the lets since the block's `args` binder, so `args` is `$k`; it tells
@@ -1439,7 +1439,7 @@ As numbered in [`banf_shape.py`](../src/oymo/oymomo/banf_shape.py):
    BruijnIndex (forwarding `args`); a struct's fields become atoms; a projection's
    struct is a blocker, already reduced.
 8. `<jump>`, a branch arm or switch target (a field of `{a0, ..., an} c`): until
-   `blocks.label <op_arg>`.
+   `f.label <op_arg>`.
 9. `<atom>`: until a ByteArray, `$i` with `i < k`, or `args.n`. `args` itself is not
    an atom: BANF passes a block's params one by one.
 
@@ -1458,13 +1458,13 @@ As numbered in [`banf_shape.py`](../src/oymo/oymomo/banf_shape.py):
 #### 3. `banf_rename.rename`: fixed names and no shadowing
 
 **Structural binders get fixed names.** Positions 1, 3 and 5 are renamed so every
-shaped program reads `module -> {main = blocks -> {entry = args -> ...}}`.
+shaped program reads `module -> {main = f -> {entry = args -> ...}}`.
 
 - `convert` checks each position by name; a wrong name means a wrong shape.
 - On any path from the root the three names appear once each, so they never clash.
 - A position `banf_shape` left without its shape isn't structural: its binder
   follows the let rule below, and `convert` reports the shape error.
-- The fixed names don't reach BANF: `blocks.label` becomes a jump target and
+- The fixed names don't reach BANF: `f.label` becomes a jump target and
   `args.n` becomes `banf.Var('n')`.
 
 **Other binders keep their names unless they clash.** A let keeps its name `x`
@@ -1480,6 +1480,7 @@ first let is level 3).
 | user's `t_4` after a renamed `t_4` | `t_4_5` |
 | `t, t_5, t` | `t, t_5, t__5` |
 | a let named `args` | `args_3` |
+| a let named `f` | `f_3` |
 | a let named `prim` | `prim` |
 
 - Labels (struct, field, block, function, param) are never renamed, and only param
@@ -1498,7 +1499,7 @@ Rejected alternatives: [Design decisions](#renaming).
 ##### Binders are found by index
 
 Inside a block body with `k` lets so far, the binders above are always, inside out:
-the lets (`$0` … `$k-1`), then `args` (`$k`), `blocks` (`$k+1`), `module` (`$k+2`).
+the lets (`$0` … `$k-1`), then `args` (`$k`), `f` (`$k+1`), `module` (`$k+2`).
 So `convert` classifies each `BruijnIndex` by arithmetic and keeps no names of its
 own. A let reference becomes a `banf.Var` named after the BANF let already built.
 
@@ -1548,7 +1549,7 @@ own. A let reference becomes a `banf.Var` named after the BANF let already built
 
 ##### Labels name params, declarations and blocks
 
-BANF reads `module`, `blocks` and `args` only by label, so every field needs a label
+BANF reads `module`, `f` and `args` only by label, so every field needs a label
 in: the module form, a signature's param form, the module body, a definition's
 blocks, the top level of a block's param form, and the argument struct of a call,
 jump or opcode ("The module form needs a label on every field.").
@@ -1591,7 +1592,7 @@ operand is an error. All of this holds for `{e, t} c`, which is the same term.
 
 ##### Binders can't be used as values
 
-`blocks`, `args` and `module` alone are errors ("'args' cannot be used as a
+`f`, `args` and `module` alone are errors ("'args' cannot be used as a
 value."; the message uses the fixed name), except `args` forwarded as a whole call
 or jump argument. So are `module.g` and `$fix` without an argument
 ("$fix must be applied."). They have no runtime value.
@@ -1695,10 +1696,10 @@ message text to find where it's raised.
 | `An if must be in tail position.` | An `if` used as a value. | Branch to blocks and join explicitly. See [Translation](#if-only-in-tail-position). |
 | `A switch needs two or more fields; one is a jump.` | `{f.a {}} k` in tail position. | Write the jump: `f.a {}`. See [Translation](#if-only-in-tail-position). |
 | `A switch needs two or more fields.` | `{} k` in tail position. | Give it targets. |
-| `Every field of a switch must be a jump, such as blocks.a {}.` | `{f.a {}, [01]~'i8', f.b {}} k`. | Make each field a jump. |
+| `Every field of a switch must be a jump, such as f.a {}.` | `{f.a {}, [01]~'i8', f.b {}} k`. | Make each field a jump. |
 | `A jump must be in tail position.` | `f.label {...}` used as a value. | Put the jump last. |
 | `Cannot jump to the entry block.` | `f.entry {...}`. | Jump to a separate loop header. See [BANF](#the-entry-block-cannot-be-jumped-to). |
-| `'<args>' cannot be used as a value.` | `blocks`, `args` or `module` used alone. | Use `args.n`, `module.f {...}`, `blocks.b {...}`; `args` may only be forwarded whole as a call/jump argument. |
+| `'<args>' cannot be used as a value.` | `f`, `args` or `module` used alone. | Use `args.n`, `module.g {...}`, `f.b {...}`; `args` may only be forwarded whole as a call/jump argument. |
 | `module.<g> must be applied.` | A function symbol used without arguments. | Call it: `module.g {...}`. |
 | `module.<x> is data, so it cannot be applied.` | `module.errno {}`. | Read data without an argument: `module.errno`. |
 | `'<x>' is not declared.` | `module.x` with no declaration. | Declare it in the module form. |
@@ -2155,7 +2156,7 @@ Consequences:
 
 ### Renaming
 
-Structural binders get fixed names (`module`, `blocks`, `args`) so `convert` can
+Structural binders get fixed names (`module`, `f`, `args`) so `convert` can
 check shape by name. Other binders keep their name unless it's visible, then get a
 level suffix.
 

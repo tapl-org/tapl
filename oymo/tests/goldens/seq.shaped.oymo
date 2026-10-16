@@ -1,17 +1,17 @@
 language oymomo
 module~{putchar= {c= 'i32'} ⇒ 'i32', hi= ⇒ 'i32', count= ⇒ 'i32'} → {
-  hi= blocks → {
+  hi= f → {
     entry= args~{} →
       let q = module.putchar {c= [68000000]~'i32'} in
       let r = module.putchar {c= $seq {q, [69000000]~'i32'}} in r,
   },
-  count= blocks → {
-    entry= args~{} → blocks.loop {i= [00000000]~'i32'},
+  count= f → {
+    entry= args~{} → f.loop {i= [00000000]~'i32'},
     loop= args~{i= 'i32'} →
       let p = module.putchar {c= [2a000000]~'i32'} in
       let j = 'add' {'i32', $seq {p, args.i}, [01000000]~'i32'} in
       let done = 'icmp_eq' {'i32', j, [03000000]~'i32'} in
-      if done then blocks.exit {n= j} else blocks.loop {i= j},
+      if done then f.exit {n= j} else f.loop {i= j},
     exit= args~{n= 'i32'} → args.n,
   },
 }

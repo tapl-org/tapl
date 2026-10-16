@@ -11,7 +11,7 @@ beta, redex, basic block, terminator…) mean what they usually mean. Code names
 | **BANF** | *Block-based ANF*. The first-order IR between oymomo and LLVM: SSA with block params instead of phi nodes. | [BANF](notes.md#banf) |
 | **block** | A BANF basic block: params, lets, one terminator. In oymomo, a lambda `args~{...} -> ...` in a function's struct. | [BANF](notes.md#blocks) |
 | **blocker** | The part of a term that must reduce before the term can: an apply's callee, a projection's struct, an `if`'s condition… | [Translation](notes.md#blockers) |
-| **blocks** | Fixed name of a function's self-binder after renaming; `blocks.then0 {}` jumps to block `then0`. | [Programs](notes.md#functions-are-structs-of-blocks) |
+| **f** | Fixed name of a function's self-binder (its struct of blocks) after renaming; `f.then0 {}` jumps to block `then0`. | [Programs](notes.md#functions-are-structs-of-blocks) |
 | **built-in** | A global constant written `$name` (`$fix`) with a reduction rule. Must reduce away before BANF. | [oymomo semantics](notes.md#built-ins) |
 | **byte array** | The only literal: `[2a000000]` or `'text'`. Has no form unless one is written. | [oymomo syntax](notes.md#byte-arrays) |
 | **convert** | Last pass of oymomo → BANF: reads a shaped term into BANF. Never reduces. | [Translation](notes.md#4-convert-read-the-shaped-term) |

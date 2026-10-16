@@ -317,7 +317,7 @@ def test_struct_apply_reduces_away():
     ],
 )
 def test_binders_are_not_structs(body):
-    # module, blocks and args are accessed by a label only.
+    # module, f (the blocks) and args are accessed by a label only.
     defs = f"g = f -> {{entry = args~{{}} -> {body}, b = args~{{}} -> [01]~'i8'}}"
     assert error(defs, "g = => 'i8'") == (
         "Expected an op: 'opcode' {...}, module.f {...}, module.data, a struct or a projection."
@@ -559,8 +559,8 @@ def test_struct_branch_to_an_explicit_join_block():
     [
         ('{f.a {}} args.c', 'A switch needs two or more fields; one is a jump.'),
         ('{} args.c', 'A switch needs two or more fields.'),
-        ("{f.b {}, [01]~'i8'} args.c", 'Both branches of an if must be jumps, such as blocks.then0 {}.'),
-        ("{f.a {}, [01]~'i8', f.b {}} args.c", 'Every field of a switch must be a jump, such as blocks.a {}.'),
+        ("{f.b {}, [01]~'i8'} args.c", 'Both branches of an if must be jumps, such as f.then0 {}.'),
+        ("{f.a {}, [01]~'i8', f.b {}} args.c", 'Every field of a switch must be a jump, such as f.a {}.'),
     ],
 )
 def test_struct_branch_errors(body, message):
@@ -646,14 +646,14 @@ def test_switch_rejects_different_args_to_a_repeated_target():
         ),
         (
             "g = f -> {entry = args~{c = 'i1'} -> if args.c then [01]~'i8' else f.b {}, b = args~{} -> [01]~'i8'}",
-            'Both branches of an if must be jumps, such as blocks.then0 {}.',
+            'Both branches of an if must be jumps, such as f.then0 {}.',
         ),
         (
             'g = f -> {entry = args~{} -> f.b {}, b = args~{} -> f.entry {}}',
             'Cannot jump to the entry block.',
         ),
         ('g = f -> {entry = args~{} -> f.nowhere {}}', "Unknown block 'nowhere'."),
-        ('g = f -> {entry = args~{} -> f}', "'blocks' cannot be used as a value."),
+        ('g = f -> {entry = args~{} -> f}', "'f' cannot be used as a value."),
         ('g = f -> {entry = args~{} -> args}', "'args' cannot be used as a value."),
         ('g = f -> {entry = args~{} -> (t -> t) (module)}', "'module' cannot be used as a value."),
         (
@@ -665,7 +665,7 @@ def test_switch_rejects_different_args_to_a_repeated_target():
         ('g = f -> {entry = args~{} -> let t = $fix in t}', '$fix must be applied.'),
         (
             "g = args~{} -> [01]~'i8'",
-            "Definition 'g' must be a struct of blocks, such as blocks -> {entry = args~{} -> ...}.",
+            "Definition 'g' must be a struct of blocks, such as f -> {entry = args~{} -> ...}.",
         ),
         (
             "g = f -> {entry = n~'i8' -> n}",
@@ -794,7 +794,7 @@ MAIN = "main = f -> {entry = args~{} -> [01]~'i8'}"
         (
             "main = [2a]~'i8'",
             "main = => 'i8'",
-            "Definition 'main' must be a struct of blocks, such as blocks -> {entry = args~{} -> ...}.",
+            "Definition 'main' must be a struct of blocks, such as f -> {entry = args~{} -> ...}.",
         ),
         (
             'answer = [2a], answer = [2a]',

@@ -83,7 +83,7 @@ class _Block:
     def binder(self, term):
         """For a BruijnIndex in the block body: ('let', name), or one of ARGS, BLOCKS, MODULE.
 
-        Above the body, from the inside out, are the lets so far, then args, blocks, module.
+        Above the body, from the inside out, are the lets so far, then args, f (the blocks), module.
         None for anything else.
         """
         if not isinstance(term, terms.BruijnIndex):
@@ -175,7 +175,7 @@ def _blocks(field):
             pass
         case _:
             raise TranslationError(
-                f'Definition {name!r} must be a struct of blocks, such as blocks -> {{entry = args~{{}} -> ...}}.',
+                f'Definition {name!r} must be a struct of blocks, such as f -> {{entry = args~{{}} -> ...}}.',
                 _location(field.value),
             )
     _check_labeled(block_fields, _location(field.value), f'Definition {name!r}')
@@ -395,9 +395,7 @@ class _Translator:
                     else_jump = self.jump(else_field.value, block)
                     then_jump = self.jump(then_field.value, block)
                     if then_jump is None or else_jump is None:
-                        raise TranslationError(
-                            'Both branches of an if must be jumps, such as blocks.then0 {}.', location
-                        )
+                        raise TranslationError('Both branches of an if must be jumps, such as f.then0 {}.', location)
                     # Both arms may jump to the same block: Cranelift allows it, and
                     # llvm_translate rejects it, since an LLVM phi can't tell the edges apart.
                     return banf.Branch(atom, *then_jump, *else_jump, location)
@@ -412,9 +410,7 @@ class _Translator:
                     targets = []
                     for f in fields:
                         if (target := self.jump(f.value, block)) is None:
-                            raise TranslationError(
-                                'Every field of a switch must be a jump, such as blocks.a {}.', location
-                            )
+                            raise TranslationError('Every field of a switch must be a jump, such as f.a {}.', location)
                         targets.append(target)
                     return banf.Switch(atom, targets, location)
             if (jump := self.jump(term, block)) is not None:

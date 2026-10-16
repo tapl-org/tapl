@@ -36,7 +36,7 @@ def test_fresh():
 
 def test_structural_binders_get_fixed_names():
     assert pretty("m~{} -> {main = b -> {entry = x~{} -> [01]~'i8'}}") == (
-        "module~{} → {main= blocks → {entry= args~{} → [01]~'i8'}}"
+        "module~{} → {main= f → {entry= args~{} → [01]~'i8'}}"
     )
 
 
@@ -44,9 +44,8 @@ def test_references_follow_their_binders():
     source = "m~{} -> {main = b -> {entry = x~{n = 'i8'} -> let t = 'add' {'i8', x.n, x.n} in b.next t}}"
     assert pretty(source) == dedent("""
         module~{} → {
-          main= blocks → {
-            entry= args~{n= 'i8'} →
-              let t = 'add' {'i8', args.n, args.n} in blocks.next t,
+          main= f → {
+            entry= args~{n= 'i8'} → let t = 'add' {'i8', args.n, args.n} in f.next t,
           },
         }
     """)
@@ -54,17 +53,17 @@ def test_references_follow_their_binders():
 
 def test_a_let_that_clashes_with_nothing_keeps_its_name():
     assert block('let t = {n = args.m} in t', "{m = 'i8'}") == (
-        "module~{} → {main= blocks → {entry= args~{m= 'i8'} → let t = {n= args.m} in t}}"
+        "module~{} → {main= f → {entry= args~{m= 'i8'} → let t = {n= args.m} in t}}"
     )
     assert block('let entry = {} in entry') == (
-        "module~{} → {main= blocks → {entry= args~{n= 'i8'} → let entry = {} in entry}}"
+        "module~{} → {main= f → {entry= args~{n= 'i8'} → let entry = {} in entry}}"
     )
 
 
 def test_repeated_lets():
     assert block('let t = {} in let t = {a = t} in let t = {b = t} in t') == dedent("""
         module~{} → {
-          main= blocks → {
+          main= f → {
             entry= args~{n= 'i8'} →
               let t = {} in
               let t_4 = {a= t} in
@@ -77,7 +76,7 @@ def test_repeated_lets():
 def test_lets_repeating_a_param_label():
     assert block('let n = {a = args.n} in let n = {b = n} in n') == dedent("""
         module~{} → {
-          main= blocks → {
+          main= f → {
             entry= args~{n= 'i8'} →
               let n_3 = {a= args.n} in
               let n_4 = {b= n_3} in n_4,
@@ -88,28 +87,21 @@ def test_lets_repeating_a_param_label():
 
 def test_lets_named_after_fixed_names():
     assert block('let args = {} in args') == (
-        "module~{} → {main= blocks → {entry= args~{n= 'i8'} → let args_3 = {} in args_3}}"
+        "module~{} → {main= f → {entry= args~{n= 'i8'} → let args_3 = {} in args_3}}"
     )
-    for name in ('blocks', 'module'):
-        assert block(f'let {name} = {{}} in {name}') == dedent(f"""
-            module~{{}} → {{
-              main= blocks → {{entry= args~{{n= 'i8'}} → let {name}_3 = {{}} in {name}_3}},
-            }}
-        """)
+    for name in ('f', 'module'):
+        assert block(f'let {name} = {{}} in {name}') == (
+            f"module~{{}} → {{main= f → {{entry= args~{{n= 'i8'}} → let {name}_3 = {{}} in {name}_3}}}}"
+        )
     # `prim` is no longer a binder, so it is a plain name.
-    assert block('let prim = {} in prim') == (
-        "module~{} → {main= blocks → {entry= args~{n= 'i8'} → let prim = {} in prim}}"
-    )
+    assert block('let prim = {} in prim') == ("module~{} → {main= f → {entry= args~{n= 'i8'} → let prim = {} in prim}}")
 
 
 def test_sibling_blocks_both_keep_their_names():
     source = program('main = f -> {entry = args~{} -> let t = {} in t, next = args~{} -> let t = {} in t}')
     assert pretty(source) == dedent("""
         module~{} → {
-          main= blocks → {
-            entry= args~{} → let t = {} in t,
-            next= args~{} → let t = {} in t,
-          },
+          main= f → {entry= args~{} → let t = {} in t, next= args~{} → let t = {} in t},
         }
     """)
 
@@ -117,7 +109,7 @@ def test_sibling_blocks_both_keep_their_names():
 def test_user_names_that_look_renamed():
     assert block('let t = {} in let t = {a = t} in let t_4 = {b = t} in t_4') == dedent("""
         module~{} → {
-          main= blocks → {
+          main= f → {
             entry= args~{n= 'i8'} →
               let t = {} in
               let t_4 = {a= t} in
@@ -127,7 +119,7 @@ def test_user_names_that_look_renamed():
     """)
     assert block('let t = {} in let t_5 = {a = t} in let t = {b = t_5} in t') == dedent("""
         module~{} → {
-          main= blocks → {
+          main= f → {
             entry= args~{n= 'i8'} →
               let t = {} in
               let t_5 = {a= t} in
@@ -140,7 +132,7 @@ def test_user_names_that_look_renamed():
 def test_param_labels_are_never_renamed():
     assert block('let args = {n = args.n} in args.n') == dedent("""
         module~{} → {
-          main= blocks → {entry= args~{n= 'i8'} → let args_3 = {n= args.n} in args_3.n},
+          main= f → {entry= args~{n= 'i8'} → let args_3 = {n= args.n} in args_3.n},
         }
     """)
 
@@ -168,7 +160,7 @@ def test_shows_as_source():
     source = program("main = f -> {entry = args~{n = 'i8'} -> let n = 'add' {'i8', args.n, args.n} in n}")
     assert show(renamed(source), pretty=True, name_indices=True, width=60) == textwrap.dedent("""\
         module~{} → {
-          main= blocks → {
+          main= f → {
             entry= args~{n= 'i8'} →
               let n_3 = 'add' {'i8', args.n, args.n} in n_3,
           },

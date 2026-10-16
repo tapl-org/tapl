@@ -3,7 +3,7 @@
 """Renames binders of a term in BANF shape. See docs/notes.md, "`banf_rename.rename`".
 
 The structural binders get fixed names, so every shaped program reads
-`module -> {main = blocks -> {entry = args -> ...}}`. Any other binder keeps
+`module -> {main = f -> {entry = args -> ...}}`. Any other binder keeps
 its name unless that name is visible (an enclosing binder's name, or a param label of its
 block); then it becomes `x_L`, `x__L`, ..., where `L` is its level. Labels are never renamed.
 """
@@ -14,7 +14,7 @@ from oymo.core import syntax
 from oymo.oymomo import terms
 
 MODULE = 'module'
-BLOCKS = 'blocks'
+BLOCKS = 'f'
 ARGS = 'args'
 
 

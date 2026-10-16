@@ -173,7 +173,7 @@ def _getelementptr(builder, fields, operand):
     return _opaque(builder.gep(pointer, indices, source_etype=llvm_type(form)))
 
 
-def _pointer(name: str, atom: banf.Atom | banf.FormField, operand: Operand) -> ir.Value:
+def _pointer(name, atom, operand):
     pointer = _formed(name, 'the pointer', atom, operand)
     if not isinstance(pointer.type, ir.PointerType):
         raise LlvmTranslationError(f'{name!r} expects a pointer, got {pointer.type}.')

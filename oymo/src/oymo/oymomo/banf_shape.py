@@ -152,7 +152,7 @@ class _Shaper:
         return replace(term, fields=[replace(f, value=self.function(f.value)) for f in term.fields])
 
     def function(self, term):
-        """3. `blocks -> <blocks>`. A data definition, such as a byte array, isn't a lambda: it's only reduced."""
+        """3. `f -> <blocks>`. A data definition, such as a byte array, isn't a lambda: it's only reduced."""
         term = self.reduce_until_top_stable(term)
         if not isinstance(term, terms.Lambda):
             return term
@@ -199,7 +199,7 @@ class _Shaper:
     def terminal(self, term):
         match term:
             case terms.Apply(function=terms.Project(struct=terms.BruijnIndex()), argument=argument):
-                # `blocks.label <op_arg>`: a jump.
+                # `f.label <op_arg>`: a jump.
                 return replace(term, argument=self.op_arg(argument))
             case terms.Apply(function=terms.Struct(fields=fields) as struct, argument=condition):
                 # A branch, `{e, t} c` or `if c then t else e`: `c` didn't reduce to an index,
@@ -227,7 +227,7 @@ class _Shaper:
         return term
 
     def jump(self, term):
-        """A branch's target: `blocks.label <op_arg>`."""
+        """A branch's target: `f.label <op_arg>`."""
         term = self.reduce_until_top_stable(term)
         match term:
             case terms.Apply(function=terms.Project(struct=terms.BruijnIndex()), argument=argument):

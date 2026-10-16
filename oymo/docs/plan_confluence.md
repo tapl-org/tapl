@@ -27,7 +27,7 @@ position, under a `λ`, in a struct field, in an argument, or in a form. So:
 
 - **A term has at most one normal form**, whatever order reaches it.
 - **`whnf` and `shape` agree with each other and with full β.** `whnf` reduces lazily,
-  at the root and the head. `shape` also goes under the `module`, `blocks` and `args`
+  at the root and the head. `shape` also goes under the `module`, `f` and `args`
   lambdas and reduces a let's value before it inlines it (see
   [notes.md › Positions](notes.md#positions)). Each strategy is a subset of full β, so
   with confluence they can never reach different results.

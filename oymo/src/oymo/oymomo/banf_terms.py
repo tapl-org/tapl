@@ -349,9 +349,7 @@ def _check_no_store_use(atoms, stores, location):
     (plan_memory.md decision 11): a store's name is used nowhere."""
     for atom in atoms:
         if isinstance(atom, Var) and atom.name in stores:
-            raise FormError(
-                f'{atom.name!r} is the result of a store; only $seq can use it.', atom.location or location
-            )
+            raise FormError(f'{atom.name!r} is the result of a store; only $seq can use it.', atom.location or location)
 
 
 def _check_jump(function, target, args, forms, location):
