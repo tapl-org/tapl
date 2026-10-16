@@ -1,6 +1,6 @@
 # Plan: Tenon, a two-layer language on oymomo
 
-Status: **proposed**, with open questions; 0 of 6 phases.
+Status: **proposed**, with open questions; 0 of 7 phases.
 
 This is a roadmap, not a single design change: each phase below is **one or more plans
 of its own** (`plan_<name>.md`), and each of those has steps of one commit each. A phase
@@ -15,25 +15,31 @@ types become Tenon types ([Phase 4](#phase-4--c-headers-in-both-layers)), and Te
 types make a generated header read as hand-written ([Phase 3](#phase-3--c-calls-tenon)).
 Types are Tenon's, not oymomo's.
 
-**When each phase ships** is set by [roadmap.md](roadmap.md), which builds Tenon in two
+**When each phase ships** is set by [roadmap.md](roadmap.md), which builds Tenon in
 stages. **Stage A, in the Python compiler, only what writing a compiler in Tenon
-needs:** Phase 0 and the first part of Phase 1 (functions, integers) are oymo 0.3, as
-early as possible, in the JIT; BANF is removed from the compiler in 0.4; memory and `extern` are 0.5; enums and tagged unions
-0.7; layer 1 (Phase 2) 0.8 and module interfaces 0.9; function values (Phase 3) 0.10;
-the bootstrap part of the standard library (Phase 5) 0.11. **Stage B** (0.12–0.14)
-rewrites the compiler, this frontend included, in Tenon. **Stage C, in the Tenon
-compiler:** `export` and generated headers (Phase 3) 0.15, the Tenon API for language
-authors 0.18, header import (Phase 4) 0.25, and the rest of Phase 5 spread over
-0.26–0.35 and after 1.0.
+needs:** BANF is removed from the compiler in 0.3, before Tenon starts; Phase 0 and
+the first part of Phase 1 (functions, integers) are oymo 0.4, as early as possible;
+memory and `extern` are 0.5; enums and tagged unions 0.7; layer 1 with basic types and
+generics (Phase 2) 0.8 and module interfaces 0.9; function values (Phase 3) 0.10; the
+bootstrap part of the standard library (Phase 5) 0.11; line tables and the language
+server 0.12. **Stage B** (0.13–0.15) rewrites the compiler, this frontend included,
+in Tenon. **Stage C, in the Tenon compiler:** dependent and substructural types
+(Phase 2b) 0.16 and 0.17, `export` and generated headers (Phase 3) 0.18, the Tenon
+API for language authors 0.21, header import (Phase 4) 0.28, and the rest of Phase 5
+spread over 0.29–0.38 and after 1.0.
+
+There is **no JIT before 1.0**: every oymomo program, layer 1's included, is written
+as `.ll` text and built with `clang` ([roadmap.md › Decided](roadmap.md#decided)).
 
 ## Steps
 
-- [ ] 0. Decisions: name, syntax, layer semantics, memory model, undefined behaviour, dependent and substructural types ([Phase 0](#phase-0--decisions)) — oymo 0.3
-- [ ] 1. Tenon frontend, layer 0 only ([Phase 1](#phase-1--tenon-frontend-layer-0-only)) — oymo 0.3, 0.5, 0.7
-- [ ] 2. Layer 1: the type checker as code, dependent and substructural types, module interfaces ([Phase 2](#phase-2--layer-1-the-type-checker-as-code)) — oymo 0.8, 0.9 (across languages 0.18)
-- [ ] 3. C calls Tenon: `export`, function values, generated headers ([Phase 3](#phase-3--c-calls-tenon)) — oymo 0.10, 0.15
-- [ ] 4. C headers in both layers ([Phase 4](#phase-4--c-headers-in-both-layers)) — oymo 0.25
-- [ ] 5. Later: closures, separate compilation, debug info, safety checks, standard library ([Phase 5](#phase-5--later)) — oymo 0.11 (bootstrap standard library), 0.26–0.35 and after 1.0
+- [ ] 0. Decisions: name, syntax, layer semantics, memory model, undefined behaviour, generics, dependent and substructural types ([Phase 0](#phase-0--decisions)) — oymo 0.4
+- [ ] 1. Tenon frontend, layer 0 only ([Phase 1](#phase-1--tenon-frontend-layer-0-only)) — oymo 0.4, 0.5, 0.7
+- [ ] 2. Layer 1: the type checker as code, basic types, generics, module interfaces ([Phase 2](#phase-2--layer-1-the-type-checker-as-code)) — oymo 0.8, 0.9 (across languages 0.21)
+- [ ] 2b. Memory safety: dependent and substructural types ([Phase 2b](#phase-2b--memory-safety-dependent-and-substructural-types)) — oymo 0.16, 0.17
+- [ ] 3. C calls Tenon: `export`, function values, generated headers ([Phase 3](#phase-3--c-calls-tenon)) — oymo 0.10, 0.18
+- [ ] 4. C headers in both layers ([Phase 4](#phase-4--c-headers-in-both-layers)) — oymo 0.28
+- [ ] 5. Later: closures, separate compilation, debug info, safety checks, standard library ([Phase 5](#phase-5--later)) — oymo 0.11 (bootstrap standard library), 0.12 (line tables), 0.29–0.38 and after 1.0
 
 ## Goal
 
@@ -42,11 +48,11 @@ Tenon is a language whose programs:
 1. are written in one source file with **two layers**, as TAPL does for Python:
    layer 0 is what runs, layer 1 is the type checker, and it is real code;
 2. are **memory safe where they say so**, checked at build time by layer 1 with
-   dependent and substructural types (decision 0.6), at no run-time cost and with no
-   garbage collector; raw pointers and C stay unchecked, as in C;
-3. lower **each layer to its own oymomo program**, then to LLVM IR and machine code
-   (directly, with no BANF, from oymo 0.4; the Tenon-written compiler, from oymo 0.12,
-   writes the same LLVM IR as text and runs `clang`);
+   dependent and substructural types (decision 0.6, from oymo 0.16), at no run-time
+   cost and with no garbage collector; raw pointers and C stay unchecked, as in C;
+3. lower **each layer to its own oymomo program**, then to LLVM IR text (directly,
+   with no BANF, from oymo 0.3) and machine code built by `clang`; the Tenon-written
+   compiler (from oymo 0.13) writes the same text;
 4. can be **built by other languages**: a language author's frontend builds a Tenon
    syntax tree through the public Tenon API, with its own source locations, and gets
    Tenon's type checker, C headers and C ABI ([roadmap.md › One package, three ways in](roadmap.md#one-package-three-ways-in)).
@@ -58,20 +64,21 @@ flowchart LR
   tree --> sep["LayerSeparator"]
   sep --> l0["layer 0 term"] --> o0["oymomo program 0"]
   sep --> l1["layer 1 term"] --> o1["oymomo program 1"]
-  o1 --> b1["BANF"] --> ll1["LLVM IR"] --> jit["JIT: run at compile time"]
-  jit -- "ok" --> accept["layer 0 accepted"]
-  o0 --> b0["BANF"] --> ll0["LLVM IR"] --> obj["machine code"]
+  o1 --> ll1["LLVM IR text"] --> run1["clang, then run at compile time"]
+  run1 -- "ok" --> accept["layer 0 accepted"]
+  o0 --> ll0["LLVM IR text"] --> obj["clang: machine code"]
 ```
 
-Layer 1 is compiled to machine code and **run during compilation** (llvmlite MCJIT). If
-it finishes without error, layer 0 type-checks. This mirrors TAPL's `a1.py`.
+Layer 1 is compiled to machine code by `clang` and **run during compilation**, as a
+subprocess whose errors come back with their locations. If it finishes without error,
+layer 0 type-checks. This mirrors TAPL's `a1.py`.
 
 ## Where we start from
 
 | oymo has | Missing for Tenon |
 |---|---|
 | PEG engine ([peg.py](../src/oymo/core/peg.py)) | Tenon grammar, layer separation, lowering to oymomo |
-| oymomo → BANF → LLVM IR | A JIT run of layer 1 at compile time |
+| oymomo → BANF → LLVM IR (BANF removed in oymo 0.3) | Building and running layer 1 at compile time |
 | `c_import` giving `CDecl(form, ctype)`, once [plan_c_interop.md](plan_c_interop.md) Phase 5 lands | Mapping a ctype to a Tenon type |
 
 ## Phases
@@ -84,7 +91,9 @@ the order before anything is built on it.
 
 Each decision is written down in this file (or a plan of its own) before Phase 1 starts.
 
-**0.1 Name and file extension.** Name: **Tenon** (decided). A tenon is the tongue of a
+**0.1 Name and file extension.** Name: **Tenon**, a working name, under review (Cymo
+and others are candidates; decided before oymo 0.4, see
+[roadmap.md › Open questions](roadmap.md#open-questions)). A tenon is the tongue of a
 mortise-and-tenon joint: it fits its slot exactly, with no nails or glue. So does
 Tenon fit into C: no glue code, the same ABI and memory, one link step. It was chosen
 over Anvil, whose name is taken by a typed HDL, Foundry's `anvil` and anvil.works,
@@ -178,11 +187,13 @@ do, so the code is as fast as C. Use after free and double free are not checked 
 run time in either: for owned pointers they are layer-1 errors (0.6); for raw
 pointers they stay undefined. Out-of-bounds is a run-time check only where layer 1
 could not prove the index in bounds (0.6). The survey (0.2) compares how the five
-languages do it; decided before Phase 1, implemented in oymo 0.28
-([roadmap.md](roadmap.md#028--safety-checks-and-sanitizers)).
+languages do it; decided before Phase 1, implemented in oymo 0.31
+([roadmap.md](roadmap.md#031--safety-checks-and-sanitizers)).
 
-**0.6 Dependent and substructural types in layer 1.** Both (decided); the details
-below are a proposal. The aim is **memory safety at build time**: no use after free,
+**0.6 Dependent and substructural types in layer 1.** Both (decided), checked from
+oymo 0.16 and 0.17, after the bootstrap
+([Phase 2b](#phase-2b--memory-safety-dependent-and-substructural-types)); their
+syntax is decided here, with the rest of Phase 0. The details below are a proposal. The aim is **memory safety at build time**: no use after free,
 no double free, no leak, no out-of-bounds access, with no run-time cost and no GC.
 It is done in layer 1, as code, not by a fixed checker built into the compiler, so a
 library (or a language author) defines new safe types the same way. Layer 0 does not
@@ -244,11 +255,19 @@ references, regions), **Liquid Haskell** (refinement types for bounds).
   an owned value (`malloc`, `fopen`) or consumes one (`free`, `fclose`), and the
   standard library's wrappers do so.
 - **0.6.7 What stays unchecked**: raw pointers, C code, data races (until threads,
-  roadmap 0.33–0.35), and integer overflow, which the checked build traps (0.5).
+  roadmap 0.36–0.38), and integer overflow, which the checked build traps (0.5).
 
 Why in layer 1 and not in a separate pass: the rule for every Tenon type, a type is
 code. A library writes `Own`, `Index` and its own linear handles in layer 1, and a
 language author lowering to Tenon gets them through the Tenon API with no extra work.
+
+**0.7 Generics.** In the style of System F (decided): functions and types take types
+as parameters (`List(T)`, `Map(K, V)`, `fn get(T: Type, l: List(T), i: usize) -> T`),
+and a generic function is checked once, for every `T`. A type parameter is a layer-1
+value like any other type. To decide here: the syntax (from the survey's Generics
+topic), whether type arguments are inferred at calls, and how generic code lowers to
+layer 0: one copy per type used (as Zig, C3 and Rust do), or one shared copy that
+takes sizes as arguments. Ships with layer 1, oymo 0.8.
 
 ### Phase 1 — Tenon frontend, layer 0 only
 
@@ -264,28 +283,43 @@ language author lowering to Tenon gets them through the Tenon API with no extra 
 
 ### Phase 2 — layer 1: the type checker as code
 
-- Lower layer 1 to a second oymomo program, compile it, and run it at compile time: in
-  the JIT in the Python compiler, as a native subprocess in the Tenon-written compiler
-  (roadmap 0.13), so the product needs no JIT.
+Oymo 0.8 and 0.9, in the Python compiler, before the bootstrap.
+
+- Lower layer 1 to a second oymomo program, write it as `.ll`, build it with `clang`
+  and run it at compile time as a subprocess, in both the Python and the
+  Tenon-written compiler; its errors come back with their locations.
 - A small layer-1 runtime: type values (`Int32`, `Ptr(T)`, struct types), equality,
   errors with source locations.
-- `^expr` (lift) and `<expr:Type>` (a two-layer expression), as in TAPL.
-- **Dependent types** (decision 0.6.1): lifted constants first, then run-time values
-  named in types (`Array(u8, n)`, `Index(n)`), with facts learnt from tests.
-- **Substructural types** (decisions 0.6.2–0.6.6): `Own(T, A)`, second-class borrows
-  `Ref(T)`, the live / consumed / borrowed state of each name, and owned allocation
-  and `free` on the libc allocator. A plan of its own, `plan_tenon_safety.md`.
+- `<expr:Type>` (a two-layer expression), as in TAPL.
+- **Basic types**: integers, raw pointers `Ptr(T)`, structs, enums, tagged unions and
+  function types.
+- **Generics** (decision 0.7), in the style of System F.
 - **Module interfaces**, here because types appear in layer 1: what a module exports,
   each name as a pair `<form:type>` (the form for layer 0, the type for layer 1), the
   same shape as `c_import`'s `CDecl(form, ctype)`. Files import each other through
   them, and so do languages on oymo: a frontend that lowers to Tenon writes both
   halves; one that lowers to oymomo writes forms only, and its names are unchecked in
-  layer 1. The generated C header (roadmap 0.15) is made from the same interface.
-- **Milestone:** a type error in layer 0 stops the build with a message; the linked
-  list of Phase 1, rewritten with `Own`, type-checks, and a use after free, a double
-  free or a leak in it stops the build; `buf[i]` with no bounds test before it stops
-  the build; a call from one file into another, or into a `language calc` file, is
-  type-checked across the file boundary, ownership included.
+  layer 1. The generated C header (roadmap 0.18) is made from the same interface.
+- **Milestone:** a type error in layer 0 stops the build with a message; a generic
+  `List(T)` is used at two types, and a wrong type argument is a layer-1 error; a call
+  from one file into another is type-checked across the file boundary.
+
+### Phase 2b — memory safety: dependent and substructural types
+
+Oymo 0.16 and 0.17, in the Tenon-written compiler, after the bootstrap. The compiler
+is written with raw pointers until then, and adopts these types module by module.
+
+- **Dependent types** (decision 0.6.1): lifted constants (`^expr`, `Array(u8, ^16)`),
+  then run-time values named in types (`Array(u8, n)`, `Index(n)`), with facts learnt
+  from tests. Oymo 0.16.
+- **Substructural types** (decisions 0.6.2–0.6.6): `Own(T, A)`, second-class borrows
+  `Ref(T)`, the live / consumed / borrowed state of each name, and owned allocation
+  and `free` on the allocators. Module interfaces carry ownership. A plan of its own,
+  `plan_tenon_safety.md`. Oymo 0.17.
+- **Milestone:** the linked list of Phase 1, rewritten with `Own`, type-checks, and a
+  use after free, a double free or a leak in it stops the build; `buf[i]` with no
+  bounds test before it stops the build; a call across files, or into a
+  `language calc` file, is checked with ownership included.
 
 ### Phase 3 — C calls Tenon
 
@@ -327,7 +361,7 @@ Rules:
 
 ### Phase 5 — later
 
-Each a plan of its own, in a [roadmap.md](roadmap.md) release (the bootstrap standard library in 0.11, the rest between 0.26 and 1.0), or after 1.0:
+Each a plan of its own, in a [roadmap.md](roadmap.md) release (the bootstrap standard library in 0.11, line tables in 0.12, the rest between 0.29 and 1.0), or after 1.0:
 
 - Closures, and splitting a closure into code plus a `void *` environment when it is
   passed to C (Phase 3).
@@ -345,7 +379,8 @@ Each a plan of its own, in a [roadmap.md](roadmap.md) release (the bootstrap sta
 flowchart TD
   CONF["plan_confluence closed"] --> P0
   P0["0 Decisions"] --> P1["1 Frontend, layer 0"]
-  P1 --> P2["2 Layer 1, interfaces"]
+  P1 --> P2["2 Layer 1: types, generics, interfaces"]
+  P2 --> BOOT["bootstrap (roadmap Stage B)"] --> P2b["2b Memory safety"]
   P2 --> P3["3 C calls Tenon"]
   CI4["plan_c_interop 4: exports"] --> P3
   P2 --> P4["4 C headers"]
@@ -357,9 +392,11 @@ flowchart TD
 ## Open questions
 
 1. Does layer 1 lower to oymomo *exactly* like layer 0, or may it use features layer 0
-   can't (closures, a GC)? If layer 1 only ever runs in the JIT, it could.
+   can't (closures, a GC)? Layer 1 only ever runs on the host, at compile time, so it
+   could.
 2. ~~Does layer 1 run only on the host (JIT), or in Spindle ([plan_vm.md](plan_vm.md))?~~
-   Decided: the host, in the LLVM JIT. Spindle is a side project
+   Decided: the host, built with `clang` and run as a subprocess (no JIT before 1.0).
+   Spindle is a side project
    ([roadmap.md › Decided](roadmap.md#decided)).
 3. How strict is the C mapping: is `int` to `long` an implicit conversion as in C, or
    an error? Is `char *` to `const char *` accepted?
@@ -368,7 +405,7 @@ flowchart TD
    worth its cost in build time and as a dependency?
 5. Are affine types needed beside linear ones, or is "linear, plus an explicit
    `drop`" enough? Austral has linear types only; Rust has affine types only.
-6. Do second-class borrows (0.6.3) suffice for the compiler's own source (Stage B),
-   or are stored references with regions needed before 0.12?
+6. Do second-class borrows (0.6.3) suffice for the compiler's own source, which
+   adopts ownership from oymo 0.17, or are stored references with regions needed?
 7. How does a closure (Phase 5) capture a linear value, and may a function value be
    linear (called exactly once)?

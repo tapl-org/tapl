@@ -3,8 +3,8 @@
 Status: **proposed**, with open questions; 0 of 4 steps.
 
 > [!IMPORTANT]
-> Roadmap: this plan is oymo 0.2, a release of its own. **Tenon (0.3) does not start
-> before it is closed** ([roadmap.md](roadmap.md#02--confluence-reduction-order-doesnt-change-the-result)).
+> Roadmap: this plan is oymo 0.2, a release of its own. **BANF's removal (0.3) and Tenon (0.4) do not
+> start before it is closed** ([roadmap.md](roadmap.md#02--confluence-reduction-order-doesnt-change-the-result)).
 
 ## Steps
 
