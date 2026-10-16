@@ -1,6 +1,6 @@
 # Plan: memory as in LLVM: the `'ptr'` form, alloca, getelementptr, load and store
 
-Status: **proposed**, with open questions; 0 of 6 steps.
+Status: **proposed**; 0 of 7 steps.
 
 ## Steps
 
@@ -12,11 +12,13 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [ ] 4. Tests: what `translate` does to effects without `$seq` (`oymomo: test unordered effects`)
 - [ ] 5. Arrays, vectors and packed structs as tagged structs (`{'array', count, element}`) (`oymomo: add aggregate forms`)
 - [ ] 6. Globals: data is a read-only `constant`; `'global'` makes a writable cell (`oymomo: add globals`)
+- [ ] 7. A plan for advanced memory: `noalias`, more ops, alignment and byte order, docs only (`docs: plan advanced memory`)
 
 Step 1 doesn't depend on the others: it orders effects, which memory ops are, as calls
 to imports already are. Step 2 makes and moves pointers, but nothing reads or writes
 through them until step 3. Step 4 needs step 3: it uses loads and stores. Step 5 needs only forms, but its tests use step 3's loads and stores.
 Step 6 needs step 3: a cell is read and written with `'load'` and `'store'`.
+Step 7 is docs only; it is last so its examples can use loads, stores and globals.
 Steps 2 and 3 build on [plan_vm.md](plan_vm.md) step 3 (done): memory ops are
 entries of the opcode table, called as `'name' {...}`, as every opcode is.
 Reduction never folds a memory op (decision 13); LLVM does.
@@ -173,7 +175,7 @@ return r
    step toward [plan_c_interop.md](plan_c_interop.md) 1.1). It is named `'ptr'`, as
    in LLVM, not `'address'`: every name in this plan is LLVM's.
 6. **A pointer can't be a literal.** oymomo's byte arrays have no address to
-   name, and a null pointer is open question 2. The verifier rejects
+   name, and a null pointer is step 7's plan. The verifier rejects
    `[0000000000000000]~'ptr'`: `A pointer can't be a literal.`
 7. **Memory ops are LLVM's instructions, with the form as an operand.** LLVM's
    `alloca`, `getelementptr` and `load` take a type, and the type can be any type:
@@ -263,10 +265,15 @@ return r
    stack on each pass, and only entry-block ones are promoted by `mem2reg`. Its memory
    dies with the function, and a pointer to it used after that is undefined, as in
    LLVM; nothing checks it.
-10. **Two different pointers may alias.** LLVM's own alias analysis is all there is:
-    it knows two `alloca`s are distinct, and that an `alloca` that doesn't escape
-    isn't reached through a param. Saying more (`noalias`, `!alias.scope`) is open
-    question 3.
+10. **Two different pointers may alias, and nothing says otherwise.** LLVM's own alias
+    analysis is all there is: it knows two `alloca`s are distinct, two globals are
+    distinct, and an `alloca` that doesn't escape isn't reached through a param. No
+    `noalias` and no `!alias.scope` are emitted: each is a promise nothing checks, and
+    breaking it is undefined behaviour. The cost is speed where LLVM can't tell:
+    `'ptr'` params of a defined function, and the result of an import such as `malloc`.
+    Under `-O2`, `store 1, a; store 2, b; load a` keeps its load with `ptr %a, ptr %b`,
+    and is `ret i32 1` with `ptr noalias %a`, or with `%a` an `alloca`. Saying more
+    is step 7's plan.
 11. **A store gives `{}`, which only `$seq` may use.** LLVM's `store` gives no
     value, and oymomo has no `void` yet ([plan_c_interop.md](plan_c_interop.md) 1.2).
     The result form is the empty struct, so the let has a name to wait for, and the
@@ -280,7 +287,7 @@ return r
     literals, which are little-endian everywhere
     ([notes.md › Byte arrays are always little-endian](notes.md#byte-arrays-are-always-little-endian)),
     but memory has no literals, so the two never meet. A struct's layout (padding,
-    field offsets) is LLVM's for the target. See open question 1.
+    field offsets) is LLVM's for the target. Saying otherwise is step 7's plan.
 13. **Memory ops never fold in reduction.** `alloca`, `getelementptr`, `load` and
     `store` are impure opcodes, and reduction folds only pure ones
     ([plan_vm.md](plan_vm.md) decision 8), so they are stuck: no change to reduction.
@@ -459,7 +466,7 @@ How Cranelift IR (CLIF) does memory, next to LLVM and this plan.
 | Flags on an access | `MemFlags`: can trap or not (`notrap`, trap code), `aligned`, `readonly`, `can_move`, `checked`, byte order `little`/`big` per access, an alias region | `align`, `volatile`, `atomic`; `!noalias`, `!tbaa`, `!invariant.load` metadata; byte order is the target's | none (decision 12) |
 | Aliasing | alias regions on `MemFlags`: two accesses in different regions don't alias; regions are named by the frontend | `noalias`, scopes, TBAA, and its own analysis | LLVM's own analysis (decision 10) |
 | Atomics | `atomic_load`, `atomic_store`, `atomic_rmw`, `atomic_cas`, `fence`; sequentially consistent only | `load atomic`, `store atomic`, `atomicrmw`, `cmpxchg`, `fence`; every ordering | no |
-| Bulk | no instruction: `FunctionBuilder::call_memcpy`, `call_memset`, `call_memmove` call libc, and `emit_small_memory_copy` inlines small ones | `llvm.memcpy`, `llvm.memmove`, `llvm.memset` | no (open question 2) |
+| Bulk | no instruction: `FunctionBuilder::call_memcpy`, `call_memset`, `call_memmove` call libc, and `emit_small_memory_copy` inlines small ones | `llvm.memcpy`, `llvm.memmove`, `llvm.memset` | no (step 7's plan) |
 | Bounds-checked heaps | there was a `heap` entity and `heap_addr`; it was removed from CLIF, and Wasmtime's translator now emits the checks as plain compares and traps | none | none: the regions of the earlier draft were this, and were dropped |
 | Effect order | a block's side-effecting instructions stay in order; the optimizer moves only pure ones, and loads flagged `readonly` and `can_move` | instruction order, then alias analysis | let order after `convert`, set by hand with `$seq` (decision 4) |
 
@@ -489,17 +496,17 @@ describes memory, and where it stands in this plan. "Used" means a step emits it
 | `atomicrmw` | atomic read-modify-write (`add`, `xchg`, ...) | no: no threads |
 | `cmpxchg` | atomic compare and exchange | no: no threads |
 | `fence` | order accesses between threads | no: no threads |
-| `ptrtoint`, `inttoptr` | pointer to integer and back | no: open question 2 |
-| `icmp` on `ptr` | compare pointers | no: open question 2 |
+| `ptrtoint`, `inttoptr` | pointer to integer and back | no: step 7's plan |
+| `icmp` on `ptr` | compare pointers | no: step 7's plan |
 | `addrspacecast` | change a pointer's address space | no: one address space |
 
 ### Intrinsics
 
 | LLVM | What it does | Here |
 |---|---|---|
-| `llvm.memcpy`, `llvm.memcpy.inline` | copy bytes; source and destination don't overlap | no: open question 2 |
-| `llvm.memmove` | copy bytes that may overlap | no: open question 2 |
-| `llvm.memset`, `llvm.memset.inline` | fill bytes with one byte | no: open question 2 |
+| `llvm.memcpy`, `llvm.memcpy.inline` | copy bytes; source and destination don't overlap | no: step 7's plan |
+| `llvm.memmove` | copy bytes that may overlap | no: step 7's plan |
+| `llvm.memset`, `llvm.memset.inline` | fill bytes with one byte | no: step 7's plan |
 | `llvm.experimental.memset.pattern` | fill bytes with a repeated value | no |
 | `llvm.lifetime.start`, `llvm.lifetime.end` | where an `alloca` is live | no |
 | `llvm.invariant.start`, `llvm.invariant.end` | memory that doesn't change for a while | no |
@@ -520,10 +527,10 @@ describes memory, and where it stands in this plan. "Used" means a step emits it
 
 | LLVM | What it says | Here |
 |---|---|---|
-| `align` on an access | the address is a multiple of N | not emitted: ABI alignment (decision 12, open question 1) |
+| `align` on an access | the address is a multiple of N | not emitted: ABI alignment (decision 12; step 7's plan) |
 | `inbounds` on `getelementptr` | the result stays inside the object | no (decision 7) |
-| `!alias.scope`, `!noalias` | which accesses don't alias | no: open question 3 |
-| `noalias` on a param | the param's memory is reached only through it | no: open question 3 |
+| `!alias.scope`, `!noalias` | which accesses don't alias | no (decision 10; step 7's plan) |
+| `noalias` on a param | the param's memory is reached only through it | no (decision 10; step 7's plan) |
 | `dereferenceable(N)`, `nonnull` | the pointer reaches N bytes | no |
 | `!tbaa` | type-based alias analysis | no |
 | `!invariant.load` | the loaded memory never changes | no |
@@ -551,19 +558,6 @@ Step 6 is breaking, and quietly: data declared with a data form is now read-only
 outside the program, such as `errno = 'i32'`, still translates, but LLVM may now
 assume it doesn't change. Redeclare it `errno = 'ptr'` and read it with
 `'load' {'i32', module.errno}`.
-
----
-
-## Open questions
-
-> [!IMPORTANT]
-> 1. **Alignment and byte order** (decision 12). An optional `align` field, as LLVM's
->    `align N`, for packed data; a byte order field for portable formats, as
->    Cranelift's per-access `little`/`big`.
-> 2. **More ops.** `'ptrtoint'`, `'inttoptr'`, comparing pointers, a null pointer
->    (`'null'` or a literal exception to decision 6), `'memcpy'`, `'memmove'`, `'memset'`.
-> 3. **Aliasing** (decision 10). `noalias` on `'ptr'` params, or alias scopes, need a
->    promise the program makes and nothing checks.
 
 ---
 
@@ -720,9 +714,50 @@ Commit: `oymomo: add aggregate forms`
 - `docs/notes.md`: `module` declares every symbol: rows for a cell, defined and
   imported, and data becoming `constant`; `CellAddress` and `Cell` in the BANF and
   BANF to LLVM tables; `'global'` in opcodes; the messages in Error messages.
+Commit: `oymomo: add globals`
+
+### Step 7: a plan for advanced memory
+
+Docs only. This plan stops at what a program needs to read and write memory, with
+LLVM's defaults. This step writes `docs/plan_memory_advanced.md`, proposed, for the
+rest, so each part is designed once and lands when a program needs it.
+
+- **Aliasing** (decision 10): what `noalias` promises (C's `restrict`, Rust's
+  `&mut T`), and that breaking the promise is undefined behaviour, unchecked.
+  - The `-O2` experiment of decision 10, and the loop case: `dst[i] = src[i] * 2`
+    over two `'ptr'` params, vectorized with a run-time overlap check without
+    `noalias` and without one with it.
+  - Where LLVM can't tell on its own: `'ptr'` params of defined functions, results
+    of imports such as `malloc`, and pointers loaded from memory.
+  - The options: a param-only marker, such as a tagged form `{'noalias', 'ptr'}` in
+    an entry block's params and an import's signature, counted as `'ptr'` everywhere
+    else; and scoped metadata (`!alias.scope`, `!noalias`) on each access.
+- **More ops:**
+  - `'ptrtoint'` and `'inttoptr'`: a pointer as an integer and back, with LLVM's
+    provenance rules, and which integer form (pointer width from the data layout).
+  - Comparing pointers: `'icmp_eq'` and the other predicates on `'ptr'`, as the
+    integer ones are on `iN` ([plan_vm.md](plan_vm.md)).
+  - A null pointer: a `'null'` opcode, or a literal exception to decision 6, and what
+    reduction may fold.
+  - `'memcpy'`, `'memmove'` and `'memset'`, as LLVM's intrinsics (`llvm.memcpy` and
+    friends), with their length form and the `volatile` flag LLVM takes.
+  - Each as an entry of the opcode table, impure or pure, with its `check`, `llvm`
+    lowering and fold, as decision 7 does for the first four.
+- **Alignment and byte order** (decision 12):
+  - An optional `align` field on `'load'`, `'store'`, `'alloca'` and `'global'`, as
+    LLVM's `align N`: below ABI alignment for packed or unaligned data, above it for
+    vector and cache-line use. What a wrong `align` does (undefined behaviour), and
+    how the field fits positional fields that are otherwise in LLVM's order.
+  - Byte order per access for portable formats, as Cranelift's `little`/`big`
+    flags: LLVM has no such flag, so a big-endian access is a load plus
+    `llvm.bswap` on a little-endian target. Whether that is an op or a library.
+  - Struct layout: padding and field offsets are LLVM's for the target (decision 12),
+    and whether a program may ask for a layout, beyond packed structs (decision 8).
+- For each part, a program whose speed or correctness needs it, as its goal.
+- `docs/plans.md`: a row for it.
 - Status of this plan: **implemented**.
 
-Commit: `oymomo: add globals`
+Commit: `docs: plan advanced memory`
 
 ---
 
