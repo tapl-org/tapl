@@ -458,7 +458,7 @@ and 6 break nothing: `'name' {args}` was stuck in reduction and an error in
 > 1. **Trap or not** (decision 4). Stopping on an undefined operation makes the VM
 >    stricter than LLVM, which is what tests want. A program that relies on what
 >    LLVM happens to give would then run under LLVM and stop in the VM.
-> 2. **Which VM-only symbols first** (step 5). `trace` is there for tests; Anvil's
+> 2. **Which VM-only symbols first** (step 5). `trace` is there for tests; Tenon's
 >    layer-1 helpers (type values, errors) are the likely next users.
 > 3. **Imports in `spindle_lib`.** Could `spindle_lib` give common imports (`putchar`,
 >    `malloc`), so a test binds less? An import bound by no one is still an error.
@@ -470,7 +470,7 @@ and 6 break nothing: `'name' {args}` was stuck in reduction and an error in
 >    that converts and runs one expression are the obvious users; a plan of their
 >    own.
 > 6. **Speed.** A Python loop is slow next to a JIT, and every struct and field is a
->    host call. Fine for tests; if Anvil's layer 1 runs in the VM at compile time,
+>    host call. Fine for tests; if Tenon's layer 1 runs in the VM at compile time,
 >    `struct` and `field` could become core instructions, against "the VM has no
 >    data structures".
 > 7. **Values in a C port** (decision 16). An `iN` up to 64 bits fits a machine

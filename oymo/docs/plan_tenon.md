@@ -1,28 +1,28 @@
-# Plan: Anvil, a two-layer language on oymomo
+# Plan: Tenon, a two-layer language on oymomo
 
 Status: **proposed**, with open questions; 0 of 5 phases.
 
 This is a roadmap, not a single design change: each phase below is **one or more plans
 of its own** (`plan_<name>.md`), and each of those has steps of one commit each. A phase
-is checked off when all its plans are closed. The language is called **Anvil**
-(step 0.1). It lives in `src/oymo/anvil/`, beside `oymomo/`.
+is checked off when all its plans are closed. The language is called **Tenon**
+(step 0.1). It lives in `src/oymo/tenon/`, beside `oymomo/`.
 
-Anvil has no C interop work of its own: it lowers to oymomo, and calling C or being
+Tenon has no C interop work of its own: it lowers to oymomo, and calling C or being
 called by C are oymomo features ([plan_c_interop.md](plan_c_interop.md)). Its only
-C-specific code is mapping C types to Anvil types for layer 1 ([Phase 3](#phase-3--c-headers-in-both-layers)),
-since types are Anvil's, not oymomo's.
+C-specific code is mapping C types to Tenon types for layer 1 ([Phase 3](#phase-3--c-headers-in-both-layers)),
+since types are Tenon's, not oymomo's.
 
 ## Steps
 
 - [ ] 0. Decisions: name, syntax, layer semantics, memory model ([Phase 0](#phase-0--decisions))
-- [ ] 1. Anvil frontend, layer 0 only ([Phase 1](#phase-1--anvil-frontend-layer-0-only))
+- [ ] 1. Tenon frontend, layer 0 only ([Phase 1](#phase-1--tenon-frontend-layer-0-only))
 - [ ] 2. Layer 1: the type checker as code ([Phase 2](#phase-2--layer-1-the-type-checker-as-code))
 - [ ] 3. C headers in both layers ([Phase 3](#phase-3--c-headers-in-both-layers))
 - [ ] 4. Later: closures, multiple files ([Phase 4](#phase-4--later))
 
 ## Goal
 
-Anvil is a language whose programs:
+Tenon is a language whose programs:
 
 1. are written in one source file with **two layers**, as TAPL does for Python:
    layer 0 is what runs, layer 1 is the type checker, and it is real code;
@@ -30,7 +30,7 @@ Anvil is a language whose programs:
 
 ```mermaid
 flowchart LR
-  src["Anvil source"] --> parse["PEG parser"] --> tree["syntax tree"]
+  src["Tenon source"] --> parse["PEG parser"] --> tree["syntax tree"]
   hdr["C header"] --> imp["c_import: CDecl(form, ctype)"] --> tree
   tree --> sep["LayerSeparator"]
   sep --> l0["layer 0 term"] --> o0["oymomo program 0"]
@@ -45,11 +45,11 @@ it finishes without error, layer 0 type-checks. This mirrors TAPL's `a1.py`.
 
 ## Where we start from
 
-| oymo has | Missing for Anvil |
+| oymo has | Missing for Tenon |
 |---|---|
-| PEG engine ([peg.py](../src/oymo/core/peg.py)) | Anvil grammar, layer separation, lowering to oymomo |
+| PEG engine ([peg.py](../src/oymo/core/peg.py)) | Tenon grammar, layer separation, lowering to oymomo |
 | oymomo → BANF → LLVM IR | A JIT run of layer 1 at compile time |
-| `c_import` giving `CDecl(form, ctype)`, once [plan_c_interop.md](plan_c_interop.md) Phase 5 lands | Mapping a ctype to an Anvil type |
+| `c_import` giving `CDecl(form, ctype)`, once [plan_c_interop.md](plan_c_interop.md) Phase 5 lands | Mapping a ctype to a Tenon type |
 
 ## Phases
 
@@ -57,8 +57,13 @@ it finishes without error, layer 0 type-checks. This mirrors TAPL's `a1.py`.
 
 Each decision is written down in this file (or a plan of its own) before Phase 1 starts.
 
-**0.1 Name and file extension.** Name: **Anvil** (decided). File extension: **`.oymo`**
-(decided), as for every language on oymo; the file's first line is `language anvil`
+**0.1 Name and file extension.** Name: **Tenon** (decided). A tenon is the tongue of a
+mortise-and-tenon joint: it fits its slot exactly, with no nails or glue. So does
+Tenon fit into C: no glue code, the same ABI and memory, one link step. It was chosen
+over Anvil, whose name is taken by a typed HDL, Foundry's `anvil` and anvil.works,
+and over names that spell out C (C-like, seelike, Calque), since a name need not say
+the syntax, but the first page of the docs must. File extension: **`.oymo`**
+(decided), as for every language on oymo; the file's first line is `language tenon`
 ([roadmap.md](roadmap.md#one-file-extension-a-language-header)).
 
 **0.2 Syntax.** C, with small modern changes (decided): braces, statements and
@@ -92,7 +97,7 @@ function's layer-1 version checks its arguments' types; an error stops the build
 
 **0.4 Memory model.** Manual (`malloc` / `free`, as C and Zig) to start. No GC.
 
-### Phase 1 — Anvil frontend, layer 0 only
+### Phase 1 — Tenon frontend, layer 0 only
 
 - Grammar on the PEG engine; syntax tree classes with `separate()`, as in TAPL.
 - Lower layer 0 to an oymomo program (the `module -> {...}` shape).
@@ -116,10 +121,10 @@ flags. Each `CDecl(form, ctype)` is a two-layer value, `<form:ctype>`, so the
 
 - **Layer 0** gets the form, unchanged: an import in `module`'s form, a struct form, or
   a constant.
-- **Layer 1** gets the ctype, mapped to an Anvil type value: `int` → `c_int`,
+- **Layer 1** gets the ctype, mapped to a Tenon type value: `int` → `c_int`,
   `const char *` → `Ptr(Const(c_char))`, a struct → a struct type, a typedef → its name
   for messages and its target for equality. The mapping is the only C-specific code in
-  Anvil.
+  Tenon.
 
 Rules:
 
@@ -127,14 +132,14 @@ Rules:
   its reason in the error message.
 - Layer 1 runs on the host but checks the **target's** C types: `c_long` is what the
   target's `long` is, as `c_import` reported it.
-- A test checks the mapping against the forms: every Anvil type made from a ctype has
+- A test checks the mapping against the forms: every Tenon type made from a ctype has
   the ctype's form.
-- **Milestone:** an Anvil program imports `<stdio.h>`, calls `printf` and `puts`, and
+- **Milestone:** a Tenon program imports `<stdio.h>`, calls `printf` and `puts`, and
   `puts(42)` is a layer-1 error.
 
 ### Phase 4 — later
 
-Closures, multiple files and separate compilation, debug info mapped to Anvil source (`!dbg` attachments and the metadata table, [plan_metadata.md](plan_metadata.md)).
+Closures, multiple files and separate compilation, debug info mapped to Tenon source (`!dbg` attachments and the metadata table, [plan_metadata.md](plan_metadata.md)).
 
 ## Order and dependencies
 

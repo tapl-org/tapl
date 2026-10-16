@@ -174,7 +174,7 @@ gives, for each declaration, a **pair**: `CDecl(form, ctype)`. Whatever generate
 oymomo splices the result into its program.
 
 **oymomo has no `#include`**, as LLVM IR from clang has none: the header name belongs
-to the source language (Anvil's import, Zig's `@cImport`), and the oymomo file holds
+to the source language (Tenon's import, Zig's `@cImport`), and the oymomo file holds
 only the declarations it uses, already resolved. So an oymomo file means the same thing
 on every machine (no search paths, `-D` flags or libclang), reduction never reads a
 file, and every call into C shows its form where it is used. Where a declaration came
