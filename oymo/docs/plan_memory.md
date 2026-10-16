@@ -1,6 +1,6 @@
 # Plan: memory as in LLVM: the `'ptr'` form, alloca, getelementptr, load and store
 
-Status: **proposed**, with open questions; 0 of 5 steps.
+Status: **proposed**, with open questions; 0 of 6 steps.
 
 ## Steps
 
@@ -11,14 +11,16 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [ ] 3. `'load'` and `'store'` (`oymomo: add load and store`)
 - [ ] 4. Tests: what `translate` does to effects without `$seq` (`oymomo: test unordered effects`)
 - [ ] 5. Arrays, vectors and packed structs as tagged structs (`{'array', count, element}`) (`oymomo: add aggregate forms`)
+- [ ] 6. Globals: data is a read-only `constant`; `'global'` makes a writable cell (`oymomo: add globals`)
 
 Step 1 doesn't depend on the others: it orders effects, which memory ops are, as calls
 to imports already are. Step 2 makes and moves pointers, but nothing reads or writes
 through them until step 3. Step 4 needs step 3: it uses loads and stores. Step 5 needs only forms, but its tests use step 3's loads and stores.
+Step 6 needs step 3: a cell is read and written with `'load'` and `'store'`.
 Steps 2 and 3 build on [plan_vm.md](plan_vm.md) step 3 (done): memory ops are
 entries of the opcode table, called as `'name' {...}`, as every opcode is.
 Reduction never folds a memory op (decision 13); LLVM does.
-No step is breaking.
+Only step 6 is breaking (see [Breaking changes](#breaking-changes)).
 
 ## Goal
 
@@ -36,7 +38,9 @@ imports. [plan_confluence.md](plan_confluence.md)'s guarantee covers the term, n
 order of effects (decision 4).
 
 Today every value is immutable, and the only memory a program touches is a data symbol,
-read with `module.errno` (BANF `GetData`).
+read with `module.errno` (BANF `GetData`). Step 6 splits data in two: a value,
+read-only and read as today, and a cell, a `'ptr'` to writable static storage made
+by `'global'` and used with `'load'` and `'store'` (decisions 14 to 18).
 
 ```
 module~{bump = => 'i32'} -> {
@@ -166,7 +170,8 @@ return r
    about what it points to; the op that reads or writes says that. A pointer is a
    value like any other: a block param, a function param or result, a struct field,
    a let, and a param or result of an imported function, where it is C's `T *` (a
-   step toward [plan_c_interop.md](plan_c_interop.md) 1.1).
+   step toward [plan_c_interop.md](plan_c_interop.md) 1.1). It is named `'ptr'`, as
+   in LLVM, not `'address'`: every name in this plan is LLVM's.
 6. **A pointer can't be a literal.** oymomo's byte arrays have no address to
    name, and a null pointer is open question 2. The verifier rejects
    `[0000000000000000]~'ptr'`: `A pointer can't be a literal.`
@@ -175,6 +180,8 @@ return r
    `i32`, `{i32, i64}`, `[16 x i8]`. So they take it as a `form` field, as every
    opcode does after [plan_vm.md](plan_vm.md) step 3 (`'add' {'i32', a, b}`),
    and as forms are terms ([notes.md › Forms are terms](notes.md#forms-are-terms)).
+   The field is called `form`, not `type`: oymomo's word, as in plan_vm decision 10.
+   Labels are ignored, so the name shows only in docs and messages.
    They are four impure entries of the opcode table, named as in LLVM, with
    fields in LLVM's operand order:
 
@@ -280,6 +287,101 @@ return r
     oymomo has no memory to run them on. LLVM folds what can be folded (`mem2reg`,
     SROA, `instcombine`).
 
+### Globals (step 6)
+
+14. **`module.x` is what its definition is.** A program is the fixed point of the
+    record of its definitions, `$fix (module -> {...})`, so `module.f` is the function
+    and `module.answer` is the value `[2a000000]`. The address is SSA's: every LLVM
+    symbol is one, and translation adds it (`call @f`, `load @answer`). A writable
+    global is a pointer allocated once, before the recursion:
+
+    ```
+    let counter = 'global' {'i32', [29000000]~'i32'} in
+    $fix (module -> {counter = counter, ...})
+    ```
+
+    so `module.counter` is that pointer, and copying it copies the pointer, not the
+    allocation. The source writes the allocation as the body field, and translation
+    hoists it. For every kind, **the declaration is the form of `module.x`**, and the
+    definition, if any, is what `module.x` stands for:
+
+    | | Value: read-only | Cell: writable |
+    |---|---|---|
+    | Defined | decl `answer = 'i32'`, body `answer = [2a000000]` | decl `counter = 'ptr'`, body `counter = 'global' {'i32', [29000000]~'i32'}` |
+    | Imported | decl `tbl = 'i32'`, no body field | decl `errno = 'ptr'`, no body field |
+    | `module.x` | the value, read as today | a `'ptr'`, used with `'load'` and `'store'` |
+    | LLVM | `@answer = constant i32 42`, `@tbl = external constant i32` | `@counter = global i32 41`, `@errno = external global [0 x i8]` |
+
+    ```
+    module~{answer = 'i32', tbl = 'i32', counter = 'ptr', errno = 'ptr', main = => 'i32'} -> {
+      answer = [2a000000],
+      counter = 'global' {'i32', [29000000]~'i32'},
+      main = f -> {
+        entry = args~{} ->
+          let a = module.answer in
+          let t = module.tbl in
+          let c = 'load' {'i32', module.counter} in
+          let d = 'add' {'i32', c, a} in
+          let s = 'store' {d, module.counter} in
+          let e = 'load' {'i32', $seq {s, module.errno}} in
+          let r = 'add' {'i32', e, t} in
+          r,
+      },
+    }
+    ```
+
+    ```llvm
+    @answer  = constant i32 42
+    @tbl     = external constant i32
+    @counter = global i32 41
+    @errno   = external global [0 x i8]
+
+    define i32 @main() {
+    entry:
+      %a = load i32, ptr @answer
+      %t = load i32, ptr @tbl
+      %c = load i32, ptr @counter
+      %d = add i32 %c, %a
+      store i32 %d, ptr @counter
+      %e = load i32, ptr @errno
+      %r = add i32 %e, %t
+      ret i32 %r
+    }
+    ```
+
+15. **A value is read-only.** A defined one is `@x = constant T init`, an imported one
+    `@x = external constant T`. `module.x` is read with `GetData`, a `load` in LLVM,
+    and the read is pure: no effect, no `$seq`. Under `-O2`, LLVM folds a load of a
+    defined constant to its value, and reuses a load of an imported one across calls,
+    since nothing may write it. Data definitions are emitted as writable `global`s
+    today; they become `constant`.
+16. **`'global' {form, init}` makes a cell.** The fields are in LLVM's order
+    (`@x = global T init`); without `init`, `'global' {'i32'}` is LLVM's
+    `zeroinitializer`, as `'alloca' {'i32'}` has no initial value either. It is an
+    impure entry of the opcode table with result `'ptr'`, so it never folds (decision
+    13). It may only be a body field: anywhere else it is
+    `'global' must be a definition, such as counter = 'global' {...}.` `form` is a
+    literal data form; `init` is a byte array of that form, as a data definition is
+    today. The declaration must be `'ptr'`:
+    `'counter' is defined by 'global', so it is declared 'ptr'.` The allocation is
+    static, done when the program is loaded, so it is not an effect and needs no
+    `$seq`.
+17. **A cell's `module.x` is a `'ptr'` atom.** It can be an operand directly, as
+    `@counter` is in LLVM: `'load' {'i32', module.counter}`, `$seq {s, module.counter}`,
+    `module.f {p = module.counter}`. Reading and writing through it are effects,
+    ordered with `$seq` like any memory op.
+18. **An imported `'ptr'` declaration is a cell: `external global [0 x i8]`.** `errno =
+    'ptr'` doesn't say what is stored there, and LLVM wants a type. `[0 x i8]` is what
+    clang emits for C's `extern char a[];`: LLVM assumes nothing about the size behind
+    it, and every `'load'` brings its own form. So an imported read-only pointer
+    (C's `extern T *const p`) can't be declared; a declaration that records the
+    storage form (`errno = {'global', 'i32'}`) would also break decision 14's rule.
+    Both are left for later.
+
+    Not here, each a later plan if a program needs it: `internal` linkage for data the
+    module doesn't export, `thread_local`, `section` and `align` on a global, and
+    initializers of struct and tagged forms (an `init` is a byte array, as today).
+
 ---
 
 ## Design
@@ -329,6 +431,16 @@ checks.
 | `banf_translate.py` | `_check_data_form` reads a struct with `tagged_form` first, and checks a tagged struct by the rules of decision 8, recursively; `count` read as an unsigned little-endian integer |
 | `llvm_translate.py` | `llvm_type`: `ir.ArrayType(e, n)`, `ir.VectorType(e, n)`, `ir.LiteralStructType(fs, packed=True)`; a scalable vector raises, as llvmlite has no scalable vector type; `GetElementPtr` accepts a run-time index into an array or vector |
 
+### E. Globals (step 6)
+
+| Module | Change |
+|---|---|
+| `reduction.py`, `banf_shape.py` | none: `'global'` is an impure opcode (decision 13), and a body field is already reduced with `reduce_until_top_stable` |
+| `opcodes.py` | entry `global` (form param `form`, optional `init`, result `'ptr'`), impure, with a `check` for decision 16; no `llvm` hook: it is never in a block |
+| `banf_terms.py` | `Data` is read-only; a new binding `Cell(name, form, value)`, where `form` and `value` are None for an import; a new atom `CellAddress(name)` of form `'ptr'`, printed `@counter`; `Cell` printed `counter: global i32 = [29000000]` or `errno: global`; verifier: `GetData` names a `Data`, `CellAddress` a `Cell` |
+| `banf_translate.py` | `_declarations`: a `'ptr'` declaration is a `Cell`; its body field, if any, must be `'global' {...}`, and a `'global'` field needs a `'ptr'` declaration (decision 16); `atom`: `module.x` for a `Cell` is `CellAddress(x)`; `op`: `module.x` for a `Data` stays `GetData`; `'global'` in a block is an error |
+| `llvm_translate.py` | `Data` → `GlobalVariable` with `global_constant = True`, external when it has no value; `Cell` → a writable `GlobalVariable` with its `init` or `ir.Constant(typ, None)` (`zeroinitializer`), or `external global [0 x i8]` when imported; `CellAddress` → the global itself; `GetData` unchanged (`load`) |
+
 ---
 
 ## Cranelift's memory model
@@ -343,7 +455,7 @@ How Cranelift IR (CLIF) does memory, next to LLVM and this plan.
 | Narrow access | `uload8`, `sload8`, `uload16`, `sload16`, `uload32`, `sload32` extend; `istore8`, `istore16`, `istore32` truncate | `load i8` then `zext`/`sext`; `trunc` then `store i8` | the same as LLVM: `'load' {'i8', p}` then `'zext'` |
 | Stack | `ss0 = explicit_slot 8` in the function preamble, sized in bytes; `stack_load`, `stack_store`, `stack_addr`; `dynamic_stack_slot` for scalable vectors | `alloca T` or `alloca T, iN n` anywhere | `'alloca'` (decisions 7 to 9) |
 | Field address | integer arithmetic: the frontend computes the offset | `getelementptr` with struct and array indices | `'getelementptr'` with struct indices (decision 7) |
-| Globals | `global_value` entities: `symbol` (a linker symbol), `vmctx`, `load` and `iadd_imm` chains; `symbol_value`, `global_value`, `tls_value` instructions | a global is a `ptr` constant | open question 4 |
+| Globals | `global_value` entities: `symbol` (a linker symbol), `vmctx`, `load` and `iadd_imm` chains; `symbol_value`, `global_value`, `tls_value` instructions | a global is a `ptr` constant | a cell's `module.x` is a `'ptr'`; read-only data is a value (decisions 14 to 18) |
 | Flags on an access | `MemFlags`: can trap or not (`notrap`, trap code), `aligned`, `readonly`, `can_move`, `checked`, byte order `little`/`big` per access, an alias region | `align`, `volatile`, `atomic`; `!noalias`, `!tbaa`, `!invariant.load` metadata; byte order is the target's | none (decision 12) |
 | Aliasing | alias regions on `MemFlags`: two accesses in different regions don't alias; regions are named by the frontend | `noalias`, scopes, TBAA, and its own analysis | LLVM's own analysis (decision 10) |
 | Atomics | `atomic_load`, `atomic_store`, `atomic_rmw`, `atomic_cas`, `fence`; sequentially consistent only | `load atomic`, `store atomic`, `atomicrmw`, `cmpxchg`, `fence`; every ordering | no |
@@ -425,14 +537,20 @@ result, an import declares them (`malloc = {size = 'i64'} => 'ptr'`).
 
 ## Breaking changes
 
-None here. `'ptr'` is a new named form, and `'alloca'`, `'getelementptr'`, `'load'`
+Steps 1 to 5 aren't breaking. `'ptr'` is a new named form, and `'alloca'`, `'getelementptr'`, `'load'`
 and `'store'` were unknown opcodes, an error in `convert`. (Renaming `$add_i32` to
 `'add' {'i32', a, b}` is breaking, but it is [plan_vm.md](plan_vm.md) step 3.)
-Data symbols keep today's meaning. `$seq` was an unknown built-in, and the parser
+`$seq` was an unknown built-in, and the parser
 already accepts any `$name`. A
 plain struct form keeps its meaning; a struct whose field 0 is `'array'`, `'vector'`,
 `'scalable_vector'` or `'packed'` had no LLVM type before, so no working program
 changes meaning.
+
+Step 6 is breaking, and quietly: data declared with a data form is now read-only
+(decision 15). A defined one never changed anyway. An imported one that can change
+outside the program, such as `errno = 'i32'`, still translates, but LLVM may now
+assume it doesn't change. Redeclare it `errno = 'ptr'` and read it with
+`'load' {'i32', module.errno}`.
 
 ---
 
@@ -446,11 +564,6 @@ changes meaning.
 >    (`'null'` or a literal exception to decision 6), `'memcpy'`, `'memmove'`, `'memset'`.
 > 3. **Aliasing** (decision 10). `noalias` on `'ptr'` params, or alias scopes, need a
 >    promise the program makes and nothing checks.
-> 4. **Globals.** `module.x` reads a data symbol (`GetData`). Writing one needs its
->    address: a data symbol of form `'ptr'`? `'address' {module.x}` as a new reading of
->    `module.x` under one built-in? LLVM's answer is that a global *is* a `ptr`.
-> 5. **Names.** `ptr` or `address`; the field `form` or `type` (LLVM says type, oymomo
->    says form).
 
 ---
 
@@ -585,9 +698,31 @@ Commit: `oymomo: test unordered effects`
     a loop and a run-time `'getelementptr'` index.
 - `docs/notes.md`: tagged structs in Forms are terms (a row each) and in the BANF to
   LLVM table; the reserved tags; the messages in Error messages.
+Commit: `oymomo: add aggregate forms`
+
+### Step 6: globals
+
+- E.
+- Tests:
+  - `banf_translate`: the program of decision 14 gives its BANF; `'global'` in a
+    block, `'global'` with a non-`'ptr'` declaration, a `'ptr'` declaration defined
+    by a byte array, and an `init` of the wrong width are errors, with the messages
+    of decision 16; a cell's `module.x` as an op argument, a call argument, a jump
+    argument and in `$seq`.
+  - `banf_terms`: printing `Cell` and `CellAddress`; the verifier rejects `GetData`
+    of a `Cell` and `CellAddress` of a `Data`.
+  - `llvm_translate`: the IR of decision 14 (`constant`, `external constant`,
+    `global`, `external global [0 x i8]`); `'global' {'i32'}` is `zeroinitializer`;
+    through LLVM's JIT, a `bump` that adds 1 to a `'global'` counter returns 42, then
+    43; after `-O2`, a read of a defined value folds to its value; existing data tests
+    now expect `constant`.
+  - golden `globals.oymo`: the program of decision 14, without the imports.
+- `docs/notes.md`: `module` declares every symbol: rows for a cell, defined and
+  imported, and data becoming `constant`; `CellAddress` and `Cell` in the BANF and
+  BANF to LLVM tables; `'global'` in opcodes; the messages in Error messages.
 - Status of this plan: **implemented**.
 
-Commit: `oymomo: add aggregate forms`
+Commit: `oymomo: add globals`
 
 ---
 
@@ -602,4 +737,5 @@ hatch run full-check
 The final check: the goal program's LLVM IR runs under `llvmlite`'s JIT and `bump(41)`
 returns 42; with a literal 41, the goal keeps its three memory lets in BANF and is
 `ret i32 42` after LLVM's optimizer; the `hi` program of step 1 translates with both
-`putchar` calls, in order.
+`putchar` calls, in order; the program of decision 14 gives its IR, and a `bump` on
+a `'global'` counter returns 42, then 43.
