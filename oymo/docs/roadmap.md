@@ -199,10 +199,14 @@ authors who lower to Tenon, who get a type checker without writing one.
 | [plan_tenon.md](plan_tenon.md) Phase 2 | layer 1 lowered to a second oymomo program, JIT-run at compile time (0.1's `--jit`) |
 | [plan_metadata.md](plan_metadata.md) 1–3 | source locations kept through reduction, so a layer-1 error points at the source |
 | new | Tenon API: layer-1 errors as data (location, message), so a frontend can show them in its own format |
+| new | **module interfaces**: how files, and languages on oymo, see each other's declarations. A module's interface lists what it exports, each as a pair like `c_import`'s: the **form** (layer 0, what oymomo needs to call it) and the **layer-1 type**, which appears here because types appear in layer 1. A frontend that lowers to Tenon gets both; one that lowers to oymomo gives forms only, and its names are unchecked in layer 1, as hand-written `extern`s are |
+| new | **imports between files**, through those interfaces: a program in several `.oymo` files, in Tenon or in any language on oymo, built in one command (separate compilation comes in 1.0) |
 
 **Milestones:** `puts(42)` with a hand-written `extern` stops the build with
 `app.oymo:3:6: expected Ptr(c_char), got Int32`; a type error in a `calc` program
-lowered to Tenon is reported at the line and column of its `language calc` file.
+lowered to Tenon is reported at the line and column of its `language calc` file; a
+Tenon file imports a function from a `language calc` file, and calling it with the
+wrong type is a layer-1 error.
 
 ## 0.5 — C calls oymomo and Tenon
 
@@ -217,10 +221,9 @@ C (`qsort`).
 | [plan_c_interop.md](plan_c_interop.md) Phase 4 | exported data, callbacks, generated `.h`, `.a` and `.so` |
 | [plan_memory_advanced.md](plan_memory_advanced.md) 2, 3 | pointer casts, `'memcpy'` / `'memset'` |
 | new | Tenon: `export` on a function or a global, and function values that lower to function pointers |
-| new | the generated `.h` uses Tenon's layer-1 types where there are any: `unsigned`, `const char *` and named structs, which oymomo's forms alone can't tell from `int` and `void *` |
+| new | the generated `.h` is made from the module interface (0.4) and uses its layer-1 types where there are any: `unsigned`, `const char *` and named structs, which oymomo's forms alone can't tell from `int` and `void *` |
 | new | build API: `static_library`, `shared_library`, `header` |
 | new | **build-system flags**, so Make and CMake call `oymo` as they call `cc`: `-c`, `-o`, `-MD` / `-MF` dependency files, and an entry in `compile_commands.json` |
-| new | **imports between Tenon files**: a program in several `.oymo` files, built in one command (separate compilation comes in 1.0) |
 
 Scalars and pointers only at the C boundary; a by-value struct there is an error that
 says "pass a `'ptr'`" (the fallback in plan_c_interop Phase 3).
@@ -280,7 +283,10 @@ release is about trust. Each item is a plan of its own, written when 0.7 lands.
 | Debugging | [plan_metadata.md](plan_metadata.md) 4–5: DWARF, so `gdb` / `lldb` step through the source, Tenon's or a language author's |
 | Optimization | `-O0..-O3` through LLVM's pass pipeline; `noalias` ([plan_memory_advanced.md](plan_memory_advanced.md) 5) |
 | Speed of the code | a benchmark set (the same programs in C and Tenon); target: within a set percentage of `clang -O2`, measured in CI |
-| Scale | modules and separate compilation, on top of 0.5's imports between files (plan_c_interop Phase 6, plan_tenon Phase 4); incremental builds |
+| LTO across C and Tenon | both compile to LLVM, so `oymo -c -flto` emits LLVM bitcode and clang's `-flto` link inlines C into Tenon and back. Few languages offer this cheaply, and it strengthens the drop-in story |
+| Sanitizers | ASan and UBSan are LLVM passes, so `-fsanitize=address,undefined` works on a mixed C and Tenon program, as a production C toolchain is expected to. It complements the checked build mode |
+| Reproducible builds | the same input always gives byte-identical `.o` files (no time stamps, paths mapped as `-ffile-prefix-map` does). Distributions and supply-chain tooling require it; CI builds twice and compares |
+| Scale | modules and separate compilation, on top of 0.4's imports between files (plan_c_interop Phase 6, plan_tenon Phase 4); incremental builds |
 | Build systems | a CMake module (`find_package(oymo)`, `.oymo` as a source language), on top of 0.5's flags |
 | Libraries | how one Tenon library uses another, decided and documented: a package manager, or none (vendored sources, or pip packages that ship `.oymo` files) |
 | Testing | `oymo test`: test functions in `.oymo` files, run and reported, as `zig test` does |

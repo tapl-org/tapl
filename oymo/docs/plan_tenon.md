@@ -165,7 +165,15 @@ do, so the code is as fast as C. Use after free is not checked in either. The su
 - A small layer-1 runtime: type values (`Int32`, `Ptr(T)`, struct types), equality,
   errors with source locations.
 - `^expr` (lift) and `<expr:Type>` (a two-layer expression), as in TAPL.
-- **Milestone:** a type error in layer 0 stops the build with a message.
+- **Module interfaces**, here because types appear in layer 1: what a module exports,
+  each name as a pair `<form:type>` (the form for layer 0, the type for layer 1), the
+  same shape as `c_import`'s `CDecl(form, ctype)`. Files import each other through
+  them, and so do languages on oymo: a frontend that lowers to Tenon writes both
+  halves; one that lowers to oymomo writes forms only, and its names are unchecked in
+  layer 1. The generated C header (roadmap 0.5) is made from the same interface.
+- **Milestone:** a type error in layer 0 stops the build with a message; a call from
+  one file into another, or into a `language calc` file, is type-checked across the
+  file boundary.
 
 ### Phase 3 — C headers in both layers
 
