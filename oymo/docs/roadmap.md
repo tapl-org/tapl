@@ -204,6 +204,54 @@ the CLI; its notes say how to migrate. From 1.0 on, all four are stable
 ([1.0](#10--production)). From 0.14 a Tenon syntax change also means changing the
 compiler's own source, so Tenon's syntax is decided with care in 0.3–0.8.
 
+## Repository layout
+
+The Tenon-written oymo will move to **its own repository**, named `oymo`. So everything
+it needs lives in **one self-contained folder** from the first day it exists, and the
+move is one command.
+
+At 0.11, today's `oymo/` folder (the Python compiler) is renamed **`oymo-py/`**, and a
+new **`oymo/`** is created for the product:
+
+```
+tapl/
+  oymo-py/               the Python compiler (Stage A), removed after 0.14
+    src/oymo/, tests/, pyproject.toml, docs/ (until 0.14)
+  oymo/                  everything the new repository holds:
+    README.md, LICENSE
+    lib/                 Tenon's standard library (0.11)
+    tests/goldens/       moved here from oymo-py (0.11): `.oymo` inputs and expected
+                         outputs, run against both compilers in Stage B
+    compiler/            the compiler in Tenon (0.12), mirroring oymo-py/src/oymo:
+      core/                PEG engine
+      oymomo/              parser, reduction, shape, translation
+      ir/                  the IR builder (text first; the LLVM C API later)
+      tenon/               the Tenon frontend, both layers
+      driver/              the `oymo` command
+    bootstrap/oymo.ll    the seed (0.14)
+    build.sh             builds from the seed with `clang` alone (0.14)
+    docs/                roadmap, plans and notes, moved from oymo-py (0.14)
+    python/              the Python package (0.16): pyproject.toml, src/oymo/
+    examples/calc/       the example language, its own package (0.17)
+```
+
+- **One rule: nothing inside `oymo/` refers to a path outside it.** Dependencies go one
+  way: during Stages A and B the Python compiler in `oymo-py/` reads
+  `oymo/tests/goldens/` and builds `oymo/lib/` and `oymo/compiler/`; nothing in
+  `oymo/` reaches back into `oymo-py/`. CI checks it by building and testing a copy of
+  `oymo/` alone.
+- **`compiler/` mirrors `oymo-py/src/oymo/`** (`core/`, `oymomo/`, `tenon/`), so each
+  Python module has an obvious Tenon counterpart and the port is reviewed file by file.
+- **New tests are goldens or `oymo test` files**, which both compilers run; tests
+  written in Python stay with the Python compiler.
+- **The docs move at 0.14.** They describe the Python code today (notes.md links to
+  its files), so they stay in `oymo-py/docs/` until the Python compiler is retired;
+  at 0.14 they move to `oymo/docs/`, with those links pointing at `compiler/`.
+- **The export, after 0.14**: `git subtree split --prefix=oymo` (or `git filter-repo`)
+  makes the new repository with the folder's full history. The CI workflow, which
+  must sit at the tapl root until then, moves to the new repository's `.github/`.
+  `oymo-py/` is then deleted from tapl, with a git tag (`oymo-py-final`) kept.
+
 ## Stage A — the bootstrap set, in Python
 
 What a compiler written in Tenon needs, and nothing more. The test for each feature:
@@ -364,6 +412,7 @@ oymo.
 | From | Work |
 |---|---|
 | [plan_tenon.md](plan_tenon.md) Phase 5 | the part of the standard library a compiler needs, written in Tenon over libc: growable arrays, a hash map, strings and a string builder, number formatting (no `printf`: varargs come in 0.22), file I/O, running a process (to call `clang`), and the allocator interface with an arena and the libc allocator |
+| new | the [repository layout](#repository-layout) begins: `oymo/` renamed `oymo-py/`; the new `oymo/` holds `lib/` (this library) and `tests/goldens/`, moved from `oymo-py` |
 | new | `oymo test`: test functions in `.oymo` files, run and reported, as `zig test` does |
 
 **Milestone:** a word-count program over a large file, with a hash map and an arena;
@@ -381,7 +430,7 @@ llvmlite.
 
 | From | Work |
 |---|---|
-| new | the oymomo pipeline in Tenon, ported as it is: parser, reduction, `shape`, and the direct translation to LLVM IR (0.4) with its IR builder. The builder's first implementation writes `.ll` text, which `clang` compiles and links. There is no BANF to port |
+| new | in `oymo/compiler/` ([layout](#repository-layout)): the oymomo pipeline in Tenon, ported as it is: parser, reduction, `shape`, and the direct translation to LLVM IR (0.4) with its IR builder. The builder's first implementation writes `.ll` text, which `clang` compiles and links. There is no BANF to port |
 | new | the confluence test of 0.2 and every oymomo golden test, run against the Tenon compiler |
 
 **Milestone:** the Tenon-written compiler, built by the Python compiler, gives the same
@@ -407,11 +456,14 @@ repository with `clang` alone.
 | From | Work |
 |---|---|
 | new | **three-stage build**: the compiler built by the Python compiler (stage 1) builds itself (stage 2), which builds itself again (stage 3); stages 2 and 3 must be byte-identical |
-| new | **the seed**: the compiler's own LLVM IR, committed as `bootstrap/oymo.ll`. Building from scratch is `clang bootstrap/oymo.ll -o oymo-seed`, then the seed builds today's source. The seed is regenerated when the compiler's source starts using a feature the old seed doesn't know |
-| new | the Python compiler is frozen and kept only as history; llvmlite is no longer a dependency |
+| new | **the seed**: the compiler's own LLVM IR, committed as `oymo/bootstrap/oymo.ll`. Building from scratch is `clang bootstrap/oymo.ll -o oymo-seed`, then the seed builds today's source. The seed is regenerated when the compiler's source starts using a feature the old seed doesn't know |
+| new | the Python compiler is frozen; llvmlite is no longer a dependency |
+| new | the docs move from `oymo-py/docs/` to `oymo/docs/`; `build.sh` builds from the seed |
+| new | **the export**: `oymo/` becomes its own repository, with its history; `oymo-py/` is removed from tapl, tagged `oymo-py-final` ([layout](#repository-layout)) |
 
-**Milestone:** on a machine with `clang` and no Python, the compiler builds from the
-seed, builds itself twice to identical output, and passes every test.
+**Milestone:** on a machine with `clang` and no Python, a fresh clone of the new
+repository builds from the seed, builds itself twice to identical output, and passes
+every test.
 
 ## Stage C — everything else, in the Tenon compiler
 
@@ -445,7 +497,7 @@ now with the native compiler inside.
 | From | Work |
 |---|---|
 | new | the compiler exports a C API (with 0.15's exports and generated header): build, emit, check, errors as data |
-| new | the `oymo` Python package: a wheel with the native compiler and a Python binding over its C API; the `oymo` command is its driver |
+| new | the `oymo` Python package, in `oymo/python/`: a wheel with the native compiler and a Python binding over its C API; the `oymo` command is its driver |
 | new | the build API in Python: `executable`, `object_file`, `static_library`, `shared_library`, `header`, `emit_llvm` |
 | new | the serialized tree format, with source locations, in which a Python frontend's tree crosses to the compiler |
 
@@ -460,7 +512,7 @@ a Python script that builds the same program through the build API.
 |---|---|
 | new | the oymomo API: build oymomo terms in Python, check them, errors as data |
 | new | the `language` header resolved by the driver: `oymomo` and `tenon` built in, the `oymo.languages` entry point group for everything else |
-| new | **example language `calc`** in `examples/calc/`: arithmetic expressions, lowered to oymomo terms through the public API, registered as `language calc` |
+| new | **example language `calc`** in `oymo/examples/calc/`: arithmetic expressions, lowered to oymomo terms through the public API, registered as `language calc` |
 
 **Milestone:** with `calc` installed from its own package, `oymo build one.oymo` on
 `language calc` / `1 + 2 * 3` gives a binary that prints `7`.
@@ -864,7 +916,9 @@ After 1.0, the 1.x targets, translate-c and Spindle in Tenon are independent tra
 - **Spindle ([plan_vm.md](plan_vm.md)) is a side project**, written in Tenon after 1.0
   ([Spindle in Tenon](#after-10--spindle-in-tenon)).
 - **1.0 is Linux x86-64 only**; other targets are 1.x releases.
-- **The roadmap doesn't depend on where the code lives** (this repository or its own).
+- **The Tenon-written oymo gets its own repository**, `oymo`, after 0.14. Until then it
+  lives in one self-contained folder, `tapl/oymo/`, next to the Python compiler,
+  renamed `oymo-py/` ([Repository layout](#repository-layout)).
 - **One file extension, `.oymo`**, and a `language <name>` first line in every file.
   `oymomo` and `tenon` are built in; other languages are found through the
   `oymo.languages` entry point group, so mixed builds are one `oymo build` command.
