@@ -12,6 +12,12 @@ Status: **paused**, with open questions; 1 of 6 steps.
 > `Unknown built-in '$add_i32'.`, with no hint of the new spelling, and an unaccepted
 > form reads `'add': form must be one of i8, i16, i32, i64, got ptr.`
 
+> [!NOTE]
+> Roadmap: Spindle is a side project before 1.0, and is **written in Tenon after 1.0**
+> ([roadmap.md › Spindle in Tenon](roadmap.md#after-10--spindle-in-tenon)). BANF is
+> removed in 1.0, so before the rewrite this plan decides Spindle's input: the shaped
+> oymomo program, or LLVM IR (the second pipeline below).
+
 ## Steps
 
 One commit each. Details are in [Implementation steps](#implementation-steps).

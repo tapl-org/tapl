@@ -21,6 +21,7 @@ release is a toolchain someone can install and use**, not a half-built pipeline.
 - [ ] [1.x](#1x--more-targets) — more targets: Linux AArch64, macOS AArch64, Windows x86-64
 - [ ] [After 1.0](#after-10--self-hosting-oymo-in-tenon) — self-hosting: oymo rewritten in Tenon
 - [ ] [After 1.0](#after-10--oymo-translate-c) — `oymo translate-c`: C source to Tenon
+- [ ] [After 1.0](#after-10--spindle-in-tenon) — Spindle, the embeddable VM, written in Tenon
 
 ## Goal
 
@@ -353,6 +354,27 @@ translation instead of a blank file.
 - It also answers plan_c_interop's open question 4: `static inline` functions and
   function-like macros in headers can be translated with the same code.
 
+## After 1.0 — Spindle in Tenon
+
+Spindle ([plan_vm.md](plan_vm.md)), the tiny VM embedded like Lua, is written in Tenon
+instead of Python. It stays a side project, so no release waits for it; after 1.0 it
+becomes a real product, and the second large Tenon program after the compiler itself.
+
+- **Why Tenon**: plan_vm.md already designs Spindle "so a C port is a straight
+  translation" (a stack bytecode, a pure interpreter, state as host objects). Tenon is
+  that port: C-level speed and no runtime, with Tenon's types.
+- **Embeddable from C and Python**: Spindle exports a C API with a generated header
+  (0.5), as Lua does (`spindle_new`, `fiber_resume`, host functions registered from
+  C), so a C program embeds it with one `.a` or `.so`. Python reaches it through the
+  same C API.
+- **What it runs**: BANF is gone by then (1.0), so Spindle's input changes from BANF to
+  the shaped oymomo program, or to LLVM IR as plan_vm.md's second pipeline proposes,
+  with LLVM's optimizer in front. Decided in plan_vm.md before the rewrite starts.
+- **Same results as LLVM**: the differential tests of plan_vm.md, every program run
+  both in Spindle and compiled by LLVM, carry over unchanged.
+- **Order with self-hosting**: independent. Spindle is smaller, so it may come first
+  and test Tenon on a medium-sized program before the compiler is rewritten.
+
 ## Non-goals
 
 Not planned, before or after 1.0, so no release waits for them:
@@ -404,6 +426,7 @@ flowchart TD
   v10 --> X["1.x targets"]
   v10 --> S["self-hosting"]
   v10 --> T["translate-c"]
+  v10 --> V["Spindle in Tenon"]
 ```
 
 Tenon comes early on purpose: from 0.3 users write whole programs in Tenon that call
@@ -412,7 +435,7 @@ C calling Tenon (0.5), comes after types (0.4), so a Tenon library's generated h
 has real C types (`unsigned`, `const char *`, named structs), not only what oymomo's
 forms say. The oymomo half of 0.5 needs only 0.2 and may start earlier. The full C
 ABI (0.6) needs both directions, since it lowers both sides of a call. After 1.0, the
-1.x targets, self-hosting and translate-c are independent tracks.
+1.x targets, self-hosting, translate-c and Spindle in Tenon are independent tracks.
 
 ## Decided
 
@@ -424,6 +447,7 @@ ABI (0.6) needs both directions, since it lowers both sides of a call. After 1.0
 - **BANF goes away** once the oymomo shape is settled (frozen in 1.0). Until then it
   stays, as the place where shape rules are checked.
 - **Spindle ([plan_vm.md](plan_vm.md)) is a side project**, not on the path to 1.0.
+  After 1.0 it is written in Tenon ([Spindle in Tenon](#after-10--spindle-in-tenon)).
   Layer 1 runs in the LLVM JIT.
 - **1.0 is Linux x86-64 only**; other targets are 1.x releases.
 - **Oymo is rewritten in Tenon after 1.0** ([self-hosting](#after-10--self-hosting-oymo-in-tenon)). Before 1.0 the syntaxes and the
