@@ -17,9 +17,18 @@ work of its own.
 - [ ] 5. C headers to oymomo declarations ([Phase 5](#phase-5--c-headers-to-oymomo-declarations))
 - [ ] 6. Later: TLS, separate compilation, more targets ([Phase 6](#phase-6--later))
 
-Suggested start: 1.2 + Phase 2. That gives an oymomo program calling `puts` as a real
-binary. Then 1.6 + 1.8 and a C `main` calling oymomo, so both directions run early,
-before the ABI work.
+**When each part ships** is set by [roadmap.md](roadmap.md), which cuts these phases
+into releases:
+
+| oymo release | From this plan |
+|---|---|
+| 0.2 | 1.1 null and pointer comparison, 1.2 `void`, Phase 2, Phase 3.1 (small ints) |
+| 0.5 | 1.1 pointer casts, 1.6 function pointers, 1.8 linkage, Phase 4 (exports, callbacks, generated `.h`, `.a`, `.so`) |
+| 0.6 | 1.3 floats, 1.5 unions, 1.7 varargs, 1.10 atomics, Phase 3.2–3.5 for x86-64 SysV, Phase 4's drop-in milestone |
+| 0.7 | Phase 5 (header import) |
+| 1.0 | Phase 6: TLS, `static inline`, separate compilation |
+| 1.x | Phase 3.2 for AArch64 and Win64, with their targets |
+| after 1.0 | `oymo translate-c` (open question 4) |
 
 ## Goal
 
@@ -130,6 +139,7 @@ stays target-independent (see [notes.md › BANF does not depend on LLVM](notes.
 | 1.7 | Varargs: declarations, calls, and `va_list` for definitions | `printf`, `open`; an oymomo `vprintf`-style function |
 | 1.8 | Linkage: internal vs exported symbols, symbol name ≠ label | Export to C, hide helpers |
 | 1.9 | Switch (exists: [plan_switch.md](implemented/plan_switch.md)) | C `switch`, enums |
+| 1.10 | Atomics (`'atomicrmw'`, `'cmpxchg'`, `'fence'`, ordered `'load'` / `'store'`), `volatile`, inline asm; a plan of its own | C11 atomics, threads, memory-mapped I/O |
 
 ### Phase 2 — toolchain: from oymomo to a running binary
 
@@ -143,8 +153,8 @@ stays target-independent (see [notes.md › BANF does not depend on LLVM](notes.
 
 1. Scalars and pointers: `zeroext` / `signext` on `i1`, `i8`, `i16` where the target
    needs it. That is enough for most of libc.
-2. By-value structs and `sret` returns for **x86-64 SysV**, then **AArch64**, then
-   **Win64**.
+2. By-value structs and `sret` returns for **x86-64 SysV** (oymo 0.6), then
+   **AArch64** and **Win64** (1.x, with their targets).
 3. The same lowering on **both sides of a call**: an import, a defined function that C
    may call, and an indirect call (1.6). An oymomo-to-oymomo call to an internal
    function may skip it.
@@ -164,11 +174,17 @@ Fallback if 2 is too costly at first: reject by-value structs at the C boundary 
 - Callbacks: an oymomo function passed to C as a pointer (1.6), called back by C.
 - Generate a `.h` from the exported part of `module` (as `cbindgen` and
   `zig -femit-h` do): prototypes, struct definitions from struct forms, include guards.
+  When the frontend gives layer-1 types in its module interface (Tenon does), the
+  header uses them (`unsigned`, `const char *`, named structs); forms alone give
+  `int`-sized and `void *` types.
+- Flags for build systems, so Make and CMake call `oymo` as they call `cc`: `-c`,
+  `-o`, `-MD` / `-MF`, and `compile_commands.json`.
 - Build `.a` and `.so` as well as `.o`.
 - **Milestone: C calls oymomo.** A C `main` calls oymomo functions through the generated
   header, and passes a callback in.
-- **Milestone: drop-in.** A small C library (one `.c` file and its header) is rewritten
-  in oymomo; its C test suite links against the oymomo `.o` unchanged and passes.
+- **Milestone: drop-in** (oymo 0.6, once by-value structs work). A small C library
+  (one `.c` file and its header) is rewritten in Tenon or oymomo; its C test suite
+  links against the oymo `.o` unchanged and passes.
 
 ### Phase 5 — C headers to oymomo declarations
 
@@ -235,8 +251,10 @@ Mapping and scope:
   libraries export `_Thread_local` variables.
 - `static inline` functions in headers: they have no symbol to call (see
   [open question 4](#open-questions)).
-- Separate compilation and multiple modules, more targets (wasm32). Debug info and
-  provenance are in [plan_metadata.md](plan_metadata.md).
+- Separate compilation and multiple modules (oymo 1.0). Debug info and provenance are
+  in [plan_metadata.md](plan_metadata.md).
+- More targets: Linux AArch64, macOS AArch64, Windows x86-64 (1.x); wasm32 is not
+  planned yet.
 
 ## Order and dependencies
 
@@ -265,6 +283,8 @@ needs only 1.6 and 1.8 with scalar signatures.
    export list?
 4. `static inline` functions and function-like macros in headers: skip them, translate
    them to oymomo (as Zig's `translate-c` does, partially), or compile them with clang
-   into a small `.o`? The last is exact, but it is glue code.
+   into a small `.o`? The last is exact, but it is glue code. Translating them shares
+   its work with `oymo translate-c`, planned after 1.0
+   ([roadmap.md](roadmap.md#after-10--oymo-translate-c)).
 5. ~~Does the header importer give forms only, or also C types?~~ Decided: both, as a
    pair per declaration ([Phase 5](#phase-5--c-headers-to-oymomo-declarations)).

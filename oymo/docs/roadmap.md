@@ -20,6 +20,7 @@ release is a toolchain someone can install and use**, not a half-built pipeline.
 - [ ] [1.0](#10--production) — production, on Linux x86-64
 - [ ] [1.x](#1x--more-targets) — more targets: Linux AArch64, macOS AArch64, Windows x86-64
 - [ ] [After 1.0](#after-10--self-hosting-oymo-in-tenon) — self-hosting: oymo rewritten in Tenon
+- [ ] [After 1.0](#after-10--oymo-translate-c) — `oymo translate-c`: C source to Tenon
 
 ## Goal
 
@@ -220,7 +221,7 @@ C (`qsort`).
 | [plan_c_interop.md](plan_c_interop.md) 1.8 | linkage: exported vs internal; C name ≠ label |
 | [plan_c_interop.md](plan_c_interop.md) Phase 4 | exported data, callbacks, generated `.h`, `.a` and `.so` |
 | [plan_memory_advanced.md](plan_memory_advanced.md) 2, 3 | pointer casts, `'memcpy'` / `'memset'` |
-| new | Tenon: `export` on a function or a global, and function values that lower to function pointers |
+| [plan_tenon.md](plan_tenon.md) Phase 3 | Tenon: `export` on a function or a global, and function values that lower to function pointers |
 | new | the generated `.h` is made from the module interface (0.4) and uses its layer-1 types where there are any: `unsigned`, `const char *` and named structs, which oymomo's forms alone can't tell from `int` and `void *` |
 | new | build API: `static_library`, `shared_library`, `header` |
 | new | **build-system flags**, so Make and CMake call `oymo` as they call `cc`: `-c`, `-o`, `-MD` / `-MF` dependency files, and an entry in `compile_commands.json` |
@@ -260,7 +261,7 @@ rewritten in Tenon passes its unchanged C test suite.
 | From | Work |
 |---|---|
 | [plan_c_interop.md](plan_c_interop.md) Phase 5 | `c_import` with libclang: `CDecl(form, ctype)`, public as the C API |
-| [plan_tenon.md](plan_tenon.md) Phase 3 | header import in Tenon, forms to layer 0, ctypes to layer 1 |
+| [plan_tenon.md](plan_tenon.md) Phase 4 | header import in Tenon, forms to layer 0, ctypes to layer 1 |
 | [plan_metadata.md](plan_metadata.md) 6 | origins of imported names in error messages |
 | new | `oymo import-c stdio.h` prints oymomo declarations, for frontends that lower to oymomo |
 
@@ -286,7 +287,7 @@ release is about trust. Each item is a plan of its own, written when 0.7 lands.
 | LTO across C and Tenon | both compile to LLVM, so `oymo -c -flto` emits LLVM bitcode and clang's `-flto` link inlines C into Tenon and back. Few languages offer this cheaply, and it strengthens the drop-in story |
 | Sanitizers | ASan and UBSan are LLVM passes, so `-fsanitize=address,undefined` works on a mixed C and Tenon program, as a production C toolchain is expected to. It complements the checked build mode |
 | Reproducible builds | the same input always gives byte-identical `.o` files (no time stamps, paths mapped as `-ffile-prefix-map` does). Distributions and supply-chain tooling require it; CI builds twice and compares |
-| Scale | modules and separate compilation, on top of 0.4's imports between files (plan_c_interop Phase 6, plan_tenon Phase 4); incremental builds |
+| Scale | modules and separate compilation, on top of 0.4's imports between files (plan_c_interop Phase 6, plan_tenon Phase 5); incremental builds |
 | Build systems | a CMake module (`find_package(oymo)`, `.oymo` as a source language), on top of 0.5's flags |
 | Libraries | how one Tenon library uses another, decided and documented: a package manager, or none (vendored sources, or pip packages that ship `.oymo` files) |
 | Testing | `oymo test`: test functions in `.oymo` files, run and reported, as `zig test` does |
@@ -336,6 +337,22 @@ is ready, and it removes Python from the compiler.
   example languages in CI are the test. Later, a language author may also write a
   frontend in Tenon or C against the C API.
 
+## After 1.0 — `oymo translate-c`
+
+`oymo translate-c lib.c -o lib.oymo` turns C source into Tenon, as Zig's
+`translate-c` and c2rust do, so rewriting a C file in Tenon starts from a working
+translation instead of a blank file.
+
+- It builds on 0.7: libclang already parses the file, with the same flags and target,
+  and `c_import` already maps declarations and types. translate-c adds function
+  bodies: statements and expressions to Tenon syntax.
+- The output builds and passes the C file's own tests unchanged (the drop-in milestone
+  of 0.6, done by a tool). Idiomatic Tenon is the user's next step, not the tool's.
+- Not translated: what Tenon can't express, such as some preprocessor tricks; those
+  parts are left as C, called through the C ABI, and listed in a report.
+- It also answers plan_c_interop's open question 4: `static inline` functions and
+  function-like macros in headers can be translated with the same code.
+
 ## Non-goals
 
 Not planned, before or after 1.0, so no release waits for them:
@@ -356,7 +373,7 @@ Not planned, before or after 1.0, so no release waits for them:
      where the C API takes a user-data pointer (`qsort_r`, `pthread_create`, most
      callback APIs). The code is a plain function that reads its captures through
      the pointer. From 0.5 this is written by hand, as in C; once Tenon has closures
-     (plan_tenon Phase 4), Tenon splits a closure into the two values itself.
+     (plan_tenon Phase 5), Tenon splits a closure into the two values itself.
 
 ## Risks
 
@@ -386,6 +403,7 @@ flowchart TD
   v07 --> v10["1.0: production, Linux x86-64"]
   v10 --> X["1.x targets"]
   v10 --> S["self-hosting"]
+  v10 --> T["translate-c"]
 ```
 
 Tenon comes early on purpose: from 0.3 users write whole programs in Tenon that call
@@ -394,7 +412,7 @@ C calling Tenon (0.5), comes after types (0.4), so a Tenon library's generated h
 has real C types (`unsigned`, `const char *`, named structs), not only what oymomo's
 forms say. The oymomo half of 0.5 needs only 0.2 and may start earlier. The full C
 ABI (0.6) needs both directions, since it lowers both sides of a call. After 1.0, the
-1.x targets and self-hosting are independent tracks.
+1.x targets, self-hosting and translate-c are independent tracks.
 
 ## Decided
 
@@ -421,5 +439,20 @@ ABI (0.6) needs both directions, since it lowers both sides of a call. After 1.0
 
 ## Open questions
 
-None at the roadmap level. Each release's plans have their own (for example
-[plan_tenon.md](plan_tenon.md)'s syntax choice, its Phase 0 syntax decision, before 0.3).
+1. **When is the public launch?** Options:
+   - **0.3**, the first release for people who aren't compiler writers. Early
+     feedback, while the syntax can still change; but no types yet, so Tenon looks
+     like one more C-like language, and first impressions stick.
+   - **0.4**, when layer 1 works. Tenon's difference, types as code and a platform
+     other languages build on, is visible and can be tried. Calling C works; being
+     called by C and header import are still to come.
+   - **0.7**, when C headers import. The full "seamless with C" story; but feedback
+     comes late, after most design is fixed.
+
+   Recommended: a **soft launch at 0.4** (a website, the tutorial, a post to
+   programming-language communities, asking for feedback on syntax and layer 1), and
+   the **main launch at 0.7**, when the claim "Zig-level C interop, for any language
+   you build" is true end to end. Decide before 0.4 ships.
+
+Each release's plans have their own open questions (for example
+[plan_tenon.md](plan_tenon.md)'s Phase 0 syntax decisions, before 0.3).

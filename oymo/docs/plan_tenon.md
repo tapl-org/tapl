@@ -1,24 +1,32 @@
 # Plan: Tenon, a two-layer language on oymomo
 
-Status: **proposed**, with open questions; 0 of 5 phases.
+Status: **proposed**, with open questions; 0 of 6 phases.
 
 This is a roadmap, not a single design change: each phase below is **one or more plans
 of its own** (`plan_<name>.md`), and each of those has steps of one commit each. A phase
 is checked off when all its plans are closed. The language is called **Tenon**
 (step 0.1). It lives in `src/oymo/tenon/`, beside `oymomo/`.
 
-Tenon has no C interop work of its own: it lowers to oymomo, and calling C or being
-called by C are oymomo features ([plan_c_interop.md](plan_c_interop.md)). Its only
-C-specific code is mapping C types to Tenon types for layer 1 ([Phase 3](#phase-3--c-headers-in-both-layers)),
-since types are Tenon's, not oymomo's.
+Tenon has no C ABI work of its own: it lowers to oymomo, and calling C or being
+called by C are oymomo features ([plan_c_interop.md](plan_c_interop.md)). Its
+C-specific code is the syntax for them (`extern`, `export`, header import) and the
+mapping between C types and Tenon types in layer 1, in both directions: a C header's
+types become Tenon types ([Phase 4](#phase-4--c-headers-in-both-layers)), and Tenon
+types make a generated header read as hand-written ([Phase 3](#phase-3--c-calls-tenon)).
+Types are Tenon's, not oymomo's.
+
+**When each phase ships** is set by [roadmap.md](roadmap.md): Phases 0 and 1 are
+oymo 0.3, Phase 2 is 0.4, Phase 3 is 0.5, Phase 4 is 0.7, and Phase 5 is 1.0 and
+after.
 
 ## Steps
 
-- [ ] 0. Decisions: name, syntax, layer semantics, memory model ([Phase 0](#phase-0--decisions))
-- [ ] 1. Tenon frontend, layer 0 only ([Phase 1](#phase-1--tenon-frontend-layer-0-only))
-- [ ] 2. Layer 1: the type checker as code ([Phase 2](#phase-2--layer-1-the-type-checker-as-code))
-- [ ] 3. C headers in both layers ([Phase 3](#phase-3--c-headers-in-both-layers))
-- [ ] 4. Later: closures, multiple files ([Phase 4](#phase-4--later))
+- [ ] 0. Decisions: name, syntax, layer semantics, memory model, undefined behaviour ([Phase 0](#phase-0--decisions)) — oymo 0.3
+- [ ] 1. Tenon frontend, layer 0 only ([Phase 1](#phase-1--tenon-frontend-layer-0-only)) — oymo 0.3
+- [ ] 2. Layer 1: the type checker as code, module interfaces ([Phase 2](#phase-2--layer-1-the-type-checker-as-code)) — oymo 0.4
+- [ ] 3. C calls Tenon: `export`, function values, generated headers ([Phase 3](#phase-3--c-calls-tenon)) — oymo 0.5
+- [ ] 4. C headers in both layers ([Phase 4](#phase-4--c-headers-in-both-layers)) — oymo 0.7
+- [ ] 5. Later: closures, separate compilation, debug info, safety checks, standard library ([Phase 5](#phase-5--later)) — oymo 1.0 and after
 
 ## Goal
 
@@ -26,7 +34,11 @@ Tenon is a language whose programs:
 
 1. are written in one source file with **two layers**, as TAPL does for Python:
    layer 0 is what runs, layer 1 is the type checker, and it is real code;
-2. lower **each layer to its own oymomo program**, then to BANF, LLVM IR and machine code.
+2. lower **each layer to its own oymomo program**, then to LLVM IR and machine code
+   (through BANF until it is removed in 1.0);
+3. can be **built by other languages**: a language author's frontend builds a Tenon
+   syntax tree through the public Tenon API, with its own source locations, and gets
+   Tenon's type checker, C headers and C ABI ([roadmap.md › One package, three ways in](roadmap.md#one-package-three-ways-in)).
 
 ```mermaid
 flowchart LR
@@ -157,7 +169,11 @@ do, so the code is as fast as C. Use after free is not checked in either. The su
 - Lower layer 0 to an oymomo program (the `module -> {...}` shape).
 - Surface constructs map to oymomo ones: functions → structs of blocks, `if` / `while`
   → blocks and jumps, locals → `alloca`, structs → struct forms.
-- **Milestone: hello world**, built and run.
+- `extern` declarations written by hand, to call C; calls are first-order.
+- The frontend registered as `language tenon`; the Tenon API: syntax tree classes and
+  their constructors public, a tree carrying the source locations of any file.
+- **Milestone: hello world**, built and run; a linked list with `malloc` / `free`; a
+  call into a `.c` file built in the same command.
 
 ### Phase 2 — layer 1: the type checker as code
 
@@ -175,7 +191,21 @@ do, so the code is as fast as C. Use after free is not checked in either. The su
   one file into another, or into a `language calc` file, is type-checked across the
   file boundary.
 
-### Phase 3 — C headers in both layers
+### Phase 3 — C calls Tenon
+
+- `export` on a function or a global, lowering to oymomo's exports
+  ([plan_c_interop.md](plan_c_interop.md) 1.8, Phase 4).
+- Function values, lowering to function pointers (plan_c_interop 1.6): a plain
+  function crosses to C as a C function pointer. A closure crosses only as its code
+  plus a `void *` to its environment, where the C API takes one; trampolines are a
+  non-goal ([roadmap.md › Non-goals](roadmap.md#non-goals)).
+- The generated C header is made from the module interface (Phase 2) and uses its
+  layer-1 types: `unsigned`, `const char *`, named structs, which forms alone can't
+  tell from `int` and `void *`.
+- **Milestone:** a C `main` calls a Tenon library through its generated header, which
+  reads as a hand-written one would; a Tenon function is passed to `qsort`.
+
+### Phase 4 — C headers in both layers
 
 A header import (syntax from 0.2) calls `c_import` once, with the build's target and
 flags. Each `CDecl(form, ctype)` is a two-layer value, `<form:ctype>`, so the
@@ -199,25 +229,40 @@ Rules:
 - **Milestone:** a Tenon program imports `<stdio.h>`, calls `printf` and `puts`, and
   `puts(42)` is a layer-1 error.
 
-### Phase 4 — later
+### Phase 5 — later
 
-Closures, multiple files and separate compilation, debug info mapped to Tenon source (`!dbg` attachments and the metadata table, [plan_metadata.md](plan_metadata.md)).
+Each a plan of its own, in [roadmap.md](roadmap.md) 1.0 unless said otherwise:
+
+- Closures, and splitting a closure into code plus a `void *` environment when it is
+  passed to C (Phase 3).
+- Separate compilation, on top of Phase 2's module interfaces.
+- Debug info mapped to Tenon source (`!dbg` attachments and the metadata table,
+  [plan_metadata.md](plan_metadata.md)).
+- The checked build mode of decision 0.5: traps on overflow, out-of-bounds and null.
+- The standard library: strings, slices, I/O, and the allocator interface of decision
+  0.4 with its first allocators.
+- Language versions in the header (`language tenon 2`).
 
 ## Order and dependencies
 
 ```mermaid
 flowchart TD
   P0["0 Decisions"] --> P1["1 Frontend, layer 0"]
-  P1 --> P2["2 Layer 1"]
-  P2 --> P3["3 C headers"]
-  CI5["plan_c_interop 5: c_import"] --> P3
-  P3 --> P4["4 Later"]
+  P1 --> P2["2 Layer 1, interfaces"]
+  P2 --> P3["3 C calls Tenon"]
+  CI4["plan_c_interop 4: exports"] --> P3
+  P2 --> P4["4 C headers"]
+  CI5["plan_c_interop 5: c_import"] --> P4
+  P3 --> P5["5 Later"]
+  P4 --> P5
 ```
 
 ## Open questions
 
 1. Does layer 1 lower to oymomo *exactly* like layer 0, or may it use features layer 0
    can't (closures, a GC)? If layer 1 only ever runs in the JIT, it could.
-2. Does layer 1 run only on the host (JIT), or in Spindle ([plan_vm.md](plan_vm.md))?
+2. ~~Does layer 1 run only on the host (JIT), or in Spindle ([plan_vm.md](plan_vm.md))?~~
+   Decided: the host, in the LLVM JIT. Spindle is a side project
+   ([roadmap.md › Decided](roadmap.md#decided)).
 3. How strict is the C mapping: is `int` to `long` an implicit conversion as in C, or
    an error? Is `char *` to `const char *` accepted?
