@@ -231,7 +231,7 @@ None. `'f32'` and `'f64'` had no LLVM type before, and the new symbols were unkn
 >    integer; LLVM's float `llvm.trunc` rounds toward zero. One symbol whose meaning
 >    depends on `form` (as `'add'` and `'fadd'` are kept apart, that would be the
 >    only overload), or a distinct name (`'trunc_toward_zero'`, `'ftrunc'`)?
-> 5. **Float vectors.** Once [plan_memory.md](plan_memory.md) step 5 adds vectors,
+> 5. **Float vectors.** Once [plan_memory.md](implemented/plan_memory.md) step 5 adds vectors,
 >    every symbol here accepts a float vector where LLVM does; reduction folds only
 >    scalars.
 

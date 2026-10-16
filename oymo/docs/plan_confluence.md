@@ -106,7 +106,7 @@ hides it, because the written form replaces the atom's form
 
 6. **Step 3's test checks each built-in in `BUILTINS`**, on sample arguments, through
    step 1's harness: reduce the argument in every order and compare. A plan that adds a
-   rule adds samples. [plan_memory.md](plan_memory.md)'s `$seq {d1, ..., dn, x}` gives
+   rule adds samples. [plan_memory.md](implemented/plan_memory.md)'s `$seq {d1, ..., dn, x}` gives
    `x` once every `dᵢ` is a byte array; it reads only whether each `dᵢ` is a byte
    array, a normal form, so it keeps the contract. Samples: `$seq {[01], x}`,
    `$seq {{a = [01]}.a, x}` (not a redex until the field reduces), `$seq {s, x}`.
@@ -129,7 +129,7 @@ hides it, because the written form replaces the atom's form
    `args.n`. Confluence promises one normal form; it doesn't promise that every
    strategy reaches it. See open question 2.
 
-9. **Effects aren't in the value.** With [plan_memory.md](plan_memory.md), a term has
+9. **Effects aren't in the value.** With [plan_memory.md](implemented/plan_memory.md), a term has
    effects: memory ops and calls to imports, which never reduce. Full β treats the
    let around one as any other redex, so a strategy may drop an effect nothing uses,
    copy a let used twice (a load runs twice), and leave two unchained effects with no

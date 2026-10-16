@@ -60,7 +60,7 @@ it finishes without error, layer 0 type-checks. This mirrors TAPL's `a1.py`.
 | Imported functions and data, one LLopcode each | Linkage and visibility (`internal`, exported), C name ≠ label |
 | Every function returns a value | `void` functions (`=> {}`) |
 | First-order calls by symbol | Function pointers and indirect calls (callbacks, `qsort`) |
-| Immutable values | Memory: regions, load, store ([plan_memory.md](plan_memory.md)); a raw `'ptr'` and the bridge between C memory and regions |
+| Immutable values | Memory: regions, load, store ([plan_memory.md](implemented/plan_memory.md)); a raw `'ptr'` and the bridge between C memory and regions |
 | — | Field and element addresses (GEP), arrays `T[N]`, unions |
 | — | Varargs calls (`printf`) |
 | LLVM IR text | Object files, linking, a driver CLI |
@@ -128,7 +128,7 @@ pointers pass freely to C.
 
 | # | Plan | Why C needs it |
 |---|---|---|
-| 1.1 | Memory: regions, load, store (exists: [plan_memory.md](plan_memory.md)); then `'ptr'`, `$region {address, size}` and `$address {mem}` to cross between C memory and regions, with a token for imports | Pointers are C's main data type |
+| 1.1 | Memory: regions, load, store (exists: [plan_memory.md](implemented/plan_memory.md)); then `'ptr'`, `$region {address, size}` and `$address {mem}` to cross between C memory and regions, with a token for imports | Pointers are C's main data type |
 | 1.2 | `void`: `=> {}` returns, a call as a statement | Most C APIs return `void` |
 | 1.3 | Floats: `'f32'`, `'f64'`, arithmetic, comparisons, int↔float (exists: [plan_floats.md](plan_floats.md)) | `double` everywhere in libc and libm |
 | 1.4 | Field and element addresses: `$gep` on a struct or array form | `&s->x`, `a[i]`; offsets stay in LLVM, not in oymomo |

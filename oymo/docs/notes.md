@@ -845,7 +845,7 @@ however many fields there are.
 | `$fix g` | gives `g ($fix g)` once `g` is a lambda; `g` is reduced to one first, never under it; must reduce away |
 | `$fields_to_struct {more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}` | gives `{l1 = e1, ...}`; reduces `more`, `label` and `rest` of each node first, never a value; stuck on a malformed list; must reduce away |
 | `$struct_to_fields {l1 = e1, ...}` | gives `{more = [01], label = 'l1', value = e1, rest = ... {more = [00]}}`: labels as UTF-8 bytes, values unreduced, order kept ([plan_struct_pack.md](implemented/plan_struct_pack.md)); must reduce away |
-| `$seq {d1, ..., dn, x}` | gives `x` once every `di` is a byte array, formed or not: a literal has no effect left to wait for. Every field is reduced first, the last one too; labels are ignored. Otherwise stuck, and `convert` drops it: it is the atom of `x`. It orders effects by hand ([plan_memory.md](plan_memory.md) decisions 1 to 4) |
+| `$seq {d1, ..., dn, x}` | gives `x` once every `di` is a byte array, formed or not: a literal has no effect left to wait for. Every field is reduced first, the last one too; labels are ignored. Otherwise stuck, and `convert` drops it: it is the atom of `x`. It orders effects by hand ([plan_memory.md](implemented/plan_memory.md) decisions 1 to 4) |
 | `'add' {...}` and every other opcode | on literal fields, the result LLVM would compute: `'add' {'i32', [01000000], [02000000]}` gives `[03000000]~'i32'`; needs a struct literal with one field per param. Never where LLVM has no defined result ([plan_constant_folding.md](implemented/plan_constant_folding.md)). See [Opcodes › Folding](#folding) |
 
 - Every built-in but `$seq` is **reduction-only**: reduction must remove it. A stuck
@@ -1148,7 +1148,7 @@ impure, so they never fold; their `form` may be any literal form, a struct inclu
 and their other fields bring their own forms (`[1000000000000000]~'i64'`, a let). Into a
 struct or a packed struct, a `getelementptr` index past the first must be a literal
 `'i32'` below the field count, as in LLVM; into an array or a vector it may be known only
-at run time. See [plan_memory.md](plan_memory.md) decisions 5 to 9. Nothing checks which forms
+at run time. See [plan_memory.md](implemented/plan_memory.md) decisions 5 to 9. Nothing checks which forms
 are given ([no checks](#a-generated-ir-no-checks-for-user-mistakes)): `'add' {'ptr', a, b}`
 reaches LLVM, which rejects it. `evaluate` only computes what LLVM defines, so it gives
 nothing for `form` other than a `T`, or a conversion that doesn't widen (`zext`, `sext`)
@@ -2260,7 +2260,7 @@ same pointer gives `[00]`, unlike byte array literals, which are little-endian
 everywhere ([Byte arrays are always little-endian](#byte-arrays-are-always-little-endian));
 memory has no literals, so the two never meet. Nothing checks an access: a misaligned
 or dangling pointer is undefined, as in C.
-→ [plan_memory.md](plan_memory.md) decision 12
+→ [plan_memory.md](implemented/plan_memory.md) decision 12
 
 ### LLVM translation converts nothing
 

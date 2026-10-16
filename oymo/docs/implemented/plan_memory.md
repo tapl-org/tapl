@@ -1,6 +1,6 @@
 # Plan: memory as in LLVM: the `'ptr'` form, alloca, getelementptr, load and store
 
-Status: **in progress**; 6 of 7 steps.
+Status: **implemented**; 7 of 7 steps.
 
 ## Steps
 
@@ -12,14 +12,14 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [x] 4. Tests: what `translate` does to effects without `$seq` (`oymomo: test unordered effects`)
 - [x] 5. Arrays, vectors and packed structs as tagged structs (`{'array', count, element}`) (`oymomo: add aggregate forms`)
 - [x] 6. Globals: data is a read-only `constant`; `'global'` makes a writable cell (`oymomo: add globals`)
-- [ ] 7. A plan for advanced memory: `noalias`, more ops, alignment and byte order, docs only (`docs: plan advanced memory`)
+- [x] 7. A plan for advanced memory: `noalias`, more ops, alignment and byte order, docs only (`docs: plan advanced memory`)
 
 Step 1 doesn't depend on the others: it orders effects, which memory ops are, as calls
 to imports already are. Step 2 makes and moves pointers, but nothing reads or writes
 through them until step 3. Step 4 needs step 3: it uses loads and stores. Step 5 needs only forms, but its tests use step 3's loads and stores.
 Step 6 needs step 3: a cell is read and written with `'load'` and `'store'`.
 Step 7 is docs only; it is last so its examples can use loads, stores and globals.
-Steps 2 and 3 build on [plan_vm.md](plan_vm.md) step 3 (done): memory ops are
+Steps 2 and 3 build on [plan_vm.md](../plan_vm.md) step 3 (done): memory ops are
 entries of the opcode table, called as `'name' {...}`, as every opcode is.
 Reduction never folds a memory op (decision 13); LLVM does.
 Only step 6 is breaking (see [Breaking changes](#breaking-changes)).
@@ -31,12 +31,12 @@ A pointer is a value of form `'ptr'`, LLVM's opaque `ptr`. `'alloca'` makes one,
 `'getelementptr'` moves it, `'load'` reads through it, `'store'` writes through it. Each
 is one LLVM instruction with LLVM's operands, in LLVM's order, and where LLVM writes
 a type, oymomo passes the form as a value (`form = 'i32'`, `form = {x = 'i32', y =
-'i64'}`), as every opcode does ([plan_vm.md](plan_vm.md) decision 10). Nothing more:
+'i64'}`), as every opcode does ([plan_vm.md](../plan_vm.md) decision 10). Nothing more:
 no bounds checks, no regions, no tokens.
 
 Memory ops are effects, like calls to imports. The term doesn't order them; a
 program orders them by hand with `$seq` (decisions 1 to 4), as it orders calls to
-imports. [plan_confluence.md](plan_confluence.md)'s guarantee covers the term, not the
+imports. [plan_confluence.md](../plan_confluence.md)'s guarantee covers the term, not the
 order of effects (decision 4).
 
 Today every value is immutable, and the only memory a program touches is a data symbol,
@@ -143,13 +143,13 @@ return r
 
    Without `$seq`, nothing uses `q`: `translate` still keeps the first call (decision
    4), but the term doesn't say it is needed
-   ([plan_confluence.md](plan_confluence.md) decision 9). `$seq` orders calls to imports and memory ops
+   ([plan_confluence.md](../plan_confluence.md) decision 9). `$seq` orders calls to imports and memory ops
    (`'load' {'i32', $seq {s, p}}`).
 2. **`$seq` may be an operand.** With atoms as fields it is an atom: an op argument,
    a jump argument, a branch condition, a return, or a let's value. This is one
-   exception to [notes.md › Operands must be atoms](notes.md#operands-must-be-atoms),
+   exception to [notes.md › Operands must be atoms](../notes.md#operands-must-be-atoms),
    because it stands for its last field, which is an atom. (The other is a form field of
-   an opcode, such as `form` ([plan_vm.md](plan_vm.md) decision 10).)
+   an opcode, such as `form` ([plan_vm.md](../plan_vm.md) decision 10).)
 3. **`convert` drops what reduction leaves.** A stuck `$seq {..., x}` becomes the
    atom `x`, and `let c = $seq {...}` binds no BANF let: a let on an atom,
    `banf_shape` beta-reduces it, so each use of `c` gets the `$seq`. So BANF, the
@@ -160,7 +160,7 @@ return r
    is an op (`_is_op`), used or not, once, in source order, so `translate` never
    drops, copies or reorders an effect, chained or not. What other reduction
    strategies do to an unchained effect is
-   [plan_confluence.md](plan_confluence.md) decision 9. `$seq` gives a program a way
+   [plan_confluence.md](../plan_confluence.md) decision 9. `$seq` gives a program a way
    to say which effects a value needs, not a guarantee. Nothing checks it: an unchained effect may be a mistake or the
    program's intent, and the program is trusted to chain what it means to. A
    warning may come later; an error, or a token every effect takes and gives
@@ -172,7 +172,7 @@ return r
    about what it points to; the op that reads or writes says that. A pointer is a
    value like any other: a block param, a function param or result, a struct field,
    a let, and a param or result of an imported function, where it is C's `T *` (a
-   step toward [plan_c_interop.md](plan_c_interop.md) 1.1). It is named `'ptr'`, as
+   step toward [plan_c_interop.md](../plan_c_interop.md) 1.1). It is named `'ptr'`, as
    in LLVM, not `'address'`: every name in this plan is LLVM's.
 6. **A pointer can't be a literal.** oymomo's byte arrays have no address to
    name, and a null pointer is step 7's plan. The verifier rejects
@@ -180,8 +180,8 @@ return r
 7. **Memory ops are LLVM's instructions, with the form as an operand.** LLVM's
    `alloca`, `getelementptr` and `load` take a type, and the type can be any type:
    `i32`, `{i32, i64}`, `[16 x i8]`. So they take it as a `form` field, as every
-   opcode does after [plan_vm.md](plan_vm.md) step 3 (`'add' {'i32', a, b}`),
-   and as forms are terms ([notes.md › Forms are terms](notes.md#forms-are-terms)).
+   opcode does after [plan_vm.md](../plan_vm.md) step 3 (`'add' {'i32', a, b}`),
+   and as forms are terms ([notes.md › Forms are terms](../notes.md#forms-are-terms)).
    The field is called `form`, not `type`: oymomo's word, as in plan_vm decision 10.
    Labels are ignored, so the name shows only in docs and messages.
    They are four impure entries of the opcode table, named as in LLVM, with
@@ -213,7 +213,7 @@ return r
    - `count`, `ptr` and each index bring their own form: a bare byte array is an error
      (`'alloca': count must have a form, such as [01000000]~'i32'.`).
    - Fields are positional and labels are ignored, as for every opcode
-     ([plan_vm.md](plan_vm.md) decision 7): `'store' {v, p}` stores `v` at `p`, as
+     ([plan_vm.md](../plan_vm.md) decision 7): `'store' {v, p}` stores `v` at `p`, as
      LLVM's `store F v, ptr p`.
 8. **LLVM's other aggregate types are tagged structs.** A plain struct form stays
    LLVM's struct, as today. Every other LLVM type that is not a named form is a flat
@@ -259,7 +259,7 @@ return r
      - `$array {...}` and friends: a `$` built-in is for something with special
        behaviour, and these have none.
      - `'array' {...}`, a byte array applied to a struct: that shape is kept for
-       calls to virtual machine symbols ([plan_vm.md](plan_vm.md)).
+       calls to virtual machine symbols ([plan_vm.md](../plan_vm.md)).
      - `{...}~'array'`: `~` means a value with a form, and here there is no value.
      - a pair, `{'array', {count, element}}`: one more struct for nothing, and unlike
        an opcode call, whose operands follow the opcode's form in one struct.
@@ -280,7 +280,7 @@ return r
     and is `ret i32 1` with `ptr noalias %a`, or with `%a` an `alloca`. Saying more
     is step 7's plan.
 11. **A store gives `{}`, which only `$seq` may use.** LLVM's `store` gives no
-    value, and oymomo has no `void` yet ([plan_c_interop.md](plan_c_interop.md) 1.2).
+    value, and oymomo has no `void` yet ([plan_c_interop.md](../plan_c_interop.md) 1.2).
     The result form is the empty struct, so the let has a name to wait for, and the
     verifier rejects any other use: `'s' is the result of a store; only $seq can
     use it.` In LLVM the let binds nothing.
@@ -290,12 +290,12 @@ return r
     order is the target's: on a big-endian target, storing `[2a000000]~'i32'` and
     loading `'i8'` at the same pointer gives `[00]`. This is unlike byte array
     literals, which are little-endian everywhere
-    ([notes.md › Byte arrays are always little-endian](notes.md#byte-arrays-are-always-little-endian)),
+    ([notes.md › Byte arrays are always little-endian](../notes.md#byte-arrays-are-always-little-endian)),
     but memory has no literals, so the two never meet. A struct's layout (padding,
     field offsets) is LLVM's for the target. Saying otherwise is step 7's plan.
 13. **Memory ops never fold in reduction.** `alloca`, `getelementptr`, `load` and
     `store` are impure opcodes, and reduction folds only pure ones
-    ([plan_vm.md](plan_vm.md) decision 8), so they are stuck: no change to reduction.
+    ([plan_vm.md](../plan_vm.md) decision 8), so they are stuck: no change to reduction.
     oymomo has no memory to run them on. LLVM folds what can be folded (`mem2reg`,
     SROA, `instcombine`).
 
@@ -554,7 +554,7 @@ result, an import declares them (`malloc = {size = 'i64'} => 'ptr'`).
 
 Steps 1 to 5 aren't breaking. `'ptr'` is a new named form, and `'alloca'`, `'getelementptr'`, `'load'`
 and `'store'` were unknown opcodes, an error in `convert`. (Renaming `$add_i32` to
-`'add' {'i32', a, b}` is breaking, but it is [plan_vm.md](plan_vm.md) step 3.)
+`'add' {'i32', a, b}` is breaking, but it is [plan_vm.md](../plan_vm.md) step 3.)
 `$seq` was an unknown built-in, and the parser
 already accepts any `$name`. A
 plain struct form keeps its meaning; a struct whose field 0 is `'array'`, `'vector'`,
@@ -654,7 +654,7 @@ No code change. Memory ops are stuck (decision 13), but the let around them is n
 keeps a let whose value is an op (decision 4). These tests pin down what `translate`
 does to effects that `$seq` doesn't chain, so a later change to `banf_shape` that
 alters it fails a test. What full β does to the same programs is
-[plan_confluence.md](plan_confluence.md) decision 9, which uses them as samples.
+[plan_confluence.md](../plan_confluence.md) decision 9, which uses them as samples.
 
 - Tests (`banf_translate`, and `llvm_translate` where it says so):
   - **An unused effect is kept.**
@@ -744,7 +744,7 @@ rest, so each part is designed once and lands when a program needs it.
   - `'ptrtoint'` and `'inttoptr'`: a pointer as an integer and back, with LLVM's
     provenance rules, and which integer form (pointer width from the data layout).
   - Comparing pointers: `'icmp_eq'` and the other predicates on `'ptr'`, as the
-    integer ones are on `iN` ([plan_vm.md](plan_vm.md)).
+    integer ones are on `iN` ([plan_vm.md](../plan_vm.md)).
   - A null pointer: a `'null'` opcode, or a literal exception to decision 6, and what
     reduction may fold.
   - `'memcpy'`, `'memmove'` and `'memset'`, as LLVM's intrinsics (`llvm.memcpy` and

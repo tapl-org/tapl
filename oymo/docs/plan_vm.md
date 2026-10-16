@@ -26,7 +26,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 Steps 1 and 2 need nothing new in reduction or BANF: the VM runs the BANF that
 LLVM gets today. Step 3 is the one breaking step: it renames every opcode, moves
 `opcodes.py`, constant folding and `llvm_opcodes.py` into one table, and makes the
-form an operand. [plan_memory.md](plan_memory.md) steps 2 and 3 need step 3 (memory
+form an operand. [plan_memory.md](implemented/plan_memory.md) steps 2 and 3 need step 3 (memory
 ops are entries of its table), and step 6 needs them.
 
 ## Goal
@@ -94,7 +94,7 @@ a host function from `spindle_lib`; with literal arguments reduction folds both
 (decision 8). `module.putchar` and `module.ask` are imports: the host binds them in
 the VM, the linker in LLVM. `ask` yields: the fiber stops, `resume` returns to the
 host, and the next `resume` gives the call its result. (`$seq` is
-[plan_memory.md](plan_memory.md) step 1.)
+[plan_memory.md](implemented/plan_memory.md) step 1.)
 
 ## Decisions
 
@@ -195,7 +195,7 @@ host, and the next `resume` gives the call its result. (`$seq` is
 
    A name not in the table is `Unknown VM symbol 'foo'.`; in LLVM, a symbol with no
    `llvm` is `'name' runs only in the VM.` This is also why decision 8 of
-   [plan_memory.md](plan_memory.md) writes LLVM's aggregate types as tagged structs
+   [plan_memory.md](implemented/plan_memory.md) writes LLVM's aggregate types as tagged structs
    (`{'array', count, element}`) and not as `'array' {...}`: that shape is a call.
 8. **Reduction folds a pure VM symbol on literal arguments**, one rule for every
    symbol: when the name is a pure symbol, every form param is a literal form it
@@ -216,7 +216,7 @@ host, and the next `resume` gives the call its result. (`$seq` is
    |---|---|
    | `$fix` | a reduction rule on terms, not values |
    | `$struct_to_fields`, `$fields_to_struct` | they rewrite terms, and must reduce away before BANF |
-   | `$seq` | gives its last field only once the others are literals, and `convert` drops a stuck one ([plan_memory.md](plan_memory.md)) |
+   | `$seq` | gives its last field only once the others are literals, and `convert` drops a stuck one ([plan_memory.md](implemented/plan_memory.md)) |
 
 ### Opcodes polymorphic in `form` (step 3)
 
@@ -260,7 +260,7 @@ host, and the next `resume` gives the call its result. (`$seq` is
     - **`accepts`**: the arithmetic and bitwise symbols take an integer form; `and`,
       `or`, `xor`, `icmp_eq`, `icmp_ne` also `'i1'`, as today; `zext` and `sext` need `to`
       wider than `form`, `trunc` narrower: `'zext': to must be wider than i32, got i8.`
-      Once [plan_memory.md](plan_memory.md) step 5 adds vectors, an integer vector is
+      Once [plan_memory.md](implemented/plan_memory.md) step 5 adds vectors, an integer vector is
       accepted wherever LLVM accepts one; reduction folds only scalar integer forms.
     - **BANF ops carry their form params**, as LLVM's instructions carry their type.
       [notes.md › BANF](notes.md#banf)'s "ops carry no form, as in Cranelift" no
@@ -357,11 +357,11 @@ host, and the next `resume` gives the call its result. (`$seq` is
 
 17. **Memory is a host library; the VM never learns of it.** `spindle_lib.memory(layout)`
     binds `'alloca'`, `'getelementptr'`, `'load'`, `'store'`
-    ([plan_memory.md](plan_memory.md)'s entries) to one `bytearray` per `Spindle`; a
+    ([plan_memory.md](implemented/plan_memory.md)'s entries) to one `bytearray` per `Spindle`; a
     pointer is an `int` offset into it, an ordinary integer to the VM. It is laid out
     as LLVM lays it out for the target: sizes, alignment and struct padding come from
     LLVM's data layout (llvmlite's `get_abi_size` and `get_element_offset` on the
-    target data), and byte order is the target's, as [plan_memory.md](plan_memory.md)
+    target data), and byte order is the target's, as [plan_memory.md](implemented/plan_memory.md)
     decision 12 says. So a program that reads memory reads the same bytes in the VM
     and under LLVM.
     - `alloca` takes space from a per-fiber stack area, kept in `fiber.host`. A
@@ -577,13 +577,13 @@ Commit: `oymomo: add VM-only symbols`
 
 ### Step 6: memory
 
-Needs [plan_memory.md](plan_memory.md) steps 2 and 3.
+Needs [plan_memory.md](implemented/plan_memory.md) steps 2 and 3.
 
 - F.
 - Tests:
   - `spindle_layout`: sizes and offsets of `{i8, i32}`, `<{i8, i32}>`, `[3 x i32]` match
     llvmlite's for the host target.
-  - `spindle`: the goal of [plan_memory.md](plan_memory.md) gives 42; a store of `'i32'`
+  - `spindle`: the goal of [plan_memory.md](implemented/plan_memory.md) gives 42; a store of `'i32'`
     and a load of `'i8'` at the same pointer gives the target's low or high byte; an
     out-of-bounds load is `SpindleError`; memory from `alloca` is given back on return;
     two fibers' `alloca`s don't overlap.
