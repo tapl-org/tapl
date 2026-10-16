@@ -58,8 +58,11 @@ oymomo decides how C looks to its users.
 
 ### What does not cross
 
-- **Closures.** A C function pointer is a code address only. What goes to C must be a
-  first-order `module` function; a lambda capturing variables does not cross.
+- **Closures as bare function pointers.** A C function pointer is a code address
+  only, and trampolines (code made at run time to bundle a closure into one address)
+  are a non-goal. What goes to C is a first-order `module` function; a closure crosses
+  only as that function plus a `void *` to its environment, where the C API takes a
+  user-data pointer (`qsort_r`, `pthread_create`).
 - **Ownership.** Nothing tracks who frees a pointer, as in C.
 - **C++.** Out of scope: no classes, templates, exceptions or name mangling.
 

@@ -179,6 +179,7 @@ release for people who are not compiler writers.
 | new | `oymo build app.oymo util.c`: `.c` files in the same command are compiled with `cc`, and Tenon calls them |
 | new | Tenon API: syntax tree classes and their constructors are public; a tree carries source locations of the author's files |
 | new | example language `calc` gets a second backend that lowers to Tenon, beside the oymomo one |
+| new | **undefined behaviour, decided**: what integer overflow, an out-of-bounds index and a null dereference do. Proposal, as Zig and C3: a checked build traps with a message, an optimized build leaves it to LLVM. Written down in plan_tenon Phase 0; the checks land by 1.0 |
 
 Layer 0 has forms (sizes and layout: `i32`, `ptr`, structs), but no type checker:
 a mistake gives wrong code, as in C without warnings. The release notes say so.
@@ -218,13 +219,17 @@ C (`qsort`).
 | new | Tenon: `export` on a function or a global, and function values that lower to function pointers |
 | new | the generated `.h` uses Tenon's layer-1 types where there are any: `unsigned`, `const char *` and named structs, which oymomo's forms alone can't tell from `int` and `void *` |
 | new | build API: `static_library`, `shared_library`, `header` |
+| new | **build-system flags**, so Make and CMake call `oymo` as they call `cc`: `-c`, `-o`, `-MD` / `-MF` dependency files, and an entry in `compile_commands.json` |
+| new | **imports between Tenon files**: a program in several `.oymo` files, built in one command (separate compilation comes in 1.0) |
 
 Scalars and pointers only at the C boundary; a by-value struct there is an error that
 says "pass a `'ptr'`" (the fallback in plan_c_interop Phase 3).
 
 **Milestones:** a C `main` calls a Tenon library through its generated header, and
 the header reads as a hand-written one would; a Tenon function is passed to `qsort`;
-the same for an oymomo program, for frontends that lower to oymomo.
+the same for an oymomo program, for frontends that lower to oymomo; a Makefile builds
+a mixed C and Tenon project with `oymo -c` in place of `cc -c`, and rebuilds only
+what changed.
 
 ## 0.6 — the full C ABI
 
@@ -238,8 +243,11 @@ mapping new forms to types.
 | [plan_c_interop.md](plan_c_interop.md) 1.x | unions and the remaining gaps of Phase 1 |
 | [plan_c_interop.md](plan_c_interop.md) Phase 3 | by-value structs, `sret`, varargs calls, for x86-64 SysV (other targets in 1.x) |
 | [plan_c_interop.md](plan_c_interop.md) 3.5 | differential tests against clang, both directions |
+| new plan | **atomics, `volatile` and inline asm**, each as LLVM has it: `'atomicrmw'`, `'cmpxchg'`, `'fence'`, atomic `'load'` / `'store'` with an ordering, a `volatile` flag on `'load'` / `'store'`, and `'asm'` |
+| new | **finding C libraries**: `-I`, `-L`, `-l` and `oymo build --pkg-config sdl2` |
 
-**Milestones:** `printf("%d %f\n", ...)` from Tenon; and **drop-in**: a small C library
+**Milestones:** `printf("%d %f\n", ...)` from Tenon; a Tenon program with two threads
+(pthreads) shares a counter through atomics; and **drop-in**: a small C library
 rewritten in Tenon passes its unchanged C test suite.
 
 ## 0.7 — C headers
@@ -265,18 +273,23 @@ release is about trust. Each item is a plan of its own, written when 0.7 lands.
 
 | Area | Work |
 |---|---|
-| Stability | oymomo syntax and semantics frozen and versioned; Tenon language spec; public API frozen, semantic versioning, deprecation policy |
+| Stability | oymomo syntax and semantics frozen and versioned; Tenon language spec; public API frozen, semantic versioning, deprecation policy; **language versions** in the header (`language tenon 2`), so a language can change after 1.0 without breaking old files, as Rust's editions do |
 | BANF removed | once the oymomo shape is frozen, oymomo translates to LLVM IR directly and BANF goes ([todo.md](todo.md)); BANF's checks move into that translation |
 | Correctness | [plan_confluence.md](plan_confluence.md); fuzzing of parser, reduction and translation; differential tests against clang at `-O0` and `-O2` |
+| Safety checks | the undefined-behaviour policy decided in 0.3, implemented: checked builds trap on overflow, out-of-bounds and null, with the source location |
 | Debugging | [plan_metadata.md](plan_metadata.md) 4–5: DWARF, so `gdb` / `lldb` step through the source, Tenon's or a language author's |
 | Optimization | `-O0..-O3` through LLVM's pass pipeline; `noalias` ([plan_memory_advanced.md](plan_memory_advanced.md) 5) |
-| Scale | multiple files, modules and separate compilation (plan_c_interop Phase 6, plan_tenon Phase 4); incremental builds |
+| Speed of the code | a benchmark set (the same programs in C and Tenon); target: within a set percentage of `clang -O2`, measured in CI |
+| Scale | modules and separate compilation, on top of 0.5's imports between files (plan_c_interop Phase 6, plan_tenon Phase 4); incremental builds |
+| Build systems | a CMake module (`find_package(oymo)`, `.oymo` as a source language), on top of 0.5's flags |
+| Libraries | how one Tenon library uses another, decided and documented: a package manager, or none (vendored sources, or pip packages that ship `.oymo` files) |
+| Testing | `oymo test`: test functions in `.oymo` files, run and reported, as `zig test` does |
 | Target | Linux x86-64 (ELF, SysV ABI, glibc and musl); `--target` written so 1.x only adds entries |
 | C, the rest | TLS (`errno`), `static inline` functions and function-like macros (plan_c_interop open question 4) |
-| Speed of the compiler | measured on a large program; a budget per 10k lines; profile and fix the slowest pass |
+| Speed of the compiler | measured on a large program; a budget per 10k lines; profile and fix the slowest pass; layer-1 results cached between builds, so the type checker is not JIT-compiled again for unchanged files |
 | Distribution | `pip install oymo`, and a standalone binary with LLVM bundled (no Python needed by Tenon users); pinned LLVM version |
 | Developer tools | formatter, a language server (go to definition, errors in the editor), syntax highlighting |
-| Library | a small Tenon standard library over libc: strings, slices, allocators, I/O |
+| Library | a small Tenon standard library over libc: strings, slices, I/O, and the allocator interface with its first allocators (libc, arena, pool, and a garbage-collecting one over the Boehm collector) |
 | Docs | tutorial, Tenon reference, C interop guide, and a **language author's guide**: lowering to Tenon, lowering to oymomo, the public API reference |
 
 **Milestones:** a real program of a few thousand lines (for example a JSON library and
@@ -316,6 +329,41 @@ is ready, and it removes Python from the compiler.
   with the same Python API. Language authors' libraries keep working unchanged; the
   example languages in CI are the test. Later, a language author may also write a
   frontend in Tenon or C against the C API.
+
+## Non-goals
+
+Not planned, before or after 1.0, so no release waits for them:
+
+- **C++ interop**: no classes, templates, exceptions or name mangling (Carbon's and
+  Swift's problem, not ours).
+- **A built-in garbage collector**: memory is managed through **allocators the user
+  chooses**, passed explicitly (as in Zig). Most are manual (`malloc` / `free`, arena,
+  pool); a garbage-collecting allocator (for example the Boehm collector, a C library)
+  is one more choice, not a runtime every program carries.
+- **Trampolines**: a closure is never packed into a bare C function pointer, since
+  that needs machine code made at run time in writable and executable memory, which
+  hardened systems forbid. Two ways cross instead, both from 0.5
+  ([plan_c_interop.md](plan_c_interop.md)):
+  1. **A plain function**, capturing nothing, crosses as a C function pointer
+     (`qsort`).
+  2. **A closure crosses as two values**, its code and a `void *` to its environment,
+     where the C API takes a user-data pointer (`qsort_r`, `pthread_create`, most
+     callback APIs). The code is a plain function that reads its captures through
+     the pointer. From 0.5 this is written by hand, as in C; once Tenon has closures
+     (plan_tenon Phase 4), Tenon splits a closure into the two values itself.
+
+## Risks
+
+- **The build runs code.** Layer 1 executes during compilation, so building untrusted
+  code runs it, as Rust's `build.rs` and Zig's `build.zig` do. The docs say so from
+  0.4; a sandbox for layer 1 is a later option.
+- **Layer 1 makes builds slow.** It is JIT-compiled and run on every build. Measured
+  from 0.4; caching is in 1.0's "Speed of the compiler" row.
+- **Python speed.** 1.0 ships the Python compiler (self-hosting is after 1.0), so its
+  speed must meet the 1.0 budget.
+- **Moving targets.** Zig, C3 and Carbon all aim at 1.0 in 2027–2028; Tenon's
+  difference (types as code, a platform for other languages) must stay visible in the
+  docs from 0.3.
 
 ## Order and dependencies
 

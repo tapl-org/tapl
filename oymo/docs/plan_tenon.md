@@ -134,7 +134,22 @@ syntax is not used.
 **0.3 What layer 1 means.** Proposal: as in TAPL. A type is a value in layer 1; each
 function's layer-1 version checks its arguments' types; an error stops the build.
 
-**0.4 Memory model.** Manual (`malloc` / `free`, as C and Zig) to start. No GC.
+**0.4 Memory model.** **Allocators, chosen by the user** (decided). Memory is never
+allocated behind the user's back: code that allocates takes an allocator, explicitly,
+as in Zig (Odin passes it in an implicit context; the survey compares both). Most
+allocators are manual (`malloc` / `free`, arena, pool); a garbage-collecting
+allocator, such as one over the Boehm collector, is one more choice. There is no
+built-in GC and no runtime every program carries. Phase 1 starts with plain
+`malloc` / `free` through `extern`; the allocator interface comes with the standard
+library.
+
+**0.5 Undefined behaviour.** What integer overflow, an out-of-bounds index, a null
+dereference and a use after free do. Proposal, as Zig and C3: two build modes. A
+**checked** build traps with a message and the source location on overflow,
+out-of-bounds and null; an **optimized** build leaves them undefined, as C and LLVM
+do, so the code is as fast as C. Use after free is not checked in either. The survey
+(0.2) compares how the five languages do it; decided before Phase 1, implemented by
+1.0 ([roadmap.md](roadmap.md#10--production), "Safety checks").
 
 ### Phase 1 — Tenon frontend, layer 0 only
 
