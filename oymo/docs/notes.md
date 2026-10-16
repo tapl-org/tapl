@@ -832,6 +832,13 @@ however many fields there are.
 
 - Every built-in but `$seq` is **reduction-only**: reduction must remove it. A stuck
   `$seq` is dropped by `convert`.
+- `$seq` says which effects a value needs; it doesn't order or keep them. `translate`
+  keeps every let whose value is an op, once, in source order, chained or not
+  (tests in [banf_translate_test.py](../tests/oymomo/banf_translate_test.py),
+  `test_an_unused_effect_is_kept` and after):
+  - **An unused effect is kept**: a store nothing waits for is still in the block.
+  - **An effect used twice runs once**: two uses of one load read one `load`.
+  - **Order is let order**: `$seq {b, a}` doesn't move `a` before `b`.
 - `reduction.reduce` fires a built-in only once its argument has the constructor it
   needs; it never reduces a part. `banf_shape.unblock` reduces the parts each built-in
   reads. See [Blockers](#blockers).

@@ -1,6 +1,6 @@
 # Plan: memory as in LLVM: the `'ptr'` form, alloca, getelementptr, load and store
 
-Status: **in progress**; 3 of 7 steps.
+Status: **in progress**; 4 of 7 steps.
 
 ## Steps
 
@@ -9,7 +9,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [x] 1. `$seq {d1, ..., x}`: gives `x` once every `dᵢ` is a literal, so an effect it waits for stays (`oymomo: add $seq`)
 - [x] 2. The `'ptr'` form, `'alloca'` and `'getelementptr'` (`oymomo: add the ptr form`)
 - [x] 3. `'load'` and `'store'` (`oymomo: add load and store`)
-- [ ] 4. Tests: what `translate` does to effects without `$seq` (`oymomo: test unordered effects`)
+- [x] 4. Tests: what `translate` does to effects without `$seq` (`oymomo: test unordered effects`)
 - [ ] 5. Arrays, vectors and packed structs as tagged structs (`{'array', count, element}`) (`oymomo: add aggregate forms`)
 - [ ] 6. Globals: data is a read-only `constant`; `'global'` makes a writable cell (`oymomo: add globals`)
 - [ ] 7. A plan for advanced memory: `noalias`, more ops, alignment and byte order, docs only (`docs: plan advanced memory`)

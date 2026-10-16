@@ -1108,3 +1108,70 @@ def test_load_after_store():
 )
 def test_load_and_store_errors(body, message):
     assert error(f"g = f -> {{entry = args~{{n = 'i32'}} -> {body}}}", "g = => 'i32'") == message
+
+
+# Effects that `$seq` doesn't chain (plan_memory.md step 4). `banf_shape` keeps every let
+# whose value is an op, once, in source order (decision 4); these pin that down. What
+# full β does to the same programs is plan_confluence.md decision 9.
+
+
+def test_an_unused_effect_is_kept():
+    body = "let p = 'alloca' {'i32'} in let s = 'store' {args.n, p} in let v = 'load' {'i32', p} in v"
+    assert banf(f"g = f -> {{entry = args~{{n = 'i32'}} -> {body}}}", "g = => 'i32'") == text("""
+        g: i32
+          entry(n: i32):
+            p = alloca 'i32'
+            s = store n, p
+            v = load 'i32', p
+            return v
+    """)
+
+
+TWICE = """
+bump = f -> {
+  entry = args~{n = 'i32'} ->
+    let p = 'alloca' {'i32'} in
+    let s0 = 'store' {[01000000]~'i32', p} in
+    let v = 'load' {'i32', $seq {s0, p}} in
+    let s = 'store' {args.n, p} in
+    let w = 'add' {'i32', $seq {s, v}, v} in
+    w,
+}
+"""
+
+
+def test_an_effect_used_twice_runs_once():
+    # The load is written before the store: it stays there, once, and both uses read it.
+    assert banf(TWICE, "bump = => 'i32'") == text("""
+        bump: i32
+          entry(n: i32):
+            p = alloca 'i32'
+            s0 = store [01000000]:i32, p
+            v = load 'i32', p
+            s = store n, p
+            w = add 'i32', v, v
+            return w
+    """)
+
+
+@pytest.mark.parametrize('result', ['$seq {a, b}', '$seq {b, a}'])
+def test_order_is_let_order(result):
+    # `$seq` keeps an effect; it doesn't move it.
+    source = f"""
+    hi = f -> {{
+      entry = args~{{}} ->
+        let a = module.putchar {{c = [68000000]~'i32'}} in
+        let b = module.putchar {{c = [69000000]~'i32'}} in
+        {result},
+    }}
+    """
+    returned = result[-2]
+    assert banf(source, "putchar = {c = 'i32'} => 'i32', hi = => 'i32'") == text(f"""
+        putchar(c: i32): i32
+
+        hi: i32
+          entry():
+            a = call putchar([68000000]:i32)
+            b = call putchar([69000000]:i32)
+            return {returned}
+    """)

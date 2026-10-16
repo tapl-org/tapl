@@ -713,3 +713,27 @@ def test_load_and_store_check_their_field_count(name, count):
     with pytest.raises(LlvmTranslationError) as info:
         DEFAULT_OPCODES[name](None, fields, None)
     assert info.value.message == f'{name!r} takes 2 fields, got {count}.'
+
+
+def test_an_effect_used_twice_runs_once():
+    # plan_memory.md step 4: the load before the store reads the 1 stored first, once.
+    source = """
+    bump = f -> {
+      entry = args~{n = 'i32'} ->
+        let p = 'alloca' {'i32'} in
+        let s0 = 'store' {[01000000]~'i32', p} in
+        let v = 'load' {'i32', $seq {s0, p}} in
+        let s = 'store' {args.n, p} in
+        let w = 'add' {'i32', $seq {s, v}, v} in
+        w,
+    }
+    """
+    llvm_text = ir_text(source, "bump = => 'i32'")
+    assert llvm_text.count('load i32') == 1
+    llvm.initialize_native_target()
+    llvm.initialize_native_asmprinter()
+    machine = llvm.Target.from_default_triple().create_target_machine()
+    engine = llvm.create_mcjit_compiler(llvm.parse_assembly(HEADER + llvm_text), machine)
+    engine.finalize_object()
+    bump = ctypes.CFUNCTYPE(ctypes.c_uint32, ctypes.c_uint32)(engine.get_function_address('bump'))
+    assert bump(41) == 2
