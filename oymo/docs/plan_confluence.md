@@ -2,6 +2,10 @@
 
 Status: **proposed**, with open questions; 0 of 4 steps.
 
+> [!IMPORTANT]
+> Roadmap: this plan closes in oymo 0.2 at the latest. **Tenon (0.3) does not start
+> before it is closed** ([roadmap.md](roadmap.md#02--native-binaries-that-call-c)).
+
 ## Steps
 
 One commit each. Each step leaves `hatch run full-check` green.

@@ -162,6 +162,7 @@ its own package, `oymo run --jit one.oymo` on `language calc` / `1 + 2 * 3` prin
 | [plan_memory_advanced.md](plan_memory_advanced.md) 1 | pointer comparison and `'null' {}`, needed to check `malloc` |
 | [plan_c_interop.md](plan_c_interop.md) 3.1 | `zeroext` / `signext` on small ints, enough for most of libc |
 | new | build API: `executable`, `object_file` |
+| [plan_confluence.md](plan_confluence.md) 1–4 | **confluence resolved**: reduction order doesn't change the result, checked by a full-β reference reducer. Closed in 0.2 at the latest, because Tenon (0.3) must not start on a reduction whose meaning can still change: both its layers lower to oymomo, and a language author's code relies on the same |
 
 **Milestones (oymomo calls C):** an oymomo program calls `puts`, `malloc`, `free` and
 `strlen`, built with `oymo build` and run, on Linux x86-64; `calc` builds a binary
@@ -172,6 +173,9 @@ that prints its result with `printf`.
 **Who uses it:** anyone who wants to write native code in a small language instead of
 an IR, and language authors who want a higher target than oymomo. This is the first
 release for people who are not compiler writers.
+
+**Starts only when [plan_confluence.md](plan_confluence.md) is closed** (0.2). No Tenon
+work, Phase 0 decisions included, begins before.
 
 | From | Work |
 |---|---|
@@ -280,7 +284,7 @@ release is about trust. Each item is a plan of its own, written when 0.7 lands.
 |---|---|
 | Stability | oymomo syntax and semantics frozen and versioned; Tenon language spec; public API frozen, semantic versioning, deprecation policy; **language versions** in the header (`language tenon 2`), so a language can change after 1.0 without breaking old files, as Rust's editions do |
 | BANF removed | once the oymomo shape is frozen, oymomo translates to LLVM IR directly and BANF goes ([todo.md](todo.md)); BANF's checks move into that translation |
-| Correctness | [plan_confluence.md](plan_confluence.md); fuzzing of parser, reduction and translation; differential tests against clang at `-O0` and `-O2` |
+| Correctness | the confluence test of 0.2 kept green and extended to every new rule; fuzzing of parser, reduction and translation; differential tests against clang at `-O0` and `-O2` |
 | Safety checks | the undefined-behaviour policy decided in 0.3, implemented: checked builds trap on overflow, out-of-bounds and null, with the source location |
 | Debugging | [plan_metadata.md](plan_metadata.md) 4–5: DWARF, so `gdb` / `lldb` step through the source, Tenon's or a language author's |
 | Optimization | `-O0..-O3` through LLVM's pass pipeline; `noalias` ([plan_memory_advanced.md](plan_memory_advanced.md) 5) |
@@ -416,6 +420,7 @@ Not planned, before or after 1.0, so no release waits for them:
 flowchart TD
   v01["0.1: IR, CLI and API"] --> v02["0.2: binaries"]
   v02 --> v03["0.3: Tenon layer 0"]
+  conf["plan_confluence closed"] --> v03
   v03 --> v04["0.4: Tenon types"]
   v02 --> v05["0.5: C calls oymomo and Tenon"]
   v04 --> v05

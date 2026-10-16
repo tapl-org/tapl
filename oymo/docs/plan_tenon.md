@@ -67,6 +67,10 @@ it finishes without error, layer 0 type-checks. This mirrors TAPL's `a1.py`.
 
 ### Phase 0 — decisions
 
+**Tenon starts only after [plan_confluence.md](plan_confluence.md) is closed**
+(roadmap 0.2): both layers lower to oymomo, so reduction must give one result whatever
+the order before anything is built on it.
+
 Each decision is written down in this file (or a plan of its own) before Phase 1 starts.
 
 **0.1 Name and file extension.** Name: **Tenon** (decided). A tenon is the tongue of a
@@ -247,6 +251,7 @@ Each a plan of its own, in [roadmap.md](roadmap.md) 1.0 unless said otherwise:
 
 ```mermaid
 flowchart TD
+  CONF["plan_confluence closed"] --> P0
   P0["0 Decisions"] --> P1["1 Frontend, layer 0"]
   P1 --> P2["2 Layer 1, interfaces"]
   P2 --> P3["3 C calls Tenon"]
