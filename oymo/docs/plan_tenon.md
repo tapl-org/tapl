@@ -28,9 +28,9 @@ authors 0.18, header import (Phase 4) 0.25, and the rest of Phase 5 spread over
 
 ## Steps
 
-- [ ] 0. Decisions: name, syntax, layer semantics, memory model, undefined behaviour ([Phase 0](#phase-0--decisions)) — oymo 0.3
+- [ ] 0. Decisions: name, syntax, layer semantics, memory model, undefined behaviour, dependent and substructural types ([Phase 0](#phase-0--decisions)) — oymo 0.3
 - [ ] 1. Tenon frontend, layer 0 only ([Phase 1](#phase-1--tenon-frontend-layer-0-only)) — oymo 0.3, 0.5, 0.7
-- [ ] 2. Layer 1: the type checker as code, module interfaces ([Phase 2](#phase-2--layer-1-the-type-checker-as-code)) — oymo 0.8, 0.9 (across languages 0.18)
+- [ ] 2. Layer 1: the type checker as code, dependent and substructural types, module interfaces ([Phase 2](#phase-2--layer-1-the-type-checker-as-code)) — oymo 0.8, 0.9 (across languages 0.18)
 - [ ] 3. C calls Tenon: `export`, function values, generated headers ([Phase 3](#phase-3--c-calls-tenon)) — oymo 0.10, 0.15
 - [ ] 4. C headers in both layers ([Phase 4](#phase-4--c-headers-in-both-layers)) — oymo 0.25
 - [ ] 5. Later: closures, separate compilation, debug info, safety checks, standard library ([Phase 5](#phase-5--later)) — oymo 0.11 (bootstrap standard library), 0.26–0.35 and after 1.0
@@ -41,10 +41,13 @@ Tenon is a language whose programs:
 
 1. are written in one source file with **two layers**, as TAPL does for Python:
    layer 0 is what runs, layer 1 is the type checker, and it is real code;
-2. lower **each layer to its own oymomo program**, then to LLVM IR and machine code
+2. are **memory safe where they say so**, checked at build time by layer 1 with
+   dependent and substructural types (decision 0.6), at no run-time cost and with no
+   garbage collector; raw pointers and C stay unchecked, as in C;
+3. lower **each layer to its own oymomo program**, then to LLVM IR and machine code
    (directly, with no BANF, from oymo 0.4; the Tenon-written compiler, from oymo 0.12,
    writes the same LLVM IR as text and runs `clang`);
-3. can be **built by other languages**: a language author's frontend builds a Tenon
+4. can be **built by other languages**: a language author's frontend builds a Tenon
    syntax tree through the public Tenon API, with its own source locations, and gets
    Tenon's type checker, C headers and C ABI ([roadmap.md › One package, three ways in](roadmap.md#one-package-three-ways-in)).
 
@@ -132,7 +135,7 @@ cites it.
    | Compile-time code | Zig `comptime`, Jai `#run`, C3 macros; how close each is to Tenon's layer 1 |
    | Generics | Zig types as values, Odin `$T`, C3 generic modules; which map onto layer-1 functions (`Matrix(^2, ^3)`) |
    | Modules and C | imports, visibility, `extern` / `export`, C header import (Zig `@cImport`) |
-   | Memory | allocators as parameters (Zig, Odin's context), `defer free`, no hidden allocation |
+   | Memory | allocators as parameters (Zig, Odin's context), `defer free`, no hidden allocation; syntax for owned pointers, borrows and unchecked code (decision 0.6) |
    | Lexical details | semicolons, comments, string and number literals, keyword count |
 
 2. **Decide**, here as `0.2.n` entries: for each topic, what Tenon takes, from whom,
@@ -171,9 +174,81 @@ library.
 dereference and a use after free do. Proposal, as Zig and C3: two build modes. A
 **checked** build traps with a message and the source location on overflow,
 out-of-bounds and null; an **optimized** build leaves them undefined, as C and LLVM
-do, so the code is as fast as C. Use after free is not checked in either. The survey
-(0.2) compares how the five languages do it; decided before Phase 1, implemented in
-oymo 0.28 ([roadmap.md](roadmap.md#028--safety-checks-and-sanitizers)).
+do, so the code is as fast as C. Use after free and double free are not checked at
+run time in either: for owned pointers they are layer-1 errors (0.6); for raw
+pointers they stay undefined. Out-of-bounds is a run-time check only where layer 1
+could not prove the index in bounds (0.6). The survey (0.2) compares how the five
+languages do it; decided before Phase 1, implemented in oymo 0.28
+([roadmap.md](roadmap.md#028--safety-checks-and-sanitizers)).
+
+**0.6 Dependent and substructural types in layer 1.** Both (decided); the details
+below are a proposal. The aim is **memory safety at build time**: no use after free,
+no double free, no leak, no out-of-bounds access, with no run-time cost and no GC.
+It is done in layer 1, as code, not by a fixed checker built into the compiler, so a
+library (or a language author) defines new safe types the same way. Layer 0 does not
+change: every type below is erased, and `Own(T, A)` lowers to the same pointer form
+as `Ptr(T)`.
+
+Prior art, to survey beside the C successors (0.2): **ATS** (dependent and linear
+types over C, for exactly this), **Idris 2** (quantitative type theory: dependent and
+linear in one system), **Austral** (linear types and borrows, kept small on purpose),
+**Rust** (affine types, borrow checker), **Hylo** and **Vale** (second-class
+references, regions), **Liquid Haskell** (refinement types for bounds).
+
+- **0.6.1 Dependent types.** A type may depend on a value. A type is already a
+  layer-1 value, so a type-level function is a plain function. Two kinds of value:
+  1. **Known at build time**, lifted with `^`, as in TAPL: `Array(u8, ^16)`,
+     `Matrix(^2, ^3)`. This comes with layer 1 at no extra cost.
+  2. **Known only at run time**: a slice's length, an index. Layer 1 can't compute
+     them, so it names them: a layer-1 value stands for a layer-0 variable, and types
+     refer to it, as in `buf: Ptr(Array(u8, n))` and `i: Index(n)` (an integer in
+     `0 .. n`). Layer 1 learns facts from layer-0 tests: inside `if (i < n) { ... }`,
+     `i` has type `Index(n)`. `buf[i]` type-checks only when `i: Index(n)`; otherwise
+     it is a layer-1 error, or the user writes a checked access, which traps.
+
+  First version: facts are equalities and `<` / `<=` between variables and
+  constants, recorded by layer 1 as it walks the function; no SMT solver, so checking
+  stays fast and its errors stay readable.
+- **0.6.2 Substructural types.** A type says how many times a value may be used:
+
+  | Kind | Uses | Tenon examples |
+  |---|---|---|
+  | linear | exactly once | `Own(T, A)`: memory from allocator `A`, freed or passed on exactly once; a file handle; an allocator itself |
+  | affine | at most once | a value that may be dropped but not copied, if a use for one appears (open question 5) |
+  | unrestricted | any number | integers, `Ref(T)`, raw `Ptr(T)` |
+
+  So use after free (a use of a consumed value), double free (two consumptions) and a
+  leak (a value still live at the end of its scope) are layer-1 errors. A struct or
+  tagged union with a linear field is linear.
+- **0.6.3 Borrows.** A linear value is lent without being consumed: `&p` gives a
+  `Ref(T)`, usable many times, while `p` can't be freed or moved. First version, as
+  in Hylo and Austral: **second-class borrows**, passed to a call and never stored or
+  returned, so there are no lifetime annotations and no lifetime inference. Stored
+  references (regions or lifetimes as layer-1 values) are a later plan, if the
+  compiler's own source needs them.
+- **0.6.4 How layer 1 checks it.** Layer 1 runs each function body once, statement
+  by statement, with an environment from names to types. For a linear name it also
+  keeps a state: live, consumed or borrowed. A use of a consumed name is an error; a
+  live linear name at a `return` or at the end of its block is an error. After an
+  `if`, both branches must leave the same names consumed; a loop body must leave the
+  state as it found it. The facts of 0.6.1 live in the same environment and are
+  dropped when a test's branch ends.
+- **0.6.5 Allocators.** They fit decision 0.4: `alloc(a, T)` returns `Own(T, A)` and
+  `free(a, p)` consumes `p`. An arena hands out `Ref(T)` tied to the arena, and
+  freeing the arena consumes it, allowed only with no borrow alive. A
+  garbage-collecting allocator hands out unrestricted references.
+- **0.6.6 The escape hatch, and C.** Raw `Ptr(T)` is unrestricted and unchecked, as
+  in C, and converting between `Ptr(T)` and `Own(T, A)` is explicit (its syntax, such
+  as an `unsafe` marker, comes from the survey). C declarations, written by hand or
+  imported (Phase 4), give raw types; an annotation says that a C function returns
+  an owned value (`malloc`, `fopen`) or consumes one (`free`, `fclose`), and the
+  standard library's wrappers do so.
+- **0.6.7 What stays unchecked**: raw pointers, C code, data races (until threads,
+  roadmap 0.33–0.35), and integer overflow, which the checked build traps (0.5).
+
+Why in layer 1 and not in a separate pass: the rule for every Tenon type, a type is
+code. A library writes `Own`, `Index` and its own linear handles in layer 1, and a
+language author lowering to Tenon gets them through the Tenon API with no extra work.
 
 ### Phase 1 — Tenon frontend, layer 0 only
 
@@ -195,15 +270,22 @@ oymo 0.28 ([roadmap.md](roadmap.md#028--safety-checks-and-sanitizers)).
 - A small layer-1 runtime: type values (`Int32`, `Ptr(T)`, struct types), equality,
   errors with source locations.
 - `^expr` (lift) and `<expr:Type>` (a two-layer expression), as in TAPL.
+- **Dependent types** (decision 0.6.1): lifted constants first, then run-time values
+  named in types (`Array(u8, n)`, `Index(n)`), with facts learnt from tests.
+- **Substructural types** (decisions 0.6.2–0.6.6): `Own(T, A)`, second-class borrows
+  `Ref(T)`, the live / consumed / borrowed state of each name, and owned allocation
+  and `free` on the libc allocator. A plan of its own, `plan_tenon_safety.md`.
 - **Module interfaces**, here because types appear in layer 1: what a module exports,
   each name as a pair `<form:type>` (the form for layer 0, the type for layer 1), the
   same shape as `c_import`'s `CDecl(form, ctype)`. Files import each other through
   them, and so do languages on oymo: a frontend that lowers to Tenon writes both
   halves; one that lowers to oymomo writes forms only, and its names are unchecked in
   layer 1. The generated C header (roadmap 0.15) is made from the same interface.
-- **Milestone:** a type error in layer 0 stops the build with a message; a call from
-  one file into another, or into a `language calc` file, is type-checked across the
-  file boundary.
+- **Milestone:** a type error in layer 0 stops the build with a message; the linked
+  list of Phase 1, rewritten with `Own`, type-checks, and a use after free, a double
+  free or a leak in it stops the build; `buf[i]` with no bounds test before it stops
+  the build; a call from one file into another, or into a `language calc` file, is
+  type-checked across the file boundary, ownership included.
 
 ### Phase 3 — C calls Tenon
 
@@ -229,8 +311,8 @@ flags. Each `CDecl(form, ctype)` is a two-layer value, `<form:ctype>`, so the
   a constant.
 - **Layer 1** gets the ctype, mapped to a Tenon type value: `int` → `c_int`,
   `const char *` → `Ptr(Const(c_char))`, a struct → a struct type, a typedef → its name
-  for messages and its target for equality. The mapping is the only C-specific code in
-  Tenon.
+  for messages and its target for equality. Pointers map to raw `Ptr(T)`, never to
+  `Own` (decision 0.6.6). The mapping is the only C-specific code in Tenon.
 
 Rules:
 
@@ -281,3 +363,12 @@ flowchart TD
    ([roadmap.md › Decided](roadmap.md#decided)).
 3. How strict is the C mapping: is `int` to `long` an implicit conversion as in C, or
    an error? Is `char *` to `const char *` accepted?
+4. How strong are dependent-type proofs (0.6.1)? The first version records simple
+   facts with no solver; is an SMT solver (Z3, as Liquid Haskell and F* use) ever
+   worth its cost in build time and as a dependency?
+5. Are affine types needed beside linear ones, or is "linear, plus an explicit
+   `drop`" enough? Austral has linear types only; Rust has affine types only.
+6. Do second-class borrows (0.6.3) suffice for the compiler's own source (Stage B),
+   or are stored references with regions needed before 0.12?
+7. How does a closure (Phase 5) capture a linear value, and may a function value be
+   linear (called exactly once)?

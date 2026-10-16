@@ -367,17 +367,23 @@ recursive `eval` over it.
 
 ## 0.8 — Tenon layer 1, types
 
-**Who uses it:** Tenon users, now with type errors at build time. A compiler of the
-size of oymo is not written without them.
+**Who uses it:** Tenon users, now with type errors and memory-safety errors at build
+time. A compiler of the size of oymo is not written without them.
 
 | From | Work |
 |---|---|
 | [plan_tenon.md](plan_tenon.md) Phase 2 | layer 1 lowered to a second oymomo program, JIT-run at compile time (0.1's `--jit`) |
+| [plan_tenon.md](plan_tenon.md) 0.6 | **dependent types** (`Array(u8, n)`, `Index(n)`, bounds facts from tests) and **substructural types** (`Own(T, A)`, second-class borrows): use after free, double free, leaks and unproven indexing are layer-1 errors |
 | [plan_metadata.md](plan_metadata.md) 1–3 | source locations kept through reduction, so a layer-1 error points at the source |
 
-**Milestone:** `puts(42)` with a hand-written `extern` stops the build with
+Why in Stage A: the compiler (0.12, 0.13) is the largest Tenon program, and adding
+ownership to tens of thousands of lines afterwards is far harder than writing them
+with it.
+
+**Milestones:** `puts(42)` with a hand-written `extern` stops the build with
 `app.oymo:3:6: expected Ptr(c_char), got Int32`; the expression evaluator of 0.7
-type-checks.
+type-checks, with its tree nodes as `Own` values; a use after `free` in the linked
+list of 0.5 stops the build.
 
 ## 0.9 — module interfaces and imports between files
 
@@ -628,7 +634,7 @@ prints locals, in a program mixed with C.
 
 | From | Work |
 |---|---|
-| [plan_tenon.md](plan_tenon.md) 0.6 | the checked build mode: traps on overflow, out-of-bounds and null, with the source location |
+| [plan_tenon.md](plan_tenon.md) 0.5 | the checked build mode: traps on overflow, out-of-bounds and null, with the source location; out-of-bounds checks only where layer 1 (0.8) proved nothing |
 | new | **sanitizers**: `-fsanitize=address,undefined` on a mixed C and Tenon program, as a production C toolchain is expected to (TSan comes with threads, 0.35) |
 
 **Milestone:** an out-of-bounds write in Tenon is caught by the checked build and, in
@@ -820,6 +826,10 @@ Not planned, before or after 1.0, so no release waits for them:
 - **Layer 1 makes builds slow.** It is compiled and run on every build (in the JIT
   until 0.13, as a subprocess after). Measured from 0.8; caching is in 1.0's "Speed of
   the compiler" row.
+- **Safety types slow down the bootstrap.** Ownership and bounds checking (0.8) can
+  make the compiler's own code harder to write, as Rust's borrow checker does. Kept
+  small on purpose (second-class borrows, no solver), with raw `Ptr(T)` as the escape
+  hatch; if Stage B stalls, the hard parts use raw pointers and are made safe later.
 - **`clang` is required** from 0.14 (gcc can't read LLVM IR), until the standalone
   binary (0.36) bundles it.
 - **Text IR is slower** than building IR in memory: the compiler prints it and `clang`
@@ -924,6 +934,10 @@ After 1.0, the 1.x targets, translate-c and Spindle in Tenon are independent tra
   `oymo.languages` entry point group, so mixed builds are one `oymo build` command.
 - **Lowering to Tenon is by tree**, not text: a frontend builds a Tenon syntax tree
   with its own source locations, so errors point at the author's source.
+- **Memory safety in layer 1**: Tenon's layer 1 has dependent and substructural
+  types, so use after free, double free, leaks and out-of-bounds access are build-time
+  errors, with no run-time cost and no GC; raw pointers and C stay unchecked
+  ([plan_tenon.md](plan_tenon.md) 0.6). They ship with layer 1 in 0.8.
 
 ## Open questions
 
