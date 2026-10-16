@@ -1,14 +1,12 @@
 # oymomo reduction rules
 
-TAPL-style rules for oymomo evaluation:
+TAPL-style rules for oymomo evaluation. Prose version: [notes.md › Blockers](notes.md#blockers).
 
-- `t → t'` (one step) is [`banf_shape.step`](../src/oymo/oymomo/banf_shape.py): the
-  computation rules come from [`reduction.reduce`](../src/oymo/oymomo/reduction.py), and the
-  congruence rules from `banf_shape.unblock`.
-- `t ⇓ w` is `reduce_until_top_stable`: apply `→` until no rule applies.
-- `shape` goes under binders, but only along BANF's skeleton.
-
-For the prose version, see [notes.md › Blockers](notes.md#blockers).
+| Notation | Meaning | Code |
+|---|---|---|
+| `t → t'` | one step | [`banf_shape.step`](../src/oymo/oymomo/banf_shape.py): computation rules from [`reduction.reduce`](../src/oymo/oymomo/reduction.py), congruence rules from `banf_shape.unblock` |
+| `t ⇓ w` | apply `→` until no rule applies | `reduce_until_top_stable` |
+| `shape` | goes under binders, only along BANF's skeleton | `banf_shape.shape` |
 
 ## Syntax
 
@@ -29,14 +27,16 @@ if c then t else e   ≡   {e, t} c
 
 ## Evaluation strategy
 
-Evaluation is **weak** (it never goes under a `λ` or into a struct field) and
-**lazy** (it never reduces an ordinary argument). `⇓` stops at:
+- **Weak:** never goes under a `λ` or into a struct field.
+- **Lazy:** never reduces an ordinary argument.
+
+`⇓` stops at:
 
 ```
 w ::= λx~F. t | {l1 = t1, ...} | [b] | x | $name | F -> G | stuck terms
 ```
 
-Here are some stuck terms: `args.n`, `f.done {...}`, `'add' {'i32', args.n, ...}`,
+Stuck terms, for example: `args.n`, `f.done {...}`, `'add' {'i32', args.n, ...}`,
 `{e, t} c` when `c` is not a byte array, `s.l` when `s` has no field `l`, `{} [b]`,
 `$unknown t`.
 
@@ -54,8 +54,8 @@ Here are some stuck terms: `args.n`, `f.done {...}`, `'add' {'i32', args.n, ...}
                          le(b) = b read as an unsigned little-endian integer   (E-Select)
 ```
 
-E-Select means that the last field works as a default. So `if [02] then a else b`
-and `if [0100] then a else b` both give `a`.
+E-Select: the last field is the default. `if [02] then a else b` and
+`if [0100] then a else b` both give `a`.
 
 ### Built-ins
 
@@ -89,7 +89,7 @@ $seq {d1, ..., dn, t}  →  t                                    (E-Seq)
 
 ## Congruence (reduce the blocker)
 
-These rules apply only when no computation rule applies at the root.
+Apply only when no computation rule applies at the root.
 
 ```
          t2 → t2'
@@ -113,8 +113,8 @@ These rules apply only when no computation rule applies at the root.
      $name t  →  $name t[p ↦ p']
 ```
 
-In E-Builtin, the built-in's rule reduces its own parts in order, and it may fire right
-after that step. Each built-in reads these parts:
+E-Builtin reduces the built-in's parts in order; the rule may fire right after
+that step. Parts each built-in reads:
 
 | Built-in | Parts it reads |
 |---|---|
@@ -124,15 +124,16 @@ after that step. Each built-in reads these parts:
 | `$seq` | the argument, then each field in order, the last one too |
 | opcode | the argument, then each field in order, if there is one field per param |
 
-There are no congruence rules for the body of a `λ`, a form, a struct field, or an
-ordinary argument.
+No congruence rules for: the body of a `λ`, a form, a struct field, an ordinary argument.
 
 ## Under binders: `shape`
 
 [`banf_shape.shape`](../src/oymo/oymomo/banf_shape.py) is the only code that goes under a `λ`
-or into a struct field. It does so only at the positions of BANF's skeleton. Each
-position first applies `⇓`. If the result doesn't have the expected shape, `shape`
-leaves it as it is, and `convert` reports the error.
+or into a struct field, and only at the positions of BANF's skeleton.
+
+- Each position first applies `⇓`.
+- If the result doesn't have the expected shape, `shape` leaves it as is and
+  `convert` reports the error.
 
 ```
 program(t):     t ⇓ λm. b       ⟹  λm. module(b)
@@ -158,20 +159,20 @@ jump(t):         t ⇓ f.l a  ⟹  f.l arg(a);  else t ⇓
 atom(t)          = t ⇓
 ```
 
-An **op** is one of these:
+An **op** is one of:
 
 - an application `t a` where `t` is not a struct (`{...} c` is a branch or a switch);
 - a struct;
 - a projection other than `args.l`.
 
-In a terminal `{f0, ..., f(n-1)} c`, `c` didn't reduce to a byte array, so it's a run-time
-selector. Labels are ignored, and the terminal picks a field the same way E-Select does,
-so a `c` past the last field takes `f(n-1)`:
+Terminal `{f0, ..., f(n-1)} c`:
 
-- with 2 fields (`if c then t else e`), it becomes a BANF `Branch`;
-- with 3 or more fields, it becomes a `Switch` whose default is the last field.
-
-`convert` rejects `{} c`, `{f} c`, and a field that isn't a jump.
+- `c` didn't reduce to a byte array, so it's a run-time selector.
+- Labels are ignored; the field is picked as in E-Select, so a `c` past the last
+  field takes `f(n-1)`.
+- 2 fields (`if c then t else e`): a BANF `Branch`.
+- 3+ fields: a `Switch` whose default is the last field.
+- `convert` rejects `{} c`, `{f} c`, and a field that isn't a jump.
 
 `shape` leaves every other position unreduced: a let-bound `λ`, a lambda passed as an
 argument, a struct field outside the skeleton, and any form.

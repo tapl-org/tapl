@@ -1,12 +1,18 @@
-- [ ] Review redution_rules.md doc.
-- [ ] Create a form alias. like Point = {x='i32', y='i32'}.
-- [x] maybe "f" is a good choice instead of "blocks".
+# TODO
 
+## Now
 
-Someday/Maybe
-- [ ] add /* */ block comment syntax.
-  - [ ] Show stucks error message in the block comment.
-- [ ] export oymo into its own github repository. Planned: the Tenon-written oymo, after 0.15 ([roadmap.md › Repository layout](roadmap.md#repository-layout)).
-- [ ] $fields_to_struct argument must be A = {more=[01], label=utf8, value=term, rest=A} | {more=[00]} . no more any labels allowed.
-- [ ] Return back to multi-layers instead of two(term,type) layers. Maybe someone find out real life use cases.
-- [ ] Eventually BANF will be disappears, and Oymomo directly translates to LLVM IR.
+- [ ] Review reduction_rules.md.
+- [ ] Form alias, e.g. `Point = {x='i32', y='i32'}`.
+- [x] Use `f` instead of `blocks`.
+
+## Someday / maybe
+
+- [ ] `/* */` block comment syntax.
+  - [ ] Show stuck-term error messages in the block comment.
+- [ ] Move oymo to its own GitHub repo. Planned: the Tenon-written oymo, after 0.15
+  ([roadmap.md › Repository layout](roadmap.md#repository-layout)).
+- [ ] `$fields_to_struct` argument must be
+  `A = {more=[01], label=utf8, value=term, rest=A} | {more=[00]}`; no other labels allowed.
+- [ ] Go back to multiple layers instead of two (term, type), if someone finds real use cases.
+- [ ] BANF goes away; oymomo translates directly to LLVM IR.
