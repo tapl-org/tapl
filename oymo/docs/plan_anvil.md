@@ -61,15 +61,31 @@ Each decision is written down in this file (or a plan of its own) before Phase 1
 (decided), as for every language on oymo; the file's first line is `language anvil`
 ([roadmap.md](roadmap.md#one-file-extension-a-language-header)).
 
-**0.2 Syntax.** The main choice:
-- A: C/Zig-like braces. Familiar to C users.
-- B: TAPL `pythonlike` indentation. Reuses the chunker and the layer syntax (`^expr`,
-  `<expr:Type>`).
+**0.2 Syntax.** C, with small modern changes (decided): braces, statements and
+operators as in C, so a C programmer reads it at once; each change from C is a
+decision of its own, listed here with its reason.
 
-To settle with sample programs written both ways: hello world, a struct with a function
-on it, a function passed as an argument, a type-level function (`Matrix(^2, ^3)`), and
-a C header import. Then a grammar sketch and precedence table in the style of
-[notes.md › oymomo syntax](notes.md#oymomo-syntax).
+- **0.2.1 `name: Type` declarations** (decided, the first change). The name comes
+  first and the type after a colon, as in Rust, Zig, Go (without the colon), Swift,
+  TypeScript and Python's annotations:
+
+  ```
+  count: i32 = 0;
+  fn add(a: i32, b: i32) -> i32 { return a + b; }
+  ```
+
+  Why: a declaration reads left to right (`p: Ptr(Ptr(c_char))`, not C's spiral
+  `char **p`), a declaration starts with its name so it is easy to find, and the
+  grammar has no C ambiguity between a declaration and an expression (`a * b;`).
+  It is also TAPL's syntax for a two-layer value, `<expr:Type>`, so the type after
+  the colon is a layer-1 expression, computed like any other (`m: Matrix(^2, ^3)`).
+  The keyword for functions (`fn` above) and the exact forms are open.
+
+Still to settle with sample programs: hello world, a struct with a function on it, a
+function passed as an argument, a type-level function (`Matrix(^2, ^3)`), and a C
+header import. Then a grammar sketch and precedence table in the style of
+[notes.md › oymomo syntax](notes.md#oymomo-syntax). TAPL's `pythonlike` indentation
+syntax is not used.
 
 **0.3 What layer 1 means.** Proposal: as in TAPL. A type is a value in layer 1; each
 function's layer-1 version checks its arguments' types; an error stops the build.
