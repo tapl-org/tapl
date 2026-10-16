@@ -1260,3 +1260,108 @@ def test_a_packed_struct_field_is_read_by_label():
             b = v.b
             return b
     """)
+
+
+# Globals (plan_memory.md decisions 14 to 18): data is a read-only value, and a `'ptr'`
+# declaration is a cell, defined by `'global'`, whose `module.x` is its address.
+
+GLOBALS_DECLS = "answer = 'i32', tbl = 'i32', counter = 'ptr', errno = 'ptr', main = => 'i32'"
+GLOBALS = """
+answer = [2a000000],
+counter = 'global' {'i32', [29000000]~'i32'},
+main = f -> {
+  entry = args~{} ->
+    let a = module.answer in
+    let t = module.tbl in
+    let c = 'load' {'i32', module.counter} in
+    let d = 'add' {'i32', c, a} in
+    let s = 'store' {d, module.counter} in
+    let e = 'load' {'i32', $seq {s, module.errno}} in
+    let r = 'add' {'i32', e, t} in
+    r,
+},
+"""
+
+
+def test_globals():
+    assert banf(GLOBALS, GLOBALS_DECLS) == text("""
+        answer: i32 = [2a000000]
+        tbl: i32
+        counter: global i32 = [29000000]
+        errno: global
+
+        main: i32
+          entry():
+            a = answer
+            t = tbl
+            c = load 'i32', @counter
+            d = add 'i32', c, a
+            s = store d, @counter
+            e = load 'i32', @errno
+            r = add 'i32', e, t
+            return r
+    """)
+
+
+def test_a_cell_address_is_an_atom():
+    # A call argument, a jump argument, and a written form.
+    defs = """
+    cell = 'global' {'i64'},
+    main = f -> {
+      entry = args~{} -> let r = module.use {p = module.cell} in f.next {p = module.cell~'ptr'},
+      next = args~{p = 'ptr'} -> let v = 'load' {'i32', args.p} in v,
+    },
+    """
+    assert banf(defs, "cell = 'ptr', use = {p = 'ptr'} => 'i32', main = => 'i32'") == text("""
+        cell: global i64
+        use(p: ptr): i32
+
+        main: i32
+          entry():
+            r = call use(@cell)
+            jump next(@cell:ptr)
+          next(p: ptr):
+            v = load 'i32', p
+            return v
+    """)
+
+
+@pytest.mark.parametrize(
+    ('defs', 'decls', 'message'),
+    [
+        (
+            "main = f -> {entry = args~{} -> let p = 'global' {'i32'} in [00000000]~'i32'}",
+            "main = => 'i32'",
+            "'global' must be a definition, such as counter = 'global' {...}.",
+        ),
+        ("counter = 'global' {'i32'}", "counter = 'i32'", "'counter' is defined by 'global', so it is declared 'ptr'."),
+        (
+            "counter = 'global' {'i32'}",
+            "counter = => 'i32'",
+            "'counter' is defined by 'global', so it is declared 'ptr'.",
+        ),
+        (
+            'counter = [29000000]',
+            "counter = 'ptr'",
+            "'counter' is declared 'ptr', so its definition must be 'global' {form, init}.",
+        ),
+        ("counter = 'global' {'i32', [29]}", "counter = 'ptr'", "'global': init must be 4 bytes for i32, got 1."),
+        (
+            "counter = 'global' {}",
+            "counter = 'ptr'",
+            "'global' takes a form and an optional init, such as 'global' {'i32'}.",
+        ),
+        (
+            "main = f -> {entry = args~{} -> let p = module.counter in [00000000]~'i32'}",
+            "counter = 'ptr', main = => 'i32'",
+            "module.counter is a cell's address, an atom: use it directly, as in 'load' {'i32', module.counter}.",
+        ),
+        (
+            "main = f -> {entry = args~{} -> let p = module.counter {} in [00000000]~'i32'}",
+            "counter = 'ptr', main = => 'i32'",
+            'module.counter is a cell, so it cannot be applied.',
+        ),
+    ],
+)
+def test_global_errors(defs, decls, message):
+    assert error(defs, decls) == message

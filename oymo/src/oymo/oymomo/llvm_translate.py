@@ -111,7 +111,8 @@ class _FunctionTranslator:
     def value(self, atom, values):
         if isinstance(atom, banf.Const):
             return _const(atom)
-        value = values[atom.name]
+        # A cell's address is its global itself, as `@counter` is in LLVM.
+        value = self.globals[atom.name] if isinstance(atom, banf.CellAddress) else values[atom.name]
         if atom.form is not terms.Empty and llvm_type(atom.form) != value.type:
             # A form isn't a type, so BANF accepts any atom form. LLVM can't: it never converts.
             raise LlvmTranslationError(
@@ -211,7 +212,8 @@ class _FunctionTranslator:
                 position, _ = banf.indexed_field(banf.atom_form(struct, forms), index)
                 return builder.extract_value(self.value(struct, values), position)
             case banf.GetData(name=name):
-                return builder.load(self.globals[name])
+                variable = self.globals[name]
+                return builder.load(variable, typ=variable.value_type)
         raise AssertionError(op)
 
     def pass_args(self, target, args, values, from_block):
@@ -273,6 +275,14 @@ class _FunctionTranslator:
         return labels
 
 
+def _global(llvm_module, typ, name):
+    """A global variable whose address is LLVM's opaque `ptr`, as every pointer here is:
+    llvmlite would type it by what it points to."""
+    variable = ir.GlobalVariable(llvm_module, typ, name)
+    variable.type = ir.PointerType()
+    return variable
+
+
 def translate(module: banf.Module, target: Target) -> ir.Module:
     llvm_module = ir.Module()
     llvm_module.triple = target.triple
@@ -281,10 +291,22 @@ def translate(module: banf.Module, target: Target) -> ir.Module:
     for binding in module.bindings:
         match binding:
             case banf.Data(name=name, form=form, value=value):
-                variable = ir.GlobalVariable(llvm_module, llvm_type(form), name)
+                # Read-only (plan_memory.md decision 15): `constant`, or `external constant`.
+                variable = _global(llvm_module, llvm_type(form), name)
+                variable.global_constant = True
                 if value is not None:
-                    # Writable, not `constant`; constness will come later with the data's form.
                     variable.initializer = _const(banf.Const(value, form, binding.location))
+                globals_[name] = variable
+            case banf.Cell(name=name, form=None):
+                # Imported: LLVM wants a type, and `'ptr'` says nothing of what is stored
+                # there, so `[0 x i8]`, as clang does for C's `extern char a[];` (decision 18).
+                globals_[name] = _global(llvm_module, ir.ArrayType(ir.IntType(8), 0), name)
+            case banf.Cell(name=name, form=terms.Term() as form, value=value):
+                typ = llvm_type(form)
+                variable = _global(llvm_module, typ, name)
+                # Without `init`, `zeroinitializer`, as `'alloca'` has no initial value either.
+                init = None if value is None else _const(banf.Const(value, form, binding.location))
+                variable.initializer = ir.Constant(typ, None) if init is None else init
                 globals_[name] = variable
             case (
                 banf.Signature(name=name, params=params, return_form=return_form)

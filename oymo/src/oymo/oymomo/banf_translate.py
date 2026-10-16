@@ -16,6 +16,9 @@ from oymo.oymomo.banf_rename import ARGS, BLOCKS, MODULE
 # `$seq {d1, ..., dn, x}`: `x`, once `d1` to `dn` are done. A stuck one is the atom of `x`.
 SEQ = 'seq'
 
+# `'global' {form, init}`: a cell's definition, only as a body field.
+GLOBAL = 'global'
+
 
 class TranslationError(Exception):
     def __init__(self, message: str, location: syntax.Location | None) -> None:
@@ -180,6 +183,9 @@ def _declarations(module_form, location):
             _check_param_forms(param, decl_location, what)
             params = [(f.label, f.value) for f in param.fields]
             declarations[label] = banf.Signature(label, params, result, decl_location)
+        elif form == opcodes.PTR:
+            # A cell: `module.x` is a pointer to writable storage (plan_memory.md decision 18).
+            declarations[label] = banf.Cell(label, location=decl_location)
         else:
             _check_data_form(form, decl_location, what)
             declarations[label] = banf.Data(label, form, location=decl_location)
@@ -187,9 +193,11 @@ def _declarations(module_form, location):
 
 
 def _check_definition(field, declarations):
-    """The declaration a body field defines: a function declared as `=> R`, or data."""
+    """The declaration a body field defines: a function declared as `=> R`, data, or a cell."""
     name = field.label
     declaration = declarations.get(name)
+    if _is_global(field.value) and declaration is not None and not isinstance(declaration, banf.Cell):
+        raise TranslationError(f"{name!r} is defined by 'global', so it is declared 'ptr'.", field.location)
     match declaration:
         case None:
             raise TranslationError(f'{name!r} is defined but not declared.', field.location)
@@ -198,6 +206,44 @@ def _check_definition(field, declarations):
                 f'{name!r} declares its params; a definition takes them from its entry block.', field.location
             )
     return declaration
+
+
+def _is_global(term):
+    return (
+        isinstance(term, terms.Apply) and isinstance(term.function, terms.ByteArray) and term.function.as_str == GLOBAL
+    )
+
+
+def _define_cell(cell, field):
+    """`counter = 'global' {form, init}` (plan_memory.md decision 16): the form stored there,
+    a literal data form, and its initial bytes, a byte array of that form; without `init`,
+    zeros. The allocation is static, so it is no effect."""
+    name = field.label
+    if not _is_global(field.value):
+        raise TranslationError(
+            f"{name!r} is declared 'ptr', so its definition must be 'global' {{form, init}}.", _location(field.value)
+        )
+    argument = field.value.argument
+    location = _location(field.value)
+    if not isinstance(argument, terms.Struct) or len(argument.fields) not in (1, 2):
+        raise TranslationError("'global' takes a form and an optional init, such as 'global' {'i32'}.", location)
+    form = argument.fields[0].value
+    _check_data_form(form, location, "'global' form")
+    cell.form = form
+    if len(argument.fields) == 1:
+        return
+    match argument.fields[1].value:
+        case terms.ByteArray(value=value) | terms.Formed(term=terms.ByteArray(value=value)):
+            pass
+        case _:
+            raise TranslationError("'global': init must be a byte array, as data is.", location)
+    bits = opcodes.find_bit_width(form)
+    if bits is not None and len(value) != opcodes.byte_width(bits):
+        width = opcodes.byte_width(bits)
+        raise TranslationError(
+            f"'global': init must be {width} bytes for {banf.show_form(form)}, got {len(value)}.", location
+        )
+    cell.value = value
 
 
 def _data_value(field):
@@ -273,6 +319,10 @@ class _Translator:
                 return self.seq(argument, block, location)
             case terms.Builtin(name=name):
                 raise TranslationError(f'${name} must be applied.', location)
+            case terms.Project(struct=struct, label=name) if block.binder(struct) == MODULE and isinstance(
+                self.program.bindings.get(name), banf.Cell
+            ):
+                return banf.CellAddress(name, location=location)
             case terms.Project(struct=struct, label=label) if block.binder(struct) == ARGS:
                 if any(param == label for param, _ in block.params):
                     return banf.Var(label, location=location)
@@ -331,6 +381,8 @@ class _Translator:
         if opcode is None:
             shown = repr(name.as_str) if name.as_str is not None else f'[{name.value.hex()}]'
             raise TranslationError(f'Unknown opcode {shown}.', location)
+        if opcode.name == GLOBAL:
+            raise TranslationError("'global' must be a definition, such as counter = 'global' {...}.", location)
         if not isinstance(argument, terms.Struct):
             raise TranslationError(f'The argument to {opcode.name!r} must be a struct literal.', _location(argument))
         values = [f.value for f in argument.fields]
@@ -360,6 +412,11 @@ class _Translator:
                 # A stuck `$seq` is an atom, not an op: `banf_shape` substitutes a let on it.
                 # Reading it here reports a malformed one.
                 self.atom(term, block)
+            case terms.Apply(function=terms.Project(struct=struct, label=name)) if block.binder(
+                struct
+            ) == MODULE and isinstance(self.program.bindings.get(name), banf.Cell):
+                # Before the index case: a cell's address is an atom, but not a struct.
+                raise TranslationError(f'module.{name} is a cell, so it cannot be applied.', location)
             case terms.Apply(function=function, argument=index) if self.is_atom(function, block):
                 # A value struct applied to an index reads that field, as a struct literal does in `reduce`.
                 position = reduction.index_value(index)
@@ -391,8 +448,14 @@ class _Translator:
                     raise TranslationError('Duplicate field labels.', location)
                 return banf.MakeStruct([(f.label, self.atom(f.value, block)) for f in fields], location)
             case terms.Project(struct=struct, label=name) if block.binder(struct) == MODULE:
-                if isinstance(self.symbol(name, location), banf.Data):
+                binding = self.symbol(name, location)
+                if isinstance(binding, banf.Data):
                     return banf.GetData(name, location)
+                if isinstance(binding, banf.Cell):
+                    raise TranslationError(
+                        f"module.{name} is a cell's address, an atom: use it directly, as in 'load' {{'i32', module.{name}}}.",
+                        location,
+                    )
                 raise TranslationError(f'module.{name} must be applied.', location)
             case terms.Builtin(name=name):
                 raise TranslationError(f'${name} must be applied.', location)
@@ -500,6 +563,10 @@ def convert(term: syntax.Term) -> banf.Module:
         declaration = _check_definition(field, declarations)
         if isinstance(declaration, banf.Data):
             declaration.value = _data_value(field)
+            continue
+        if isinstance(declaration, banf.Cell):
+            _define_cell(declaration, field)
+            declaration.location = field.location
             continue
         declaration.blocks, block_fields = _blocks(field)
         declaration.location = field.location

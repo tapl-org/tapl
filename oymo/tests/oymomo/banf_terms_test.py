@@ -7,6 +7,8 @@ from oymo.oymomo.banf_terms import (
     Block,
     Branch,
     Call,
+    Cell,
+    CellAddress,
     Const,
     Data,
     FormError,
@@ -28,6 +30,7 @@ from oymo.oymomo.banf_terms import (
     form_of,
     let_form,
     show,
+    show_atom,
     show_form,
     show_op,
     verify,
@@ -484,3 +487,27 @@ def _count(n):
 )
 def test_show_tagged_forms(form, shown):
     assert show_form(form) == shown
+
+
+def test_show_cells():
+    module = Module([Cell('counter', I32, bytes([41, 0, 0, 0])), Cell('zeroed', I32), Cell('errno')])
+    assert show(module) == 'counter: global i32 = [29000000]\nzeroed: global i32\nerrno: global\n'
+    assert show_atom(CellAddress('counter')) == '@counter'
+    assert show_atom(CellAddress('counter', PTR)) == '@counter:ptr'
+
+
+def test_verify_cells_and_data():
+    def module(*lets, terminator=None):
+        return Module(
+            [
+                Data('answer', I32),
+                Cell('counter'),
+                Function('f', I32, [Block('entry', [], list(lets), terminator or Return(ZERO))]),
+            ]
+        )
+
+    verify(module(Let('t', OpcodeCall('load', [field(I32), CellAddress('counter')], I32))))
+    with pytest.raises(FormError, match="'counter' is not data"):
+        verify(module(Let('t', GetData('counter'))))
+    with pytest.raises(FormError, match="'answer' is not a cell"):
+        verify(module(terminator=Return(CellAddress('answer'))))

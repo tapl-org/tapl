@@ -207,7 +207,12 @@ def _store(builder, fields, operand):
     return builder.store(value, _pointer('store', fields[1], operand))
 
 
-_MEMORY = {'alloca': _alloca, 'getelementptr': _getelementptr, 'load': _load, 'store': _store}
+def _global(_builder, _fields, _operand):
+    """Never in a block: `banf_translate` reads `'global'` only as a body field, a `Cell`."""
+    raise LlvmTranslationError("'global' must be a definition, such as counter = 'global' {...}.")
+
+
+_MEMORY = {'alloca': _alloca, 'getelementptr': _getelementptr, 'load': _load, 'store': _store, 'global': _global}
 
 
 def _impl(name: str) -> OpcodeImpl:

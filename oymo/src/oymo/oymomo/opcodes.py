@@ -270,6 +270,12 @@ def _store_form_of(_fields: Fields) -> terms.Term | None:
     return STORE_RESULT
 
 
+def _global_form_of(fields: Fields) -> terms.Term | None:
+    """`{form}` or `{form, init}`: a writable global of `form`, zeroed or set to `init`,
+    and its address. Only a body field may be one (plan_memory.md decision 16)."""
+    return PTR if len(fields) in (1, 2) and is_literal_form(fields[0]) else None
+
+
 def _generate():
     yield _binary('add', lambda _bits, a, b: a + b)
     yield _binary('sub', lambda _bits, minuend, subtrahend: minuend - subtrahend)
@@ -308,6 +314,7 @@ def _generate():
     yield Opcode('getelementptr', _getelementptr_form_of, _never, pure=False)
     yield Opcode('load', _load_form_of, _never, pure=False)
     yield Opcode('store', _store_form_of, _never, pure=False)
+    yield Opcode('global', _global_form_of, _never, pure=False)
 
 
 OPCODES: dict[str, Opcode] = {opcode.name: opcode for opcode in _generate()}

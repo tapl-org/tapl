@@ -1,6 +1,6 @@
 # Plan: memory as in LLVM: the `'ptr'` form, alloca, getelementptr, load and store
 
-Status: **in progress**; 5 of 7 steps.
+Status: **in progress**; 6 of 7 steps.
 
 ## Steps
 
@@ -11,7 +11,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [x] 3. `'load'` and `'store'` (`oymomo: add load and store`)
 - [x] 4. Tests: what `translate` does to effects without `$seq` (`oymomo: test unordered effects`)
 - [x] 5. Arrays, vectors and packed structs as tagged structs (`{'array', count, element}`) (`oymomo: add aggregate forms`)
-- [ ] 6. Globals: data is a read-only `constant`; `'global'` makes a writable cell (`oymomo: add globals`)
+- [x] 6. Globals: data is a read-only `constant`; `'global'` makes a writable cell (`oymomo: add globals`)
 - [ ] 7. A plan for advanced memory: `noalias`, more ops, alignment and byte order, docs only (`docs: plan advanced memory`)
 
 Step 1 doesn't depend on the others: it orders effects, which memory ops are, as calls
@@ -450,10 +450,11 @@ checks.
 | Module | Change |
 |---|---|
 | `reduction.py`, `banf_shape.py` | none: `'global'` is an impure opcode (decision 13), and a body field is already reduced with `reduce_until_top_stable` |
-| `opcodes.py` | entry `global` (form param `form`, optional `init`, result `'ptr'`), impure, with a `check` for decision 16; no `llvm` hook: it is never in a block |
+| `opcodes.py` | entry `global` (`{form}` or `{form, init}`, result `'ptr'`), impure; its LLVM code only raises, as it is never in a block; decision 16's checks are in `banf_translate._define_cell` |
 | `banf_terms.py` | `Data` is read-only; a new binding `Cell(name, form, value)`, where `form` and `value` are None for an import; a new atom `CellAddress(name)` of form `'ptr'`, printed `@counter`; `Cell` printed `counter: global i32 = [29000000]` or `errno: global`; verifier: `GetData` names a `Data`, `CellAddress` a `Cell` |
 | `banf_translate.py` | `_declarations`: a `'ptr'` declaration is a `Cell`; its body field, if any, must be `'global' {...}`, and a `'global'` field needs a `'ptr'` declaration (decision 16); `atom`: `module.x` for a `Cell` is `CellAddress(x)`; `op`: `module.x` for a `Data` stays `GetData`; `'global'` in a block is an error |
-| `llvm_translate.py` | `Data` → `GlobalVariable` with `global_constant = True`, external when it has no value; `Cell` → a writable `GlobalVariable` with its `init` or `ir.Constant(typ, None)` (`zeroinitializer`), or `external global [0 x i8]` when imported; `CellAddress` → the global itself; `GetData` unchanged (`load`) |
+| `llvm_translate.py` | `Data` → `GlobalVariable` with `global_constant = True`, external when it has no value; `Cell` → a writable `GlobalVariable` with its `init` or `ir.Constant(typ, None)` (`zeroinitializer`), or `external global [0 x i8]` when imported; `CellAddress` → the global itself; `GetData` unchanged (`load`); every global's address is typed as the opaque `ptr` (llvmlite would type it by what it points to), so `GetData` loads with `typ=value_type` |
+| notes | `CellAddress` has a written `form`, as `Var` does; `let c = module.counter in ...` is an error, since the let's value is an atom and `banf_shape` can't tell a cell from data |
 
 ---
 

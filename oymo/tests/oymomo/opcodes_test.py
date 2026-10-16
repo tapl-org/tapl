@@ -29,7 +29,7 @@ def test_one_opcode_per_llvm_instruction():
         *('add', 'sub', 'mul', 'sdiv', 'udiv', 'srem', 'urem', 'shl', 'lshr', 'ashr', 'and', 'or', 'xor'),
         *(f'icmp_{p}' for p in ('eq', 'ne', 'slt', 'sle', 'sgt', 'sge', 'ult', 'ule', 'ugt', 'uge')),
         *('zext', 'sext', 'trunc'),
-        *('alloca', 'getelementptr', 'load', 'store'),
+        *('alloca', 'getelementptr', 'load', 'store', 'global'),
     }
 
 
@@ -152,7 +152,7 @@ def test_evaluate_conversions():
 
 def test_only_memory_opcodes_are_impure():
     impure = {name for name, opcode in OPCODES.items() if not opcode.pure}
-    assert impure == {'alloca', 'getelementptr', 'load', 'store'}
+    assert impure == {'alloca', 'getelementptr', 'load', 'store', 'global'}
 
 
 def test_memory_opcodes_give_a_pointer_and_never_evaluate():

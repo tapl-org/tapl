@@ -89,11 +89,11 @@ def test_signature_data_and_get_data():
     assert ir_text(source, decls) == text("""
         declare i32 @"putchar"(i8 %"c")
 
-        @"errno" = external global i32
+        @"errno" = external constant i32
         define i32 @"main"()
         {
         entry:
-          %"t0" = load i32, i32* @"errno"
+          %"t0" = load i32, ptr @"errno"
           %"t1" = call i32 @"putchar"(i8 65)
           %"t2" = add i32 %"t0", %"t1"
           ret i32 %"t2"
@@ -367,17 +367,17 @@ def test_rejects_formed_var_with_another_llvm_type():
     assert ir_error(source, "g = => 'i32'") == "'n' is formed as i32, but its LLVM type is i8."
 
 
-def test_defined_data_is_a_writable_global_with_an_initializer():
+def test_defined_data_is_a_constant_with_an_initializer():
     source = """
     answer = [2a000000],
     main = f -> {entry = args~{} -> let t = module.answer in t},
     """
     assert ir_text(source, "answer = 'i32', main = => 'i32'") == text("""
-        @"answer" = global i32 42
+        @"answer" = constant i32 42
         define i32 @"main"()
         {
         entry:
-          %"t" = load i32, i32* @"answer"
+          %"t" = load i32, ptr @"answer"
           ret i32 %"t"
         }
     """)
@@ -842,3 +842,86 @@ def test_aggregates_through_the_jit():
     base = 0x1000
     assert function('field_b', ptr, ptr)(base) == base + 1
     assert function('next', ptr, ptr)(base) == base + 5
+
+
+# Globals (plan_memory.md decisions 14 to 18).
+
+
+def test_globals():
+    source = """
+    answer = [2a000000],
+    counter = 'global' {'i32', [29000000]~'i32'},
+    main = f -> {
+      entry = args~{} ->
+        let a = module.answer in
+        let t = module.tbl in
+        let c = 'load' {'i32', module.counter} in
+        let d = 'add' {'i32', c, a} in
+        let s = 'store' {d, module.counter} in
+        let e = 'load' {'i32', $seq {s, module.errno}} in
+        let r = 'add' {'i32', e, t} in
+        r,
+    },
+    """
+    decls = "answer = 'i32', tbl = 'i32', counter = 'ptr', errno = 'ptr', main = => 'i32'"
+    assert ir_text(source, decls) == text("""
+        @"answer" = constant i32 42
+        @"tbl" = external constant i32
+        @"counter" = global i32 41
+        @"errno" = external global [0 x i8]
+        define i32 @"main"()
+        {
+        entry:
+          %"a" = load i32, ptr @"answer"
+          %"t" = load i32, ptr @"tbl"
+          %"c" = load i32, ptr @"counter"
+          %"d" = add i32 %"c", %"a"
+          store i32 %"d", ptr @"counter"
+          %"e" = load i32, ptr @"errno"
+          %"r" = add i32 %"e", %"t"
+          ret i32 %"r"
+        }
+    """)
+
+
+def test_a_global_without_init_is_zeroed():
+    # LLVM's `zeroinitializer`, which it prints as `0` for an integer.
+    assert ir_text("p = 'global' {'i32'}", "p = 'ptr'").strip() == '@"p" = global i32 0'
+    assert (
+        ir_text("p = 'global' {{x = 'i8', y = 'i64'}}", "p = 'ptr'").strip()
+        == '@"p" = global {i8, i64} zeroinitializer'
+    )
+
+
+BUMP_GLOBAL = """
+counter = 'global' {'i32', [29000000]~'i32'},
+bump = f -> {
+  entry = args~{} ->
+    let c = 'load' {'i32', module.counter} in
+    let d = 'add' {'i32', c, [01000000]} in
+    let s = 'store' {d, module.counter} in
+    $seq {s, d},
+},
+"""
+
+
+def test_a_global_counter_through_the_jit():
+    llvm.initialize_native_target()
+    llvm.initialize_native_asmprinter()
+    machine = llvm.Target.from_default_triple().create_target_machine()
+    llvm_module = llvm.parse_assembly(str(translate(banf(BUMP_GLOBAL, "counter = 'ptr', bump = => 'i32'"), TARGET)))
+    engine = llvm.create_mcjit_compiler(llvm_module, machine)
+    engine.finalize_object()
+    bump = ctypes.CFUNCTYPE(ctypes.c_uint32)(engine.get_function_address('bump'))
+    assert [bump(), bump()] == [42, 43]
+
+
+def test_a_read_of_a_defined_value_folds_under_o2():
+    source = 'answer = [2a000000], main = f -> {entry = args~{} -> let a = module.answer in a},'
+    llvm.initialize_native_target()
+    llvm.initialize_native_asmprinter()
+    machine = llvm.Target.from_default_triple().create_target_machine()
+    module = llvm.parse_assembly(str(translate(banf(source, "answer = 'i32', main = => 'i32'"), TARGET)))
+    builder = llvm.create_pass_builder(machine, llvm.create_pipeline_tuning_options(speed_level=2))
+    builder.getModulePassManager().run(module, builder)
+    assert 'ret i32 42' in str(module)

@@ -33,7 +33,17 @@ class Const:
     location: Location | None = field(default=None, compare=False)
 
 
-type Atom = Var | Const
+@dataclass
+class CellAddress:
+    """`module.counter` for a cell: the address of its static storage, of form `ptr`,
+    printed `@counter` (plan_memory.md decision 17). A written `form` replaces `ptr`."""
+
+    name: str
+    form: terms.Term = terms.Empty
+    location: Location | None = field(default=None, compare=False)
+
+
+type Atom = Var | Const | CellAddress
 
 
 @dataclass
@@ -173,7 +183,8 @@ class Signature:
 
 @dataclass
 class Data:
-    """Module data. `value` is its initial bytes if the module defines it, or `None` if it's imported."""
+    """Read-only module data: a value, read with `GetData` (plan_memory.md decision 15).
+    `value` is its bytes if the module defines it, or `None` if it's imported."""
 
     name: str
     form: terms.Term
@@ -181,7 +192,19 @@ class Data:
     location: Location | None = field(default=None, compare=False)
 
 
-type Binding = Function | Signature | Data
+@dataclass
+class Cell:
+    """Writable static storage, declared `'ptr'` (plan_memory.md decisions 16 to 18):
+    `module.x` is its address, a `CellAddress`. A defined one has the `form` stored there
+    and its initial bytes, `value` (None: zeros); an imported one has neither."""
+
+    name: str
+    form: terms.Term | None = None
+    value: bytes | None = None
+    location: Location | None = field(default=None, compare=False)
+
+
+type Binding = Function | Signature | Data | Cell
 
 
 @dataclass
@@ -206,6 +229,8 @@ def atom_form(atom: Atom, forms: Mapping[str, terms.Term]) -> terms.Term:
             raise FormError("A pointer can't be a literal.", atom.location)
         case Const(form=form):
             return form
+        case CellAddress(form=form):
+            return opcodes.PTR if form is terms.Empty else form
         case Var(name=name, form=form):
             if name not in forms:
                 raise FormError(f'Unknown name {name!r}.', atom.location)
@@ -351,6 +376,13 @@ def _terminator_atoms(terminator):
     raise AssertionError(terminator)
 
 
+def _check_cell_addresses(atoms, module, location):
+    """Each `CellAddress` names a `Cell`."""
+    for atom in atoms:
+        if isinstance(atom, CellAddress) and not isinstance(module.lookup(atom.name), Cell):
+            raise FormError(f'{atom.name!r} is not a cell.', atom.location or location)
+
+
 def _check_no_store_use(atoms, stores, location):
     """A store gives `{}`, which only `$seq` may use, and `$seq` is gone by BANF
     (plan_memory.md decision 11): a store's name is used nowhere."""
@@ -385,11 +417,13 @@ def _verify_function(function, module):
             if let.name in forms:
                 raise FormError(f'Duplicate name {let.name!r}.', let.location)
             _check_no_store_use(_op_atoms(let.value), stores, let.location)
+            _check_cell_addresses(_op_atoms(let.value), module, let.location)
             _check_op(let.value, forms, module)
             forms[let.name] = let_form(let, forms, module)
             if isinstance(let.value, OpcodeCall) and let.value.opcode == 'store':
                 stores.add(let.name)
         _check_no_store_use(_terminator_atoms(block.terminator), stores, block.terminator.location)
+        _check_cell_addresses(_terminator_atoms(block.terminator), module, block.terminator.location)
         match block.terminator:
             case Jump(target=target, args=args) as jump:
                 _check_jump(function, target, args, forms, jump.location)
@@ -504,6 +538,8 @@ def show_atom(atom: Atom) -> str:
             return printer.show(terms.ByteArray(value))
         case Const(value=value, form=form):
             return f'[{value.hex()}]:{show_form(form)}'
+        case CellAddress(name=name, form=form):
+            return f'@{show_name(name)}' if form is terms.Empty else f'@{show_name(name)}:{show_form(form)}'
     raise AssertionError(atom)
 
 
@@ -586,6 +622,10 @@ def show(module: Module) -> str:
             case Data(name=name, form=form, value=value):
                 initializer = '' if value is None else f' = [{value.hex()}]'
                 parts.append(f'{show_name(name)}: {show_form(form)}{initializer}')
+            case Cell(name=name, form=form, value=value):
+                stored = '' if form is None else f' {show_form(form)}'
+                initializer = '' if value is None else f' = [{value.hex()}]'
+                parts.append(f'{show_name(name)}: global{stored}{initializer}')
             case Function():
                 parts.append(_show_function(binding))
         after_function = is_function

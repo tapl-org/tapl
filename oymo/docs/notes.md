@@ -958,14 +958,34 @@ The shape of each declaration says what it is:
 | `=> R` | no | error: "'main' declares no params, so it must be defined." |
 | `{...} => R` | no | imported function, `banf.Signature`: `declare i32 @putchar(i8 %c)` |
 | `{...} => R` | yes | error: "'putchar' declares its params; a definition takes them from its entry block." |
-| data form `F` | no | imported data, `banf.Data`: `@errno = external global i32` |
-| data form `F` | yes, as a byte array | defined data, `banf.Data` with a value: `@answer = global i32 42` |
+| data form `F` | no | imported read-only data, `banf.Data`: `@tbl = external constant i32` |
+| data form `F` | yes, as a byte array | defined read-only data, `banf.Data` with a value: `@answer = constant i32 42` |
+| `'ptr'` | no | imported cell, `banf.Cell`: `@errno = external global [0 x i8]` |
+| `'ptr'` | yes, as `'global' {form, init}` | defined cell, `banf.Cell`: `@counter = global i32 41` |
 
 Rules:
 - A body label must be declared: "'f' is defined but not declared."
 - A definition must fit its declaration: `=> R` needs `f -> {...}`; a data
   declaration needs a byte array ("'answer' is declared as data, so its definition
-  must be a byte array.").
+  must be a byte array."); a `'ptr'` declaration needs `'global' {...}`, and a
+  `'global'` field needs a `'ptr'` declaration.
+- **The declaration is the form of `module.x`** (plan_memory.md decisions 14 to 18):
+  - Data is a **value**, read-only: `module.answer` is read with `GetData` (a `load`
+    in LLVM), a pure read that needs no `$seq`. LLVM may fold a defined one and
+    reuse a read of an imported one.
+  - A cell is **writable storage**: `module.counter` is its address, a `'ptr'` atom
+    (`CellAddress`, printed `@counter`), used directly as an operand:
+    `'load' {'i32', module.counter}`, `$seq {s, module.counter}`,
+    `module.f {p = module.counter}`. Reading and writing through it are effects.
+    `let c = module.counter in ...` is an error, as the let's value is an atom.
+  - `'global' {form, init}`: `form` a literal data form, `init` a byte array of it
+    (bare or formed; an integer form's must have its width). Without `init`, zeros
+    (`zeroinitializer`). The storage is static, made when the program is loaded, so
+    it is not an effect. `'global'` anywhere but a body field is an error.
+  - An imported cell is `external global [0 x i8]`, as clang does for C's
+    `extern char a[];`: every `'load'` brings its own form. A value that can change
+    outside the program, such as `errno`, must be declared `'ptr'`; declared `'i32'`
+    it is read-only, and LLVM may assume it never changes.
 - The body field is reduced with `reduce_until_top_stable`, so `answer = (x -> x) [2a]` is fine. A data
   definition's form is the declared one; a form written on the byte array
   (`[2a]~'i16'`) is dropped.
@@ -1119,6 +1139,9 @@ is one of `i1 i8 i16 i32 i64`.
 | `zext sext trunc` | `{form, value, to}` | `to` | same names |
 | `alloca` | `{form}`, `{form, count}` | `ptr` | `alloca F`, `alloca F, iN count` |
 | `getelementptr` | `{form, ptr, i0, ..., in}` | `ptr` | `getelementptr F, ptr p, iN i0, ...` |
+| `load` | `{form, ptr}` | `form` | `load F, ptr p` |
+| `store` | `{value, ptr}` | `{}`, which only `$seq` may use | `store F value, ptr p`; binds no LLVM value |
+| `global` | `{form}`, `{form, init}` | `ptr` | `@x = global F init`; only as a body field ([cells](#module-declares-every-symbol)) |
 
 Operands are read at `form`; `to` only gives the result form. The memory opcodes are
 impure, so they never fold; their `form` may be any literal form, a struct included,
@@ -1225,19 +1248,23 @@ fact: i32
 ### Module
 
 ```python
-Module(bindings: list[Function | Signature | Data])
+Module(bindings: list[Function | Signature | Data | Cell])
 Function(name, return_form, blocks)       # blocks[0] is the entry block
 Signature(name, params, return_form)       # imported function
-Data(name, form, value=None)               # imported (None) or defined (bytes)
+Data(name, form, value=None)               # read-only: imported (None) or defined (bytes)
+Cell(name, form=None, value=None)          # writable: imported (no form), or defined
+CellAddress(name)                          # an atom, `module.counter`: the cell's `ptr`
 ```
 
 - `name` is the LLVM symbol (`@fact`, `@putchar`, `@errno`). It lives on the binding
   rather than in `(name, binding)` tuples, which is simpler to carry and print.
 - `Signature` has its own `params` because it has no entry block to hold them.
-- `Data` is read-only in oymomo (no assignment), but re-read on every use with
-  `GetData`, since a value like `errno` can change outside the program. Defined data
-  is read the same way (`module.answer`). Not named `Global`, because every binding
-  becomes an LLVM global.
+- `Data` is a read-only value, read with `GetData` (an LLVM `constant`). A value that
+  can change outside the program, like `errno`, is a `Cell`. Not named `Global`,
+  because every binding becomes an LLVM global.
+- `Cell` is writable storage. A defined one has the form stored there and its initial
+  bytes (None: zeros). `CellAddress` is an atom of form `ptr`; the verifier checks
+  that it names a `Cell`, as `GetData` must name a `Data`.
 
 ### Blocks
 
@@ -1307,7 +1334,7 @@ Where forms **are** stored:
 | each `Const` | the same bytes can have many forms |
 | each block param | a block must declare what its jumps pass in |
 | each function's and signature's return form | calls read them, recursive calls included; they come from `module` |
-| each `Data` | |
+| each `Data`, each defined `Cell` | |
 | a `Let`, only if the source wrote one | otherwise `form_of` computes it; a stored `MakeStruct` form would repeat a full struct form on every line |
 
 Ops carry no form, as in Cranelift (`v0 = iadd v1, v2`). A written let form
@@ -1329,6 +1356,9 @@ else `form_of` its op. They add it to the block's name table.
 | a `Signature` | `putchar(c: i8): i32` | |
 | imported `Data` | `errno: i32` | |
 | defined `Data` | `answer: i32 = [2a000000]` | |
+| imported `Cell` | `errno: global` | |
+| defined `Cell` | `counter: global i32 = [29000000]`, `zeroed: global i32` | |
+| a `CellAddress` | `c = load 'i32', @counter` | `@`, as LLVM names a global |
 | a `Function` | `fact: i32` then its blocks | blank line around each function |
 
 - Lets need no keyword: a block holds only lets plus one terminator, and every
@@ -1655,8 +1685,11 @@ else0:
 | `GetData` | `load` from the global |
 | `GetField`, `GetIndex` | `extractvalue` (`args.p [00]` gives the same IR as `args.p.x`) |
 | `MakeStruct` | one `insertvalue` per field, named `%q.x` after the let and field |
-| defined `Data` | writable `global` with initializer: `@answer = global i32 42` |
-| imported `Data` | `external global` |
+| defined `Data` | read-only `constant` with initializer: `@answer = constant i32 42` |
+| imported `Data` | `external constant` |
+| defined `Cell` | writable `global`: `@counter = global i32 41`; without `init`, `zeroinitializer` |
+| imported `Cell` | `external global [0 x i8]` |
+| `CellAddress` | the global itself: `ptr @counter` |
 
 - Every symbol is declared first, so functions can call each other in any order.
 - Unreachable blocks are not emitted, so phis only list blocks that exist.
@@ -1665,8 +1698,8 @@ else0:
   holding 0 or 1. LLVM stores the number in the data layout's byte order, so a
   big-endian target (`E-...`) needs no swap. Struct constants aren't supported yet.
 - Data initializers follow the constant rules ("A i32 constant needs 4 bytes.");
-  struct data forms are rejected for now. Constness will come later with the data's
-  form.
+  struct data forms are rejected for now. So are a cell's.
+- Every global's address is the opaque `ptr`, as every other pointer here.
 - **No conversions.** A formed name or a let with a written form is used as-is if
   its LLVM type equals the original (e.g. a struct form with other labels and the
   same field types). Otherwise it's rejected: "'n' is formed as i32, but its LLVM
@@ -1703,6 +1736,13 @@ message text to find where it's raised.
 | `'<f>' declares no params, so it must be defined.` | Declared `=> R` but missing from the body. | Define it, or declare it with params to import it. |
 | `'<f>' declares its params; a definition takes them from its entry block.` | Declared `{...} => R` and also defined. | Declare a defined function as `=> R`; params go on its entry block. |
 | `'<x>' is declared as data, so its definition must be a byte array.` | A data declaration defined as something else. | Define it as bytes: `answer = [2a000000]`. |
+| `'<x>' is declared 'ptr', so its definition must be 'global' {form, init}.` | A cell defined as something else. | Define it: `counter = 'global' {'i32', [29000000]~'i32'}`. |
+| `'<x>' is defined by 'global', so it is declared 'ptr'.` | A `'global'` field whose declaration isn't `'ptr'`. | Declare it `counter = 'ptr'`. |
+| `'global' takes a form and an optional init, such as 'global' {'i32'}.` | e.g. `'global' {}`. | Write the form. |
+| `'global': init must be <n> bytes for <form>, got <m>.` | An init of the wrong width. | Write `(N + 7) // 8` bytes. |
+| `'global' must be a definition, such as counter = 'global' {...}.` | `'global'` in a block. | Define a cell in the module body. |
+| `module.<x> is a cell's address, an atom: use it directly, as in 'load' {'i32', module.<x>}.` | `let c = module.counter in ...`. | Use `module.counter` where the pointer is needed. |
+| `module.<x> is a cell, so it cannot be applied.` | `module.counter {}`. | Load from it: `'load' {'i32', module.counter}`. |
 | `<what> needs a label on every field.` | An unlabeled field where a label names something (module form, blocks, params, call/jump/opcode arguments). | Add labels. See [Translation](#labels-name-params-declarations-and-blocks). |
 | `<what>: function forms nested inside other forms are not supported.` | A function form inside a data form, or as a param/result. | Not supported yet. See [Programs](#nested-function-forms-are-rejected-for-now). |
 | `<what>: a function form needs a struct form as its param.` | e.g. `g = 'i8' => 'i32'`. | Use `{c = 'i8'} => 'i32'`. |
@@ -1770,6 +1810,11 @@ message text to find where it's raised.
 | `A switch passes different args to '<b>'.` | `{f.a {x = [01]~'i8'}, f.b {}, f.a {x = [02]~'i8'}} k`. | Pass the same args each time `a` is named (an LLVM phi needs equal entries from one block), or use another block. |
 | `Form <form> has no field at index <i>.` | `GetIndex` on a form with no fields. | Index a struct with at least one field. |
 | `A pointer can't be a literal.` | `[0000000000000000]~'ptr'`. | Get a pointer from `'alloca'`, `'getelementptr'` or a call. |
+| `'load' takes 2 fields, got <n>.` / `'store' takes 2 fields, got <n>.` | e.g. `'store' {v}`. | `'load' {form, ptr}`, `'store' {value, ptr}`. |
+| `'load' expects ptr: ptr, got <form>.` | The pointer field isn't of form `ptr`. | Pass a pointer. |
+| `'store': value must have a form, such as [01000000]~'i32'.` | A bare byte array stored. | Write its form: `[2a000000]~'i32'`. |
+| `'<s>' is the result of a store; only $seq can use it.` | A store's let used as a value. | Use it only in `$seq {s, ...}`. |
+| `'<x>' is not a cell.` | A `CellAddress` naming something else. | Declare it `'ptr'`. |
 
 ### LLVM (`llvm_translate.py`)
 
@@ -2205,6 +2250,17 @@ Rejected:
 - `name$level` (`n$3`): needs quotes, and `$` now starts a BruijnIndex or Builtin.
 
 → [Translation](#3-banf_renamerename-fixed-names-and-no-shadowing)
+
+### Memory as LLVM's defaults
+
+A `'load'` or `'store'` carries no `align`, so LLVM assumes the form's ABI alignment;
+byte order is the target's, and a struct's layout (padding, offsets) is LLVM's for the
+target. On a big-endian target, storing `[2a000000]~'i32'` and loading `'i8'` at the
+same pointer gives `[00]`, unlike byte array literals, which are little-endian
+everywhere ([Byte arrays are always little-endian](#byte-arrays-are-always-little-endian));
+memory has no literals, so the two never meet. Nothing checks an access: a misaligned
+or dangling pointer is undefined, as in C.
+→ [plan_memory.md](plan_memory.md) decision 12
 
 ### LLVM translation converts nothing
 
