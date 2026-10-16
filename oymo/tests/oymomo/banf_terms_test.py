@@ -287,6 +287,65 @@ def test_show_memory_opcodes():
     verify(one_block([Let('q', alloca)], Return(Var('q')), return_form=PTR))
 
 
+STORE_RESULT = terms.Struct([])
+
+
+def _store_then(terminator, *lets):
+    """`p = alloca i32; s = store [00000000]:i32, p`, then `lets` and `terminator`."""
+    return one_block(
+        [
+            Let('p', OpcodeCall('alloca', [field(I32)], PTR)),
+            Let('s', OpcodeCall('store', [ZERO, Var('p')], STORE_RESULT)),
+            *lets,
+        ],
+        terminator,
+    )
+
+
+def test_show_and_verify_load_and_store():
+    load = Let('v', OpcodeCall('load', [field(I32), Var('p')], I32))
+    module = _store_then(Return(Var('v')), load)
+    verify(module)
+    assert show(module) == (
+        'f: i32\n  entry():\n    p = alloca \'i32\'\n    s = store [00000000]:i32, p\n'
+        "    v = load 'i32', p\n    return v\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ('lets', 'terminator'),
+    [
+        ([], Return(Var('s'))),
+        ([Let('t', MakeStruct([('a', Var('s'))]))], Return(ZERO)),
+        ([Let('v', OpcodeCall('load', [field(I32), Var('s')], I32))], Return(Var('v'))),
+    ],
+)
+def test_a_store_result_is_used_nowhere(lets, terminator):
+    with pytest.raises(FormError, match=r"'s' is the result of a store; only \$seq can use it\."):
+        verify(_store_then(terminator, *lets))
+
+
+@pytest.mark.parametrize(
+    ('op', 'message'),
+    [
+        (OpcodeCall('store', [ZERO], STORE_RESULT), "'store' takes 2 fields, got 1."),
+        (OpcodeCall('load', [field(I32), Var('p'), ZERO], I32), "'load' takes 2 fields, got 3."),
+        (OpcodeCall('load', [field(I32), Var('n')], I32), "'load' expects ptr: ptr, got i32."),
+        (OpcodeCall('store', [ZERO, Var('n')], STORE_RESULT), "'store' expects ptr: ptr, got i32."),
+        (OpcodeCall('load', [field(I32), field(I32)], I32), "'load' expects ptr: ptr, got a bare byte array."),
+        (
+            OpcodeCall('store', [field(I32), Var('p')], STORE_RESULT),
+            "'store': value must have a form, such as [01000000]~'i32'.",
+        ),
+    ],
+)
+def test_load_and_store_errors(op, message):
+    module = one_block([Let('t', op)], Return(ZERO), params=[('p', PTR), ('n', I32)])
+    with pytest.raises(FormError) as info:
+        verify(module)
+    assert info.value.message == message
+
+
 def test_verify_rejects_unknown_opcode_and_name():
     with pytest.raises(FormError, match="Unknown opcode 'foo'"):
         verify(one_block([Let('t0', OpcodeCall('foo', [ZERO], I32))], Return(Var('t0'))))

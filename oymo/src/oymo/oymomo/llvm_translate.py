@@ -152,8 +152,10 @@ class _FunctionTranslator:
         forms = dict(block.params)
         for let in block.lets:
             values[let.name] = self.op(builder, let, values, forms)
-            if isinstance(values[let.name], ir.Instruction):
-                values[let.name].name = let.name
+            value = values[let.name]
+            if isinstance(value, ir.Instruction) and not isinstance(value.type, ir.VoidType):
+                # A `store` gives no value, so its let binds no LLVM name.
+                value.name = let.name
             if let.form is not terms.Empty and llvm_type(let.form) != values[let.name].type:
                 # A form isn't a type, so BANF accepts any let form. LLVM can't: it never converts.
                 op_form = banf.form_of(let.value, forms, self.module)

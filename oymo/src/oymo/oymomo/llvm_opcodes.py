@@ -5,8 +5,9 @@
 Each implementation reads the BANF fields of its call by position, as `opcodes` does:
 `{form, a, b}` for an arithmetic, logic or comparison opcode, `{form, value, to}` for a
 conversion, `{form}` or `{form, count}` for `alloca`, `{form, ptr, i0, ...}` for
-`getelementptr`. A form field is a `Const` with no form, whose bytes name the form
-(`'i32'`), or a `FormField` for a struct form.
+`getelementptr`, `{form, ptr}` for `load`, `{value, ptr}` for `store`. A form field is a
+`Const` with no form, whose bytes name the form (`'i32'`), or a `FormField` for a struct
+form.
 """
 
 from collections.abc import Callable, Sequence
@@ -172,7 +173,35 @@ def _getelementptr(builder, fields, operand):
     return _opaque(builder.gep(pointer, indices, source_etype=llvm_type(form)))
 
 
-_MEMORY = {'alloca': _alloca, 'getelementptr': _getelementptr}
+def _pointer(name: str, atom: banf.Atom | banf.FormField, operand: Operand) -> ir.Value:
+    pointer = _formed(name, 'the pointer', atom, operand)
+    if not isinstance(pointer.type, ir.PointerType):
+        raise LlvmTranslationError(f'{name!r} expects a pointer, got {pointer.type}.')
+    return pointer
+
+
+def _load_store_arity(name: str, fields: Sequence[banf.Atom | banf.FormField]) -> None:
+    if len(fields) != opcodes.LOAD_STORE_FIELDS:
+        raise LlvmTranslationError(f'{name!r} takes {opcodes.LOAD_STORE_FIELDS} fields, got {len(fields)}.')
+
+
+def _load(builder, fields, operand):
+    """`load F, ptr p`: no `align`, so LLVM assumes `F`'s ABI alignment (plan_memory.md
+    decision 12)."""
+    _load_store_arity('load', fields)
+    form = _any_form('load', fields, 0)
+    return builder.load(_pointer('load', fields[1], operand), typ=llvm_type(form))
+
+
+def _store(builder, fields, operand):
+    """`store F v, ptr p`, where `F` is the value's own type. It gives no LLVM value: the let
+    binds nothing, and only `$seq`, gone by now, may use it."""
+    _load_store_arity('store', fields)
+    value = _formed('store', 'value', fields[0], operand)
+    return builder.store(value, _pointer('store', fields[1], operand))
+
+
+_MEMORY = {'alloca': _alloca, 'getelementptr': _getelementptr, 'load': _load, 'store': _store}
 
 
 def _impl(name: str) -> OpcodeImpl:

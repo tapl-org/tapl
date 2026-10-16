@@ -1,0 +1,23 @@
+bump: i32
+  entry(n: i32):
+    p = alloca 'i32'
+    s = store n, p
+    v = load 'i32', p
+    w = add 'i32', v, [01000000]
+    return w
+
+sum: i32
+  entry(n: i32):
+    acc = alloca 'i32'
+    z = store [00000000]:i32, acc
+    jump loop(acc, n)
+  loop(acc: ptr, i: i32):
+    old = load 'i32', acc
+    new = add 'i32', old, i
+    s = store new, acc
+    j = sub 'i32', i, [01000000]:i32
+    done = icmp_eq 'i32', j, [00000000]:i32
+    branch done, exit(acc), loop(acc, j)
+  exit(acc: ptr):
+    r = load 'i32', acc
+    return r

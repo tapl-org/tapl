@@ -608,3 +608,108 @@ def test_a_pointer_passed_to_a_loop_is_a_phi():
 def test_memory_opcode_errors(op, message):
     source = f"g = blocks -> {{entry = args~{{q = 'ptr', n = 'i64', i = 'i32'}} -> let p = {op} in p}}"
     assert ir_error(source, "g = => 'ptr'") == message
+
+
+BUMP = """
+bump = blocks -> {
+  entry = args~{n = 'i32'} ->
+    let p = 'alloca' {'i32'} in
+    let s = 'store' {N, p} in
+    let v = 'load' {'i32', $seq {s, p}} in
+    let w = 'add' {'i32', v, [01000000]} in
+    w,
+}
+"""
+
+
+def test_load_after_store():
+    # The plan's goal: the store's let binds no LLVM value.
+    assert ir_text(BUMP.replace('N', 'args.n'), "bump = => 'i32'") == text("""
+        define i32 @"bump"(i32 %"n")
+        {
+        entry:
+          %"p" = alloca i32
+          store i32 %"n", ptr %"p"
+          %"v" = load i32, ptr %"p"
+          %"w" = add i32 %"v", 1
+          ret i32 %"w"
+        }
+    """)
+
+
+def test_load_after_store_folds_under_o2():
+    # Reduction leaves the memory lets alone (decision 13); LLVM's mem2reg folds them.
+    llvm_text = str(translate(banf(BUMP.replace('N', "[29000000]~'i32'"), "bump = => 'i32'"), TARGET))
+    llvm.initialize_native_target()
+    llvm.initialize_native_asmprinter()
+    machine = llvm.Target.from_default_triple().create_target_machine()
+    module = llvm.parse_assembly(llvm_text)
+    builder = llvm.create_pass_builder(machine, llvm.create_pipeline_tuning_options(speed_level=2))
+    builder.getModulePassManager().run(module, builder)
+    assert 'ret i32 42' in str(module)
+    assert 'alloca' not in str(module)
+
+
+def _round_trip(name, form):
+    """`name(x) = load(store(x))`, through an `alloca` of `form`."""
+    return f"""
+    {name} = blocks -> {{
+      entry = args~{{x = {form}}} ->
+        let p = 'alloca' {{{form}}} in
+        let s = 'store' {{args.x, p}} in
+        let v = 'load' {{{form}, $seq {{s, p}}}} in
+        v,
+    }},
+    """
+
+
+_ROUND_TRIPS = {
+    'i1': (ctypes.c_bool, True),
+    'i8': (ctypes.c_uint8, 0xAB),
+    'i16': (ctypes.c_uint16, 0xABCD),
+    'i32': (ctypes.c_uint32, 0xDEADBEEF),
+    'i64': (ctypes.c_uint64, 0x0123456789ABCDEF),
+    'ptr': (ctypes.c_void_p, 0x1234_5678),
+}
+
+_STRUCT = "{x = 'i32', y = 'i64'}"
+
+# A struct is stored whole, then each field is read back.
+_STRUCT_ROUND_TRIP = f"""
+pair = blocks -> {{
+  entry = args~{{a = 'i32', b = 'i64'}} ->
+    let q = {{x = args.a, y = args.b}} in
+    let p = 'alloca' {{{_STRUCT}}} in
+    let s = 'store' {{q, p}} in
+    let r = 'load' {{{_STRUCT}, $seq {{s, p}}}} in
+    let x = r.x in
+    let wide = 'zext' {{'i32', x, 'i64'}} in
+    let y = r.y in
+    let sum = 'add' {{'i64', wide, y}} in
+    sum,
+}},
+"""
+
+
+def test_a_store_then_a_load_gives_the_stored_value():
+    defs = ''.join(_round_trip(f'rt_{form}', f"'{form}'") for form in _ROUND_TRIPS) + _STRUCT_ROUND_TRIP
+    decls = ', '.join([*(f"rt_{form} = => '{form}'" for form in _ROUND_TRIPS), "pair = => 'i64'"])
+    llvm.initialize_native_target()
+    llvm.initialize_native_asmprinter()
+    machine = llvm.Target.from_default_triple().create_target_machine()
+    engine = llvm.create_mcjit_compiler(llvm.parse_assembly(str(translate(banf(defs, decls), TARGET))), machine)
+    engine.finalize_object()
+    for form, (c_type, value) in _ROUND_TRIPS.items():
+        function = ctypes.CFUNCTYPE(c_type, c_type)(engine.get_function_address(f'rt_{form}'))
+        assert function(value) == value, form
+    pair = ctypes.CFUNCTYPE(ctypes.c_uint64, ctypes.c_uint32, ctypes.c_uint64)(engine.get_function_address('pair'))
+    assert pair(7, 1 << 40) == 7 + (1 << 40)
+
+
+@pytest.mark.parametrize(('name', 'count'), [('load', 3), ('store', 1)])
+def test_load_and_store_check_their_field_count(name, count):
+    # The verifier checks this first; the LLVM code doesn't rely on it.
+    fields = [banf_terms.Var('q')] * count
+    with pytest.raises(LlvmTranslationError) as info:
+        DEFAULT_OPCODES[name](None, fields, None)
+    assert info.value.message == f"{name!r} takes 2 fields, got {count}."

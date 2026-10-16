@@ -215,6 +215,9 @@ def test_reduce_one_step(source, expected):
         # Memory opcodes are impure: reduction never folds them (plan_memory.md decision 13).
         "'alloca' {'i32'}",
         "'getelementptr' {'i8', e, [01000000]~'i32'}",
+        # A store then a load: both stay, even on literal fields.
+        "'store' {[2a000000]~'i32', e}",
+        "'load' {'i32', $seq {a, e}}",
     ],
 )
 def test_reduce_returns_the_term_itself(source):

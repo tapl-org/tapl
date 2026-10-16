@@ -29,7 +29,7 @@ def test_one_opcode_per_llvm_instruction():
         *('add', 'sub', 'mul', 'sdiv', 'udiv', 'srem', 'urem', 'shl', 'lshr', 'ashr', 'and', 'or', 'xor'),
         *(f'icmp_{p}' for p in ('eq', 'ne', 'slt', 'sle', 'sgt', 'sge', 'ult', 'ule', 'ugt', 'uge')),
         *('zext', 'sext', 'trunc'),
-        *('alloca', 'getelementptr'),
+        *('alloca', 'getelementptr', 'load', 'store'),
     }
 
 
@@ -151,7 +151,8 @@ def test_evaluate_conversions():
 
 
 def test_only_memory_opcodes_are_impure():
-    assert {name for name, opcode in OPCODES.items() if not opcode.pure} == {'alloca', 'getelementptr'}
+    impure = {name for name, opcode in OPCODES.items() if not opcode.pure}
+    assert impure == {'alloca', 'getelementptr', 'load', 'store'}
 
 
 def test_memory_opcodes_give_a_pointer_and_never_evaluate():
@@ -166,3 +167,16 @@ def test_memory_opcodes_give_a_pointer_and_never_evaluate():
     assert OPCODES['alloca'].form_of([I32, x, x]) is None
     assert OPCODES['getelementptr'].form_of([I32, x]) is None
     assert OPCODES['alloca'].evaluate([I32]) is None
+
+
+def test_load_gives_its_form_and_store_gives_the_empty_struct():
+    x = terms.Variable('x')
+    point = terms.Struct([terms.Field('x', I32), terms.Field('y', I64)])
+    assert OPCODES['load'].form_of([I32, x]) == I32
+    assert OPCODES['load'].form_of([point, x]) == point
+    assert OPCODES['load'].form_of([PTR, x]) == PTR
+    assert OPCODES['load'].form_of([x, x]) is None
+    assert OPCODES['store'].form_of([x, x]) == terms.Struct([])
+    # Neither runs in reduction: oymomo has no memory.
+    assert OPCODES['load'].evaluate([I32, x]) is None
+    assert OPCODES['store'].evaluate([terms.ByteArray(bytes(4)), x]) is None

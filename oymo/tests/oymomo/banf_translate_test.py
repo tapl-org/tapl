@@ -1063,3 +1063,48 @@ def test_a_struct_form_field_is_a_form():
 )
 def test_memory_opcode_errors(body, message):
     assert error(f"g = f -> {{entry = args~{{n = 'i8'}} -> {body}}}", "g = => 'ptr'") == message
+
+
+BUMP = """
+bump = f -> {
+  entry = args~{n = 'i32'} ->
+    let p = 'alloca' {'i32'} in
+    let s = 'store' {args.n, p} in
+    let v = 'load' {'i32', $seq {s, p}} in
+    let w = 'add' {'i32', v, [01000000]} in
+    w,
+}
+"""
+
+
+def test_load_after_store():
+    # The plan's goal: `$seq` makes the load wait for the store, and is gone in BANF.
+    assert banf(BUMP, "bump = => 'i32'") == text("""
+        bump: i32
+          entry(n: i32):
+            p = alloca 'i32'
+            s = store n, p
+            v = load 'i32', p
+            w = add 'i32', v, [01000000]
+            return w
+    """)
+
+
+@pytest.mark.parametrize(
+    ('body', 'message'),
+    [
+        ("let p = 'alloca' {'i32'} in let s = 'store' {args.n} in args.n", "'store' takes 2 fields, got 1."),
+        ("let v = 'load' {'i32', args.n} in v", "'load' expects ptr: ptr, got i32."),
+        (
+            "let p = 'alloca' {'i32'} in let s = 'store' {args.n, p} in s",
+            "'s' is the result of a store; only $seq can use it.",
+        ),
+        (
+            "let p = 'alloca' {'i32'} in let s = 'store' {[2a000000], p} in args.n",
+            "'store': value must have a form, such as [01000000]~'i32'.",
+        ),
+        ("let v = 'load' {args.n, args.n} in v", "'load' cannot tell its result form from its fields."),
+    ],
+)
+def test_load_and_store_errors(body, message):
+    assert error(f"g = f -> {{entry = args~{{n = 'i32'}} -> {body}}}", "g = => 'i32'") == message

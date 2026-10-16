@@ -184,8 +184,15 @@ def _convert(name: str, compute: _Compute, *, widening: bool) -> Opcode:
 
 PTR = terms.ByteArray.from_str('ptr')
 
+# What a `store` gives: LLVM's `store` gives no value, and only `$seq` may use it
+# (plan_memory.md decision 11).
+STORE_RESULT = terms.Struct([])
+
 # `getelementptr` takes a form, a pointer and at least one index.
 GEP_MIN_FIELDS = 3
+
+# `load` takes `{form, ptr}`, `store` takes `{value, ptr}`.
+LOAD_STORE_FIELDS = 2
 
 
 def is_literal_form(term: terms.Term) -> bool:
@@ -209,6 +216,18 @@ def _alloca_form_of(fields: Fields) -> terms.Term | None:
 def _getelementptr_form_of(fields: Fields) -> terms.Term | None:
     """`{form, ptr, i0, ..., in}`: `ptr` moved by `i0` whole `form`s, then into `form`'s parts."""
     return PTR if len(fields) >= GEP_MIN_FIELDS and is_literal_form(fields[0]) else None
+
+
+def _load_form_of(fields: Fields) -> terms.Term | None:
+    """`{form, ptr}`: the `form` read at `ptr`. The field count is the BANF verifier's
+    check, so that `'load' {'i32'}` says how many fields it takes."""
+    return fields[0] if fields and is_literal_form(fields[0]) else None
+
+
+def _store_form_of(_fields: Fields) -> terms.Term | None:
+    """`{value, ptr}`: writes `value` at `ptr` and gives `{}`. The field count is the BANF
+    verifier's check, as for `load`."""
+    return STORE_RESULT
 
 
 def _generate():
@@ -247,6 +266,8 @@ def _generate():
     # Memory: impure, so reduction never folds them; oymomo has no memory to run them on.
     yield Opcode('alloca', _alloca_form_of, _never, pure=False)
     yield Opcode('getelementptr', _getelementptr_form_of, _never, pure=False)
+    yield Opcode('load', _load_form_of, _never, pure=False)
+    yield Opcode('store', _store_form_of, _never, pure=False)
 
 
 OPCODES: dict[str, Opcode] = {opcode.name: opcode for opcode in _generate()}

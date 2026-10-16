@@ -1,6 +1,6 @@
 # Plan: memory as in LLVM: the `'ptr'` form, alloca, getelementptr, load and store
 
-Status: **in progress**; 2 of 7 steps.
+Status: **in progress**; 3 of 7 steps.
 
 ## Steps
 
@@ -8,7 +8,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 
 - [x] 1. `$seq {d1, ..., x}`: gives `x` once every `dᵢ` is a literal, so an effect it waits for stays (`oymomo: add $seq`)
 - [x] 2. The `'ptr'` form, `'alloca'` and `'getelementptr'` (`oymomo: add the ptr form`)
-- [ ] 3. `'load'` and `'store'` (`oymomo: add load and store`)
+- [x] 3. `'load'` and `'store'` (`oymomo: add load and store`)
 - [ ] 4. Tests: what `translate` does to effects without `$seq` (`oymomo: test unordered effects`)
 - [ ] 5. Arrays, vectors and packed structs as tagged structs (`{'array', count, element}`) (`oymomo: add aggregate forms`)
 - [ ] 6. Globals: data is a read-only `constant`; `'global'` makes a writable cell (`oymomo: add globals`)
@@ -427,9 +427,11 @@ checks.
 
 | Module | Change |
 |---|---|
-| `opcodes.py` | entries `load` (form param `form`, `ptr~'ptr'`, result `form`) and `store` (`value` of any form, `ptr~'ptr'`, result `{}`), impure; `llvm`: `builder.load(ptr, typ=llvm_type(form))`, `builder.store(value, ptr)`, the let binding no LLVM value |
-| `banf_terms.py` | verifier: a name bound by a `store` let is used nowhere (decision 11); `$seq` is gone by then, so any use is an error |
-| `banf_translate.py` | none: `ptr` must have form `'ptr'` is the table's param check: `'load' expects ptr: ptr, got i32.` |
+| `opcodes.py` | entries `load` (`{form, ptr}`, `form_of` giving `form` when it is a literal form) and `store` (`{value, ptr}`, `form_of` always `{}`, `STORE_RESULT`), impure; `evaluate` never gives a value. The field count is left to the verifier, so the message says how many fields it takes |
+| `banf_terms.py` | verifier: `load` and `store` take 2 fields (`'store' takes 2 fields, got 1.`), `ptr` has form `ptr` (`'load' expects ptr: ptr, got i32.`), a stored value brings its own form; a name bound by a `store` let is used nowhere, in an op or a terminator (decision 11): `$seq` is gone by then, so any use is an error |
+| `llvm_opcodes.py` | `load`: `builder.load(ptr, typ=llvm_type(form))`; `store`: `builder.store(value, ptr)`; both recheck the field count and that `ptr` is a pointer |
+| `llvm_translate.py` | a let whose instruction is `void` (a `store`) names no LLVM value |
+| `banf_translate.py` | none |
 
 ### D. Tagged structs for arrays, vectors and packed structs (step 5)
 

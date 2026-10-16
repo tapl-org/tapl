@@ -284,6 +284,23 @@ def _check_args(what, params, args, forms, location):
         atom_form(arg, forms)
 
 
+def _check_load_store(op, forms):
+    """`load {form, ptr}` and `store {value, ptr}`: two fields, `ptr` of form `ptr`, and a
+    stored value that brings its own form (plan_memory.md decision 7)."""
+    name, fields = op.opcode, op.fields
+    if len(fields) != opcodes.LOAD_STORE_FIELDS:
+        raise FormError(f'{name!r} takes {opcodes.LOAD_STORE_FIELDS} fields, got {len(fields)}.', op.location)
+    if name == 'store':
+        value = fields[0]
+        if isinstance(value, FormField) or atom_form(value, forms) is terms.Empty:
+            raise FormError("'store': value must have a form, such as [01000000]~'i32'.", op.location)
+    pointer = fields[1]
+    form = terms.Empty if isinstance(pointer, FormField) else atom_form(pointer, forms)
+    if form != opcodes.PTR:
+        got = show_form(form) or 'a bare byte array'
+        raise FormError(f'{name!r} expects ptr: ptr, got {got}.', op.location)
+
+
 def _check_op(op, forms, module):
     match op:
         case OpcodeCall(opcode=name, fields=fields):
@@ -293,10 +310,48 @@ def _check_op(op, forms, module):
             for atom in fields:
                 if not isinstance(atom, FormField):
                     atom_form(atom, forms)
+            if name in ('load', 'store'):
+                _check_load_store(op, forms)
         case Call(function=name, args=args):
             _check_args(name, callee(op, module).params, args, forms, op.location)
         case _:
             form_of(op, forms, module)
+
+
+def _op_atoms(op):
+    match op:
+        case OpcodeCall(fields=fields):
+            return [f for f in fields if not isinstance(f, FormField)]
+        case Call(args=args):
+            return args
+        case MakeStruct(fields=fields):
+            return [atom for _, atom in fields]
+        case GetField(struct=struct) | GetIndex(struct=struct):
+            return [struct]
+    return []
+
+
+def _terminator_atoms(terminator):
+    match terminator:
+        case Jump(args=args):
+            return args
+        case Branch() as branch:
+            return [branch.condition, *branch.then_args, *branch.else_args]
+        case Switch(selector=selector, targets=targets):
+            return [selector, *(arg for _, args in targets for arg in args)]
+        case Return(value=value):
+            return [value]
+    raise AssertionError(terminator)
+
+
+def _check_no_store_use(atoms, stores, location):
+    """A store gives `{}`, which only `$seq` may use, and `$seq` is gone by BANF
+    (plan_memory.md decision 11): a store's name is used nowhere."""
+    for atom in atoms:
+        if isinstance(atom, Var) and atom.name in stores:
+            raise FormError(
+                f'{atom.name!r} is the result of a store; only $seq can use it.', atom.location or location
+            )
 
 
 def _check_jump(function, target, args, forms, location):
@@ -320,11 +375,16 @@ def _verify_function(function, module):
             if name in forms:
                 raise FormError(f'Duplicate name {name!r}.', block.location)
             forms[name] = form
+        stores = set()
         for let in block.lets:
             if let.name in forms:
                 raise FormError(f'Duplicate name {let.name!r}.', let.location)
+            _check_no_store_use(_op_atoms(let.value), stores, let.location)
             _check_op(let.value, forms, module)
             forms[let.name] = let_form(let, forms, module)
+            if isinstance(let.value, OpcodeCall) and let.value.opcode == 'store':
+                stores.add(let.name)
+        _check_no_store_use(_terminator_atoms(block.terminator), stores, block.terminator.location)
         match block.terminator:
             case Jump(target=target, args=args) as jump:
                 _check_jump(function, target, args, forms, jump.location)
