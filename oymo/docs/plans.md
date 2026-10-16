@@ -4,6 +4,9 @@ Each plan is one design change, carried out in steps of one commit each. A plan 
 **open** until every step is done, and then **closed**, with its status set to
 **implemented**, and moved to [implemented/](implemented/).
 
+The order of work, cut into releases that each ship a usable toolchain, is in
+[roadmap.md](roadmap.md).
+
 ## Open
 
 | Plan | Status | Description |

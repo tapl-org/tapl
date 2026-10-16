@@ -57,7 +57,9 @@ it finishes without error, layer 0 type-checks. This mirrors TAPL's `a1.py`.
 
 Each decision is written down in this file (or a plan of its own) before Phase 1 starts.
 
-**0.1 Name and file extension.** Name: **Anvil** (decided). File extension: open.
+**0.1 Name and file extension.** Name: **Anvil** (decided). File extension: **`.oymo`**
+(decided), as for every language on oymo; the file's first line is `language anvil`
+([roadmap.md](roadmap.md#one-file-extension-a-language-header)).
 
 **0.2 Syntax.** The main choice:
 - A: C/Zig-like braces. Familiar to C users.
