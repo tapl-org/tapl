@@ -264,6 +264,7 @@ built on it, and before it is rewritten.
 | From | Work |
 |---|---|
 | [todo.md](todo.md) | oymomo translates to LLVM IR directly and BANF goes; BANF's checks move into that translation and into `shape` |
+| new | **the IR builder**: the translation calls a small builder interface (new module, new function, new block, add instruction, add global), never LLVM or text directly. Its first implementation sits on llvmlite's `ir` module, which builds IR text; the Tenon compiler ports the interface with a text implementation (0.12) |
 
 Why here: confluence (0.2) has settled oymomo's shape, and 0.3 added no oymomo
 feature. Every oymomo feature after this (`void`, null, casts, `memcpy`, unions,
@@ -380,7 +381,7 @@ llvmlite.
 
 | From | Work |
 |---|---|
-| new | the oymomo pipeline in Tenon, ported as it is: parser, reduction, `shape`, and the direct translation to LLVM IR (0.4), written out as text, which `clang` compiles and links. There is no BANF to port |
+| new | the oymomo pipeline in Tenon, ported as it is: parser, reduction, `shape`, and the direct translation to LLVM IR (0.4) with its IR builder. The builder's first implementation writes `.ll` text, which `clang` compiles and links. There is no BANF to port |
 | new | the confluence test of 0.2 and every oymomo golden test, run against the Tenon compiler |
 
 **Milestone:** the Tenon-written compiler, built by the Python compiler, gives the same
@@ -668,7 +669,7 @@ about trust.
 | Stability | oymomo syntax and semantics frozen and versioned; Tenon language spec; public API frozen, semantic versioning, deprecation policy; **language versions** in the header (`language tenon 2`), so a language can change after 1.0 without breaking old files, as Rust's editions do |
 | Correctness | the confluence test of 0.2 kept green and extended to every new rule; fuzzing of parser, reduction and translation; differential tests against clang at `-O0` and `-O2` |
 | Speed of the code | a benchmark set (the same programs in C and Tenon); target: within a set percentage of `clang -O2`, measured in CI |
-| Speed of the compiler | measured on its own source; a budget per 10k lines; layer-1 results cached between builds, so the type checker is not rebuilt for unchanged files |
+| Speed of the compiler | measured on its own source; a budget per 10k lines; layer-1 results cached between builds, so the type checker is not rebuilt for unchanged files; if text IR is too slow, a second IR-builder implementation over the **LLVM C API** (in-process, no printing and re-parsing), behind the same interface |
 | Target | Linux x86-64 (ELF, SysV ABI, glibc and musl); `--target` written so 1.x only adds entries |
 | Libraries | how one Tenon library uses another, decided and documented: a package manager, or none (vendored sources, or pip packages that ship `.oymo` files) |
 | Docs | tutorial, Tenon reference, C interop guide, and a **language author's guide**: lowering to Tenon, lowering to oymomo, the public API reference |
@@ -769,6 +770,10 @@ Not planned, before or after 1.0, so no release waits for them:
   the compiler" row.
 - **`clang` is required** from 0.14 (gcc can't read LLVM IR), until the standalone
   binary (0.36) bundles it.
+- **Text IR is slower** than building IR in memory: the compiler prints it and `clang`
+  parses it again. Measured on the compiler's own source from 0.14; the fix, if
+  needed, is the LLVM C API behind the IR builder (1.0's "Speed of the compiler"
+  row), a local change.
 - **Moving targets.** Zig, C3 and Carbon all aim at 1.0 in 2027–2028; Tenon's
   difference (types as code, a platform for other languages) must stay visible in the
   docs from 0.3.
@@ -840,9 +845,17 @@ After 1.0, the 1.x targets, translate-c and Spindle in Tenon are independent tra
   the Tenon compiler only. This replaces the earlier decision to self-host after 1.0.
 - **The seed** for building from scratch is the compiler's own LLVM IR, committed as
   `bootstrap/oymo.ll`; the Python compiler is frozen at 0.14.
-- **No LLVM binding in the product.** The Tenon compiler writes LLVM IR as text and
-  runs `clang`; layer 1 runs as a native subprocess, not in a JIT. llvmlite is used
-  only by the Python compiler, until 0.14.
+- **An IR builder, text first.** The translation from oymomo goes through a small
+  IR-builder interface (from 0.4). The Tenon compiler's first implementation writes
+  `.ll` text and runs `clang`, so the bootstrap needs only `clang`, the seed builds
+  with `clang` alone, and the port from llvmlite (which also builds IR text) stays
+  mechanical. A second implementation over the **LLVM C API** is an option in Stage C,
+  when there is a reason: compile speed, in-process optimization and LTO (0.27), or
+  bundling libLLVM in the standalone binary (0.36). This is how most languages
+  differ: Rust, Odin, C3 and Crystal use the LLVM API; GHC writes `.ll` text; Zig
+  moved from the C++ API to writing bitcode itself, to stay independent of LLVM's API.
+  Layer 1 runs as a native subprocess, not in a JIT; llvmlite is used only by the
+  Python compiler, until 0.14.
 - **BANF goes away before the bootstrap (0.4)**, right after confluence (0.2) settles
   oymomo's shape, so the rewrite is a port with no change of behaviour or logic, and
   no oymomo feature is ever built in BANF.
