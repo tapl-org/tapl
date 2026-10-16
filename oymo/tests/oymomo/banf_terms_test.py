@@ -454,3 +454,33 @@ def test_verify_rejects_duplicate_names_and_closed_block_violation():
         verify(one_block([Let('n', GetData('x'))], Return(ZERO), params=[('n', I32)]))
     with pytest.raises(FormError, match="Unknown name 'n'"):
         verify(one_block([], Return(Var('n'))))
+
+
+def _tagged(tag, *parts):
+    return terms.Struct([terms.Field('', terms.ByteArray(tag.encode())), *parts])
+
+
+def _count(n):
+    return terms.Field('', terms.Formed(terms.ByteArray(n.to_bytes(4, 'little')), I32))
+
+
+@pytest.mark.parametrize(
+    ('form', 'shown'),
+    [
+        (_tagged('array', _count(3), terms.Field('', I32)), '[3 x i32]'),
+        (_tagged('vector', _count(4), terms.Field('', I32)), '<4 x i32>'),
+        (_tagged('scalable_vector', _count(4), terms.Field('', I32)), '<vscale x 4 x i32>'),
+        (_tagged('packed', terms.Field('', I8), terms.Field('', I32)), '<{i8, i32}>'),
+        # A packed struct keeps its field labels, as a struct does.
+        (_tagged('packed', terms.Field('a', I8), terms.Field('b', I32)), '<{a: i8, b: i32}>'),
+        (
+            terms.Struct([terms.Field('p', _tagged('array', _count(2), terms.Field('', POINT)))]),
+            '{p: [2 x {x: i32, y: i32}]}',
+        ),
+        # Not a tag, or malformed: printed as the struct it is.
+        (terms.Struct([terms.Field('', I32), terms.Field('x', I8)]), '{i32, x: i8}'),
+        (_tagged('array', terms.Field('', I32)), '{array, i32}'),
+    ],
+)
+def test_show_tagged_forms(form, shown):
+    assert show_form(form) == shown

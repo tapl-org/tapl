@@ -111,3 +111,4 @@ def test_goldens():
     run_golden_test('seq')
     run_golden_test('pointer')
     run_golden_test('memory')
+    run_golden_test('aggregate')

@@ -737,3 +737,108 @@ def test_an_effect_used_twice_runs_once():
     engine.finalize_object()
     bump = ctypes.CFUNCTYPE(ctypes.c_uint32, ctypes.c_uint32)(engine.get_function_address('bump'))
     assert bump(41) == 2
+
+
+# Arrays, vectors and packed structs (plan_memory.md decision 8).
+
+ARRAY = "{'array', [03000000]~'i32', 'i32'}"
+PACKED = "{'packed', a = 'i8', b = 'i32'}"
+
+
+@pytest.mark.parametrize(
+    ('form', 'expected'),
+    [
+        (ARRAY, 'alloca [3 x i32]'),
+        ("{'vector', [04000000]~'i32', 'i32'}", 'alloca <4 x i32>'),
+        (PACKED, 'alloca <{i8, i32}>'),
+        (f"{{'array', [0200]~'i16', {PACKED}}}", 'alloca [2 x <{i8, i32}>]'),
+        (f"{{x = 'i8', y = {ARRAY}}}", 'alloca {i8, [3 x i32]}'),
+    ],
+)
+def test_tagged_form_types(form, expected):
+    source = f"g = f -> {{entry = args~{{}} -> let p = 'alloca' {{{form}}} in p}}"
+    assert f'%"p" = {expected}\n' in ir_text(source, "g = => 'ptr'")
+
+
+def test_getelementptr_into_an_array_at_a_run_time_index():
+    op = f"'getelementptr' {{{ARRAY}, args.q, [0000000000000000]~'i64', args.i}}"
+    source = f"g = f -> {{entry = args~{{q = 'ptr', i = 'i64'}} -> let p = {op} in p}}"
+    assert '%"p" = getelementptr [3 x i32], ptr %"q", i64 0, i64 %"i"\n' in ir_text(source, "g = => 'ptr'")
+
+
+def test_getelementptr_into_a_packed_struct_needs_a_literal_index():
+    op = f"'getelementptr' {{{PACKED}, args.q, [0000000000000000]~'i64', args.i}}"
+    source = f"g = f -> {{entry = args~{{q = 'ptr', i = 'i32'}} -> let p = {op} in p}}"
+    message = "'getelementptr': index 1 into <{a: i8, b: i32}> must be a literal 'i32' below 2."
+    assert ir_error(source, "g = => 'ptr'") == message
+
+
+def test_a_scalable_vector_has_no_llvmlite_type():
+    form = "{'scalable_vector', [04000000]~'i32', 'i32'}"
+    source = f"g = f -> {{entry = args~{{}} -> let p = 'alloca' {{{form}}} in p}}"
+    assert ir_error(source, "g = => 'ptr'") == 'Form <vscale x 4 x i32> has no LLVM type in llvmlite.'
+
+
+# Through LLVM's JIT: an array and a packed struct are filled field by field, loaded whole,
+# stored whole into a second slot, and read back from it.
+AGGREGATES = f"""
+array = f -> {{
+  entry = args~{{a = 'i32', b = 'i32', c = 'i32'}} ->
+    let p = 'alloca' {{{ARRAY}}} in
+    let p0 = 'getelementptr' {{{ARRAY}, p, [0000000000000000]~'i64', [0000000000000000]~'i64'}} in
+    let p1 = 'getelementptr' {{{ARRAY}, p, [0000000000000000]~'i64', [0100000000000000]~'i64'}} in
+    let p2 = 'getelementptr' {{{ARRAY}, p, [0000000000000000]~'i64', [0200000000000000]~'i64'}} in
+    let s0 = 'store' {{args.a, p0}} in
+    let s1 = 'store' {{args.b, p1}} in
+    let s2 = 'store' {{args.c, p2}} in
+    let v = 'load' {{{ARRAY}, $seq {{s0, s1, s2, p}}}} in
+    let q = 'alloca' {{{ARRAY}}} in
+    let s = 'store' {{v, q}} in
+    let q2 = 'getelementptr' {{{ARRAY}, q, [0000000000000000]~'i64', [0200000000000000]~'i64'}} in
+    let r = 'load' {{'i32', $seq {{s, q2}}}} in
+    r,
+}},
+packed = f -> {{
+  entry = args~{{a = 'i8', b = 'i32'}} ->
+    let p = 'alloca' {{{PACKED}}} in
+    let pa = 'getelementptr' {{{PACKED}, p, [0000000000000000]~'i64', [00000000]~'i32'}} in
+    let pb = 'getelementptr' {{{PACKED}, p, [0000000000000000]~'i64', [01000000]~'i32'}} in
+    let sa = 'store' {{args.a, pa}} in
+    let sb = 'store' {{args.b, pb}} in
+    let v = 'load' {{{PACKED}, $seq {{sa, sb, p}}}} in
+    let q = 'alloca' {{{PACKED}}} in
+    let s = 'store' {{v, q}} in
+    let qb = 'getelementptr' {{{PACKED}, q, [0000000000000000]~'i64', [01000000]~'i32'}} in
+    let r = 'load' {{'i32', $seq {{s, qb}}}} in
+    r,
+}},
+field_b = f -> {{
+  entry = args~{{p = 'ptr'}} ->
+    let q = 'getelementptr' {{{PACKED}, args.p, [0000000000000000]~'i64', [01000000]~'i32'}} in q,
+}},
+next = f -> {{
+  entry = args~{{p = 'ptr'}} ->
+    let q = 'getelementptr' {{{PACKED}, args.p, [0100000000000000]~'i64'}} in q,
+}},
+"""
+
+
+def test_aggregates_through_the_jit():
+    decls = "array = => 'i32', packed = => 'i32', field_b = => 'ptr', next = => 'ptr'"
+    llvm.initialize_native_target()
+    llvm.initialize_native_asmprinter()
+    machine = llvm.Target.from_default_triple().create_target_machine()
+    llvm_module = llvm.parse_assembly(str(translate(banf(AGGREGATES, decls), TARGET)))
+    engine = llvm.create_mcjit_compiler(llvm_module, machine)
+    engine.finalize_object()
+
+    def function(name, result, *params):
+        return ctypes.CFUNCTYPE(result, *params)(engine.get_function_address(name))
+
+    u32, u8, ptr = ctypes.c_uint32, ctypes.c_uint8, ctypes.c_void_p
+    assert function('array', u32, u32, u32, u32)(7, 8, 9) == 9
+    assert function('packed', u32, u8, u32)(7, 0xDEADBEEF) == 0xDEADBEEF
+    # No padding: field b is at byte 1, and the next packed struct at byte 5.
+    base = 0x1000
+    assert function('field_b', ptr, ptr)(base) == base + 1
+    assert function('next', ptr, ptr)(base) == base + 5

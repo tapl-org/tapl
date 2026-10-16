@@ -195,8 +195,48 @@ GEP_MIN_FIELDS = 3
 LOAD_STORE_FIELDS = 2
 
 
+# LLVM's aggregate types other than a plain struct are tagged structs: field 0 names the
+# type, and the fields after it are its parts (plan_memory.md decision 8). Only BANF and
+# LLVM read the tag; to reduction they are structs like any other.
+FORM_TAGS = frozenset({'array', 'vector', 'scalable_vector', 'packed'})
+
+# The tags whose parts are `count, element`.
+SEQUENCE_TAGS = frozenset({'array', 'vector', 'scalable_vector'})
+SEQUENCE_PARTS = 2
+
+
+def tagged_form(form: terms.Term) -> tuple[str, list[terms.Field]] | None:
+    """`(tag, parts)` for a struct whose field 0 is one of `FORM_TAGS`, else None. The tag's
+    label is ignored. `{'i32', x = 'i8'}` is a plain struct: `'i32'` is not a tag."""
+    if not isinstance(form, terms.Struct) or not form.fields:
+        return None
+    tag = form.fields[0].value
+    name = tag.as_str if isinstance(tag, terms.ByteArray) else None
+    if name is None or name not in FORM_TAGS:
+        return None
+    return name, form.fields[1:]
+
+
+def tag_count(term: terms.Term) -> int | None:
+    """The `count` of an array or a vector: a byte array formed as an integer form, read
+    unsigned (`[03000000]~'i32'` is 3), or None."""
+    if isinstance(term, terms.Formed) and isinstance(term.term, terms.ByteArray):
+        return decode_uint(term, term.form)
+    return None
+
+
 def is_literal_form(term: terms.Term) -> bool:
-    """A named form (`'i32'`, `'ptr'`) or a struct of literal forms: what a form field must be."""
+    """A named form (`'i32'`, `'ptr'`), a struct of literal forms, or a tagged struct of
+    them, with a literal `count`: what a form field must be."""
+    if (tagged := tagged_form(term)) is not None:
+        tag, parts = tagged
+        if tag in SEQUENCE_TAGS:
+            return (
+                len(parts) == SEQUENCE_PARTS
+                and tag_count(parts[0].value) is not None
+                and is_literal_form(parts[1].value)
+            )
+        return all(is_literal_form(f.value) for f in parts)
     if isinstance(term, terms.ByteArray):
         return term.as_str is not None
     if isinstance(term, terms.Struct):

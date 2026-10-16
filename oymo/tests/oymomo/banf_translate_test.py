@@ -1175,3 +1175,88 @@ def test_order_is_let_order(result):
             b = call putchar([69000000]:i32)
             return {returned}
     """)
+
+
+# Arrays, vectors and packed structs as tagged structs (plan_memory.md decision 8).
+
+ARRAY = "{'array', [03000000]~'i32', 'i32'}"
+VECTOR = "{'vector', [04000000]~'i32', 'i32'}"
+PACKED = "{'packed', a = 'i8', b = 'i32'}"
+
+
+@pytest.mark.parametrize(
+    ('form', 'shown'),
+    [
+        (ARRAY, '[3 x i32]'),
+        (VECTOR, '<4 x i32>'),
+        (PACKED, '<{a: i8, b: i32}>'),
+        ("{'packed'}", '<{}>'),
+        # Nested: an array of packed structs, and a struct holding an array.
+        (f"{{'array', [0200]~'i16', {PACKED}}}", '[2 x <{a: i8, b: i32}>]'),
+        (f'{{n = {ARRAY}, m = {VECTOR}}}', '{n: [3 x i32], m: <4 x i32>}'),
+        # Not a tag: a plain struct.
+        ("{'i32', x = 'i8'}", '{i32, x: i8}'),
+    ],
+)
+def test_tagged_forms(form, shown):
+    # As a block param's form, a function param's form and a memory op's form.
+    defs = f"""
+    g = f -> {{
+      entry = args~{{v = {form}}} -> let p = 'alloca' {{{form}}} in f.next {{v = args.v, p = p}},
+      next = args~{{v = {form}, p = 'ptr'}} -> args.p,
+    }}
+    """
+    decls = f"h = {{v = {form}}} => 'ptr', g = => 'ptr'"
+    assert banf(defs, decls) == text(f"""
+        h(v: {shown}): ptr
+
+        g: ptr
+          entry(v: {shown}):
+            p = alloca {shown}
+            jump next(v, p)
+          next(v: {shown}, p: ptr):
+            return p
+    """)
+
+
+@pytest.mark.parametrize(
+    ('form', 'message'),
+    [
+        ("{'array', 'i32'}", "'array' form must be {'array', count, element}."),
+        ("{'vector', [04000000]~'i32', 'i32', 'i8'}", "'vector' form must be {'vector', count, element}."),
+        ("{'array', [03], 'i32'}", "'array' count must be a literal of an integer form, such as [03000000]~'i32'."),
+        ("{'array', args.n, 'i32'}", "'array' count must be a literal of an integer form, such as [03000000]~'i32'."),
+        ("{'vector', [00000000]~'i32', 'i32'}", "'vector' count must be above 0."),
+        (
+            "{'vector', [04000000]~'i32', {x = 'i32'}}",
+            "'vector' element must be an integer form or 'ptr', got {x: i32}.",
+        ),
+        (
+            "{x = {'scalable_vector', [04000000]~'i32', 'i32'}}",
+            "a scalable vector can't be inside a struct, a packed struct or an array.",
+        ),
+        (
+            "{'array', [02000000]~'i32', {'scalable_vector', [04000000]~'i32', 'i32'}}",
+            "a scalable vector can't be inside a struct, a packed struct or an array.",
+        ),
+        ("{'packed', a = 'i8', a = 'i32'}", 'duplicate field labels in <{a: i8, a: i32}>.'),
+    ],
+)
+def test_tagged_form_errors(form, message):
+    defs = f"g = f -> {{entry = args~{{n = 'i32'}} -> let p = 'alloca' {{{form}}} in p}}"
+    assert error(defs, "g = => 'ptr'") == f"'alloca' form: {message}"
+
+
+def test_a_scalable_vector_may_be_a_param():
+    form = "{'scalable_vector', [04000000]~'i32', 'i32'}"
+    assert banf('', f"h = {{v = {form}}} => 'i32'") == 'h(v: <vscale x 4 x i32>): i32\n'
+
+
+def test_a_packed_struct_field_is_read_by_label():
+    defs = f'g = f -> {{entry = args~{{v = {PACKED}}} -> let b = args.v.b in b}}'
+    assert banf(defs, "g = => 'i32'") == text("""
+        g: i32
+          entry(v: <{a: i8, b: i32}>):
+            b = v.b
+            return b
+    """)

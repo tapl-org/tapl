@@ -738,14 +738,32 @@ There is no separate form syntax or form class. A form is an ordinary term:
 | named | `'i32'` | `ByteArray(b'i32')` (a bare `i32` is a variable) |
 | struct | `{x = 'i32', y = 'i8'}` | `Struct` |
 | function | `{c = 'i8'} => 'i32'` | `FunctionForm(param, result)` |
+| array | `{'array', [03000000]~'i32', 'i32'}` | `Struct`, field 0 the tag; LLVM `[3 x i32]` |
+| vector | `{'vector', [04000000]~'i32', 'i32'}` | `Struct`; LLVM `<4 x i32>` |
+| scalable vector | `{'scalable_vector', [04000000]~'i32', 'i32'}` | `Struct`; LLVM `<vscale x 4 x i32>` |
+| packed struct | `{'packed', a = 'i8', b = 'i32'}` | `Struct`; LLVM `<{i8, i32}>` |
 
 - Any term may be a form. A binder's form (`x~F -> b`, `let x~F = v in b`) is the
   same kind of expression as the `F` of `e~F`: `x~i32 -> x`,
   `x~module.T -> x`, `x~'i8' => 'i32' -> x`, `x~[00]~'i8' -> x`.
 - Forms are resolved like other terms: a variable in a lambda param's form is looked
   up *outside* the lambda, so in `x~(x) -> x` the form refers to an outer `x`.
-- BANF translation needs **literal** forms (named forms and structs of them) and
-  rejects others with "form must be a literal".
+- BANF translation needs **literal** forms (named forms, structs and tagged structs of
+  them) and rejects others with "form must be a literal".
+- **Tagged structs** are LLVM's other aggregate types (plan_memory.md decision 8):
+  field 0 is a tag naming the type, and the fields after it are its parts, positional,
+  in LLVM's order. To reduction they are structs like any other; only BANF and LLVM
+  read the tag (`opcodes.tagged_form`, the one reader).
+  - `'array'`, `'vector'`, `'scalable_vector'` and `'packed'` are reserved: they are
+    never a data form, so `{'i32', x = 'i8'}` stays a plain struct.
+  - An array or a vector has exactly `count` and `element`. `count` is a byte array
+    formed as an integer form, read unsigned; a vector's is above 0, and its element
+    an integer form or `'ptr'`. Labels of the tag, `count` and `element` are ignored;
+    a packed struct keeps its own field labels.
+  - A scalable vector can't be inside a struct, a packed struct or an array, as in
+    LLVM; it may be a param. llvmlite has no type for it, so LLVM translation rejects it.
+  - A packed struct's fields are read by label or index like a struct's (`v.b`); an
+    array's or a vector's aren't (use `'getelementptr'` and `'load'`).
 - Locations are left out of `==` on every term, so a parsed form equals the same
   form built in code (`terms.ByteArray(b'i32')`, `terms.struct_form(...)`).
 
@@ -1105,8 +1123,9 @@ is one of `i1 i8 i16 i32 i64`.
 Operands are read at `form`; `to` only gives the result form. The memory opcodes are
 impure, so they never fold; their `form` may be any literal form, a struct included,
 and their other fields bring their own forms (`[1000000000000000]~'i64'`, a let). Into a
-struct, a `getelementptr` index past the first must be a literal `'i32'` below the field
-count, as in LLVM. See [plan_memory.md](plan_memory.md) decisions 5 to 9. Nothing checks which forms
+struct or a packed struct, a `getelementptr` index past the first must be a literal
+`'i32'` below the field count, as in LLVM; into an array or a vector it may be known only
+at run time. See [plan_memory.md](plan_memory.md) decisions 5 to 9. Nothing checks which forms
 are given ([no checks](#a-generated-ir-no-checks-for-user-mistakes)): `'add' {'ptr', a, b}`
 reaches LLVM, which rejects it. `evaluate` only computes what LLVM defines, so it gives
 nothing for `form` other than a `T`, or a conversion that doesn't widen (`zext`, `sext`)
@@ -1629,6 +1648,7 @@ else0:
 | form `iN` | `iN` |
 | struct form | literal struct type, fields in order (other form names rejected) |
 | form `ptr` | opaque `ptr`; a pointer can't be a literal |
+| tagged struct form | `[N x E]`, `<N x E>`, `<{...}>` (packed); a scalable vector is rejected (no llvmlite type) |
 | `[2a000000]:i32` | `i32 42` (little-endian bytes → number) |
 | block param, one predecessor | the value that predecessor passes (no phi) |
 | block param, several predecessors | `phi`, one incoming value per edge: `%v = phi i32 [%x, %a], [0, %b]` |
@@ -1693,6 +1713,11 @@ message text to find where it's raised.
 |---|---|---|
 | `<what>: form must be written.` / `Byte array: form must be written.` | A form is needed but omitted (`Empty`); nothing infers one. | Write it: `[01]~'i8'`, `args~{n = 'i32'}`. See [oymomo](#omitted-forms-are-empty). |
 | `<what>: form must be a literal, got <form>.` | A form that didn't reduce to a named form or struct of them. | Use a literal like `'i32'` or `{x = 'i32'}`, or make sure it reduces to one. |
+| `<what>: 'array' form must be {'array', count, element}.` | An array or a vector with other than two parts. | Write `{'array', [03000000]~'i32', 'i32'}`. |
+| `<what>: 'array' count must be a literal of an integer form, such as [03000000]~'i32'.` | A bare byte array or a run-time value as `count`. | Form the count: `[03000000]~'i32'`. |
+| `<what>: 'vector' count must be above 0.` | A vector of no elements. | Give it a count of 1 or more. |
+| `<what>: 'vector' element must be an integer form or 'ptr', got <form>.` | A vector of structs or arrays. | Use an array instead. |
+| `<what>: a scalable vector can't be inside a struct, a packed struct or an array.` | A scalable vector nested in an aggregate. | Keep it a value or param of its own. |
 
 ### Block bodies (`banf_translate.py`)
 
@@ -1761,6 +1786,7 @@ message text to find where it's raised.
 | `'getelementptr': index <i> goes into <form>, which has no parts.` | More indices than the form has levels. | Drop the extra index. |
 | `'<name>': <what> must have a form, such as [01000000]~'i32'.` | A bare byte array as a count, pointer or index. | Write its form: `[1000000000000000]~'i64'`. |
 | `'getelementptr' expects a pointer, got <type>.` | The pointer field isn't a `'ptr'`. | Pass a pointer. |
+| `Form <vscale x 4 x i32> has no LLVM type in llvmlite.` | A scalable vector reached LLVM translation. | Not supported by llvmlite. |
 | `A switch on i1 has 4 targets; it holds 3.` | More targets than the selector's form has values, plus one for the default. | Widen the selector, e.g. `'zext' {'i1', s, 'i8'}`. |
 
 ## How to…

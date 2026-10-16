@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from llvmlite import ir
 
 from oymo.oymomo import banf_terms as banf
-from oymo.oymomo import terms
+from oymo.oymomo import opcodes, terms
 
 _INT_FORM = re.compile(r'i([1-9][0-9]*)')
 
@@ -37,6 +37,8 @@ class Target:
 
 
 def llvm_type(form: terms.Term) -> ir.Type:
+    if (tagged := opcodes.tagged_form(form)) is not None:
+        return _tagged_type(form, *tagged)
     name = form.as_str if isinstance(form, terms.ByteArray) else None
     if name is not None and (match := _INT_FORM.fullmatch(name)):
         return ir.IntType(int(match.group(1)))
@@ -46,6 +48,19 @@ def llvm_type(form: terms.Term) -> ir.Type:
     if isinstance(form, terms.Struct):
         return ir.LiteralStructType([llvm_type(f.value) for f in form.fields])
     raise LlvmTranslationError(f'Form {banf.show_form(form)} has no LLVM type.')
+
+
+def _tagged_type(form, tag, parts):
+    """`[N x E]`, `<N x E>` or `<{...}>` (plan_memory.md decision 8)."""
+    if tag == 'packed':
+        return ir.LiteralStructType([llvm_type(f.value) for f in parts], packed=True)
+    count = opcodes.tag_count(parts[0].value) if len(parts) == opcodes.SEQUENCE_PARTS else None
+    if count is None:
+        raise LlvmTranslationError(f'Form {banf.show_form(form)} has no LLVM type.')
+    if tag == 'scalable_vector':
+        raise LlvmTranslationError(f'Form {banf.show_form(form)} has no LLVM type in llvmlite.')
+    element = llvm_type(parts[1].value)
+    return ir.ArrayType(element, count) if tag == 'array' else ir.VectorType(element, count)
 
 
 def _const(atom: banf.Const) -> ir.Constant:

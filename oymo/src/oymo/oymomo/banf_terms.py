@@ -232,10 +232,9 @@ def form_of(op: Op, forms: Mapping[str, terms.Term], module: Module) -> terms.Te
             return terms.Struct([terms.Field(label, atom_form(atom, forms)) for label, atom in fields])
         case GetField(struct=struct, label=label):
             struct_form = atom_form(struct, forms)
-            if isinstance(struct_form, terms.Struct):
-                for f in struct_form.fields:
-                    if f.label == label:
-                        return f.value
+            for f in value_fields(struct_form) or []:
+                if f.label == label:
+                    return f.value
             raise FormError(f'Form {show_form(struct_form)} has no field {label!r}.', op.location)
         case GetIndex(struct=struct, index=index):
             return indexed_field(atom_form(struct, forms), index, op.location)[1]
@@ -255,20 +254,28 @@ def let_form(let: Let, forms: Mapping[str, terms.Term], module: Module) -> terms
     return form_of(let.value, forms, module)
 
 
+def value_fields(form: terms.Term) -> list[terms.Field] | None:
+    """The fields a value of `form` has: a struct's fields, or a packed struct's (its tag
+    is not one); None for any other form, an array or a vector included."""
+    if (tagged := opcodes.tagged_form(form)) is not None:
+        tag, parts = tagged
+        return parts if tag == 'packed' else None
+    return form.fields if isinstance(form, terms.Struct) else None
+
+
 def field_index(form: terms.Term, label: str) -> int:
-    if isinstance(form, terms.Struct):
-        for index, f in enumerate(form.fields):
-            if f.label == label:
-                return index
+    for index, f in enumerate(value_fields(form) or []):
+        if f.label == label:
+            return index
     raise FormError(f'Form {show_form(form)} has no field {label!r}.')
 
 
 def indexed_field(form: terms.Term, index: int, location: Location | None = None) -> tuple[int, terms.Term]:
     """The position and form of the field `GetIndex` reads: `index`, or the last field if
     `index` is past it, as in reduction."""
-    if isinstance(form, terms.Struct) and form.fields:
-        position = min(index, len(form.fields) - 1)
-        return position, form.fields[position].value
+    if fields := value_fields(form):
+        position = min(index, len(fields) - 1)
+        return position, fields[position].value
     raise FormError(f'Form {show_form(form)} has no field at index {index}.', location)
 
 
@@ -442,17 +449,43 @@ def _show_label(label: str, separator: str) -> str:
 
 
 def show_form(form: terms.Term) -> str:
-    """BANF's own form syntax: `i32`, `{a: i32}`, `(A => B)`. Nothing for an omitted form,
-    and oymomo syntax in parentheses for any other term."""
+    """BANF's own form syntax: `i32`, `{a: i32}`, `(A => B)`, and LLVM's for a tagged struct:
+    `[3 x i32]`, `<4 x i32>`, `<vscale x 4 x i32>`, `<{i8, i32}>`. Nothing for an omitted
+    form, and oymomo syntax in parentheses for any other term."""
+    if (shown := _show_tagged_form(form)) is not None:
+        return shown
     if isinstance(form, terms.ByteArray) and (name := form.as_str) is not None:
         return show_name(name)
     if isinstance(form, terms.FunctionForm):
         return f'({_show_field_form(form)})'
     if isinstance(form, terms.Struct):
-        return '{' + ', '.join(_show_label(f.label, ': ') + _show_field_form(f.value) for f in form.fields) + '}'
+        return _show_struct_form(form.fields)
     if form is terms.Empty:
         return ''
     return f'({printer.show(form)})'
+
+
+def _show_struct_form(fields):
+    return '{' + ', '.join(_show_label(f.label, ': ') + _show_field_form(f.value) for f in fields) + '}'
+
+
+def _show_tagged_form(form):
+    """A well-formed tagged struct as LLVM prints its type, or None (then it prints as the
+    struct it is)."""
+    if (tagged := opcodes.tagged_form(form)) is None:
+        return None
+    tag, parts = tagged
+    if tag == 'packed':
+        return f'<{_show_struct_form(parts)}>'
+    if len(parts) != opcodes.SEQUENCE_PARTS or (count := opcodes.tag_count(parts[0].value)) is None:
+        return None
+    element = show_form(parts[1].value)
+    match tag:
+        case 'array':
+            return f'[{count} x {element}]'
+        case 'vector':
+            return f'<{count} x {element}>'
+    return f'<vscale x {count} x {element}>'
 
 
 def _show_field_form(form):

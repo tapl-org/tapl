@@ -1,6 +1,6 @@
 # Plan: memory as in LLVM: the `'ptr'` form, alloca, getelementptr, load and store
 
-Status: **in progress**; 4 of 7 steps.
+Status: **in progress**; 5 of 7 steps.
 
 ## Steps
 
@@ -10,7 +10,7 @@ One commit each. Details are in [Implementation steps](#implementation-steps).
 - [x] 2. The `'ptr'` form, `'alloca'` and `'getelementptr'` (`oymomo: add the ptr form`)
 - [x] 3. `'load'` and `'store'` (`oymomo: add load and store`)
 - [x] 4. Tests: what `translate` does to effects without `$seq` (`oymomo: test unordered effects`)
-- [ ] 5. Arrays, vectors and packed structs as tagged structs (`{'array', count, element}`) (`oymomo: add aggregate forms`)
+- [x] 5. Arrays, vectors and packed structs as tagged structs (`{'array', count, element}`) (`oymomo: add aggregate forms`)
 - [ ] 6. Globals: data is a read-only `constant`; `'global'` makes a writable cell (`oymomo: add globals`)
 - [ ] 7. A plan for advanced memory: `noalias`, more ops, alignment and byte order, docs only (`docs: plan advanced memory`)
 
@@ -439,9 +439,11 @@ checks.
 |---|---|
 | `reduction.py`, `terms.py` | none: a tagged struct is a struct |
 | `banf_shape.py` | none: a struct form is already reduced to normal form in place |
-| `banf_terms.py` | `FORM_TAGS = {'array', 'vector', 'scalable_vector', 'packed'}` and `tagged_form(form) -> (tag, parts) \| None`, the one reader every BANF and LLVM stage uses; `show_form`: `[3 x i32]`, `<4 x i32>`, `<vscale x 4 x i32>`, `<{i8, i32}>`, as LLVM prints them; the verifier compares forms with `==`, which already covers structs |
-| `banf_translate.py` | `_check_data_form` reads a struct with `tagged_form` first, and checks a tagged struct by the rules of decision 8, recursively; `count` read as an unsigned little-endian integer |
-| `llvm_translate.py` | `llvm_type`: `ir.ArrayType(e, n)`, `ir.VectorType(e, n)`, `ir.LiteralStructType(fs, packed=True)`; a scalable vector raises, as llvmlite has no scalable vector type; `GetElementPtr` accepts a run-time index into an array or vector |
+| `opcodes.py` | `FORM_TAGS`, `tagged_form(form) -> (tag, parts) \| None`, the one reader every BANF and LLVM stage uses, and `tag_count`; here, not in `banf_terms.py`, since `is_literal_form` (an opcode's form field) needs it and `opcodes` imports only `terms` |
+| `banf_terms.py` | `show_form`: `[3 x i32]`, `<4 x i32>`, `<vscale x 4 x i32>`, `<{a: i8, b: i32}>`, as LLVM prints them (a packed struct keeps its labels); `value_fields`: a packed struct's fields are read by label or index (`GetField`, `GetIndex`), an array's aren't; the verifier compares forms with `==`, which already covers structs |
+| `banf_translate.py` | `_check_data_form` reads a struct with `tagged_form` first, and checks a tagged struct by the rules of decision 8, recursively; `count` read as an unsigned little-endian integer; a param struct's fields are checked one by one, so a scalable vector may be a param; an opcode's fields are read before its result form, so a malformed struct form says what is wrong |
+| `llvm_translate.py` | `llvm_type`: `ir.ArrayType(e, n)`, `ir.VectorType(e, n)`, `ir.LiteralStructType(fs, packed=True)`; a scalable vector raises, as llvmlite has no scalable vector type |
+| `llvm_opcodes.py` | `getelementptr` accepts a run-time index into an array or vector; into a packed struct, a literal `'i32'` as into a struct |
 
 ### E. Globals (step 6)
 

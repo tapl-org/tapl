@@ -129,6 +129,8 @@ def test_beta_propagates_form(source, expected):
         # Through a form, the field's form goes with the value and replaces its own.
         ("({a = e, b = y}~{a = 'f', b = 'g'}).a", "e~'f'"),
         ("({a = e~'g'}~{a = 'f'}).a", "e~'f'"),
+        # A tagged struct is a struct: β builds one as any other (plan_memory.md decision 8).
+        ("(e -> {'array', [03000000]~'i32', e}) 'i8'", "{'array', [03000000]~'i32', 'i8'}"),
     ],
 )
 def test_reduce_one_step(source, expected):

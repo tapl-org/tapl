@@ -136,14 +136,20 @@ def _alloca(builder, fields, operand):
 
 
 def _check_indices(form: terms.Term, fields: Sequence[banf.Atom | banf.FormField]) -> None:
-    """Every index past the first goes into a part of the form so far: into a struct, it is
-    a literal `'i32'` below its field count, as in LLVM."""
+    """Every index past the first goes into a part of the form so far: into a struct or a
+    packed struct, it is a literal `'i32'` below its field count, as in LLVM; into an array
+    or a vector, it may be known only at run time."""
     for index, atom in enumerate(fields, start=1):
-        if not isinstance(form, terms.Struct):
+        tagged = opcodes.tagged_form(form)
+        if tagged is not None and tagged[0] in opcodes.SEQUENCE_TAGS:
+            form = tagged[1][1].value
+            continue
+        parts = tagged[1] if tagged is not None else form.fields if isinstance(form, terms.Struct) else None
+        if parts is None:
             raise LlvmTranslationError(
                 f"'getelementptr': index {index} goes into {banf.show_form(form)}, which has no parts."
             )
-        count = len(form.fields)
+        count = len(parts)
         if not (isinstance(atom, banf.Const) and atom.form == _I32 and len(atom.value) == _I32_BYTES):
             raise LlvmTranslationError(
                 f"'getelementptr': index {index} into {banf.show_form(form)} must be a literal 'i32' below {count}."
@@ -153,7 +159,7 @@ def _check_indices(form: terms.Term, fields: Sequence[banf.Atom | banf.FormField
             raise LlvmTranslationError(
                 f"'getelementptr': index {index} into {banf.show_form(form)} must be a literal 'i32' below {count}."
             )
-        form = form.fields[position].value
+        form = parts[position].value
 
 
 def _getelementptr(builder, fields, operand):

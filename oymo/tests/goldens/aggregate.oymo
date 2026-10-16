@@ -1,0 +1,51 @@
+language oymomo
+module~{sum= ⇒ 'i32'} → {
+  sum= f → {
+    entry= args~{} →
+      let a = 'alloca' {{'array', [03000000]~'i32', 'i32'}} in
+      let p0 = 'getelementptr'
+        {
+          {'array', [03000000]~'i32', 'i32'},
+          a,
+          [00000000 00000000]~'i64',
+          [00000000 00000000]~'i64',
+        } in
+      let p1 = 'getelementptr'
+        {
+          {'array', [03000000]~'i32', 'i32'},
+          a,
+          [00000000 00000000]~'i64',
+          [01000000 00000000]~'i64',
+        } in
+      let p2 = 'getelementptr'
+        {
+          {'array', [03000000]~'i32', 'i32'},
+          a,
+          [00000000 00000000]~'i64',
+          [02000000 00000000]~'i64',
+        } in
+      let s0 = 'store' {[0a000000]~'i32', p0} in
+      let s1 = 'store' {[14000000]~'i32', p1} in
+      let s2 = 'store' {[0c000000]~'i32', p2} in
+      f.loop
+        {
+          a= $seq {s0, s1, s2, a},
+          i= [00000000 00000000]~'i64',
+          total= [00000000]~'i32',
+        },
+    loop= args~{a= 'ptr', i= 'i64', total= 'i32'} →
+      let p = 'getelementptr'
+        {
+          {'array', [03000000]~'i32', 'i32'},
+          args.a,
+          [00000000 00000000]~'i64',
+          args.i,
+        } in
+      let x = 'load' {'i32', p} in
+      let t = 'add' {'i32', args.total, x} in
+      let j = 'add' {'i64', args.i, [01000000 00000000]~'i64'} in
+      let done = 'icmp_eq' {'i64', j, [03000000 00000000]~'i64'} in
+      if done then f.exit {total= t} else f.loop {a= args.a, i= j, total= t},
+    exit= args~{total= 'i32'} → args.total,
+  },
+}

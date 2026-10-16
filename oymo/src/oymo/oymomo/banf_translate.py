@@ -49,20 +49,65 @@ def _check_labeled(fields, location, what):
         raise TranslationError(f'{what} needs a label on every field.', location)
 
 
-def _check_data_form(form, location, what):
-    """A data form is a named form or a struct of data forms: no Empty parts, no function forms,
-    and no other terms. Its fields may be unlabeled."""
-    if isinstance(form, terms.FunctionForm):
+def _check_data_form(form, location, what, *, nested=False):
+    """A data form is a named form, a struct of data forms, or a tagged struct of them
+    (plan_memory.md decision 8): no Empty parts, no function forms, and no other terms. Its
+    fields may be unlabeled. `nested`: inside a struct, a packed struct or an array."""
+    if (tagged := opcodes.tagged_form(form)) is not None:
+        _check_tagged_form(*tagged, location, what, nested=nested)
+    elif isinstance(form, terms.FunctionForm):
         raise TranslationError(f'{what}: function forms nested inside other forms are not supported.', location)
-    if isinstance(form, terms.Struct):
+    elif isinstance(form, terms.Struct):
         if _has_duplicate_labels(form.fields):
             raise TranslationError(f'{what}: duplicate field labels in {banf.show_form(form)}.', location)
         for f in form.fields:
-            _check_data_form(f.value, location, what)
+            _check_data_form(f.value, location, what, nested=True)
     elif form is terms.Empty:
         raise TranslationError(f'{what}: form must be written.', location)
     elif not isinstance(form, terms.ByteArray) or form.as_str is None:
         raise TranslationError(f'{what}: form must be a literal, got {banf.show_form(form)}.', location)
+
+
+def _check_tagged_form(tag, parts, location, what, *, nested):
+    """`{'packed', fields...}`, or `{'array' | 'vector' | 'scalable_vector', count, element}`.
+    Labels are ignored, but a packed struct's own field labels are kept, as a struct's."""
+    if tag == 'packed':
+        if _has_duplicate_labels(parts):
+            raise TranslationError(
+                f'{what}: duplicate field labels in <{banf.show_form(terms.Struct(parts))}>.', location
+            )
+        for f in parts:
+            _check_data_form(f.value, location, what, nested=True)
+        return
+    if tag == 'scalable_vector' and nested:
+        # As in LLVM: a scalable vector's size is known only at run time.
+        raise TranslationError(
+            f"{what}: a scalable vector can't be inside a struct, a packed struct or an array.", location
+        )
+    if len(parts) != opcodes.SEQUENCE_PARTS:
+        raise TranslationError(f'{what}: {tag!r} form must be {{{tag!r}, count, element}}.', location)
+    count, element = parts[0].value, parts[1].value
+    number = opcodes.tag_count(count)
+    if number is None:
+        raise TranslationError(
+            f"{what}: {tag!r} count must be a literal of an integer form, such as [03000000]~'i32'.", location
+        )
+    if tag != 'array' and number == 0:
+        raise TranslationError(f'{what}: {tag!r} count must be above 0.', location)
+    if tag != 'array' and opcodes.find_bit_width(element) is None and element != opcodes.PTR:
+        raise TranslationError(
+            f"{what}: {tag!r} element must be an integer form or 'ptr', got {banf.show_form(element)}.", location
+        )
+    _check_data_form(element, location, what, nested=nested or tag == 'array')
+
+
+def _check_param_forms(form, location, what):
+    """A param struct's fields are params, not parts of one value, so each is checked as a
+    form of its own: a scalable vector may be a param."""
+    if _has_duplicate_labels(form.fields):
+        raise TranslationError(f'{what}: duplicate field labels in {banf.show_form(form)}.', location)
+    for f in form.fields:
+        _check_data_form(f.value, location, what)
 
 
 @dataclass
@@ -132,7 +177,7 @@ def _declarations(module_form, location):
             if not isinstance(param, terms.Struct):
                 raise TranslationError(f'{what}: a function form needs a struct form as its param.', decl_location)
             _check_labeled(param.fields, decl_location, f'{what}: the param form')
-            _check_data_form(param, decl_location, what)
+            _check_param_forms(param, decl_location, what)
             params = [(f.label, f.value) for f in param.fields]
             declarations[label] = banf.Signature(label, params, result, decl_location)
         else:
@@ -186,7 +231,7 @@ def _blocks(field):
                 params = [(f.label, f.value) for f in form.fields]
                 what = f'Block {block_field.label!r}'
                 _check_labeled(form.fields, block_field.location, f'{what}: the param form')
-                _check_data_form(form, block_field.location, what)
+                _check_param_forms(form, block_field.location, what)
             case _:
                 raise TranslationError(
                     f"Block {block_field.label!r} must be a lambda taking a struct, such as args~{{n = 'i32'}} -> ...",
@@ -289,10 +334,12 @@ class _Translator:
         if not isinstance(argument, terms.Struct):
             raise TranslationError(f'The argument to {opcode.name!r} must be a struct literal.', _location(argument))
         values = [f.value for f in argument.fields]
+        # Fields first, so a malformed struct form says what is wrong with it.
+        fields = [self.opcode_field(opcode, v, block) for v in values]
         form = opcode.form_of(values)
         if form is None:
             raise TranslationError(f'{opcode.name!r} cannot tell its result form from its fields.', location)
-        return banf.OpcodeCall(opcode.name, [self.opcode_field(opcode, v, block) for v in values], form, location)
+        return banf.OpcodeCall(opcode.name, fields, form, location)
 
     def opcode_field(self, opcode, value, block):
         """A bare byte array (a named form such as `'i32'`, or an operand) is a `Const` with no
