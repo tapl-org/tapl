@@ -15,7 +15,7 @@ Status: **paused**, with open questions; 1 of 6 steps.
 > [!NOTE]
 > Roadmap: Spindle is a side project before 1.0, and is **written in Tenon after 1.0**
 > ([roadmap.md › Spindle in Tenon](roadmap.md#after-10--spindle-in-tenon)). BANF is
-> not ported to the Tenon-written compiler (oymo 0.11), so before the rewrite this plan decides Spindle's input: the shaped
+> removed in oymo 0.4, before the bootstrap, so before the rewrite this plan decides Spindle's input: the shaped
 > oymomo program, or LLVM IR (the second pipeline below).
 
 ## Steps

@@ -1,6 +1,6 @@
 # Roadmap: from oymomo to a production Tenon toolchain
 
-Status: **proposed**; 0 of 35 releases before 1.0.
+Status: **proposed**; 0 of 36 releases before 1.0.
 
 This is the top-level order of work. It does not design anything: designs live in the
 plans ([plans.md](plans.md)), mostly in the two roadmaps
@@ -13,7 +13,7 @@ and each can be tried on its own.
 The releases come in three stages:
 
 1. **Stage A — the bootstrap set, in Python.** Only what is needed to write a compiler
-   in Tenon: Tenon layer 0 as early as possible, then native binaries, tagged unions,
+   in Tenon: Tenon layer 0 as early as possible, BANF removed, then native binaries, tagged unions,
    layer 1 (types), imports between files, function pointers and a small standard
    library.
 2. **Stage B — bootstrap.** oymo is rewritten in Tenon, builds itself, and the Python
@@ -30,52 +30,53 @@ The releases come in three stages:
 - [ ] [0.1](#01--oymomo-to-llvm-ir-from-the-command-line) — oymomo to LLVM IR, from the command line
 - [ ] [0.2](#02--confluence-reduction-order-doesnt-change-the-result) — confluence: reduction order doesn't change the result
 - [ ] [0.3](#03--tenon-layer-0-first-part-functions-and-integers) — Tenon layer 0, first part: functions and integers
-- [ ] [0.4](#04--tenon-layer-0-second-part-memory-and-calls-to-c) — Tenon layer 0, second part: memory and calls to C
-- [ ] [0.5](#05--native-binaries) — native binaries
-- [ ] [0.6](#06--enums-and-tagged-unions) — enums and tagged unions
-- [ ] [0.7](#07--tenon-layer-1-types) — Tenon layer 1, types
-- [ ] [0.8](#08--module-interfaces-and-imports-between-files) — module interfaces and imports between files
-- [ ] [0.9](#09--function-pointers-and-callbacks) — function pointers and callbacks
-- [ ] [0.10](#010--the-bootstrap-standard-library-and-oymo-test) — the bootstrap standard library, and `oymo test`
+- [ ] [0.4](#04--banf-removed) — BANF removed
+- [ ] [0.5](#05--tenon-layer-0-second-part-memory-and-calls-to-c) — Tenon layer 0, second part: memory and calls to C
+- [ ] [0.6](#06--native-binaries) — native binaries
+- [ ] [0.7](#07--enums-and-tagged-unions) — enums and tagged unions
+- [ ] [0.8](#08--tenon-layer-1-types) — Tenon layer 1, types
+- [ ] [0.9](#09--module-interfaces-and-imports-between-files) — module interfaces and imports between files
+- [ ] [0.10](#010--function-pointers-and-callbacks) — function pointers and callbacks
+- [ ] [0.11](#011--the-bootstrap-standard-library-and-oymo-test) — the bootstrap standard library, and `oymo test`
 
 ### [Stage B — bootstrap](#stage-b--bootstrap)
 
-- [ ] [0.11](#011--oymo-in-tenon-first-part-oymomo-to-llvm-ir) — oymo in Tenon, first part: oymomo to LLVM IR
-- [ ] [0.12](#012--oymo-in-tenon-second-part-the-tenon-frontend) — oymo in Tenon, second part: the Tenon frontend
-- [ ] [0.13](#013--self-hosting) — self-hosting
+- [ ] [0.12](#012--oymo-in-tenon-first-part-oymomo-to-llvm-ir) — oymo in Tenon, first part: oymomo to LLVM IR
+- [ ] [0.13](#013--oymo-in-tenon-second-part-the-tenon-frontend) — oymo in Tenon, second part: the Tenon frontend
+- [ ] [0.14](#014--self-hosting) — self-hosting
 
 ### [Stage C — everything else, in the Tenon compiler](#stage-c--everything-else-in-the-tenon-compiler)
 
 Single-threaded:
 
-- [ ] [0.14](#014--c-calls-tenon-exports-generated-headers-libraries) — C calls Tenon: exports, generated headers, libraries
-- [ ] [0.15](#015--the-c-api-and-the-python-package) — the C API and the Python package
-- [ ] [0.16](#016--the-language-registry-and-the-oymomo-api) — the language registry and the oymomo API
-- [ ] [0.17](#017--the-tenon-api-for-language-authors) — the Tenon API for language authors
-- [ ] [0.18](#018--build-system-integration) — build-system integration
-- [ ] [0.19](#019--floats) — floats
-- [ ] [0.20](#020--by-value-structs-the-c-abi-for-x86-64) — by-value structs: the C ABI for x86-64
-- [ ] [0.21](#021--varargs) — varargs
-- [ ] [0.22](#022--volatile-and-inline-asm) — `volatile` and inline asm
-- [ ] [0.23](#023--c-headers-to-oymomo-declarations) — C headers to oymomo declarations
-- [ ] [0.24](#024--c-headers-in-tenon) — C headers in Tenon
-- [ ] [0.25](#025--debug-info) — debug info
-- [ ] [0.26](#026--optimization-and-lto) — optimization and LTO
-- [ ] [0.27](#027--safety-checks-and-sanitizers) — safety checks and sanitizers
-- [ ] [0.28](#028--separate-compilation) — separate compilation
-- [ ] [0.29](#029--the-full-standard-library) — the full standard library
-- [ ] [0.30](#030--the-rest-of-c) — the rest of C
-- [ ] [0.31](#031--developer-tools) — developer tools
+- [ ] [0.15](#015--c-calls-tenon-exports-generated-headers-libraries) — C calls Tenon: exports, generated headers, libraries
+- [ ] [0.16](#016--the-c-api-and-the-python-package) — the C API and the Python package
+- [ ] [0.17](#017--the-language-registry-and-the-oymomo-api) — the language registry and the oymomo API
+- [ ] [0.18](#018--the-tenon-api-for-language-authors) — the Tenon API for language authors
+- [ ] [0.19](#019--build-system-integration) — build-system integration
+- [ ] [0.20](#020--floats) — floats
+- [ ] [0.21](#021--by-value-structs-the-c-abi-for-x86-64) — by-value structs: the C ABI for x86-64
+- [ ] [0.22](#022--varargs) — varargs
+- [ ] [0.23](#023--volatile-and-inline-asm) — `volatile` and inline asm
+- [ ] [0.24](#024--c-headers-to-oymomo-declarations) — C headers to oymomo declarations
+- [ ] [0.25](#025--c-headers-in-tenon) — C headers in Tenon
+- [ ] [0.26](#026--debug-info) — debug info
+- [ ] [0.27](#027--optimization-and-lto) — optimization and LTO
+- [ ] [0.28](#028--safety-checks-and-sanitizers) — safety checks and sanitizers
+- [ ] [0.29](#029--separate-compilation) — separate compilation
+- [ ] [0.30](#030--the-full-standard-library) — the full standard library
+- [ ] [0.31](#031--the-rest-of-c) — the rest of C
+- [ ] [0.32](#032--developer-tools) — developer tools
 
 Multi-threaded:
 
-- [ ] [0.32](#032--atomics) — atomics
-- [ ] [0.33](#033--thread-local-storage) — thread-local storage
-- [ ] [0.34](#034--threads-in-the-standard-library) — threads in the standard library
+- [ ] [0.33](#033--atomics) — atomics
+- [ ] [0.34](#034--thread-local-storage) — thread-local storage
+- [ ] [0.35](#035--threads-in-the-standard-library) — threads in the standard library
 
 Finishing:
 
-- [ ] [0.35](#035--distribution) — distribution
+- [ ] [0.36](#036--distribution) — distribution
 - [ ] [1.0](#10--production) — production
 
 ### After 1.0
@@ -107,7 +108,7 @@ lives in `oymo`. TAPL's Python languages are the model: a language is a library,
 the toolchain is shared.
 
 From Stage B on, the compiler is a native program written in Tenon. The `oymo` Python
-package (from 0.15) ships it with a Python binding over its C API, so language authors
+package (from 0.16) ships it with a Python binding over its C API, so language authors
 still write their frontends in Python.
 
 ```
@@ -131,14 +132,14 @@ language tenon
   installed Python packages: a language author's package registers its frontend under
   the entry point group `oymo.languages` (`calc = "calc_lang:frontend"`), so
   `pip install calc-lang` is enough for `oymo build hello.oymo` to build a
-  `language calc` file (from 0.16).
+  `language calc` file (from 0.17).
 - A frontend is a Python function from source text to a tree, an oymomo tree or a
   Tenon tree (the two lowering targets), with source locations. The tree crosses to
   the native compiler in a serialized form that keeps the locations.
 - So a **mixed build is one command**: `oymo build a.oymo b.oymo c.c`, where `a` is
   `language tenon`, `b` is `language calc` and `c.c` is C, links into one binary.
 - An unknown name is an error that says which package to install, if known, and lists
-  the installed languages. The standalone binary (0.35), with no Python, builds the
+  the installed languages. The standalone binary (0.36), with no Python, builds the
   built-in languages only.
 
 ```python
@@ -164,7 +165,7 @@ flowchart LR
 
 ### The public API
 
-From 0.15, each release adds to a **public API**: the Python modules a language author
+From 0.16, each release adds to a **public API**: the Python modules a language author
 may import. Every other module is internal and may change in any release. The API has
 a layer for each way in:
 
@@ -175,20 +176,20 @@ a layer for each way in:
   source, not at generated Tenon.
 - **Build API**: target, emit (`.ll`, `.o`, `.a`, `.so`, `.h`, binary), link with C
   files and libraries. The CLI is a thin layer over it.
-- **C API**: `c_import`, giving `CDecl(form, ctype)` (from 0.23).
+- **C API**: `c_import`, giving `CDecl(form, ctype)` (from 0.24).
 
 ## Rules for every release
 
 A release is cut only when all of these hold:
 
 1. **Installable**: in Stage A, `pip install oymo` (the Python compiler); in Stage B,
-   built from the repository with `clang` alone (the seed, 0.13); from 0.15,
-   `pip install oymo` again (the native compiler with its Python binding); from 0.35
+   built from the repository with `clang` alone (the seed, 0.14); from 0.16,
+   `pip install oymo` again (the native compiler with its Python binding); from 0.36
    also a standalone binary.
 2. **Usable alone**: a README section shows a real task done with only this release.
 3. **End-to-end tests**: each milestone below is a test in CI that builds and runs the
-   program (in the JIT before 0.5, as a binary from 0.5), not only a golden `.ll` file.
-4. **The API is tested from outside** (from 0.16): an example language lives in its own
+   program (in the JIT before 0.6, as a binary from 0.6), not only a golden `.ll` file.
+4. **The API is tested from outside** (from 0.17): an example language lives in its own
    package (`examples/<name>/`, with its own `pyproject.toml`), installs `oymo` as a
    dependency, imports only the public API, and is built and run in CI. If an example
    needs an internal module, the API is missing something.
@@ -200,13 +201,13 @@ A release is cut only when all of these hold:
 
 Before 1.0 a release may break the oymomo syntax, the Tenon syntax, the public API or
 the CLI; its notes say how to migrate. From 1.0 on, all four are stable
-([1.0](#10--production)). From 0.13 a Tenon syntax change also means changing the
-compiler's own source, so Tenon's syntax is decided with care in 0.3–0.7.
+([1.0](#10--production)). From 0.14 a Tenon syntax change also means changing the
+compiler's own source, so Tenon's syntax is decided with care in 0.3–0.8.
 
 ## Stage A — the bootstrap set, in Python
 
 What a compiler written in Tenon needs, and nothing more. The test for each feature:
-does the rewrite of oymo (0.11, 0.12) need it? Floats, by-value structs at the C
+does the rewrite of oymo (0.12, 0.13) need it? Floats, by-value structs at the C
 boundary, varargs, C headers, debug info and threads don't, so they wait for Stage C.
 The Python compiler uses llvmlite for these releases only, for what it already does.
 
@@ -216,9 +217,9 @@ The Python compiler uses llvmlite for these releases only, for what it already d
 pipeline exists; this release puts a command in front of it.
 
 - `oymo emit-llvm a.oymo -o a.ll`, `oymo check a.oymo` (parse, reduce, verify BANF,
-  print stuck terms), `oymo fmt` (the printer), `oymo run --jit a.oymo` (llvmlite
+  print stuck terms; from 0.4, check the shaped program), `oymo fmt` (the printer), `oymo run --jit a.oymo` (llvmlite
   MCJIT runs `main` and prints its result; Tenon runs in it from 0.3, and layer 1 from
-  0.7).
+  0.8).
 - Errors with file, line and column for parse errors and stuck terms.
 
 **Milestone:** `oymo run --jit fact.oymo` prints `120`.
@@ -233,8 +234,8 @@ oymo happens to reduce it.
 | [plan_confluence.md](plan_confluence.md) 1–4 | a full-β reference reducer and a confluence test; a form on a form is replaced; built-in rules commute with reduction; `shape` is a reduction |
 
 **Tenon does not start before this release**: both its layers lower to oymomo, and so
-does every language author's code. It also settles oymomo's shape enough for the
-rewrite (0.11) to translate it without BANF.
+does every language author's code. It also settles oymomo's shape, so BANF can be
+removed next (0.4).
 
 **Milestone:** the confluence test passes on every golden program and on generated
 terms, with the known counterexample fixed.
@@ -255,7 +256,24 @@ notes say so.
 
 **Milestone:** `fact`, `fib` and `gcd` written in Tenon run with `oymo run --jit`.
 
-## 0.4 — Tenon layer 0, second part: memory and calls to C
+## 0.4 — BANF removed
+
+**Who uses it:** nobody sees a change; the compiler gets simpler before anything is
+built on it, and before it is rewritten.
+
+| From | Work |
+|---|---|
+| [todo.md](todo.md) | oymomo translates to LLVM IR directly and BANF goes; BANF's checks move into that translation and into `shape` |
+
+Why here: confluence (0.2) has settled oymomo's shape, and 0.3 added no oymomo
+feature. Every oymomo feature after this (`void`, null, casts, `memcpy`, unions,
+function pointers) is built once, in the direct translation, and the rewrite (0.12,
+0.13) ports that translation as it is, **with no change of behaviour or logic**.
+
+**Milestone:** every test and example gives the same output as in 0.3, with BANF's code
+deleted.
+
+## 0.5 — Tenon layer 0, second part: memory and calls to C
 
 **Who uses it:** the same users, now with pointers, structs and libc.
 
@@ -271,7 +289,7 @@ Calls go one way, Tenon to C, and are first-order.
 **Milestones:** hello world with `puts`; a linked list with `malloc` / `free`; both in
 the JIT.
 
-## 0.5 — native binaries
+## 0.6 — native binaries
 
 **Who uses it:** Tenon and oymomo users, now shipping executables.
 
@@ -285,10 +303,10 @@ the JIT.
 Linux x86-64; a Tenon program reads a file named on its command line and writes it
 back reversed.
 
-## 0.6 — enums and tagged unions
+## 0.7 — enums and tagged unions
 
 **Who uses it:** anyone modelling data with variants; the compiler's syntax trees
-(0.11) need them.
+(0.12) need them.
 
 | From | Work |
 |---|---|
@@ -298,7 +316,7 @@ back reversed.
 **Milestone:** an expression evaluator in Tenon: a tagged union for the syntax tree, a
 recursive `eval` over it.
 
-## 0.7 — Tenon layer 1, types
+## 0.8 — Tenon layer 1, types
 
 **Who uses it:** Tenon users, now with type errors at build time. A compiler of the
 size of oymo is not written without them.
@@ -309,22 +327,22 @@ size of oymo is not written without them.
 | [plan_metadata.md](plan_metadata.md) 1–3 | source locations kept through reduction, so a layer-1 error points at the source |
 
 **Milestone:** `puts(42)` with a hand-written `extern` stops the build with
-`app.oymo:3:6: expected Ptr(c_char), got Int32`; the expression evaluator of 0.6
+`app.oymo:3:6: expected Ptr(c_char), got Int32`; the expression evaluator of 0.7
 type-checks.
 
-## 0.8 — module interfaces and imports between files
+## 0.9 — module interfaces and imports between files
 
 **Who uses it:** anyone whose program outgrows one file, as the compiler will.
 
 | From | Work |
 |---|---|
-| [plan_tenon.md](plan_tenon.md) Phase 2 | **module interfaces**: each exported name as a pair like `c_import`'s, the **form** (layer 0, what oymomo needs to call it) and the **layer-1 type**, which appears here because types appear in layer 1. Other languages on oymo read and write them from 0.17 |
-| new | **imports between files**, through those interfaces: a program in several `.oymo` files, built in one command (separate compilation comes in 0.28) |
+| [plan_tenon.md](plan_tenon.md) Phase 2 | **module interfaces**: each exported name as a pair like `c_import`'s, the **form** (layer 0, what oymomo needs to call it) and the **layer-1 type**, which appears here because types appear in layer 1. Other languages on oymo read and write them from 0.18 |
+| new | **imports between files**, through those interfaces: a program in several `.oymo` files, built in one command (separate compilation comes in 0.29) |
 
 **Milestone:** a program of ten Tenon files, importing each other; calling an imported
 function with the wrong type is a layer-1 error.
 
-## 0.9 — function pointers and callbacks
+## 0.10 — function pointers and callbacks
 
 **Who uses it:** Tenon programs with tables of functions (the compiler's parser and
 passes), and programs that pass callbacks to C.
@@ -337,14 +355,14 @@ passes), and programs that pass callbacks to C.
 **Milestone:** a Tenon function is passed to `qsort` and to `qsort_r` with a `void *`
 environment.
 
-## 0.10 — the bootstrap standard library, and `oymo test`
+## 0.11 — the bootstrap standard library, and `oymo test`
 
 **Who uses it:** anyone writing a real program in Tenon; first of all the rewrite of
 oymo.
 
 | From | Work |
 |---|---|
-| [plan_tenon.md](plan_tenon.md) Phase 5 | the part of the standard library a compiler needs, written in Tenon over libc: growable arrays, a hash map, strings and a string builder, number formatting (no `printf`: varargs come in 0.21), file I/O, running a process (to call `clang`), and the allocator interface with an arena and the libc allocator |
+| [plan_tenon.md](plan_tenon.md) Phase 5 | the part of the standard library a compiler needs, written in Tenon over libc: growable arrays, a hash map, strings and a string builder, number formatting (no `printf`: varargs come in 0.22), file I/O, running a process (to call `clang`), and the allocator interface with an arena and the libc allocator |
 | new | `oymo test`: test functions in `.oymo` files, run and reported, as `zig test` does |
 
 **Milestone:** a word-count program over a large file, with a hash map and an arena;
@@ -356,19 +374,19 @@ oymo is rewritten in Tenon, compiled by the Python compiler, then by itself. At 
 end of Stage B the Python compiler is frozen and the product no longer needs Python or
 llvmlite.
 
-## 0.11 — oymo in Tenon, first part: oymomo to LLVM IR
+## 0.12 — oymo in Tenon, first part: oymomo to LLVM IR
 
 **Who uses it:** oymomo users: the same language, now compiled by a native program.
 
 | From | Work |
 |---|---|
-| new | the oymomo pipeline in Tenon: parser, reduction and `shape`, and a translation **straight to LLVM IR text**, which `clang` compiles and links. BANF is not ported: its checks move into that translation ([todo.md](todo.md)) |
+| new | the oymomo pipeline in Tenon, ported as it is: parser, reduction, `shape`, and the direct translation to LLVM IR (0.4), written out as text, which `clang` compiles and links. There is no BANF to port |
 | new | the confluence test of 0.2 and every oymomo golden test, run against the Tenon compiler |
 
 **Milestone:** the Tenon-written compiler, built by the Python compiler, gives the same
 program output as the Python compiler on every oymomo test.
 
-## 0.12 — oymo in Tenon, second part: the Tenon frontend
+## 0.13 — oymo in Tenon, second part: the Tenon frontend
 
 **Who uses it:** Tenon users: the same language, now compiled by a native program.
 
@@ -380,7 +398,7 @@ program output as the Python compiler on every oymomo test.
 **Milestone:** the Tenon-written compiler, built by the Python compiler, gives the same
 output as the Python compiler on every Tenon test, layer-1 errors included.
 
-## 0.13 — self-hosting
+## 0.14 — self-hosting
 
 **Who uses it:** everyone: the compiler is now one native program, built from the
 repository with `clang` alone.
@@ -397,10 +415,10 @@ seed, builds itself twice to identical output, and passes every test.
 ## Stage C — everything else, in the Tenon compiler
 
 Every remaining feature is added to the Tenon compiler only. Releases are grouped:
-single-threaded programs first (0.14–0.31), then multi-threaded ones (0.32–0.34), then
+single-threaded programs first (0.15–0.32), then multi-threaded ones (0.33–0.35), then
 finishing.
 
-## 0.14 — C calls Tenon: exports, generated headers, libraries
+## 0.15 — C calls Tenon: exports, generated headers, libraries
 
 **Who uses it:** someone who wants a fast routine in a C program, written in Tenon or
 generated as oymomo.
@@ -410,22 +428,22 @@ generated as oymomo.
 | [plan_c_interop.md](plan_c_interop.md) 1.8 | linkage: exported vs internal; C name ≠ label |
 | [plan_c_interop.md](plan_c_interop.md) Phase 4 | exported data, generated `.h`, `.a` and `.so` |
 | [plan_tenon.md](plan_tenon.md) Phase 3 | `export` on a function or a global |
-| new | the generated `.h` is made from the module interface (0.8) and uses its layer-1 types where there are any: `unsigned`, `const char *` and named structs, which oymomo's forms alone can't tell from `int` and `void *` |
+| new | the generated `.h` is made from the module interface (0.9) and uses its layer-1 types where there are any: `unsigned`, `const char *` and named structs, which oymomo's forms alone can't tell from `int` and `void *` |
 
 Scalars and pointers only at the C boundary; a by-value struct there is an error that
-says "pass a pointer" until 0.20.
+says "pass a pointer" until 0.21.
 
 **Milestone:** a C `main` calls a Tenon library through its generated header, and the
 header reads as a hand-written one would.
 
-## 0.15 — the C API and the Python package
+## 0.16 — the C API and the Python package
 
 **Who uses it:** Python users and language authors, who get `pip install oymo` back,
 now with the native compiler inside.
 
 | From | Work |
 |---|---|
-| new | the compiler exports a C API (with 0.14's exports and generated header): build, emit, check, errors as data |
+| new | the compiler exports a C API (with 0.15's exports and generated header): build, emit, check, errors as data |
 | new | the `oymo` Python package: a wheel with the native compiler and a Python binding over its C API; the `oymo` command is its driver |
 | new | the build API in Python: `executable`, `object_file`, `static_library`, `shared_library`, `header`, `emit_llvm` |
 | new | the serialized tree format, with source locations, in which a Python frontend's tree crosses to the compiler |
@@ -433,7 +451,7 @@ now with the native compiler inside.
 **Milestone:** `pip install oymo` on a fresh machine, then `oymo build hello.oymo` and
 a Python script that builds the same program through the build API.
 
-## 0.16 — the language registry and the oymomo API
+## 0.17 — the language registry and the oymomo API
 
 **Who uses it:** a language author who generates oymomo from Python.
 
@@ -446,7 +464,7 @@ a Python script that builds the same program through the build API.
 **Milestone:** with `calc` installed from its own package, `oymo build one.oymo` on
 `language calc` / `1 + 2 * 3` gives a binary that prints `7`.
 
-## 0.17 — the Tenon API for language authors
+## 0.18 — the Tenon API for language authors
 
 **Who uses it:** language authors who want a higher target than oymomo, with types.
 
@@ -460,7 +478,7 @@ a Python script that builds the same program through the build API.
 line and column of its `language calc` file; a Tenon file imports a function from a
 `language calc` file, and calling it with the wrong type is a layer-1 error.
 
-## 0.18 — build-system integration
+## 0.19 — build-system integration
 
 **Who uses it:** C projects that add Tenon files to an existing build.
 
@@ -472,7 +490,7 @@ line and column of its `language calc` file; a Tenon file imports a function fro
 **Milestone:** a Makefile builds a mixed C and Tenon project with `oymo -c` in place of
 `cc -c`, rebuilds only what changed, and links SDL found through pkg-config.
 
-## 0.19 — floats
+## 0.20 — floats
 
 | From | Work |
 |---|---|
@@ -480,7 +498,7 @@ line and column of its `language calc` file; a Tenon file imports a function fro
 
 **Milestone:** a Tenon program calls `sqrt` and `pow` from libm and prints the result.
 
-## 0.20 — by-value structs: the C ABI for x86-64
+## 0.21 — by-value structs: the C ABI for x86-64
 
 | From | Work |
 |---|---|
@@ -491,7 +509,7 @@ line and column of its `language calc` file; a Tenon file imports a function fro
 **Milestone (drop-in):** a small C library rewritten in Tenon passes its unchanged C
 test suite.
 
-## 0.21 — varargs
+## 0.22 — varargs
 
 | From | Work |
 |---|---|
@@ -500,7 +518,7 @@ test suite.
 **Milestone:** `printf("%d %f %s\n", ...)` from Tenon; a Tenon function with `...`
 called from C.
 
-## 0.22 — `volatile` and inline asm
+## 0.23 — `volatile` and inline asm
 
 | From | Work |
 |---|---|
@@ -509,7 +527,7 @@ called from C.
 **Milestone:** a signal handler sets a `volatile` flag that the main loop reads; a
 function uses `rdtsc` through inline asm.
 
-## 0.23 — C headers to oymomo declarations
+## 0.24 — C headers to oymomo declarations
 
 | From | Work |
 |---|---|
@@ -519,7 +537,7 @@ function uses `rdtsc` through inline asm.
 **Milestone:** `calc` calls `sqrt` from `<math.h>` through `c_import`, with no
 hand-written declaration.
 
-## 0.24 — C headers in Tenon
+## 0.25 — C headers in Tenon
 
 **Who uses it:** every Tenon user; this is when "seamless" is true from the user's
 seat.
@@ -533,7 +551,7 @@ seat.
 **Milestone:** a Tenon program imports `<stdio.h>`, `<string.h>` and `<math.h>`, with
 no `extern` written by hand, and `puts(42)` is a layer-1 error.
 
-## 0.25 — debug info
+## 0.26 — debug info
 
 | From | Work |
 |---|---|
@@ -542,7 +560,7 @@ no `extern` written by hand, and `puts(42)` is a layer-1 error.
 **Milestone:** `gdb` sets a breakpoint in a Tenon function, steps line by line and
 prints locals, in a program mixed with C.
 
-## 0.26 — optimization and LTO
+## 0.27 — optimization and LTO
 
 | From | Work |
 |---|---|
@@ -553,36 +571,36 @@ prints locals, in a program mixed with C.
 **Milestone:** a call from C into a small Tenon function is inlined under `-flto`
 (checked in the disassembly).
 
-## 0.27 — safety checks and sanitizers
+## 0.28 — safety checks and sanitizers
 
 | From | Work |
 |---|---|
-| [plan_tenon.md](plan_tenon.md) 0.5 | the checked build mode: traps on overflow, out-of-bounds and null, with the source location |
-| new | **sanitizers**: `-fsanitize=address,undefined` on a mixed C and Tenon program, as a production C toolchain is expected to (TSan comes with threads, 0.34) |
+| [plan_tenon.md](plan_tenon.md) 0.6 | the checked build mode: traps on overflow, out-of-bounds and null, with the source location |
+| new | **sanitizers**: `-fsanitize=address,undefined` on a mixed C and Tenon program, as a production C toolchain is expected to (TSan comes with threads, 0.35) |
 
 **Milestone:** an out-of-bounds write in Tenon is caught by the checked build and, in
 an optimized build, by ASan, both with the Tenon source line.
 
-## 0.28 — separate compilation
+## 0.29 — separate compilation
 
 | From | Work |
 |---|---|
-| [plan_c_interop.md](plan_c_interop.md) Phase 6 | modules and separate compilation, on top of 0.8's interfaces |
+| [plan_c_interop.md](plan_c_interop.md) Phase 6 | modules and separate compilation, on top of 0.9's interfaces |
 | new | incremental builds: only changed files and their dependents are rebuilt |
 
 **Milestone:** changing one function body in the compiler's own source rebuilds one
 object.
 
-## 0.29 — the full standard library
+## 0.30 — the full standard library
 
 | From | Work |
 |---|---|
-| [plan_tenon.md](plan_tenon.md) Phase 5 | the rest of the single-threaded standard library on top of 0.10's: formatted I/O, more containers, a pool allocator, and a garbage-collecting allocator over the Boehm collector |
+| [plan_tenon.md](plan_tenon.md) Phase 5 | the rest of the single-threaded standard library on top of 0.11's: formatted I/O, more containers, a pool allocator, and a garbage-collecting allocator over the Boehm collector |
 
 **Milestone:** the same program runs with the arena allocator and with the Boehm
 allocator, changed in one line.
 
-## 0.30 — the rest of C
+## 0.31 — the rest of C
 
 | From | Work |
 |---|---|
@@ -591,7 +609,7 @@ allocator, changed in one line.
 **Milestone:** a program calls a `static inline` function and uses a function-like
 macro from a system header.
 
-## 0.31 — developer tools
+## 0.32 — developer tools
 
 | From | Work |
 |---|---|
@@ -600,7 +618,7 @@ macro from a system header.
 **Milestone:** an editor shows layer-1 errors as you type, and goes to the definition
 of a name imported from a C header.
 
-## 0.32 — atomics
+## 0.33 — atomics
 
 | From | Work |
 |---|---|
@@ -609,7 +627,7 @@ of a name imported from a C header.
 **Milestone:** a Tenon program with two threads (pthreads, from `<pthread.h>`) shares a
 counter through atomics and always gets the right total.
 
-## 0.33 — thread-local storage
+## 0.34 — thread-local storage
 
 | From | Work |
 |---|---|
@@ -618,7 +636,7 @@ counter through atomics and always gets the right total.
 **Milestone:** each of four threads counts in its own thread-local variable; a C
 library's `_Thread_local` variable is read from Tenon.
 
-## 0.34 — threads in the standard library
+## 0.35 — threads in the standard library
 
 | From | Work |
 |---|---|
@@ -628,12 +646,12 @@ library's `_Thread_local` variable is read from Tenon.
 
 **Milestone:** a parallel program (a worker pool over a queue) runs clean under TSan.
 
-## 0.35 — distribution
+## 0.36 — distribution
 
 | From | Work |
 |---|---|
 | new | a standalone binary with LLVM (clang and lld) bundled, for users with no Python and no system clang; pinned LLVM version |
-| new | a CMake module (`find_package(oymo)`, `.oymo` as a source language), on top of 0.18's flags |
+| new | a CMake module (`find_package(oymo)`, `.oymo` as a source language), on top of 0.19's flags |
 | new | **reproducible builds**: the same input always gives byte-identical `.o` files (no time stamps, paths mapped as `-ffile-prefix-map` does); CI builds twice and compares |
 
 **Milestone:** a CMake project with C and Tenon builds with the standalone binary on a
@@ -681,14 +699,14 @@ target with no change to their code. The seed gains an `.ll` file per target.
 `translate-c` and c2rust do, so rewriting a C file in Tenon starts from a working
 translation instead of a blank file.
 
-- It builds on 0.23: libclang already parses the file, with the same flags and target,
+- It builds on 0.24: libclang already parses the file, with the same flags and target,
   and `c_import` already maps declarations and types. translate-c adds function
   bodies: statements and expressions to Tenon syntax.
 - The output builds and passes the C file's own tests unchanged (the drop-in milestone
-  of 0.20, done by a tool). Idiomatic Tenon is the user's next step, not the tool's.
+  of 0.21, done by a tool). Idiomatic Tenon is the user's next step, not the tool's.
 - Not translated: what Tenon can't express, such as some preprocessor tricks; those
   parts are left as C, called through the C ABI, and listed in a report.
-- It shares its code with 0.30 (`static inline` functions and function-like macros in
+- It shares its code with 0.31 (`static inline` functions and function-like macros in
   headers).
 
 ## After 1.0 — Spindle in Tenon
@@ -701,10 +719,10 @@ becomes a real product.
   translation" (a stack bytecode, a pure interpreter, state as host objects). Tenon is
   that port: C-level speed and no runtime, with Tenon's types.
 - **Embeddable from C and Python**: Spindle exports a C API with a generated header
-  (0.14), as Lua does (`spindle_new`, `fiber_resume`, host functions registered from
+  (0.15), as Lua does (`spindle_new`, `fiber_resume`, host functions registered from
   C), so a C program embeds it with one `.a` or `.so`. Python reaches it through the
   same C API.
-- **What it runs**: BANF is gone (0.11), so Spindle's input is the shaped oymomo
+- **What it runs**: BANF is gone (0.4), so Spindle's input is the shaped oymomo
   program, or LLVM IR as plan_vm.md's second pipeline proposes, with LLVM's optimizer
   in front. Decided in plan_vm.md before the rewrite starts.
 - **Same results as LLVM**: the differential tests of plan_vm.md, every program run
@@ -722,35 +740,35 @@ Not planned, before or after 1.0, so no release waits for them:
   is one more choice, not a runtime every program carries.
 - **Trampolines**: a closure is never packed into a bare C function pointer, since
   that needs machine code made at run time in writable and executable memory, which
-  hardened systems forbid. Two ways cross instead, both from 0.9
+  hardened systems forbid. Two ways cross instead, both from 0.10
   ([plan_c_interop.md](plan_c_interop.md)):
   1. **A plain function**, capturing nothing, crosses as a C function pointer
      (`qsort`).
   2. **A closure crosses as two values**, its code and a `void *` to its environment,
      where the C API takes a user-data pointer (`qsort_r`, `pthread_create`, most
      callback APIs). The code is a plain function that reads its captures through
-     the pointer. From 0.9 this is written by hand, as in C; once Tenon has closures
+     the pointer. From 0.10 this is written by hand, as in C; once Tenon has closures
      (plan_tenon Phase 5), Tenon splits a closure into the two values itself.
 
 ## Risks
 
-- **Syntax changes after bootstrap are expensive.** From 0.13 every Tenon syntax
+- **Syntax changes after bootstrap are expensive.** From 0.14 every Tenon syntax
   change edits the compiler's source and may need a new seed. Phase 0's decisions
   (0.3) are made with the compiler in mind, and `oymo fmt` can migrate source.
 - **The seed must stay buildable.** `bootstrap/oymo.ll` is regenerated whenever the
   compiler's source needs a newer compiler; CI builds from the seed on every change,
   so a stale seed is caught at once.
-- **Two compilers during Stage B.** Until 0.13, a change to oymomo or Tenon is made in
+- **Two compilers during Stage B.** Until 0.14, a change to oymomo or Tenon is made in
   both the Python and the Tenon compiler. Stage B is kept short, and no feature is
   added during it.
 - **The build runs code.** Layer 1 executes during compilation, so building untrusted
   code runs it, as Rust's `build.rs` and Zig's `build.zig` do. The docs say so from
-  0.7; a sandbox for layer 1 is a later option.
+  0.8; a sandbox for layer 1 is a later option.
 - **Layer 1 makes builds slow.** It is compiled and run on every build (in the JIT
-  until 0.12, as a subprocess after). Measured from 0.7; caching is in 1.0's "Speed of
+  until 0.13, as a subprocess after). Measured from 0.8; caching is in 1.0's "Speed of
   the compiler" row.
-- **`clang` is required** from 0.13 (gcc can't read LLVM IR), until the standalone
-  binary (0.35) bundles it.
+- **`clang` is required** from 0.14 (gcc can't read LLVM IR), until the standalone
+  binary (0.36) bundles it.
 - **Moving targets.** Zig, C3 and Carbon all aim at 1.0 in 2027–2028; Tenon's
   difference (types as code, a platform for other languages) must stay visible in the
   docs from 0.3.
@@ -761,28 +779,28 @@ Not planned, before or after 1.0, so no release waits for them:
 flowchart TD
   subgraph A["Stage A: the bootstrap set, in Python"]
     v01["0.1 CLI"] --> v02["0.2 confluence"] --> v03["0.3 Tenon: functions, integers"]
-    v03 --> v04["0.4 Tenon: memory, C calls"] --> v05["0.5 native binaries"]
-    v05 --> v06["0.6 tagged unions"] --> v07["0.7 layer 1"] --> v08["0.8 interfaces, imports"]
-    v08 --> v09["0.9 function pointers"] --> v10["0.10 bootstrap std library, test"]
+    v03 --> v04["0.4 BANF removed"] --> v05["0.5 Tenon: memory, C calls"] --> v06["0.6 native binaries"]
+    v06 --> v07["0.7 tagged unions"] --> v08["0.8 layer 1"] --> v09["0.9 interfaces, imports"]
+    v09 --> v10["0.10 function pointers"] --> v11["0.11 bootstrap std library, test"]
   end
   subgraph B["Stage B: bootstrap"]
-    v11["0.11 oymomo in Tenon"] --> v12["0.12 Tenon frontend in Tenon"] --> v13["0.13 self-hosting, seed"]
+    v12["0.12 oymomo in Tenon"] --> v13["0.13 Tenon frontend in Tenon"] --> v14["0.14 self-hosting, seed"]
   end
   subgraph C1["Stage C: single-threaded"]
-    v14["0.14 exports, headers"] --> v15["0.15 C API, Python package"] --> v16["0.16 registry, oymomo API"]
-    v16 --> v17["0.17 Tenon API"] --> v18["0.18 build systems"] --> v19["0.19 floats"]
-    v19 --> v20["0.20 by-value structs"] --> v21["0.21 varargs"] --> v22["0.22 volatile, asm"]
-    v22 --> v23["0.23 c_import"] --> v24["0.24 headers in Tenon"] --> v25["0.25 debug info"]
-    v25 --> v26["0.26 optimization, LTO"] --> v27["0.27 safety, sanitizers"] --> v28["0.28 separate compilation"]
-    v28 --> v29["0.29 full std library"] --> v30["0.30 rest of C"] --> v31["0.31 developer tools"]
+    v15["0.15 exports, headers"] --> v16["0.16 C API, Python package"] --> v17["0.17 registry, oymomo API"]
+    v17 --> v18["0.18 Tenon API"] --> v19["0.19 build systems"] --> v20["0.20 floats"]
+    v20 --> v21["0.21 by-value structs"] --> v22["0.22 varargs"] --> v23["0.23 volatile, asm"]
+    v23 --> v24["0.24 c_import"] --> v25["0.25 headers in Tenon"] --> v26["0.26 debug info"]
+    v26 --> v27["0.27 optimization, LTO"] --> v28["0.28 safety, sanitizers"] --> v29["0.29 separate compilation"]
+    v29 --> v30["0.30 full std library"] --> v31["0.31 rest of C"] --> v32["0.32 developer tools"]
   end
   subgraph C2["Stage C: multi-threaded"]
-    v32["0.32 atomics"] --> v33["0.33 thread-local storage"] --> v34["0.34 threads in std library"]
+    v33["0.33 atomics"] --> v34["0.34 thread-local storage"] --> v35["0.35 threads in std library"]
   end
-  v10 --> v11
-  v13 --> v14
-  v31 --> v32
-  v34 --> v35["0.35 distribution"] --> v100["1.0 production"]
+  v11 --> v12
+  v14 --> v15
+  v32 --> v33
+  v35 --> v36["0.36 distribution"] --> v100["1.0 production"]
   v100 --> X["1.1-1.3 targets"]
   v100 --> T["translate-c"]
   v100 --> V["Spindle in Tenon"]
@@ -792,19 +810,21 @@ The chain is the order of **releases**, not of all work: a release ships when it
 work is done, and work for later releases may start earlier. The real dependencies:
 
 - **Confluence (0.2) before Tenon (0.3)**, a hard gate.
-- **Tenon layer 0 as early as possible**: 0.3 and 0.4 run in the JIT, before native
-  binaries (0.5).
+- **BANF removed (0.4) before any new oymomo feature**, so each is built once, in the
+  direct translation, and the rewrite is a straight port.
+- **Tenon layer 0 as early as possible**: 0.3 and 0.5 run in the JIT, before native
+  binaries (0.6).
 - **Stage A holds only what the rewrite needs.** Its test: does oymo's own source need
   the feature? Everything else waits for Stage C, so Stage B starts as soon as it can.
 - **Nothing new during Stage B**: features are added to one compiler, not two.
-- **The Python package (0.15) after C calls Tenon (0.14)**, since the binding goes
-  through the compiler's C API. The language authors' API (0.16, 0.17) follows it.
-- **Header import (0.23, 0.24) after the full C ABI (0.19–0.21)**, since real headers
+- **The Python package (0.16) after C calls Tenon (0.15)**, since the binding goes
+  through the compiler's C API. The language authors' API (0.17, 0.18) follows it.
+- **Header import (0.24, 0.25) after the full C ABI (0.20–0.22)**, since real headers
   declare floats, by-value structs and varargs functions.
 - **Single-threaded before multi-threaded**: Part 2 of Stage C adds what sharing memory
   between threads needs; pthreads themselves can be called before.
-- Independent of each other, and free to swap numbers if one is ready first: 0.18–0.22
-  among themselves, and 0.25–0.31 among themselves.
+- Independent of each other, and free to swap numbers if one is ready first: 0.19–0.23
+  among themselves, and 0.26–0.32 among themselves.
 
 After 1.0, the 1.x targets, translate-c and Spindle in Tenon are independent tracks.
 
@@ -819,14 +839,15 @@ After 1.0, the 1.x targets, translate-c and Spindle in Tenon are independent tra
   needs (Stage A), with layer 1 included; all other features are added afterwards, to
   the Tenon compiler only. This replaces the earlier decision to self-host after 1.0.
 - **The seed** for building from scratch is the compiler's own LLVM IR, committed as
-  `bootstrap/oymo.ll`; the Python compiler is frozen at 0.13.
+  `bootstrap/oymo.ll`; the Python compiler is frozen at 0.14.
 - **No LLVM binding in the product.** The Tenon compiler writes LLVM IR as text and
   runs `clang`; layer 1 runs as a native subprocess, not in a JIT. llvmlite is used
-  only by the Python compiler, until 0.13.
-- **BANF goes away in the rewrite (0.11)**: the Tenon compiler translates oymomo to
-  LLVM IR directly, once confluence (0.2) has settled oymomo's shape.
+  only by the Python compiler, until 0.14.
+- **BANF goes away before the bootstrap (0.4)**, right after confluence (0.2) settles
+  oymomo's shape, so the rewrite is a port with no change of behaviour or logic, and
+  no oymomo feature is ever built in BANF.
 - **Language authors write frontends in Python**, through a binding over the
-  compiler's C API (0.15); their trees cross in a serialized form with locations.
+  compiler's C API (0.16); their trees cross in a serialized form with locations.
 - **Spindle ([plan_vm.md](plan_vm.md)) is a side project**, written in Tenon after 1.0
   ([Spindle in Tenon](#after-10--spindle-in-tenon)).
 - **1.0 is Linux x86-64 only**; other targets are 1.x releases.
@@ -842,17 +863,17 @@ After 1.0, the 1.x targets, translate-c and Spindle in Tenon are independent tra
 1. **When is the public launch?** Options:
    - **0.3**, the first Tenon release. Early feedback, while the syntax can still
      change; but JIT only, no types, so Tenon looks like one more C-like language.
-   - **0.13**, when the compiler is written in Tenon. "A language whose compiler is
+   - **0.14**, when the compiler is written in Tenon. "A language whose compiler is
      written in itself, with types as code" is a strong first message, and the syntax
      has been tested on a large program; but C interop is only one way, and there is
      no Python package for language authors yet.
-   - **0.24**, when C headers import into Tenon. The full "seamless with C" story, with
+   - **0.25**, when C headers import into Tenon. The full "seamless with C" story, with
      the language authors' API; but feedback comes late, after most design is fixed.
 
-   Recommended: a **soft launch at 0.13** (a website, the tutorial, a post to
-   programming-language communities), and the **main launch at 0.24**, when the claim
+   Recommended: a **soft launch at 0.14** (a website, the tutorial, a post to
+   programming-language communities), and the **main launch at 0.25**, when the claim
    "Zig-level C interop, for any language you build" is true end to end. Decide before
-   0.13 ships.
+   0.14 ships.
 
 Each release's plans have their own open questions (for example
 [plan_tenon.md](plan_tenon.md)'s Phase 0 syntax decisions, before 0.3).

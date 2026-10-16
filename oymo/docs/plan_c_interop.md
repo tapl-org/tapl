@@ -22,22 +22,23 @@ into releases:
 
 | oymo release | From this plan |
 |---|---|
-| 0.4 | 1.1 null, pointer comparison and casts, 1.2 `void` (calls to C from the JIT) |
-| 0.5 | Phase 2, Phase 3.1 (small ints) |
-| 0.6 | 1.5 the decision on unions, as far as tagged unions need it |
-| 0.9 | 1.6 function pointers, callbacks |
-| 0.11–0.13 | the compiler rewritten in Tenon: LLVM IR as text, compiled by `clang` |
-| 0.14 | 1.8 linkage, Phase 4 (exports, generated `.h`, `.a`, `.so`) |
-| 0.18 | Phase 4's flags for build systems; `-I`, `-L`, `-l`, pkg-config |
-| 0.19 | 1.3 floats |
-| 0.20 | 1.5 unions as C has them, Phase 3.2–3.3 and 3.5 for x86-64 SysV, Phase 4's drop-in milestone |
-| 0.21 | 1.7 varargs, Phase 3.4 |
-| 0.22 | 1.10 `volatile`, inline asm |
-| 0.23 | Phase 5 (header import, through libclang's C API) |
-| 0.28 | Phase 6: separate compilation |
-| 0.30 | `static inline` and function-like macros (open question 4) |
-| 0.32 | 1.10 atomics |
-| 0.33 | Phase 6: thread-local data |
+| 0.4 | BANF removed: oymomo translates to LLVM IR directly, so the C ABI work is done there |
+| 0.5 | 1.1 null, pointer comparison and casts, 1.2 `void` (calls to C from the JIT) |
+| 0.6 | Phase 2, Phase 3.1 (small ints) |
+| 0.7 | 1.5 the decision on unions, as far as tagged unions need it |
+| 0.10 | 1.6 function pointers, callbacks |
+| 0.12–0.14 | the compiler rewritten in Tenon: the same translation, LLVM IR as text, compiled by `clang` |
+| 0.15 | 1.8 linkage, Phase 4 (exports, generated `.h`, `.a`, `.so`) |
+| 0.19 | Phase 4's flags for build systems; `-I`, `-L`, `-l`, pkg-config |
+| 0.20 | 1.3 floats |
+| 0.21 | 1.5 unions as C has them, Phase 3.2–3.3 and 3.5 for x86-64 SysV, Phase 4's drop-in milestone |
+| 0.22 | 1.7 varargs, Phase 3.4 |
+| 0.23 | 1.10 `volatile`, inline asm |
+| 0.24 | Phase 5 (header import, through libclang's C API) |
+| 0.29 | Phase 6: separate compilation |
+| 0.31 | `static inline` and function-like macros (open question 4) |
+| 0.33 | 1.10 atomics |
+| 0.34 | Phase 6: thread-local data |
 | 1.1–1.3 | Phase 3.2 for AArch64 and Win64, with their targets |
 | after 1.0 | `oymo translate-c` |
 
@@ -164,7 +165,7 @@ stays target-independent (see [notes.md › BANF does not depend on LLVM](notes.
 
 1. Scalars and pointers: `zeroext` / `signext` on `i1`, `i8`, `i16` where the target
    needs it. That is enough for most of libc.
-2. By-value structs and `sret` returns for **x86-64 SysV** (oymo 0.20), then
+2. By-value structs and `sret` returns for **x86-64 SysV** (oymo 0.21), then
    **AArch64** and **Win64** (1.x, with their targets).
 3. The same lowering on **both sides of a call**: an import, a defined function that C
    may call, and an indirect call (1.6). An oymomo-to-oymomo call to an internal
@@ -193,7 +194,7 @@ Fallback if 2 is too costly at first: reject by-value structs at the C boundary 
 - Build `.a` and `.so` as well as `.o`.
 - **Milestone: C calls oymomo.** A C `main` calls oymomo functions through the generated
   header, and passes a callback in.
-- **Milestone: drop-in** (oymo 0.20, once by-value structs work). A small C library
+- **Milestone: drop-in** (oymo 0.21, once by-value structs work). A small C library
   (one `.c` file and its header) is rewritten in Tenon or oymomo; its C test suite
   links against the oymo `.o` unchanged and passes.
 
@@ -262,7 +263,7 @@ Mapping and scope:
   libraries export `_Thread_local` variables.
 - `static inline` functions in headers: they have no symbol to call (see
   [open question 4](#open-questions)).
-- Separate compilation and multiple modules (oymo 0.28). Debug info and provenance are
+- Separate compilation and multiple modules (oymo 0.29). Debug info and provenance are
   in [plan_metadata.md](plan_metadata.md).
 - More targets: Linux AArch64, macOS AArch64, Windows x86-64 (1.x); wasm32 is not
   planned yet.

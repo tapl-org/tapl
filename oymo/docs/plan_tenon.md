@@ -18,22 +18,22 @@ Types are Tenon's, not oymomo's.
 **When each phase ships** is set by [roadmap.md](roadmap.md), which builds Tenon in two
 stages. **Stage A, in the Python compiler, only what writing a compiler in Tenon
 needs:** Phase 0 and the first part of Phase 1 (functions, integers) are oymo 0.3, as
-early as possible, in the JIT; memory and `extern` are 0.4; enums and tagged unions
-0.6; layer 1 (Phase 2) 0.7 and module interfaces 0.8; function values (Phase 3) 0.9;
-the bootstrap part of the standard library (Phase 5) 0.10. **Stage B** (0.11–0.13)
+early as possible, in the JIT; BANF is removed from the compiler in 0.4; memory and `extern` are 0.5; enums and tagged unions
+0.7; layer 1 (Phase 2) 0.8 and module interfaces 0.9; function values (Phase 3) 0.10;
+the bootstrap part of the standard library (Phase 5) 0.11. **Stage B** (0.12–0.14)
 rewrites the compiler, this frontend included, in Tenon. **Stage C, in the Tenon
-compiler:** `export` and generated headers (Phase 3) 0.14, the Tenon API for language
-authors 0.17, header import (Phase 4) 0.24, and the rest of Phase 5 spread over
-0.25–0.34 and after 1.0.
+compiler:** `export` and generated headers (Phase 3) 0.15, the Tenon API for language
+authors 0.18, header import (Phase 4) 0.25, and the rest of Phase 5 spread over
+0.26–0.35 and after 1.0.
 
 ## Steps
 
 - [ ] 0. Decisions: name, syntax, layer semantics, memory model, undefined behaviour ([Phase 0](#phase-0--decisions)) — oymo 0.3
-- [ ] 1. Tenon frontend, layer 0 only ([Phase 1](#phase-1--tenon-frontend-layer-0-only)) — oymo 0.3, 0.4, 0.6
-- [ ] 2. Layer 1: the type checker as code, module interfaces ([Phase 2](#phase-2--layer-1-the-type-checker-as-code)) — oymo 0.7, 0.8 (across languages 0.17)
-- [ ] 3. C calls Tenon: `export`, function values, generated headers ([Phase 3](#phase-3--c-calls-tenon)) — oymo 0.9, 0.14
-- [ ] 4. C headers in both layers ([Phase 4](#phase-4--c-headers-in-both-layers)) — oymo 0.24
-- [ ] 5. Later: closures, separate compilation, debug info, safety checks, standard library ([Phase 5](#phase-5--later)) — oymo 0.10 (bootstrap standard library), 0.25–0.34 and after 1.0
+- [ ] 1. Tenon frontend, layer 0 only ([Phase 1](#phase-1--tenon-frontend-layer-0-only)) — oymo 0.3, 0.5, 0.7
+- [ ] 2. Layer 1: the type checker as code, module interfaces ([Phase 2](#phase-2--layer-1-the-type-checker-as-code)) — oymo 0.8, 0.9 (across languages 0.18)
+- [ ] 3. C calls Tenon: `export`, function values, generated headers ([Phase 3](#phase-3--c-calls-tenon)) — oymo 0.10, 0.15
+- [ ] 4. C headers in both layers ([Phase 4](#phase-4--c-headers-in-both-layers)) — oymo 0.25
+- [ ] 5. Later: closures, separate compilation, debug info, safety checks, standard library ([Phase 5](#phase-5--later)) — oymo 0.11 (bootstrap standard library), 0.26–0.35 and after 1.0
 
 ## Goal
 
@@ -42,8 +42,8 @@ Tenon is a language whose programs:
 1. are written in one source file with **two layers**, as TAPL does for Python:
    layer 0 is what runs, layer 1 is the type checker, and it is real code;
 2. lower **each layer to its own oymomo program**, then to LLVM IR and machine code
-   (through BANF in the Python compiler; the Tenon-written compiler, from oymo 0.11,
-   translates oymomo to LLVM IR text directly and runs `clang`);
+   (directly, with no BANF, from oymo 0.4; the Tenon-written compiler, from oymo 0.12,
+   writes the same LLVM IR as text and runs `clang`);
 3. can be **built by other languages**: a language author's frontend builds a Tenon
    syntax tree through the public Tenon API, with its own source locations, and gets
    Tenon's type checker, C headers and C ABI ([roadmap.md › One package, three ways in](roadmap.md#one-package-three-ways-in)).
@@ -173,7 +173,7 @@ dereference and a use after free do. Proposal, as Zig and C3: two build modes. A
 out-of-bounds and null; an **optimized** build leaves them undefined, as C and LLVM
 do, so the code is as fast as C. Use after free is not checked in either. The survey
 (0.2) compares how the five languages do it; decided before Phase 1, implemented in
-oymo 0.27 ([roadmap.md](roadmap.md#027--safety-checks-and-sanitizers)).
+oymo 0.28 ([roadmap.md](roadmap.md#028--safety-checks-and-sanitizers)).
 
 ### Phase 1 — Tenon frontend, layer 0 only
 
@@ -191,7 +191,7 @@ oymo 0.27 ([roadmap.md](roadmap.md#027--safety-checks-and-sanitizers)).
 
 - Lower layer 1 to a second oymomo program, compile it, and run it at compile time: in
   the JIT in the Python compiler, as a native subprocess in the Tenon-written compiler
-  (roadmap 0.12), so the product needs no JIT.
+  (roadmap 0.13), so the product needs no JIT.
 - A small layer-1 runtime: type values (`Int32`, `Ptr(T)`, struct types), equality,
   errors with source locations.
 - `^expr` (lift) and `<expr:Type>` (a two-layer expression), as in TAPL.
@@ -200,7 +200,7 @@ oymo 0.27 ([roadmap.md](roadmap.md#027--safety-checks-and-sanitizers)).
   same shape as `c_import`'s `CDecl(form, ctype)`. Files import each other through
   them, and so do languages on oymo: a frontend that lowers to Tenon writes both
   halves; one that lowers to oymomo writes forms only, and its names are unchecked in
-  layer 1. The generated C header (roadmap 0.14) is made from the same interface.
+  layer 1. The generated C header (roadmap 0.15) is made from the same interface.
 - **Milestone:** a type error in layer 0 stops the build with a message; a call from
   one file into another, or into a `language calc` file, is type-checked across the
   file boundary.
@@ -245,7 +245,7 @@ Rules:
 
 ### Phase 5 — later
 
-Each a plan of its own, in a [roadmap.md](roadmap.md) release (the bootstrap standard library in 0.10, the rest between 0.25 and 1.0), or after 1.0:
+Each a plan of its own, in a [roadmap.md](roadmap.md) release (the bootstrap standard library in 0.11, the rest between 0.26 and 1.0), or after 1.0:
 
 - Closures, and splitting a closure into code plus a `void *` environment when it is
   passed to C (Phase 3).
