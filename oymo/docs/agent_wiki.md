@@ -46,6 +46,23 @@ The user's orders, kept as given. Follow them in every task.
     centered (`rules` env, `\axiomrow`/`\rulerow`), rule name right-aligned in a
     column; a rule with no premises has no bar. No judgment line above any rule group
     (Section 2's first bullet defines `t ⟶ t'`).
+  - Congruence is full β (user's order): a rule for every position (E-App1/2, E-Abs,
+    E-AbsForm1/2, E-Struct, E-Proj1, E-Formed1/2, E-FunForm1/2); it states that the
+    reduction order doesn't matter. Evaluation Strategy defines `⟶w` (W-Root,
+    W-App1, W-Select, W-Proj1, W-Formed1), one order of those steps; All Combinations
+    and `shape` (`⇓`) use `⟶w`.
+  - Forms (user chose option A, the `conf-form` plan): E-Reform `(t~G)~F ⟶ t~F` is a
+    computation rule; no `strip` anywhere (E-BetaForm, E-ProjForm, E-Formed1,
+    W-Formed1 just wrap). Why: with `strip`, full β was not confluent:
+    `(λz. z~F) ((λy. y~G) a)` gave `a~F` or `(a~G)~F` by order. Option B (keep every
+    form, read the outermost) was rejected: forms pile up and every reader must look
+    through them. The doc is ahead of the code until `conf-form` is done. Accepted by
+    the user; `conf-form`'s Decide item is closed (E-Reform).
+  - Review marks (user's order): every change is colored until the user accepts it:
+    `\new{...}` blue for new or changed text, `\old{...}` red struck for removed
+    text, plus a legend line under the title. When the user says to remove the
+    color: unwrap `\new{}` (keep the text), delete `\old{...}` with its text, and
+    drop the legend if no marks are left.
   - Introduce each notation in the section where it is first used; no notation table
     up front.
   - Byte arrays keep brackets, `[b]`, hex only: no UTF-8 / text byte arrays.

@@ -189,15 +189,14 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Drop `strip`; beta never looks at its argument:
   - E-Beta: `(λx. t1) t2 → [x ↦ t2] t1`
   - E-BetaForm: `(λx~F. t1) t2 → [x ↦ t2~F] t1`
+  - E-ProjForm: `reduction.project` gives `tk~Fm`, without stripping `tk`
+  - E-Formed1: `banf_shape.unblock`'s `Formed` case keeps the inner form
 - E-Select: `index_value` accepts `[b]` and `[b]~F`
 - Check `convert` takes whnf before reading a form (nested forms in shaped terms)
 - Update golden files that gain a form level
 - Remove the counterexample's `xfail`
 - `reduction.beta` docstring: the form goes with the argument; E-Reform drops its own
-- `semantics.tex`: add E-Reform, drop `strip`, add a "Full β" section
-  (congruence rules; `→`, `whnf`, `shape` as strategies)
 - Commit: `oymomo: a form replaces a form`
-- Decide: E-Reform (leaning), or keep every form and read the outermost in translation?
 
 ### `conf-builtins` Built-in rules commute with reduction
 
