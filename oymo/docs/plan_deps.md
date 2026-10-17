@@ -1,6 +1,6 @@
 # Plan: `deps`, compile-time dependencies between `.oymo` files
 
-**Status:** proposed · 0 of 7 steps · release to decide (before the compiler rewrite, 0.13)
+**Status:** proposed · 0 of 7 steps · for oymo 0.9 (after 0.3; [roadmap](roadmap.md#stage-a--the-bootstrap-set-in-python))
 
 ## Goal
 

@@ -79,7 +79,7 @@ Test for each feature: does the rewrite of oymo (0.13, 0.14) need it?
 | [ ] 0.6 | **`oymo build`**: executables, `-c` objects, `.c` files linked in (Linux x86-64) | plan_c_interop Phase 2, 3.1 |
 | [ ] 0.7 | **enums and tagged unions**, `switch` binding the payload | plan_alcor Phase 1; plan_c_interop 1.5 (part) |
 | [ ] 0.8 | **layer 1: basic types and generics** (System F style), compiled with `clang`, run at build time, located errors | plan_alcor Phase 2; plan_metadata 1–3 |
-| [ ] 0.9 | **module interfaces and imports** between files (form + layer-1 type per name) | plan_alcor Phase 2; 0.8 |
+| [ ] 0.9 | **module interfaces and imports** between files (form + layer-1 type per name); in oymomo, files joined by `deps` | plan_alcor Phase 2; [plan_deps](plan_deps.md) 1–6; 0.8 |
 | [ ] 0.10 | **function pointers and callbacks**; closures to C as code + `void *` | plan_c_interop 1.6; plan_alcor Phase 3 |
 | [ ] 0.11 | **bootstrap standard library** over libc, `oymo test`; new `oymo/` folder | plan_alcor Phase 5 (part); 0.8 |
 | [ ] 0.12 | **debugging and editors**: `-g` line tables, ASan, `oymo lsp`, VS Code extension | plan_metadata 4 (part); 0.8 |
