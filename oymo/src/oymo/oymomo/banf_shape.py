@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Reduces a resolved oymomo term until it has BANF's shape. See docs/notes.md, `banf_shape`.
+"""Reduces a resolved oymomo term until it has BANF's shape.
 
 Each position wants certain constructors. The term there is reduced with `reduce_until_top_stable`
 until its top constructor can't change, then its own positions are visited. A term that can't get

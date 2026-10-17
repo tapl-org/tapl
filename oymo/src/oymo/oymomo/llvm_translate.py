@@ -51,7 +51,7 @@ def llvm_type(form: terms.Term) -> ir.Type:
 
 
 def _tagged_type(form, tag, parts):
-    """`[N x E]`, `<N x E>` or `<{...}>` (plan_memory.md decision 8)."""
+    """`[N x E]`, `<N x E>` or `<{...}>`."""
     if tag == 'packed':
         return ir.LiteralStructType([llvm_type(f.value) for f in parts], packed=True)
     count = opcodes.tag_count(parts[0].value) if len(parts) == opcodes.SEQUENCE_PARTS else None
@@ -291,7 +291,7 @@ def translate(module: banf.Module, target: Target) -> ir.Module:
     for binding in module.bindings:
         match binding:
             case banf.Data(name=name, form=form, value=value):
-                # Read-only (plan_memory.md decision 15): `constant`, or `external constant`.
+                # Read-only: `constant`, or `external constant`.
                 variable = _global(llvm_module, llvm_type(form), name)
                 variable.global_constant = True
                 if value is not None:

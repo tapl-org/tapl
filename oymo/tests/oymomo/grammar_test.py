@@ -335,7 +335,7 @@ def test_precedence_order():
 
 
 def test_parentheses_only_override_precedence():
-    """Code that was an error only for lacking parentheses has a meaning (plan_annotation.md, problem 3)."""
+    """Code that was an error only for lacking parentheses has a meaning."""
     y, x = terms.Variable('y'), terms.Variable('x')
     assert parse('y~x') == terms.Formed(y, x)
     assert parse('x~i32 -> x') == terms.Lambda('x', terms.Variable('i32'), x)

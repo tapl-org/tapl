@@ -54,7 +54,7 @@ def _check_labeled(fields, location, what):
 
 def _check_data_form(form, location, what, *, nested=False):
     """A data form is a named form, a struct of data forms, or a tagged struct of them
-    (plan_memory.md decision 8): no Empty parts, no function forms, and no other terms. Its
+   : no Empty parts, no function forms, and no other terms. Its
     fields may be unlabeled. `nested`: inside a struct, a packed struct or an array."""
     if (tagged := opcodes.tagged_form(form)) is not None:
         _check_tagged_form(*tagged, location, what, nested=nested)
@@ -184,7 +184,7 @@ def _declarations(module_form, location):
             params = [(f.label, f.value) for f in param.fields]
             declarations[label] = banf.Signature(label, params, result, decl_location)
         elif form == opcodes.PTR:
-            # A cell: `module.x` is a pointer to writable storage (plan_memory.md decision 18).
+            # A cell: `module.x` is a pointer to writable storage.
             declarations[label] = banf.Cell(label, location=decl_location)
         else:
             _check_data_form(form, decl_location, what)
@@ -215,7 +215,7 @@ def _is_global(term):
 
 
 def _define_cell(cell, field):
-    """`counter = 'global' {form, init}` (plan_memory.md decision 16): the form stored there,
+    """`counter = 'global' {form, init}`: the form stored there,
     a literal data form, and its initial bytes, a byte array of that form; without `init`,
     zeros. The allocation is static, so it is no effect."""
     name = field.label

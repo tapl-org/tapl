@@ -1,6 +1,6 @@
 # oymomo reduction rules
 
-TAPL-style rules for oymomo evaluation. Prose version: [notes.md › Blockers](notes.md#blockers).
+TAPL-style rules for oymomo evaluation.
 
 | Notation | Meaning | Code |
 |---|---|---|

@@ -36,7 +36,7 @@ class Const:
 @dataclass
 class CellAddress:
     """`module.counter` for a cell: the address of its static storage, of form `ptr`,
-    printed `@counter` (plan_memory.md decision 17). A written `form` replaces `ptr`."""
+    printed `@counter`. A written `form` replaces `ptr`."""
 
     name: str
     form: terms.Term = terms.Empty
@@ -183,7 +183,7 @@ class Signature:
 
 @dataclass
 class Data:
-    """Read-only module data: a value, read with `GetData` (plan_memory.md decision 15).
+    """Read-only module data: a value, read with `GetData`.
     `value` is its bytes if the module defines it, or `None` if it's imported."""
 
     name: str
@@ -194,7 +194,7 @@ class Data:
 
 @dataclass
 class Cell:
-    """Writable static storage, declared `'ptr'` (plan_memory.md decisions 16 to 18):
+    """Writable static storage, declared `'ptr'`:
     `module.x` is its address, a `CellAddress`. A defined one has the `form` stored there
     and its initial bytes, `value` (None: zeros); an imported one has neither."""
 
@@ -225,7 +225,7 @@ class FormError(Exception):
 def atom_form(atom: Atom, forms: Mapping[str, terms.Term]) -> terms.Term:
     match atom:
         case Const(form=form) if form == opcodes.PTR:
-            # A byte array has no address to name (plan_memory.md decision 6).
+            # A byte array has no address to name.
             raise FormError("A pointer can't be a literal.", atom.location)
         case Const(form=form):
             return form
@@ -318,7 +318,7 @@ def _check_args(what, params, args, forms, location):
 
 def _check_load_store(op, forms):
     """`load {form, ptr}` and `store {value, ptr}`: two fields, `ptr` of form `ptr`, and a
-    stored value that brings its own form (plan_memory.md decision 7)."""
+    stored value that brings its own form."""
     name, fields = op.opcode, op.fields
     if len(fields) != opcodes.LOAD_STORE_FIELDS:
         raise FormError(f'{name!r} takes {opcodes.LOAD_STORE_FIELDS} fields, got {len(fields)}.', op.location)
@@ -385,7 +385,7 @@ def _check_cell_addresses(atoms, module, location):
 
 def _check_no_store_use(atoms, stores, location):
     """A store gives `{}`, which only `$seq` may use, and `$seq` is gone by BANF
-    (plan_memory.md decision 11): a store's name is used nowhere."""
+   : a store's name is used nowhere."""
     for atom in atoms:
         if isinstance(atom, Var) and atom.name in stores:
             raise FormError(f'{atom.name!r} is the result of a store; only $seq can use it.', atom.location or location)

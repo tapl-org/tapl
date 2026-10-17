@@ -185,7 +185,7 @@ def _convert(name: str, compute: _Compute, *, widening: bool) -> Opcode:
 PTR = terms.ByteArray.from_str('ptr')
 
 # What a `store` gives: LLVM's `store` gives no value, and only `$seq` may use it
-# (plan_memory.md decision 11).
+#.
 STORE_RESULT = terms.Struct([])
 
 # `getelementptr` takes a form, a pointer and at least one index.
@@ -196,7 +196,7 @@ LOAD_STORE_FIELDS = 2
 
 
 # LLVM's aggregate types other than a plain struct are tagged structs: field 0 names the
-# type, and the fields after it are its parts (plan_memory.md decision 8). Only BANF and
+# type, and the fields after it are its parts. Only BANF and
 # LLVM read the tag; to reduction they are structs like any other.
 FORM_TAGS = frozenset({'array', 'vector', 'scalable_vector', 'packed'})
 
@@ -272,7 +272,7 @@ def _store_form_of(_fields: Fields) -> terms.Term | None:
 
 def _global_form_of(fields: Fields) -> terms.Term | None:
     """`{form}` or `{form, init}`: a writable global of `form`, zeroed or set to `init`,
-    and its address. Only a body field may be one (plan_memory.md decision 16)."""
+    and its address. Only a body field may be one."""
     return PTR if len(fields) in (1, 2) and is_literal_form(fields[0]) else None
 
 

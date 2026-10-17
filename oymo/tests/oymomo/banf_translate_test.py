@@ -1110,9 +1110,9 @@ def test_load_and_store_errors(body, message):
     assert error(f"g = f -> {{entry = args~{{n = 'i32'}} -> {body}}}", "g = => 'i32'") == message
 
 
-# Effects that `$seq` doesn't chain (plan_memory.md step 4). `banf_shape` keeps every let
+# Effects that `$seq` doesn't chain. `banf_shape` keeps every let
 # whose value is an op, once, in source order (decision 4); these pin that down. What
-# full β does to the same programs is plan_confluence.md decision 9.
+# full β does to the same programs is a confluence decision.
 
 
 def test_an_unused_effect_is_kept():
@@ -1177,7 +1177,7 @@ def test_order_is_let_order(result):
     """)
 
 
-# Arrays, vectors and packed structs as tagged structs (plan_memory.md decision 8).
+# Arrays, vectors and packed structs as tagged structs.
 
 ARRAY = "{'array', [03000000]~'i32', 'i32'}"
 VECTOR = "{'vector', [04000000]~'i32', 'i32'}"
@@ -1262,7 +1262,7 @@ def test_a_packed_struct_field_is_read_by_label():
     """)
 
 
-# Globals (plan_memory.md decisions 14 to 18): data is a read-only value, and a `'ptr'`
+# Globals: data is a read-only value, and a `'ptr'`
 # declaration is a cell, defined by `'global'`, whose `module.x` is its address.
 
 GLOBALS_DECLS = "answer = 'i32', tbl = 'i32', counter = 'ptr', errno = 'ptr', main = => 'i32'"

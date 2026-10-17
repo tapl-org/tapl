@@ -192,8 +192,7 @@ def _load_store_arity(name: str, fields: Sequence[banf.Atom | banf.FormField]) -
 
 
 def _load(builder, fields, operand):
-    """`load F, ptr p`: no `align`, so LLVM assumes `F`'s ABI alignment (plan_memory.md
-    decision 12)."""
+    """`load F, ptr p`: no `align`, so LLVM assumes `F`'s ABI alignment."""
     _load_store_arity('load', fields)
     form = _any_form('load', fields, 0)
     return builder.load(_pointer('load', fields[1], operand), typ=llvm_type(form))

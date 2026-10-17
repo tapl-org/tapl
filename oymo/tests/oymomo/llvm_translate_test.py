@@ -716,7 +716,7 @@ def test_load_and_store_check_their_field_count(name, count):
 
 
 def test_an_effect_used_twice_runs_once():
-    # plan_memory.md step 4: the load before the store reads the 1 stored first, once.
+    # The load before the store reads the 1 stored first, once.
     source = """
     bump = f -> {
       entry = args~{n = 'i32'} ->
@@ -739,7 +739,7 @@ def test_an_effect_used_twice_runs_once():
     assert bump(41) == 2
 
 
-# Arrays, vectors and packed structs (plan_memory.md decision 8).
+# Arrays, vectors and packed structs.
 
 ARRAY = "{'array', [03000000]~'i32', 'i32'}"
 PACKED = "{'packed', a = 'i8', b = 'i32'}"
@@ -844,7 +844,7 @@ def test_aggregates_through_the_jit():
     assert function('next', ptr, ptr)(base) == base + 5
 
 
-# Globals (plan_memory.md decisions 14 to 18).
+# Globals.
 
 
 def test_globals():
