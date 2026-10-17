@@ -5,7 +5,7 @@
 The order of work, cut into **releases**. Designs live in the plans ([plans.md](plans.md)),
 mostly [plan_c_interop.md](plan_c_interop.md) and [plan_alcor.md](plan_alcor.md), [plan_mizar.md](plan_mizar.md).
 
-- Every release is a toolchain someone can install and use.
+- Every release is a toolchain someone can use.
 - Releases are as small as possible: one capability each.
 - The compiler writes **LLVM IR as text** and runs `clang`; **no JIT before 1.0** ([Decided](#decided)).
 
@@ -52,14 +52,15 @@ toolchain.
 
 ## Rules for every release
 
-1. **Installable**: Stage A `pip install oymo` (+ `clang`); Stage B from the repo with `clang`
-   alone; from 0.19 `pip install oymo` again; from 0.39 also a standalone binary.
-2. **Usable alone**: a README section shows a real task done with this release.
-3. **End-to-end tests**: each milestone is a CI test that builds with `clang` and runs.
-4. **API tested from outside** (from 0.20): example languages are separate packages using
+1. **Usable alone**: a README section shows a real task done with this release.
+2. **End-to-end tests**: each milestone is a CI test that builds with `clang` and runs.
+3. **API tested from outside** (from 0.20): example languages are separate packages using
    only the public API.
-5. **Errors, not crashes**: unsupported input names the missing feature.
-6. **Green**: full check passes; closed plans move to [implemented/](implemented/).
+4. **Errors, not crashes**: unsupported input names the missing feature.
+5. **Green**: full check passes; closed plans move to [implemented/](implemented/).
+
+**Installable** (every release installs with `pip install oymo` or a standalone binary) is
+postponed until after 1.0; until then releases run from the repo.
 
 Before 1.0, oymomo syntax, Alcor and Mizar syntax, public API and CLI may break (notes say
 how to migrate); from 1.0 they are stable.
@@ -370,9 +371,9 @@ flowchart LR
 
 ### Rules details
 
-- Rule 4: examples live in `examples/<name>/` with their own `pyproject.toml`, depend on
+- Rule 3: examples live in `examples/<name>/` with their own `pyproject.toml`, depend on
   `oymo`, built and run in CI; needing an internal module means the API lacks something.
-- Rule 6: `hatch run full-check` in Stage A; the Alcor-written compiler's own suite from
+- Rule 5: `hatch run full-check` in Stage A; the Alcor-written compiler's own suite from
   Stage B.
 - From 0.15 an Alcor syntax change means changing the compiler's source, so syntax is decided
   with care in 0.4–0.8. 1.0 freezes all four (oymomo syntax,
