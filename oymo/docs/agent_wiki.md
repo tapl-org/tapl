@@ -63,9 +63,16 @@ The user's orders, kept as given. Follow them in every task.
     text, plus a legend line under the title. When the user says to remove the
     color: unwrap `\new{}` (keep the text), delete `\old{...}` with its text, and
     drop the legend if no marks are left.
+  - Numbered points (user's order, so they can be referred to): rules, formula rows
+    and bullets share one counter per section, shown as 1), 2), ... without the
+    section number (`pt` counter,
+    `points` list, `\pt` in array rows; a rule's number is its left column).
   - Introduce each notation in the section where it is first used; no notation table
     up front.
-  - Byte arrays keep brackets, `[b]`, hex only: no UTF-8 / text byte arrays.
+  - Byte arrays are written as numbers `n` (0, 1, 2, ..., no upper bound; user's
+    order): every number is a byte array of some length, and the doc ignores the
+    length (trailing zeros). So no `le(b)` and no "little-endian" in the doc; the
+    code's empty index `[]` (stuck) has no counterpart. No UTF-8 / text byte arrays.
   - No built-ins (`$name`, `$fix`, `$seq`, field lists, opcodes).
   - Abstraction is two productions: without a form and with a form.
   - Before Syntax Sugar: an "All Combinations" section listing every root case,
