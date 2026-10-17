@@ -23,66 +23,66 @@ Build oymo from a fresh clone with only `clang`, using a seed that:
 
 ### Two languages
 
-Tenon is split into two languages (names not chosen yet):
+The user-facing language is split into two ([story.md](story.md)):
 
-| Language | What | In the seed |
-|---|---|---|
-| **compiler language** | small: only what the compiler needs to compile itself | yes |
-| **general language** | general purpose: extends the compiler language | no, built by stage 1 |
+| Language | Header | What | In the seed |
+|---|---|---|---|
+| **Alcor** | `language alcor` | kernel systems language: only what the compiler needs to compile itself | yes |
+| **Mizar** | `language mizar` | general-purpose language: extends Alcor | no, built by stage 1 |
 
-- The compiler is written in the compiler language, **permanently**; CI checks it by
-  building `compiler/` with stage 1.
-- The general language is an **extension** through oymo's public language-extension
+- The compiler is written in **Alcor**, **permanently**; CI checks it by building
+  `compiler/` with stage 1.
+- **Mizar** is an **extension** of Alcor through oymo's public language-extension
   interface, the same one users get; not a fork, no access to internals.
-- Left out of the compiler language, for example: floats, threads, atomics, SIMD.
-  New features go into the general language; they move down only when the compiler
-  needs them.
+- Left out of Alcor, for example: floats, threads, atomics, SIMD, `goto`, `union`,
+  `switch` fall-through, side-effecting expressions (inspired by seL4's StrictC subset,
+  plus recursion, heap and tagged enums). New features go into Mizar; they move down
+  only when the compiler needs them.
 - Data structures are library code: the shaped seed keeps only what the compiler uses.
   What matters is the language features they need (e.g. generics for hash maps).
 
 ### Seed
 
-Commit the seed as **shaped oymomo in text form**, split so the core and the compiler
-language change independently, instead of one `bootstrap/oymo.ll`:
+Commit the seed as **shaped oymomo in text form**, split so the core and Alcor change
+independently, instead of one `bootstrap/oymo.ll`:
 
 | File | Holds | Changes |
 |---|---|---|
 | `bootstrap/stage0.ll` | stage 0: shaped oymomo text → `.ll` | almost never |
 | `bootstrap/oymomo.oymo` | oymomo core: parser, reduction, `shape`, translation, extension interface, driver | rarely, once settled |
-| `bootstrap/lang/*.oymo` | compiler-language frontend, as a language library, one file per part | rarely |
+| `bootstrap/alcor/*.oymo` | Alcor frontend, as a language library, one file per part | rarely |
 | `bootstrap/clang-version` | minimum and tested clang version | on LLVM upgrades |
 
-All `.oymo` files are generated from the compiler's source (compiler language, layer 0
-only).
+All `.oymo` files are generated from the compiler's source (Alcor, layer 0 only).
 
 ```
 clang   stage0.ll                  -> stage0
 stage0  oymomo.oymo                -> oymomo.ll
-stage0  lang/*.oymo                -> lang/*.ll
-clang   oymomo.ll lang/*.ll        -> stage1     # knows the compiler language only
-stage1  compiler/                  -> stage2     # adds the general language
+stage0  alcor/*.oymo               -> alcor/*.ll
+clang   oymomo.ll alcor/*.ll       -> stage1     # knows Alcor only
+stage1  compiler/                  -> stage2     # adds Mizar
 stage2  compiler/                  -> stage3     # must match stage2 byte for byte
 ```
 
-`compiler/` holds both frontends, all written in the compiler language; stage 1 builds
-the general language from source as an extension.
+`compiler/` holds both frontends, all written in Alcor; stage 1 builds Mizar from
+source as an extension.
 
-- **Pro:** the seed changes only when the core or the compiler language does; general
-  language changes never touch it; no floats, atomics or threads for stage 0 to
-  translate (the most target-specific `.ll`); text is diffable and reviewable; no
-  target baked in; no Python; the extension interface is tested by its largest user.
+- **Pro:** the seed changes only when the core or Alcor does; Mizar changes never
+  touch it; no floats, atomics or threads for stage 0 to translate (the most
+  target-specific `.ll`); text is diffable and reviewable; no target baked in; no
+  Python; the extension interface is tested by its largest user.
 - **Con:** needs a stage 0; the seed is generated and large (megabytes); the compiler
-  is limited to the compiler language; the extension interface must exist by 0.15.
+  is limited to Alcor; the extension interface must exist by 0.15.
 
 The split needs:
 
 - **Linkage in shaped oymomo:** each file declares the symbols it exports and imports;
   `clang` links the resulting `.ll` files.
-- **No specialization across files:** `shape` stops at the file boundary, so a
-  compiler-language change cannot ripple into `oymomo.oymo`. The core ↔ language
-  boundary is the frontend interface (question 5).
-- **The extension interface in the seed:** stage 1 must build the general language as
-  an extension (questions 3, 11).
+- **No specialization across files:** `shape` stops at the file boundary, so an Alcor
+  change cannot ripple into `oymomo.oymo`. The core ↔ language boundary is the
+  frontend interface (question 5).
+- **The extension interface in the seed:** stage 1 must build Mizar as an extension
+  (questions 3, 11).
 
 ## Open questions
 
@@ -106,22 +106,22 @@ The split needs:
 8. **Trust:** should CI compare builds from the seed and from the frozen Python compiler?
 9. **How is `stage0.ll` produced?** Generated once from a small oymo program and
    committed, or written by hand.
-10. **How are the compiler-language files split?** For example by part (lexer, parser,
-    checker, lowering). Each file is a linkage unit; fewer cross-file symbols keep
-    stage 0 simple.
-11. **What does the extension interface look like, and is it ready by 0.15?** The
-    general language uses only it. Today's roadmap has the language-author interface
-    at 0.20–0.21; the general language needs it earlier.
-12. **What is in the compiler language?** Start from what the compiler uses: integers,
-    pointers, structs, arrays, strings, `switch`; generics and closures only if the
-    compiler needs them.
-13. **Which language owns layer 1?** If the compiler's source has layer-1 types, the
-    compiler language must at least parse and erase them; checking could be added by
-    the general language (stage 2).
-14. **Which language do users extend?** Usually the general language; the compiler
-    language could be a minimal base (e.g. for new targets).
-15. **Names?** Two names, both with `.oymo` and a `language` header line. Is "Tenon"
-    the compiler language, the general language, or neither?
+10. **How are the Alcor files split?** For example by part (lexer, parser, checker,
+    lowering). Each file is a linkage unit; fewer cross-file symbols keep stage 0
+    simple.
+11. **What does the extension interface look like, and is it ready by 0.15?** Mizar
+    uses only it. Today's roadmap has the language-author interface at 0.20–0.21; Mizar
+    needs it earlier.
+12. **What is in Alcor?** Start from what the compiler uses: integers, pointers,
+    structs, arrays, strings, tagged enums, `switch`, recursion, heap; generics and
+    closures only if the compiler needs them.
+13. **Which language owns layer 1?** If the compiler's source has layer-1 types, Alcor
+    must at least parse and erase them; checking could be added by Mizar (stage 2).
+14. **Which language do users extend?** Usually Mizar; Alcor could be a minimal base
+    (e.g. for new targets).
+15. ~~Names?~~ **Decided:** **Alcor** (`language alcor`) for the kernel systems
+    language and **Mizar** (`language mizar`) for the general-purpose language
+    ([story.md](story.md)).
 
 ## Dependencies
 

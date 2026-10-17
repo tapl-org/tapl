@@ -6,6 +6,7 @@
 
 | Word | Meaning | More |
 |---|---|---|
+| **Alcor** | `language alcor`: the kernel systems language used to write the compiler; in the bootstrap seed. | [story.md](story.md) |
 | **args** | Fixed name of a block's param binder after renaming; `args.n` is param `n`. | [Programs](notes.md#functions-are-structs-of-blocks) |
 | **atom** | A BANF operand: a constant (`[01]~'i8'`), a let name, or `args.label`, optionally with a form. | [Translation](notes.md#what-the-shape-is) |
 | **BANF** | *Block-based ANF*: first-order IR between oymomo and LLVM; SSA with block params instead of phi nodes. | [BANF](notes.md#banf) |
@@ -19,6 +20,7 @@
 | **form** | Logical structure of a value: `'i32'`, `{x = 'i32'}`, `{c = 'i8'} => 'i32'`. Not a type (oymomo has none), not a layout; never checked. | [oymomo semantics](notes.md#forms) |
 | **Formed** | The term `e~F`, "`e` formed as `F`". | [oymomo semantics](notes.md#formed-any-term-with-a-form) |
 | **function form** | `P => R`, the form of a function. `FunctionForm` term. | [oymomo syntax](notes.md#function-forms) |
+| **Mizar** | `language mizar`: the general-purpose language, built as an extension of Alcor. | [story.md](story.md) |
 | **module** | The program's outer binder; its form declares every symbol. `module.fact {...}` calls a function. | [Programs](notes.md#module-declares-every-symbol) |
 | **op** | A BANF let's value: `OpcodeCall`, `Call`, `MakeStruct`, `GetField`, `GetIndex`, `GetData`. | [BANF](notes.md#ops-and-their-forms) |
 | **opcode** | One LLVM instruction, `'add' {'i32', a, b}`. Folds on literal fields when `pure`. Listed in `opcodes.OPCODES`. | [Opcodes](notes.md#opcodes) |

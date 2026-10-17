@@ -45,19 +45,20 @@ Tenon programs:
   by `clang` ([roadmap.md › Decided](roadmap.md#decided)).
 - **Starts after [plan_confluence.md](plan_confluence.md) is closed** (roadmap 0.2):
   both layers lower to oymomo, so reduction must be order-independent first.
-- **Proposed: two languages** ([plan_bootstrap.md › Two languages](plan_bootstrap.md#two-languages)):
-  a small *compiler language* (only what the compiler needs; in the bootstrap seed)
-  and a *general language* that extends it through the public extension interface
-  (floats, threads, atomics, …). Names not chosen yet.
+- **Two languages: Alcor and Mizar** ([story.md](story.md),
+  [plan_bootstrap.md › Two languages](plan_bootstrap.md#two-languages)):
+  **Alcor** (`language alcor`, small kernel systems language for the compiler, in the
+  bootstrap seed) and **Mizar** (`language mizar`, general-purpose language that extends
+  Alcor through the public extension interface: floats, threads, atomics, …).
 - Phase 0 decisions below (0.1–0.7), each written here or in its own plan before Phase 1.
 
 ## Phases
 
 ### Phase 0 — decisions
 
-- **0.1 Name:** **Tenon**, working name, under review (Cymo and others; decided before
-  0.4, [roadmap.md › Open questions](roadmap.md#open-questions)). **Extension:
-  `.oymo`** (decided); first line `language tenon`
+- **0.1 Name:** **Alcor** (`language alcor`) for the kernel systems language and
+  **Mizar** (`language mizar`) for the general-purpose language ([story.md](story.md);
+  replaces working name "Tenon"). **Extension: `.oymo`** (decided)
   ([roadmap.md](roadmap.md#one-file-extension-a-language-header)).
 - **0.2 Syntax:** C with small modern changes (decided); each change is its own
   `0.2.n` decision with its reason.
