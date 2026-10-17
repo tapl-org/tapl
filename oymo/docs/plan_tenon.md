@@ -45,6 +45,10 @@ Tenon programs:
   by `clang` ([roadmap.md › Decided](roadmap.md#decided)).
 - **Starts after [plan_confluence.md](plan_confluence.md) is closed** (roadmap 0.2):
   both layers lower to oymomo, so reduction must be order-independent first.
+- **Proposed: two languages** ([plan_bootstrap.md › Two languages](plan_bootstrap.md#two-languages)):
+  a small *compiler language* (only what the compiler needs; in the bootstrap seed)
+  and a *general language* that extends it through the public extension interface
+  (floats, threads, atomics, …). Names not chosen yet.
 - Phase 0 decisions below (0.1–0.7), each written here or in its own plan before Phase 1.
 
 ## Phases
