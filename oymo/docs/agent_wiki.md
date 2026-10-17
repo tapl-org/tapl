@@ -44,8 +44,8 @@ The user's orders, kept as given. Follow them in every task.
     below them.
   - Every rule group (Computation, Congruence, S-Let/S-Inline): one rule per line,
     centered (`rules` env, `\axiomrow`/`\rulerow`), rule name right-aligned in a
-    column; a rule with no premises has no bar. Section 2 has no judgment line above
-    its rules (its first bullet defines `t ⟶ t'`).
+    column; a rule with no premises has no bar. No judgment line above any rule group
+    (Section 2's first bullet defines `t ⟶ t'`).
   - Introduce each notation in the section where it is first used; no notation table
     up front.
   - Byte arrays keep brackets, `[b]`, hex only: no UTF-8 / text byte arrays.

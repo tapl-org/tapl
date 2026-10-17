@@ -21,9 +21,6 @@
 \newcommand{\rn}[1]{\textsc{#1}}                % rule name in text
 \newcommand{\kw}[1]{\mathtt{#1}}                % keyword or name in math
 
-%% Judgment header above a group of rules: form on the left, meaning after it.
-\newcommand{\judgment}[2]{\par\medskip\noindent$#1$\qquad\textit{#2}\par\nopagebreak[4]}
-
 \mprset{sep=1.5em}
 
 %% One rule per line, centered on the page, its name right-aligned in a column.
@@ -71,6 +68,9 @@ t, F & ::= & & \textit{terms} \\
 \begin{itemize}
 \item $t$ ranges over terms, $x$ over variables, $l$ over labels.
 \item Forms are terms too, written $F, G$.
+\item A form is similar to a type, but with no typing rules: nothing checks it.
+  In an application, the parameter's form replaces the argument's own form
+  (\rn{E-BetaForm}).
 \item $b$ ranges over byte sequences, written in hex: $\bytes{2a000000}$;
   $[\,]$ is the empty byte array.
 \item Struct fields are ordered; a label may be empty, and labels may repeat.
@@ -85,16 +85,16 @@ t, F & ::= & & \textit{terms} \\
   {(\lam{x}{t_1})\ t_2 \;\step\; \subst{x}{t_2}{t_1}}
 \axiomrow{E-BetaForm}
   {(\lamF{x}{F}{t_1})\ t_2 \;\step\; \subst{x}{\fm{\fn{strip}(t_2)}{F}}{t_1}}
+\rulerow{E-Select}
+  {n \ge 1 \\ c \in \{[b], \fm{[b]}{F}\} \\ b \text{ is not empty} \\
+   i = \min(\fn{le}(b),\, n-1)}
+  {\{l_0 = t_0, \dots, l_{n-1} = t_{n-1}\}\ c \;\step\; t_i}
 \rulerow{E-Proj}
   {k = \min\{\, i \mid l_i = l \,\}}
   {\{l_i = t_i\}.l \;\step\; t_k}
 \rulerow{E-ProjForm}
   {k = \min\{\, i \mid l_i = l \,\} \\ m = \min\{\, j \mid l'_j = l \,\}}
   {(\fm{\{l_i = t_i\}}{\{l'_j = F_j\}}).l \;\step\; \fm{\fn{strip}(t_k)}{F_m}}
-\rulerow{E-Select}
-  {n \ge 1 \\ c \in \{[b], \fm{[b]}{F}\} \\ b \text{ is not empty} \\
-   i = \min(\fn{le}(b),\, n-1)}
-  {\{l_0 = t_0, \dots, l_{n-1} = t_{n-1}\}\ c \;\step\; t_i}
 \end{rules}
 \begin{itemize}
 \item $t \step t'$ means $t$ takes one step to $t'$: by a computation rule at
@@ -106,17 +106,16 @@ t, F & ::= & & \textit{terms} \\
 \item $\fn{le}(b)$ is $b$ read as an unsigned little-endian integer: the first
   byte is the lowest. For $\bytes{0201}$,
   $\fn{le}(\mathtt{0201}) = \mathtt{02} + \mathtt{01} \cdot 256 = 258$.
-\item \rn{E-Proj} and \rn{E-ProjForm} take the first field with the label.
 \item \rn{E-Select} ignores labels, and a form on the index. An index past the
   last field takes the last one, so the last field is the default:
   $\{e, t\}\ \bytes{02}$ and $\{e, t\}\ \bytes{0100}$ both give $t$.
+\item \rn{E-Proj} and \rn{E-ProjForm} take the first field with the label.
 \end{itemize}
 
 %% ── Congruence ─────────────────────────────────────────────────────────
 
 \section{Congruence (reduce the blocker)}\label{sec:congruence}
 
-\judgment{t \step t'}{one step}
 \begin{rules}
 \rulerow{E-App1}
   {t_1 \step t_1'}
