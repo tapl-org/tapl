@@ -16,4 +16,4 @@ Mizar  (general-purpose language, extends Alcor)
         └─► Oymomo  (mother language, binds languages and C to the machine)
 ```
 
-Naming a language takes forever. If you get stuck naming yours, just pick a star from a constellation — one less thing to think about, and your language becomes another of Oymomo's stars.
+Finding a name for a new language is hard — I spent hours on it. If you ever get stuck naming yours, feel free to pick a star from any constellation, and it will be one of Oymomo's stars too.
