@@ -155,11 +155,11 @@ part of bytecode / wasm) and a small stage 0 that needs only `clang`.
 - **Stage 0 = the frozen Python compiler** (was 1e): no new code, but puts Python
   back in the bootstrap, against the roadmap's 0.15 milestone.
 - **Whole compiler as one `.ll`** (today's roadmap): fills the repo with regenerated
-  multi-megabyte files, a Tenon syntax change regenerates everything, and it bakes in
+  multi-megabyte files, a language syntax change regenerates everything, and it bakes in
   one target's C ABI, data layout and triple.
 - **Binary seed:** a smaller stage 0, but not diffable or reviewable (question 8).
-- **One seed file for core and Tenon:** a Tenon change regenerates the core.
-- **One Tenon in the seed:** every feature (floats, threads) lands in the seed; it
+- **One seed file for core and Alcor:** an Alcor change regenerates the core.
+- **One language (Alcor and Mizar merged) in the seed:** every feature (floats, threads) lands in the seed; it
   changes often and stage 0 must translate target-specific `.ll`.
 - **Compiler language and general language as two separate frontends:** two
   implementations to keep in agreement; an extension shares one.
@@ -184,8 +184,8 @@ part of bytecode / wasm) and a small stage 0 that needs only `clang`.
 - `clang-version`: LLVM keeps old bitcode readable, not old `.ll` text. Opaque `ptr`
   needs LLVM ≥ 15 (typed pointers removed in 17). CI builds with the minimum and
   tested versions.
-- 5: the same interface serves Tenon, `calc` and Python frontends (via the 0.19
-  binding); high-level frontends may return a Tenon tree.
+- 5: the same interface serves Alcor, Mizar, `calc` and Python frontends (via the 0.19
+  binding); high-level frontends may return a Mizar tree.
 - Building the general language as an extension tests the language-author interface
   with the largest frontend long before 0.20–0.21.
 - Prior art for "the compiler uses a subset": Go's compiler must build with an older

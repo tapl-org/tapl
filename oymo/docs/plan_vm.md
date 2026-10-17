@@ -1,7 +1,7 @@
 # Plan: Spindle, a virtual machine that runs BANF without LLVM
 
 **Status:** paused · 1 of 6 steps · side project, no release waits for it; rewritten in
-Tenon after 1.0 · [roadmap › Spindle in Tenon](roadmap.md#after-10--spindle-in-tenon)
+Mizar after 1.0 · [roadmap › Spindle in Mizar](roadmap.md#after-10--spindle-in-mizar)
 
 > [!NOTE]
 > Step 3 is done, without VM code, under the name **opcode**. Read *VM symbol*,
@@ -15,7 +15,7 @@ Tenon after 1.0 · [roadmap › Spindle in Tenon](roadmap.md#after-10--spindle-i
   memory, imports and coroutine scheduling are host functions.
 - State is two host objects, `Spindle` and `Fiber`: the host creates, runs, resumes
   them, and calls into them from its own functions.
-- Written so a C (later Tenon) port is a straight translation.
+- Written so a C (later Mizar) port is a straight translation.
 
 ## Steps
 
@@ -191,17 +191,17 @@ Modules per step (tests in [Background](#tests-per-step)).
 > [!IMPORTANT]
 > 1. **Trap or not** (decision 4)? Stricter than LLVM suits tests, but a program relying
 >    on LLVM's actual result would run under LLVM and stop in the VM.
-> 2. **Which VM-only symbols first** (step 5)? `trace` for tests; next likely Tenon
+> 2. **Which VM-only symbols first** (step 5)? `trace` for tests; next likely Alcor/Mizar
 >    layer-1 helpers (type values, errors).
 > 3. **Common imports in `spindle_lib`** (`putchar`, `malloc`)? Unbound is still an error.
 > 4. **Function values:** passing functions to the host and creating fibers from oymomo
 >    wait for function pointers ([plan_c_interop.md](plan_c_interop.md) 1.6).
 > 5. **REPL and CLI** (`oymo run --spindle a.oymo`)? A plan of their own.
-> 6. **Speed:** if Tenon layer 1 runs in the VM, make `struct`/`field` core
+> 6. **Speed:** if Alcor/Mizar layer 1 runs in the VM, make `struct`/`field` core
 >    instructions (against "no data structures")?
 > 7. **Values in a C port** (decision 16): `iN` ≤ 64 fits a word; wider ints and host
 >    values need handles, released by the host when a fiber dies (no GC).
-> 8. **What Spindle runs, now that BANF goes in oymo 0.3?** Decide before the Tenon rewrite.
+> 8. **What Spindle runs, now that BANF goes in oymo 0.3?** Decide before the Alcor rewrite.
 >    - a. The shaped oymomo program
 >    - b. LLVM IR, after LLVM's optimizer (`llvm_translate → LLVM IR → spindle_compile`)
 

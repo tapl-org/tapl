@@ -98,13 +98,13 @@ with a clear error.
 - Callbacks: oymomo function passed to C (1.6) and called back.
 - Generated `.h` from the exported part of `module` (like `cbindgen`,
   `zig -femit-h`): prototypes, structs, include guards. Uses layer-1 types if the
-  frontend gives them (Tenon: `unsigned`, `const char *`, named structs); forms alone
+  frontend gives them (Alcor/Mizar: `unsigned`, `const char *`, named structs); forms alone
   give `int`-sized and `void *` types.
 - Build-system flags (Make, CMake): `-c`, `-o`, `-MD` / `-MF`, `compile_commands.json`.
 - Output `.a` and `.so` too.
 - **Milestone: C calls oymomo** through the generated header, with a callback.
 - **Milestone: drop-in** (0.24, needs by-value structs): a one-file C library rewritten
-  in Tenon or oymomo passes its unchanged C test suite.
+  in Mizar or oymomo passes its unchanged C test suite.
 
 ### Phase 5 — C headers to oymomo declarations
 
@@ -194,7 +194,7 @@ Set by [roadmap.md](roadmap.md):
 | 0.6 | Phase 2, 3.1 (small ints) |
 | 0.7 | 1.5 union decision, as far as tagged unions need it |
 | 0.10 | 1.6 function pointers, callbacks |
-| 0.13–0.15 | compiler rewritten in Tenon: same translation and `.ll`, built by `clang` |
+| 0.13–0.15 | compiler rewritten in Alcor: same translation and `.ll`, built by `clang` |
 | 0.18 | 1.8 linkage, Phase 4 (exports, `.h`, `.a`, `.so`) |
 | 0.22 | Phase 4 build-system flags; `-I`, `-L`, `-l`, pkg-config |
 | 0.23 | 1.3 floats |
@@ -266,7 +266,7 @@ What they share:
 5. Headers read with clang, not a hand-written parser (D excepted).
 
 This plan: `module` imports are (1); libclang (Python `clang.cindex` originally,
-libclang's C API from the Tenon compiler) for (5); an ABI pass in the LLVM stage for (4).
+libclang's C API from the compiler in Alcor) for (5); an ABI pass in the LLVM stage for (4).
 
 ### Notes on Phase 5
 
@@ -275,7 +275,7 @@ libclang's C API from the Tenon compiler) for (5); an ABI pass in the LLVM stage
   field, and every name has both. A declaration is a two-layer value, `<term:type>`
   as TAPL writes it.
 - **Why no `#include`** (LLVM IR from clang has none either): the header name belongs
-  to the source language (Tenon import, Zig `@cImport`). So an oymomo file means the
+  to the source language (Alcor/Mizar import, Zig `@cImport`). So an oymomo file means the
   same everywhere (no search paths, `-D`, libclang), reduction never reads a file,
   and every C call shows its form where used.
 - **Preprocessor:** C can't be parsed without it (`#include`, `#ifdef`); libclang runs

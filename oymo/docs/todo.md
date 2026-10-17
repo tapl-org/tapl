@@ -10,7 +10,7 @@
 
 - [ ] `/* */` block comment syntax.
   - [ ] Show stuck-term error messages in the block comment.
-- [ ] Move oymo to its own GitHub repo. Planned: the Tenon-written oymo, after 0.15
+- [ ] Move oymo to its own GitHub repo. Planned: the Alcor-written oymo, after 0.15
   ([roadmap.md › Repository layout](roadmap.md#repository-layout)).
 - [ ] `$fields_to_struct` argument must be
   `A = {more=[01], label=utf8, value=term, rest=A} | {more=[00]}`; no other labels allowed.

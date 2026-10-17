@@ -70,7 +70,7 @@ module~{
 }
 
 source_filename = 'main.anv'
-!0 = distinct !DICompileUnit(language: DW_LANG_C11, file: !2, producer: 'tenon 0.1')
+!0 = distinct !DICompileUnit(language: DW_LANG_C11, file: !2, producer: 'alcor 0.1')
 !1 = !{'stdio.h', i32 690}
 !2 = !DIFile(filename: 'main.anv', directory: '/src')
 !3 = distinct !DISubprogram(name: 'main', file: !2, line: 3, unit: !0)
@@ -91,7 +91,7 @@ entry:
   %r = call i32 @puts(ptr @msg), !dbg !4
   ret i32 0, !dbg !6
 }
-!0 = distinct !DICompileUnit(language: DW_LANG_C11, file: !2, producer: "tenon 0.1")
+!0 = distinct !DICompileUnit(language: DW_LANG_C11, file: !2, producer: "alcor 0.1")
 ...
 ```
 

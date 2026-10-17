@@ -4,7 +4,7 @@
 · [roadmap › 0.2](roadmap.md#02--confluence-reduction-order-doesnt-change-the-result)
 
 > [!IMPORTANT]
-> BANF's removal (0.3) and Tenon (0.4) do not start before this plan is closed.
+> BANF's removal (0.3) and Alcor (0.4) do not start before this plan is closed.
 
 ## Goal
 
@@ -133,7 +133,7 @@ and docs, unless the tests find a new problem.
 
 ## Dependencies
 
-- Blocks 0.3 (BANF's removal) and 0.4 (Tenon).
+- Blocks 0.3 (BANF's removal) and 0.4 (Alcor).
 - Decision 9 uses [plan_memory.md](implemented/plan_memory.md)'s samples and `$seq`.
 - Decision 5 applies to rules from [plan_struct_pack.md](implemented/plan_struct_pack.md)
   and [plan_constant_folding.md](implemented/plan_constant_folding.md).

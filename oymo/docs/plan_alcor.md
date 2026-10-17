@@ -1,15 +1,19 @@
-# Plan: Tenon, a two-layer language on oymomo
+# Plan: Alcor, a two-layer kernel language on oymomo
 
-**Status:** proposed · 0 of 7 phases · oymo 0.4 to after 1.0
+**Status:** proposed · 0 of 7 phases · oymo 0.4 to 0.31
 · stages and releases in [roadmap.md](roadmap.md) (summary in [Background](#release-stages))
 
 A roadmap, not one change: each phase is one or more plans (`plan_<name>.md`) of
 one-commit steps; a phase is done when all its plans are closed. Code lives in
-`src/oymo/tenon/`, beside `oymomo/`.
+`src/oymo/alcor/`, beside `oymomo/`.
+
+Alcor is the small systems language the compiler is written in ([story.md](story.md)).
+Mizar extends it, so everything here holds for Mizar too; what only Mizar adds is in
+[plan_mizar.md](plan_mizar.md).
 
 ## Goal
 
-Tenon programs:
+Alcor programs:
 
 1. have **two layers** in one file, as TAPL does for Python: layer 0 runs, layer 1 is
    the type checker, as real code;
@@ -17,27 +21,26 @@ Tenon programs:
    dependent and substructural types (0.6, from oymo 0.16); no run-time cost, no GC;
    raw pointers and C stay unchecked;
 3. lower **each layer to its own oymomo program**, then to LLVM IR text (no BANF, from
-   0.3) built by `clang`; the Tenon-written compiler (from 0.13) writes the same text;
-4. can be **built by other languages**: a frontend builds a Tenon tree through the
-   public Tenon API, with its own locations, and gets Tenon's type checker, C headers
-   and C ABI ([roadmap.md › One package, three ways in](roadmap.md#one-package-three-ways-in)).
+   0.3) built by `clang`; the Alcor-written compiler (from 0.13) writes the same text;
+4. are **small and change rarely**: only what the compiler needs; Alcor is in the
+   bootstrap seed ([plan_bootstrap.md](plan_bootstrap.md)).
 
 ## Steps
 
 - [ ] 0. Decisions: name, syntax, layer semantics, memory model, undefined behaviour, generics, dependent and substructural types ([Phase 0](#phase-0--decisions)) — oymo 0.4
-- [ ] 1. Tenon frontend, layer 0 only ([Phase 1](#phase-1--tenon-frontend-layer-0-only)) — oymo 0.4, 0.5, 0.7
-- [ ] 2. Layer 1: the type checker as code, basic types, generics, module interfaces ([Phase 2](#phase-2--layer-1-the-type-checker-as-code)) — oymo 0.8, 0.9 (across languages 0.21)
+- [ ] 1. Alcor frontend, layer 0 only ([Phase 1](#phase-1--alcor-frontend-layer-0-only)) — oymo 0.4, 0.5, 0.7
+- [ ] 2. Layer 1: the type checker as code, basic types, generics, module interfaces ([Phase 2](#phase-2--layer-1-the-type-checker-as-code)) — oymo 0.8, 0.9 (across languages: [plan_mizar.md](plan_mizar.md))
 - [ ] 2b. Memory safety: dependent and substructural types ([Phase 2b](#phase-2b--memory-safety-dependent-and-substructural-types)) — oymo 0.16, 0.17
-- [ ] 3. C calls Tenon: `export`, function values, generated headers ([Phase 3](#phase-3--c-calls-tenon)) — oymo 0.10, 0.18
+- [ ] 3. C calls Alcor: `export`, function values, generated headers ([Phase 3](#phase-3--c-calls-alcor)) — oymo 0.10, 0.18
 - [ ] 4. C headers in both layers ([Phase 4](#phase-4--c-headers-in-both-layers)) — oymo 0.28
-- [ ] 5. Later: closures, separate compilation, debug info, safety checks, standard library ([Phase 5](#phase-5--later)) — oymo 0.11 (bootstrap standard library), 0.12 (line tables), 0.29–0.38 and after 1.0
+- [ ] 5. Later: separate compilation, debug info, safety checks, bootstrap standard library ([Phase 5](#phase-5--later)) — oymo 0.11 (bootstrap standard library), 0.12 (line tables), 0.29, 0.31
 
 ## Decisions
 
 - **No C ABI work of its own**: calling C and being called by C are oymomo features
-  ([plan_c_interop.md](plan_c_interop.md)). Tenon's C code is only syntax (`extern`,
-  `export`, header import) and the C type ↔ Tenon type mapping in layer 1
-  (Phases 3, 4). Types are Tenon's, not oymomo's.
+  ([plan_c_interop.md](plan_c_interop.md)). Alcor's C code is only syntax (`extern`,
+  `export`, header import) and the C type ↔ Alcor type mapping in layer 1
+  (Phases 3, 4). Types are Alcor's, not oymomo's.
 - **Layer 1 runs at compile time**: compiled to machine code by `clang`, run as a
   subprocess; errors come back with locations; no error = layer 0 type-checks
   (as TAPL's `a1.py`).
@@ -45,27 +48,24 @@ Tenon programs:
   by `clang` ([roadmap.md › Decided](roadmap.md#decided)).
 - **Starts after [plan_confluence.md](plan_confluence.md) is closed** (roadmap 0.2):
   both layers lower to oymomo, so reduction must be order-independent first.
-- **Two languages: Alcor and Mizar** ([story.md](story.md),
-  [plan_bootstrap.md › Two languages](plan_bootstrap.md#two-languages)):
-  **Alcor** (`language alcor`, small kernel systems language for the compiler, in the
-  bootstrap seed) and **Mizar** (`language mizar`, general-purpose language that extends
-  Alcor through the public extension interface: floats, threads, atomics, …).
+- **Only what the compiler needs** ([plan_bootstrap.md › Two languages](plan_bootstrap.md#two-languages)):
+  the compiler is written in Alcor permanently. No floats, threads, atomics or SIMD
+  (those are Mizar's). A feature moves into Alcor only when the compiler needs it.
 - Phase 0 decisions below (0.1–0.7), each written here or in its own plan before Phase 1.
 
 ## Phases
 
 ### Phase 0 — decisions
 
-- **0.1 Name:** **Alcor** (`language alcor`) for the kernel systems language and
-  **Mizar** (`language mizar`) for the general-purpose language ([story.md](story.md);
-  replaces working name "Tenon"). **Extension: `.oymo`** (decided)
+- **0.1 Name:** **Alcor** (`language alcor`, [story.md](story.md)).
+  **Extension: `.oymo`** (decided)
   ([roadmap.md](roadmap.md#one-file-extension-a-language-header)).
 - **0.2 Syntax:** C with small modern changes (decided); each change is its own
   `0.2.n` decision with its reason.
   - **0.2.1 `name: Type` declarations** (decided):
     `count: i32 = 0;` · `fn add(a: i32, b: i32) -> i32 { return a + b; }`.
     Keyword for functions (`fn`) and exact forms are open.
-  - Rest: survey Zig, C3, Odin, Hare, Jai first (`tenon_syntax_survey.md`), then
+  - Rest: survey Zig, C3, Odin, Hare, Jai first (`alcor_syntax_survey.md`), then
     decide per topic, then check with sample programs and a grammar sketch
     (method in [Background](#syntax-method)).
 - **0.3 What layer 1 means** (proposal): as in TAPL. A type is a layer-1 value; each
@@ -124,13 +124,13 @@ Tenon programs:
   parameter is a layer-1 value. To decide: syntax, inference of type arguments,
   lowering (one copy per type, or one shared copy taking sizes). Ships in 0.8.
 
-### Phase 1 — Tenon frontend, layer 0 only
+### Phase 1 — Alcor frontend, layer 0 only
 
 - Grammar on the PEG engine; tree classes with `separate()`, as in TAPL.
 - Layer 0 → oymomo program (`module -> {...}`): functions → structs of blocks,
   `if`/`while` → blocks and jumps, locals → `alloca`, structs → struct forms.
 - Hand-written `extern` declarations to call C; first-order calls.
-- Registered as `language tenon`; Tenon API: public tree classes and constructors,
+- Registered as `language alcor`; Alcor API: public tree classes and constructors,
   locations from any file.
 - **Milestone:** hello world; linked list with `malloc`/`free`; a call into a `.c` file
   built in the same command.
@@ -147,7 +147,7 @@ Oymo 0.8 and 0.9, Python compiler, before the bootstrap.
 - **Basic types:** integers, raw `Ptr(T)`, structs, enums, tagged unions, function types.
 - **Generics** (0.7).
 - **Module interfaces:** each export as `<form:type>` (same shape as `CDecl(form, ctype)`).
-  Used between files and languages: a frontend lowering to Tenon gives both halves; one
+  Used between files and languages: a frontend lowering to Mizar gives both halves; one
   lowering to oymomo gives forms only (unchecked in layer 1). The generated C header
   (0.18) comes from it.
 - **Milestone:** a layer-0 type error stops the build; `List(T)` at two types, a wrong
@@ -155,18 +155,18 @@ Oymo 0.8 and 0.9, Python compiler, before the bootstrap.
 
 ### Phase 2b — memory safety: dependent and substructural types
 
-Oymo 0.16 and 0.17, Tenon-written compiler, after the bootstrap; the compiler moves
+Oymo 0.16 and 0.17, Alcor-written compiler, after the bootstrap; the compiler moves
 from raw pointers module by module.
 
 - **Dependent types** (0.6.1): lifted constants, then run-time values in types, facts
   from tests. 0.16.
 - **Substructural types** (0.6.2–0.6.6): `Own(T, A)`, `Ref(T)`, name states, owned
-  `alloc`/`free`; interfaces carry ownership. Own plan: `plan_tenon_safety.md`. 0.17.
+  `alloc`/`free`; interfaces carry ownership. Own plan: `plan_alcor_safety.md`. 0.17.
 - **Milestone:** Phase 1's list with `Own` type-checks; use after free, double free,
   leak, or unchecked `buf[i]` stop the build; calls across files or into
   `language calc` are checked with ownership.
 
-### Phase 3 — C calls Tenon
+### Phase 3 — C calls Alcor
 
 - `export` on a function or global → oymomo exports
   ([plan_c_interop.md](plan_c_interop.md) 1.8, Phase 4).
@@ -174,8 +174,8 @@ from raw pointers module by module.
   code + `void *` environment; no trampolines ([roadmap.md › Non-goals](roadmap.md#non-goals)).
 - Generated C header from the module interface, with layer-1 types (`unsigned`,
   `const char *`, named structs).
-- **Milestone:** C `main` calls a Tenon library via a header that reads hand-written;
-  a Tenon function passed to `qsort`.
+- **Milestone:** C `main` calls an Alcor library via a header that reads hand-written;
+  an Alcor function passed to `qsort`.
 
 ### Phase 4 — C headers in both layers
 
@@ -183,27 +183,26 @@ A header import (syntax from 0.2) calls `c_import` once with the build's target 
 flags. Each `CDecl(form, ctype)` is `<form:ctype>`; `LayerSeparator` splits it:
 
 - **Layer 0:** the form, unchanged (import, struct form, constant).
-- **Layer 1:** ctype → Tenon type: `int` → `c_int`, `const char *` →
+- **Layer 1:** ctype → Alcor type: `int` → `c_int`, `const char *` →
   `Ptr(Const(c_char))`, struct → struct type, typedef → its name in messages, its
   target for equality. Pointers → raw `Ptr(T)`, never `Own` (0.6.6). The only
-  C-specific code in Tenon.
+  C-specific code in Alcor.
 - Same names in both layers; a skipped name is missing from both, with its reason.
 - Layer 1 runs on the host but checks the **target's** C types (`c_long` as
   `c_import` reported it).
-- Test: every Tenon type made from a ctype has the ctype's form.
+- Test: every Alcor type made from a ctype has the ctype's form.
 - **Milestone:** import `<stdio.h>`, call `printf`, `puts`; `puts(42)` is a layer-1 error.
 
 ### Phase 5 — later
 
 Each its own plan, in a roadmap release (bootstrap standard library 0.11, line tables
-0.12, the rest 0.29–1.0) or after 1.0:
+0.12, full debug info 0.29, checked build 0.31):
 
-- Closures; split into code + `void *` environment when passed to C.
 - Separate compilation, on Phase 2's interfaces.
-- Debug info for Tenon source (`!dbg`, metadata table, [plan_metadata.md](plan_metadata.md)).
+- Debug info for Alcor source (`!dbg`, metadata table, [plan_metadata.md](plan_metadata.md)).
 - The checked build mode (0.5).
-- Standard library: strings, slices, I/O, allocator interface (0.4) and first allocators.
-- Language versions in the header (`language tenon 2`).
+- Bootstrap standard library: strings, slices, I/O, allocator interface (0.4) and first
+  allocators; the rest is Mizar's.
 
 ## Open questions
 
@@ -219,8 +218,8 @@ Each its own plan, in a roadmap release (bootstrap standard library 0.11, line t
    affine only.
 6. **Do second-class borrows (0.6.3) suffice** for the compiler's source (ownership
    from 0.17), or are stored references with regions needed?
-7. **How does a closure (Phase 5) capture a linear value?** May a function value be
-   linear (called exactly once)?
+7. **Does the compiler need closures?** If not, closures are Mizar's
+   ([plan_mizar.md](plan_mizar.md)).
 
 ## Dependencies
 
@@ -230,7 +229,7 @@ flowchart TD
   P0["0 Decisions"] --> P1["1 Frontend, layer 0"]
   P1 --> P2["2 Layer 1: types, generics, interfaces"]
   P2 --> BOOT["bootstrap (roadmap Stage B)"] --> P2b["2b Memory safety"]
-  P2 --> P3["3 C calls Tenon"]
+  P2 --> P3["3 C calls Alcor"]
   CI4["plan_c_interop 4: exports"] --> P3
   P2 --> P4["4 C headers"]
   CI5["plan_c_interop 5: c_import"] --> P4
@@ -246,21 +245,21 @@ Context kept for reference; not needed to follow the plan.
 
 From [roadmap.md](roadmap.md):
 
-- **Stage A, Python compiler, only what a Tenon-written compiler needs:** BANF removed
-  0.3 (before Tenon); Phase 0 and Phase 1 functions and integers 0.4; memory and
+- **Stage A, Python compiler, only what an Alcor-written compiler needs:** BANF removed
+  0.3 (before Alcor); Phase 0 and Phase 1 functions and integers 0.4; memory and
   `extern` 0.5; enums and tagged unions 0.7; Phase 2 layer 1, basic types, generics
   0.8; module interfaces 0.9; Phase 3 function values 0.10; bootstrap standard library
   (Phase 5) 0.11; line tables and language server 0.12.
-- **Stage B (0.13–0.15):** the compiler, this frontend included, rewritten in Tenon.
-- **Stage C, Tenon compiler:** Phase 2b 0.16, 0.17; `export` and headers (Phase 3)
-  0.18; Tenon API for language authors 0.21; header import (Phase 4) 0.28; rest of
-  Phase 5 over 0.29–0.38 and after 1.0.
+- **Stage B (0.13–0.15):** the compiler, this frontend included, rewritten in Alcor.
+- **Stage C, the compiler in Alcor:** Phase 2b 0.16, 0.17; `export` and headers (Phase 3)
+  0.18; header import (Phase 4) 0.28; rest of Phase 5 0.29, 0.31. Mizar from 0.15
+  ([plan_mizar.md](plan_mizar.md)).
 
 ### Pipeline
 
 ```mermaid
 flowchart LR
-  src["Tenon source"] --> parse["PEG parser"] --> tree["syntax tree"]
+  src["Alcor source"] --> parse["PEG parser"] --> tree["syntax tree"]
   hdr["C header"] --> imp["c_import: CDecl(form, ctype)"] --> tree
   tree --> sep["LayerSeparator"]
   sep --> l0["layer 0 term"] --> o0["oymomo program 0"]
@@ -272,19 +271,11 @@ flowchart LR
 
 ### Starting point
 
-| oymo has | Missing for Tenon |
+| oymo has | Missing for Alcor |
 |---|---|
 | PEG engine ([peg.py](../src/oymo/core/peg.py)) | grammar, layer separation, lowering to oymomo |
 | oymomo → BANF → LLVM IR (BANF removed in 0.3) | building and running layer 1 at compile time |
-| `c_import` → `CDecl(form, ctype)`, once [plan_c_interop.md](plan_c_interop.md) Phase 5 lands | ctype → Tenon type mapping |
-
-### Notes on the name (0.1)
-
-- A tenon is the tongue of a mortise-and-tenon joint: fits its slot exactly, no nails
-  or glue. Tenon fits C the same way: no glue code, same ABI and memory, one link.
-- Rejected: Anvil (taken: a typed HDL, Foundry's `anvil`, anvil.works); names spelling
-  out C (C-like, seelike, Calque): the name need not say the syntax, but the first
-  docs page must.
+| `c_import` → `CDecl(form, ctype)`, once [plan_c_interop.md](plan_c_interop.md) Phase 5 lands | ctype → Alcor type mapping |
 
 ### Syntax method
 
@@ -294,7 +285,7 @@ flowchart LR
   `<expr:Type>`: the type is a layer-1 expression (`m: Matrix(^2, ^3)`).
 - Zig, C3, Odin, Hare, Jai each answered "C, but modern" differently; the survey is
   written before any syntax decision, and each decision cites it.
-- **1. Survey** (`tenon_syntax_survey.md`): status and aim of each (Oct 2026: Zig 0.16
+- **1. Survey** (`alcor_syntax_survey.md`): status and aim of each (Oct 2026: Zig 0.16
   pre-1.0; C3 0.8, 1.0 planned 2028; Odin stable, no 1.0 label; Hare 0.26 pre-1.0;
   Jai closed beta); then per topic, a table of the five with pros/cons, plus C:
 
@@ -312,7 +303,7 @@ flowchart LR
   | Memory | allocators as params (Zig, Odin's context), `defer free`, no hidden allocation; owned pointers, borrows, unchecked code (0.6) |
   | Lexical details | semicolons, comments, string and number literals, keyword count |
 
-- **2. Decide** (`0.2.n`): per topic, what Tenon takes, from whom, what it rejects and
+- **2. Decide** (`0.2.n`): per topic, what Alcor takes, from whom, what it rejects and
   why, one example. Rules:
   - a C programmer reads it at once: keep C's form unless fixing a known C problem
     (declaration spiral, `switch` fallthrough, header files)
@@ -339,8 +330,8 @@ flowchart LR
   keeps checking fast and errors readable.
 - 0.6.3: stored references would be regions or lifetimes as layer-1 values.
 - Why layer 1 and not a separate pass: a type is code. A library writes `Own`, `Index`
-  and its own linear handles in layer 1; a language author lowering to Tenon gets them
-  through the Tenon API for free.
+  and its own linear handles in layer 1; a language author lowering to Mizar gets them
+  through the Mizar API for free.
 - 0.7: one copy per type is what Zig, C3 and Rust do; the syntax comes from the
   survey's Generics topic.
 - Phase 3 / 4: generated headers use layer-1 types because forms alone can't tell
