@@ -13,13 +13,19 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `foundations` CLI, confluence, BANF removed
     - `review-rules` Review reduction_rules.md
-    - `form-alias` Form alias, e.g. `Point = {x = 'i32', y = 'i32'}`
+    - 🚫 `form-alias` Form alias, e.g. `Point = {x = 'i32', y = 'i32'}`
     - `confluence` 0.2 Reduction order doesn't change the result
       - 🚫 `conf-reducer` Full-β reference reducer and confluence test
       - 🚫 `conf-form` A form on a form is replaced; beta always wraps
       - 🚫 `conf-builtins` Built-in rules commute with reduction
       - 🚫 `conf-shape` `shape` keeps the meaning of its input
     - 🚫 `banf-removal` 0.3 BANF removed: oymomo → `.ll` text via an IR builder; llvmlite dropped
+    - `deps` Compile-time dependencies between `.oymo` files
+      - `deps-decide` Answer the open questions
+      - 🚫 `deps-cli` CLI flag: `single` or `struct` deps
+      - 🚫 `deps-module-form` Reduce the `module` form to a literal before naming
+      - 🚫 `struct-tools` Concatenate, modify, build structs
+      - 🚫 `deps-goldens` Golden tests: diamond, template pattern, built declarations
   - `alcor-l0` Alcor layer 0
     - `alcor-decide` Alcor decisions
       - `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai
@@ -53,12 +59,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
         - 🚫 `meta-attach` Attachments `e !dbg !4`
         - 🚫 `meta-keep` Reduction and lowering keep attachments
     - `imports` 0.9 Module interfaces and imports between files
-      - `deps` Compile-time dependencies between `.oymo` files
-        - `deps-decide` Answer the open questions
-        - 🚫 `deps-cli` CLI flag: `single` or `struct` deps
-        - 🚫 `deps-module-form` Reduce the `module` form to a literal before naming
-        - 🚫 `struct-tools` Concatenate, modify, build structs
-        - 🚫 `deps-goldens` Golden tests: diamond, template pattern, built declarations
       - 🚫 `l1-interfaces` Module interfaces: each export as `<form:type>`
     - `fn-pointers` 0.10 Function pointers and callbacks
       - 🚫 `fn-address` `module.f` as an address; indirect call through `'ptr'`
@@ -154,6 +154,14 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `form-alias` Form alias, e.g. `Point = {x = 'i32', y = 'i32'}`
 
 - Add form aliases: `Point = {x = 'i32', y = 'i32'}`
+- Works today: `let Point = {...} in module~{...} -> {...}`; the `let` reduces and each
+  use becomes the literal form
+- Fails today: a form from `deps` (`args~{x = deps.I}`): `form must be a literal, got
+  ({I = 'i32'}.I)`, since `shape` never reduces forms
+- Decide: reduce every form to a literal before naming (covers `deps-module-form` too),
+  or only the `module` form?
+- Decide: alias as `let` (no new syntax), sugar `Point = {...}` without `let ... in`, or
+  LLVM named types (`%Point = type {...}`, declared in `module`)?
 
 ### `conf-reducer` Full-β reference reducer and confluence test
 
@@ -234,6 +242,47 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   Spindle layout) to `clang`, or keep llvmlite test-only
 - Decide: `clang`, or llvmlite kept test-only, for JIT and target-data tests
 - Done when: same output as before on every test; BANF code and llvmlite gone
+
+### `deps-decide` Answer the open questions
+
+- Decide: flag name and values (`--deps=single|struct`?); default when no deps given
+- Decide: may a dependency be written inline on the command line, or only as a file?
+- Decide: struct labels: valid, unique; unknown `deps.x` names the missing label
+- Decide: termination: fuel limit and error for a looping `$fix`?
+- Decide: warn on large inlined terms?
+- Decide: errors inside inlined library code point into the library file?
+- Decide: partial shaping (postponed)
+
+### `deps-cli` CLI flag: `single` or `struct` deps
+
+- Head file `deps -> module~{...} -> {...}`; a dependency file is any term
+- CLI reads files and applies; no `$fix`, no wiring:
+
+  ```
+  $ oymo a.oymo                                          program = A
+  $ oymo a.oymo --deps=single b.oymo                     program = A B
+  $ oymo a.oymo --deps=struct lib=b.oymo util=c.oymo     program = A {lib = B, util = C}
+  ```
+
+- File terms come after their frontends, if not `language oymomo`
+- Output by flag: shaped oymomo or `.ll`
+
+### `deps-module-form` Reduce the `module` form to a literal before naming
+
+- Before naming, reduce the `module` binder's form to a literal struct
+
+### `struct-tools` Concatenate, modify, build structs
+
+- Struct tools: concatenate, modify, build
+- Example use: `module~(concat {main = => 'i32'} (deps.lib module).decls) -> ...`
+- Decide: which operations, and where: built-ins, or oymomo functions over
+  `$struct_to_fields` / `$fields_to_struct`
+
+### `deps-goldens` Golden tests: diamond, template pattern, built declarations
+
+- Golden: diamond wiring (`let d = deps.d in let b = deps.b d in let c = deps.c d in`)
+- Golden: template pattern (`sort = deps.lib.sort 'i32' module`, emitted as `@sort`)
+- Golden: built `module` declarations
 
 ### `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai
 
@@ -472,47 +521,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Tests: survives beta and substitution; folded opcode keeps its call's; returned
   literal keeps its own; stripping attachments gives the same code
 - Commit: `oymomo: keep attachments`
-
-### `deps-decide` Answer the open questions
-
-- Decide: flag name and values (`--deps=single|struct`?); default when no deps given
-- Decide: may a dependency be written inline on the command line, or only as a file?
-- Decide: struct labels: valid, unique; unknown `deps.x` names the missing label
-- Decide: termination: fuel limit and error for a looping `$fix`?
-- Decide: warn on large inlined terms?
-- Decide: errors inside inlined library code point into the library file?
-- Decide: partial shaping (postponed)
-
-### `deps-cli` CLI flag: `single` or `struct` deps
-
-- Head file `deps -> module~{...} -> {...}`; a dependency file is any term
-- CLI reads files and applies; no `$fix`, no wiring:
-
-  ```
-  $ oymo a.oymo                                          program = A
-  $ oymo a.oymo --deps=single b.oymo                     program = A B
-  $ oymo a.oymo --deps=struct lib=b.oymo util=c.oymo     program = A {lib = B, util = C}
-  ```
-
-- File terms come after their frontends, if not `language oymomo`
-- Output by flag: shaped oymomo or `.ll`
-
-### `deps-module-form` Reduce the `module` form to a literal before naming
-
-- Before naming, reduce the `module` binder's form to a literal struct
-
-### `struct-tools` Concatenate, modify, build structs
-
-- Struct tools: concatenate, modify, build
-- Example use: `module~(concat {main = => 'i32'} (deps.lib module).decls) -> ...`
-- Decide: which operations, and where: built-ins, or oymomo functions over
-  `$struct_to_fields` / `$fields_to_struct`
-
-### `deps-goldens` Golden tests: diamond, template pattern, built declarations
-
-- Golden: diamond wiring (`let d = deps.d in let b = deps.b d in let c = deps.c d in`)
-- Golden: template pattern (`sort = deps.lib.sort 'i32' module`, emitted as `@sort`)
-- Golden: built `module` declarations
 
 ### `l1-interfaces` Module interfaces: each export as `<form:type>`
 

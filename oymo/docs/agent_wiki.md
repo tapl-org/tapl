@@ -21,6 +21,8 @@ The user's orders, kept as given. Follow them in every task.
 - When the user gives a new order about what the agent can or cannot do, add it to this
   section.
 - When the user asks a question about oymo, look for the answer here first.
+- After every change to this wiki, stage it: `git add docs/agent_wiki.md`. Stage only
+  this file this way; don't commit.
 
 ### Files the agent must not edit
 
@@ -2311,6 +2313,9 @@ plans are kept verbatim below.
   `needs`, ...).
 - Roadmap place: the oymomo mechanism under 0.9 (module interfaces and imports); after
   0.3, since BANF must go before new oymomo features.
+- Moved (user's order): `deps` is now under `foundations`, after `banf-removal`, because
+  how a form alias works with `deps` must be designed together with `form-alias`.
+  `imports` keeps only `l1-interfaces`.
 
 ### Retired roadmap and plans
 
