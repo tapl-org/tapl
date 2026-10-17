@@ -36,7 +36,16 @@ The user's orders, kept as given. Follow them in every task.
   line over each group, `array` grammars; no boxes. Named `semantics.tex` (user's choice).
   - It is an abstract document: no θ-calculus or layering, no references to code
     (files, functions, classes, `convert`, BANF names), no de Bruijn indices.
-  - Write "Oymomo" (capitalized) in it.
+  - Write "Oymomo" (capitalized) in it. The title is "Oymo Semantics". No intro line
+    under the title.
+  - Section order: Syntax, Computation, Congruence, All Combinations, Evaluation
+    Strategy, Syntax Sugar, Under Binders (`shape`).
+  - Each section (Syntax, Computation, ...): formulas first, explanations as bullets
+    below them.
+  - Every rule group (Computation, Congruence, S-Let/S-Inline): one rule per line,
+    centered (`rules` env, `\axiomrow`/`\rulerow`), rule name right-aligned in a
+    column; a rule with no premises has no bar. Section 2 has no judgment line above
+    its rules (its first bullet defines `t ⟶ t'`).
   - Introduce each notation in the section where it is first used; no notation table
     up front.
   - Byte arrays keep brackets, `[b]`, hex only: no UTF-8 / text byte arrays.

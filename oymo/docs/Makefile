@@ -9,6 +9,7 @@ export PATH := /Library/TeX/texbin:$(PATH)
 all: $(addsuffix .pdf,$(TEX_PAPERS))
 
 %.pdf: %.tex
+	$(PDF_ENGINE) -interaction=nonstopmode -halt-on-error $< >/dev/null
 	$(PDF_ENGINE) -interaction=nonstopmode -halt-on-error $<
 
 clean:
