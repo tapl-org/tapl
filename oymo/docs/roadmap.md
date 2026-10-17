@@ -12,7 +12,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `foundations` CLI, confluence, BANF removed
-    - `review-rules` Review reduction_rules.md
+    - `review-rules` Review semantics.tex
     - 🚫 `form-alias` Form alias, e.g. `Point = {x = 'i32', y = 'i32'}`
     - `confluence` 0.2 Reduction order doesn't change the result
       - 🚫 `conf-reducer` Full-β reference reducer and confluence test
@@ -147,9 +147,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ## Leaf details
 
-### `review-rules` Review reduction_rules.md
+### `review-rules` Review semantics.tex
 
-- Review `docs/reduction_rules.md`
+- Review `docs/semantics.tex` (`make -C oymo/docs` builds `semantics.pdf`)
 
 ### `form-alias` Form alias, e.g. `Point = {x = 'i32', y = 'i32'}`
 
@@ -194,7 +194,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Update golden files that gain a form level
 - Remove the counterexample's `xfail`
 - `reduction.beta` docstring: the form goes with the argument; E-Reform drops its own
-- `reduction_rules.md`: add E-Reform, drop `strip`, add a "Full β" section
+- `semantics.tex`: add E-Reform, drop `strip`, add a "Full β" section
   (congruence rules; `→`, `whnf`, `shape` as strategies)
 - Commit: `oymomo: a form replaces a form`
 - Decide: E-Reform (leaning), or keep every form and read the outermost in translation?

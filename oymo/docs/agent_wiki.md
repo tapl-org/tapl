@@ -14,7 +14,7 @@ The user's orders, kept as given. Follow them in every task.
   except `oymo/AGENTS.md`: a 5-line file that only says to read this wiki's Rules first.
   `AGENTS.md` is the only file that links here.
 - When `notes.md` or `implemented/` are deleted, remove links to them and keep the
-  comment text (in source, tests, and `reduction_rules.md`).
+  comment text (in source, tests, and `semantics.tex`).
 - Keep every "why" here, and any knowledge collected along the way, for the whole oymo
   project, not only the roadmap.
 - Keep every agent-related thing here, including what the agent may and may not do.
@@ -28,7 +28,13 @@ The user's orders, kept as given. Follow them in every task.
 
 - `docs/todo.md` is the user's scratch list; only the user manages it. Read it, never
   edit it. Its items are also merged into the roadmap tree.
-- Keep `docs/story.md`, `docs/reduction_rules.md` and `README.md` as they are.
+- Keep `docs/story.md` and `README.md` as they are.
+- `docs/semantics.tex` (`review-rules`): the agent edits it as the user directs.
+  Markdown can't render LaTeX, so the rules moved from `reduction_rules.md` (deleted on
+  the user's order) to `.tex`; it starts with the θ-calculus appendix copied from
+  `doc/theta-calculus.tex`. `make -C oymo/docs` builds the PDF (git-ignored).
+  Layout (user's choice): `mathpartir` rules with the name above (`lab=`), a judgment
+  line over each group, `array` grammars; no boxes. Named `semantics.tex` (user's choice).
 
 ### Docs layout
 
@@ -37,7 +43,7 @@ The user's orders, kept as given. Follow them in every task.
 - `docs/notes.md`, `docs/glossary.md`, `docs/implemented/`, the plans and the old roadmap
   were moved here verbatim and deleted (done).
 - `docs/` now holds: `roadmap.md`, `agent_wiki.md`, `todo.md`, `story.md`,
-  `reduction_rules.md`.
+  `semantics.tex`, `Makefile`.
 
 ### Roadmap format
 

@@ -1,0 +1,413 @@
+% Part of the TAPL project, under the Apache License v2.0 with LLVM
+% Exceptions. See /LICENSE for license information.
+% SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{mathpartir}
+\usepackage[hidelinks]{hyperref}
+
+%% ── Notation ───────────────────────────────────────────────────────────
+\newcommand{\step}{\longrightarrow}             % one step
+\newcommand{\eval}{\Downarrow}                  % step until no rule applies
+\newcommand{\lam}[2]{\lambda #1.\,#2}           % λx. t
+\newcommand{\lamF}[3]{\lambda #1{\sim}#2.\,#3}  % λx~F. t
+\newcommand{\fm}[2]{#1{\sim}#2}                 % t~F
+\newcommand{\subst}[3]{[#1 \mapsto #2]\,#3}     % [x ↦ v] t
+\newcommand{\bi}[1]{\mathtt{\$#1}}              % built-in
+\newcommand{\lit}[1]{\text{\ttfamily\textquotesingle#1\textquotesingle}} % 'l'
+\newcommand{\fn}[1]{\mathit{#1}}                % meta function
+\newcommand{\fl}{\mathit{f\kern0pt l}}          % field list (no "fl" ligature)
+\newcommand{\rn}[1]{\textsc{#1}}                % rule name in text
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\kw}[1]{\mathtt{#1}}                % keyword in math
+
+%% Judgment header above a group of rules: form on the left, meaning after it.
+\newcommand{\judgment}[2]{\par\medskip\noindent$#1$\qquad\textit{#2}\par\nopagebreak[4]}
+
+%% Rule label above the rule, in small caps (mathpartir's lab=).
+\mprset{sep=2.5em}
+
+\title{oymomo Semantics\\[8pt]\normalsize\textsc{Draft --- under review}}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+%% ── θ-calculus (from the appendix of doc/theta-calculus.tex) ──────────
+
+\section{\texorpdfstring{$\theta$}{Theta}-Calculus Formal Rules}\label{sec:theta}
+
+From the appendix of \code{doc/theta-calculus.tex}, for reference.
+
+\subsection{Syntax}
+
+\[
+\begin{array}{rcll}
+t & ::= & & \textit{terms} \\
+  & \mid & x & \textit{variable} \\
+  & \mid & \lam{x}{t} & \textit{abstraction} \\
+  & \mid & t\ t & \textit{application} \\
+  & \mid & t{:}t & \textit{layering} \\
+  & \mid & \theta.\,t & \textit{unlayering}
+\end{array}
+\]
+
+\subsection{Meta-variables}
+
+\[
+\begin{array}{rcll}
+\multicolumn{4}{l}{t = g \mid h} \\
+g & ::= & x \mid \lam{x}{g} \mid g\ g \mid \theta.\,t & \textit{single layer} \\
+h & ::= & \lam{x}{h} \mid g\ h \mid h\ g \mid h\ h \mid t{:}t & \textit{multi layer} \\[6pt]
+\multicolumn{4}{l}{g = v \mid r} \\
+v & ::= & \lam{x}{g} & \textit{value} \\
+r & ::= & x \mid g\ g \mid \theta.\,t & \textit{non-value} \\[6pt]
+\multicolumn{4}{l}{h = p \mid s} \\
+p & ::= & t{:}t & \textit{separated} \\
+s & ::= & \lam{x}{h} \mid g\ h \mid h\ g \mid h\ h & \textit{separable}
+\end{array}
+\]
+
+\subsection{Evaluation}
+
+In this section a rule reads top to bottom: $\epsilon[t]$ above the line steps
+to the term below it.
+Cases: $g\ g$ is $r\ g \mid v\ r \mid v\ v$;\quad
+$\theta.\,t$ is $\theta.\,g \mid \theta.\,s \mid \theta.\,t{:}t$.
+
+\judgment{\epsilon[t] \to t}{evaluation}
+\begin{mathpar}
+\inferrule*[lab=E-Var]{\epsilon[x]}{x}
+\and
+\inferrule*[lab=E-Abs]{\epsilon[\lam{x}{g}]}{\lam{x}{g}}
+\and
+\inferrule*[lab=E-Layered]{\epsilon[h]}{h}
+\\
+\inferrule*[lab=E-App1]{\epsilon[r\ g]}{\epsilon[r]\ g}
+\and
+\inferrule*[lab=E-App2]{\epsilon[v\ r]}{v\ \epsilon[r]}
+\and
+\inferrule*[lab=E-Subst]{\epsilon[(\lam{x}{g})\ v]}{\subst{x}{v}{g}}
+\\
+\inferrule*[lab=E-Ground]{\epsilon[\theta.\,g]}{\lambda x.\ g}
+\and
+\inferrule*[lab=E-Separate]{\epsilon[\theta.\,s]}{\theta.\,\sigma[s]}
+\and
+\inferrule*[lab=E-Squash]{\epsilon[\theta.\,t_1{:}t_2]}
+  {\lambda x.\ x\ (\theta.\,t_2)\ (\theta.\,t_1)}
+\end{mathpar}
+
+\subsection{Separation}
+
+Cases: $\lam{x}{h}$ is $\lam{x}{s} \mid \lam{x}{p}$;\quad
+$h\ h$ is $s\ h \mid p\ s \mid p\ p$.
+
+\judgment{\sigma[s] \to t}{separation}
+\begin{mathpar}
+\inferrule*[lab=S-Abs]{\sigma[\lam{x}{s}]}{\lam{x}{\sigma[s]}}
+\and
+\inferrule*[lab=S-Split]{\sigma[\lambda x.\,t_1{:}t_2]}
+  {(\lam{x}{t_1}){:}(\lam{x}{t_2})}
+\\
+\inferrule*[lab=S-Clone1]{\sigma[g\ h]}{g{:}g\ h}
+\and
+\inferrule*[lab=S-Clone2]{\sigma[h\ g]}{h\ g{:}g}
+\\
+\inferrule*[lab=S-App1]{\sigma[s\ h]}{\sigma[s]\ h}
+\and
+\inferrule*[lab=S-App2]{\sigma[p\ s]}{p\ \sigma[s]}
+\and
+\inferrule*[lab=S-Zip]{\sigma[t_1{:}t_2\ t_3{:}t_4]}{(t_1\ t_3){:}(t_2\ t_4)}
+\end{mathpar}
+
+%% ── oymomo ─────────────────────────────────────────────────────────────
+
+\newpage
+
+\section{oymomo Reduction Rules}\label{sec:oymomo}
+
+TAPL-style rules for oymomo evaluation.
+
+\medskip
+\noindent
+\begin{tabular}{@{}l p{0.36\linewidth} p{0.46\linewidth}@{}}
+\textbf{Notation} & \textbf{Meaning} & \textbf{Code} \\[2pt]
+$t \step t'$ & one step
+  & \code{banf\_shape.step}: computation rules from \code{reduction.reduce},
+    congruence rules from \code{banf\_shape.unblock} \\[2pt]
+$t \eval w$ & apply $\step$ until no rule applies & \code{reduce\_until\_top\_stable} \\[2pt]
+$\fn{shape}$ & goes under binders, only along BANF's skeleton & \code{banf\_shape.shape}
+\end{tabular}
+
+\medskip
+\noindent
+Code lives in \code{src/oymo/oymomo/} (\code{banf\_shape.py}, \code{reduction.py}).
+
+%% ── Syntax ──
+
+\subsection{Syntax}
+
+Forms are terms too, written $F, G$.
+\[
+\begin{array}{rcll}
+t, F & ::= & & \textit{terms} \\
+  & \mid & x & \textit{variable (a de Bruijn index after resolve)} \\
+  & \mid & \lamF{x}{F}{t} \mid \lam{x}{t} & \textit{abstraction, with or without a form} \\
+  & \mid & t\ t & \textit{application} \\
+  & \mid & \{l_1 = t_1, \dots, l_n = t_n\} & \textit{struct (a label may be empty)} \\
+  & \mid & t.l & \textit{projection} \\
+  & \mid & [b] & \textit{byte array ($\lit{l}$ is the UTF-8 bytes of $l$)} \\
+  & \mid & \bi{name} & \textit{built-in} \\
+  & \mid & \fm{t}{F} & \textit{formed term} \\
+  & \mid & F \to F & \textit{function form}
+\end{array}
+\]
+\[
+\kw{if}\ c\ \kw{then}\ t\ \kw{else}\ e \;\equiv\; \{e, t\}\ c
+\]
+
+%% ── Evaluation strategy ──
+
+\subsection{Evaluation Strategy}
+
+\begin{itemize}
+\item \textbf{Weak:} never goes under a $\lambda$ or into a struct field.
+\item \textbf{Lazy:} never reduces an ordinary argument.
+\end{itemize}
+
+\noindent
+$\eval$ stops at:
+\[
+w ::= \lamF{x}{F}{t} \mid \{l_1 = t_1, \dots\} \mid [b] \mid x \mid \bi{name}
+  \mid F \to G \mid \textit{stuck terms}
+\]
+Stuck terms, for example: $\code{args}.n$, $f.\code{done}\ \{\dots\}$,
+$\lit{add}\ \{\lit{i32}, \code{args}.n, \dots\}$,
+$\{e, t\}\ c$ when $c$ is not a byte array,
+$s.l$ when $s$ has no field $l$, $\{\}\ [b]$, $\bi{unknown}\ t$.
+
+%% ── Computation ──
+
+\subsection{Computation (at the root)}
+
+\judgment{t \step t'}{one step}
+\begin{mathpar}
+\inferrule*[lab=E-Beta]{ }
+  {(\lam{x}{t_1})\ t_2 \;\step\; \subst{x}{t_2}{t_1}}
+\and
+\inferrule*[lab=E-BetaForm]{ }
+  {(\lamF{x}{F}{t_1})\ t_2 \;\step\; \subst{x}{\fm{\fn{strip}(t_2)}{F}}{t_1}}
+\\
+\inferrule*[lab=E-Proj]
+  {k = \min\{\, i \mid l_i = l_j \,\}}
+  {\{l_i = t_i\}.l_j \;\step\; t_k}
+\and
+\inferrule*[lab=E-Select]
+  {n \ge 1 \\ c \in \{[b], \fm{[b]}{F}\} \\ b \ne \lit{} \\
+   i = \min(\fn{le}(b),\, n-1)}
+  {\{f_0 = t_0, \dots, f_{n-1} = t_{n-1}\}\ c \;\step\; t_i}
+\end{mathpar}
+where
+\[
+\fn{strip}(\fm{t}{G}) = t \qquad \fn{strip}(t) = t \text{ otherwise}
+\]
+and $\fn{le}(b)$ is $b$ read as an unsigned little-endian integer.
+\rn{E-Select} ignores labels; the last field is the default:
+$\kw{if}\ [02]\ \kw{then}\ a\ \kw{else}\ b$ and
+$\kw{if}\ [0100]\ \kw{then}\ a\ \kw{else}\ b$ both give $a$.
+
+%% ── Built-ins ──
+
+\subsection{Built-ins}
+
+A built-in fires only when the parts it reads are already reduced
+(see \rn{E-Builtin}).
+
+\judgment{t \step t'}{one step}
+\begin{mathpar}
+\inferrule*[lab=E-Fix]{ }{\bi{fix}\ t \;\step\; t\ (\bi{fix}\ t)}
+\and
+\inferrule*[lab=E-Seq]
+  {d_i \in \{[b], \fm{[b]}{F}\} \text{ for each } i}
+  {\bi{seq}\ \{d_1, \dots, d_n, t\} \;\step\; t}
+\\
+\inferrule*[lab=E-ToFields]{ }
+  {\bi{struct\_to\_fields}\ \{l_1 = t_1, \dots, l_n = t_n\}
+   \;\step\; \fl(l_1 = t_1, \dots, l_n = t_n)}
+\\
+\inferrule*[lab=E-FromFields]{ }
+  {\bi{fields\_to\_struct}\ \fl(l_1 = t_1, \dots, l_n = t_n)
+   \;\step\; \{l_1 = t_1, \dots, l_n = t_n\}}
+\\
+\inferrule*[lab=E-Opcode]
+  {\lit{op} \text{ is a pure opcode with params } p_1 \dots p_n \\
+   v_i \text{ fits } p_i \text{ for each } i \\
+   r = \text{the bytes LLVM computes}}
+  {\lit{op}\ \{v_1, \dots, v_n\} \;\step\; \fm{[r]}{R}}
+\end{mathpar}
+where
+\[
+\begin{array}{lcl}
+\fl() & = & \{\code{more} = [00]\} \\
+\fl(l_1 = t_1, \fn{rest}) & = & \{\code{more} = [01],\ \code{label} = \lit{$l_1$},\
+  \code{value} = t_1,\ \code{rest} = \fl(\fn{rest})\}
+\end{array}
+\]
+
+\begin{description}
+\item[\normalfont\rn{E-FromFields}] When it reads a field list, it ignores extra
+  fields and any form on \code{more} or \code{label}. Each label must be valid
+  UTF-8.
+\item[\normalfont\rn{E-Seq}] A literal has no effect left to wait for. $n$ may
+  be $0$. Labels are ignored. With a $d_i$ that isn't a literal, there is no
+  rule: a stuck $\bi{seq}$ reaches \code{convert}, which drops it.
+\item[\normalfont\rn{E-Opcode}] Params are in this order; labels on the fields
+  are ignored. Each form param's $v_i$ is a literal form the opcode accepts, and
+  each value param's $v_i$ is $[b]$ or $\fm{[b]}{\kw{i}N}$, where $\kw{i}N$ is
+  the form its form param got, $|b| = \lceil N/8 \rceil$ and
+  $\fn{le}(b) < 2^N$. $R$ is the result form: a form param's $v_i$, or fixed
+  ($\kw{i1}$). There is no rule where LLVM leaves the result undefined:
+  $x / 0$, $x \bmod 0$, signed-min $/ -1$, signed-min $\bmod -1$, and shifts by
+  the width or more.
+\end{description}
+
+%% ── Congruence ──
+
+\subsection{Congruence (reduce the blocker)}
+
+Apply only when no computation rule applies at the root.
+
+\judgment{t \step t'}{one step}
+\begin{mathpar}
+\inferrule*[lab=E-SelectArg]
+  {t_2 \step t_2'}
+  {\{f_i = t_i\}\ t_2 \;\step\; \{f_i = t_i\}\ t_2'}
+\and
+\inferrule*[lab=E-App1]
+  {t_1 \step t_1' \\
+   t_1 \text{ is not a struct or a built-in that has a rule}}
+  {t_1\ t_2 \;\step\; t_1'\ t_2}
+\\
+\inferrule*[lab=E-Proj1]
+  {t \step t'}
+  {t.l \;\step\; t'.l}
+\and
+\inferrule*[lab=E-Formed]
+  {t \step t'}
+  {\fm{t}{F} \;\step\; \fm{t'}{F}}
+\and
+\inferrule*[lab=E-Builtin]
+  {p \text{ is a part of } t \text{ that } \bi{name} \text{ reads} \\
+   p \eval p' \\ p' \ne p}
+  {\bi{name}\ t \;\step\; \bi{name}\ t[p \mapsto p']}
+\end{mathpar}
+
+\noindent
+\rn{E-Formed} never reduces the form $F$.
+\rn{E-Builtin} reduces the built-in's parts in order; the rule may fire right
+after that step. Parts each built-in reads:
+
+\medskip
+\noindent
+\begin{tabular}{@{}ll@{}}
+\textbf{Built-in} & \textbf{Parts it reads} \\[2pt]
+$\bi{fix}$ & none, so $t$ in $\bi{fix}\ t$ is never reduced \\
+$\bi{struct\_to\_fields}$ & the argument \\
+$\bi{fields\_to\_struct}$ & each node of the list, its \code{more}, and, if
+  $\code{more} = [01]$, \\
+  & its \code{label} and \code{rest}; never \code{value} \\
+$\bi{seq}$ & the argument, then each field in order, the last one too \\
+opcode & the argument, then each field in order, if there is one field per param
+\end{tabular}
+
+\medskip
+\noindent
+No congruence rules for: the body of a $\lambda$, a form, a struct field, an
+ordinary argument.
+
+%% ── Under binders: shape ──
+
+\subsection{Under Binders: \texorpdfstring{$\fn{shape}$}{shape}}
+
+\code{banf\_shape.shape} is the only code that goes under a $\lambda$ or into a
+struct field, and only at the positions of BANF's skeleton.
+\begin{itemize}
+\item Each position first applies $\eval$.
+\item If the result doesn't have the expected shape, $\fn{shape}$ leaves it as
+  is and \code{convert} reports the error.
+\end{itemize}
+
+\paragraph{Skeleton.}
+\[
+\begin{array}{lll}
+\fn{program}(t)  & t \eval \lam{m}{b}      & \implies \lam{m}{\fn{module}(b)} \\
+\fn{module}(b)   & b \eval \{l_i = f_i\}   & \implies \{l_i = \fn{function}(f_i)\} \\
+\fn{function}(f) & f \eval \lam{k}{g}      & \implies \lam{k}{\fn{blocks}(g)}
+  \quad \text{(a data value: only $\eval$)} \\
+\fn{blocks}(g)   & g \eval \{l_i = b_i\}   & \implies \{l_i = \fn{block}(b_i)\} \\
+\fn{block}(b)    & b \eval \lam{a}{t}      & \implies \lam{a}{\fn{body}(t)}
+\end{array}
+\]
+
+\paragraph{Body.}
+For $\fn{body}((\lam{x}{t})\ v)$ with $v \eval w$:
+\begin{mathpar}
+\inferrule*[lab=S-Let]
+  {w \text{ is an op}}
+  {\fn{body}((\lam{x}{t})\ v) = (\lam{x}{\fn{body}(t)})\ \fn{op}(w)}
+\and
+\inferrule*[lab=S-Inline]
+  {w \text{ is not an op}}
+  {\fn{body}((\lam{x}{t})\ v) = \fn{body}(\subst{x}{w}{t})}
+\end{mathpar}
+\rn{S-Inline} substitutes by \rn{E-Beta}/\rn{E-BetaForm}. Otherwise
+$\fn{body}(t) = \fn{body}(t')$ if $t \step t'$, else $\fn{terminal}(t)$.
+
+\paragraph{Terminals and operands.}
+\[
+\begin{array}{lcll}
+\fn{terminal}(f.l\ a)           & = & f.l\ \fn{arg}(a) & \textit{jump} \\
+\fn{terminal}(\{f_i = t_i\}\ c) & = & \{f_i = \fn{jump}(t_i)\}\ \fn{atom}(c)
+  & \textit{branch or switch} \\
+\fn{terminal}(t)                & = & t & [b],\ \code{args}.l,\ \bi{i},\ \dots \\[6pt]
+\fn{op}(t\ a)                   & = & t\ \fn{arg}(a) & \\
+\fn{op}(\{l_i = t_i\})          & = & \{l_i = \fn{atom}(t_i)\} & \\
+\fn{op}(t)                      & = & t & \textit{a projection} \\[6pt]
+\fn{arg}(a)  & = & \{l_i = \fn{atom}(t_i)\} \text{ if } a \eval \{l_i = t_i\};
+  \text{ else } a\eval & \\
+\fn{jump}(t) & = & f.l\ \fn{arg}(a) \text{ if } t \eval f.l\ a;
+  \text{ else } t\eval & \\
+\fn{atom}(t) & = & t\eval &
+\end{array}
+\]
+
+\noindent
+An \textbf{op} is one of:
+\begin{itemize}
+\item an application $t\ a$ where $t$ is not a struct ($\{\dots\}\ c$ is a
+  branch or a switch);
+\item a struct;
+\item a projection other than $\code{args}.l$.
+\end{itemize}
+
+\noindent
+Terminal $\{f_0, \dots, f_{n-1}\}\ c$:
+\begin{itemize}
+\item $c$ didn't reduce to a byte array, so it's a run-time selector.
+\item Labels are ignored; the field is picked as in \rn{E-Select}, so a $c$ past
+  the last field takes $f_{n-1}$.
+\item 2 fields ($\kw{if}\ c\ \kw{then}\ t\ \kw{else}\ e$): a BANF
+  \code{Branch}.
+\item 3+ fields: a \code{Switch} whose default is the last field.
+\item \code{convert} rejects $\{\}\ c$, $\{f\}\ c$, and a field that isn't a jump.
+\end{itemize}
+
+\noindent
+$\fn{shape}$ leaves every other position unreduced: a let-bound $\lambda$, a
+lambda passed as an argument, a struct field outside the skeleton, and any form.
+
+\end{document}
