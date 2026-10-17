@@ -31,10 +31,20 @@ The user's orders, kept as given. Follow them in every task.
 - Keep `docs/story.md` and `README.md` as they are.
 - `docs/semantics.tex` (`review-rules`): the agent edits it as the user directs.
   Markdown can't render LaTeX, so the rules moved from `reduction_rules.md` (deleted on
-  the user's order) to `.tex`; it starts with the θ-calculus appendix copied from
-  `doc/theta-calculus.tex`. `make -C oymo/docs` builds the PDF (git-ignored).
+  the user's order) to `.tex`. `make -C oymo/docs` builds the PDF (git-ignored).
   Layout (user's choice): `mathpartir` rules with the name above (`lab=`), a judgment
   line over each group, `array` grammars; no boxes. Named `semantics.tex` (user's choice).
+  - It is an abstract document: no θ-calculus or layering, no references to code
+    (files, functions, classes, `convert`, BANF names), no de Bruijn indices.
+  - Write "Oymomo" (capitalized) in it.
+  - Introduce each notation in the section where it is first used; no notation table
+    up front.
+  - Byte arrays keep brackets, `[b]`, hex only: no UTF-8 / text byte arrays.
+  - No built-ins (`$name`, `$fix`, `$seq`, field lists, opcodes).
+  - Abstraction is two productions: without a form and with a form.
+  - Before Syntax Sugar: an "All Combinations" section listing every root case,
+    the rule that applies or "stuck", for completeness.
+  - Sugar (`if`, `let`, unlabeled fields) has its own section.
 
 ### Docs layout
 
