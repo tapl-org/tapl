@@ -18,6 +18,9 @@ dependencies = [
   "llvmlite",
 ]
 
+[project.scripts]
+oymo = "oymo.cli:main"
+
 [project.urls]
 Documentation = "https://tapl-lang.org"
 Issues = "https://github.com/tapl-org/tapl/issues"

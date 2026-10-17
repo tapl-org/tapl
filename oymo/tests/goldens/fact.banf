@@ -1,0 +1,10 @@
+main: i32
+  entry():
+    jump loop([01000000]:i32, [05000000]:i32)
+  loop(acc: i32, n: i32):
+    next = mul 'i32', acc, n
+    m = sub 'i32', n, [01000000]:i32
+    done = icmp_eq 'i32', m, [00000000]:i32
+    branch done, exit(next), loop(next, m)
+  exit(acc: i32):
+    return acc

@@ -12,7 +12,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `foundations` CLI, confluence, BANF removed
-    - `cli` 0.1 `oymo` CLI: `emit-llvm`, `check`, `fmt`, `run`
     - `review-rules` Review reduction_rules.md
     - `form-alias` Form alias, e.g. `Point = {x = 'i32', y = 'i32'}`
     - `confluence` 0.2 Reduction order doesn't change the result
@@ -147,16 +146,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `more-layers` Back to more than two layers, if real use cases appear
 
 ## Leaf details
-
-### `cli` 0.1 `oymo` CLI: `emit-llvm`, `check`, `fmt`, `run`
-
-- `oymo emit-llvm a.oymo -o a.ll`
-- `oymo check`: parse, reduce, verify the shaped program, print stuck terms
-- `oymo fmt`: the pretty printer
-- `oymo run`: build the `.ll` with `clang` into a temp binary, print `main`'s result
-- Errors as `file:line:column`
-- Require `clang`; say so if missing
-- Done when: `oymo run fact.oymo` prints `120`
 
 ### `review-rules` Review reduction_rules.md
 

@@ -55,6 +55,9 @@ The user's orders, kept as given. Follow them in every task.
   `alcor-layer1`, `alcor-ub`, `alcor-generics`, `alcor-safety-syntax`) is not blocked by
   its own Decide items.
 - Every tree leaf has exactly one details section, in tree order.
+- When a leaf is finished, remove it from the tree and remove its details section. Its
+  decisions stay here, under [4. Decisions and whys](#4-decisions-and-whys). Don't
+  change its parent nodes; keep their text as it is.
 
 ### oymomo design
 
@@ -2263,6 +2266,30 @@ Moved verbatim from `docs/glossary.md`. Links in it point to retired files.
 
 New entries are tagged with their roadmap id, e.g. `[deps-cli]`. The retired roadmap and
 plans are kept verbatim below.
+
+### `cli` (implemented)
+
+- Code: `src/oymo/cli.py`, `main(argv) -> int`; installed as the `oymo` script
+  (`[project.scripts]`). Tests: `tests/cli_test.py`. Goal program: `tests/goldens/fact.oymo`
+  (also a golden).
+- Errors: `file:line:column: error: message` on stderr, exit 1. Line and column are
+  1-based; columns count characters, not bytes. No location: `file: error: message`.
+  Term locations index the source after the header; the CLI adds the header's length.
+- Header: the first line must be `language oymomo`; the CLI checks and strips it (the
+  parser still doesn't know layers).
+- `check`: parse, `shape`, `convert` (which verifies BANF); silent on success. It does not
+  run the LLVM translation (spec says "verify the shaped program").
+- `fmt`: prints the pretty form to stdout, as the golden test writes it. No in-place
+  write: the parser drops `//` comments, so `fmt` loses them.
+- `emit-llvm`: stdout, or `-o file`. Target fixed to `x86_64-unknown-linux-gnu`, empty
+  data layout, until `target`.
+- `run`: `clang -Wno-override-module -x ir program.ll -o program` in a temp dir, runs it
+  (its stdout passes through), then prints the exit status as `main`'s result. Only the
+  low 8 bits of `main`'s result survive; a signal is reported and gives exit 1. No
+  `clang` on `PATH`: an error saying so.
+- The machine used for the first version had no `clang`; `run` was checked with a fake
+  `clang` in tests, and `fact.ll` built natively (llvmlite object + `cc`) returned 120.
+  `test_run_fact` is skipped without `clang`.
 
 ### `deps` (from this session; plan_deps.md)
 
