@@ -36,7 +36,7 @@ The user's orders, kept as given. Follow them in every task.
   line over each group, `array` grammars; no boxes. Named `semantics.tex` (user's choice).
   - It is an abstract document: no θ-calculus or layering, no references to code
     (files, functions, classes, `convert`, BANF names), no de Bruijn indices.
-  - Write "Oymomo" (capitalized) in it. The title is "Oymo Semantics". No intro line
+  - Write "Oymo" in it (user corrected "Oymomo"). The title is "Oymo Semantics". No intro line
     under the title.
   - Section order: Syntax, Computation, Congruence, All Combinations, Evaluation
     Strategy, Syntax Sugar, Under Binders (`shape`).
@@ -47,7 +47,7 @@ The user's orders, kept as given. Follow them in every task.
     column; a rule with no premises has no bar. No judgment line above any rule group
     (Section 2's first bullet defines `t ⟶ t'`).
   - Congruence is full β (user's order): a rule for every position (E-App1/2, E-Abs,
-    E-AbsForm1/2, E-Struct, E-Proj1, E-Formed1/2, E-FunForm1/2); it states that the
+    E-AbsForm1/2, E-Struct, E-Proj1, E-Formed1/2, E-FuncForm1/2); it states that the
     reduction order doesn't matter. Evaluation Strategy defines `⟶w` (W-Root,
     W-App1, W-Select, W-Proj1, W-Formed1), one order of those steps; All Combinations
     and `shape` (`⇓`) use `⟶w`.
@@ -74,7 +74,8 @@ The user's orders, kept as given. Follow them in every task.
     length (trailing zeros). So no `le(b)` and no "little-endian" in the doc; the
     code's empty index `[]` (stuck) has no counterpart. No UTF-8 / text byte arrays.
   - No built-ins (`$name`, `$fix`, `$seq`, field lists, opcodes).
-  - Abstraction is two productions: without a form and with a form.
+  - Abstraction is two productions: without a form and with a form. A function
+    form is written `F ⇒ G` (user's order), so it never looks like a step `⟶`.
   - Before Syntax Sugar: an "All Combinations" section listing every root case,
     the rule that applies or "stuck", for completeness.
   - Sugar (`if`, `let`, unlabeled fields) has its own section.

@@ -80,13 +80,14 @@
 \pt &   & \mid & t.l & \textit{projection} \\
 \pt &   & \mid & n & \textit{non-negative number} \\
 \pt &   & \mid & \fm{t}{F} & \textit{formed term} \\
-\pt &   & \mid & F \to F & \textit{function form}
+\pt &   & \mid & F \Rightarrow F & \textit{function form}
 \end{array}
 \]
 \begin{points}
 \item $t$ ranges over terms, $x$ over variables, $l$ over labels.
-\item Forms are terms too, written $F, G$.
-\item A form is similar to a type, but with no typing rules: nothing checks it.
+  Forms are terms too, and $F$ (also $G$) ranges over forms.
+\item A form is similar to a type, but with no typing rules: nothing
+  type-checks it.
   In an application, the parameter's form replaces the argument's own form
   (\rn{E-BetaForm}, then \rn{E-Reform}).
 \item $n$ ranges over the numbers $0, 1, 2, \dots$, with no upper bound.
@@ -103,7 +104,7 @@
 \axiomrow{E-BetaForm}
   {(\lamF{x}{F}{t_1})\ t_2 \;\step\; \subst{x}{\fm{t_2}{F}}{t_1}}
 \rulerow{E-Select}
-  {k \ge 1 \\ c \in \{n, \fm{n}{F}\} \\
+  {1 \le k \\ c \in \{n, \fm{n}{F}\} \\
    i = \min(n,\, k-1)}
   {\{l_0 = t_0, \dots, l_{k-1} = t_{k-1}\}\ c \;\step\; t_i}
 \rulerow{E-Proj}
@@ -119,15 +120,21 @@
 \item $t \step t'$ means $t$ takes one step to $t'$: by a computation rule at
   the root (this section), or by a congruence rule at a position inside $t$
   (Section~\ref{sec:congruence}).
-\item $\subst{x}{t_2}{t_1}$ is $t_1$ with $t_2$ put in for $x$.
+\item $\subst{x}{t_2}{t_1}$ is substitution: $t_1$ with $t_2$ put in for
+  every free $x$.
 \item \rn{E-Select} ignores labels, and a form on the index. An index past the
   last field takes the last one, so the last field is the default:
   $\{t_0, t_1\}\ 0 \step t_0$, \ $\{t_0, t_1\}\ 1 \step t_1$, and
   $\{t_0, t_1\}\ 2 \step t_1$.
-\item \rn{E-Proj} and \rn{E-ProjForm} take the first field with the label.
-\item \rn{E-Reform}: a form on a formed term replaces its form. Rules that
-  add a form (\rn{E-BetaForm}, \rn{E-ProjForm}, \rn{E-Formed1}) just wrap;
-  \rn{E-Reform} drops the inner form later, whichever order the steps take.
+\item \rn{E-Proj} and \rn{E-ProjForm} take the first field with the label,
+  since labels may repeat: $\{a = t_0, a = t_1\}.a \step t_0$.
+  \rn{E-ProjForm} projects a struct that has a struct form: the value comes from
+  the struct's field and the form from the form's field with the same label,
+  $(\fm{\{a = t, b = u\}}{\{a = F, b = G\}}).b \step \fm{u}{G}$.
+\item \rn{E-Reform}: when a term with a form gets another form, the outer one
+  wins. \rn{E-BetaForm}, \rn{E-ProjForm} and \rn{E-Formed1} put a form around
+  a term that may already have one; \rn{E-Reform} then removes the inner one:
+  $(\lamF{x}{F}{x})\ (\fm{a}{G}) \step \fm{(\fm{a}{G})}{F} \step \fm{a}{F}$.
 \end{points}
 
 %% ── Congruence ─────────────────────────────────────────────────────────
@@ -162,22 +169,24 @@
 \rulerow{E-Formed2}
   {F \step F'}
   {\fm{t}{F} \;\step\; \fm{t}{F'}}
-\rulerow{E-FunForm1}
+\rulerow{E-FuncForm1}
   {F \step F'}
-  {F \to G \;\step\; F' \to G}
-\rulerow{E-FunForm2}
+  {F \Rightarrow G \;\step\; F' \Rightarrow G}
+\rulerow{E-FuncForm2}
   {G \step G'}
-  {F \to G \;\step\; F \to G'}
+  {F \Rightarrow G \;\step\; F \Rightarrow G'}
 \end{rules}
 \begin{points}
-\item Oymomo supports full $\beta$-reduction: a step may happen at any position,
+\item Oymo supports full $\beta$-reduction: a step may happen at any position,
   at the root or inside any part of a term, including under a $\lambda$, in a
   struct field, in an argument and in a form.
-\item So it does not matter which redex is reduced first: every order that
+  So it does not matter which redex is reduced first: every order that
   reaches a normal form reaches the same one.
-\item \rn{E-Formed1}: when $t$ steps to a formed term, both forms stay;
-  \rn{E-Reform} then drops the inner one.
-\item Evaluation picks one order of these steps (Section~\ref{sec:strategy}).
+\item \rn{E-Formed1}:
+  if $t$ steps to a formed term $\fm{s}{G}$, the result
+  $\fm{(\fm{s}{G})}{F}$ has two forms, and \rn{E-Reform} steps it to
+  $\fm{s}{F}$. For example, $\fm{((\lam{y}{\fm{y}{G}})\ a)}{F} \step
+  \fm{(\fm{a}{G})}{F} \step \fm{a}{F}$.
 \end{points}
 
 %% ── All combinations ───────────────────────────────────────────────────
@@ -187,7 +196,7 @@
 Every term, by its root, with the step the evaluation strategy takes
 ($\wstep$, Section~\ref{sec:strategy}) or why it takes none. A term with no
 $\wstep$ step is a \emph{weak normal form} (``normal form'' in this section): a variable, a value
-($\lam{x}{t}$, $\lamF{x}{F}{t}$, a struct, $n$, $F \to G$), a formed normal
+($\lam{x}{t}$, $\lamF{x}{F}{t}$, a struct, $n$, $F \Rightarrow G$), a formed normal
 form, or a \emph{stuck} term. In the tables, ``steps'' means that part has a
 $\wstep$ step.
 
@@ -202,7 +211,7 @@ $x$ & normal form (variable) \\
 $\lam{x}{t}$, \ $\lamF{x}{F}{t}$ & normal form (value) \\
 $\{l_1 = t_1, \dots, l_n = t_n\}$ & normal form (value); fields are not reduced \\
 $n$ & normal form (value) \\
-$F \to G$ & normal form (value) \\
+$F \Rightarrow G$ & normal form (value) \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -217,7 +226,7 @@ $F \to G$ & normal form (value) \\
 $\lam{x}{t}$ & any & \rn{E-Beta} \\
 $\lamF{x}{F}{t}$ & any & \rn{E-BetaForm} \\
 \midrule
-$\{l_0 = t_0, \dots, l_{k-1} = t_{k-1}\}$, $k \ge 1$
+$\{l_0 = t_0, \dots, l_{k-1} = t_{k-1}\}$, $1 \le k$
   & $n$ or $\fm{n}{F}$ & \rn{E-Select} \\
   & steps & \rn{W-Select} \\
   & any other normal form & stuck \\
@@ -228,7 +237,7 @@ $s\ s'$, \ $s.l$, \ $\fm{s}{F}$ & --- & \rn{W-App1} if $t_1$ steps, else stuck \
 \midrule
 $x$ & any & stuck \\
 $n$ & any & stuck \\
-$F \to G$ & any & stuck \\
+$F \Rightarrow G$ & any & stuck \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -254,7 +263,7 @@ $\fm{\{l_i = t_i\}}{\{l'_j = F_j\}}$ & some $l_i = l$ and some $l'_j = l$
 $t_1\ t_2$, \ $t'.l'$, \ other $\fm{t'}{F}$ & --- & \rn{W-Proj1} if $t$ steps, else stuck \\
 \midrule
 $x$ & --- & stuck \\
-$\lam{x}{t'}$, \ $\lamF{x}{F}{t'}$, \ $n$, \ $F \to G$ & --- & stuck \\
+$\lam{x}{t'}$, \ $\lamF{x}{F}{t'}$, \ $n$, \ $F \Rightarrow G$ & --- & stuck \\
 \bottomrule
 \end{tabular}
 \end{center}
