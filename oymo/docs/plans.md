@@ -12,6 +12,7 @@
 | [plan_alcor.md](plan_alcor.md) | proposed · 0/7 phases | Alcor: two-layer kernel language the compiler is written in (layer 0 runs, layer 1 type-checks at compile time); uses plan_c_interop for C |
 | [plan_mizar.md](plan_mizar.md) | proposed · 0/6 phases | Mizar: general-purpose language, an extension of Alcor; floats, closures, full standard library, threads |
 | [plan_bootstrap.md](plan_bootstrap.md) | proposed · 0/5 steps | 0.15 seed as two oymomo files (core + Alcor frontend) instead of one `.ll` |
+| [plan_deps.md](plan_deps.md) | proposed · 0/6 steps | `deps -> module~{...} -> {...}`: files joined by alias on the CLI, reduced away by `shape` |
 | [plan_c_interop.md](plan_c_interop.md) | proposed · 0/6 phases | oymomo and C call each other as if both were C: same ABI, headers both ways, no glue |
 | [plan_confluence.md](plan_confluence.md) | proposed · 0/4 steps | Reduction order doesn't change the result; full-β reference reducer as a test |
 | [plan_metadata.md](plan_metadata.md) | proposed · 0/6 steps | LLVM metadata: a table after the code, `e !dbg !4` attachments |
