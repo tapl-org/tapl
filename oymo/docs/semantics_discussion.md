@@ -24,6 +24,8 @@ words. Then prove in Lean 4 that nothing is missed.
 
 ## Rebuild (D11)
 
+**Evaluation strategy dropped for now** (the user): `⟶w` comes back once the full syntax and full β are settled. Until then the classes say "a rule of Section 2 applies at its head".
+
 The user: "becomes so complex. lets simplify. i want simple full beta rule." Then:
 "we will gradually add new syntax. so we are start from scratch."
 
@@ -174,7 +176,7 @@ but `s~G` by a shallow split):
 C[…, p, …] ⟶ C[term of each child] ~ C[form of each child]        E-Split
     (C is λ, application, ⇒, dup or drop; at least one child is clad)
 p~q ⟶ term(p) ~ term(q)      (p or q clad)                          E-Reclad
-t~t ⟶ t      (t has no ~ inside)                                    E-Collapse
+(E-Collapse `t~t ⟶ t` was removed by the user: not needed.)
 ```
 
 - E-Split instances: `(t~F) (s~G) ⟶ (t s)~(F G)` (E-CladApp),
@@ -183,8 +185,8 @@ t~t ⟶ t      (t has no ~ inside)                                    E-Collapse
 - E-Reclad: `~` can't split like the others (`(t~F)~G` would give `(t~G)~(F~G)`,
   clad again, forever). A written form replaces the old one, and a form's own
   form is discarded: `(t~F)~(G~H) ⟶ t~G` (old E-Reform and E-FormOfForm).
-- E-Collapse: a term clad by itself is naked (`t` is read as `t~t`). Needed for
-  `drop (s~G) c`: E-Drop gives `c`, E-Split gives `(drop s c)~(drop G c) ⟶ c~c`.
+- E-Collapse was proposed for `drop (s~G) c`, but E-Drop never fires there (a clad
+  term is not a value); removed by the user.
 - After these rules every clad term is `naked~naked`, at every depth.
 - Proof idea for confluence: the halves `h₁`, `h₂` map each term to a naked term;
   a step `t ⟶ t'` gives `hᵢ t ⟶* hᵢ t'`, and E-Split, E-Reclad and E-Collapse

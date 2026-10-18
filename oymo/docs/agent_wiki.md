@@ -137,9 +137,10 @@ The user's orders, kept as given. Follow them in every task.
     body are trusted (checked at their own binder or by the environment). Step 4
     (clad, in discussion): a naked `t` is read as `t~t`; E-Split moves each
     construct with a clad child into both halves (`(t~F) (s~G) ⟶ (t s)~(F G)`),
-    E-Reclad `p~q ⟶ term(p)~term(q)`, E-Collapse `t~t ⟶ t` (t with no ~ inside); halves are deep (`term(t~F) = term(t)`, `form(t~F) = term(F)`, part by part elsewhere); linearity is checked on each half.
+    E-Reclad `p~q ⟶ term(p)~term(q)`, E-Collapse removed (not needed); halves are deep (`term(t~F) = term(t)`, `form(t~F) = term(F)`, part by part elsewhere); linearity is checked on each half.
     `semantics.tex` was rewritten from scratch with steps 1–4 (accepted;
-    no review marks left); the previous draft is in git.
+    no review marks left); the previous draft is in git. The evaluation strategy
+    (`⟶w`) is dropped for now, until the full syntax and full β are settled.
     D6 (done): roadmap node `term-classes` (classes-doc, classes-lean, classes-check,
     classes-code) under `foundations`; `conf-lean` under `confluence`. `classes-code`
     is kept apart from `conf-form` (that one is E-Reform and dropping `strip`).
