@@ -67,68 +67,59 @@
 
 \maketitle
 
-\noindent
-\new{Review: blue is new or changed; \old{red struck} is removed. The term
-classes (old Section~6) moved into Section~\ref{sec:syntax}. Every term is now
-written $t$ (with $t_1, t_2, \dots$ in one rule); formulas that only changed
-letters are blue without a red copy.}
-
 %% ── Syntax ─────────────────────────────────────────────────────────────
 
 \section{Syntax}\label{sec:syntax}
 
 \[
 \begin{array}{l@{\quad}rcll}
- & \new{t} & ::= & & \textit{terms} \\
+ & t & ::= & & \textit{terms} \\
 \pt &   & \mid & x & \textit{variable} \\
 \pt &   & \mid & \lam{x}{t} & \textit{abstraction} \\
-\pt &   & \mid & \new{t\ t} & \textit{application} \\
-\pt &   & \mid & \new{t \Rightarrow t} & \textit{signature} \\
-\pt &   & \mid & \new{\dup\ t\ t} & \textit{copy} \\
-\pt &   & \mid & \new{\drop\ t\ t} & \textit{discard} \\
-\pt &   & \mid & \new{\cl{t}{t}} & \textit{clad term} \\[6pt]
-\new{\pt} & \new{r} & \new{::=} & \new{(\lam{x}{t})\ t \mid (v \Rightarrow v)\ t \mid
-  \dup\ v\ t \mid \drop\ v\ t} & \new{\textit{reducible}} \\
- & & \new{\mid} & \new{r\ t \mid r \Rightarrow t \mid v \Rightarrow r \mid
-  \dup\ r\ t \mid \drop\ r\ t} & \\
-\new{\pt} & \new{v} & \new{::=} & \new{\lam{x}{t} \mid v \Rightarrow v} &
-  \new{\textit{value}} \\
-\new{\pt} & \new{\mathit{ne}} & \new{::=} & \new{x \mid \mathit{ne}\ t \mid
+\pt &   & \mid & t\ t & \textit{application} \\
+\pt &   & \mid & t \Rightarrow t & \textit{signature} \\
+\pt &   & \mid & \dup\ t\ t & \textit{copy} \\
+\pt &   & \mid & \drop\ t\ t & \textit{discard} \\
+\pt &   & \mid & \cl{t}{t} & \textit{clad term} \\[6pt]
+\pt & r & ::= & (\lam{x}{t})\ t \mid (v \Rightarrow v)\ t \mid
+  \dup\ v\ t \mid \drop\ v\ t & \textit{reducible} \\
+ & & \mid & r\ t \mid r \Rightarrow t \mid v \Rightarrow r \mid
+  \dup\ r\ t \mid \drop\ r\ t & \\
+\pt & v & ::= & \lam{x}{t} \mid v \Rightarrow v &
+  \textit{value} \\
+\pt & \mathit{ne} & ::= & x \mid \mathit{ne}\ t \mid
   \mathit{ne} \Rightarrow t \mid v \Rightarrow \mathit{ne} \mid
-  \dup\ \mathit{ne}\ t \mid \drop\ \mathit{ne}\ t} & \new{\textit{neutral}} \\
- & & \new{\mid} & \new{\dup\ v\ t \mid \drop\ v\ t} &
+  \dup\ \mathit{ne}\ t \mid \drop\ \mathit{ne}\ t & \textit{neutral} \\
+ & & \mid & \dup\ v\ t \mid \drop\ v\ t &
 \end{array}
 \]
 \begin{points}
-\item \old{$x$ ranges over variables. $t$, $s$, $F$ and $G$ range over the same terms;
-  $F$ and $G$ are used where a term serves as a form, and $s$ is a companion of
-  $t$ where a rule has two terms.}
-  \new{$x$ ranges over variables and $t$ over terms, forms included; $t_1$, $t_2$,
-  \dots\ are different terms in one rule.}
+\item $x$ ranges over variables and $t$ over terms, forms included; $t_1$, $t_2$,
+  \dots\ are different terms in one rule.
 \item A term is \emph{naked} when its root is not ${\sim}$, and \emph{clad} when
-  it is \new{$\cl{t_1}{t_2}$. In $\cl{t_1}{t_2}$, $t_1$ is the term side and
-  $t_2$ the form side.}
+  it is $\cl{t_1}{t_2}$. In $\cl{t_1}{t_2}$, $t_1$ is the term side and
+  $t_2$ the form side.
 \item A form is similar to a type, but with no typing rules: nothing checks it.
 \item A naked term with no ${\sim}$ inside is read as $\cl{t}{t}$, clad by
   itself. The \emph{halves} of a term go through every construct and stop at
   each ${\sim}$:
   \[
-  \new{\tm{\cl{t_1}{t_2}} = \tm{t_1},\qquad \fh{\cl{t_1}{t_2}} = \tm{t_2},}
+  \tm{\cl{t_1}{t_2}} = \tm{t_1},\qquad \fh{\cl{t_1}{t_2}} = \tm{t_2},
   \]
   and for every other construct both halves are taken part by part, e.g.
-  \new{$\tm{t_1\ t_2} = \tm{t_1}\ \tm{t_2}$}, $\fh{\lam{x}{t}} = \lam{x}{\fh{t}}$,
+  $\tm{t_1\ t_2} = \tm{t_1}\ \tm{t_2}$, $\fh{\lam{x}{t}} = \lam{x}{\fh{t}}$,
   $\tm{x} = \fh{x} = x$. Both halves are naked terms with no ${\sim}$ inside.
 \item Terms are equal up to renaming bound variables; substitution
-  \new{$\subst{x}{t_2}{t_1}$} never captures a variable.
-\item \new{$r$, $v$ and $\mathit{ne}$ are the term classes, for naked terms
+  $\subst{x}{t_2}{t_1}$ never captures a variable.
+\item $r$, $v$ and $\mathit{ne}$ are the term classes, for naked terms
   without ${\sim}$; the classes for clad terms are not written yet. Every such
   term is in exactly one class: reducible (it takes a $\wstep$ step,
-  Section~\ref{sec:strategy}), a value, or neutral.}
-\item \new{In $r$, $\dup\ v\ t$ and $\drop\ v\ t$ need $v$ closed; in
+  Section~\ref{sec:strategy}), a value, or neutral.
+\item In $r$, $\dup\ v\ t$ and $\drop\ v\ t$ need $v$ closed; in
   $\mathit{ne}$, they need $v$ to have a free variable. Being closed is a side
-  condition, not grammar.}
-\item \new{A neutral term waits for a free variable. Once its binder is applied it
-  may become reducible. No term is wrong yet, so there is no stuck class.}
+  condition, not grammar.
+\item A neutral term waits for a free variable. Once its binder is applied it
+  may become reducible. No term is wrong yet, so there is no stuck class.
 \end{points}
 
 %% ── Computation ────────────────────────────────────────────────────────
@@ -137,22 +128,22 @@ letters are blue without a red copy.}
 
 \begin{rules}
 \axiomrow{E-Beta}
-  {\new{(\lam{x}{t_1})\ t_2 \;\step\; \subst{x}{t_2}{t_1}}}
+  {(\lam{x}{t_1})\ t_2 \;\step\; \subst{x}{t_2}{t_1}}
 \axiomrow{E-SigApp}
-  {\new{(v_1 \Rightarrow v_2)\ t \;\step\; \drop\ v_1\ (\drop\ t\ v_2)}}
+  {(v_1 \Rightarrow v_2)\ t \;\step\; \drop\ v_1\ (\drop\ t\ v_2)}
 \rulerow{E-Dup}
-  {\new{t_1 \text{ is a closed value}}}
-  {\new{\dup\ t_1\ t_2 \;\step\; t_2\ t_1\ t_1}}
+  {t_1 \text{ is a closed value}}
+  {\dup\ t_1\ t_2 \;\step\; t_2\ t_1\ t_1}
 \rulerow{E-Drop}
-  {\new{t_1 \text{ is a closed value}}}
-  {\new{\drop\ t_1\ t_2 \;\step\; t_2}}
+  {t_1 \text{ is a closed value}}
+  {\drop\ t_1\ t_2 \;\step\; t_2}
 \end{rules}
 \begin{points}
-\item A value is $\lam{x}{t}$ or \new{$v_1 \Rightarrow v_2$}
-  \new{(Section~\ref{sec:syntax})}; it is closed when it has no free variable.
+\item A value is $\lam{x}{t}$ or $v_1 \Rightarrow v_2$
+  (Section~\ref{sec:syntax}); it is closed when it has no free variable.
 \item \rn{E-SigApp}: applying a signature gives its result; the signature's
-  parameter and the argument are discarded. \new{It waits until both sides of
-  the signature are values.}
+  parameter and the argument are discarded. It waits until both sides of
+  the signature are values.
 \item \rn{E-Dup} and \rn{E-Drop} only copy or discard a closed value: work that
   is not done yet is never copied or lost, and no variable is copied or lost
   (Section~\ref{sec:linearity}). Otherwise they wait for run time.
@@ -162,26 +153,26 @@ letters are blue without a red copy.}
 
 \begin{rules}
 \rulerow{E-SplitApp}
-  {\new{t_1 \text{ or } t_2 \text{ is clad}}}
-  {\new{t_1\ t_2 \;\step\; \cl{(\tm{t_1}\ \tm{t_2})}{(\fh{t_1}\ \fh{t_2})}}}
+  {t_1 \text{ or } t_2 \text{ is clad}}
+  {t_1\ t_2 \;\step\; \cl{(\tm{t_1}\ \tm{t_2})}{(\fh{t_1}\ \fh{t_2})}}
 \rulerow{E-SplitAbs}
   {t \text{ is clad}}
   {\lam{x}{t} \;\step\; \cl{(\lam{x}{\tm{t}})}{(\lam{x}{\fh{t}})}}
 \rulerow{E-SplitSig}
-  {\new{t_1 \text{ or } t_2 \text{ is clad}}}
-  {\new{t_1 \Rightarrow t_2 \;\step\;
-    \cl{(\tm{t_1} \Rightarrow \tm{t_2})}{(\fh{t_1} \Rightarrow \fh{t_2})}}}
+  {t_1 \text{ or } t_2 \text{ is clad}}
+  {t_1 \Rightarrow t_2 \;\step\;
+    \cl{(\tm{t_1} \Rightarrow \tm{t_2})}{(\fh{t_1} \Rightarrow \fh{t_2})}}
 \rulerow{E-SplitDup}
-  {\new{t_1 \text{ or } t_2 \text{ is clad}}}
-  {\new{\dup\ t_1\ t_2 \;\step\;
-    \cl{(\dup\ \tm{t_1}\ \tm{t_2})}{(\dup\ \fh{t_1}\ \fh{t_2})}}}
+  {t_1 \text{ or } t_2 \text{ is clad}}
+  {\dup\ t_1\ t_2 \;\step\;
+    \cl{(\dup\ \tm{t_1}\ \tm{t_2})}{(\dup\ \fh{t_1}\ \fh{t_2})}}
 \rulerow{E-SplitDrop}
-  {\new{t_1 \text{ or } t_2 \text{ is clad}}}
-  {\new{\drop\ t_1\ t_2 \;\step\;
-    \cl{(\drop\ \tm{t_1}\ \tm{t_2})}{(\drop\ \fh{t_1}\ \fh{t_2})}}}
+  {t_1 \text{ or } t_2 \text{ is clad}}
+  {\drop\ t_1\ t_2 \;\step\;
+    \cl{(\drop\ \tm{t_1}\ \tm{t_2})}{(\drop\ \fh{t_1}\ \fh{t_2})}}
 \rulerow{E-Reclad}
-  {\new{t_1 \text{ or } t_2 \text{ is clad}}}
-  {\new{\cl{t_1}{t_2} \;\step\; \cl{\tm{t_1}}{\tm{t_2}}}}
+  {t_1 \text{ or } t_2 \text{ is clad}}
+  {\cl{t_1}{t_2} \;\step\; \cl{\tm{t_1}}{\tm{t_2}}}
 \rulerow{E-Collapse}
   {t \text{ has no } {\sim} \text{ inside}}
   {\cl{t}{t} \;\step\; t}
@@ -189,14 +180,14 @@ letters are blue without a red copy.}
 \begin{points}
 \item The split rules move a construct with a clad part into both sides: the
   term side computes with the term halves, the form side with the form halves.
-  For example \new{$(\cl{t_1}{t_2})\ t_3 \step \cl{(t_1\ t_3)}{(t_2\ t_3)}$}: the
+  For example $(\cl{t_1}{t_2})\ t_3 \step \cl{(t_1\ t_3)}{(t_2\ t_3)}$: the
   result's form is the form applied to the argument.
 \item The halves go all the way down, so a naked part with a ${\sim}$ inside is
-  split correctly too: \new{$(\lam{z}{\cl{z}{t_1}})\ (\cl{t_2}{t_3})$ gives
-  $\cl{t_2}{t_1}$} both by \rn{E-Beta} and by \rn{E-SplitApp}.
+  split correctly too: $(\lam{z}{\cl{z}{t_1}})\ (\cl{t_2}{t_3})$ gives
+  $\cl{t_2}{t_1}$ both by \rn{E-Beta} and by \rn{E-SplitApp}.
 \item \rn{E-Reclad}: a written form replaces the old one, and a form's own form
-  is discarded: \new{$\cl{(\cl{t_1}{t_2})}{(\cl{t_3}{t_4})} \step
-  \cl{t_1}{t_3}$}. ${\sim}$ does not split like the other constructs, which would
+  is discarded: $\cl{(\cl{t_1}{t_2})}{(\cl{t_3}{t_4})} \step
+  \cl{t_1}{t_3}$. ${\sim}$ does not split like the other constructs, which would
   give a clad term again.
 \item \rn{E-Collapse} follows from reading a naked $t$ as $\cl{t}{t}$.
 \item None of these rules changes the halves of a term. After them, both sides
@@ -209,16 +200,16 @@ letters are blue without a red copy.}
 
 \begin{rules}
 \rulerow{E-Abs}{t \step t'}{\lam{x}{t} \;\step\; \lam{x}{t'}}
-\rulerow{E-App1}{\new{t_1 \step t_1'}}{\new{t_1\ t_2 \;\step\; t_1'\ t_2}}
-\rulerow{E-App2}{\new{t_2 \step t_2'}}{\new{t_1\ t_2 \;\step\; t_1\ t_2'}}
-\rulerow{E-Sig1}{\new{t_1 \step t_1'}}{\new{t_1 \Rightarrow t_2 \;\step\; t_1' \Rightarrow t_2}}
-\rulerow{E-Sig2}{\new{t_2 \step t_2'}}{\new{t_1 \Rightarrow t_2 \;\step\; t_1 \Rightarrow t_2'}}
-\rulerow{E-Dup1}{\new{t_1 \step t_1'}}{\new{\dup\ t_1\ t_2 \;\step\; \dup\ t_1'\ t_2}}
-\rulerow{E-Dup2}{\new{t_2 \step t_2'}}{\new{\dup\ t_1\ t_2 \;\step\; \dup\ t_1\ t_2'}}
-\rulerow{E-Drop1}{\new{t_1 \step t_1'}}{\new{\drop\ t_1\ t_2 \;\step\; \drop\ t_1'\ t_2}}
-\rulerow{E-Drop2}{\new{t_2 \step t_2'}}{\new{\drop\ t_1\ t_2 \;\step\; \drop\ t_1\ t_2'}}
-\rulerow{E-Clad1}{\new{t_1 \step t_1'}}{\new{\cl{t_1}{t_2} \;\step\; \cl{t_1'}{t_2}}}
-\rulerow{E-Clad2}{\new{t_2 \step t_2'}}{\new{\cl{t_1}{t_2} \;\step\; \cl{t_1}{t_2'}}}
+\rulerow{E-App1}{t_1 \step t_1'}{t_1\ t_2 \;\step\; t_1'\ t_2}
+\rulerow{E-App2}{t_2 \step t_2'}{t_1\ t_2 \;\step\; t_1\ t_2'}
+\rulerow{E-Sig1}{t_1 \step t_1'}{t_1 \Rightarrow t_2 \;\step\; t_1' \Rightarrow t_2}
+\rulerow{E-Sig2}{t_2 \step t_2'}{t_1 \Rightarrow t_2 \;\step\; t_1 \Rightarrow t_2'}
+\rulerow{E-Dup1}{t_1 \step t_1'}{\dup\ t_1\ t_2 \;\step\; \dup\ t_1'\ t_2}
+\rulerow{E-Dup2}{t_2 \step t_2'}{\dup\ t_1\ t_2 \;\step\; \dup\ t_1\ t_2'}
+\rulerow{E-Drop1}{t_1 \step t_1'}{\drop\ t_1\ t_2 \;\step\; \drop\ t_1'\ t_2}
+\rulerow{E-Drop2}{t_2 \step t_2'}{\drop\ t_1\ t_2 \;\step\; \drop\ t_1\ t_2'}
+\rulerow{E-Clad1}{t_1 \step t_1'}{\cl{t_1}{t_2} \;\step\; \cl{t_1'}{t_2}}
+\rulerow{E-Clad2}{t_2 \step t_2'}{\cl{t_1}{t_2} \;\step\; \cl{t_1}{t_2'}}
 \end{rules}
 \begin{points}
 \item $\step$ is full $\beta$: a rule of Section~\ref{sec:computation} may fire
@@ -235,17 +226,17 @@ letters are blue without a red copy.}
 
 \begin{points}
 \item A naked term with no ${\sim}$ inside is \emph{linear} when, for every
-  \new{$\lam{x}{t}$ in it, $x$ occurs exactly once in $t$}, counting occurrences
+  $\lam{x}{t}$ in it, $x$ occurs exactly once in $t$, counting occurrences
   inside inner $\lambda$s.
 \item Any term is linear when both of its halves are linear: the term side and
   the form side are each checked, as the naked terms they become after
-  splitting. For example \new{$\lam{x}{\cl{x}{t}}$ needs $x$ once in $t$ too,
-  since its form half is $\lam{x}{t}$.}
+  splitting. For example $\lam{x}{\cl{x}{t}}$ needs $x$ once in $t$ too,
+  since its form half is $\lam{x}{t}$.
 \item Free variables are not checked again inside a body: each is checked at its
   own binder, or comes from the environment, which is trusted.
 \item $\dup$ and $\drop$ are the only ways to copy or discard; they bind nothing.
   For example $\dup\ x\ (\lam{a}{\lam{b}{a\ b}})$ uses $x$ twice.
-\item Reduction keeps a term linear: \rn{E-Beta} puts \new{$t_2$} where the
+\item Reduction keeps a term linear: \rn{E-Beta} puts $t_2$ where the
   single $x$ was, \rn{E-Dup} and \rn{E-Drop} only copy or discard closed terms,
   and the rules for clad terms leave both halves unchanged.
 \end{points}
@@ -257,17 +248,17 @@ letters are blue without a red copy.}
 \begin{rules}
 \rulerow{W-Root}{t \step t' \text{ by a rule of Section~\ref{sec:computation}}}
   {t \;\wstep\; t'}
-\rulerow{W-App1}{\new{t_1 \wstep t_1'}}{\new{t_1\ t_2 \;\wstep\; t_1'\ t_2}}
-\new{\rulerow{W-Sig1}{t_1 \wstep t_1'}{t_1 \Rightarrow t_2 \;\wstep\; t_1' \Rightarrow t_2}}
-\new{\rulerow{W-Sig2}{t \wstep t'}{v \Rightarrow t \;\wstep\; v \Rightarrow t'}}
-\rulerow{W-Dup1}{\new{t_1 \wstep t_1'}}{\new{\dup\ t_1\ t_2 \;\wstep\; \dup\ t_1'\ t_2}}
-\rulerow{W-Drop1}{\new{t_1 \wstep t_1'}}{\new{\drop\ t_1\ t_2 \;\wstep\; \drop\ t_1'\ t_2}}
+\rulerow{W-App1}{t_1 \wstep t_1'}{t_1\ t_2 \;\wstep\; t_1'\ t_2}
+\rulerow{W-Sig1}{t_1 \wstep t_1'}{t_1 \Rightarrow t_2 \;\wstep\; t_1' \Rightarrow t_2}
+\rulerow{W-Sig2}{t \wstep t'}{v \Rightarrow t \;\wstep\; v \Rightarrow t'}
+\rulerow{W-Dup1}{t_1 \wstep t_1'}{\dup\ t_1\ t_2 \;\wstep\; \dup\ t_1'\ t_2}
+\rulerow{W-Drop1}{t_1 \wstep t_1'}{\drop\ t_1\ t_2 \;\wstep\; \drop\ t_1'\ t_2}
 \end{rules}
 \begin{points}
 \item $\wstep$ is weak and in normal order: it never reduces under a $\lambda$,
-  \old{inside a signature,} or in an argument. \new{It reduces both sides of a
+   or in an argument. It reduces both sides of a
   signature, the left one first, since a signature is a value only when both
-  sides are.}
+  sides are.
 \item $\wstep$ for clad terms is not written yet.
 \end{points}
 

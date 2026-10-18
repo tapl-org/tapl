@@ -596,7 +596,7 @@ on  ::= n | n~φ | {lᵢ = onᵢ} | ne
   (a rule, or Value / Neutral / Stuck).
 - Every change is marked blue (new) / red struck (removed) until the user accepts.
 
-## State of semantics.tex (accepted, plus an open review)
+## State of semantics.tex (accepted)
 
 Rewritten from scratch (the user: "clear up semantics.tex and add what we build so
 far"); accepted by the user. It holds rebuild steps 1–4:
@@ -605,7 +605,7 @@ E-Drop; clad: E-Split{App,Abs,Sig,Dup,Drop}, E-Reclad, E-Collapse), full β
 congruence, linearity, `⟶w` for naked terms, classes for naked terms. Not yet:
 `⟶w` and classes for clad terms. The previous draft is in git.
 
-Open review (blue/red): point 1/8 shortened; the term classes moved from
+Accepted later: point 1/8 shortened; the term classes moved from
 Section 6 into Section 1 (Syntax); every term is written `t` (`t₁`, `t₂`, …).
 
 ## Roadmap
