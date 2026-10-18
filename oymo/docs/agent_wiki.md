@@ -58,6 +58,39 @@ The user's orders, kept as given. Follow them in every task.
     form, read the outermost) was rejected: forms pile up and every reader must look
     through them. The doc is ahead of the code until `conf-form` is done. Accepted by
     the user; `conf-form`'s Decide item is closed (E-Reform).
+  - Term classes plan (D1, agreed): normal forms split into values, neutral terms
+    (blocked on a free variable: `ne ::= x | ne t | ne.l | {…} ne | ne~F`; they
+    become run-time code) and stuck terms (wrong forever; translation rejects them).
+    Exception the user named: a number applied to a struct of numbers steps,
+    `n {l = n} ⟶ n` (opcodes), so `n t` is not always stuck.
+    D1a (agreed): every number is an opcode (abstract); `n₀ {lᵢ = nᵢ} ⟶ m~R`, a field
+    is `n` or `n~F`; `op` is partial (option B): where it gives no result (no
+    defined result such as x/0, effects such as alloca/store, struct-form fields
+    such as alloca's layout) the call is a run-time operation, a normal form that
+    translation emits, as the code does today. So neutral means "waits for run
+    time": a free variable or a run-time operation. A non-struct argument is stuck.
+    D1b (agreed): `operand ::= n | n~F | {lᵢ = operandᵢ} | ne`; another field (a `λ`,
+    `F ⇒ G`) makes an opcode call stuck. `F ⇒ G` is not an operand: LLVM function
+    types are not values (you hold a `ptr`); Oymo function forms only declare
+    external symbols in the `module` form.
+    D2 (agreed, the user's general rule): E-AppForm `(t₁~F) t₂ ⟶ (t₁ t₂)~(F t₂)`;
+    projection `(t~F).l ⟶ (t.l)~(F.l)` replaces E-ProjForm; E-FuncFormApp
+    `(P ⇒ R) t ⟶ R` (a declaration's result form flows to calls; `P` dropped).
+    Consequence: forms contain redexes, so they must be evaluated somewhere (D3).
+    D3 (agreed): forms are fully normalized (strong reduction, also under `λ`); a
+    form on an opcode number is accepted (`F {…}` is an opcode call at the form
+    level). E-FormOfForm `t~(G~F) ⟶ t~G` (user chose it over `t~F`: the form of a
+    form says nothing about the term; keeps two layers). Parser grouping of `~` not
+    decided (today right-grouped, so `x~'i16'~'i8'` gives `'i16'`).
+    D4 (agreed): term classes, progress and determinism describe `⟶w`; full β is
+    needed eventually (confluence, then its own normal forms).
+    D5 (agreed): Lean project in `oymo/proofs/` (lake, latest stable Lean 4 via elan, no
+    Mathlib to start); round one: Term, substitution, all computation rules (`op`
+    abstract), `⟶w` with full form normalization, Value/Neutral/Stuck, progress,
+    exclusivity, determinism. Not yet: confluence, shape, translation.
+    D6 (done): roadmap node `term-classes` (classes-doc, classes-lean, classes-check,
+    classes-code) under `foundations`; `conf-lean` under `confluence`. `classes-code`
+    is kept apart from `conf-form` (that one is E-Reform and dropping `strip`).
   - Review marks (user's order): every change is colored until the user accepts it:
     `\new{...}` blue for new or changed text, `\old{...}` red struck for removed
     text, plus a legend line under the title. When the user says to remove the

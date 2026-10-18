@@ -13,12 +13,18 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `foundations` CLI, confluence, BANF removed
     - `review-rules` Review semantics.tex
+    - `term-classes` Every term in one class, proved in Lean
+      - `classes-doc` semantics.tex: term classes; section 4 tables follow from them
+      - `classes-lean` Lean 4 in `oymo/proofs/`: progress, exclusivity, determinism
+      - 🚫 `classes-check` Doc tables checked against the Lean definitions
+      - 🚫 `classes-code` Code follows the new rules
     - 🚫 `form-alias` Form alias, e.g. `Point = {x = 'i32', y = 'i32'}`
     - `confluence` 0.2 Reduction order doesn't change the result
       - 🚫 `conf-reducer` Full-β reference reducer and confluence test
       - 🚫 `conf-form` A form on a form is replaced; beta always wraps
       - 🚫 `conf-builtins` Built-in rules commute with reduction
       - 🚫 `conf-shape` `shape` keeps the meaning of its input
+      - 🚫 `conf-lean` Lean proof that full β is confluent
     - 🚫 `banf-removal` 0.3 BANF removed: oymomo → `.ll` text via an IR builder; llvmlite dropped
     - `deps` Compile-time dependencies between `.oymo` files
       - `deps-decide` Answer the open questions
@@ -151,6 +157,47 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - Review `docs/semantics.tex` (`make -C oymo/docs` builds `semantics.pdf`)
 
+### `classes-doc` semantics.tex: term classes; section 4 tables follow from them
+
+- Add the rules decided for term classes:
+  - opcode: `n₀ {lᵢ = operandᵢ} ⟶ m~R` where `op(n₀)` gives a result; a run-time
+    operation where it gives none
+  - E-AppForm `(t₁~F) t₂ ⟶ (t₁ t₂)~(F t₂)`
+  - `(t~F).l ⟶ (t.l)~(F.l)`, replacing E-ProjForm
+  - E-FuncFormApp `(P ⇒ R) t ⟶ R`
+  - E-FormOfForm `t~(G~F) ⟶ t~G`
+- `⟶w`: forms fully normalized (normal order inside a form)
+- Term classes grammar: values, neutral (`ne`, incl. run-time operations), stuck,
+  one class per `⟶w` rule; `operand ::= n | n~F | {lᵢ = operandᵢ} | ne`
+- Rewrite section 4 (All Combinations) from the classes
+- Review marks as usual
+
+### `classes-lean` Lean 4 in `oymo/proofs/`: progress, exclusivity, determinism
+
+- Install `elan`; latest stable Lean 4; `lake` project in `oymo/proofs/`; no Mathlib
+- `Term`: de Bruijn indices, struct fields as a list, `Nat` numbers, `String` labels
+- Substitution; computation rules with `op` as a parameter (a partial function)
+- `⟶w`, including full normalization of forms
+- `Value`, `Neutral`, `Stuck`
+- Prove: progress (every term steps or is in a class), exclusivity (at most one),
+  determinism of `⟶w`
+- `lake build` passes; how to build noted in `oymo/proofs/`
+
+### `classes-check` Doc tables checked against the Lean definitions
+
+- Compare section 4 of semantics.tex with the Lean classes, case by case
+- Fix either side where they differ
+
+### `classes-code` Code follows the new rules
+
+- `reduction.reduce`: E-AppForm, projection through a form, E-FuncFormApp,
+  E-FormOfForm
+- Opcodes: a call that doesn't fold is a run-time operation; a non-operand field
+  is an error
+- Forms fully normalized where evaluation reaches them
+- Update golden files
+- Commit: `oymomo: forms flow through elimination`
+
 ### `form-alias` Form alias, e.g. `Point = {x = 'i32', y = 'i32'}`
 
 - Add form aliases: `Point = {x = 'i32', y = 'i32'}`
@@ -230,6 +277,13 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   value)? Leaning: no
 - Done when: confluence test passes on every golden and generated term; counterexample
   fixed
+
+### `conf-lean` Lean proof that full β is confluent
+
+- In `oymo/proofs/`, on the `classes-lean` definitions
+- Full β: a step at any position (the congruence rules of semantics.tex)
+- Prove confluence by parallel reduction (Tait–Martin-Löf), including E-Reform,
+  E-FormOfForm, E-AppForm and struct fields
 
 ### `banf-removal` 0.3 BANF removed: oymomo → `.ll` text via an IR builder; llvmlite dropped
 
