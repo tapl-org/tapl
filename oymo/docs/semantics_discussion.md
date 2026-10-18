@@ -605,7 +605,7 @@ E-Drop; clad: E-Split{App,Abs,Sig,Dup,Drop}, E-Reclad, E-Collapse), full β
 congruence, linearity, `⟶w` for naked terms, classes for naked terms. Not yet:
 `⟶w` and classes for clad terms. The previous draft is in git.
 
-Accepted later: point 1/8 shortened; the term classes moved from
+Accepted later: classes `cv ::= v where FV(v) = ∅` and `ov ::= v where FV(v) ≠ ∅` (E-Dup/E-Drop use `cv`; `ne` has `dup ov t`, `drop ov t`); `FV` defined; class order v, cv, ov, ne, r; signature value `v ⇒ v` with W-Sig1/2. Also: point 1/8 shortened; the term classes moved from
 Section 6 into Section 1 (Syntax); every term is written `t` (`t₁`, `t₂`, …).
 
 ## Roadmap

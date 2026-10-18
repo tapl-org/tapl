@@ -81,16 +81,20 @@
 \pt &   & \mid & \dup\ t\ t & \textit{copy} \\
 \pt &   & \mid & \drop\ t\ t & \textit{discard} \\
 \pt &   & \mid & \cl{t}{t} & \textit{clad term} \\[6pt]
-\pt & r & ::= & (\lam{x}{t})\ t \mid (v \Rightarrow v)\ t \mid
-  \dup\ v\ t \mid \drop\ v\ t & \textit{reducible} \\
- & & \mid & r\ t \mid r \Rightarrow t \mid v \Rightarrow r \mid
-  \dup\ r\ t \mid \drop\ r\ t & \\
 \pt & v & ::= & \lam{x}{t} \mid v \Rightarrow v &
   \textit{value} \\
+\pt & \mathit{cv} & ::= & v \text{ where } \fn{FV}(v) = \emptyset &
+  \textit{closed value} \\
+\pt & \mathit{ov} & ::= & v \text{ where } \fn{FV}(v) \ne \emptyset &
+  \textit{open value} \\
 \pt & \mathit{ne} & ::= & x \mid \mathit{ne}\ t \mid
   \mathit{ne} \Rightarrow t \mid v \Rightarrow \mathit{ne} \mid
   \dup\ \mathit{ne}\ t \mid \drop\ \mathit{ne}\ t & \textit{neutral} \\
- & & \mid & \dup\ v\ t \mid \drop\ v\ t &
+ & & \mid & \dup\ \mathit{ov}\ t \mid \drop\ \mathit{ov}\ t & \\
+\pt & r & ::= & (\lam{x}{t})\ t \mid (v \Rightarrow v)\ t \mid
+  \dup\ \mathit{cv}\ t \mid \drop\ \mathit{cv}\ t & \textit{reducible} \\
+ & & \mid & r\ t \mid r \Rightarrow t \mid v \Rightarrow r \mid
+  \dup\ r\ t \mid \drop\ r\ t &
 \end{array}
 \]
 \begin{points}
@@ -111,13 +115,16 @@
   $\tm{x} = \fh{x} = x$. Both halves are naked terms with no ${\sim}$ inside.
 \item Terms are equal up to renaming bound variables; substitution
   $\subst{x}{t_2}{t_1}$ never captures a variable.
-\item $r$, $v$ and $\mathit{ne}$ are the term classes, for naked terms
+\item $\fn{FV}(t)$ is the set of free variables of $t$:
+  $\fn{FV}(x) = \{x\}$, $\fn{FV}(\lam{x}{t}) = \fn{FV}(t) \setminus \{x\}$, and
+  for every other construct the union over its parts, both sides of ${\sim}$
+  included.
+\item $r$, $v$, $\mathit{cv}$, $\mathit{ov}$ and $\mathit{ne}$ are the term classes, for naked terms
   without ${\sim}$; the classes for clad terms are not written yet. Every such
   term is in exactly one class: reducible (it takes a $\wstep$ step,
   Section~\ref{sec:strategy}), a value, or neutral.
-\item In $r$, $\dup\ v\ t$ and $\drop\ v\ t$ need $v$ closed; in
-  $\mathit{ne}$, they need $v$ to have a free variable. Being closed is a side
-  condition, not grammar.
+\item $\mathit{cv}$ and $\mathit{ov}$ split the values by $\fn{FV}$, a condition
+  a grammar can't express: being closed depends on the binders.
 \item A neutral term waits for a free variable. Once its binder is applied it
   may become reducible. No term is wrong yet, so there is no stuck class.
 \end{points}
@@ -131,16 +138,15 @@
   {(\lam{x}{t_1})\ t_2 \;\step\; \subst{x}{t_2}{t_1}}
 \axiomrow{E-SigApp}
   {(v_1 \Rightarrow v_2)\ t \;\step\; \drop\ v_1\ (\drop\ t\ v_2)}
-\rulerow{E-Dup}
-  {t_1 \text{ is a closed value}}
-  {\dup\ t_1\ t_2 \;\step\; t_2\ t_1\ t_1}
-\rulerow{E-Drop}
-  {t_1 \text{ is a closed value}}
-  {\drop\ t_1\ t_2 \;\step\; t_2}
+\axiomrow{E-Dup}
+  {\dup\ \mathit{cv}\ t \;\step\; t\ \mathit{cv}\ \mathit{cv}}
+\axiomrow{E-Drop}
+  {\drop\ \mathit{cv}\ t \;\step\; t}
 \end{rules}
 \begin{points}
-\item A value is $\lam{x}{t}$ or $v_1 \Rightarrow v_2$
-  (Section~\ref{sec:syntax}); it is closed when it has no free variable.
+\item A value is $\lam{x}{t}$ or $v_1 \Rightarrow v_2$, and a
+  closed value $\mathit{cv}$ is one with no free variable
+  (Section~\ref{sec:syntax}).
 \item \rn{E-SigApp}: applying a signature gives its result; the signature's
   parameter and the argument are discarded. It waits until both sides of
   the signature are values.
