@@ -82,12 +82,63 @@ The user's orders, kept as given. Follow them in every task.
     level). E-FormOfForm `t~(G~F) ⟶ t~G` (user chose it over `t~F`: the form of a
     form says nothing about the term; keeps two layers). Parser grouping of `~` not
     decided (today right-grouped, so `x~'i16'~'i8'` gives `'i16'`).
+    Forms everywhere (user's order): a form is never under a binder, so `⟶w` also
+    normalizes the form of `λx~F. t` (W-AbsForm) and both sides of `F₁ ⇒ F₂`
+    (W-FuncForm1/2); values are `λx~φ. t`, `φ₁ ⇒ φ₂`, `v~φ` with `φ` a form in normal
+    form. Notation (user's order, after trying subscripts): forms are `F` and `G`
+    (`H`, `K` when more are needed); `s` is the companion of `t` where a rule has two
+    terms (`(λx. t) s`, `t s ⟶ t' s`); all four range over the same terms.
     D4 (agreed): term classes, progress and determinism describe `⟶w`; full β is
     needed eventually (confluence, then its own normal forms).
     D5 (agreed): Lean project in `oymo/proofs/` (lake, latest stable Lean 4 via elan, no
     Mathlib to start); round one: Term, substitution, all computation rules (`op`
     abstract), `⟶w` with full form normalization, Value/Neutral/Stuck, progress,
     exclusivity, determinism. Not yet: confluence, shape, translation.
+    D7 (revised, points 1–2 agreed): a `stuck t` term (users can write it) replaces
+    the stuck class and the earlier `error` term; it keeps the wrong term. Each
+    wrong shape (on values) wraps itself: `{a = t}.b ⟶ stuck ({a = t}.b)`.
+    `stuck t` marks the origin: full β reduces the parts of `t`, never `t`'s root
+    (congruence into immediate subterms only), so creation fires once; still
+    context-free. No bubbling rule: stuck-ness above the origin is the class
+    `st ::= stuck t | st t | st.l | {lᵢ = tᵢ} st | n₀ {…, l = st, …} | st~F | t~st
+    | st ⇒ F | F ⇒ st | λx~st. t` (strict positions), like neutral. Not strict: a
+    `λ`'s or neutral head's argument, a struct field, a `λ` body. The marker stays
+    at the origin (nothing stripped, no flattening). Rejected: frozen inside
+    (not confluent), all rules inside with bubbling (loops), "no wrong-shape rules
+    inside stuck" (context dependent), frozen twins (heavier). Deferred until the
+    branching-syntax change: stuck inside a run-time branch, and the surface
+    syntax (`stuck t` is a placeholder; `!t`, `#(t)`, `<t>` rejected).
+    Classes: reducible, value, neutral, stuck.
+    D9 (agreed): a struct is data only (no E-Select; projection is not a
+    branch). Branching is one n-ary `case n when [00] then a when [05] then b
+    else d`: default required and last (`else` ends the `case`, so nesting is
+    unambiguous; default first was dropped for the dangling `when`), explicit
+    distinct number literals, no `->`, no `if` (no sugar). Scrutinee strict; arms
+    and default share linear variables. At least one `when` (else a syntax error).
+    Arm-number width is checked by LLVM translation or BANF `convert`, not by the
+    semantics.
+    D10 (agreed in principle; revises D1a, D2, D3, D8 problem 2): every term is a
+    pair `t ~ T` (term world, form world; no nested `~`; unformed is `t ~ Empty`).
+    Both worlds use the same rules, separately, and the form world is linear too.
+    β substitutes each half: `(λx. b~B) (s~S) ⟶ b[x := s] ~ B[x := S]`. Normal
+    forms are `φ ~ φ`; confluence and classes are proved once for the formless
+    calculus. Opcodes are formless (`n₀ {oᵢ} ⟶ m`); a result form is written by the
+    user. E-AppForm/E-ProjForm become facts of splitting surface syntax into pairs;
+    E-Reform/E-FormOfForm disappear. Open: drops for `t~F`, binder forms, `⇒`.
+    D10 was then judged too complex. D11: restart from scratch, adding syntax step
+    by step (record in `semantics_discussion.md`, section "Rebuild"). Names: a
+    **naked** term has no `~` at its root; a **clad** term is `naked~naked`
+    (avoid "formed": it is the code's `t~F` node; avoid "form" groups: clashes
+    with "normal form"). Step 1: `x | λx. t | t s` with full β. Step 2: signature
+    `s ⇒ t` (name agreed), `(s ⇒ t) u ⟶ t`. Step 3: linear by default, `dup`/`drop`
+    fire only on closed values; on an open value or a neutral term they are neutral.
+    The check is local: at each `λx. u`, `x` occurs once in `u`; free variables of a
+    body are trusted (checked at their own binder or by the environment). Step 4
+    (clad, in discussion): a naked `t` is read as `t~t`; E-Split moves each
+    construct with a clad child into both halves (`(t~F) (s~G) ⟶ (t s)~(F G)`),
+    E-Reclad `p~q ⟶ term(p)~term(q)`, E-Collapse `t~t ⟶ t` (t with no ~ inside); halves are deep (`term(t~F) = term(t)`, `form(t~F) = term(F)`, part by part elsewhere); linearity is checked on each half.
+    `semantics.tex` was rewritten from scratch with steps 1–4 (accepted;
+    no review marks left); the previous draft is in git.
     D6 (done): roadmap node `term-classes` (classes-doc, classes-lean, classes-check,
     classes-code) under `foundations`; `conf-lean` under `confluence`. `classes-code`
     is kept apart from `conf-form` (that one is E-Reform and dropping `strip`).
@@ -95,11 +146,17 @@ The user's orders, kept as given. Follow them in every task.
     `\new{...}` blue for new or changed text, `\old{...}` red struck for removed
     text, plus a legend line under the title. When the user says to remove the
     color: unwrap `\new{}` (keep the text), delete `\old{...}` with its text, and
-    drop the legend if no marks are left.
+    drop the legend if no marks are left. A removed rule row can't be struck (`\sout`
+    breaks it): it is shown as `{\color{red}\rulerow{Name (old)}…}`; delete it on accept.
   - Numbered points (user's order, so they can be referred to): rules, formula rows
     and bullets share one counter per section, shown as 1), 2), ... without the
     section number (`pt` counter,
     `points` list, `\pt` in array rows; a rule's number is its left column).
+    Subsections are 4a, 4b, ... so they never look like a point number (user's order).
+  - Term classes are named reducible (takes a `⟶w` step), value, neutral, stuck
+    (user named "reducible"); values are weak (no reduction under `λ` or in fields).
+    Section 4 lists the cases by root as rule rows like sections 2–3 (number left, term
+    centered with conditions as premises, right: the rule, or Value / Neutral / Stuck).
   - Introduce each notation in the section where it is first used; no notation table
     up front.
   - Byte arrays are written as numbers `n` (0, 1, 2, ..., no upper bound; user's
@@ -120,7 +177,11 @@ The user's orders, kept as given. Follow them in every task.
 - `docs/notes.md`, `docs/glossary.md`, `docs/implemented/`, the plans and the old roadmap
   were moved here verbatim and deleted (done).
 - `docs/` now holds: `roadmap.md`, `agent_wiki.md`, `todo.md`, `story.md`,
-  `semantics.tex`, `Makefile`.
+  `semantics.tex`, `Makefile`, `semantics_discussion.md`.
+- `docs/semantics_discussion.md` (user's order, an exception to "one roadmap doc"):
+  the semantics review discussion (term classes, `stuck t`, effects, D1–D8), kept so
+  nothing is lost between sessions. Continue the discussion there; update it as
+  decisions are made. Resume at D8.
 
 ### Roadmap format
 

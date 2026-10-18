@@ -6,7 +6,6 @@
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath,amssymb,mathtools}
 \usepackage{mathpartir}
-\usepackage{booktabs}
 \usepackage{xcolor}
 \usepackage[normalem]{ulem}
 \usepackage{enumitem}
@@ -15,20 +14,23 @@
 %% ── Macros (each notation is introduced in the text where it is first used) ──
 \newcommand{\step}{\longrightarrow}             % one step
 \newcommand{\wstep}{\longrightarrow_{\mathrm{w}}} % one step of the evaluation strategy
-\newcommand{\eval}{\Downarrow}                  % step until no rule applies
 \newcommand{\lam}[2]{\lambda #1.\,#2}           % λx. t
-\newcommand{\lamF}[3]{\lambda #1{\sim}#2.\,#3}  % λx~F. t
-\newcommand{\fm}[2]{#1{\sim}#2}                 % t~F
-\newcommand{\subst}[3]{[#1 \mapsto #2]\,#3}     % [x ↦ v] t
+\newcommand{\cl}[2]{#1{\sim}#2}                 % t~F, a clad term
+\newcommand{\subst}[3]{[#1 \mapsto #2]\,#3}     % [x ↦ s] t
 \newcommand{\fn}[1]{\mathit{#1}}                % meta function
 \newcommand{\rn}[1]{\textsc{#1}}                % rule name in text
-\newcommand{\kw}[1]{\mathtt{#1}}                % keyword or name in math
+\newcommand{\kw}[1]{\mathtt{#1}}                % keyword in math
+\newcommand{\dup}{\kw{dup}}
+\newcommand{\drop}{\kw{drop}}
+\newcommand{\tm}[1]{\fn{term}(#1)}              % term half
+\newcommand{\fh}[1]{\fn{form}(#1)}              % form half
 
 \mprset{sep=1.5em}
 
 %% Numbered points: rules, formula rows and bullets share one counter per section,
 %% shown as 1), 2), ... (the section number is not repeated) so each can be referred to.
 \newcounter{pt}[section]
+\renewcommand{\thesubsection}{\thesection\alph{subsection}}  % 4a, 4b, ...
 \renewcommand{\thept}{\arabic{pt})}
 \newcommand{\pt}{\refstepcounter{pt}\textup{\thept}}  % number a formula row
 \newlist{points}{enumerate}{1}
@@ -71,27 +73,34 @@
 
 \[
 \begin{array}{l@{\quad}rcll}
- & t, F & ::= & & \textit{terms} \\
+ & t, s, F, G & ::= & & \textit{terms} \\
 \pt &   & \mid & x & \textit{variable} \\
 \pt &   & \mid & \lam{x}{t} & \textit{abstraction} \\
-\pt &   & \mid & \lamF{x}{F}{t} & \textit{abstraction with a form} \\
-\pt &   & \mid & t\ t & \textit{application} \\
-\pt &   & \mid & \{l_1 = t_1, \dots, l_n = t_n\} & \textit{struct} \\
-\pt &   & \mid & t.l & \textit{projection} \\
-\pt &   & \mid & n & \textit{non-negative number} \\
-\pt &   & \mid & \fm{t}{F} & \textit{formed term} \\
-\pt &   & \mid & F \Rightarrow F & \textit{function form}
+\pt &   & \mid & t\ s & \textit{application} \\
+\pt &   & \mid & s \Rightarrow t & \textit{signature} \\
+\pt &   & \mid & \dup\ s\ t & \textit{copy} \\
+\pt &   & \mid & \drop\ s\ t & \textit{discard} \\
+\pt &   & \mid & \cl{t}{F} & \textit{clad term}
 \end{array}
 \]
 \begin{points}
-\item $t$ ranges over terms, $x$ over variables, $l$ over labels.
-  Forms are terms too, and $F$ (also $G$) ranges over forms.
-\item A form is similar to a type, but with no typing rules: nothing
-  type-checks it.
-  In an application, the parameter's form replaces the argument's own form
-  (\rn{E-BetaForm}, then \rn{E-Reform}).
-\item $n$ ranges over the numbers $0, 1, 2, \dots$, with no upper bound.
-\item Struct fields are ordered; a label may be empty, and labels may repeat.
+\item $x$ ranges over variables. $t$, $s$, $F$ and $G$ range over the same terms;
+  $F$ and $G$ are used where a term serves as a form, and $s$ is a companion of
+  $t$ where a rule has two terms.
+\item A term is \emph{naked} when its root is not ${\sim}$, and \emph{clad} when
+  it is $\cl{t}{F}$. In $\cl{t}{F}$, $t$ is the term side and $F$ the form side.
+\item A form is similar to a type, but with no typing rules: nothing checks it.
+\item A naked term with no ${\sim}$ inside is read as $\cl{t}{t}$, clad by
+  itself. The \emph{halves} of a term go through every construct and stop at
+  each ${\sim}$:
+  \[
+  \tm{\cl{t}{F}} = \tm{t},\qquad \fh{\cl{t}{F}} = \tm{F},
+  \]
+  and for every other construct both halves are taken part by part, e.g.
+  $\tm{t\ s} = \tm{t}\ \tm{s}$, $\fh{\lam{x}{t}} = \lam{x}{\fh{t}}$,
+  $\tm{x} = \fh{x} = x$. Both halves are naked terms with no ${\sim}$ inside.
+\item Terms are equal up to renaming bound variables; substitution
+  $\subst{x}{s}{t}$ never captures a variable.
 \end{points}
 
 %% ── Computation ────────────────────────────────────────────────────────
@@ -100,333 +109,157 @@
 
 \begin{rules}
 \axiomrow{E-Beta}
-  {(\lam{x}{t_1})\ t_2 \;\step\; \subst{x}{t_2}{t_1}}
-\axiomrow{E-BetaForm}
-  {(\lamF{x}{F}{t_1})\ t_2 \;\step\; \subst{x}{\fm{t_2}{F}}{t_1}}
-\rulerow{E-Select}
-  {1 \le k \\ c \in \{n, \fm{n}{F}\} \\
-   i = \min(n,\, k-1)}
-  {\{l_0 = t_0, \dots, l_{k-1} = t_{k-1}\}\ c \;\step\; t_i}
-\rulerow{E-Proj}
-  {k = \min\{\, i \mid l_i = l \,\}}
-  {\{l_i = t_i\}.l \;\step\; t_k}
-\rulerow{E-ProjForm}
-  {k = \min\{\, i \mid l_i = l \,\} \\ m = \min\{\, j \mid l'_j = l \,\}}
-  {(\fm{\{l_i = t_i\}}{\{l'_j = F_j\}}).l \;\step\; \fm{t_k}{F_m}}
-\axiomrow{E-Reform}
-  {\fm{(\fm{t}{G})}{F} \;\step\; \fm{t}{F}}
+  {(\lam{x}{t})\ s \;\step\; \subst{x}{s}{t}}
+\axiomrow{E-SigApp}
+  {(F \Rightarrow G)\ t \;\step\; \drop\ F\ (\drop\ t\ G)}
+\rulerow{E-Dup}
+  {s \text{ is a closed value}}
+  {\dup\ s\ t \;\step\; t\ s\ s}
+\rulerow{E-Drop}
+  {s \text{ is a closed value}}
+  {\drop\ s\ t \;\step\; t}
 \end{rules}
 \begin{points}
-\item $t \step t'$ means $t$ takes one step to $t'$: by a computation rule at
-  the root (this section), or by a congruence rule at a position inside $t$
-  (Section~\ref{sec:congruence}).
-\item $\subst{x}{t_2}{t_1}$ is substitution: $t_1$ with $t_2$ put in for
-  every free $x$.
-\item \rn{E-Select} ignores labels, and a form on the index. An index past the
-  last field takes the last one, so the last field is the default:
-  $\{t_0, t_1\}\ 0 \step t_0$, \ $\{t_0, t_1\}\ 1 \step t_1$, and
-  $\{t_0, t_1\}\ 2 \step t_1$.
-\item \rn{E-Proj} and \rn{E-ProjForm} take the first field with the label,
-  since labels may repeat: $\{a = t_0, a = t_1\}.a \step t_0$.
-  \rn{E-ProjForm} projects a struct that has a struct form: the value comes from
-  the struct's field and the form from the form's field with the same label,
-  $(\fm{\{a = t, b = u\}}{\{a = F, b = G\}}).b \step \fm{u}{G}$.
-\item \rn{E-Reform}: when a term with a form gets another form, the outer one
-  wins. \rn{E-BetaForm}, \rn{E-ProjForm} and \rn{E-Formed1} put a form around
-  a term that may already have one; \rn{E-Reform} then removes the inner one:
-  $(\lamF{x}{F}{x})\ (\fm{a}{G}) \step \fm{(\fm{a}{G})}{F} \step \fm{a}{F}$.
+\item A value is $\lam{x}{t}$ or $F \Rightarrow G$ (Section~\ref{sec:classes});
+  it is closed when it has no free variable.
+\item \rn{E-SigApp}: applying a signature gives its result; the signature's
+  parameter and the argument are discarded.
+\item \rn{E-Dup} and \rn{E-Drop} only copy or discard a closed value: work that
+  is not done yet is never copied or lost, and no variable is copied or lost
+  (Section~\ref{sec:linearity}). Otherwise they wait for run time.
+\end{points}
+
+\subsection{Clad terms}
+
+\begin{rules}
+\rulerow{E-SplitApp}
+  {t \text{ or } s \text{ is clad}}
+  {t\ s \;\step\; \cl{(\tm{t}\ \tm{s})}{(\fh{t}\ \fh{s})}}
+\rulerow{E-SplitAbs}
+  {t \text{ is clad}}
+  {\lam{x}{t} \;\step\; \cl{(\lam{x}{\tm{t}})}{(\lam{x}{\fh{t}})}}
+\rulerow{E-SplitSig}
+  {s \text{ or } t \text{ is clad}}
+  {s \Rightarrow t \;\step\; \cl{(\tm{s} \Rightarrow \tm{t})}{(\fh{s} \Rightarrow \fh{t})}}
+\rulerow{E-SplitDup}
+  {s \text{ or } t \text{ is clad}}
+  {\dup\ s\ t \;\step\; \cl{(\dup\ \tm{s}\ \tm{t})}{(\dup\ \fh{s}\ \fh{t})}}
+\rulerow{E-SplitDrop}
+  {s \text{ or } t \text{ is clad}}
+  {\drop\ s\ t \;\step\; \cl{(\drop\ \tm{s}\ \tm{t})}{(\drop\ \fh{s}\ \fh{t})}}
+\rulerow{E-Reclad}
+  {t \text{ or } F \text{ is clad}}
+  {\cl{t}{F} \;\step\; \cl{\tm{t}}{\tm{F}}}
+\rulerow{E-Collapse}
+  {t \text{ has no } {\sim} \text{ inside}}
+  {\cl{t}{t} \;\step\; t}
+\end{rules}
+\begin{points}
+\item The split rules move a construct with a clad part into both sides: the
+  term side computes with the term halves, the form side with the form halves.
+  For example $(\cl{t}{F})\ s \step \cl{(t\ s)}{(F\ s)}$: the result's form is
+  the form applied to the argument.
+\item The halves go all the way down, so a naked part with a ${\sim}$ inside is
+  split correctly too: $(\lam{z}{\cl{z}{F}})\ (\cl{s}{G})$ gives
+  $\cl{s}{F}$ both by \rn{E-Beta} and by \rn{E-SplitApp}.
+\item \rn{E-Reclad}: a written form replaces the old one, and a form's own form
+  is discarded: $\cl{(\cl{t}{F})}{(\cl{G}{H})} \step \cl{t}{G}$. ${\sim}$ does
+  not split like the other constructs, which would give a clad term again.
+\item \rn{E-Collapse} follows from reading a naked $t$ as $\cl{t}{t}$.
+\item None of these rules changes the halves of a term. After them, both sides
+  of every clad term are naked.
 \end{points}
 
 %% ── Congruence ─────────────────────────────────────────────────────────
 
-\section{Congruence (full \texorpdfstring{$\beta$}{beta})}\label{sec:congruence}
+\section{Full \texorpdfstring{$\beta$}{beta}}\label{sec:congruence}
 
 \begin{rules}
-\rulerow{E-App1}
-  {t_1 \step t_1'}
-  {t_1\ t_2 \;\step\; t_1'\ t_2}
-\rulerow{E-App2}
-  {t_2 \step t_2'}
-  {t_1\ t_2 \;\step\; t_1\ t_2'}
-\rulerow{E-Abs}
-  {t \step t'}
-  {\lam{x}{t} \;\step\; \lam{x}{t'}}
-\rulerow{E-AbsForm1}
-  {F \step F'}
-  {\lamF{x}{F}{t} \;\step\; \lamF{x}{F'}{t}}
-\rulerow{E-AbsForm2}
-  {t \step t'}
-  {\lamF{x}{F}{t} \;\step\; \lamF{x}{F}{t'}}
-\rulerow{E-Struct}
-  {t_j \step t_j'}
-  {\{\dots, l_j = t_j, \dots\} \;\step\; \{\dots, l_j = t_j', \dots\}}
-\rulerow{E-Proj1}
-  {t \step t'}
-  {t.l \;\step\; t'.l}
-\rulerow{E-Formed1}
-  {t \step t'}
-  {\fm{t}{F} \;\step\; \fm{t'}{F}}
-\rulerow{E-Formed2}
-  {F \step F'}
-  {\fm{t}{F} \;\step\; \fm{t}{F'}}
-\rulerow{E-FuncForm1}
-  {F \step F'}
-  {F \Rightarrow G \;\step\; F' \Rightarrow G}
-\rulerow{E-FuncForm2}
-  {G \step G'}
-  {F \Rightarrow G \;\step\; F \Rightarrow G'}
+\rulerow{E-Abs}{t \step t'}{\lam{x}{t} \;\step\; \lam{x}{t'}}
+\rulerow{E-App1}{t \step t'}{t\ s \;\step\; t'\ s}
+\rulerow{E-App2}{s \step s'}{t\ s \;\step\; t\ s'}
+\rulerow{E-Sig1}{s \step s'}{s \Rightarrow t \;\step\; s' \Rightarrow t}
+\rulerow{E-Sig2}{t \step t'}{s \Rightarrow t \;\step\; s \Rightarrow t'}
+\rulerow{E-Dup1}{s \step s'}{\dup\ s\ t \;\step\; \dup\ s'\ t}
+\rulerow{E-Dup2}{t \step t'}{\dup\ s\ t \;\step\; \dup\ s\ t'}
+\rulerow{E-Drop1}{s \step s'}{\drop\ s\ t \;\step\; \drop\ s'\ t}
+\rulerow{E-Drop2}{t \step t'}{\drop\ s\ t \;\step\; \drop\ s\ t'}
+\rulerow{E-Clad1}{t \step t'}{\cl{t}{F} \;\step\; \cl{t'}{F}}
+\rulerow{E-Clad2}{F \step F'}{\cl{t}{F} \;\step\; \cl{t}{F'}}
 \end{rules}
 \begin{points}
-\item Oymo supports full $\beta$-reduction: a step may happen at any position,
-  at the root or inside any part of a term, including under a $\lambda$, in a
-  struct field, in an argument and in a form.
-  So it does not matter which redex is reduced first: every order that
-  reaches a normal form reaches the same one.
-\item \rn{E-Formed1}:
-  if $t$ steps to a formed term $\fm{s}{G}$, the result
-  $\fm{(\fm{s}{G})}{F}$ has two forms, and \rn{E-Reform} steps it to
-  $\fm{s}{F}$. For example, $\fm{((\lam{y}{\fm{y}{G}})\ a)}{F} \step
-  \fm{(\fm{a}{G})}{F} \step \fm{a}{F}$.
+\item $\step$ is full $\beta$: a rule of Section~\ref{sec:computation} may fire
+  anywhere, under a $\lambda$ and in either side of ${\sim}$ too.
+\item $\step$ is expected to be confluent. Proof idea: each half maps a term to a
+  naked term, and a step on a term is zero or more steps on each half; the rules
+  for clad terms leave both halves unchanged. Confluence then comes from the
+  naked calculus (Church--Rosser).
 \end{points}
 
-%% ── All combinations ───────────────────────────────────────────────────
+%% ── Linearity ──────────────────────────────────────────────────────────
 
-\section{All Combinations}\label{sec:combinations}
+\section{Linearity}\label{sec:linearity}
 
-Every term, by its root, with the step the evaluation strategy takes
-($\wstep$, Section~\ref{sec:strategy}) or why it takes none. A term with no
-$\wstep$ step is a \emph{weak normal form} (``normal form'' in this section): a variable, a value
-($\lam{x}{t}$, $\lamF{x}{F}{t}$, a struct, $n$, $F \Rightarrow G$), a formed normal
-form, or a \emph{stuck} term. In the tables, ``steps'' means that part has a
-$\wstep$ step.
+\begin{points}
+\item A naked term with no ${\sim}$ inside is \emph{linear} when, for every
+  $\lam{x}{u}$ in it, $x$ occurs exactly once in $u$, counting occurrences inside
+  inner $\lambda$s.
+\item Any term is linear when both of its halves are linear: the term side and
+  the form side are each checked, as the naked terms they become after
+  splitting. For example $\lam{x}{\cl{x}{F}}$ needs $x$ once in $F$ too, since
+  its form half is $\lam{x}{F}$.
+\item Free variables are not checked again inside a body: each is checked at its
+  own binder, or comes from the environment, which is trusted.
+\item $\dup$ and $\drop$ are the only ways to copy or discard; they bind nothing.
+  For example $\dup\ x\ (\lam{a}{\lam{b}{a\ b}})$ uses $x$ twice.
+\item Reduction keeps a term linear: \rn{E-Beta} puts $s$ where the single $x$
+  was, \rn{E-Dup} and \rn{E-Drop} only copy or discard closed terms, and the
+  rules for clad terms leave both halves unchanged.
+\end{points}
 
-\subsection{Terms with no rule at the root}
-
-\begin{center}
-\begin{tabular}{@{}ll@{}}
-\toprule
-\textbf{Term} & \textbf{Result} \\
-\midrule
-$x$ & normal form (variable) \\
-$\lam{x}{t}$, \ $\lamF{x}{F}{t}$ & normal form (value) \\
-$\{l_1 = t_1, \dots, l_n = t_n\}$ & normal form (value); fields are not reduced \\
-$n$ & normal form (value) \\
-$F \Rightarrow G$ & normal form (value) \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\subsection{Application \texorpdfstring{$t_1\ t_2$}{t1 t2}}
-
-\begin{center}
-\begin{tabular}{@{}lll@{}}
-\toprule
-\textbf{$t_1$} & \textbf{$t_2$} & \textbf{Result} \\
-\midrule
-$\lam{x}{t}$ & any & \rn{E-Beta} \\
-$\lamF{x}{F}{t}$ & any & \rn{E-BetaForm} \\
-\midrule
-$\{l_0 = t_0, \dots, l_{k-1} = t_{k-1}\}$, $1 \le k$
-  & $n$ or $\fm{n}{F}$ & \rn{E-Select} \\
-  & steps & \rn{W-Select} \\
-  & any other normal form & stuck \\
-$\{\}$ & steps & \rn{W-Select} \\
-  & normal form & stuck \\
-\midrule
-$s\ s'$, \ $s.l$, \ $\fm{s}{F}$ & --- & \rn{W-App1} if $t_1$ steps, else stuck \\
-\midrule
-$x$ & any & stuck \\
-$n$ & any & stuck \\
-$F \Rightarrow G$ & any & stuck \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\noindent
-A formed abstraction does not apply: $(\fm{(\lam{x}{t})}{F})\ t_2$ is stuck,
-since $\lam{x}{t}$ does not step.
-
-\subsection{Projection \texorpdfstring{$t.l$}{t.l}}
-
-\begin{center}
-\begin{tabular}{@{}lll@{}}
-\toprule
-\textbf{$t$} & \textbf{Case} & \textbf{Result} \\
-\midrule
-$\{l_i = t_i\}$ & some $l_i = l$ & \rn{E-Proj} \\
-  & no $l_i = l$ & stuck \\
-\midrule
-$\fm{\{l_i = t_i\}}{\{l'_j = F_j\}}$ & some $l_i = l$ and some $l'_j = l$
-  & \rn{E-ProjForm} \\
-  & otherwise & stuck \\
-\midrule
-$t_1\ t_2$, \ $t'.l'$, \ other $\fm{t'}{F}$ & --- & \rn{W-Proj1} if $t$ steps, else stuck \\
-\midrule
-$x$ & --- & stuck \\
-$\lam{x}{t'}$, \ $\lamF{x}{F}{t'}$, \ $n$, \ $F \Rightarrow G$ & --- & stuck \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\noindent
-In the formed row, a struct with a form that is not a struct literal (for
-example $\fm{\{l = t\}}{x}$) is ``other $\fm{t'}{F}$'': it does not step, so the
-projection is stuck.
-
-\subsection{Formed term \texorpdfstring{$\fm{t}{F}$}{t\textasciitilde F}}
-
-\begin{center}
-\begin{tabular}{@{}ll@{}}
-\toprule
-\textbf{$t$} & \textbf{Result} \\
-\midrule
-$\fm{s}{G}$ & \rn{E-Reform} \\
-other, steps & \rn{W-Formed1} \\
-other, normal form & normal form; stuck if $t$ is stuck \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\noindent
-A form on a formed term replaces its form:
-$\fm{(\fm{n}{G})}{F} \step \fm{n}{F}$.
-
-%% ── Evaluation strategy ────────────────────────────────────────────────
+%% ── Strategy ───────────────────────────────────────────────────────────
 
 \section{Evaluation Strategy}\label{sec:strategy}
 
 \begin{rules}
-\rulerow{W-Root}
-  {t \step t' \text{ by a computation rule}}
+\rulerow{W-Root}{t \step t' \text{ by a rule of Section~\ref{sec:computation}}}
   {t \;\wstep\; t'}
-\rulerow{W-App1}
-  {t_1 \wstep t_1' \\ t_1 \text{ is not a struct}}
-  {t_1\ t_2 \;\wstep\; t_1'\ t_2}
-\rulerow{W-Select}
-  {t_2 \wstep t_2'}
-  {\{l_i = t_i\}\ t_2 \;\wstep\; \{l_i = t_i\}\ t_2'}
-\rulerow{W-Proj1}
-  {t \wstep t'}
-  {t.l \;\wstep\; t'.l}
-\rulerow{W-Formed1}
-  {t \wstep t'}
-  {\fm{t}{F} \;\wstep\; \fm{t'}{F}}
+\rulerow{W-App1}{t \wstep t'}{t\ s \;\wstep\; t'\ s}
+\rulerow{W-Dup1}{s \wstep s'}{\dup\ s\ t \;\wstep\; \dup\ s'\ t}
+\rulerow{W-Drop1}{s \wstep s'}{\drop\ s\ t \;\wstep\; \drop\ s'\ t}
 \end{rules}
 \begin{points}
-\item $t \wstep t'$ is the step evaluation takes: one order of the full
-  $\beta$ steps of Section~\ref{sec:congruence}.
-\item \rn{W-Root} comes first; the other rules apply only when no computation
-  rule applies at the root. They step the part blocking the root, by
-  \rn{E-App1}, \rn{E-App2}, \rn{E-Proj1} and \rn{E-Formed1}.
-\item \textbf{Weak:} never goes under a $\lambda$ or into a struct field.
-\item \textbf{Lazy:} never reduces an ordinary argument; only the index of a
-  struct applied to it.
-\item Never reduces a form.
+\item $\wstep$ is weak and in normal order: it never reduces under a $\lambda$,
+  inside a signature, or in an argument.
+\item $\wstep$ for clad terms is not written yet.
 \end{points}
 
-%% ── Syntax sugar ───────────────────────────────────────────────────────
+%% ── Term classes ───────────────────────────────────────────────────────
 
-\section{Syntax Sugar}\label{sec:sugar}
+\section{Term Classes}\label{sec:classes}
 
-Sugar adds no terms: each form on the left is the term on the right.
-$\epsilon$ is the empty label.
 \[
 \begin{array}{l@{\quad}rcll}
-\pt & \kw{if}\ c\ \kw{then}\ t\ \kw{else}\ e & \equiv & \{e, t\}\ c
-  & \textit{if} \\
-\pt & \kw{let}\ x = t_1\ \kw{in}\ t_2 & \equiv & (\lam{x}{t_2})\ t_1
-  & \textit{let} \\
-\pt & \kw{let}\ \fm{x}{F} = t_1\ \kw{in}\ t_2 & \equiv & (\lamF{x}{F}{t_2})\ t_1
-  & \textit{let with a form} \\
-\pt & \{\dots, t, \dots\} & \equiv & \{\dots, \epsilon = t, \dots\}
-  & \textit{unlabeled field}
+\pt & r & ::= & (\lam{x}{t})\ s \mid (F \Rightarrow G)\ t \mid \dup\ v\ t \mid
+  \drop\ v\ t & \textit{reducible} \\
+ & & \mid & r\ s \mid \dup\ r\ t \mid \drop\ r\ t & \\
+\pt & v & ::= & \lam{x}{t} \mid F \Rightarrow G & \textit{value} \\
+\pt & \mathit{ne} & ::= & x \mid \mathit{ne}\ t \mid \dup\ \mathit{ne}\ t \mid
+  \drop\ \mathit{ne}\ t \mid \dup\ v\ t \mid \drop\ v\ t & \textit{neutral}
 \end{array}
 \]
-So $\kw{if}$ is \rn{E-Select} on two fields: $0$ gives the else arm,
-any other index gives the then arm.
-
-%% ── Under binders: shape ───────────────────────────────────────────────
-
-\section{Under Binders: \texorpdfstring{$\fn{shape}$}{shape}}\label{sec:shape}
-
-$t \eval w$ means: apply $\wstep$ to $t$ until it takes no step; $w$ is
-the weak normal form reached (Section~\ref{sec:combinations}).
-
-$\fn{shape}$ is the only part of evaluation that goes under a $\lambda$ or into
-a struct field, and only at the positions of the program skeleton.
 \begin{points}
-\item Each position first applies $\eval$.
-\item If the result doesn't have the expected shape, $\fn{shape}$ leaves it as
-  is and translation reports the error.
+\item The classes are for naked terms without ${\sim}$; the classes for clad
+  terms are not written yet.
+\item Every such term is in exactly one class: reducible (it takes a $\wstep$
+  step), a value, or neutral.
+\item In $r$, $\dup\ v\ t$ and $\drop\ v\ t$ need $v$ closed; in $\mathit{ne}$,
+  they need $v$ to have a free variable. Being closed is a side condition, not
+  grammar.
+\item A neutral term waits for a free variable. Once its binder is applied it may
+  become reducible.
+\item No term is wrong yet, so there is no stuck class.
 \end{points}
 
-\paragraph{Skeleton.}
-\[
-\begin{array}{l@{\quad}lll}
-\pt & \fn{program}(t)  & t \eval \lam{m}{u}      & \implies \lam{m}{\fn{module}(u)} \\
-\pt & \fn{module}(u)   & u \eval \{l_i = f_i\}   & \implies \{l_i = \fn{function}(f_i)\} \\
-\pt & \fn{function}(f) & f \eval \lam{k}{g}      & \implies \lam{k}{\fn{blocks}(g)}
-  \quad \text{(a data value: only $\eval$)} \\
-\pt & \fn{blocks}(g)   & g \eval \{l_i = s_i\}   & \implies \{l_i = \fn{block}(s_i)\} \\
-\pt & \fn{block}(s)    & s \eval \lam{a}{t}      & \implies \lam{a}{\fn{body}(t)}
-\end{array}
-\]
-
-\paragraph{Body.}\mbox{}
-\begin{rules}
-\rulerow{S-Let}
-  {v \eval w \\ w \text{ is an op}}
-  {\fn{body}((\lam{x}{t})\ v) = (\lam{x}{\fn{body}(t)})\ \fn{op}(w)}
-\rulerow{S-Inline}
-  {v \eval w \\ w \text{ is not an op}}
-  {\fn{body}((\lam{x}{t})\ v) = \fn{body}(\subst{x}{w}{t})}
-\end{rules}
-\begin{points}
-\item \rn{S-Inline} substitutes by \rn{E-Beta}/\rn{E-BetaForm}.
-\item Otherwise $\fn{body}(t) = \fn{body}(t')$ if $t \wstep t'$, else
-  $\fn{terminal}(t)$.
-\end{points}
-
-\paragraph{Terminals and operands.}
-\[
-\begin{array}{l@{\quad}lcll}
-\pt & \fn{terminal}(f.l\ a)           & = & f.l\ \fn{arg}(a) & \textit{jump} \\
-\pt & \fn{terminal}(\{l_i = t_i\}\ c) & = & \{l_i = \fn{jump}(t_i)\}\ \fn{atom}(c)
-  & \textit{branch or switch} \\
-\pt & \fn{terminal}(t)                & = & t & n,\ \kw{args}.l,\ x,\ \dots \\[6pt]
-\pt & \fn{op}(t\ a)                   & = & t\ \fn{arg}(a) & \\
-\pt & \fn{op}(\{l_i = t_i\})          & = & \{l_i = \fn{atom}(t_i)\} & \\
-\pt & \fn{op}(t)                      & = & t & \textit{a projection} \\[6pt]
-\pt & \fn{arg}(a)  & = & \{l_i = \fn{atom}(t_i)\} \text{ if } a \eval \{l_i = t_i\};
-  \text{ else } a\eval & \\
-\pt & \fn{jump}(t) & = & f.l\ \fn{arg}(a) \text{ if } t \eval f.l\ a;
-  \text{ else } t\eval & \\
-\pt & \fn{atom}(t) & = & t\eval &
-\end{array}
-\]
-
-\noindent
-An \textbf{op} is one of:
-\begin{points}
-\item an application $t\ a$ where $t$ is not a struct ($\{\dots\}\ c$ is a
-  branch or a switch);
-\item a struct;
-\item a projection other than $\kw{args}.l$.
-\end{points}
-
-\noindent
-Terminal $\{t_0, \dots, t_{n-1}\}\ c$:
-\begin{points}
-\item $c$ didn't reduce to a number, so it's a run-time selector.
-\item Labels are ignored; the field is picked as in \rn{E-Select}, so a $c$ past
-  the last field takes $t_{n-1}$.
-\item 2 fields ($\kw{if}\ c\ \kw{then}\ t\ \kw{else}\ e$): a branch.
-\item 3+ fields: a switch whose default is the last field.
-\item Translation rejects $\{\}\ c$, $\{t\}\ c$, and a field that isn't a jump.
-\end{points}
-
-\noindent
-$\fn{shape}$ leaves every other position unreduced: a let-bound $\lambda$, a
-lambda passed as an argument, a struct field outside the skeleton, and any form.
 
 \end{document}
