@@ -85,9 +85,9 @@ The user's orders, kept as given. Follow them in every task.
     Forms everywhere (user's order): a form is never under a binder, so `⟶w` also
     normalizes the form of `λx~F. t` (W-AbsForm) and both sides of `F₁ ⇒ F₂`
     (W-FuncForm1/2); values are `λx~φ. t`, `φ₁ ⇒ φ₂`, `v~φ` with `φ` a form in normal
-    form. Notation (user's order, after trying subscripts): forms are `F` and `G`
-    (`H`, `K` when more are needed); `s` is the companion of `t` where a rule has two
-    terms (`(λx. t) s`, `t s ⟶ t' s`); all four range over the same terms.
+    form. Notation (user's order, latest; replaces `F`/`G` and `s`): one letter per
+    class. Every term, forms included, is `t`; several terms in one rule are `t₁`,
+    `t₂`, … (`(λx. t₁) t₂`, `t₁ ⟶ t₁'`); class variables are `r`, `v`, `ne`.
     D4 (agreed): term classes, progress and determinism describe `⟶w`; full β is
     needed eventually (confluence, then its own normal forms).
     D5 (agreed): Lean project in `oymo/proofs/` (lake, latest stable Lean 4 via elan, no
@@ -130,7 +130,8 @@ The user's orders, kept as given. Follow them in every task.
     **naked** term has no `~` at its root; a **clad** term is `naked~naked`
     (avoid "formed": it is the code's `t~F` node; avoid "form" groups: clashes
     with "normal form"). Step 1: `x | λx. t | t s` with full β. Step 2: signature
-    `s ⇒ t` (name agreed), `(s ⇒ t) u ⟶ t`. Step 3: linear by default, `dup`/`drop`
+    `s ⇒ t` (name agreed), `(s ⇒ t) u ⟶ t`; a signature is a value only when both
+    sides are values (`v ⇒ v`), and `⟶w` reduces both sides. Step 3: linear by default, `dup`/`drop`
     fire only on closed values; on an open value or a neutral term they are neutral.
     The check is local: at each `λx. u`, `x` occurs once in `u`; free variables of a
     body are trusted (checked at their own binder or by the environment). Step 4

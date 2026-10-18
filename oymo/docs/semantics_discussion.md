@@ -81,7 +81,7 @@ t ⟶ t'  ⟹  s ⇒ t ⟶ s ⇒ t'                     E-Sig2
 (s ⇒ t) u ⟶ t                                 E-SigApp (option A; step 3 adds drops)
 ```
 
-`⟶w` does not reduce inside `⇒` (weak, like `λ`), so `s ⇒ t` is a value. D3's
+(Revised by the user: a signature is a value only when both sides are values, `v ::= λx. t | v ⇒ v`. `⟶w` reduces both sides, left first (W-Sig1/2); E-SigApp fires on `(v₁ ⇒ v₂) t`.) Earlier: `⟶w` does not reduce inside `⇒`, so `s ⇒ t` is a value. D3's
 full normalization of forms waits for clad terms. Rejected: no rule for
 `(s ⇒ t) u` (it would need the stuck class now).
 
@@ -587,8 +587,8 @@ on  ::= n | n~φ | {lᵢ = onᵢ} | ne
 
 ## Notation agreed during the review
 
-- Forms are `F` and `G` (`H`, `K` when more are needed); `s` is the companion of `t`
-  where a rule has two terms. All range over the same terms.
+- One letter per class: every term, forms included, is `t`; several terms in one
+  rule are `t₁`, `t₂`, … (replaces `F`, `G` and `s`).
 - Numbers `n` (0, 1, 2, …), no byte arrays in the doc; the doc ignores byte length.
 - Function forms are `F ⇒ G`.
 - Points are numbered `1)`, `2)`, … per section; subsections are `4a`, `4b`, …
@@ -596,7 +596,7 @@ on  ::= n | n~φ | {lᵢ = onᵢ} | ne
   (a rule, or Value / Neutral / Stuck).
 - Every change is marked blue (new) / red struck (removed) until the user accepts.
 
-## State of semantics.tex (accepted)
+## State of semantics.tex (accepted, plus an open review)
 
 Rewritten from scratch (the user: "clear up semantics.tex and add what we build so
 far"); accepted by the user. It holds rebuild steps 1–4:
@@ -604,6 +604,9 @@ syntax (naked, signature, dup/drop, clad), computation (E-Beta, E-SigApp, E-Dup,
 E-Drop; clad: E-Split{App,Abs,Sig,Dup,Drop}, E-Reclad, E-Collapse), full β
 congruence, linearity, `⟶w` for naked terms, classes for naked terms. Not yet:
 `⟶w` and classes for clad terms. The previous draft is in git.
+
+Open review (blue/red): point 1/8 shortened; the term classes moved from
+Section 6 into Section 1 (Syntax); every term is written `t` (`t₁`, `t₂`, …).
 
 ## Roadmap
 
