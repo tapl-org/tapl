@@ -87,6 +87,8 @@ full normalization of forms waits for clad terms. Rejected: no rule for
 
 ### Step 3: linearity by default — agreed
 
+Names: **`dup`/`drop` kept** (the user; considered `copy`/`discard` and `clone`/`drop`). Koka's Perceus uses the same pair for compiler-inserted reference counting, the closest match; Oymo is mostly generated, so the jargon is fine.
+
 The user: "lets enable linearity by default too".
 
 ```

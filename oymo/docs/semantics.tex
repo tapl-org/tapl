@@ -78,8 +78,8 @@
 \pt &   & \mid & \lam{x}{t} & \textit{abstraction} \\
 \pt &   & \mid & t\ t & \textit{application} \\
 \pt &   & \mid & t \Rightarrow t & \textit{signature} \\
-\pt &   & \mid & \dup\ t\ t & \textit{copy} \\
-\pt &   & \mid & \drop\ t\ t & \textit{discard} \\
+\pt &   & \mid & \dup\ t\ t & \textit{duplicate} \\
+\pt &   & \mid & \drop\ t\ t & \textit{drop} \\
 \pt &   & \mid & \cl{t}{t} & \textit{clad term} \\[6pt]
 \pt & v & ::= & \lam{x}{t} \mid v \Rightarrow v &
   \textit{value} \\
@@ -148,9 +148,9 @@
   closed value $\mathit{cv}$ is one with no free variable
   (Section~\ref{sec:syntax}).
 \item \rn{E-SigApp}: applying a signature gives its result; the signature's
-  parameter and the argument are discarded. It waits until both sides of
+  parameter and the argument are dropped. It waits until both sides of
   the signature are values.
-\item \rn{E-Dup} and \rn{E-Drop} only copy or discard a closed value: work that
+\item \rn{E-Dup} and \rn{E-Drop} only duplicate or drop a closed value: work that
   is not done yet is never copied or lost, and no variable is copied or lost
   (Section~\ref{sec:linearity}). Otherwise they wait for run time.
 \end{points}
@@ -240,10 +240,10 @@
   since its form half is $\lam{x}{t}$.
 \item Free variables are not checked again inside a body: each is checked at its
   own binder, or comes from the environment, which is trusted.
-\item $\dup$ and $\drop$ are the only ways to copy or discard; they bind nothing.
+\item $\dup$ and $\drop$ are the only ways to duplicate or drop; they bind nothing.
   For example $\dup\ x\ (\lam{a}{\lam{b}{a\ b}})$ uses $x$ twice.
 \item Reduction keeps a term linear: \rn{E-Beta} puts $t_2$ where the
-  single $x$ was, \rn{E-Dup} and \rn{E-Drop} only copy or discard closed terms,
+  single $x$ was, \rn{E-Dup} and \rn{E-Drop} only duplicate or drop closed terms,
   and the rules for clad terms leave both halves unchanged.
 \end{points}
 
