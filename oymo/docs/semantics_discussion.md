@@ -29,7 +29,13 @@ words. Then prove in Lean 4 that nothing is missed.
 The user: "becomes so complex. lets simplify. i want simple full beta rule." Then:
 "we will gradually add new syntax. so we are start from scratch."
 
-Names (agreed): a **naked** term has no `~` at its root; a **clad** term is
+**Names revised again (the user): solo / duet.** A solo has no `~` anywhere; a duet has one somewhere; both are terms. Letters: `t` term, `s` solo, `d` duet (a letter for duets because more duet syntax will come). A duet stands for the pair of its halves; one rule E-Split `d ⟶ term(d)~form(d)` (when `d` is not `s₁~s₂`) replaces the split rules and E-Reclad; E-Duet1/2 step each side of a pair. In `t₁~t₂`, `t₂` is still the form of `t₁`.
+
+The user then restricted the pair to `s~s` (both sides solo), so `~` never nests; closed under reduction because E-Beta only substitutes solos into solos and a duet only splits. Halves: `term(s₁~s₂) = s₁`, `form(s₁~s₂) = s₂`. Syntax is defined once under `t`; `s` and `d` are classes.
+
+Superseded: **formless / formed** (naked/clad dropped; considered matter/substance, strand/duplex). The user's analogy: a formed term is two concurrent computations, each side computed separately, stored as a pair; a formed term can come from a formless one, never back. **Constraint (agreed):** `t ::= formless`, formed = `t₁~t₂` with both sides formless, only at the top. A term written with `~` inside stands for `term(t)~form(t)` (the halves become a definition); the split rules and E-Reclad leave the computation; E-Clad1/2 become E-Formed1/2; confluence carries over from the formless calculus.
+
+Earlier names: a **naked** term has no `~` at its root; a **clad** term is
 `naked~naked`. ("Formed" already names the node `t~F` in the code; "form" clashes
 with "normal form".) Variables: `t`, `s` (and `F`, `G` as forms) for naked terms;
 `p`, `q` for clad terms.
@@ -601,6 +607,8 @@ on  ::= n | n~φ | {lᵢ = onᵢ} | ne
 - Every change is marked blue (new) / red struck (removed) until the user accepts.
 
 ## State of semantics.tex (accepted)
+
+Latest accepted: solo/duet (`t` term, `s` solo, `d` duet; syntax once under `t`, `s`/`d` as classes), pair `s~s` only, one rule E-Split, E-Duet1/2, E-Collapse removed, evaluation strategy dropped for now, α-equivalence wording.
 
 Rewritten from scratch (the user: "clear up semantics.tex and add what we build so
 far"); accepted by the user. It holds rebuild steps 1–4:

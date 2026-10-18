@@ -141,6 +141,11 @@ The user's orders, kept as given. Follow them in every task.
     `semantics.tex` was rewritten from scratch with steps 1–4 (accepted;
     no review marks left); the previous draft is in git. The evaluation strategy
     (`⟶w`) is dropped for now, until the full syntax and full β are settled.
+    Names now **solo / duet** (letters `t` term, `s` solo, `d` duet; formless/formed and
+    naked/clad dropped). A duet has a `~` somewhere and stands for the pair
+    `term(d)~form(d)` via one rule E-Split; E-Duet1/2 step each side. (Older note:) a formed term `t₁~t₂` is a
+    pair of formless terms, only at the top; `~` written inside stands for the halves
+    `term(t)~form(t)`; no split rules, E-Formed1/2 step each side.
     D6 (done): roadmap node `term-classes` (classes-doc, classes-lean, classes-check,
     classes-code) under `foundations`; `conf-lean` under `confluence`. `classes-code`
     is kept apart from `conf-form` (that one is E-Reform and dropping `strip`).

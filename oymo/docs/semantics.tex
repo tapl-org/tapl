@@ -14,7 +14,7 @@
 %% ── Macros (each notation is introduced in the text where it is first used) ──
 \newcommand{\step}{\longrightarrow}             % one step
 \newcommand{\lam}[2]{\lambda #1.\,#2}           % λx. t
-\newcommand{\cl}[2]{#1{\sim}#2}                 % t1~t2, a clad term
+\newcommand{\cl}[2]{#1{\sim}#2}                 % t1~t2, a pair
 \newcommand{\subst}[3]{[#1 \mapsto #2]\,#3}     % [x ↦ t2] t1
 \newcommand{\fn}[1]{\mathit{#1}}                % meta function
 \newcommand{\rn}[1]{\textsc{#1}}                % rule name in text
@@ -72,46 +72,61 @@
 
 \[
 \begin{array}{l@{\quad}rcll}
- & t & ::= & & \textit{terms} \\
+ & t & ::= & & \textit{term} \\
 \pt &   & \mid & x & \textit{variable} \\
 \pt &   & \mid & \lam{x}{t} & \textit{abstraction} \\
 \pt &   & \mid & t\ t & \textit{application} \\
 \pt &   & \mid & t \Rightarrow t & \textit{signature} \\
 \pt &   & \mid & \dup\ t\ t & \textit{duplicate} \\
 \pt &   & \mid & \drop\ t\ t & \textit{drop} \\
-\pt &   & \mid & \cl{t}{t} & \textit{clad term} \\[6pt]
-\pt & v & ::= & \lam{x}{t} \mid v \Rightarrow v &
+\pt &   & \mid & \cl{s}{s} & \textit{pair} \\[6pt]
+\pt & s & ::= & x \mid \lam{x}{s} \mid s\ s \mid s \Rightarrow s
+  \mid \dup\ s\ s \mid \drop\ s\ s & \textit{solo} \\
+\pt & d & ::= & \cl{s}{s} \mid \lam{x}{d} \mid d\ t \mid s\ d \mid
+  d \Rightarrow t \mid s \Rightarrow d & \textit{duet} \\
+ & & \mid & \dup\ d\ t \mid \dup\ s\ d \mid \drop\ d\ t \mid
+  \drop\ s\ d & \\
+\pt & v & ::= & \lam{x}{s} \mid v \Rightarrow v &
   \textit{value} \\
 \pt & \mathit{cv} & ::= & v \text{ where } \fn{FV}(v) = \emptyset &
   \textit{closed value} \\
 \pt & \mathit{ov} & ::= & v \text{ where } \fn{FV}(v) \ne \emptyset &
   \textit{open value} \\
-\pt & \mathit{ne} & ::= & x \mid \mathit{ne}\ t \mid
-  \mathit{ne} \Rightarrow t \mid v \Rightarrow \mathit{ne} \mid
-  \dup\ \mathit{ne}\ t \mid \drop\ \mathit{ne}\ t & \textit{neutral} \\
- & & \mid & \dup\ \mathit{ov}\ t \mid \drop\ \mathit{ov}\ t & \\
-\pt & r & ::= & (\lam{x}{t})\ t \mid (v \Rightarrow v)\ t \mid
-  \dup\ \mathit{cv}\ t \mid \drop\ \mathit{cv}\ t & \textit{reducible} \\
- & & \mid & r\ t \mid r \Rightarrow t \mid v \Rightarrow r \mid
-  \dup\ r\ t \mid \drop\ r\ t &
+\pt & \mathit{ne} & ::= & x \mid \mathit{ne}\ s \mid
+  \mathit{ne} \Rightarrow s \mid v \Rightarrow \mathit{ne} \mid
+  \dup\ \mathit{ne}\ s \mid \drop\ \mathit{ne}\ s & \textit{neutral} \\
+ & & \mid & \dup\ \mathit{ov}\ s \mid \drop\ \mathit{ov}\ s & \\
+\pt & r & ::= & (\lam{x}{s})\ s \mid (v \Rightarrow v)\ s \mid
+  \dup\ \mathit{cv}\ s \mid \drop\ \mathit{cv}\ s & \textit{reducible} \\
+ & & \mid & r\ s \mid r \Rightarrow s \mid v \Rightarrow r \mid
+  \dup\ r\ s \mid \drop\ r\ s &
 \end{array}
 \]
 \begin{points}
-\item $x$ ranges over variables and $t$ over terms, forms included; $t_1$, $t_2$,
-  \dots\ are different terms in one rule.
-\item A term is \emph{naked} when its root is not ${\sim}$, and \emph{clad} when
-  it is $\cl{t_1}{t_2}$. In $\cl{t_1}{t_2}$, $t_1$ is the term side and
-  $t_2$ the form side.
+\item $x$ ranges over variables;
+  $t$, $s$ and $d$ range over terms, solos and duets, forms included.
+  Subscripts ($s_1$, $s_2$, \dots) mark
+  different terms in one rule.
+\item A \emph{solo} has no ${\sim}$ anywhere; a \emph{duet} has one somewhere.
+  In $\cl{s_1}{s_2}$, $s_1$ is the term and $s_2$ its form: $\cl{3}{\kw{i32}}$ is
+  $3$ with the form $\kw{i32}$. Both sides of ${\sim}$ are solos, so ${\sim}$
+  never nests.
 \item A form is similar to a type, but with no typing rules: nothing checks it.
-\item A naked term with no ${\sim}$ inside is read as $\cl{t}{t}$, clad by
-  itself. The \emph{halves} of a term go through every construct and stop at
-  each ${\sim}$:
+\item The \emph{halves} of a term go through
+  every construct and stop at each ${\sim}$:
   \[
-  \tm{\cl{t_1}{t_2}} = \tm{t_1},\qquad \fh{\cl{t_1}{t_2}} = \tm{t_2},
+  \tm{\cl{s_1}{s_2}} = s_1,\qquad \fh{\cl{s_1}{s_2}} = s_2,
   \]
   and for every other construct both halves are taken part by part, e.g.
   $\tm{t_1\ t_2} = \tm{t_1}\ \tm{t_2}$, $\fh{\lam{x}{t}} = \lam{x}{\fh{t}}$,
-  $\tm{x} = \fh{x} = x$. Both halves are naked terms with no ${\sim}$ inside.
+  $\tm{x} = \fh{x} = x$. Both halves are solos, and both halves of a solo are the solo itself.
+\item A duet stands for the pair of its halves, $\cl{\tm{d}}{\fh{d}}$: two
+  solos that compute separately, side by side. For example $\lam{x}{\cl{x}{s}}$
+  stands for $\cl{(\lam{x}{x})}{(\lam{x}{s})}$, and $(\cl{s_1}{s_2})\ s_3$ for
+  $\cl{(s_1\ s_3)}{(s_2\ s_3)}$: the result's form is the form applied to the
+  argument.
+\item A solo $s$ can be read as $\cl{s}{s}$, but a duet never becomes a solo
+  again.
 \item Terms are equal up to $\alpha$-equivalence (renaming bound variables).
   When a bound variable of $t_1$ clashes with a free variable of $t_2$,
   $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then
@@ -120,10 +135,11 @@
   $\fn{FV}(x) = \{x\}$, $\fn{FV}(\lam{x}{t}) = \fn{FV}(t) \setminus \{x\}$, and
   for every other construct the union over its parts, both sides of ${\sim}$
   included.
-\item $r$, $v$, $\mathit{cv}$, $\mathit{ov}$ and $\mathit{ne}$ are the term classes, for naked terms
-  without ${\sim}$; the classes for clad terms are not written yet. Every such
-  term is in exactly one class: reducible (a rule of Section~\ref{sec:computation} applies at its
-  head), a value, or neutral.
+\item $s$, $d$, $r$, $v$, $\mathit{cv}$, $\mathit{ov}$ and $\mathit{ne}$ are the
+  term classes. Every term is a solo or a duet. $r$, $v$, $\mathit{cv}$, $\mathit{ov}$ and $\mathit{ne}$
+  classify solos; the classes for duets are not written
+  yet. Every solo is in exactly one class: reducible (a rule of
+  Section~\ref{sec:computation} applies at its head), a value, or neutral.
 \item $\mathit{cv}$ and $\mathit{ov}$ split the values by $\fn{FV}$, a condition
   a grammar can't express: being closed depends on the binders.
 \item A neutral term waits for a free variable. Once its binder is applied it
@@ -136,16 +152,19 @@
 
 \begin{rules}
 \axiomrow{E-Beta}
-  {(\lam{x}{t_1})\ t_2 \;\step\; \subst{x}{t_2}{t_1}}
+  {(\lam{x}{s_1})\ s_2 \;\step\; \subst{x}{s_2}{s_1}}
 \axiomrow{E-SigApp}
-  {(v_1 \Rightarrow v_2)\ t \;\step\; \drop\ v_1\ (\drop\ t\ v_2)}
+  {(v_1 \Rightarrow v_2)\ s \;\step\; \drop\ v_1\ (\drop\ s\ v_2)}
 \axiomrow{E-Dup}
-  {\dup\ \mathit{cv}\ t \;\step\; t\ \mathit{cv}\ \mathit{cv}}
+  {\dup\ \mathit{cv}\ s \;\step\; s\ \mathit{cv}\ \mathit{cv}}
 \axiomrow{E-Drop}
-  {\drop\ \mathit{cv}\ t \;\step\; t}
+  {\drop\ \mathit{cv}\ s \;\step\; s}
+\rulerow{E-Split}
+  {d \text{ is not } \cl{s_1}{s_2}}
+  {d \;\step\; \cl{\tm{d}}{\fh{d}}}
 \end{rules}
 \begin{points}
-\item A value is $\lam{x}{t}$ or $v_1 \Rightarrow v_2$, and a
+\item A value is $\lam{x}{s}$ or $v_1 \Rightarrow v_2$, and a
   closed value $\mathit{cv}$ is one with no free variable
   (Section~\ref{sec:syntax}).
 \item \rn{E-SigApp}: applying a signature gives its result; the signature's
@@ -154,47 +173,9 @@
 \item \rn{E-Dup} and \rn{E-Drop} only duplicate or drop a closed value: work that
   is not done yet is never copied or lost, and no variable is copied or lost
   (Section~\ref{sec:linearity}). Otherwise they wait for run time.
-\end{points}
-
-\subsection{Clad terms}
-
-\begin{rules}
-\rulerow{E-SplitApp}
-  {t_1 \text{ or } t_2 \text{ is clad}}
-  {t_1\ t_2 \;\step\; \cl{(\tm{t_1}\ \tm{t_2})}{(\fh{t_1}\ \fh{t_2})}}
-\rulerow{E-SplitAbs}
-  {t \text{ is clad}}
-  {\lam{x}{t} \;\step\; \cl{(\lam{x}{\tm{t}})}{(\lam{x}{\fh{t}})}}
-\rulerow{E-SplitSig}
-  {t_1 \text{ or } t_2 \text{ is clad}}
-  {t_1 \Rightarrow t_2 \;\step\;
-    \cl{(\tm{t_1} \Rightarrow \tm{t_2})}{(\fh{t_1} \Rightarrow \fh{t_2})}}
-\rulerow{E-SplitDup}
-  {t_1 \text{ or } t_2 \text{ is clad}}
-  {\dup\ t_1\ t_2 \;\step\;
-    \cl{(\dup\ \tm{t_1}\ \tm{t_2})}{(\dup\ \fh{t_1}\ \fh{t_2})}}
-\rulerow{E-SplitDrop}
-  {t_1 \text{ or } t_2 \text{ is clad}}
-  {\drop\ t_1\ t_2 \;\step\;
-    \cl{(\drop\ \tm{t_1}\ \tm{t_2})}{(\drop\ \fh{t_1}\ \fh{t_2})}}
-\rulerow{E-Reclad}
-  {t_1 \text{ or } t_2 \text{ is clad}}
-  {\cl{t_1}{t_2} \;\step\; \cl{\tm{t_1}}{\tm{t_2}}}
-\end{rules}
-\begin{points}
-\item The split rules move a construct with a clad part into both sides: the
-  term side computes with the term halves, the form side with the form halves.
-  For example $(\cl{t_1}{t_2})\ t_3 \step \cl{(t_1\ t_3)}{(t_2\ t_3)}$: the
-  result's form is the form applied to the argument.
-\item The halves go all the way down, so a naked part with a ${\sim}$ inside is
-  split correctly too: $(\lam{z}{\cl{z}{t_1}})\ (\cl{t_2}{t_3})$ gives
-  $\cl{t_2}{t_1}$ both by \rn{E-Beta} and by \rn{E-SplitApp}.
-\item \rn{E-Reclad}: a written form replaces the old one, and a form's own form
-  is discarded: $\cl{(\cl{t_1}{t_2})}{(\cl{t_3}{t_4})} \step
-  \cl{t_1}{t_3}$. ${\sim}$ does not split like the other constructs, which would
-  give a clad term again.
-\item None of these rules changes the halves of a term. After them, both sides
-  of every clad term are naked.
+\item \rn{E-Split} turns a duet into the pair of its halves. The first four
+  rules are on solos; a pair $\cl{s_1}{s_2}$ computes each side
+  (Section~\ref{sec:congruence}).
 \end{points}
 
 %% ── Congruence ─────────────────────────────────────────────────────────
@@ -202,25 +183,25 @@
 \section{Full \texorpdfstring{$\beta$}{beta}}\label{sec:congruence}
 
 \begin{rules}
-\rulerow{E-Abs}{t \step t'}{\lam{x}{t} \;\step\; \lam{x}{t'}}
-\rulerow{E-App1}{t_1 \step t_1'}{t_1\ t_2 \;\step\; t_1'\ t_2}
-\rulerow{E-App2}{t_2 \step t_2'}{t_1\ t_2 \;\step\; t_1\ t_2'}
-\rulerow{E-Sig1}{t_1 \step t_1'}{t_1 \Rightarrow t_2 \;\step\; t_1' \Rightarrow t_2}
-\rulerow{E-Sig2}{t_2 \step t_2'}{t_1 \Rightarrow t_2 \;\step\; t_1 \Rightarrow t_2'}
-\rulerow{E-Dup1}{t_1 \step t_1'}{\dup\ t_1\ t_2 \;\step\; \dup\ t_1'\ t_2}
-\rulerow{E-Dup2}{t_2 \step t_2'}{\dup\ t_1\ t_2 \;\step\; \dup\ t_1\ t_2'}
-\rulerow{E-Drop1}{t_1 \step t_1'}{\drop\ t_1\ t_2 \;\step\; \drop\ t_1'\ t_2}
-\rulerow{E-Drop2}{t_2 \step t_2'}{\drop\ t_1\ t_2 \;\step\; \drop\ t_1\ t_2'}
-\rulerow{E-Clad1}{t_1 \step t_1'}{\cl{t_1}{t_2} \;\step\; \cl{t_1'}{t_2}}
-\rulerow{E-Clad2}{t_2 \step t_2'}{\cl{t_1}{t_2} \;\step\; \cl{t_1}{t_2'}}
+\rulerow{E-Abs}{s \step s'}{\lam{x}{s} \;\step\; \lam{x}{s'}}
+\rulerow{E-App1}{s_1 \step s_1'}{s_1\ s_2 \;\step\; s_1'\ s_2}
+\rulerow{E-App2}{s_2 \step s_2'}{s_1\ s_2 \;\step\; s_1\ s_2'}
+\rulerow{E-Sig1}{s_1 \step s_1'}{s_1 \Rightarrow s_2 \;\step\; s_1' \Rightarrow s_2}
+\rulerow{E-Sig2}{s_2 \step s_2'}{s_1 \Rightarrow s_2 \;\step\; s_1 \Rightarrow s_2'}
+\rulerow{E-Dup1}{s_1 \step s_1'}{\dup\ s_1\ s_2 \;\step\; \dup\ s_1'\ s_2}
+\rulerow{E-Dup2}{s_2 \step s_2'}{\dup\ s_1\ s_2 \;\step\; \dup\ s_1\ s_2'}
+\rulerow{E-Drop1}{s_1 \step s_1'}{\drop\ s_1\ s_2 \;\step\; \drop\ s_1'\ s_2}
+\rulerow{E-Drop2}{s_2 \step s_2'}{\drop\ s_1\ s_2 \;\step\; \drop\ s_1\ s_2'}
+\rulerow{E-Duet1}{s_1 \step s_1'}{\cl{s_1}{s_2} \;\step\; \cl{s_1'}{s_2}}
+\rulerow{E-Duet2}{s_2 \step s_2'}{\cl{s_1}{s_2} \;\step\; \cl{s_1}{s_2'}}
 \end{rules}
 \begin{points}
 \item $\step$ is full $\beta$: a rule of Section~\ref{sec:computation} may fire
-  anywhere, under a $\lambda$ and in either side of ${\sim}$ too.
-\item $\step$ is expected to be confluent. Proof idea: each half maps a term to a
-  naked term, and a step on a term is zero or more steps on each half; the rules
-  for clad terms leave both halves unchanged. Confluence then comes from the
-  naked calculus (Church--Rosser).
+  anywhere, under a $\lambda$ and in either side of a pair too.
+\item $\step$ is expected to be confluent.  On solos it is the
+  $\lambda$-calculus with $\Rightarrow$, $\dup$ and $\drop$ (Church--Rosser). A
+  duet first splits into a pair; a pair steps one side at a time and the sides are
+  independent, so confluence carries over.
 \end{points}
 
 %% ── Linearity ──────────────────────────────────────────────────────────
@@ -228,20 +209,19 @@
 \section{Linearity}\label{sec:linearity}
 
 \begin{points}
-\item A naked term with no ${\sim}$ inside is \emph{linear} when, for every
-  $\lam{x}{t}$ in it, $x$ occurs exactly once in $t$, counting occurrences
-  inside inner $\lambda$s.
-\item Any term is linear when both of its halves are linear: the term side and
-  the form side are each checked, as the naked terms they become after
-  splitting. For example $\lam{x}{\cl{x}{t}}$ needs $x$ once in $t$ too,
-  since its form half is $\lam{x}{t}$.
+\item A solo is \emph{linear} when,
+  for every $\lam{x}{s}$ in it, $x$ occurs exactly once in $s$,
+  counting occurrences inside inner $\lambda$s.
+\item A duet is linear when both of its halves are linear. For example $\lam{x}{\cl{x}{s}}$ needs $x$ once
+  in $s$ too, since its form half is $\lam{x}{s}$.
 \item Free variables are not checked again inside a body: each is checked at its
   own binder, or comes from the environment, which is trusted.
 \item $\dup$ and $\drop$ are the only ways to duplicate or drop; they bind nothing.
   For example $\dup\ x\ (\lam{a}{\lam{b}{a\ b}})$ uses $x$ twice.
-\item Reduction keeps a term linear: \rn{E-Beta} puts $t_2$ where the
+\item Reduction keeps a term linear: \rn{E-Beta} puts $s_2$ where the
   single $x$ was, \rn{E-Dup} and \rn{E-Drop} only duplicate or drop closed terms,
-  and the rules for clad terms leave both halves unchanged.
+  and \rn{E-Split} leaves both halves
+  unchanged.
 \end{points}
 
 \end{document}
