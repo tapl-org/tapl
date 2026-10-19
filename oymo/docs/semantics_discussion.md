@@ -239,6 +239,12 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D40: no `▷ₛ` in the shape column — agreed (accepted)
+- User asked to make the doc "extensional like i did in theta doc"; then clarified: "actually, what i want is not to use ▷ₛ in shape column".
+- Two forms added before the table: row 1 shared `let` `(x→t₁) t₂`, `t₂` neither a value nor a variable; row 2 `w` = a term in which every redex is a shared `let` (shared normal form). Not circular.
+- Rows reordered so a `w` row comes first and the fallback chooses the other part: `(x→t₁) w → t₁` then `→ t₂`; `t₁ !w → t₁` then `→ t₂`; `{…} w → {…}` then `{…} t₂ → t₂`; `w t₂ → t₂` then `t₁ t₂ → t₁`; struct: first field not in `w`. Old row `b t₂` dropped (covered by `w t₂`, since `b ∈ w`).
+- 6/20: a term in `w` has no step; every other term has one. Table rows 3–19; old table shown struck.
+
 ### D39: `▷ₛ` as a table (shape → choose); neutral removed; struct length `k` — agreed (accepted)
 - User: "based on premise shape, conclusion will be full-beta rule name… for this pattern, we choose this full-beta rule."
 - User: "rows are tried top to bottom… conclusion is only from sections 2, otherwise to be reduced chosen term."
