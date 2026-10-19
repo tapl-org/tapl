@@ -229,6 +229,14 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D17: opcode call `b {…}` — agreed (accepted)
+
+- The user: "lets add application of: b {...} this is a opcode call. and it can be evaluated, or not if undefined behavior, or may be effect".
+- `b` names the opcode, the struct holds the operands (`'add' {'i32', a, b}`). `op(b)` is a partial function from operand values to a byte array.
+- E-Opcode `b {l₁ = v₁, …, lₙ = vₙ} ⟶ b'` when `op(b)(v₁, …, vₙ) = b'` (compile-time evaluation). No result (effect, undefined behavior) → the call is neutral, a run-time operation; the translation to LLVM emits it as an instruction.
+- Classes: `r` gets `b {l=v} (op gives a result) | b r`; `ne` gets `b {l=v} (op gives none) | b ne`. No new congruence rule: E-App2 and E-Struct step the operands.
+- Wrong terms: a struct applied to anything; a byte array applied to a non-struct value.
+
 ### D16: projection by position; unique labels — agreed (accepted)
 
 - E-Index and struct application removed (`if` branches now; a run-time index into a struct is not valid LLVM anyway). Added `t.k`: positions count every field from 0, labeled or not; a label names one position. E-ProjPos `{l₁ = t₁, …, lₙ = tₙ}.k ⟶ tₖ₊₁` (`k < n`), congruence E-ProjPos1. Both projections become `extractvalue` with a constant index.
@@ -655,6 +663,8 @@ on  ::= n | n~φ | {lᵢ = onᵢ} | ne
 - Every change is marked blue (new) / red struck (removed) until the user accepts.
 
 ## State of semantics.tex (accepted)
+
+Latest accepted (after D17): terms `x | λx. t | t t | {l = t, …} | t.l | t.k | b | if t then t else t | !t`; opcode call `b {l = v, …}` via E-Opcode (`op(b)` partial; no result → neutral run-time operation); rules E-Beta, E-Proj, E-ProjPos, E-IfTrue, E-IfFalse, E-Opcode, E-Strict; full β congruence; Section 4 "What Runs".
 
 Latest accepted (after D12 and step 6): terms `x | λx. t | t t | dup t t | drop t t | {l = t, …} | t.l | b | case t when b then t ⋯ else t`; a struct is a value only when its fields are values; rules E-Beta, E-Dup, E-Drop, E-Proj, E-Index, E-Case, E-CaseElse; `case` syntax kept as is (shorter options declined).
 
