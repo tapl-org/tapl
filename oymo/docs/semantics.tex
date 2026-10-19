@@ -17,7 +17,9 @@
 \newcommand{\subst}[3]{[#1 \mapsto #2]\,#3}     % [x ↦ t2] t1
 \newcommand{\fn}[1]{\mathit{#1}}                % meta function
 \newcommand{\rn}[1]{\textsc{#1}}                % rule name in text
-\newcommand{\kw}[1]{\mathtt{#1}}                % keyword in math
+\newcommand{\kw}[1]{\mathtt{#1}}
+\newcommand{\str}[1]{\text{\ttfamily\textquotesingle #1\textquotesingle}}  % 'text' bytes
+\newcommand{\hex}[1]{\text{\ttfamily [#1]}}  % [hex] bytes                % keyword in math
 \newcommand{\ifte}[1]{\kw{if}\ #1\ \kw{then}\ t_1\ \kw{else}\ t_2}  % if
 
 \mprset{sep=1.5em}
@@ -54,7 +56,7 @@
 \newcommand{\axiomrow}[2]{\ruleline{#1}{$#2$}\vspace{8pt}}
 \newcommand{\rulerow}[3]{\ruleline{#1}{$\inferrule{#2}{#3}$}\vspace{12pt}}
 
-\title{Oymo Semantics\\[8pt]\normalsize\textsc{Draft --- under review}}
+\title{Oymomo Semantics\\[8pt]\normalsize\textsc{Draft --- under review}}
 \author{Orti Bazar\\ \texttt{orti.bazar@gmail.com}}
 \date{October 2026}
 
@@ -83,7 +85,7 @@
 \pt & \mathit{ne} & ::= & x \mid \mathit{ne}\ t \mid \mathit{ne}.l \mid
   (!t)\ \mathit{ne} \mid !\mathit{ne} & \textit{neutral} \\
  & & \mid &
-  \{l_1 = v_1, \dots, l_i = \mathit{ne}, \dots\} \mid \mathit{ne}.k & \\
+  \{\dots, l_i = \mathit{ne}, \dots\} \mid \mathit{ne}.k & \\
  & & \mid & \ifte{\mathit{ne}} & \\
 \pt & r & ::= & (\lam{x}{t})\ t \mid \{l_1 = t_1, \dots, l_n = t_n\}.l
   \mid (!v_1)\ v_2 & \textit{reducible} \\
@@ -91,19 +93,22 @@
   \{l_1 = t_1, \dots, l_n = t_n\}.k & \\
  & & \mid & r\ t \mid r.l \mid (!v)\ r \mid !r & \\
  & & \mid &
-  \{l_1 = v_1, \dots, l_i = r, \dots\} \mid r.k & \\
+  \{\dots, l_i = r, \dots\} \mid r.k & \\
  & & \mid & \ifte{[01]} \mid \ifte{[00]} & \\
  & & \mid & \ifte{r} &
 \end{array}
 \]
 \begin{points}
+\item A byte array $b$ is a sequence of bytes. It can be seen as a number
+  at any time: unsigned and little-endian. It is mostly written in hex,
+  $\hex{01ff}$. When its bytes are valid UTF-8 text, it may be written as text
+  instead: $\str{i32}$ is the byte array $\hex{693332}$.
 \item $x$ ranges over variables, $l$ over labels, $k$ over positions
   $0, 1, 2, \dots$, $b$ over byte
   arrays and $t$ over
   terms. Subscripts ($t_1$, $t_2$, \dots) mark different terms in one
   rule.
-\item Types are not a separate syntax: a type is an ordinary term, passed to an
-  opcode as an operand (opcodes come later), as in LLVM's
+\item Types are not a separate syntax: a type is an ordinary term, passed to an opcode as an operand (opcodes come later): $\str{add}\ \{\str{i32}, a, b\}$ is LLVM's
   $\kw{add\ i32}\ a, b$.
 \item A struct's fields are ordered; a label may be empty (no label); the other labels are unique. A struct is data: it is
   consumed by projection (and later by opcodes), never applied.
@@ -112,10 +117,10 @@
   $s.1 = b$, $s.2 = s.y = c$. An unlabeled field is reached only by its position.
   An identifier never starts with a digit, so $.1$ is always a position. Both
   projections become LLVM's $\kw{extractvalue}$ with a constant index.
-\item A byte array $b$ is a sequence of bytes. It can be seen as a number
-  at any time: unsigned and little-endian.
-\item A struct is a value only when all its fields are values; its fields
-  are computed first, left to right in the classes. 
+\item A struct is a value only when all its fields are values. Its fields are computed
+  in no particular order: full $\beta$ may step any of them. A struct with a
+  reducible field is reducible; one with a neutral field and no reducible field
+  is neutral.
 \item $\kw{if}$ branches on a one-byte condition: $[01]$ takes the
   $\kw{then}$ arm, $[00]$ the $\kw{else}$ arm, as LLVM's $\kw{br\ i1}$. A
   multi-way branch is a chain of $\kw{if}$s; the tested value can be used in
@@ -165,13 +170,13 @@
 \end{rules}
 \begin{points}
 \item A value is $\lam{x}{t}$, a struct or a byte array (Section~\ref{sec:syntax}).
-\item \rn{E-Proj} takes the  field labeled $l$ (labels are unique), and \rn{E-ProjPos} the field at
+\item \rn{E-Proj} takes the field labeled $l$ (labels are unique), and \rn{E-ProjPos} the field at
   position $k$; the other fields are discarded.
 \item \rn{E-IfTrue} and
   \rn{E-IfFalse} discard the other arm; a discarded
   arm never runs.
 \item \rn{E-Strict} fires only on a value: a value has no effect left to run.
-  A strict term applied to a run-time operation waits; translation emits the operation
+  A strict term applied to a run-time operation waits; the translation to LLVM emits the operation
   first, then the rest, with the result as an SSA value.
 \end{points}
 
@@ -211,12 +216,26 @@
 \item Reduction never runs an effect: an effectful operation (with opcodes,
   later) is neutral at compile time. Full $\beta$ may copy or discard a term
   freely; since it is confluent, every order reaches the same normal form.
-\item What runs is read from the normal form: each effect in it runs once,
-  in the order fixed by strict terms and by data dependencies; everything else is
-  pure and may be reordered. An effect written twice runs twice; that is the
-  user's choice, visible in the program.
-\item Translation must not share two occurrences of an effect; it may share
-  pure operations.
+\item The program that runs is the normal form. Count the effects in it: each
+  one runs exactly once. For example, with $p = \kw{print}\ \str{h}$ (an effect):
+  \begin{itemize}[nosep]
+  \item $(\lam{x}{\{x, x\}})\ p$ has the normal form $\{p, p\}$: $\str{h}$ is
+    printed twice, because the program wrote $x$ twice;
+  \item $!(\lam{x}{\{x, x\}})\ p$ waits for $p$: $\str{h}$ is printed once, and
+    both fields hold its result.
+  \end{itemize}
+  Effects run in the order the program asks for, with a strict term or by using
+  one effect's result in another; any other order is free.
+\item So the translation to LLVM must keep every effect of the normal form, but may merge
+  equal pure operations. For example, with $p = \kw{print}\ \str{h}$ and
+  $q = \kw{add}\ \{\str{i32}, a, b\}$ (pure):
+  \begin{itemize}[nosep]
+  \item $\{p, p\}$ becomes two $\kw{print}$ instructions, never one;
+  \item $\{q, q\}$ may become one $\kw{add}$ instruction whose result fills both
+    fields;
+  \item $!(\lam{x}{\{x, x\}})\ p$ becomes one $\kw{print}$ instruction whose
+    result fills both fields.
+  \end{itemize}
 \end{points}
 
 \end{document}

@@ -36,7 +36,8 @@ The user's orders, kept as given. Follow them in every task.
   line over each group, `array` grammars; no boxes. Named `semantics.tex` (user's choice).
   - It is an abstract document: no θ-calculus or layering, no references to code
     (files, functions, classes, `convert`, BANF names), no de Bruijn indices.
-  - Write "Oymo" in it (user corrected "Oymomo"). The title is "Oymo Semantics". No intro line
+  - Write "Oymomo" in it (user, latest: "this doc only belongs to oymomo language";
+    earlier it was "Oymo"). The title is "Oymomo Semantics". No intro line
     under the title.
   - Section order: Syntax, Computation, Congruence, All Combinations, Evaluation
     Strategy, Syntax Sugar, Under Binders (`shape`).
