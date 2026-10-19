@@ -229,6 +229,23 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D29: strict application `t !t` replaces the strict term `!t` — agreed (accepted)
+
+- The user: "what if i move the strictness to argument, like: t !t"; after a pros/cons comparison (C strict constructor, A strict application, C′ strict binder `!x → t`): "I choose A. and also ! groupping works same as applciation and let". Keep `=` in `let` and `!` as the sigil (walrus `:=`, `←`, other characters discussed and declined).
+- Grammar row 7 `t !t`; values row 8 lose `!v`; E-Strict `t !v ▷ t v`; E-Strict1 replaced by E-SApp1/E-SApp2. Sugar `let x = !t₁ in t₂` is `(x → t₂) !t₁` (`let!` removed). `!` does not change grouping: `f !x y` is `(f !x) y`, `f !(g y)`; in `let`, `t₁` extends to `in`. `!` is not a term on its own.
+- Also D28's 1/20 fix 1 applied ("a byte array applied to a value that is not a struct"); gap 2 (`(!v).l`) disappears with A.
+- Lean updated: constructor `sapp` (strict application), Step E-Strict `sapp t v ▷ app t v`, E-SApp1/2; Neutral `v !n`, `n !n`; Stuck `s !t`, `t !s`. Both theorems rebuilt, no `sorry`.
+- The user: "let x= !t1 in t2, t1 extends to in. but t3 !t1, t1 does not extend. so let one is confusing. maybe ! sigil merge to = sigil like this let x =! t1 in t2". Now `let x =! t₁ in t₂` is `(x → t₂) !(t₁)`; `=!` is one sign (strictness on the binding), so `t₁` extends to `in` as in a plain `let`. Strict application row moved to row 4, after application (user).
+- Infix `f ! x` discussed (tight like application, or loose like Haskell's `$!` but left-associative); the user: "lets keep it as it is. t !t".
+
+### D28: Lean classification of normal forms — done (accepted)
+
+- The user: "implement classification theorem". `proofs/Oymomo/Classification.lean`: `Normal op t` (no step); inductive `Neutral op` and `Stuck`; `classification`: a normal form is a value, neutral or stuck; `classification_unique`: the three are pairwise disjoint (for all terms). Axioms: `propext` only; no `sorry`.
+- Neutral: a variable; a neutral term applied, projected, or under `!`; `(!v) n`; a struct value applied to a neutral condition; `b n`; a run-time operation `b d` with `op` undefined; a struct with a neutral field and no stuck field.
+- Stuck: a stuck term applied, projected, or under `!`; a value head (not a lambda) applied to a stuck term; a struct with a stuck field; `v.l` with no field `l`; `{}` applied to anything; a struct applied to a value that is not a byte array; `b v` with `v` a value that is not a struct, or a struct that is not data.
+- A lambda body and a neutral head's argument are not read: `x ({}.a)` is neutral (the program is still rejected, 1/20, since it contains a stuck term).
+- Doc differences found (open): 1/20 says "a byte array applied to a term that is not a struct" — the proof needs "a value" (`b x` waits, neutral); 1/20's `v.l` list misses `!v`.
+
 ### D27: Lean 4 proof of confluence — done (accepted)
 
 - The user: "start lean 4 proof". Project `oymo/proofs/` (Lean 4.35.0 via elan, Lake, no Mathlib). Files: `Oymomo/Syntax.lean` (terms, values, data, `lookup`, `select`), `Substitution.lean` (de Bruijn renaming/substitution, composition lemmas), `Reduction.lean` (`Step` = ▷ with every rule of Sections 2–3, `Par` parallel reduction), `Confluence.lean` (Takahashi complete development `cd`, triangle, diamond, `confluence`).

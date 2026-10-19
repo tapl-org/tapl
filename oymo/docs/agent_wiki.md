@@ -101,7 +101,8 @@ The user's orders, kept as given. Follow them in every task.
     D27 (supersedes D5's round one): `oymo/proofs/` exists (Lean 4.35.0, no Mathlib;
     build with `PATH=$HOME/.elan/bin:$PATH lake build` in `proofs/`). It proves
     `Oymomo.confluence` for full β (Takahashi: `cd`, triangle) with `op` abstract; de
-    Bruijn indices, structs as `scons`/`snil` chains. `⟶w` and classification later.
+    Bruijn indices, structs as `scons`/`snil` chains. D28: `Classification.lean` proves
+    every normal form is a value, neutral or stuck (disjoint). `⟶w` later.
     The user allowed one code reference in semantics.tex: 3/8 names `proofs/` and
     `Oymomo.confluence`.
     D7 (revised, points 1–2 agreed): a `stuck t` term (users can write it) replaces

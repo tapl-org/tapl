@@ -29,18 +29,17 @@ inductive Term where
   | scons : String → Term → Term → Term   -- a field `l = t` in front of the rest
   | proj : Term → String → Term           -- `t.l`
   | bytes : Bytes → Term                  -- `b`
-  | strict : Term → Term                  -- `!t`
+  | sapp : Term → Term → Term             -- `t !t`, strict application
   deriving Inhabited
 
 open Term
 
-/-- Values `v` (row 8): `x → t`, a struct of values, `b`, `!v`. -/
+/-- Values `v` (row 8): `x → t`, a struct of values, `b`. -/
 def isValue : Term → Bool
   | lam _ => true
   | snil => true
   | scons _ t r => isValue t && isValue r
   | bytes _ => true
-  | strict t => isValue t
   | _ => false
 
 /-- Data `d` (row 9): a byte array or a struct of data. -/

@@ -28,7 +28,7 @@ theorem Par.ren {t t' : Term} (h : Par op t t') (ξ : Nat → Nat) :
   | app _ _ iha ihb => exact .app (iha _) (ihb _)
   | scons _ _ iht ihr => exact .scons (iht _) (ihr _)
   | proj _ ih => exact .proj (ih _)
-  | strict _ ih => exact .strict (ih _)
+  | sapp _ _ iha ihb => exact .sapp (iha _) (ihb _)
   | beta _ _ iht ihu =>
     simp only [Oymomo.ren]
     rw [ren_inst]
@@ -56,7 +56,7 @@ theorem Par.subst {t t' : Term} (h : Par op t t') {σ τ : Nat → Term}
   | app _ _ iha ihb => exact .app (iha hσ) (ihb hσ)
   | scons _ _ iht ihr => exact .scons (iht hσ) (ihr hσ)
   | proj _ ih => exact .proj (ih hσ)
-  | strict _ ih => exact .strict (ih hσ)
+  | sapp _ _ iha ihb => exact .sapp (iha hσ) (ihb hσ)
   | beta _ _ iht ihu =>
     simp only [Oymomo.subst]
     rw [subst_inst]
@@ -84,11 +84,9 @@ def cd : Term → Term
   | snil => snil
   | scons l t r => scons l (cd t) (cd r)
   | bytes b => bytes b
-  | strict t => strict (cd t)
+  | sapp t v => if isValue v then app (cd t) (cd v) else sapp (cd t) (cd v)
   | proj s l => if (lookup s l).isSome then (lookup (cd s) l).getD snil else proj (cd s) l
   | app (lam t) u => subst (inst (cd u)) (cd t)
-  | app (strict t) v =>
-    if isValue v then app (cd t) (cd v) else app (strict (cd t)) (cd v)
   | app (bytes b) s =>
     match isStruct s && isData s, op b s with
     | true, some b' => bytes b'
@@ -101,7 +99,6 @@ def cd : Term → Term
 /-- Heads that `cd` treats on their own when applied. -/
 def isHead : Term → Bool
   | lam _ => true
-  | strict _ => true
   | bytes _ => true
   | _ => false
 
@@ -155,11 +152,6 @@ theorem Par.lam_inv {t s : Term} (h : Par op (Term.lam t) s) :
   cases h with
   | lam h => exact ⟨_, rfl, h⟩
 
-theorem Par.strict_inv {t s : Term} (h : Par op (Term.strict t) s) :
-    ∃ t', s = Term.strict t' ∧ Par op t t' := by
-  cases h with
-  | strict h => exact ⟨_, rfl, h⟩
-
 theorem Par.bytes_inv {b : Bytes} {s : Term} (h : Par op (Term.bytes b) s) : s = Term.bytes b := by
   cases h; rfl
 
@@ -171,7 +163,15 @@ theorem Par.triangle {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
   | snil => exact .snil
   | lam _ ih => exact .lam ih
   | scons _ _ iht ihr => exact .scons iht ihr
-  | strict _ ih => exact .strict ih
+  | @sapp a a' b b' _ hbb iha ihb =>
+    simp only [cd]
+    cases hv : isValue b with
+    | true =>
+      simp only [ite_true]
+      exact .strictR (hbb.value hv) iha ihb
+    | false =>
+      simp only [Bool.false_eq_true, ite_false]
+      exact .sapp iha ihb
   | @proj t t' l htt ih =>
     simp only [cd]
     cases hl : lookup t l with
@@ -215,18 +215,6 @@ theorem Par.triangle {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
         obtain ⟨_, he, ht⟩ := iha.lam_inv
         cases he
         exact .beta ht ihb
-      | strict t =>
-        obtain ⟨t', rfl, _⟩ := hab.strict_inv
-        simp only [cd]
-        cases hv : isValue b with
-        | true =>
-          simp only [ite_true]
-          obtain ⟨_, he, ht⟩ := iha.strict_inv
-          cases he
-          exact .strictR (hbb.value hv) ht ihb
-        | false =>
-          simp only [Bool.false_eq_true, ite_false]
-          exact .app iha ihb
       | bytes c =>
         rw [hab.bytes_inv]
         simp only [cd]

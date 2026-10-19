@@ -73,11 +73,11 @@
 \pt &   & \mid & x & \textit{variable} \\
 \pt &   & \mid & \lam{x}{t} & \textit{lambda} \\
 \pt &   & \mid & t\ t & \textit{application} \\
+\pt &   & \mid & t\ {!}t & \textit{strict application} \\
 \pt &   & \mid & \{l_1 = t_1, \dots, l_n = t_n\} & \textit{struct} \\
 \pt &   & \mid & t.l & \textit{projection} \\
-\pt &   & \mid & b & \textit{byte array} \\
-\pt &   & \mid & !t & \textit{strict term} \\[6pt]
-\pt & v & ::= & \lam{x}{t} \mid \{l_1 = v_1, \dots, l_n = v_n\} \mid b \mid !v &
+\pt &   & \mid & b & \textit{byte array} \\[6pt]
+\pt & v & ::= & \lam{x}{t} \mid \{l_1 = v_1, \dots, l_n = v_n\} \mid b &
   \textit{value} \\
 \pt & d & ::= & b \mid \{l_1 = d_1, \dots, l_n = d_n\} &
   \textit{data}
@@ -106,7 +106,7 @@
   reduction cannot reduce such a call. Effects include printing and every
   memory opcode: $\str{alloca}$, $\str{load}$ and $\str{store}$. Reduction has no
   memory: it never computes an address or the contents of one; the program orders
-  memory opcodes with strict terms or by using one's result in the next (4/2).
+  memory opcodes with strict applications or by using one's result in the next (4/2).
 \item Positions count every field, labeled or not, from $0$; a label is a
   name for one position. A struct applied to a byte array $b$ selects the
   field at position $b$; past the last field it selects the last one, so the
@@ -120,23 +120,26 @@
   $c$ is not $0$ and $t_2$ when it is $0$, as LLVM's $\kw{br\ i1}$. With more
   fields it is a multi-way branch, as LLVM's $\kw{switch}$. The labels only
   document the arms.
-\item A strict term $!t$ takes its argument only once the argument is a
-  value: $!(\lam{x}{t})\ y$ waits, while $(\lam{x}{t})\ y$ reduces to
+\item A strict application $t_1\ {!}t_2$ applies $t_1$ to $t_2$ only once the argument is a
+  value: $(\lam{x}{t})\ {!}y$ waits, while $(\lam{x}{t})\ y$ reduces to
   $\subst{x}{y}{t}$. It is the only way to order effects and to use one result
-  more than once: $!(\lam{c}{f\ c\ c})\ e$ runs $e$ once, then the body; with
-  $\lam{\_}{t}$ it only orders. $!$ binds tighter than application:
-  $!(\lam{x}{t})\ y$ is $(!(\lam{x}{t}))\ y$.
+  more than once: $(\lam{c}{f\ c\ c})\ {!}e$ runs $e$ once, then the body; with
+  $\lam{\_}{t}$ it only orders. The $!$ does not change grouping: it
+  marks the argument as it is without $!$. So $f\ {!}x\ y$ is $(f\ {!}x)\ y$, and a compound
+  argument needs parentheses: $f\ {!}(g\ y)$. The $!$ is not a term on its own.
 \item Sugar: $\kw{let}\ x = t_1\ \kw{in}\ t_2$ is $(\lam{x}{t_2})\ t_1$, and
-  $\kw{let!}\ x = t_1\ \kw{in}\ t_2$ is $!(\lam{x}{t_2})\ t_1$. So $\kw{let}$ may
-  copy $t_1$ to every use of $x$ or drop it; $\kw{let!}$ runs $t_1$ once, first.
+  $\kw{let}\ x \mathrel{=!} t_1\ \kw{in}\ t_2$ is $(\lam{x}{t_2})\ {!}(t_1)$. Here
+  $=!$ is one sign: the strictness belongs to the binding, so $t_1$ extends to
+  $\kw{in}$ as in a plain $\kw{let}$. So $\kw{let}$ may
+  copy $t_1$ to every use of $x$ or drop it; $\kw{let}\ x \mathrel{=!} t_1$ runs $t_1$ once, first.
 \item Sugar: $\kw{if}\ c\ \kw{then}\ t_1\ \kw{else}\ t_2$ is $\{t_2, t_1\}\ c$.
 \item Terms are equal up to $\alpha$-equivalence (renaming bound variables).
   When a bound variable of $t_1$ clashes with a free variable of $t_2$,
   $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then
   substitutes.
 \item A stuck term is one no rule will ever reduce: a struct
-  applied to a value that is not a byte array, the empty struct applied to anything, a byte array applied to a term that is not a struct, an opcode call
-  whose operand is a value that is not data (a lambda or a strict term somewhere in it),
+  applied to a value that is not a byte array, the empty struct applied to anything, a byte array applied to a value that is not a struct, an opcode call
+  whose operand is a value that is not data (a lambda somewhere in it),
    $v.l$ where $v$ is
   a lambda, a byte array or a struct with no field $l$. A program whose normal form contains a stuck term, anywhere, is rejected at compile time. An unknown opcode or undefined behavior is not stuck: it is a run-time operation (1/14).
 \item A term is neutral when no rule reduces it yet: it waits for a free variable or for a run-time operation. Once its binder is applied it may reduce.
@@ -162,19 +165,18 @@
   {\fn{op}(b)(d_1, \dots, d_n) = b'}
   {b\ \{l_1 = d_1, \dots, l_n = d_n\} \;\step\; b'}
 \axiomrow{E-Strict}
-  {(!t)\ v \;\step\; t\ v}
+  {t\ {!}v \;\step\; t\ v}
 \end{rules}
 \begin{points}
 \item A value is $\lam{x}{t}$, a struct or a byte array (Section~\ref{sec:syntax}).
 \item \rn{E-Proj} takes the field labeled $l$ (labels are unique), and \rn{E-Index} the field at
   position $b$~(\rn{E-Default} the last field); the other fields are discarded, even one with an effect:
   $\{a = e, b = \hex{01}\}.b \step \hex{01}$ never runs $e$. To run it, bind it
-  first with a strict term: $!(\lam{x}{\{a = x, b = \hex{01}\}.b})\ e$.
+  first with a strict application: $(\lam{x}{\{a = x, b = \hex{01}\}.b})\ {!}e$.
 \item So a branch whose condition is known at compile time
   keeps one arm and discards the others; a discarded arm never runs.
 \item \rn{E-Opcode} computes the call at compile time: all operands are
-  data: byte arrays, or structs of data (row 9), never a lambda
-  or a strict term, so they never step and the result is the same in every
+  data: byte arrays, or structs of data (row 9), never a lambda, so they never step and the result is the same in every
   reduction order, and $\fn{op}(b)$ is defined, so
   $\str{add}\ \{\str{i32}, \hex{02000000}, \hex{03000000}\} \step \hex{05000000}$.
   Otherwise reduction cannot reduce the call: it is a run-time operation (neutral): an
@@ -182,8 +184,9 @@
   translation to LLVM emits it as an instruction. Operands are computed by
   \rn{E-App2} and \rn{E-Struct}.
 \item \rn{E-Strict} fires only on a value: a value has no effect left to run.
-  A strict term applied to a run-time operation waits; the translation to LLVM emits the operation
-  first, then the rest, with the result as an SSA value.
+  A strict application whose argument is a run-time operation waits; the translation to LLVM emits the operation
+  first, then the rest, with the result as an SSA value. The argument is computed by
+  \rn{E-SApp2}.
 \end{points}
 
 %% ── Congruence ─────────────────────────────────────────────────────────
@@ -197,14 +200,15 @@
 \rulerow{E-Struct}{t_i \step t_i'}
   {\{\dots, l_i = t_i, \dots\} \;\step\; \{\dots, l_i = t_i', \dots\}}
 \rulerow{E-Proj1}{t \step t'}{t.l \;\step\; t'.l}
-\rulerow{E-Strict1}{t \step t'}{!t \;\step\; !t'}
+\rulerow{E-SApp1}{t_1 \step t_1'}{t_1\ {!}t_2 \;\step\; t_1'\ {!}t_2}
+\rulerow{E-SApp2}{t_2 \step t_2'}{t_1\ {!}t_2 \;\step\; t_1\ {!}t_2'}
 \end{rules}
 \begin{points}
 \item $\step$ is full $\beta$: a rule of Section~\ref{sec:computation} may fire
   anywhere, under a lambda, in a struct field (so in every arm of a branch) too.
 \item $\step$ is confluent: it is the $\lambda$-calculus with
    structs, projection, branching and
-  strict terms (Church--Rosser; projection is the usual record rule). The
+  strict application (Church--Rosser; projection is the usual record rule). The
   proof is in Lean 4, in \texttt{proofs/} (theorem \texttt{Oymomo.confluence}), for
   every opcode table $\fn{op}$.
 \end{points}
@@ -221,10 +225,10 @@
   \begin{itemize}[nosep]
   \item $(\lam{x}{\{x, x\}})\ p$ has the normal form $\{p, p\}$: $\str{h}$ is
     printed twice, because the program wrote $x$ twice;
-  \item $!(\lam{x}{\{x, x\}})\ p$ waits for $p$: $\str{h}$ is printed once, and
+  \item $(\lam{x}{\{x, x\}})\ {!}p$ waits for $p$: $\str{h}$ is printed once, and
     both fields hold its result.
   \end{itemize}
-  Effects run in the order the program asks for, with a strict term or by using
+  Effects run in the order the program asks for, with a strict application or by using
   one effect's result in another; any other order is free.
 \item So the translation to LLVM must keep every effect of the normal form, but may merge
   equal pure operations. For example, with $p = \kw{print}\ \str{h}$ and
@@ -233,7 +237,7 @@
   \item $\{p, p\}$ becomes two $\kw{print}$ instructions, never one;
   \item $\{q, q\}$ may become one $\kw{add}$ instruction whose result fills both
     fields;
-  \item $!(\lam{x}{\{x, x\}})\ p$ becomes one $\kw{print}$ instruction whose
+  \item $(\lam{x}{\{x, x\}})\ {!}p$ becomes one $\kw{print}$ instruction whose
     result fills both fields.
   \end{itemize}
 \end{points}
