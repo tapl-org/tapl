@@ -202,6 +202,33 @@ p~q ⟶ term(p) ~ term(q)      (p or q clad)                          E-Reclad
 Earlier proposal for this step (superseded by the user's rule): E-Unform,
 `E[t~F] ⟶ E[t]`, forms disappear where a term is consumed.
 
+### Step 5: abstraction with a form `λx~s. t` — agreed (accepted)
+
+- A duet. Halves: `term(λx~s. t) = λx. term(t)`, `form(λx~s. t) = s ⇒ [x ↦ s] form(t)` (the form side has no `x`; a function's form is a signature).
+- Examples (agreed): `(λx~i32. x) (3~i8) ⟶ 3~i32` (the parameter's form replaces the argument's); `(λx~i32. x) y ⟶ y~(drop y i32)` (the user: this is the right result; the drop waits until `y` is a closed value).
+- Linearity stays on both sides. `λx. x~i32` alone is not linear (form side `λx. i32`), but `λx. y (x~i32) (a~(drop x i32))` is: term side `λx. y x a`, form side `λx. y i32 (drop x i32)`.
+- Recalled for the user: linearity exists because full β can copy/drop effects (D8); full β is how the semantics says the reduction order doesn't change the result.
+
+### D12: no form syntax — agreed (accepted)
+
+The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose first operand is the type and returns a byte array, which other opcodes use as operands; so every SSA value's type comes from the instruction that defines it, and a type is an ordinary term (it can still be computed at compile time). The only place that needs a type outside an instruction is a declaration without a definition; it gets its own shape: a signature `t ⇒ t` is declaration data (nothing applies it).
+
+- Removed: `~`, `λx~s. t`, solo/duet, halves, E-Split, E-Duet1/2, E-SigApp. Steps 4–5 are superseded.
+- `(v ⇒ v) t` matches no rule; it joins the stuck class when that comes (with numbers).
+- Linearity is for one world again.
+- Why splitting failed (the user's point): after E-Split, a let the shaper keeps (`(λq. …) (sext a)`) has no form next to `q`, so it cannot become an SSA instruction with a type.
+- Open: block parameter (phi) types (infer or declare); literal widths (from the use or from the byte length).
+
+### Step 6: signature removed; struct, projection, byte arrays, case — agreed (accepted)
+
+- The user: a function form is not needed; a declaration can be a tagged struct (like `{'array', count, element}`), e.g. `{'function', {a = 'i32'}, 'i32'}` and `{'function', 'i32'}` (defined function). Removed: `t ⇒ t`, E-Sig1/2, `v ⇒ v`.
+- Struct `{l₁ = t₁, …, lₙ = tₙ}` (ordered, labels may be empty or repeat; data only: never applied) and projection `t.l`.
+- E-Proj: `{l₁ = t₁, …, lₙ = tₙ}.l ⟶ drop t₁ (⋯ (drop tₙ tₖ))`, `k` the first field labeled `l`, every other field dropped (linearity). Congruence E-Struct, E-Proj1.
+- Values: `λx. t | {…}`. Linearity: fields share out the variables (⊗).
+- Wrong terms with no rule (stuck later): a struct applied; `v.l` with `v` an abstraction or a struct without `l`.
+- Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
+- Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
+
 ## Decisions
 
 ### D1: neutral vs stuck — agreed
@@ -607,6 +634,8 @@ on  ::= n | n~φ | {lᵢ = onᵢ} | ne
 - Every change is marked blue (new) / red struck (removed) until the user accepts.
 
 ## State of semantics.tex (accepted)
+
+Latest accepted (after D12 and step 6): terms `x | λx. t | t t | dup t t | drop t t | {l = t, …} | t.l | b | case t when b then t ⋯ else t`; a struct is a value only when its fields are values; rules E-Beta, E-Dup, E-Drop, E-Proj, E-Index, E-Case, E-CaseElse; `case` syntax kept as is (shorter options declined).
 
 Latest accepted: solo/duet (`t` term, `s` solo, `d` duet; syntax once under `t`, `s`/`d` as classes), pair `s~s` only, one rule E-Split, E-Duet1/2, E-Collapse removed, evaluation strategy dropped for now, α-equivalence wording.
 
