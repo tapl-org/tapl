@@ -9,6 +9,9 @@
 \usepackage{xcolor}
 \usepackage[normalem]{ulem}
 \usepackage{enumitem}
+\usepackage{fancyvrb}
+\usepackage{upquote}
+\newcommand{\vto}{\mbox{$\to$}}  % → inside a code listing
 \usepackage[hidelinks]{hyperref}
 
 %% ── Macros (each notation is introduced in the text where it is first used) ──
@@ -309,31 +312,31 @@
   definitions, declarations, constants and global variables. Each label is a global name, as LLVM's
   $\kw{@gcd}$ or $\kw{@puts}$. They refer to each other through $m$.
 \item A definition is a struct
-  $\{\mathit{result\_type} = t',\
-  \mathit{body} = \lam{f}{\{l_i = t_i'\}_{i<n}}\}$, with $0 < n$ blocks; $l_0$ is empty (the first block has no label). It becomes
+  $\{\mathit{gives} = t',\
+  \mathit{body} = \lam{f}{\{l_i = t_i'\}_{i<n}}\}$, with $0 < n$ blocks. It becomes
   LLVM's $\kw{define}$.
   \begin{subpoints}
-  \item $\mathit{result\_type}$ gives the result type; types are ordinary terms (1/13).
+  \item $\mathit{gives}$ is the result type; types are ordinary terms (1/13).
   \item The parameters and their types are those of the first block, at position $0$.
   \item $\mathit{body}$ is a recursive function: $f$ names its own struct of blocks.
   \end{subpoints}
-\item A block is a struct $\{\mathit{param\_type} = \{x_i = t_i\}_{i<n},\
+\item A block is a struct $\{\mathit{takes} = \{x_i = t_i\}_{i<n},\
   \mathit{body} = \lam{p}{t}\}$.
   \begin{subpoints}
-  \item $\mathit{param\_type}$ declares the types of the block parameters (LLVM's
+  \item $\mathit{takes}$ declares the types of the block parameters (LLVM's
     $\kw{phi}$).
   \item $\mathit{body}$ takes one argument, a struct of the same form as
-    $\mathit{param\_type}$: $\{x_i = t_i'\}_{i<n}$; $t$ reads it as $p.x_i$.
-  \item The first block (position $0$) runs first. It has no
-    label: no block jumps to it, as LLVM's entry block has no predecessors. Full
-    $\beta$ may still reach it by position, $(f\ \hex{00}).\mathit{body}\ \{\dots\}$;
+    $\mathit{takes}$: $\{x_i = t_i'\}_{i<n}$; $t$ reads it as $p.x_i$.
+  \item The first block (position $0$) runs first: the translation takes the first
+    field as the entry, so any label works there ($\mathit{entry}$ in 5/9). No block jumps to it, as LLVM's entry block has no predecessors. Full
+    $\beta$ may still reach it, by its label or by position;
     only the translation to LLVM rejects such a jump.
   \item A jump is $f.l.\mathit{body}\ \{x_i = t_i'\}_{i<n}$, LLVM's $\kw{br}$.
   \item A block sees only its own argument, $f$ and $m$.
   \end{subpoints}
-\item A declaration is a struct $\{\mathit{param\_type} = \{x_i = t_i\}_{i<n},\ \mathit{result\_type} = t'\}$,
-  a function defined outside the module; $\mathit{param\_type}$ gives the parameter
-  types in order: $\{\mathit{param\_type} = \{s = \str{ptr}\},\ \mathit{result\_type} = \str{i32}\}$
+\item A declaration is a struct $\{\mathit{takes} = \{x_i = t_i\}_{i<n},\ \mathit{gives} = t'\}$,
+  a function defined outside the module; $\mathit{takes}$ holds the parameter
+  types in order: $\{\mathit{takes} = \{s = \str{ptr}\},\ \mathit{gives} = \str{i32}\}$
   becomes LLVM's $\kw{declare\ i32\ @puts(ptr)}$.
 \item A constant is a struct $\{\mathit{type} = t_1,\ \mathit{value} = v\}$:
   $\{\mathit{type} = \str{i32},\ \mathit{value} = \hex{2a000000}\}$ becomes LLVM's
@@ -354,21 +357,37 @@
   \item The user may replace them (with a fixed-point combinator) to compute calls
     at compile time; a call to a declaration stays stuck: it has no $\mathit{body}$.
   \end{subpoints}
-\item For example, Euclid's $\gcd$:
-  \[
-  \begin{array}{l}
-  m \to \{\mathit{gcd} = \{\mathit{result\_type} = \str{i32},\ \mathit{body} = f \to \{\\
-  \quad  \{\mathit{param\_type} = \{a = \str{i32}, b = \str{i32}\},\ \mathit{body} = \lam{p}{f.\mathit{loop}.\mathit{body}\ \{a = p.a, b = p.b\}}\},\\
-  \quad \mathit{loop} = \{\mathit{param\_type} = \{a = \str{i32}, b = \str{i32}\},\ \mathit{body} = p \to\\
-  \qquad \{\mathit{false} = f.\mathit{step}.\mathit{body}\ \{a = p.a, b = p.b\},\ \mathit{true} = f.\mathit{done}.\mathit{body}\ \{a = p.a\}\}\\
-  \qquad (\str{icmp\_eq}\ \{\str{i32}, p.b, \hex{00000000}\})\},\\
-  \quad \mathit{step} = \{\mathit{param\_type} = \{a = \str{i32}, b = \str{i32}\},\ \mathit{body} = p \to\\
-  \qquad f.\mathit{loop}.\mathit{body}\ \{a = p.b, b = \str{urem}\ \{\str{i32}, p.a, p.b\}\}\},\\
-  \quad \mathit{done} = \{\mathit{param\_type} = \{a = \str{i32}\},\ \mathit{body} = \lam{p}{p.a}\}\}\},\\
-  \ \ \mathit{main} = \{\mathit{result\_type} = \str{i32},\ \mathit{body} = f \to \{ \{\mathit{param\_type} = \{\},\\
-  \quad \mathit{body} = \lam{p}{m.\mathit{gcd}\ \{a = \hex{30000000}, b = \hex{12000000}\}}\}\}\}\}
-  \end{array}
-  \]
+\item For example, Euclid's $\gcd$, with the sugars of 1/20 and 1/21:
+  \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
+m @vto@ {
+  gcd = {gives = 'i32', body = f @vto@ {
+      entry = {takes = {a = 'i32', b = 'i32'}, body = p @vto
+        f.loop.body {a = p.a, b = p.b}
+      },
+      loop = {takes = {a = 'i32', b = 'i32'}, body = p @vto
+        let z = 'icmp_eq' {'i32', p.b, [00000000]} in
+        if z then
+          f.done.body {a = p.a}
+        else
+          f.step.body {a = p.a, b = p.b}
+      },
+      step = {takes = {a = 'i32', b = 'i32'}, body = p @vto
+        let r = 'urem' {'i32', p.a, p.b} in
+        f.loop.body {a = p.b, b = r}
+      },
+      done = {takes = {a = 'i32'}, body = p @vto
+        p.a
+      }
+    }
+  },
+  main = {gives = 'i32', body = f @vto@ {
+      entry = {takes = {}, body = p @vto
+        m.gcd {a = [30000000], b = [12000000]}
+      }
+    }
+  }
+}
+\end{Verbatim}
 \end{points}
 
 \end{document}

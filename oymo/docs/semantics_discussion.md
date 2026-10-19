@@ -5,15 +5,25 @@ nothing is lost between sessions. We continue the discussion here.
 
 ## Where we are
 
-- **Restart from scratch (D11):** the calculus is rebuilt step by step, adding
-  syntax gradually. See "Rebuild" below; D1–D10 are input, not the current state.
-- `semantics.tex` was rewritten from scratch with the rebuild, steps 1–4 (accepted);
-  see "State of semantics.tex" below.
-- Decisions D1–D6 are agreed. D7 is revised to `stuck t` (points 1 and 2
-  agreed, point 3 deferred). D8 (effects under full β) leans to option D. D9
-  (`case`) agreed. D10 (pairs) was replaced by a simpler idea (one β, E-Unform),
-  then by the rebuild.
-- `make -C oymo/docs` builds `semantics.pdf`.
+- `semantics.tex` is fully accepted through D37 (6 pages; `make -C oymo/docs` builds it).
+  See "State of semantics.tex" below.
+- Lean 4 (`oymo/proofs/`, no `sorry`): `Oymomo.confluence` (full β, D27) and
+  `Oymomo.classification` / `classification_unique` (D28), both on strict application (D29).
+- D1–D10 and Rebuild steps 1–6 are history; the current decisions are D11–D37 (newest first,
+  after "Rebuild").
+
+## Open
+
+1. Evaluation strategy `⟶w`: postponed (D18). Not in the doc or in Lean.
+2. Shapes of type terms (`{'array', n, 'i32'}`, …): postponed (D23).
+3. Built-ins `$fix`, `$struct_to_fields`, `$fields_to_struct`: postponed (D24; maybe dropped).
+4. Literal widths: the LLVM width of a literal that no opcode types (e.g. passed straight
+   to a block parameter) is not stated.
+5. Code, after the Lean proofs (D18): refactor the Python implementation to semantics.tex —
+   blocks/modules/declarations/constants/globals (D19, D20, D23, D33), `takes`/`gives` (D35),
+   strict application `t !u` and `let x =! t in …` instead of `$seq` (D29), default arm and
+   empty byte array = 0 (D23), no forms and no `form_of` (D23), reject duplicate labels (D16).
+6. Goldens and tests move to the new syntax with 5.
 
 ## Goal
 
@@ -148,7 +158,7 @@ t, s, k ::= x | λx. t | t s | s ⇒ t | dup s k | drop s t
 - **Lean:** if `t` is linear and `t ⟶ t'`, then `t'` is linear. Key lemma: if
   `λx. u` and `s` are linear, then `u[x := s]` is linear.
 
-### Step 4: clad terms — agreed (⟶w and classes for clad terms still to do)
+### Step 4: clad terms — agreed (superseded by D12: no forms)
 
 ```
 t, s, k, F, G ::= … | t~F          (a clad term p, q; naked = no ~ at the root)
@@ -217,7 +227,7 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - `(v ⇒ v) t` matches no rule; it joins the stuck class when that comes (with numbers).
 - Linearity is for one world again.
 - Why splitting failed (the user's point): after E-Split, a let the shaper keeps (`(λq. …) (sext a)`) has no form next to `q`, so it cannot become an SSA instruction with a type.
-- Open: block parameter (phi) types (infer or declare); literal widths (from the use or from the byte length).
+- Block parameter (phi) types: settled (declared, D20/D35 `takes`). Literal widths: still open (Open 4).
 
 ### Step 6: signature removed; struct, projection, byte arrays, case — agreed (accepted)
 
@@ -228,6 +238,18 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Wrong terms with no rule (stuck later): a struct applied; `v.l` with `v` an abstraction or a struct without `l`.
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
+
+### D37: 5/9 as a monospace listing — agreed (accepted)
+
+- The user asked why some text looked bold in 5/9 (Computer Modern Typewriter for byte arrays and keywords next to thin math italic); chose "4d": show 5/9 as plain monospace source, like the draft. `fancyvrb` `Verbatim` (commandchars `@<>`, `@vto` = `\mbox{$\to$}` for →), `upquote` for straight quotes. On accept: drop `formatcom=\color{blue}` from the `Verbatim` options.
+
+### D36: gcd example with sugars, user's layout; entry label back — agreed (accepted)
+
+- The user: "5/9 use sugars in Euclid's gcd" (`let`, `if`), then "format the code so it is easy to read", then gave "my intentional format" (each block `l = {takes = …, body = p →` on one line, the body indented below, `if … then` / `else` on their own lines). Also: "i guess we should return back entry label. and mention that translation just takes first field as an entry, so any label can work there." 5/2 drops "l₀ is empty"; 5/3(3): the translation takes the first field as the entry, any label works; no block jumps to it; full β may reach it by label or position; only the translation rejects such a jump. The user's draft wrote `'icmp eq'`; the user: "keep 'icmp_eq'".
+
+### D35: labels `takes` and `gives` — agreed (accepted)
+
+- The user: "better shorter label names for result_type and param_type". Options: takes/gives, from/to, ptype/rtype, params/returns, dom/cod (`in` is reserved; `ret` is an LLVM instruction). The user weighed from/to (LLVM-like) against takes/gives; agent: LLVM has no keyword for either, `to` is LLVM's cast word and `from` on a block reads as phi predecessors. Chosen: `takes` (parameter types) and `gives` (result type) throughout Section 5.
 
 ### D34: effects run as steps at run time; output may depend on the path — agreed (accepted)
 
@@ -246,7 +268,7 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - E-SApp1/2 moved after E-App2 (3/4, 3/5).
 - The user: "why n-1 in struct fields. use just n. so struct length then becomes n+1". Now `{l₀ = t₀, …, lₙ = tₙ}` (n + 1 fields); `{}` added to rows 5, 8, 9 and 1/14(1); E-Index `b ≤ n ⟹ … ▷ t_b`; E-Default `n < b ⟹ … ▷ tₙ`; E-Opcode `op(b)(d₀, …, dₙ)`.
 - The user needed `{}` in the same form ("i want to show this mixed with {l=t} syntax"); chose TAPL-style `{lᵢ = tᵢ}_{i<n}` (n fields, `{}` when n = 0). Rows 5, 8, 9 one form each; 1/14(1) explains; E-Proj `l_j = l ⟹ … ▷ t_j`; E-Index `b < n ⟹ … ▷ t_b`; E-Default `0 < n ≤ b ⟹ … ▷ tₙ₋₁`; E-Opcode `op(b)(dᵢ)_{i<n} = b'`; Section 5 uses `{xᵢ = tᵢ}_{i<n}`. E-Strict moved to after E-Beta (2/2) (user).
-- Open: the user wants 4/2(1) to say `'h'` may be printed once or twice (the effect isn't observable from the normal form) and 4/2(2) that strict application guarantees once — conflicts with 4/2 "each one runs exactly once" and 4/3 "{p, p} becomes two print instructions, never one"; asked.
+- Settled by D34 (was open): the user wants 4/2(1) to say `'h'` may be printed once or twice (the effect isn't observable from the normal form) and 4/2(2) that strict application guarantees once — conflicts with 4/2 "each one runs exactly once" and 4/3 "{p, p} becomes two print instructions, never one"; asked.
 
 ### D31: numbered sub-bullets; split points — agreed (accepted)
 
@@ -272,7 +294,7 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Neutral: a variable; a neutral term applied, projected, or under `!`; `(!v) n`; a struct value applied to a neutral condition; `b n`; a run-time operation `b d` with `op` undefined; a struct with a neutral field and no stuck field.
 - Stuck: a stuck term applied, projected, or under `!`; a value head (not a lambda) applied to a stuck term; a struct with a stuck field; `v.l` with no field `l`; `{}` applied to anything; a struct applied to a value that is not a byte array; `b v` with `v` a value that is not a struct, or a struct that is not data.
 - A lambda body and a neutral head's argument are not read: `x ({}.a)` is neutral (the program is still rejected, 1/20, since it contains a stuck term).
-- Doc differences found (open): 1/20 says "a byte array applied to a term that is not a struct" — the proof needs "a value" (`b x` waits, neutral); 1/20's `v.l` list misses `!v`.
+- Doc differences found (settled: the first fixed in 1/23(3), the second gone with D29): 1/20 says "a byte array applied to a term that is not a struct" — the proof needs "a value" (`b x` waits, neutral); 1/20's `v.l` list misses `!v`.
 
 ### D27: Lean 4 proof of confluence — done (accepted)
 
@@ -296,7 +318,7 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Options were (a) compile error, (b) LLVM `unreachable`/poison, (c) an `error` term. The user: "compile error". 1/21: "wrong" renamed "stuck"; a program whose normal form contains a stuck term, anywhere, is rejected at compile time. No stuck class or rule in the doc (D21); Lean will have value/neutral/stuck for the classification theorem.
 - The user: "unknown opcode and divizion by zero stay neutral" (run-time operations, not stuck); 1/13 now says `op(b)` is undefined for an opcode it doesn't know.
 - Not needed in the Lean proof now: `⟶w`, type-term shapes, `$fix` (Y combinator, or a non-overlapping rule later). `$struct_to_fields`/`$fields_to_struct` would be new rules; the user: "can we add them later. I'm not sure I will keep them in the future or not". Postponed.
-- Open (agent): Lean needs `op` to be a function whose result doesn't change when an operand steps inside (e.g. defined only on byte arrays and structs of byte arrays).
+- Settled by D26 (was open): Lean needs `op` to be a function whose result doesn't change when an operand steps inside (e.g. defined only on byte arrays and structs of byte arrays).
 
 ### D23: gaps against the Python implementation — agreed (accepted)
 
@@ -454,7 +476,7 @@ The user: "dup and drop is too cumbersome. I do not want to restrict user. I bel
 - Node `term-classes` under `foundations`: `classes-doc`, `classes-lean`,
   🚫 `classes-check`, 🚫 `classes-code`; 🚫 `conf-lean` under `confluence`.
 
-### D7 (revised): a `stuck t` term — points 1 and 2 agreed, 3 deferred
+### D7 (revised): a `stuck t` term — superseded by D24 (stuck terms are compile errors)
 
 The user: "i will introduce `stuck t` syntax instead of error. it works same as
 error but when bubbling up, it also keeps the term. main thing is outer term can
@@ -537,7 +559,7 @@ Kept for the strict positions and the wrong-shape list, which `stuck t` reuses.
 - Two side conditions can't be grammar (they depend on data): label membership,
   and "`op(n₀)` gives no result".
 
-### D8: effects under full β (`$seq`) — open, resume here
+### D8: effects under full β (`$seq`) — superseded by D13, D15, D29, D34
 
 Problem: lets are β-redexes, so full β can **drop** an unused effect, **copy** one
 used twice, and leave effects unordered. Today `shape` keeps every op let once, in
@@ -655,7 +677,7 @@ then what kind of problem I will face during full-beta"):
 7. **More classes:** `dup ne k` and `drop ne t` are neutral; `dup` of a `λ` copies
    its code, so work can be done twice (by the user's choice).
 
-### D9: branching — `case`, agreed (code changes later)
+### D9: branching — `case`, agreed (superseded by D14, then D20)
 
 The user: "struct is only used as operand. so there is no E-select rule, and E-Proj
 is not a branching." So a struct is data only (linear logic's ⊗: fields split the
@@ -704,7 +726,7 @@ Open:
 1. Code later: the parser's `if` (today `{e, t} c`), E-Select in `reduction`,
    `shape`, translation of select, and the `if` reserved word.
 
-### D10: two worlds in lockstep — agreed in principle (revises D1a, D2, D3, D8 problem 2)
+### D10: two worlds in lockstep — agreed in principle (superseded by D11/D12)
 
 The user: "the reason why I introduce Form instead of Type of theta-calculus is I
 want beta-reduction without separation. term and form world has a different
@@ -782,6 +804,23 @@ on  ::= n | n~φ | {lᵢ = onᵢ} | ne
 
 ## State of semantics.tex (accepted)
 
+Latest accepted (after D37):
+- Syntax (rows 1–9): `x | x → t | t t | t !t | {lᵢ = tᵢ}_{i<n} | t.l | b`; values
+  `v ::= x → t | {lᵢ = vᵢ}_{i<n} | b`; data `d ::= b | {lᵢ = dᵢ}_{i<n}`. Sugar: `let x = t₁ in t₂`,
+  `let x =! t₁ in t₂`, `if c then t₁ else t₂`. No type checking (1/13).
+- Rules: E-Beta, E-Strict `t !v ▷ t v`, E-Proj, E-Index `b < n`, E-Default `0 < n ≤ b ⟹ tₙ₋₁`,
+  E-Opcode `op(b)(dᵢ)_{i<n} = b'`. Full β: E-Abs, E-App1/2, E-SApp1/2, E-Struct, E-Proj1.
+  `▷` is confluent (Lean). Stuck terms are compile errors; unknown opcodes and UB are run-time.
+- Section 4: compile time never runs effects; at run time an effect is a step, output may
+  depend on the path; strict application runs an effect exactly once; the translation may
+  merge copies.
+- Section 5: module `m → {…}`; definition `{gives, body = f → {blocks}}`, first block is the
+  entry (any label); block `{takes, body = p → t}`; declaration `{takes, gives}`; constant
+  `{type, value}`; global `{type, init}`; jump `f.l.body {…}`; call `m.l {…}`; `m`, `f` free;
+  gcd example as a monospace listing.
+
+Older states (history):
+
 Latest accepted (after D20): terms `x | λx. t | t t | {l = t, …} | t.l | b | !t`; rules E-Beta, E-Proj, E-Index (`{…} b`, branch/switch), E-Opcode (`b {…}`), E-Strict; full β E-Abs, E-App1/2, E-Struct, E-Proj1, E-Strict1; Section 4 "What Runs"; Section 5 "Modules": module `λm.{…}`, definition `{result, body = λf.{entry = block, …}}`, block `{param, body = λp. t}`, declaration `{param, result}`, jump `f.l.body {…}`, call `m.l {…}`; `m`, `f` stay free.
 
 Latest accepted (after D17): terms `x | λx. t | t t | {l = t, …} | t.l | t.k | b | if t then t else t | !t`; opcode call `b {l = v, …}` via E-Opcode (`op(b)` partial; no result → neutral run-time operation); rules E-Beta, E-Proj, E-ProjPos, E-IfTrue, E-IfFalse, E-Opcode, E-Strict; full β congruence; Section 4 "What Runs".
@@ -802,6 +841,7 @@ Section 6 into Section 1 (Syntax); every term is written `t` (`t₁`, `t₂`, �
 
 ## Roadmap
 
-- `review-rules`, `term-classes` (`classes-doc`, `classes-lean`, `classes-check`,
-  `classes-code`), `conf-lean`, `conf-form` (E-Reform, drop `strip` in the code).
+- Done: `review-rules`, `classes-doc`, `classes-lean` (D28), `conf-lean` (D27).
+- Next: the code refactor (Open 5), then `classes-check` / `classes-code`. `conf-form`
+  (E-Reform, `strip`) is moot without forms (D12).
 - Leaf details list what to do; decisions and reasons are in the agent wiki.
