@@ -163,6 +163,8 @@ The user's orders, kept as given. Follow them in every task.
     D6 (done): roadmap node `term-classes` (classes-doc, classes-lean, classes-check,
     classes-code) under `foundations`; `conf-lean` under `confluence`. `classes-code`
     is kept apart from `conf-form` (that one is E-Reform and dropping `strip`).
+  - Answers (user's order): give every item, option and question a unique number
+    (1, 2, 2a, …) so the user can refer to it by number.
   - Order of work (user, D18): semantics.tex first, then the Lean 4 proof; all code
     implementations come after the Lean 4 proof. Don't propose code changes before that.
   - Review marks (user's order): every change is colored until the user accepts it:

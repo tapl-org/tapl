@@ -229,6 +229,30 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D34: effects run as steps at run time; output may depend on the path — agreed (accepted)
+
+- The user (resolving D32's open question): "(x -> {x,x}) (print 'h') can be evaluated to 2 expression: (x->{x,x}) void (output=h) or {print 'h', print 'h'}. then they can evaluate to {void, void} (output=h) or {void, void} (output=hh). … even though they reached same normal form, but their output can be different"; "if you want effect called once, use strict application, which guarantees the first evaluation path".
+- Section 4 rewritten: 4/1 "At compile time, reduction never runs an effect"; 4/2 at run time an effect is a step (`p` steps to its result `r`, writing `'h'`), order is free, the normal form doesn't show the output, two paths give `'h'` or `'hh'`; 4/3 strict application forces path 4/2(1), exactly once; any other order and the count of a copied effect are free; 4/4 the translation may follow any path: `{p, p}` may become one or two prints. 1/15(3) now refers to 4/3. Replaces D13's "each effect in the normal form runs once".
+
+### D33: the first block is the entry — agreed (accepted)
+
+- The user: "5/2/2 the parameters and their types are those of the first block (at zero index)". A definition's body is `f → {lᵢ = tᵢ'}_{i<n}` with `0 < n` blocks; the first block (position 0) runs first and gives the parameters; its label is free (`entry` in 5/9 is just a name). 5/7: `m.l` is the body of the first block.
+- The user: "should we remove entry label, since entry cannot be reachable from other blocks?" then "yes. but a jump to the first block is not allowed is only for translation. but full-beta can do this." Now `l₀` is empty (the first block has no label); 5/3(3): no block jumps to it (LLVM's entry block has no predecessors); full β may still reach it by position, `(f [00]).body {…}`; only the translation rejects such a jump. 5/9 drops `entry =`.
+
+### D32: struct indices from 0; dropped terms; E-SApp order — agreed (accepted; 4/2 settled in D34)
+
+- The user: "index struct labels starting with 0" — every `{l₁ = t₁, …, lₙ = tₙ}` is now `{l₀ = t₀, …, lₙ₋₁ = tₙ₋₁}` (also `v`, `d`, `x` in Section 5); E-Index `b < n ⟹ {…} b ▷ t_b`; E-Default `… ▷ tₙ₋₁`; E-Opcode `op(b)(d₀, …, dₙ₋₁)`.
+- 2/8(1): "full β may reduce e or not, but e is not in the normal form: it is dropped" (was "never runs e"). 2/9: a discarded arm "does not contribute to the normal form" (was "never runs").
+- E-SApp1/2 moved after E-App2 (3/4, 3/5).
+- The user: "why n-1 in struct fields. use just n. so struct length then becomes n+1". Now `{l₀ = t₀, …, lₙ = tₙ}` (n + 1 fields); `{}` added to rows 5, 8, 9 and 1/14(1); E-Index `b ≤ n ⟹ … ▷ t_b`; E-Default `n < b ⟹ … ▷ tₙ`; E-Opcode `op(b)(d₀, …, dₙ)`.
+- The user needed `{}` in the same form ("i want to show this mixed with {l=t} syntax"); chose TAPL-style `{lᵢ = tᵢ}_{i<n}` (n fields, `{}` when n = 0). Rows 5, 8, 9 one form each; 1/14(1) explains; E-Proj `l_j = l ⟹ … ▷ t_j`; E-Index `b < n ⟹ … ▷ t_b`; E-Default `0 < n ≤ b ⟹ … ▷ tₙ₋₁`; E-Opcode `op(b)(dᵢ)_{i<n} = b'`; Section 5 uses `{xᵢ = tᵢ}_{i<n}`. E-Strict moved to after E-Beta (2/2) (user).
+- Open: the user wants 4/2(1) to say `'h'` may be printed once or twice (the effect isn't observable from the normal form) and 4/2(2) that strict application guarantees once — conflicts with 4/2 "each one runs exactly once" and 4/3 "{p, p} becomes two print instructions, never one"; asked.
+
+### D31: numbered sub-bullets; split points — agreed (accepted)
+
+- The user: "some bullets sentences feels like can be bulleted. sub-bullet with numbers or split if their meanings are different". New list `subpoints`, labels (1), (2), …, referred to as e.g. 1/14(2). Points with several parts got sub-bullets (byte array, struct, opcode call, positions, branch, strict application, `let`, stuck shapes, E-Proj, E-Opcode, E-Strict, definition, block, `m`/`f`; Section 4's examples). Split: the lambda sentences out of 1/10 (now 1/11); "rejected at compile time" out of the stuck point (now 1/24). Section 1 references renumbered.
+- On accept: in the preamble, change the `subpoints` label from `{\color{blue}(\arabic*)}` to `(\arabic*)`.
+
 ### D30: keep the arrow for abstraction — agreed (accepted)
 
 - The user asked about `\x.t` (doc and source). Agent: `.` is projection, and bodies often start with one (`\p.f.loop.body`); suggested keeping `x → t` (or `\x → t`). The user: "keep arrow. 1/2 comment abstraction instead of lambda. also add a note saying that we used arrow syntax so . dont clash with projection". Row 2's comment is now "abstraction"; 1/10 explains the arrow. The prose still says "lambda" (D22).
