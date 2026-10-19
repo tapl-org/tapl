@@ -229,6 +229,23 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D26: opcode operands must be data — agreed (accepted)
+
+- Agent: E-Opcode fired on any values, but a value can still step inside (a lambda body), so `op` could see two different operands for one call and break confluence. The user: "op code can only fire when its body struct or bytearray recursively".
+- New class row 9 `d ::= b | {l₁ = d₁, …, lₙ = dₙ}` (data); E-Opcode premise `op(b)(d₁, …, dₙ) = b'`. 2/10 explains; 1/21 adds the stuck term "an opcode call whose operand is a value that is not data". 1/13 drops "A struct is data" (data is now the class name). Point references renumbered (+1).
+
+### D25: struct fields keep commas — agreed (accepted)
+
+- From the user's todo ("wy we need a comma in struct. instead we can use whitespace."). Application is juxtaposition, so whitespace-separated fields would need parentheses around every application, lambda and call in a field (as in Nix lists). The user: "keep commas, and accepted". Surface syntax only; semantics.tex unchanged.
+
+### D24: stuck terms are compile errors — agreed (accepted)
+
+- Stuck today (1/21): a struct applied to a non-byte-array value; the empty struct applied to anything; a byte array applied to a non-struct value; `v.l` on a lambda, byte array, `!v` or struct without `l`.
+- Options were (a) compile error, (b) LLVM `unreachable`/poison, (c) an `error` term. The user: "compile error". 1/21: "wrong" renamed "stuck"; a program whose normal form contains a stuck term, anywhere, is rejected at compile time. No stuck class or rule in the doc (D21); Lean will have value/neutral/stuck for the classification theorem.
+- The user: "unknown opcode and divizion by zero stay neutral" (run-time operations, not stuck); 1/13 now says `op(b)` is undefined for an opcode it doesn't know.
+- Not needed in the Lean proof now: `⟶w`, type-term shapes, `$fix` (Y combinator, or a non-overlapping rule later). `$struct_to_fields`/`$fields_to_struct` would be new rules; the user: "can we add them later. I'm not sure I will keep them in the future or not". Postponed.
+- Open (agent): Lean needs `op` to be a function whose result doesn't change when an operand steps inside (e.g. defined only on byte arrays and structs of byte arrays).
+
 ### D23: gaps against the Python implementation — agreed (accepted)
 
 Agent compared semantics.tex with `src/oymo/oymomo/` and the goldens. The user's answers:

@@ -1,8 +1,6 @@
 # TODO
 
 ## Now
-- can we make drop takes multiple argument, actually we can do this when we add struct. so drop F (drop t G) becomes drop {F, t, G}
-- wy we need a comma in struct. instead we can use whitespace.
 
 ## Someday / maybe
 
