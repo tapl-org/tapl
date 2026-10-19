@@ -229,6 +229,13 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D27: Lean 4 proof of confluence — done (accepted)
+
+- The user: "start lean 4 proof". Project `oymo/proofs/` (Lean 4.35.0 via elan, Lake, no Mathlib). Files: `Oymomo/Syntax.lean` (terms, values, data, `lookup`, `select`), `Substitution.lean` (de Bruijn renaming/substitution, composition lemmas), `Reduction.lean` (`Step` = ▷ with every rule of Sections 2–3, `Par` parallel reduction), `Confluence.lean` (Takahashi complete development `cd`, triangle, diamond, `confluence`).
+- Theorem `Oymomo.confluence`: `Star (Step op) t a → Star (Step op) t b → ∃ c, Star (Step op) a c ∧ Star (Step op) b c`, for every opcode table `op` (abstract). Axioms: `propext`, `Quot.sound` only; no `sorry`.
+- Modelling choices: names are de Bruijn indices (doc: α-equivalence); a struct is a chain `scons l t (… snil)`, E-Struct steps the head field or the tail; labels are not checked for uniqueness (`lookup` takes the first). E-Opcode needs a struct of data (D26), so `op` needs no extra assumption.
+- Not in the proof: `⟶w`, stuck/neutral classification, `$fix` and the struct built-ins (postponed, D24).
+
 ### D26: opcode operands must be data — agreed (accepted)
 
 - Agent: E-Opcode fired on any values, but a value can still step inside (a lambda body), so `op` could see two different operands for one call and break confluence. The user: "op code can only fire when its body struct or bytearray recursively".

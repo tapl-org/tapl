@@ -98,6 +98,12 @@ The user's orders, kept as given. Follow them in every task.
     Mathlib to start); round one: Term, substitution, all computation rules (`op`
     abstract), `⟶w` with full form normalization, Value/Neutral/Stuck, progress,
     exclusivity, determinism. Not yet: confluence, shape, translation.
+    D27 (supersedes D5's round one): `oymo/proofs/` exists (Lean 4.35.0, no Mathlib;
+    build with `PATH=$HOME/.elan/bin:$PATH lake build` in `proofs/`). It proves
+    `Oymomo.confluence` for full β (Takahashi: `cd`, triangle) with `op` abstract; de
+    Bruijn indices, structs as `scons`/`snil` chains. `⟶w` and classification later.
+    The user allowed one code reference in semantics.tex: 3/8 names `proofs/` and
+    `Oymomo.confluence`.
     D7 (revised, points 1–2 agreed): a `stuck t` term (users can write it) replaces
     the stuck class and the earlier `error` term; it keeps the wrong term. Each
     wrong shape (on values) wraps itself: `{a = t}.b ⟶ stuck ({a = t}.b)`.

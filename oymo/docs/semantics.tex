@@ -202,9 +202,11 @@
 \begin{points}
 \item $\step$ is full $\beta$: a rule of Section~\ref{sec:computation} may fire
   anywhere, under a lambda, in a struct field (so in every arm of a branch) too.
-\item $\step$ is expected to be confluent: it is the $\lambda$-calculus with
+\item $\step$ is confluent: it is the $\lambda$-calculus with
    structs, projection, branching and
-  strict terms (Church--Rosser; projection is the usual record rule).
+  strict terms (Church--Rosser; projection is the usual record rule). The
+  proof is in Lean 4, in \texttt{proofs/} (theorem \texttt{Oymomo.confluence}), for
+  every opcode table $\fn{op}$.
 \end{points}
 
 %% ── Meaning ────────────────────────────────────────────────────────────

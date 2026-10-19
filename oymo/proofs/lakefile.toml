@@ -1,0 +1,6 @@
+name = "oymomo"
+version = "0.1.0"
+defaultTargets = ["Oymomo"]
+
+[[lean_lib]]
+name = "Oymomo"
