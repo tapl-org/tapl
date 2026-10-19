@@ -14,7 +14,7 @@ nothing is lost between sessions. We continue the discussion here.
 
 ## Open
 
-1. Evaluation strategy `⟶w`: postponed (D18). Not in the doc or in Lean.
+1. Strategy: `▷ₛ` (sharing normal order) is Section 6 (D38, replaces `⟶w`). Lean: determinism, `▷ₛ ⊆ ▷`, completeness — not done.
 2. Shapes of type terms (`{'array', n, 'i32'}`, …): postponed (D23).
 3. Built-ins `$fix`, `$struct_to_fields`, `$fields_to_struct`: postponed (D24; maybe dropped).
 4. Literal widths: the LLVM width of a literal that no opcode types (e.g. passed straight
@@ -238,6 +238,23 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Wrong terms with no rule (stuck later): a struct applied; `v.l` with `v` an abstraction or a struct without `l`.
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
+
+### D39: `▷ₛ` as a table (shape → choose); neutral removed; struct length `k` — agreed (accepted)
+- User: "based on premise shape, conclusion will be full-beta rule name… for this pattern, we choose this full-beta rule."
+- User: "rows are tried top to bottom… conclusion is only from sections 2, otherwise to be reduced chosen term."
+- User: "define" the neutral class → Section 6 rows 1–2 (`n` neutral, `w` value or neutral); Section 1 unchanged.
+- Rows 3–19 as a table with 3 columns: number, shape (with side conditions), choose (a Section 2 rule name or the chosen part). User: "make a table, and each row has 3 columns. numbering, shape, and choose".
+- Old 6/1 prose (with the 6/1(2) numbered list) struck.
+- User: "why waiting for branches needs {l=v} instead {l=t}?" Agent: copied from Lean `Neutral` (normal forms only; the value condition avoids overlap with `n t`). In ▷ₛ, `n` is tested on non-normal terms, so it means "never fires at its root". Applied (user: "apply 4"): `{lᵢ=tᵢ} n`, `t !n`, `{lᵢ=tᵢ}` with some `tⱼ` an `n`; `w` dropped; rows now 2–18. Lean `Neutral` unchanged.
+- Open: row 2 (E-Beta when `t₂ ∉ n`) may copy an argument that later becomes an `n` (5b: E-Beta only on values). User asked whether 5b goes against the BANF shaper.
+- User: "since n introduced as neutral, don't use n for struct length. use k everywhere as you did in 6/1". Struct length is `k` throughout (1/14(1), grammar rows 3, 5, 6, E-Index, E-Default, E-Opcode, Section 5).
+- User: "lets make it clear what is neutral first." Agent: 1/25 neutral = no full-β step, waits for a free variable or a run-time operation, reduces at run time; "no ▷ₛ step" is bigger (shared lets are β-redexes); 6/1's `n` was a fourth notion. User: "if 1/25 is not used anywhere except strategy, then remove it." It was used loosely in 2/10(2), 4/1 and 5 ("calls and jumps are neutral"); reworded (user: "yes"). 1/25 removed; Section 6 `n` grammar and its point removed. Let rows now: (1) `t₂` a value or a variable → E-Beta; (2) `t₂ ▷ₛ t₂'` → `t₂`; (3) otherwise → `t₁` (shared let). Table rows 1–17. Lean `Neutral` kept (proof detail).
+- Open: a shared `let` whose argument is a branch can't be an LLVM instruction: compile error, or a row that substitutes it (as the BANF shaper does)?
+
+### D38: sharing normal order `▷ₛ` (Section 6) — agreed (accepted)
+
+- The user asked what `⟶w` would give ("w" = weak, from D4) and whether normal order fits the BANF shaper. Agent: the shaper reduces outermost first (like normal order), shares by identity (call-by-need), stops at BANF positions, and keeps a `let` of an operation (a β-redex, so not a normal form). The user: "lets create a new strategy which is a merge of banf shaper and normal order"; "go ahead"; asked about the name ("shaper, or oymomo strategy"). Agent's opinion: name it by the one thing it adds to normal order, sharing; "shaper" is a code module and does less than the strategy; "Oymomo strategy" says nothing.
+- Section 6 "Strategy": `▷ₛ` fires a root rule (except a shared `let`), else steps the part the root waits for (head, projected struct, strict argument, index, opcode operands), else the parts left to right. A shared `let` `(x → t) n` with `n` neutral is not contracted (substituting a neutral term creates no redex; `n` runs once, 4/2(1)). A known branch fires before its arms. Shared normal form: only shared `let`s remain; substituting them gives the `▷` normal form. A block body's shared normal form is a let chain ending in a jump, branch or result. `▷ₛ` is deterministic and ⊆ `▷`; completeness expected, not proved. 4/4 points to Section 6.
 
 ### D37: 5/9 as a monospace listing — agreed (accepted)
 

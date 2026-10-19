@@ -16,6 +16,7 @@
 
 %% ── Macros (each notation is introduced in the text where it is first used) ──
 \newcommand{\step}{\mathrel{\triangleright}}     % one step
+\newcommand{\stepS}{\mathrel{\triangleright_{s}}} % one step of sharing normal order
 \newcommand{\lam}[2]{#1 \to #2}                  % x → t
 \newcommand{\subst}[3]{[#1 \mapsto #2]\,#3}     % [x ↦ t2] t1
 \newcommand{\fn}[1]{\mathit{#1}}                % meta function
@@ -38,6 +39,7 @@
 %% Numbered sub-bullets inside a point: (1), (2), ...; referred to as 1/14(2).
 \newlist{subpoints}{enumerate}{1}
 \setlist[subpoints]{label=(\arabic*), nosep, leftmargin=*}
+%% Numbered items inside a sub-bullet: 1., 2., ...; referred to as 6/1(2)3.
 
 %% Review marks; removed once the user accepts a change.
 \newcommand{\new}[1]{{\color{blue}#1}}          % new or changed text
@@ -80,12 +82,12 @@
 \pt &   & \mid & \lam{x}{t} & \textit{abstraction} \\
 \pt &   & \mid & t\ t & \textit{application} \\
 \pt &   & \mid & t\ {!}t & \textit{strict application} \\
-\pt &   & \mid & \{l_i = t_i\}_{i<n} & \textit{struct} \\
+\pt &   & \mid & \{l_i = t_i\}_{i<k} & \textit{struct} \\
 \pt &   & \mid & t.l & \textit{projection} \\
 \pt &   & \mid & b & \textit{byte array} \\[6pt]
-\pt & v & ::= & \lam{x}{t} \mid \{l_i = v_i\}_{i<n} \mid b &
+\pt & v & ::= & \lam{x}{t} \mid \{l_i = v_i\}_{i<k} \mid b &
   \textit{value} \\
-\pt & d & ::= & b \mid \{l_i = d_i\}_{i<n} &
+\pt & d & ::= & b \mid \{l_i = d_i\}_{i<k} &
   \textit{data}
 \end{array}
 \]
@@ -112,13 +114,13 @@
   opcode that receives it, and to LLVM.
 \item A struct's fields are ordered.
   \begin{subpoints}
-  \item $\{l_i = t_i\}_{i<n}$ has $n$ fields, $l_0 = t_0$ up to $l_{n-1} = t_{n-1}$; with
-    $n = 0$ it is the empty struct $\{\}$.
+  \item $\{l_i = t_i\}_{i<k}$ has $k$ fields, $l_0 = t_0$ up to $l_{k-1} = t_{k-1}$; with
+    $k = 0$ it is the empty struct $\{\}$.
   \item A label may be empty (no label); the other labels are unique.
   \item A struct is consumed by projection, by opcodes, and by a byte array:
     applied to one, it selects a field (1/16, 1/18).
   \end{subpoints}
-\item A byte array applied to a struct, $b\ \{l_i = t_i\}_{i<n}$, is an
+\item A byte array applied to a struct, $b\ \{l_i = t_i\}_{i<k}$, is an
   opcode call: $b$ names the opcode and the struct holds its operands, as in
   $\str{add}\ \{\str{i32}, a, b\}$.
   \begin{subpoints}
@@ -187,7 +189,6 @@
 \item A program whose normal form contains a stuck term, anywhere, is rejected at
   compile time. An unknown opcode or undefined behavior is not stuck: it is a
   run-time operation (1/15).
-\item A term is neutral when no rule reduces it yet: it waits for a free variable or for a run-time operation. Once its binder is applied it may reduce.
 \end{points}
 
 %% ── Computation ────────────────────────────────────────────────────────
@@ -201,16 +202,16 @@
   {t\ {!}v \;\step\; t\ v}
 \rulerow{E-Proj}
   {l_j = l}
-  {\{l_i = t_i\}_{i<n}.l \;\step\; t_j}
+  {\{l_i = t_i\}_{i<k}.l \;\step\; t_j}
 \rulerow{E-Index}
-  {b < n}
-  {\{l_i = t_i\}_{i<n}\ b \;\step\; t_b}
+  {b < k}
+  {\{l_i = t_i\}_{i<k}\ b \;\step\; t_b}
 \rulerow{E-Default}
-  {0 < n \le b}
-  {\{l_i = t_i\}_{i<n}\ b \;\step\; t_{n-1}}
+  {0 < k \le b}
+  {\{l_i = t_i\}_{i<k}\ b \;\step\; t_{k-1}}
 \rulerow{E-Opcode}
-  {\fn{op}(b)(d_i)_{i<n} = b'}
-  {b\ \{l_i = d_i\}_{i<n} \;\step\; b'}
+  {\fn{op}(b)(d_i)_{i<k} = b'}
+  {b\ \{l_i = d_i\}_{i<k} \;\step\; b'}
 \end{rules}
 \begin{points}
 \item A value is $\lam{x}{t}$, a struct or a byte array (Section~\ref{sec:syntax}).
@@ -227,12 +228,11 @@
   keeps one arm and discards the others. Full $\beta$
   may reduce a discarded arm or not, but it does not contribute to the normal form.
 \item \rn{E-Opcode} computes the call at compile time, when $\fn{op}(b)$ is
-  defined: $\str{add}\ \{\str{i32}, \hex{02000000}, \hex{03000000}\} \step \hex{05000000}$.
+  defined: \[\str{add}\ \{\str{i32}, \hex{02000000}, \hex{03000000}\} \step \hex{05000000}\]
   \begin{subpoints}
   \item All operands are data: byte arrays, or structs of data (row 9), never
     a lambda, so they never step and the result is the same in every reduction order.
-  \item Otherwise reduction cannot reduce the call: it is a run-time operation
-    (neutral): an effect, undefined behavior, or an operand not known until run
+  \item Otherwise reduction cannot reduce the call: it is a run-time operation: an effect, undefined behavior, or an operand not known until run
     time. The translation to LLVM emits it as an instruction.
   \item Operands are computed by \rn{E-App2} and \rn{E-Struct}.
   \end{subpoints}
@@ -274,7 +274,7 @@
 \section{What Runs}\label{sec:runs}
 
 \begin{points}
-\item At compile time, reduction never runs an effect: an effectful operation (an opcode call reduction cannot reduce, 2/10) is neutral at compile time. Full $\beta$ may copy or discard a term
+\item At compile time, reduction never runs an effect: an effectful operation (an opcode call reduction cannot reduce, 2/10) is left as it is at compile time. Full $\beta$ may copy or discard a term
   freely; since it is confluent, every order reaches the same normal form.
 \item At run time an effect runs as a step: $p = \kw{print}\ \str{h}$ steps to its
   result $r$ and writes $\str{h}$. Any order of steps is allowed, so one program may
@@ -291,7 +291,7 @@
   possible, and the output is $\str{h}$. Effects run in the order the program asks for,
   with a strict application or by using one effect's result in another; any other
   order, and how many times a copied effect runs, is free.
-\item So the translation to LLVM may follow any path: it runs an effect under a strict
+\item So the translation to LLVM may follow any path (it follows Section~\ref{sec:strategy}): it runs an effect under a strict
   application exactly once, and a copied effect once or once per copy. For example, with $p = \kw{print}\ \str{h}$ and
   $q = \kw{add}\ \{\str{i32}, a, b\}$ (pure):
   \begin{subpoints}
@@ -308,33 +308,33 @@
 \section{Modules}\label{sec:modules}
 
 \begin{points}
-\item A module is $\lam{m}{\{l_i = t_i\}_{i<n}}$: a struct of labeled
+\item A module is $\lam{m}{\{l_i = t_i\}_{i<k}}$: a struct of labeled
   definitions, declarations, constants and global variables. Each label is a global name, as LLVM's
   $\kw{@gcd}$ or $\kw{@puts}$. They refer to each other through $m$.
 \item A definition is a struct
   $\{\mathit{gives} = t',\
-  \mathit{body} = \lam{f}{\{l_i = t_i'\}_{i<n}}\}$, with $0 < n$ blocks. It becomes
+  \mathit{body} = \lam{f}{\{l_i = t_i'\}_{i<k}}\}$, with $0 < k$ blocks. It becomes
   LLVM's $\kw{define}$.
   \begin{subpoints}
   \item $\mathit{gives}$ is the result type; types are ordinary terms (1/13).
   \item The parameters and their types are those of the first block, at position $0$.
   \item $\mathit{body}$ is a recursive function: $f$ names its own struct of blocks.
   \end{subpoints}
-\item A block is a struct $\{\mathit{takes} = \{x_i = t_i\}_{i<n},\
+\item A block is a struct $\{\mathit{takes} = \{x_i = t_i\}_{i<k},\
   \mathit{body} = \lam{p}{t}\}$.
   \begin{subpoints}
   \item $\mathit{takes}$ declares the types of the block parameters (LLVM's
     $\kw{phi}$).
   \item $\mathit{body}$ takes one argument, a struct of the same form as
-    $\mathit{takes}$: $\{x_i = t_i'\}_{i<n}$; $t$ reads it as $p.x_i$.
+    $\mathit{takes}$: $\{x_i = t_i'\}_{i<k}$; $t$ reads it as $p.x_i$.
   \item The first block (position $0$) runs first: the translation takes the first
     field as the entry, so any label works there ($\mathit{entry}$ in 5/9). No block jumps to it, as LLVM's entry block has no predecessors. Full
     $\beta$ may still reach it, by its label or by position;
     only the translation to LLVM rejects such a jump.
-  \item A jump is $f.l.\mathit{body}\ \{x_i = t_i'\}_{i<n}$, LLVM's $\kw{br}$.
+  \item A jump is $f.l.\mathit{body}\ \{x_i = t_i'\}_{i<k}$, LLVM's $\kw{br}$.
   \item A block sees only its own argument, $f$ and $m$.
   \end{subpoints}
-\item A declaration is a struct $\{\mathit{takes} = \{x_i = t_i\}_{i<n},\ \mathit{gives} = t'\}$,
+\item A declaration is a struct $\{\mathit{takes} = \{x_i = t_i\}_{i<k},\ \mathit{gives} = t'\}$,
   a function defined outside the module; $\mathit{takes}$ holds the parameter
   types in order: $\{\mathit{takes} = \{s = \str{ptr}\},\ \mathit{gives} = \str{i32}\}$
   becomes LLVM's $\kw{declare\ i32\ @puts(ptr)}$.
@@ -347,10 +347,10 @@
   $\str{ptr}$; the program reads and writes it with $\str{load}$ and
   $\str{store}$.
 \item $m.l$ stands for the function $l$ itself, so a call is a plain
-  application to one struct: $m.l\ \{x_i = t_i'\}_{i<n}$, LLVM's $\kw{call}$. For a definition, $m.l$
+  application to one struct: $m.l\ \{x_i = t_i'\}_{i<k}$, LLVM's $\kw{call}$. For a definition, $m.l$
   is the $\mathit{body}$ of its first block with $f$ tied to its own
   struct of blocks.
-\item $m$ and $f$ stay free variables, so calls and jumps are neutral.
+\item $m$ and $f$ stay free variables, so calls and jumps don't reduce at compile time.
   \begin{subpoints}
   \item Reduction never unfolds them, and a recursive function or a loop doesn't
     make reduction loop.
@@ -388,6 +388,57 @@ m @vto@ {
   }
 }
 \end{Verbatim}
+\end{points}
+
+%% ── Strategy ─────────────────────────────────────────────────────────
+
+\section{Strategy}\label{sec:strategy}
+
+Sharing normal order, $\stepS$, is the order the compiler reduces in.
+Each row below matches a shape and chooses either a rule of Section~\ref{sec:computation}, which fires at the root, or a part of the term, which takes its own $\stepS$ step.
+
+\[
+\begin{array}{l@{\qquad}l@{\qquad}l}
+& \textit{shape} & \textit{choose} \\ \hline
+\pt & (\lam{x}{t_1})\ t_2 \quad t_2 \text{ a value or a variable} & \rn{E-Beta} \\
+\pt & (\lam{x}{t_1})\ t_2 \quad t_2 \stepS t_2' & t_2 \\
+\pt & (\lam{x}{t_1})\ t_2 & t_1 \\
+\pt & t\ {!}v & \rn{E-Strict} \\
+\pt & t_1\ {!}t_2 \quad t_2 \stepS t_2' & t_2 \\
+\pt & t_1\ {!}t_2 & t_1 \\
+\pt & \{l_i = t_i\}_{i<k}.l \quad l_j = l & \rn{E-Proj} \\
+\pt & t.l & t \\
+\pt & \{l_i = t_i\}_{i<k}\ b \quad b < k & \rn{E-Index} \\
+\pt & \{l_i = t_i\}_{i<k}\ b \quad 0 < k \le b & \rn{E-Default} \\
+\pt & \{l_i = t_i\}_{i<k}\ t_2 \quad t_2 \stepS t_2' & t_2 \\
+\pt & b\ \{l_i = d_i\}_{i<k} \quad \fn{op}(b)(d_i)_{i<k} = b' & \rn{E-Opcode} \\
+\pt & b\ t_2 \quad t_2 \stepS t_2' & t_2 \\
+\pt & t_1\ t_2 \quad t_1 \stepS t_1' & t_1 \\
+\pt & t_1\ t_2 & t_2 \\
+\pt & \lam{x}{t} & t \\
+\pt & \{l_i = t_i\}_{i<k} \quad t_j \stepS t_j',\ \text{no } t_i \text{ with } i < j \text{ steps} & t_j \\
+\end{array}
+\]
+\begin{points}
+\item Rows are tried top to bottom; the first whose shape matches chooses. A chosen part
+  steps by $\stepS$, and the rule of Section~\ref{sec:congruence} for its position (for
+  example \rn{E-App2} for $t_2$ in $t_1\ t_2$) carries the step to the whole term. A term no
+  row chooses, or whose chosen part doesn't step, has no $\stepS$ step.
+\item A shared $\kw{let}$ is a redex $(\lam{x}{t})\ t_2$ whose argument $t_2$ has no
+  $\stepS$ step and is neither a value nor a variable, such
+  as a run-time operation. It is not contracted: $t_2$ steps, then $t$ (rows 1 to 3).
+  \begin{subpoints}
+  \item Keeping the $\kw{let}$ may leave a projection or an index on $x$; it stays as an instruction.
+  \item $t_2$ is not copied: it runs once, as in path 4/2(1).
+  \end{subpoints}
+\item Outermost first (rows 9 to 11 before row 17), so a branch whose condition is known fires before its arms, and
+  a discarded arm is never reduced. With a run-time condition, each arm is reduced.
+\item A term with no $\stepS$ step is in shared normal form: its only redexes are shared
+  $\kw{let}$s. Substituting them and reducing on gives its normal form under $\step$ (3/9).
+\item The shared normal form of a block's body is a chain of $\kw{let}$s ending in a jump,
+  a branch or a result. The translation to LLVM emits each $\kw{let}$ as one instruction.
+\item $\stepS$ is deterministic, and each of its steps is a $\step$ step. If a term has a
+  normal form, $\stepS$ is expected to reach its shared normal form (not proved yet).
 \end{points}
 
 \end{document}
