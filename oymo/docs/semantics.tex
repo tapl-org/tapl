@@ -18,10 +18,7 @@
 \newcommand{\fn}[1]{\mathit{#1}}                % meta function
 \newcommand{\rn}[1]{\textsc{#1}}                % rule name in text
 \newcommand{\kw}[1]{\mathtt{#1}}                % keyword in math
-\newcommand{\dup}{\kw{dup}}
-\newcommand{\drop}{\kw{drop}}
-\newcommand{\caseof}[1]{\kw{case}\ #1\ \kw{when}\ b_1\ \kw{then}\ t_1 \cdots
-  \kw{when}\ b_k\ \kw{then}\ t_k\ \kw{else}\ t_0}  % case with k arms
+\newcommand{\ifte}[1]{\kw{if}\ #1\ \kw{then}\ t_1\ \kw{else}\ t_2}  % if
 
 \mprset{sep=1.5em}
 
@@ -75,77 +72,75 @@
 \pt &   & \mid & x & \textit{variable} \\
 \pt &   & \mid & \lam{x}{t} & \textit{abstraction} \\
 \pt &   & \mid & t\ t & \textit{application} \\
-\pt &   & \mid & \dup\ t\ t & \textit{duplicate} \\
-\pt &   & \mid & \drop\ t\ t & \textit{drop} \\
 \pt &   & \mid & \{l_1 = t_1, \dots, l_n = t_n\} & \textit{struct} \\
 \pt &   & \mid & t.l & \textit{projection} \\
+\pt &   & \mid & t.k & \textit{projection by position} \\
 \pt &   & \mid & b & \textit{byte array} \\
-\pt &   & \mid & \caseof{t} & \textit{case} \\[6pt]
-\pt & v & ::= & \lam{x}{t} \mid \{l_1 = v_1, \dots, l_n = v_n\} \mid b &
+\pt &   & \mid & \ifte{t} & \textit{if} \\
+\pt &   & \mid & !t & \textit{strict term} \\[6pt]
+\pt & v & ::= & \lam{x}{t} \mid \{l_1 = v_1, \dots, l_n = v_n\} \mid b \mid !v &
   \textit{value} \\
-\pt & \mathit{cv} & ::= & v \text{ where } \fn{FV}(v) = \emptyset &
-  \textit{closed value} \\
-\pt & \mathit{ov} & ::= & v \text{ where } \fn{FV}(v) \ne \emptyset &
-  \textit{open value} \\
 \pt & \mathit{ne} & ::= & x \mid \mathit{ne}\ t \mid \mathit{ne}.l \mid
-  \dup\ \mathit{ne}\ t \mid \drop\ \mathit{ne}\ t & \textit{neutral} \\
- & & \mid & \dup\ \mathit{ov}\ t \mid \drop\ \mathit{ov}\ t & \\
- & & \mid & \{l_1 = v_1, \dots, l_n = v_n\}\ \mathit{ne} \mid
-  \{l_1 = v_1, \dots, l_i = \mathit{ne}, \dots\} & \\
- & & \mid & \caseof{\mathit{ne}} & \\
+  (!t)\ \mathit{ne} \mid !\mathit{ne} & \textit{neutral} \\
+ & & \mid &
+  \{l_1 = v_1, \dots, l_i = \mathit{ne}, \dots\} \mid \mathit{ne}.k & \\
+ & & \mid & \ifte{\mathit{ne}} & \\
 \pt & r & ::= & (\lam{x}{t})\ t \mid \{l_1 = t_1, \dots, l_n = t_n\}.l
-  \mid \dup\ \mathit{cv}\ t \mid \drop\ \mathit{cv}\ t & \textit{reducible} \\
- & & \mid & \{l_1 = v_1, \dots, l_n = v_n\}\ b & \\
- & & \mid & r\ t \mid r.l \mid
-  \dup\ r\ t \mid \drop\ r\ t & \\
- & & \mid & \{l_1 = v_1, \dots, l_n = v_n\}\ r \mid
-  \{l_1 = v_1, \dots, l_i = r, \dots\} & \\
- & & \mid & \caseof{b} & \\
- & & \mid & \caseof{r} &
+  \mid (!v_1)\ v_2 & \textit{reducible} \\
+ & & \mid & 
+  \{l_1 = t_1, \dots, l_n = t_n\}.k & \\
+ & & \mid & r\ t \mid r.l \mid (!v)\ r \mid !r & \\
+ & & \mid &
+  \{l_1 = v_1, \dots, l_i = r, \dots\} \mid r.k & \\
+ & & \mid & \ifte{[01]} \mid \ifte{[00]} & \\
+ & & \mid & \ifte{r} &
 \end{array}
 \]
 \begin{points}
-\item $x$ ranges over variables, $l$ over labels, $b$ over byte
+\item $x$ ranges over variables, $l$ over labels, $k$ over positions
+  $0, 1, 2, \dots$, $b$ over byte
   arrays and $t$ over
   terms. Subscripts ($t_1$, $t_2$, \dots) mark different terms in one
   rule.
 \item Types are not a separate syntax: a type is an ordinary term, passed to an
   opcode as an operand (opcodes come later), as in LLVM's
   $\kw{add\ i32}\ a, b$.
-\item A struct's fields are ordered; a label may be empty, and labels may
-  repeat. A struct is data: it is consumed by projection (and later by opcodes),
-  never applied, except to a byte array when it is a value.
+\item A struct's fields are ordered; a label may be empty (no label); the other labels are unique. A struct is data: it is
+  consumed by projection (and later by opcodes), never applied.
+\item Positions count every field, labeled or not, from $0$; a label is a
+  name for one position. In $s = \{x = a, b, y = c\}$: $s.0 = s.x = a$,
+  $s.1 = b$, $s.2 = s.y = c$. An unlabeled field is reached only by its position.
+  An identifier never starts with a digit, so $.1$ is always a position. Both
+  projections become LLVM's $\kw{extractvalue}$ with a constant index.
 \item A byte array $b$ is a sequence of bytes. It can be seen as a number
   at any time: unsigned and little-endian.
 \item A struct is a value only when all its fields are values; its fields
-  are computed first, left to right in the classes. Applying a struct value to a byte array picks a field by position, like LLVM's
-  $\kw{extractvalue}$. Every field is computed first, so a struct can't act as an
-  $\kw{if}$: branching is $\kw{case}$.
-\item $\kw{case}$ branches on a byte array, seen as a number: the arm
-  whose byte array equals the scrutinee runs, or the default $t_0$ when none
-  does. The arm byte arrays are different literals, there is at least one
-  $\kw{when}$, and the default comes last. A byte array of the wrong width is
-  reported by translation.
+  are computed first, left to right in the classes. 
+\item $\kw{if}$ branches on a one-byte condition: $[01]$ takes the
+  $\kw{then}$ arm, $[00]$ the $\kw{else}$ arm, as LLVM's $\kw{br\ i1}$. A
+  multi-way branch is a chain of $\kw{if}$s; the tested value can be used in
+  every link.
+\item A strict term $!t$ takes its argument only once the argument is a
+  value: $!(\lam{x}{t})\ y$ waits, while $(\lam{x}{t})\ y$ reduces to
+  $\subst{x}{y}{t}$. It is the only way to order effects and to use one result
+  more than once: $!(\lam{c}{f\ c\ c})\ e$ runs $e$ once, then the body; with
+  $\lam{\_}{t}$ it only orders. $!$ binds tighter than application:
+  $!(\lam{x}{t})\ y$ is $(!(\lam{x}{t}))\ y$.
 \item Terms are equal up to $\alpha$-equivalence (renaming bound variables).
   When a bound variable of $t_1$ clashes with a free variable of $t_2$,
   $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then
   substitutes.
-\item $\fn{FV}(t)$ is the set of free variables of $t$:
-  $\fn{FV}(x) = \{x\}$, $\fn{FV}(\lam{x}{t}) = \fn{FV}(t) \setminus \{x\}$,
-  and for every other construct the union over its parts.
-\item  $r$, $v$, $\mathit{cv}$, $\mathit{ov}$ and $\mathit{ne}$ are
-  the term classes.  Every term is in exactly one class:
+\item $r$, $v$ and $\mathit{ne}$ are
+  the term classes. Every term is in exactly one class:
   reducible (a rule of Section~\ref{sec:computation} applies at its head), a
   value, or neutral, except a few wrong terms that no rule reduces: a struct
-  applied to a term that is not a byte array, a struct applied to a byte
-  array past its last field, a byte array applied to a term, $v.l$ where $v$ is an abstraction, a byte array or a
-  struct with no field $l$, and a $\kw{case}$ on an abstraction or a struct. They
-  join the stuck class when that class comes.
-\item In $r$, $\{l_1 = t_1, \dots, l_n = t_n\}.l$ needs some $l_i = l$.
-\item $\mathit{cv}$ and $\mathit{ov}$ split the values by $\fn{FV}$, a condition
-  a grammar can't express: being closed depends on the binders.
-\item A neutral term waits for a free variable. Once its binder is applied it
-  may become reducible. 
+  or a byte array applied to a term,
+  $v.k$ where $v$ is not a struct or has no field $k$, $v.l$ where $v$ is
+  an abstraction, a byte array or a struct with no field $l$, and an $\kw{if}$ on anything but $[00]$ or $[01]$. They join the stuck class when that class comes.
+\item In $r$, $\{l_1 = t_1, \dots, l_n = t_n\}.l$ needs some $l_i = l$,
+  and $\{l_1 = t_1, \dots, l_n = t_n\}.k$ needs $k < n$.
+\item A neutral term waits for a free variable (later also for a run-time
+  operation). Once its binder is applied it may become reducible.
 \end{points}
 
 %% ── Computation ────────────────────────────────────────────────────────
@@ -155,41 +150,29 @@
 \begin{rules}
 \axiomrow{E-Beta}
   {(\lam{x}{t_1})\ t_2 \;\step\; \subst{x}{t_2}{t_1}}
-\axiomrow{E-Dup}
-  {\dup\ \mathit{cv}\ t \;\step\; t\ \mathit{cv}\ \mathit{cv}}
-\axiomrow{E-Drop}
-  {\drop\ \mathit{cv}\ t \;\step\; t}
 \rulerow{E-Proj}
-  {l_k = l \text{ and no } l_i = l \text{ for } i < k}
-  {\{l_1 = t_1, \dots, l_n = t_n\}.l \;\step\;
-   \drop\ t_1\ (\cdots (\drop\ t_n\ t_k)) \text{ (each } t_i,\ i \ne k)}
-\rulerow{E-Index}
-  {b = k - 1 < n}
-  {\{l_1 = v_1, \dots, l_n = v_n\}\ b \;\step\;
-   \drop\ v_1\ (\cdots (\drop\ v_n\ v_k)) \text{ (each } v_i,\ i \ne k)}
-\rulerow{E-Case}
-  {b = b_i}
-  {\caseof{b} \;\step\; t_i}
-\rulerow{E-CaseElse}
-  {b \notin \{b_1, \dots, b_k\}}
-  {\caseof{b} \;\step\; t_0}
+  {l_i = l}
+  {\{l_1 = t_1, \dots, l_n = t_n\}.l \;\step\; t_i}
+\rulerow{E-ProjPos}
+  {k < n}
+  {\{l_1 = t_1, \dots, l_n = t_n\}.k \;\step\; t_{k+1}}
+\axiomrow{E-IfTrue}
+  {\ifte{[01]} \;\step\; t_1}
+\axiomrow{E-IfFalse}
+  {\ifte{[00]} \;\step\; t_2}
+\axiomrow{E-Strict}
+  {(!t)\ v \;\step\; t\ v}
 \end{rules}
 \begin{points}
-\item A value is $\lam{x}{t}$, a struct or a byte array,
-  and a closed value $\mathit{cv}$ is one with no free variable
-  (Section~\ref{sec:syntax}).
-\item \rn{E-Dup} and \rn{E-Drop} only duplicate or drop a closed value: work that
-  is not done yet is never copied or lost, and no variable is copied or lost
-  (Section~\ref{sec:linearity}). Otherwise they wait for run time.
-\item \rn{E-Proj} takes the first field labeled $l$ and drops every other
-  field, $t_k$ excepted, so nothing is lost silently. Each $\drop\ t_i$ waits
-  until $t_i$ is a closed value.
-\item \rn{E-Index} picks field $k$, counting from $0$ ($b = k -
-  1$), and drops the others, like \rn{E-Proj}. It waits until every field is a
-  value.
-\item \rn{E-Case} and \rn{E-CaseElse} discard the other arms without a
-  $\drop$: every arm uses the same variables (Section~\ref{sec:linearity}), so
-  nothing is lost, and a discarded arm never runs.
+\item A value is $\lam{x}{t}$, a struct or a byte array (Section~\ref{sec:syntax}).
+\item \rn{E-Proj} takes the  field labeled $l$ (labels are unique), and \rn{E-ProjPos} the field at
+  position $k$; the other fields are discarded.
+\item \rn{E-IfTrue} and
+  \rn{E-IfFalse} discard the other arm; a discarded
+  arm never runs.
+\item \rn{E-Strict} fires only on a value: a value has no effect left to run.
+  A strict term applied to a run-time operation waits; translation emits the operation
+  first, then the rest, with the result as an SSA value.
 \end{points}
 
 %% ── Congruence ─────────────────────────────────────────────────────────
@@ -200,48 +183,40 @@
 \rulerow{E-Abs}{t \step t'}{\lam{x}{t} \;\step\; \lam{x}{t'}}
 \rulerow{E-App1}{t_1 \step t_1'}{t_1\ t_2 \;\step\; t_1'\ t_2}
 \rulerow{E-App2}{t_2 \step t_2'}{t_1\ t_2 \;\step\; t_1\ t_2'}
-\rulerow{E-Dup1}{t_1 \step t_1'}{\dup\ t_1\ t_2 \;\step\; \dup\ t_1'\ t_2}
-\rulerow{E-Dup2}{t_2 \step t_2'}{\dup\ t_1\ t_2 \;\step\; \dup\ t_1\ t_2'}
-\rulerow{E-Drop1}{t_1 \step t_1'}{\drop\ t_1\ t_2 \;\step\; \drop\ t_1'\ t_2}
-\rulerow{E-Drop2}{t_2 \step t_2'}{\drop\ t_1\ t_2 \;\step\; \drop\ t_1\ t_2'}
 \rulerow{E-Struct}{t_i \step t_i'}
   {\{\dots, l_i = t_i, \dots\} \;\step\; \{\dots, l_i = t_i', \dots\}}
 \rulerow{E-Proj1}{t \step t'}{t.l \;\step\; t'.l}
-\rulerow{E-Case1}{t \step t'}{\caseof{t} \;\step\; \caseof{t'}}
-\rulerow{E-CaseArm}{t_i \step t_i'}
-  {\kw{case}\ t\ \cdots \kw{then}\ t_i \cdots \;\step\;
-   \kw{case}\ t\ \cdots \kw{then}\ t_i' \cdots}
+\rulerow{E-ProjPos1}{t \step t'}{t.k \;\step\; t'.k}
+\rulerow{E-If1}{t \step t'}{\kw{if}\ t\ \kw{then}\ t_1\ \kw{else}\ t_2
+  \;\step\; \kw{if}\ t'\ \kw{then}\ t_1\ \kw{else}\ t_2}
+\rulerow{E-If2}{t_1 \step t_1'}{\ifte{t} \;\step\;
+  \kw{if}\ t\ \kw{then}\ t_1'\ \kw{else}\ t_2}
+\rulerow{E-If3}{t_2 \step t_2'}{\ifte{t} \;\step\;
+  \kw{if}\ t\ \kw{then}\ t_1\ \kw{else}\ t_2'}
+\rulerow{E-Strict1}{t \step t'}{!t \;\step\; !t'}
 \end{rules}
 \begin{points}
 \item $\step$ is full $\beta$: a rule of Section~\ref{sec:computation} may fire
-  anywhere, under a $\lambda$, in a struct field and in a $\kw{case}$ arm
-  (the default included)  too.
+  anywhere, under a $\lambda$, in a struct field and in either arm of an $\kw{if}$ too.
 \item $\step$ is expected to be confluent: it is the $\lambda$-calculus with
-  $\dup$, $\drop$, structs and projection (Church--Rosser; projection is
-  the usual record rule). 
+   structs,  projection, $\kw{if}$ and
+  strict terms (Church--Rosser; projection is the usual record rule).
 \end{points}
 
-%% ── Linearity ──────────────────────────────────────────────────────────
+%% ── Meaning ────────────────────────────────────────────────────────────
 
-\section{Linearity}\label{sec:linearity}
+\section{What Runs}\label{sec:runs}
 
 \begin{points}
-\item A term is \emph{linear} when, for every $\lam{x}{t}$
-  in it, $x$ occurs exactly once in $t$, counting occurrences inside inner
-  $\lambda$s and in every field of a struct: the fields share out the
-  variables, as the operands of an opcode will. In a $\kw{case}$, the
-  arms are alternatives: each arm, the default included, must use the same
-  variables, each once; the scrutinee counts as usual. An arm that doesn't need a
-  variable drops it.
-\item Free variables are not checked again inside a body: each is checked at its
-  own binder, or comes from the environment, which is trusted.
-\item $\dup$ and $\drop$ are the only ways to duplicate or drop; they bind nothing.
-  For example $\dup\ x\ (\lam{a}{\lam{b}{a\ b}})$ uses $x$ twice.
-\item Reduction keeps a term linear: \rn{E-Beta} puts $t_2$ where the
-  single $x$ was, \rn{E-Dup} and \rn{E-Drop} only duplicate or drop
-  closed terms, \rn{E-Proj} drops the fields it doesn't
-  return, and \rn{E-Case}, \rn{E-CaseElse} keep one arm, which uses the same
-  variables as the others.
+\item Reduction never runs an effect: an effectful operation (with opcodes,
+  later) is neutral at compile time. Full $\beta$ may copy or discard a term
+  freely; since it is confluent, every order reaches the same normal form.
+\item What runs is read from the normal form: each effect in it runs once,
+  in the order fixed by strict terms and by data dependencies; everything else is
+  pure and may be reordered. An effect written twice runs twice; that is the
+  user's choice, visible in the program.
+\item Translation must not share two occurrences of an effect; it may share
+  pure operations.
 \end{points}
 
 \end{document}

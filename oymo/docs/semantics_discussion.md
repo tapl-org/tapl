@@ -229,6 +229,27 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D16: projection by position; unique labels — agreed (accepted)
+
+- E-Index and struct application removed (`if` branches now; a run-time index into a struct is not valid LLVM anyway). Added `t.k`: positions count every field from 0, labeled or not; a label names one position. E-ProjPos `{l₁ = t₁, …, lₙ = tₙ}.k ⟶ tₖ₊₁` (`k < n`), congruence E-ProjPos1. Both projections become `extractvalue` with a constant index.
+- Labels: empty (no label) allowed any number of times; other labels unique (the user; no reason for repeats was found: the wiki only records "labels may repeat, s.a picks the first", likely because labels were optional names on LLVM tuples and `$fields_to_struct` kept duplicates). Code later: reject duplicate labels in the parser and in `$fields_to_struct`.
+
+### D15: strict term `!t` replaces `seq` — agreed (accepted)
+
+
+### D14: `if` replaces `case` — agreed (accepted)
+
+Without linearity a chain of `if`s can reuse the tested value freely (no `dup`), so `case` (D9) goes. `if t then t₁ else t₂`: E-IfTrue (`[01]` → `t₁`), E-IfFalse (`[00]` → `t₂`), like LLVM `br i1`; congruence E-If1/2/3; any other condition is wrong (stuck later). LLVM's SimplifyCFG recovers `switch` from chains.
+
+### D13: no linearity; `seq` — agreed (accepted)
+
+The user: "dup and drop is too cumbersome. I do not want to restrict user. I believe user is 100% proficient... what i want is full beta confluence, and order where user wants. like i used $seq."
+
+- Removed: `dup`, `drop`, `cv`/`ov`, the linearity section (D8 option D undone); E-Proj and E-Index just return the field.
+- Meaning is read from the normal form: reduction never runs an effect (effectful operations are neutral at compile time); full β is confluent, so the normal form is unique; each effect in it runs once, ordered by `seq` and data dependencies. An effect written twice runs twice (the user's choice).
+- `seq t₁ t₂`: run `t₁`, pass its result to `t₂`. E-Seq `seq v t ⟶ t v` (only on a value); congruence E-Seq1/2. A `seq` on a run-time operation waits; translation emits it first, the result as an SSA value. It is the only way to order effects and to share one result.
+- Translation must not share two occurrences of an effect (it may share pure operations); `shape`'s let sharing must not apply to effects.
+
 ## Decisions
 
 ### D1: neutral vs stuck — agreed
