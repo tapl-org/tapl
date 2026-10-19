@@ -229,6 +229,31 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D20: blocks; m stays free; struct applied to a byte array replaces `if` and `.k` — agreed (accepted)
+
+- The user: "definition labels order: param, result, body"; "m maybe replaced if user wants. see programs_test.py. test_gcd_blocks"; "Yes, m stays free, and so calls are neutral".
+- The user: "a block is {param, body} and body is a recursive function. like \f.{entry=...., join=..}". Written: a definition's `body = λf.{entry = block, l = block, …}`; a block `{param, body = λx₁…λxₙ. t}`, param = phi types; jump `f.l.body t…` (LLVM `br`); call `m.l.body.entry.body t…` (m stands for the module with bodies tied). Example: gcd from `tests/oymomo/programs_test.py::test_gcd_blocks`.
+- The user: "yes" to the struct form. E-Index `{l₁ = t₁, …, lₙ = tₙ} b ⟶ t_{k+1}` (num(b) = k < n) replaces `if` (E-IfTrue/False, E-If1/2/3) and `.k` (E-ProjPos, E-ProjPos1). Branch `{false = t₂, true = t₁} c`; more fields = LLVM `switch`. Classes: `r` gets `{…} b`, `{…} r`; `ne` gets `{…} ne`. The user's criterion: "my only interest is full-beta confluence with support of manual effect order".
+- The definition's `param` repeated the entry block's; the user: "yes" to dropping it. A definition is `{result, body}`; a declaration `{param, result}`.
+- Call form: the user wants it "shorter". Now `m.l t₁ … tₙ`: `m.l` stands for the function itself (for a definition, its entry block's body with `f` tied). Example `main` calls `m.gcd [30000000] [12000000]`.
+- The user: "block body takes only one struct argument and its form is same as its param value, not a curried one". Now `body = λp. t`, read as `p.xᵢ`; jump `f.l.body {x₁ = t₁, …}`; call `m.l {x₁ = t₁, …}`.
+
+### D19: modules, definitions, declarations — agreed (accepted)
+
+- The user: "definition: {fn = \a.t, param={...}, result=...}. if fn does not exist then decleration, and calling fn is also stuck"; "calling is directly lambda application"; "module: a struct of labeled declerations and definitions. labels act as global names. they refer each other by \m. {...} ---> m.puts.fn"; "find a better label for fn".
+- Written as Section 5 "Modules": label `fn` renamed `body` (agent's pick); a definition `{body = λx₁…λxₙ. t, param = {x₁ = t₁, …}, result = t'}` → LLVM `define`; a declaration has no `body` → `declare`; a call is `m.l.body t`.
+- Agent's proposal, flagged to the user: the module is never applied, so `m` stays free and calls are neutral (no unfolding, so recursion doesn't loop); the translation emits `call`. If `m` were substituted, a call to a definition reduces (E-Proj, E-Beta) and a call to a declaration is stuck.
+- Phi types: the user chose "declare it"; struct form to be proposed.
+- `if` vs struct applied to a byte array: the user's only criterion is full-β confluence with manual effect order.
+
+### D18: projection drops effects; postponements — agreed (accepted)
+
+- E-Proj and E-ProjPos discard the other fields even when they hold effects; the user: "this is up to user. if user wants to keep they can use strict mode." Note added to 2/9 with `!(λx.{a = x, b = [01]}.b) e`.
+- Stuck class: postponed ("we will discuss about it later").
+- Evaluation strategy `⟶w`: postponed.
+- All code implementations come after the Lean 4 proof.
+- Next: declarations as tagged structs; block parameter (phi) types; the user asks whether to go back to struct-applied-to-byte-array for `if`.
+
 ### D17: opcode call `b {…}` — agreed (accepted)
 
 - The user: "lets add application of: b {...} this is a opcode call. and it can be evaluated, or not if undefined behavior, or may be effect".
@@ -663,6 +688,8 @@ on  ::= n | n~φ | {lᵢ = onᵢ} | ne
 - Every change is marked blue (new) / red struck (removed) until the user accepts.
 
 ## State of semantics.tex (accepted)
+
+Latest accepted (after D20): terms `x | λx. t | t t | {l = t, …} | t.l | b | !t`; rules E-Beta, E-Proj, E-Index (`{…} b`, branch/switch), E-Opcode (`b {…}`), E-Strict; full β E-Abs, E-App1/2, E-Struct, E-Proj1, E-Strict1; Section 4 "What Runs"; Section 5 "Modules": module `λm.{…}`, definition `{result, body = λf.{entry = block, …}}`, block `{param, body = λp. t}`, declaration `{param, result}`, jump `f.l.body {…}`, call `m.l {…}`; `m`, `f` stay free.
 
 Latest accepted (after D17): terms `x | λx. t | t t | {l = t, …} | t.l | t.k | b | if t then t else t | !t`; opcode call `b {l = v, …}` via E-Opcode (`op(b)` partial; no result → neutral run-time operation); rules E-Beta, E-Proj, E-ProjPos, E-IfTrue, E-IfFalse, E-Opcode, E-Strict; full β congruence; Section 4 "What Runs".
 

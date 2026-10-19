@@ -20,7 +20,6 @@
 \newcommand{\kw}[1]{\mathtt{#1}}
 \newcommand{\str}[1]{\text{\ttfamily\textquotesingle #1\textquotesingle}}  % 'text' bytes
 \newcommand{\hex}[1]{\text{\ttfamily [#1]}}  % [hex] bytes                % keyword in math
-\newcommand{\ifte}[1]{\kw{if}\ #1\ \kw{then}\ t_1\ \kw{else}\ t_2}  % if
 
 \mprset{sep=1.5em}
 
@@ -76,33 +75,30 @@
 \pt &   & \mid & t\ t & \textit{application} \\
 \pt &   & \mid & \{l_1 = t_1, \dots, l_n = t_n\} & \textit{struct} \\
 \pt &   & \mid & t.l & \textit{projection} \\
-\pt &   & \mid & t.k & \textit{projection by position} \\
 \pt &   & \mid & b & \textit{byte array} \\
-\pt &   & \mid & \ifte{t} & \textit{if} \\
 \pt &   & \mid & !t & \textit{strict term} \\[6pt]
 \pt & v & ::= & \lam{x}{t} \mid \{l_1 = v_1, \dots, l_n = v_n\} \mid b \mid !v &
   \textit{value} \\
 \pt & \mathit{ne} & ::= & x \mid \mathit{ne}\ t \mid \mathit{ne}.l \mid
   (!t)\ \mathit{ne} \mid !\mathit{ne} & \textit{neutral} \\
  & & \mid &
-  \{\dots, l_i = \mathit{ne}, \dots\} \mid \mathit{ne}.k & \\
- & & \mid & \ifte{\mathit{ne}} & \\
+  \{\dots, l_i = \mathit{ne}, \dots\} & \\
+ & & \mid & \{l_1 = t_1, \dots, l_n = t_n\}\ \mathit{ne} & \\
  & & \mid & b\ \{l_1 = v_1, \dots, l_n = v_n\} \mid b\ \mathit{ne} & \\
 \pt & r & ::= & (\lam{x}{t})\ t \mid \{l_1 = t_1, \dots, l_n = t_n\}.l
   \mid (!v_1)\ v_2 & \textit{reducible} \\
  & & \mid & 
-  \{l_1 = t_1, \dots, l_n = t_n\}.k & \\
+\{l_1 = t_1, \dots, l_n = t_n\}\ b & \\
  & & \mid & r\ t \mid r.l \mid (!v)\ r \mid !r & \\
  & & \mid &
-  \{\dots, l_i = r, \dots\} \mid r.k & \\
- & & \mid & \ifte{[01]} \mid \ifte{[00]} & \\
- & & \mid & \ifte{r} & \\
+  \{\dots, l_i = r, \dots\} & \\
+ & & \mid & \{l_1 = t_1, \dots, l_n = t_n\}\ r & \\
  & & \mid & b\ \{l_1 = v_1, \dots, l_n = v_n\} \mid b\ r &
 \end{array}
 \]
 \begin{points}
 \item A byte array $b$ is a sequence of bytes. It can be seen as a number
-  at any time: unsigned and little-endian. It is mostly written in hex,
+  $\fn{num}(b)$ at any time: unsigned and little-endian. It is mostly written in hex,
   $\hex{01ff}$. When its bytes are valid UTF-8 text, it may be written as text
   instead: $\str{i32}$ is the byte array $\hex{693332}$.
 \item $x$ ranges over variables, $l$ over labels, $k$ over positions
@@ -113,25 +109,27 @@
 \item Types are not a separate syntax: a type is an ordinary term, passed to an opcode as an operand: $\str{add}\ \{\str{i32}, a, b\}$ is LLVM's
   $\kw{add\ i32}\ a, b$.
 \item A struct's fields are ordered; a label may be empty (no label); the other labels are unique. A struct is data: it is
-  consumed by projection and by opcodes, never applied.
+  consumed by projection, by opcodes, and
+  by a byte array: applied to one, it selects a field (1/16, 1/18).
 \item A byte array applied to a struct, $b\ \{l_1 = t_1, \dots, l_n = t_n\}$, is an
   opcode call: $b$ names the opcode and the struct holds its operands, as in
   $\str{add}\ \{\str{i32}, a, b\}$. $\fn{op}(b)$ is a partial function from
   operand values to a byte array: it gives no result when the call is an effect
   (printing, writing memory) or undefined behavior (division by zero).
 \item Positions count every field, labeled or not, from $0$; a label is a
-  name for one position. In $s = \{x = a, b, y = c\}$: $s.0 = s.x = a$,
-  $s.1 = b$, $s.2 = s.y = c$. An unlabeled field is reached only by its position.
-  An identifier never starts with a digit, so $.1$ is always a position. Both
-  projections become LLVM's $\kw{extractvalue}$ with a constant index.
+  name for one position. A struct applied to a byte array $b$ selects the
+  field at position $\fn{num}(b)$. In $s = \{x = a, b, y = c\}$: $s\ \hex{00} = s.x = a$, $s\ \hex{01} = b$,
+  $s\ \hex{02} = s.y = c$. An unlabeled field is reached only by its position.
+   With a constant byte array, both become LLVM's $\kw{extractvalue}$ with a constant index.
 \item A struct is a value only when all its fields are values. Its fields are computed
   in no particular order: full $\beta$ may step any of them. A struct with a
   reducible field is reducible; one with a neutral field and no reducible field
   is neutral.
-\item $\kw{if}$ branches on a one-byte condition: $[01]$ takes the
-  $\kw{then}$ arm, $[00]$ the $\kw{else}$ arm, as LLVM's $\kw{br\ i1}$. A
-  multi-way branch is a chain of $\kw{if}$s; the tested value can be used in
-  every link.
+\item A branch is a struct applied to a byte array known only at
+  run time: $\{\mathit{false} = t_2, \mathit{true} = t_1\}\ c$ takes $t_1$ when
+  $c$ is $\hex{01}$ and $t_2$ when it is $\hex{00}$, as LLVM's $\kw{br\ i1}$. With more
+  fields it is a multi-way branch, as LLVM's $\kw{switch}$. The labels only
+  document the arms.
 \item A strict term $!t$ takes its argument only once the argument is a
   value: $!(\lam{x}{t})\ y$ waits, while $(\lam{x}{t})\ y$ reduces to
   $\subst{x}{y}{t}$. It is the only way to order effects and to use one result
@@ -146,11 +144,12 @@
   the term classes. Every term is in exactly one class:
   reducible (a rule of Section~\ref{sec:computation} applies at its head), a
   value, or neutral, except a few wrong terms that no rule reduces: a struct
-  applied to a term, a byte array applied to a term that is not a struct,
-  $v.k$ where $v$ is not a struct or has no field $k$, $v.l$ where $v$ is
-  an abstraction, a byte array or a struct with no field $l$, and an $\kw{if}$ on anything but $[00]$ or $[01]$. They join the stuck class when that class comes.
+  applied to a value that is not a byte array, or to a byte array $b$ with
+  $\fn{num}(b) \ge n$, a byte array applied to a term that is not a struct,
+   $v.l$ where $v$ is
+  an abstraction, a byte array or a struct with no field $l$. They join the stuck class when that class comes.
 \item In $r$, $\{l_1 = t_1, \dots, l_n = t_n\}.l$ needs some $l_i = l$,
-  and $\{l_1 = t_1, \dots, l_n = t_n\}.k$ needs $k < n$.
+  and $\{l_1 = t_1, \dots, l_n = t_n\}\ b$ needs $\fn{num}(b) < n$.
   $b\ \{l_1 = v_1, \dots, l_n = v_n\}$ is in $r$ when $\fn{op}(b)$ gives a
   result, and in $\mathit{ne}$ when it gives none.
 \item A neutral term waits for a free variable or for a run-time operation. Once its binder is applied it may become reducible.
@@ -166,13 +165,9 @@
 \rulerow{E-Proj}
   {l_i = l}
   {\{l_1 = t_1, \dots, l_n = t_n\}.l \;\step\; t_i}
-\rulerow{E-ProjPos}
-  {k < n}
-  {\{l_1 = t_1, \dots, l_n = t_n\}.k \;\step\; t_{k+1}}
-\axiomrow{E-IfTrue}
-  {\ifte{[01]} \;\step\; t_1}
-\axiomrow{E-IfFalse}
-  {\ifte{[00]} \;\step\; t_2}
+\rulerow{E-Index}
+  {\fn{num}(b) = k < n}
+  {\{l_1 = t_1, \dots, l_n = t_n\}\ b \;\step\; t_{k+1}}
 \rulerow{E-Opcode}
   {\fn{op}(b)(v_1, \dots, v_n) = b'}
   {b\ \{l_1 = v_1, \dots, l_n = v_n\} \;\step\; b'}
@@ -181,11 +176,12 @@
 \end{rules}
 \begin{points}
 \item A value is $\lam{x}{t}$, a struct or a byte array (Section~\ref{sec:syntax}).
-\item \rn{E-Proj} takes the field labeled $l$ (labels are unique), and \rn{E-ProjPos} the field at
-  position $k$; the other fields are discarded.
-\item \rn{E-IfTrue} and
-  \rn{E-IfFalse} discard the other arm; a discarded
-  arm never runs.
+\item \rn{E-Proj} takes the field labeled $l$ (labels are unique), and \rn{E-Index} the field at
+  position $\fn{num}(b)$; the other fields are discarded, even one with an effect:
+  $\{a = e, b = \hex{01}\}.b \step \hex{01}$ never runs $e$. To run it, bind it
+  first with a strict term: $!(\lam{x}{\{a = x, b = \hex{01}\}.b})\ e$.
+\item So a branch whose condition is known at compile time
+  keeps one arm and discards the others; a discarded arm never runs.
 \item \rn{E-Opcode} computes the call at compile time: all operands are
   values and $\fn{op}(b)$ gives a result, so
   $\str{add}\ \{\str{i32}, \hex{02000000}, \hex{03000000}\} \step \hex{05000000}$.
@@ -209,20 +205,13 @@
 \rulerow{E-Struct}{t_i \step t_i'}
   {\{\dots, l_i = t_i, \dots\} \;\step\; \{\dots, l_i = t_i', \dots\}}
 \rulerow{E-Proj1}{t \step t'}{t.l \;\step\; t'.l}
-\rulerow{E-ProjPos1}{t \step t'}{t.k \;\step\; t'.k}
-\rulerow{E-If1}{t \step t'}{\kw{if}\ t\ \kw{then}\ t_1\ \kw{else}\ t_2
-  \;\step\; \kw{if}\ t'\ \kw{then}\ t_1\ \kw{else}\ t_2}
-\rulerow{E-If2}{t_1 \step t_1'}{\ifte{t} \;\step\;
-  \kw{if}\ t\ \kw{then}\ t_1'\ \kw{else}\ t_2}
-\rulerow{E-If3}{t_2 \step t_2'}{\ifte{t} \;\step\;
-  \kw{if}\ t\ \kw{then}\ t_1\ \kw{else}\ t_2'}
 \rulerow{E-Strict1}{t \step t'}{!t \;\step\; !t'}
 \end{rules}
 \begin{points}
 \item $\step$ is full $\beta$: a rule of Section~\ref{sec:computation} may fire
-  anywhere, under a $\lambda$, in a struct field and in either arm of an $\kw{if}$ too.
+  anywhere, under a $\lambda$, in a struct field (so in every arm of a branch) too.
 \item $\step$ is expected to be confluent: it is the $\lambda$-calculus with
-   structs,  projection, $\kw{if}$ and
+   structs,  projection, branching and
   strict terms (Church--Rosser; projection is the usual record rule).
 \end{points}
 
@@ -231,8 +220,7 @@
 \section{What Runs}\label{sec:runs}
 
 \begin{points}
-\item Reduction never runs an effect: an effectful operation (with opcodes,
-  later) is neutral at compile time. Full $\beta$ may copy or discard a term
+\item Reduction never runs an effect: an effectful operation  (an opcode call with no result, 2/9) is neutral at compile time. Full $\beta$ may copy or discard a term
   freely; since it is confluent, every order reaches the same normal form.
 \item The program that runs is the normal form. Count the effects in it: each
   one runs exactly once. For example, with $p = \kw{print}\ \str{h}$ (an effect):
@@ -254,6 +242,59 @@
   \item $!(\lam{x}{\{x, x\}})\ p$ becomes one $\kw{print}$ instruction whose
     result fills both fields.
   \end{itemize}
+\end{points}
+
+%% ── Modules ──────────────────────────────────────────────────────────
+
+\section{Modules}\label{sec:modules}
+
+\begin{points}
+\item A module is $\lam{m}{\{l_1 = t_1, \dots, l_n = t_n\}}$: a struct of labeled
+  definitions and declarations. Each label is a global name, as LLVM's
+  $\kw{@gcd}$ or $\kw{@puts}$. They refer to each other through $m$.
+\item A definition is a struct
+  $\{\mathit{result} = t',\
+  \mathit{body} = \lam{f}{\{\mathit{entry} = t_e, l_2 = t_2', \dots\}}\}$.
+  $\mathit{result}$ gives the result type; types are ordinary terms (1/13). The
+  parameters and their types are those of the $\mathit{entry}$ block. $\mathit{body}$ is a recursive
+  function: $f$ names its own struct of blocks. It becomes LLVM's
+  $\kw{define}$.
+\item A block is a struct $\{\mathit{param} = \{x_1 = t_1, \dots, x_n = t_n\},\
+  \mathit{body} = \lam{p}{t}\}$. $\mathit{param}$ declares the
+  types of the block parameters (LLVM's $\kw{phi}$). $\mathit{body}$ takes one
+  argument, a struct of the same form as $\mathit{param}$:
+  $\{x_1 = t_1', \dots, x_n = t_n'\}$; $t$ reads it as $p.x_i$. The $\mathit{entry}$ block
+  runs first. A jump is
+  $f.l.\mathit{body}\ \{x_1 = t_1', \dots, x_n = t_n'\}$, LLVM's $\kw{br}$. A block sees only its own
+  argument, $f$ and $m$.
+\item A declaration is a struct $\{\mathit{param} = \{x_1 = t_1, \dots, x_n = t_n\},\ \mathit{result} = t'\}$,
+  a function defined outside the module; $\mathit{param}$ gives the parameter
+  types in order: $\{\mathit{param} = \{s = \str{ptr}\},\ \mathit{result} = \str{i32}\}$
+  becomes LLVM's $\kw{declare\ i32\ @puts(ptr)}$.
+\item $m.l$ stands for the function $l$ itself, so a call is a plain
+  application to one struct: $m.l\ \{x_1 = t_1', \dots, x_n = t_n'\}$, LLVM's $\kw{call}$. For a definition, $m.l$
+  is the $\mathit{body}$ of its $\mathit{entry}$ block with $f$ tied to its own
+  struct of blocks.
+\item $m$ and $f$ stay free variables, so calls and jumps are neutral: reduction
+  never unfolds them, and a recursive function or a loop doesn't make
+  reduction loop. The user may replace them (with a fixed-point combinator) to
+  compute calls at compile time; a call to a declaration stays stuck: it has
+  no $\mathit{body}$.
+\item For example, Euclid's $\gcd$:
+  \[
+  \begin{array}{l}
+  \lambda m.\, \{\mathit{gcd} = \{\mathit{result} = \str{i32},\ \mathit{body} = \lambda f.\, \{\\
+  \quad \mathit{entry} = \{\mathit{param} = \{a = \str{i32}, b = \str{i32}\},\ \mathit{body} = \lam{p}{f.\mathit{loop}.\mathit{body}\ \{a = p.a, b = p.b\}}\},\\
+  \quad \mathit{loop} = \{\mathit{param} = \{a = \str{i32}, b = \str{i32}\},\ \mathit{body} = \lambda p.\\
+  \qquad \{\mathit{false} = f.\mathit{step}.\mathit{body}\ \{a = p.a, b = p.b\},\ \mathit{true} = f.\mathit{done}.\mathit{body}\ \{a = p.a\}\}\\
+  \qquad (\str{icmp\_eq}\ \{\str{i32}, p.b, \hex{00000000}\})\},\\
+  \quad \mathit{step} = \{\mathit{param} = \{a = \str{i32}, b = \str{i32}\},\ \mathit{body} =
+     \lam{p}{f.\mathit{loop}.\mathit{body}\ \{a = p.b, b = \str{urem}\ \{\str{i32}, p.a, p.b\}\}}\},\\
+  \quad \mathit{done} = \{\mathit{param} = \{a = \str{i32}\},\ \mathit{body} = \lam{p}{p.a}\}\}\},\\
+  \ \ \mathit{main} = \{\mathit{result} = \str{i32},\ \mathit{body} = \lambda f.\, \{\mathit{entry} = \{\mathit{param} = \{\},\\
+  \quad \mathit{body} = \lam{p}{m.\mathit{gcd}\ \{a = \hex{30000000}, b = \hex{12000000}\}}\}\}\}\}
+  \end{array}
+  \]
 \end{points}
 
 \end{document}
