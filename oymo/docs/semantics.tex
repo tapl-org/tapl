@@ -71,7 +71,7 @@
 \begin{array}{l@{\quad}rcll}
  & t & ::= & & \textit{term} \\
 \pt &   & \mid & x & \textit{variable} \\
-\pt &   & \mid & \lam{x}{t} & \textit{lambda} \\
+\pt &   & \mid & \lam{x}{t} & \textit{abstraction} \\
 \pt &   & \mid & t\ t & \textit{application} \\
 \pt &   & \mid & t\ {!}t & \textit{strict application} \\
 \pt &   & \mid & \{l_1 = t_1, \dots, l_n = t_n\} & \textit{struct} \\
@@ -88,7 +88,9 @@
   arrays and $t$ over
   terms. Subscripts ($t_1$, $t_2$, \dots) mark different terms in one
   rule. A lambda $x \to t$ extends as far right as possible:
-  $x \to y \to t$ is $x \to (y \to t)$.
+  $x \to y \to t$ is $x \to (y \to t)$. It is written with an arrow, not as
+  $\lambda x.\,t$, so that a dot only means projection: $p \to p.a$ needs no care,
+  where $\lambda p.\,p.a$ would.
 \item A byte array $b$ is a sequence of bytes. Where a number is
   expected, $b$ is read as an unsigned, little-endian number: $\hex{0201}$ is $258$, and the empty byte array is $0$. It is mostly written in hex,
   $\hex{01ff}$. When its bytes are valid UTF-8 text, it may be written as text

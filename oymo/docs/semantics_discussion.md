@@ -229,6 +229,10 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D30: keep the arrow for abstraction — agreed (accepted)
+
+- The user asked about `\x.t` (doc and source). Agent: `.` is projection, and bodies often start with one (`\p.f.loop.body`); suggested keeping `x → t` (or `\x → t`). The user: "keep arrow. 1/2 comment abstraction instead of lambda. also add a note saying that we used arrow syntax so . dont clash with projection". Row 2's comment is now "abstraction"; 1/10 explains the arrow. The prose still says "lambda" (D22).
+
 ### D29: strict application `t !t` replaces the strict term `!t` — agreed (accepted)
 
 - The user: "what if i move the strictness to argument, like: t !t"; after a pros/cons comparison (C strict constructor, A strict application, C′ strict binder `!x → t`): "I choose A. and also ! groupping works same as applciation and let". Keep `=` in `let` and `!` as the sigil (walrus `:=`, `←`, other characters discussed and declined).
