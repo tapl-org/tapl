@@ -239,6 +239,18 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D42: `λx. t` instead of the arrow; intro says "extension of the untyped λ-calculus" — agreed (accepted)
+- User: "Maybe use \x syntax instead of arrow to comply standards. Mention that oymomo semantics is an extension of untyped lambda calculus".
+- Reverses D30. `\lam` macro now `λx.\,t` (binder blue while under review; on accept make the macro and `\vlam` plain). 1/11: the dot right after the binder ends it; every other dot is projection: `λp. p.a` is `λp. (p.a)`.
+- gcd listing: `λm.`, `λf.`, `λp.` (macros `\vlamm`, `\vlamf`, `\vlamp`; `<>` grouping doesn't work in the Verbatim).
+- New intro paragraph under the title: extension of the untyped λ-calculus (adds strict application, structs, projection, byte arrays naming opcodes) and a map of the sections.
+
+### D41: class `u ::= v | x`, "copyable"; branch lets become `select` — agreed (accepted)
+- User: "can you create a class for value or variable. and find a good single word name".
+- Agent: `u`, *copyable* — substituting it copies nothing that runs (a value has no effect left, 2/11; a variable is a name). Alternatives offered: *trivial* (ANF literature), *atom* (clashes with BANF atoms).
+- Section 6 form 1 `u ::= v | x`; shared let `(x→t₁) t₂, t₂ ∉ u`; E-Beta row `(x→t₁) u`. Forms 1–3, table rows 4–20; cross-references updated.
+- User: "6.okay" (copyable). "7c": a shared `let` of a branch with data arms becomes LLVM `select` (a chain when 2 < k); any other branch in a `let` is rejected (6/25(1), 6/25(2)). User: "4. yes": select arms may also be variables or a variable's field (`d`, `x` or `x.l`).
+
 ### D40: no `▷ₛ` in the shape column — agreed (accepted)
 - User asked to make the doc "extensional like i did in theta doc"; then clarified: "actually, what i want is not to use ▷ₛ in shape column".
 - Two forms added before the table: row 1 shared `let` `(x→t₁) t₂`, `t₂` neither a value nor a variable; row 2 `w` = a term in which every redex is a shared `let` (shared normal form). Not circular.

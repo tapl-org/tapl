@@ -88,10 +88,12 @@ The user's orders, kept as given. Follow them in every task.
     (W-FuncForm1/2); values are `λx~φ. t`, `φ₁ ⇒ φ₂`, `v~φ` with `φ` a form in normal
     form. Notation (user's order, latest; replaces `F`/`G` and `s`): one letter per
     class. Every term, forms included, is `t`; several terms in one rule are `t₁`,
-    `t₂`, … (`(x → t₁) t₂`, `t₁ ▷ t₁'`); a class variable (only `v` now, D21) is kept
-    only if a rule uses it. D22: lambda is written `x → t` and called "lambda" (not
-    "abstraction", not "function": function = Section 5 definition/declaration); the
-    step relation is `▷`.
+    `t₂`, … (`(λx. t₁) t₂`, `t₁ ▷ t₁'`); a class variable is kept
+    only if a rule uses it. D22/D42: lambda is written `λx. t` (D42 replaced the arrow
+    `x → t`; the dot right after the binder ends it, every other dot is projection) and
+    called "lambda" (not "function": function = Section 5 definition/declaration); the
+    step relation is `▷`. The doc opens by calling Oymomo an extension of the untyped
+    λ-calculus.
     D4 (agreed): term classes, progress and determinism describe `⟶w`; full β is
     needed eventually (confluence, then its own normal forms).
     D5 (agreed): Lean project in `oymo/proofs/` (lake, latest stable Lean 4 via elan, no

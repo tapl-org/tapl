@@ -12,12 +12,14 @@
 \usepackage{fancyvrb}
 \usepackage{upquote}
 \newcommand{\vto}{\mbox{$\to$}}  % → inside a code listing
+\newcommand{\vlam}{\mbox{$\lambda$}}  % \lambda inside a code listing
+\newcommand{\vlamm}{\vlam m}\newcommand{\vlamf}{\vlam f}\newcommand{\vlamp}{\vlam p}
 \usepackage[hidelinks]{hyperref}
 
 %% ── Macros (each notation is introduced in the text where it is first used) ──
 \newcommand{\step}{\mathrel{\triangleright}}     % one step
 \newcommand{\stepS}{\mathrel{\triangleright_{s}}} % one step of sharing normal order
-\newcommand{\lam}[2]{#1 \to #2}                  % x → t
+\newcommand{\lam}[2]{\lambda #1.\,#2}       % \lambda x. t
 \newcommand{\subst}[3]{[#1 \mapsto #2]\,#3}     % [x ↦ t2] t1
 \newcommand{\fn}[1]{\mathit{#1}}                % meta function
 \newcommand{\rn}[1]{\textsc{#1}}                % rule name in text
@@ -71,6 +73,16 @@
 
 \maketitle
 
+\medskip\noindent
+Oymomo is an extension of the untyped $\lambda$-calculus: to variables, abstraction and
+application it adds strict application, structs, projection and byte arrays, which name
+opcodes. Section~\ref{sec:syntax} gives the syntax, Sections~\ref{sec:computation}
+and~\ref{sec:congruence} the reduction (full $\beta$), Section~\ref{sec:runs} what runs at compile time
+and at run time, Section~\ref{sec:modules} how a program maps to LLVM, and Section~\ref{sec:strategy} the
+order the compiler reduces in.
+
+
+
 
 %% ── Syntax ─────────────────────────────────────────────────────────────
 
@@ -97,10 +109,9 @@
   arrays and $t$ over
   terms. Subscripts ($t_1$, $t_2$, \dots) mark different terms in one
   rule.
-\item A lambda $x \to t$ extends as far right as possible:
-  $x \to y \to t$ is $x \to (y \to t)$. It is written with an arrow, not as
-  $\lambda x.\,t$, so that a dot only means projection: $p \to p.a$ needs no care,
-  where $\lambda p.\,p.a$ would.
+\item A lambda $\lam{x}{t}$ extends as far right as possible:
+  $\lam{x}{\lam{y}{t}}$ is $\lam{x}{(\lam{y}{t})}$. The dot right after the binder ends the binder; every other
+  dot is projection: $\lam{p}{p.a}$ is $\lam{p}{(p.a)}$.
 \item A byte array $b$ is a sequence of bytes.
   \begin{subpoints}
   \item Where a number is expected, $b$ is read as an unsigned, little-endian
@@ -360,29 +371,29 @@
   \end{subpoints}
 \item For example, Euclid's $\gcd$, with the sugars of 1/20 and 1/21:
   \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
-m @vto@ {
-  gcd = {gives = 'i32', body = f @vto@ {
-      entry = {takes = {a = 'i32', b = 'i32'}, body = p @vto
+@vlamm.@ {
+  gcd = {gives = 'i32', body = @vlamf.@ {
+      entry = {takes = {a = 'i32', b = 'i32'}, body = @vlamp.
         f.loop.body {a = p.a, b = p.b}
       },
-      loop = {takes = {a = 'i32', b = 'i32'}, body = p @vto
+      loop = {takes = {a = 'i32', b = 'i32'}, body = @vlamp.
         let z = 'icmp_eq' {'i32', p.b, [00000000]} in
         if z then
           f.done.body {a = p.a}
         else
           f.step.body {a = p.a, b = p.b}
       },
-      step = {takes = {a = 'i32', b = 'i32'}, body = p @vto
+      step = {takes = {a = 'i32', b = 'i32'}, body = @vlamp.
         let r = 'urem' {'i32', p.a, p.b} in
         f.loop.body {a = p.b, b = r}
       },
-      done = {takes = {a = 'i32'}, body = p @vto
+      done = {takes = {a = 'i32'}, body = @vlamp.
         p.a
       }
     }
   },
-  main = {gives = 'i32', body = f @vto@ {
-      entry = {takes = {}, body = p @vto
+  main = {gives = 'i32', body = @vlamf.@ {
+      entry = {takes = {}, body = @vlamp.
         m.gcd {a = [30000000], b = [12000000]}
       }
     }
@@ -396,10 +407,11 @@ m @vto@ {
 \section{Strategy}\label{sec:strategy}
 
 Sharing normal order, $\stepS$, is the order the compiler reduces in.
-It uses two more forms:
+It uses three more forms:
 \[
 \begin{array}{l@{\qquad}l@{\qquad}l}
-\pt & (\lam{x}{t_1})\ t_2 \quad t_2 \text{ neither a value nor a variable} & \textit{shared } \kw{let} \\
+\pt & u ::= v \mid x & \textit{copyable} \\
+\pt & (\lam{x}{t_1})\ t_2 \quad t_2 \notin u & \textit{shared } \kw{let} \\
 \pt & w: \text{ a term in which every redex is a shared } \kw{let} & \textit{shared normal form}
 \end{array}
 \]
@@ -408,7 +420,7 @@ Each row below matches a shape and chooses either a rule of Section~\ref{sec:com
 \[
 \begin{array}{l@{\qquad}l@{\qquad}l}
 & \textit{shape} & \textit{choose} \\ \hline
-\pt & (\lam{x}{t_1})\ t_2 \quad t_2 \text{ a value or a variable} & \rn{E-Beta} \\
+\pt & (\lam{x}{t_1})\ u & \rn{E-Beta} \\
 \pt & (\lam{x}{t_1})\ w & t_1 \\
 \pt & (\lam{x}{t_1})\ t_2 & t_2 \\
 \pt & t\ {!}v & \rn{E-Strict} \\
@@ -432,16 +444,24 @@ Each row below matches a shape and chooses either a rule of Section~\ref{sec:com
   steps by $\stepS$, and the rule of Section~\ref{sec:congruence} for its position (for
   example \rn{E-App2} for $t_2$ in $t_1\ t_2$) carries the step to the whole term. A term in $w$ has
   no $\stepS$ step: no row chooses it, or the chosen part is in $w$. Every other term has one.
-\item A shared $\kw{let}$ (row 1) holds, for example, a run-time operation. It is not contracted: $t_2$ steps until it is in $w$, then $t$ (rows 3 to 5).
+\item A shared $\kw{let}$ (row 2) holds, for example, a run-time operation. It is not contracted: $t_2$ steps until it is in $w$, then $t$ (rows 4 to 6).
   \begin{subpoints}
   \item Keeping the $\kw{let}$ may leave a projection or an index on $x$; it stays as an instruction.
   \item $t_2$ is not copied: it runs once, as in path 4/2(1).
   \end{subpoints}
-\item Outermost first (rows 11, 12 and 15 before row 14), so a branch whose condition is known fires before its arms, and
+\item Outermost first (rows 12, 13 and 16 before row 15), so a branch whose condition is known fires before its arms, and
   a discarded arm is never reduced. With a run-time condition, each arm is reduced.
-\item For a term in $w$ (row 2), substituting its shared $\kw{let}$s and reducing on gives its normal form under $\step$ (3/9).
+\item For a term in $w$ (row 3), substituting its shared $\kw{let}$s and reducing on gives its normal form under $\step$ (3/9).
 \item The shared normal form of a block's body is a chain of $\kw{let}$s ending in a jump,
   a branch or a result. The translation to LLVM emits each $\kw{let}$ as one instruction.
+  \begin{subpoints}
+  \item A shared $\kw{let}$ of a branch whose arms are data, variables or fields of a
+    variable ($d$, $x$ or $x.l$), $\{l_i = t_i\}_{i<k}\ t$, is
+    emitted as LLVM's $\kw{select}$ (a chain of them when $2 < k$):
+    $\kw{let}\ r = \kw{if}\ z\ \kw{then}\ p.a\ \kw{else}\ [02]\ \kw{in}\ t$.
+  \item A shared $\kw{let}$ of any other branch, such as a branch of jumps, is rejected at
+    compile time; the branch is written as the block's end instead.
+  \end{subpoints}
 \item $\stepS$ is deterministic, and each of its steps is a $\step$ step. If a term has a
   normal form, $\stepS$ is expected to reach its shared normal form (not proved yet).
 \end{points}
