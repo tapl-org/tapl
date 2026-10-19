@@ -229,6 +229,30 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D23: gaps against the Python implementation — agreed (accepted)
+
+Agent compared semantics.tex with `src/oymo/oymomo/` and the goldens. The user's answers:
+- `let x = t₁ in t₂` is sugar for `(x → t₂) t₁`; `let! x = t₁ in t₂` for `!(x → t₂) t₁` (new). `if c then t₁ else t₂` is sugar for `{t₂, t₁} c`. Both in Section 1.
+- `$fix`, `$struct_to_fields`, `$fields_to_struct`: "no need to mention them now".
+- Constants `{type, value}` (LLVM `constant`; `m.l` is the value) and global variables `{type, init}` (LLVM `global`; `m.l` is its address, a `ptr`) added to Section 5 (label names are the agent's pick).
+- Type shapes (tagged forms `{'array', n, 'i32'}` etc.): postponed.
+- Memory: said explicitly; wording "reduction cannot reduce" (not "no result"): `op(b)` is undefined for effects (printing, `alloca`, `load`, `store`) and undefined behavior; reduction has no memory.
+- Opcode results are plain byte arrays (the doc is right); the code's `form_of` will be dropped.
+- Right ones (the code changes): past-the-end index selects the last field (default arm; new rule E-Default `1 ≤ n ≤ b ⟹ {…} b ▷ tₙ`; a branch takes `then` when `c ≠ 0`); empty byte array reads as 0; no duplicate labels; no forms; `!t` (not `$seq`). Code will be refactored to semantics.tex for blocks, module, declarations.
+- The user: "5/9 result and param labels are ambigues. they don't mention that the hold type or value". Renamed `param` → `param_type` (singular: the parameter struct is one struct type, as the body takes one struct) and `result` → `result_type` throughout Section 5.
+
+### D22: lambda written `x → t`; "abstraction" renamed "lambda" — agreed (accepted)
+
+- The user: "to match oymomo syntax, should we use -> sigil for abstraction. and may be rename abstraction to function"; then "yes, but for the arrow use →". Agent advised "lambda", not "function" (function = module definition/declaration, Section 5); applied "lambda".
+- `\lam{x}{t}` renders `x → t`; `→` extends as far right as possible (1/9). The macro is blue while under review: on accept, change it in the preamble to `\newcommand{\lam}[2]{#1 \to #2}`.
+- Step arrow: the user chose `▷` (`\triangleright`), replacing `⟶`. Macro `\step` is `\mathrel{\new{\triangleright}}` while under review: on accept, change it to `\newcommand{\step}{\mathrel{\triangleright}}`. Substitution `[x ↦ t₂] t₁` unchanged.
+
+### D21: keep only classes used in rules; no num(b), no k — agreed (accepted)
+
+- The user: "v, ne, r keep them if they used in formulas". `v` is used (E-Opcode, E-Strict) and kept; `ne` and `r` are used by no rule and are struck, with the classes point (1/21 now defines only wrong terms), the premises point (1/22) and the struct sentence in 1/17. "Neutral" stays as a prose word (1/23: no rule reduces it yet; waits for a free variable or a run-time operation).
+- The user: "dont use num(b). just say that when b is used where number is expected. that bytearray is considered as unsigned and little-endian encoded number". 1/11 says so (`[0100]` is 1); E-Index premise `b = k < n`; other `num(b)` uses become `b`.
+- Points "x ranges over…" and "A byte array…" swapped (user); example `[0201]` is 258 (user). `k` dropped: E-Index is `b < n ⟹ {…} b ⟶ t_{b+1}`.
+
 ### D20: blocks; m stays free; struct applied to a byte array replaces `if` and `.k` — agreed (accepted)
 
 - The user: "definition labels order: param, result, body"; "m maybe replaced if user wants. see programs_test.py. test_gcd_blocks"; "Yes, m stays free, and so calls are neutral".
