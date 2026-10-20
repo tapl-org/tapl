@@ -178,9 +178,13 @@ The user's orders, kept as given. Follow them in every task.
     drop the legend if no marks are left. A removed rule row can't be struck (`\sout`
     breaks it): it is shown as `{\color{red}\rulerow{Name (old)}…}`; delete it on accept.
   - Numbered points (user's order, so they can be referred to): rules, formula rows
-    and bullets share one counter per section, shown as 1), 2), ... without the
-    section number (`pt` counter,
-    `points` list, `\pt` in array rows; a rule's number is its left column).
+    and bullets share one counter for the whole document (user, D50), shown as 1.,
+    2., ... (`pt` counter, `points` list, `\pt` in array rows; a rule's number is its left
+    column). A point that is referred to gets a `\label` (`\plabel` in a display, where
+    amsmath allows only one; rule rows get `r:<Name>` automatically), and a reference is
+    `\pref{label}`, so renumbering never changes a reference's text. Sub-bullets, at any
+    depth, take the next number too, and every number is shown as `N.` (user: "parenthesis
+    adding verbosity").
     Subsections are 4a, 4b, ... so they never look like a point number (user's order).
   - Term classes are named reducible (takes a `⟶w` step), value, neutral, stuck
     (user named "reducible"); values are weak (no reduction under `λ` or in fields).
