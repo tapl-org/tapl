@@ -108,16 +108,12 @@ order the compiler reduces in.
   \textit{value} \\
 \pt\plabel{p:data} & d & ::= & b \mid \{l_i = d_i\}_{i<k} &
   \textit{data} \\
-\pt\plabel{p:copyable} & u & ::= & v \mid x.l_1 \cdots l_{j} \mid \{l_i = u_i\}_{i<k} \quad (0 \le j) &
+\pt\plabel{p:path} & p & ::= & x \mid p.l & \textit{path} \\
+\pt\plabel{p:copyable} & u & ::= & v \mid p \mid \{l_i = u_i\}_{i<k}  &
   \textit{copyable}
 \end{array}
 \]
 \begin{points}
-\item $x$ ranges over variables, $l$ over labels, $b$ over byte
-  arrays and $t$ over
-  terms; $u$ over copyable terms, the values,  the paths $x.l_1\cdots l_{j}$ and structs of them (row \pref{p:copyable}), which
-  \rn{E-Beta} may copy. Subscripts ($t_1$, $t_2$, \dots) mark different terms in one
-  rule.
 \item A lambda $\lam{x}{t}$ extends as far right as possible:
   $\lam{x}{\lam{y}{t}}$ is $\lam{x}{(\lam{y}{t})}$. The dot right after the binder ends the binder; every other
   dot is projection: $\lam{p}{p.a}$ is $\lam{p}{(p.a)}$.
@@ -129,10 +125,10 @@ order the compiler reduces in.
   \item When its bytes are valid UTF-8 text, it may be written as text
     instead: $\str{i32}$ is the byte array $\hex{693332}$.
   \end{subpoints}
-\item\label{p:types} Types are not a separate syntax: a type is an ordinary term, passed to an opcode as an operand: $\str{add}\ \{\str{i32}, a, b\}$ is LLVM's
-  $\kw{add\ i32}\ a, b$. Oymomo has no type checking: no rule looks at a type,
-  so it can be seen as an untyped $\lambda$-calculus. A type matters only to the
-  opcode that receives it, and to LLVM.
+\item\label{p:types} 
+  Oymomo has no types and no type checking: it is an untyped $\lambda$-calculus. An LLVM type is an
+  ordinary term that only an opcode reads, as an operand: $\str{add}\ \{\str{i32}, a, b\}$ is LLVM's
+  $\kw{add\ i32}\ a, b$.
 \item A struct's fields are ordered.
   \begin{subpoints}
   \item $\{l_i = t_i\}_{i<k}$ has $k$ fields, $l_0 = t_0$ up to $l_{k-1} = t_{k-1}$; with
@@ -148,13 +144,13 @@ order the compiler reduces in.
   \item $\fn{op}(b)$ is a partial function from operand values to a byte array.
     It is undefined for an effect, for undefined behavior (division by zero) and
     for an opcode it doesn't know, so reduction cannot reduce such a call.
-  \item Effects include printing and every memory opcode: $\str{alloca}$,
-    $\str{load}$ and $\str{store}$.
+  \item Effects include memory opcodes, such as $\str{alloca}$, $\str{load}$ and $\str{store}$.
   \item Reduction has no memory: it never computes an address or the contents of
-    one; the program orders memory opcodes with $\kw{let}$s (\pref{p:let}) or by using
+    one; the program orders memory opcodes by binding each with a $\kw{let}$, which
+    \rn{E-Beta} never applies to an argument that is not copyable (\pref{p:let}), or by using
     one's result in the next (\pref{p:effect-order}).
   \end{subpoints}
-\item\label{p:positions} Positions count every field, labeled or not, from $0$; a label is a
+\item\label{p:positions} Struct positions count every field, labeled or not, from $0$; a label is a
   name for one position.
   \begin{subpoints}
   \item A struct applied to a byte array $b$ selects the field at position $b$;
