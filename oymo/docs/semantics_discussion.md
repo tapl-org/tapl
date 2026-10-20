@@ -242,6 +242,27 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D49: reducible / normal / stuck; BANF shape or not; no compile-time/run-time wording — agreed (accepted)
+- User: "don't mention compile time and runtime terms. terms can be in three form: reducible, normal, and stuck. normal can be in BANF shape or not".
+- Sections 1–3 and the intro reworded (old text struck); Section 4 ("What Runs") and 5–6 still use it — round 2. 1/23: stuck = no step and contains a listed shape (lists by root: lambda, fixed point, struct, byte array). 1/24: every term is reducible, normal or stuck; a program that reduces to a stuck term is rejected; a normal form is in BANF shape or not, only BANF is translated. 3/9 normal forms now exclude stuck terms (conditions "n of the form x, t t or t.l"); 3/10(1) the three-way split.
+- User asked for a small `fix` example (given in chat: factorial).
+- User: "▷ we can change this symbol to the TAPL one". `\step` is now `⟶` (`\longrightarrow`), `\stepS` `⟶ₛ`; blue via the macro while under review (on accept: make the macros plain, update the agent wiki notation rule).
+- Name of the target shape: "BANF (block A-normal form)" — ANF (Flanagan et al. 1993) in which a function is a struct of blocks and a block ends in a jump, a branch of jumps or a result; maps one-to-one to LLVM IR. User: "5. yes"; defined in Section 5 in round 2.
+- 1/25(3): short factorial example (user: "yes add short factorial example to 1/25").
+- `⟶*` (zero or more steps, defined in 3/7) used in 1/24 and 3/8(1) (user: "11. yes"; accepted: "16. yes").
+
+### D48: why confluence; untranslatable normal forms are valid; recursive copyable; `fix` — agreed (accepted)
+- User on merging: "I have two oymomo code: A.oymo B.oymo. I will merge them by application like (A B)… first apply then reduce, or reduce each separately, then apply, then reduce again. Here may I need confluence?" Agent: yes. User: "mention this (why we need confluence) in the doc" → 3/8(1), 3/8(2).
+- User: "there is no distinction between compile time and run-time… if that normal form is in LLVM shape then we can translate it, otherwise we just say we cannot translate it, but acceptable normal form. we should also able to reduce under the abstraction." → 1/24 (2d): an untranslatable normal form is valid; only the translation can't take it. Stuck terms stay rejected.
+- Copyable recursive: `u ::= v | x.l₁⋯l_j | {lᵢ = uᵢ}` (user: "yes for now. lets reevaluate again before lean proof").
+- User: "fix is for compile-time recursion. which means normal form which can be translated to llvm shape should not contain fix". Row 7 `fix t`; value `fix (λx. t)`; E-Fix `(fix (λx. t₁)) u ▷ ([x ↦ fix (λx. t₁)] t₁) u` (only when applied to a copyable argument; TAPL's unconditional rule would unfold forever under λ); E-Fix1 congruence; stuck `fix v t` (v not a lambda); normal forms gain `fix n | (fix n₁) n₂`; 1/25 explains. Section 1 rows/points, Section 2 and 3 numbers shift by one; references updated.
+- User: "pause lean work. we first work only on semantics.tex".
+
+### D47: normal forms as a grammar — agreed (accepted)
+- User: "lets define normal form first" (before round 2).
+- 3/8: `n ::= x | b | λx. n | {lᵢ = nᵢ} | n.l` (n not a struct with field l) `| (λx. n₁) n₂` (n₂ ∉ u, a let that stays) `| {lᵢ = nᵢ} n` (n not a byte array, or k = 0) `| b n` (E-Opcode does not fire) `| n₁ n₂` (n₁ a variable, an application or a projection). 3/9: no ▷ step ⇔ in n; at most one normal form (3/7); a normal form may be stuck, need run time, or neither.
+- Path length in row 9 renamed n → j (n is now the normal form class).
+
 ### D46: normal form = LLVM shape; call-by-value E-Beta; no lifting rules; no strict application — agreed (design; round 1, Sections 1–3, accepted)
 - User: "oops, I need a shaper way… target is not to achieve normal form, but a form which can be converted to LLVM IR"; then "The term in a shape that can be traslates directly to LLVM IR becomes a normal form. can i design lambda calculus like that?"; "i want normal form = LLVM shape, but i dont want lifting rules."
 - Design: E-Beta only on a copyable argument, `u ::= v | x.l₁⋯lₙ` (user: "6. i guess so"). A `let` of a run-time term is then not a redex and stays where the user wrote it; reduction never copies or moves a run-time term (Plotkin's λ_v, confluent). No lifting/assoc rules: the user writes the `let`s.

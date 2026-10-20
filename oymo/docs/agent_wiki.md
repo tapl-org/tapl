@@ -92,7 +92,7 @@ The user's orders, kept as given. Follow them in every task.
     only if a rule uses it. D22/D42: lambda is written `λx. t` (D42 replaced the arrow
     `x → t`; the dot right after the binder ends it, every other dot is projection) and
     called "lambda" (not "function": function = Section 5 definition/declaration); the
-    step relation is `▷`. The doc opens by calling Oymomo an extension of the untyped
+    step relation is `⟶` (TAPL's arrow, D49), many steps `⟶*`; terms are reducible, normal or stuck; the target shape is BANF. The doc opens by calling Oymomo an extension of the untyped
     λ-calculus.
     D4 (agreed): term classes, progress and determinism describe `⟶w`; full β is
     needed eventually (confluence, then its own normal forms).
@@ -166,7 +166,9 @@ The user's orders, kept as given. Follow them in every task.
     classes-code) under `foundations`; `conf-lean` under `confluence`. `classes-code`
     is kept apart from `conf-form` (that one is E-Reform and dropping `strip`).
   - Answers (user's order): give every item, option and question a unique number
-    (1, 2, 2a, …) so the user can refer to it by number.
+    (1, 2, 2a, …) so the user can refer to it by number. The numbers keep increasing
+    across answers in one conversation: each answer starts after the last number of the
+    previous one, so an earlier bullet can still be referred to.
   - Order of work (user, D18): semantics.tex first, then the Lean 4 proof; all code
     implementations come after the Lean 4 proof. Don't propose code changes before that.
   - Review marks (user's order): every change is colored until the user accepts it:
