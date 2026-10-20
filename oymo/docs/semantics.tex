@@ -84,7 +84,7 @@
 Oymomo is an extension of the untyped $\lambda$-calculus: to variables, abstraction and
 application it adds structs, projection and byte arrays, which name
 opcodes; its $\beta$ rule is call-by-value, so an opcode call that does not reduce is never copied. Section~\ref{sec:syntax} gives the syntax, Sections~\ref{sec:computation}
-and~\ref{sec:congruence} the reduction (full $\beta$), Section~\ref{sec:runs} what runs, Section~\ref{sec:modules} how a program maps to LLVM, and Section~\ref{sec:strategy} the
+and~\ref{sec:congruence} the reduction (full $\beta$), Section~\ref{sec:runs} what runs, Section~\ref{sec:sugar} the sugar, Section~\ref{sec:modules} how a program maps to LLVM, and Section~\ref{sec:strategy} the
 order the compiler reduces in.
 
 
@@ -134,83 +134,12 @@ order the compiler reduces in.
   \item $\{l_i = t_i\}_{i<k}$ has $k$ fields, $l_0 = t_0$ up to $l_{k-1} = t_{k-1}$; with
     $k = 0$ it is the empty struct $\{\}$.
   \item A label may be empty (no label); the other labels are unique.
-  \item A struct is consumed by projection, by opcodes, and by a byte array:
-    applied to one, it selects a field (\pref{p:positions}, \pref{p:branch}).
   \end{subpoints}
 \item\label{p:opcode} A byte array applied to a struct, $b\ \{l_i = t_i\}_{i<k}$, is an
   opcode call: $b$ names the opcode and the struct holds its operands, as in
   $\str{add}\ \{\str{i32}, a, b\}$.
-  \begin{subpoints}
-  \item $\fn{op}(b)$ is a partial function from operand values to a byte array.
-    It is undefined for an effect, for undefined behavior (division by zero) and
-    for an opcode it doesn't know, so reduction cannot reduce such a call.
-  \item Effects include memory opcodes, such as $\str{alloca}$, $\str{load}$ and $\str{store}$.
-  \item Reduction has no memory: it never computes an address or the contents of
-    one; the program orders memory opcodes by binding each with a $\kw{let}$, which
-    \rn{E-Beta} never applies to an argument that is not copyable (\pref{p:let}), or by using
-    one's result in the next (\pref{p:effect-order}).
-  \end{subpoints}
 \item\label{p:positions} Struct positions count every field, labeled or not, from $0$; a label is a
   name for one position.
-  \begin{subpoints}
-  \item A struct applied to a byte array $b$ selects the field at position $b$;
-    past the last field it selects the last one, so the last field is a default arm.
-  \item In $s = \{x = a, b, y = c\}$: $s\ \hex{00} = s.x = a$, $s\ \hex{01} = b$,
-    $s\ \hex{02} = s.y = c$. An unlabeled field is reached only by its position.
-  \item With a constant byte array, selection and projection both become LLVM's
-    $\kw{extractvalue}$ with a constant index.
-  \end{subpoints}
-\item A struct is a value only when all its fields are values. Its fields are computed
-  in no particular order: full $\beta$ may step any of them.
-\item\label{p:branch} A branch is a struct applied to a condition that is not a byte array yet; when it becomes one, \rn{E-Index} or \rn{E-Default} picks the arm (\pref{r:E-Index}, \pref{r:E-Default}).
-  \begin{subpoints}
-  \item $\{\mathit{false} = t_2, \mathit{true} = t_1\}\ c$ takes $t_1$ when $c$ is
-    not $0$ and $t_2$ when it is $0$, as LLVM's $\kw{br\ i1}$.
-  \item With more fields it is a multi-way branch, as LLVM's $\kw{switch}$.
-  \item The labels only document the arms.
-  \end{subpoints}
-\item\label{p:let} Sugar for $\kw{let}$: $\kw{let}\ x = t_1\ \kw{in}\ t_2$ is $(\lam{x}{t_2})\ t_1$.
-  \begin{subpoints}
-  \item When $t_1$ reduces to a copyable term, \rn{E-Beta} copies
-    it to every use of $x$ (or drops it).
-  \item Otherwise, for example for an opcode call that does not reduce, the $\kw{let}$ stays: $t_1$ runs
-    once, first, and $x$ names its result.
-  \end{subpoints}
-\item\label{p:if} Sugar: $\kw{if}\ c\ \kw{then}\ t_1\ \kw{else}\ t_2$ is $\{t_2, t_1\}\ c$.
-\item Terms are equal up to $\alpha$-equivalence (renaming bound variables).
-  When a bound variable of $t_1$ clashes with a free variable of $t_2$,
-  $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then
-  substitutes.
-\item\label{p:stuck} A term is stuck when it has no step and contains one of these, which no rule
-  will ever reduce, whatever is substituted into it:
-  \begin{subpoints}
-  \item a struct applied to a lambda, a fixed point or a struct;
-  \item the empty struct applied to anything;
-  \item a byte array applied to a lambda, a fixed point or a byte array;
-  \item an opcode call with a lambda or a fixed point anywhere in its operand struct;
-  \item $t.l$ where $t$ is a lambda, a fixed point, a byte array or a struct with no field $l$;
-  \item $\kw{fix}\ v\ t$ where $v$ is a fixed point, a struct or a byte array.
-  \end{subpoints}
-\item\label{p:forms} Every term is reducible (it has a $\step$ step), normal (\pref{p:normal}) or stuck (\pref{p:stuck}).
-  A program $t$ with $t \steps t'$ for a stuck $t'$ is rejected. An unknown opcode or undefined behavior is not stuck: the call is normal (\pref{p:opcode}). A normal form is in BANF shape (Section~\ref{sec:modules}) or
-  not; only one in BANF shape is translated to LLVM. $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$
-  is normal but not in BANF shape; written with a $\kw{let}$ for the $\str{mul}$, it is.
-\item $\kw{fix}\ t$ is for recursion that reduction unfolds: $(\kw{fix}\ (\lam{f}{t}))\ u$ unfolds
-  once, putting $\kw{fix}\ (\lam{f}{t})$ in for $f$ (\pref{r:E-Fix}).
-  \begin{subpoints}
-  \item It unfolds only when applied to a copyable argument, so an unapplied
-    $\kw{fix}\ (\lam{f}{t})$ is a value and stays as it is, even though reduction goes under
-    $\lambda$.
-  \item A recursive call whose argument is not copyable, such as an opcode call on a parameter,
-    does not unfold. A normal form that still contains $\kw{fix}$ is not in BANF shape (\pref{p:forms}):
-    recursion in LLVM goes through $m$ and $f$ (Section~\ref{sec:modules}).
-  \item For example, with numbers in decimal standing for $\str{i32}$ byte arrays,
-    \[F = \kw{fix}\ (\lam{f}{\lam{n}{\kw{if}\ \str{icmp\_eq}\ \{\str{i32}, n, 0\}\ \kw{then}\ 1\
-      \kw{else}\ \str{mul}\ \{\str{i32}, n, f\ (\str{sub}\ \{\str{i32}, n, 1\})\}}})\]
-    $F\ 3$ reduces to $6$, in BANF. $F\ p.n$ unfolds once ($p.n$ is copyable), but the inner
-    call's argument $\str{sub}\ \{\str{i32}, p.n, 1\}$ is not, so it stops: a normal form that
-    contains $\kw{fix}$, not in BANF.
-  \end{subpoints}
 \end{points}
 
 %% ── Computation ────────────────────────────────────────────────────────
@@ -239,21 +168,61 @@ order the compiler reduces in.
 \item A value is $\lam{x}{t}$, $\kw{fix}\ (\lam{x}{t})$, a struct of values or a byte array (Section~\ref{sec:syntax}).
   \rn{E-Beta} substitutes only a copyable argument (row \pref{p:copyable}): $(\lam{x}{t})\ (\str{print}\ \{\str{h}\})$
   is not a redex, so the $\kw{print}$ is never copied or dropped; it stays a $\kw{let}$ (\pref{p:let}).
+\item Terms are equal up to $\alpha$-equivalence (renaming bound variables).
+  When a bound variable of $t_1$ clashes with a free variable of $t_2$,
+  $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then
+  substitutes.
+\item $\kw{fix}\ t$ is for recursion that reduction unfolds: $(\kw{fix}\ (\lam{f}{t}))\ u$ unfolds
+  once, putting $\kw{fix}\ (\lam{f}{t})$ in for $f$ (\pref{r:E-Fix}).
+  \begin{subpoints}
+  \item It unfolds only when applied to a copyable argument, so an unapplied
+    $\kw{fix}\ (\lam{f}{t})$ is a value and stays as it is, even though reduction goes under
+    $\lambda$.
+  \item A recursive call whose argument is not copyable, such as an opcode call on a parameter,
+    does not unfold. A normal form that still contains $\kw{fix}$ is not in BANF shape (\pref{p:forms}):
+    recursion in LLVM goes through $m$ and $f$ (Section~\ref{sec:modules}).
+  \item For example, with numbers in decimal standing for $\str{i32}$ byte arrays,
+    \[F = \kw{fix}\ (\lam{f}{\lam{n}{\kw{if}\ \str{icmp\_eq}\ \{\str{i32}, n, 0\}\ \kw{then}\ 1\
+      \kw{else}\ \str{mul}\ \{\str{i32}, n, f\ (\str{sub}\ \{\str{i32}, n, 1\})\}}})\]
+    $F\ 3$ reduces to $6$, in BANF. $F\ p.n$ unfolds once ($p.n$ is copyable), but the inner
+    call's argument $\str{sub}\ \{\str{i32}, p.n, 1\}$ is not, so it stops: a normal form that
+    contains $\kw{fix}$, not in BANF.
+  \end{subpoints}
 \item \rn{E-Proj} takes the field labeled $l$ (labels are unique), and \rn{E-Index}
   the field at position $b$~(\rn{E-Default} the last field).
   \begin{subpoints}
+  \item A struct is consumed by projection, by opcodes, and by a byte array:
+    applied to one, it selects a field (\pref{p:positions}, \pref{p:branch}).
+  \item A struct applied to a byte array $b$ selects the field at position $b$;
+    past the last field it selects the last one, so the last field is a default arm.
+  \item In $s = \{x = a, b, y = c\}$: $s\ \hex{00} = s.x = a$, $s\ \hex{01} = b$,
+    $s\ \hex{02} = s.y = c$. An unlabeled field is reached only by its position.
+  \item With a constant byte array, selection and projection both become LLVM's
+    $\kw{extractvalue}$ with a constant index.
   \item The other fields are discarded, even one with an effect:
     $\{a = e, b = \hex{01}\}.b \step \hex{01}$. Full $\beta$ may
     reduce $e$ or not, but $e$ is not in the normal form: it is dropped.
   \item To run it, bind it first with a $\kw{let}$:
     $(\lam{x}{\{a = x, b = \hex{01}\}.b})\ e$.
   \end{subpoints}
-\item So a branch whose condition is a byte array
-  keeps one arm and discards the others. Full $\beta$
-  may reduce a discarded arm or not, but it does not contribute to the normal form.
+\item\label{p:branch} A branch is a struct applied to a condition that is not a byte array yet; when it becomes one, \rn{E-Index} or \rn{E-Default} picks the arm (\pref{r:E-Index}, \pref{r:E-Default}).
+  \begin{subpoints}
+  \item $\{\mathit{false} = t_2, \mathit{true} = t_1\}\ c$ takes $t_1$ when $c$ is
+    not $0$ and $t_2$ when it is $0$, as LLVM's $\kw{br\ i1}$.
+  \item With more fields it is a multi-way branch, as LLVM's $\kw{switch}$.
+  \item The labels only document the arms.
+  \item When its condition is a byte array it keeps one arm and discards the others. Full $\beta$
+    may reduce a discarded arm or not, but it does not contribute to the normal form.
+  \end{subpoints}
 \item\label{p:e-opcode} \rn{E-Opcode} computes the call when $\fn{op}(b)$ is
   defined: \[\str{add}\ \{\str{i32}, \hex{02000000}, \hex{03000000}\} \step \hex{05000000}\]
   \begin{subpoints}
+  \item $\fn{op}(b)$ is a partial function from operand values to a byte array.
+  \item Effects include memory opcodes, such as $\str{alloca}$, $\str{load}$ and $\str{store}$.
+  \item Reduction has no memory: it never computes an address or the contents of
+    one; the program orders memory opcodes by binding each with a $\kw{let}$, which
+    \rn{E-Beta} never applies to an argument that is not copyable (\pref{p:let}), or by using
+    one's result in the next (\pref{p:effect-order}).
   \item All operands are data: byte arrays, or structs of data (row \pref{p:data}), never
     a lambda, so they never step and the result is the same in every reduction order.
   \item Otherwise the call does not reduce: an effect, undefined behavior, an unknown opcode, or an
@@ -278,6 +247,7 @@ order the compiler reduces in.
 \begin{points}
 \item $\step$ is full $\beta$: a rule of Section~\ref{sec:computation} may fire
   anywhere, under a lambda, in a struct field (so in every arm of a branch) too.
+  A struct's fields are computed in no particular order.
   $t \steps t'$ is zero or more $\step$ steps.
 \item\label{p:confluent} $\step$ is confluent: it is the call-by-value $\lambda$-calculus (Plotkin's $\lambda_v$) with
    structs, projection and branching (Church--Rosser; projection is the usual record rule). The
@@ -314,6 +284,20 @@ order the compiler reduces in.
   \item By confluence (\pref{p:confluent}), a term has at most one normal form.
   \item A normal form is in BANF shape or not (\pref{p:forms}).
   \end{subpoints}
+\item\label{p:stuck} A term is stuck when it has no step and contains one of these, which no rule
+  will ever reduce, whatever is substituted into it:
+  \begin{subpoints}
+  \item a struct applied to a lambda, a fixed point or a struct;
+  \item the empty struct applied to anything;
+  \item a byte array applied to a lambda, a fixed point or a byte array;
+  \item an opcode call with a lambda or a fixed point anywhere in its operand struct;
+  \item $t.l$ where $t$ is a lambda, a fixed point, a byte array or a struct with no field $l$;
+  \item $\kw{fix}\ v\ t$ where $v$ is a fixed point, a struct or a byte array.
+  \end{subpoints}
+\item\label{p:forms} Every term is reducible (it has a $\step$ step), normal (\pref{p:normal}) or stuck (\pref{p:stuck}).
+  A program $t$ with $t \steps t'$ for a stuck $t'$ is rejected. An unknown opcode or undefined behavior is not stuck: the call is normal (\pref{p:opcode}). A normal form is in BANF shape (Section~\ref{sec:modules}) or
+  not; only one in BANF shape is translated to LLVM. $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$
+  is normal but not in BANF shape; written with a $\kw{let}$ for the $\str{mul}$, it is.
 \end{points}
 
 %% ── Meaning ────────────────────────────────────────────────────────────
@@ -348,6 +332,21 @@ order the compiler reduces in.
   \item $(\lam{x}{\{x, x\}})\ {!}p$ becomes one $\kw{print}$ instruction whose
     result fills both fields.
   \end{subpoints}
+\end{points}
+
+%% ── Sugar ────────────────────────────────────────────────────────────
+
+\section{Sugar}\label{sec:sugar}
+
+\begin{points}
+\item\label{p:let} $\kw{let}\ x = t_1\ \kw{in}\ t_2$ is $(\lam{x}{t_2})\ t_1$.
+  \begin{subpoints}
+  \item When $t_1$ reduces to a copyable term, \rn{E-Beta} copies
+    it to every use of $x$ (or drops it).
+  \item Otherwise, for example for an opcode call that does not reduce, the $\kw{let}$ stays: $t_1$ runs
+    once, first, and $x$ names its result.
+  \end{subpoints}
+\item\label{p:if} $\kw{if}\ c\ \kw{then}\ t_1\ \kw{else}\ t_2$ is $\{t_2, t_1\}\ c$.
 \end{points}
 
 %% ── Modules ──────────────────────────────────────────────────────────
