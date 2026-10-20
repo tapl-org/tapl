@@ -27,6 +27,7 @@ nothing is lost between sessions. We continue the discussion here.
 7. Compiler warning, not in semantics.tex (D43): an effect (opcode on a list, maybe calls
    `m.l {…}`) that is not the argument of a strict application gets a warning, not an error.
    Open: the effect list, whether calls count, check on the normal form.
+8. Reminders for the section-by-section review (D53): at Section 6 (Modules), ask about renaming the declaration label `{s = 'ptr'}`, and move its LLVM-mapping parts to Section 9.
 
 ## Goal
 
@@ -241,6 +242,17 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Wrong terms with no rule (stuck later): a struct applied; `v.l` with `v` an abstraction or a struct without `l`.
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
+
+### D53: "copyable" `u` → "substitutable" `s`; Sugar Syntax table; Kernel Syntax; Sections 8–9 — agreed (accepted)
+- User: "doc11 copyable vs substitutable". Agent: substituting copies or drops; "substitutable" names what E-Beta/E-Fix take. User: "106. yes. use s instead of u".
+- Row 11 `s ::= v | p | {lᵢ = sᵢ}` (substitutable); E-Beta, E-Fix, points 29, 31–34, 50, the normal-form condition `n₂ ∉ s`, and the let sugar updated. The positions example struct `s` renamed `q`. Section 7 (old strategy, to be rewritten) not touched.
+- User: "doc29. don't mention sugars before sugars section". Before Section 5, `let`/`if` replaced: point 29 "the application stays"; the factorial `F` written as a branch `{'mul' {…}, 1} ('icmp_eq' {…})`; 41 "pass it to a lambda first"; 50 "passing each to a lambda, (λx. t) t'"; 76 "with the 'mul' passed to a lambda, (λy. 'add' {'i32', y, x}) ('mul' {…})".
+- User: "117. lets move the sugars above computation section then". Sugar is now Section 2 (before Computation); the de-sugaring above was reverted (lets and the `if` factorial are allowed again, since Sugar comes first). Intro lists "Section 2 the sugar" right after the syntax.
+- User: "remove doc24 and doc25. make doc23 and doc26 like columnar: sugar syntax, and kernel syntax. I guess we should rename section1 to Kernel syntax, and section 2 to Sugar syntax." Section 2 is now a two-column table (sugar syntax → kernel syntax), rows `let` and `if`; the two `let` sub-points removed. Sections renamed "Kernel Syntax" and "Sugar Syntax".
+- User: "lets create to section after strategy: Banf validate (or verify) section and LLVM translate section. move doc17 to LLVM translate section, and move doc21 to computation section". New Section 8 "BANF Validation" (stub) and Section 9 "LLVM Translation" (the types point); the opcode-call point moved before the E-Opcode point in Section 3; intro lists both.
+- User: "137. BANF Validation" (title kept); "138. yes": when Section 6 (Modules) is reviewed, its LLVM-mapping parts move to Section 9, leaving Section 6 for the module shape.
+- User: "i guess doc20 is not needed, right?" Agreed: point 18 already numbers fields from 0 (l₀ = t₀) and 19 covers labels; "Struct positions" point removed, its reference in the E-Proj/E-Index point dropped.
+- Last change before accept: the `if` row is `if t₁ then t₂ else t₃` → `{t₃, t₂} t₁`. User: "147. accepted". Reminder (user, "148. remind me when i work on its section"): when Section 6 (Modules) is reviewed, ask whether to rename the declaration label `{s = 'ptr'}` (`s` is now the substitutable class).
 
 ### D52: Section 1 review (part 2) — Sugar section; reduction concepts moved out of Section 1 — agreed (accepted)
 - User: "extract sugars into its own section, and put it before modules section". New Section 5 "Sugar" (`let`, `if`), before Modules (now 6) and Strategy (now 7); the two points in Section 1 are struck; the intro lists the new section. References (`p:let`, `p:if`) follow by label.

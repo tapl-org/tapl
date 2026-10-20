@@ -83,16 +83,16 @@
 \medskip\noindent
 Oymomo is an extension of the untyped $\lambda$-calculus: to variables, abstraction and
 application it adds structs, projection and byte arrays, which name
-opcodes; its $\beta$ rule is call-by-value, so an opcode call that does not reduce is never copied. Section~\ref{sec:syntax} gives the syntax, Sections~\ref{sec:computation}
-and~\ref{sec:congruence} the reduction (full $\beta$), Section~\ref{sec:runs} what runs, Section~\ref{sec:sugar} the sugar, Section~\ref{sec:modules} how a program maps to LLVM, and Section~\ref{sec:strategy} the
-order the compiler reduces in.
+opcodes; its $\beta$ rule is call-by-value, so an opcode call that does not reduce is never copied. Section~\ref{sec:syntax} gives the syntax, Section~\ref{sec:sugar} the sugar, Sections~\ref{sec:computation}
+and~\ref{sec:congruence} the reduction (full $\beta$), Section~\ref{sec:runs} what runs, Section~\ref{sec:modules} how a program maps to LLVM,  Section~\ref{sec:strategy} the
+order the compiler reduces in, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm} the translation to LLVM.
 
 
 
 
 %% ── Syntax ─────────────────────────────────────────────────────────────
 
-\section{Syntax}\label{sec:syntax}
+\section{Kernel Syntax}\label{sec:syntax}
 
 \[
 \begin{array}{l@{\quad}rcll}
@@ -109,8 +109,8 @@ order the compiler reduces in.
 \pt\plabel{p:data} & d & ::= & b \mid \{l_i = d_i\}_{i<k} &
   \textit{data} \\
 \pt\plabel{p:path} & p & ::= & x \mid p.l & \textit{path} \\
-\pt\plabel{p:copyable} & u & ::= & v \mid p \mid \{l_i = u_i\}_{i<k}  &
-  \textit{copyable}
+\pt\plabel{p:subst} & s & ::= & v \mid p \mid \{l_i = s_i\}_{i<k}  &
+  \textit{substitutable}
 \end{array}
 \]
 \begin{points}
@@ -125,32 +125,34 @@ order the compiler reduces in.
   \item When its bytes are valid UTF-8 text, it may be written as text
     instead: $\str{i32}$ is the byte array $\hex{693332}$.
   \end{subpoints}
-\item\label{p:types} 
-  Oymomo has no types and no type checking: it is an untyped $\lambda$-calculus. An LLVM type is an
-  ordinary term that only an opcode reads, as an operand: $\str{add}\ \{\str{i32}, a, b\}$ is LLVM's
-  $\kw{add\ i32}\ a, b$.
 \item A struct's fields are ordered.
   \begin{subpoints}
   \item $\{l_i = t_i\}_{i<k}$ has $k$ fields, $l_0 = t_0$ up to $l_{k-1} = t_{k-1}$; with
     $k = 0$ it is the empty struct $\{\}$.
   \item A label may be empty (no label); the other labels are unique.
   \end{subpoints}
-\item\label{p:opcode} A byte array applied to a struct, $b\ \{l_i = t_i\}_{i<k}$, is an
-  opcode call: $b$ names the opcode and the struct holds its operands, as in
-  $\str{add}\ \{\str{i32}, a, b\}$.
-\item\label{p:positions} Struct positions count every field, labeled or not, from $0$; a label is a
-  name for one position.
 \end{points}
 
+%% ── Sugar ────────────────────────────────────────────────────────────
+
+\section{Sugar Syntax}\label{sec:sugar}
+
+\[
+\begin{array}{l@{\qquad}l@{\qquad}l}
+ & \textit{sugar syntax} & \textit{kernel syntax} \\ \hline
+\pt\plabel{p:let} & \kw{let}\ x = t_1\ \kw{in}\ t_2 & (\lam{x}{t_2})\ t_1 \\
+\pt\plabel{p:if} & \kw{if}\ t_1\ \kw{then}\ t_2\ \kw{else}\ t_3 & \{t_3, t_2\}\ t_1
+\end{array}
+\]
 %% ── Computation ────────────────────────────────────────────────────────
 
 \section{Computation (at the root)}\label{sec:computation}
 
 \begin{rules}
 \axiomrow{E-Beta}
-  {(\lam{x}{t_1})\ u \;\step\; \subst{x}{u}{t_1}}
+  {(\lam{x}{t_1})\ s \;\step\; \subst{x}{s}{t_1}}
 \axiomrow{E-Fix}
-  {(\kw{fix}\ (\lam{x}{t_1}))\ u \;\step\; (\subst{x}{\kw{fix}\ (\lam{x}{t_1})}{t_1})\ u}
+  {(\kw{fix}\ (\lam{x}{t_1}))\ s \;\step\; (\subst{x}{\kw{fix}\ (\lam{x}{t_1})}{t_1})\ s}
 \rulerow{E-Proj}
   {l_j = l}
   {\{l_i = t_i\}_{i<k}.l \;\step\; t_j}
@@ -166,25 +168,24 @@ order the compiler reduces in.
 \end{rules}
 \begin{points}
 \item A value is $\lam{x}{t}$, $\kw{fix}\ (\lam{x}{t})$, a struct of values or a byte array (Section~\ref{sec:syntax}).
-  \rn{E-Beta} substitutes only a copyable argument (row \pref{p:copyable}): $(\lam{x}{t})\ (\str{print}\ \{\str{h}\})$
+  \rn{E-Beta} substitutes only a substitutable argument (row \pref{p:subst}): $(\lam{x}{t})\ (\str{print}\ \{\str{h}\})$
   is not a redex, so the $\kw{print}$ is never copied or dropped; it stays a $\kw{let}$ (\pref{p:let}).
 \item Terms are equal up to $\alpha$-equivalence (renaming bound variables).
   When a bound variable of $t_1$ clashes with a free variable of $t_2$,
   $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then
   substitutes.
-\item $\kw{fix}\ t$ is for recursion that reduction unfolds: $(\kw{fix}\ (\lam{f}{t}))\ u$ unfolds
+\item $\kw{fix}\ t$ is for recursion that reduction unfolds: $(\kw{fix}\ (\lam{f}{t}))\ s$ unfolds
   once, putting $\kw{fix}\ (\lam{f}{t})$ in for $f$ (\pref{r:E-Fix}).
   \begin{subpoints}
-  \item It unfolds only when applied to a copyable argument, so an unapplied
+  \item It unfolds only when applied to a substitutable argument, so an unapplied
     $\kw{fix}\ (\lam{f}{t})$ is a value and stays as it is, even though reduction goes under
     $\lambda$.
-  \item A recursive call whose argument is not copyable, such as an opcode call on a parameter,
+  \item A recursive call whose argument is not substitutable, such as an opcode call on a parameter,
     does not unfold. A normal form that still contains $\kw{fix}$ is not in BANF shape (\pref{p:forms}):
     recursion in LLVM goes through $m$ and $f$ (Section~\ref{sec:modules}).
   \item For example, with numbers in decimal standing for $\str{i32}$ byte arrays,
-    \[F = \kw{fix}\ (\lam{f}{\lam{n}{\kw{if}\ \str{icmp\_eq}\ \{\str{i32}, n, 0\}\ \kw{then}\ 1\
-      \kw{else}\ \str{mul}\ \{\str{i32}, n, f\ (\str{sub}\ \{\str{i32}, n, 1\})\}}})\]
-    $F\ 3$ reduces to $6$, in BANF. $F\ p.n$ unfolds once ($p.n$ is copyable), but the inner
+    \[F = \kw{fix}\ (\lam{f}{\lam{n}{\kw{if}\ \str{icmp\_eq}\ \{\str{i32}, n, 0\}\ \kw{then}\ 1\ \kw{else}\ \str{mul}\ \{\str{i32}, n, f\ (\str{sub}\ \{\str{i32}, n, 1\})\}}})\]
+    $F\ 3$ reduces to $6$, in BANF. $F\ p.n$ unfolds once ($p.n$ is substitutable), but the inner
     call's argument $\str{sub}\ \{\str{i32}, p.n, 1\}$ is not, so it stops: a normal form that
     contains $\kw{fix}$, not in BANF.
   \end{subpoints}
@@ -192,11 +193,11 @@ order the compiler reduces in.
   the field at position $b$~(\rn{E-Default} the last field).
   \begin{subpoints}
   \item A struct is consumed by projection, by opcodes, and by a byte array:
-    applied to one, it selects a field (\pref{p:positions}, \pref{p:branch}).
+    applied to one, it selects a field (\pref{p:branch}).
   \item A struct applied to a byte array $b$ selects the field at position $b$;
     past the last field it selects the last one, so the last field is a default arm.
-  \item In $s = \{x = a, b, y = c\}$: $s\ \hex{00} = s.x = a$, $s\ \hex{01} = b$,
-    $s\ \hex{02} = s.y = c$. An unlabeled field is reached only by its position.
+  \item In $q = \{x = a, b, y = c\}$: $q\ \hex{00} = q.x = a$, $q\ \hex{01} = b$,
+    $q\ \hex{02} = q.y = c$. An unlabeled field is reached only by its position.
   \item With a constant byte array, selection and projection both become LLVM's
     $\kw{extractvalue}$ with a constant index.
   \item The other fields are discarded, even one with an effect:
@@ -214,6 +215,9 @@ order the compiler reduces in.
   \item When its condition is a byte array it keeps one arm and discards the others. Full $\beta$
     may reduce a discarded arm or not, but it does not contribute to the normal form.
   \end{subpoints}
+\item\label{p:opcode} A byte array applied to a struct, $b\ \{l_i = t_i\}_{i<k}$, is an
+  opcode call: $b$ names the opcode and the struct holds its operands, as in
+  $\str{add}\ \{\str{i32}, a, b\}$.
 \item\label{p:e-opcode} \rn{E-Opcode} computes the call when $\fn{op}(b)$ is
   defined: \[\str{add}\ \{\str{i32}, \hex{02000000}, \hex{03000000}\} \step \hex{05000000}\]
   \begin{subpoints}
@@ -221,7 +225,7 @@ order the compiler reduces in.
   \item Effects include memory opcodes, such as $\str{alloca}$, $\str{load}$ and $\str{store}$.
   \item Reduction has no memory: it never computes an address or the contents of
     one; the program orders memory opcodes by binding each with a $\kw{let}$, which
-    \rn{E-Beta} never applies to an argument that is not copyable (\pref{p:let}), or by using
+    \rn{E-Beta} never applies to an argument that is not substitutable (\pref{p:let}), or by using
     one's result in the next (\pref{p:effect-order}).
   \item All operands are data: byte arrays, or structs of data (row \pref{p:data}), never
     a lambda, so they never step and the result is the same in every reduction order.
@@ -267,7 +271,7 @@ order the compiler reduces in.
 \pt\plabel{p:normal} & n & ::= & x \mid b \mid \lam{x}{n} \mid \{l_i = n_i\}_{i<k} & \textit{normal} \\
  & & \mid & \kw{fix}\ n & \\
  & & \mid & n.l \quad (n \text{ of the form } x,\ t\ t \text{ or } t.l) & \\
- & & \mid & (\lam{x}{n_1})\ n_2 \mid (\kw{fix}\ (\lam{x}{n_1}))\ n_2 \quad (n_2 \notin u) & \\
+ & & \mid & (\lam{x}{n_1})\ n_2 \mid (\kw{fix}\ (\lam{x}{n_1}))\ n_2 \quad (n_2 \notin s) & \\
  & & \mid & \{l_i = n_i\}_{i<k}\ n \quad (0 < k,\ n \text{ of the form } x,\ t\ t \text{ or } t.l) & \\
  & & \mid & b\ n \quad (n \text{ a struct, no } \lambda \text{ or } \kw{fix} \text{ in it, not } \rn{E-Opcode}) & \\
  & & \mid & b\ n \quad (n \text{ of the form } x,\ t\ t \text{ or } t.l) & \\
@@ -332,21 +336,6 @@ order the compiler reduces in.
   \item $(\lam{x}{\{x, x\}})\ {!}p$ becomes one $\kw{print}$ instruction whose
     result fills both fields.
   \end{subpoints}
-\end{points}
-
-%% ── Sugar ────────────────────────────────────────────────────────────
-
-\section{Sugar}\label{sec:sugar}
-
-\begin{points}
-\item\label{p:let} $\kw{let}\ x = t_1\ \kw{in}\ t_2$ is $(\lam{x}{t_2})\ t_1$.
-  \begin{subpoints}
-  \item When $t_1$ reduces to a copyable term, \rn{E-Beta} copies
-    it to every use of $x$ (or drops it).
-  \item Otherwise, for example for an opcode call that does not reduce, the $\kw{let}$ stays: $t_1$ runs
-    once, first, and $x$ names its result.
-  \end{subpoints}
-\item\label{p:if} $\kw{if}\ c\ \kw{then}\ t_1\ \kw{else}\ t_2$ is $\{t_2, t_1\}\ c$.
 \end{points}
 
 %% ── Modules ──────────────────────────────────────────────────────────
@@ -498,6 +487,24 @@ Each row below matches a shape and chooses either a rule of Section~\ref{sec:com
   \end{subpoints}
 \item $\stepS$ is deterministic, and each of its steps is a $\step$ step. If a term has a
   normal form, $\stepS$ is expected to reach its shared normal form (not proved yet).
+\end{points}
+
+%% ── BANF ─────────────────────────────────────────────────────────────
+
+\section{BANF Validation}\label{sec:banf}
+
+A normal form (row \pref{p:normal}) is checked to be in BANF, block A-normal form, before it
+is translated. This section is to be written.
+
+%% ── LLVM ─────────────────────────────────────────────────────────────
+
+\section{LLVM Translation}\label{sec:llvm}
+
+\begin{points}
+\item\label{p:types} 
+  Oymomo has no types and no type checking: it is an untyped $\lambda$-calculus. An LLVM type is an
+  ordinary term that only an opcode reads, as an operand: $\str{add}\ \{\str{i32}, a, b\}$ is LLVM's
+  $\kw{add\ i32}\ a, b$.
 \end{points}
 
 \end{document}
