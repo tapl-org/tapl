@@ -14,7 +14,7 @@ nothing is lost between sessions. We continue the discussion here.
 
 ## Open
 
-1. Strategy: `▷ₛ` (sharing normal order) is Section 6 (D38, replaces `⟶w`). Lean: determinism, `▷ₛ ⊆ ▷`, completeness — not done.
+1. Strategy: `▷ₛ` (sharing normal order) is Section 6 (D38, replaces `⟶w`). Lean (D44): `▷ₛ ⊆ ▷`, determinism, `w` = no `▷ₛ` step, SN terms reach `w` — done. "Normal form ⇒ ▷ₛ reaches it" is false (`(λx. []) Ω`).
 2. Shapes of type terms (`{'array', n, 'i32'}`, …): postponed (D23).
 3. Built-ins `$fix`, `$struct_to_fields`, `$fields_to_struct`: postponed (D24; maybe dropped).
 4. Literal widths: the LLVM width of a literal that no opcode types (e.g. passed straight
@@ -24,6 +24,9 @@ nothing is lost between sessions. We continue the discussion here.
    strict application `t !u` and `let x =! t in …` instead of `$seq` (D29), default arm and
    empty byte array = 0 (D23), no forms and no `form_of` (D23), reject duplicate labels (D16).
 6. Goldens and tests move to the new syntax with 5.
+7. Compiler warning, not in semantics.tex (D43): an effect (opcode on a list, maybe calls
+   `m.l {…}`) that is not the argument of a strict application gets a warning, not an error.
+   Open: the effect list, whether calls count, check on the normal form.
 
 ## Goal
 
@@ -238,6 +241,31 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Wrong terms with no rule (stuck later): a struct applied; `v.l` with `v` an abstraction or a struct without `l`.
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
+
+### D46: normal form = LLVM shape; call-by-value E-Beta; no lifting rules; no strict application — agreed (design; round 1, Sections 1–3, accepted)
+- User: "oops, I need a shaper way… target is not to achieve normal form, but a form which can be converted to LLVM IR"; then "The term in a shape that can be traslates directly to LLVM IR becomes a normal form. can i design lambda calculus like that?"; "i want normal form = LLVM shape, but i dont want lifting rules."
+- Design: E-Beta only on a copyable argument, `u ::= v | x.l₁⋯lₙ` (user: "6. i guess so"). A `let` of a run-time term is then not a redex and stays where the user wrote it; reduction never copies or moves a run-time term (Plotkin's λ_v, confluent). No lifting/assoc rules: the user writes the `let`s.
+- Normal forms: (a) LLVM shape, (b) stuck, (c) neither (e.g. an operand that is not an atom, a `let` inside a `let`'s value — user "5b": error). (b) and (c) are rejected at compile time ("bind it with let").
+- A struct of atoms that is not a value (`{p.a, y}`) stays as a `let` (`insertvalue`); inline as an operand it is an error (user "7. yes").
+- Strict application `t !t` and `let x =! t` removed: every `let` is strict (user "8. yes"; reverses D29). Effects are never copied, so D34's path 4/2(2) and D43's warning go away.
+- Cost: `(λx. []) Ω` has no normal form; laziness only via branches and projection.
+- Plan (user "9. yes"): the unaccepted D45 round reverted (semantics.tex back to the D42 state; Strategy.lean still has the D45 `StepS`, to be replaced). Round 1: Sections 1–3. Round 2: Sections 4–6 (LLVM shape as the target; Section 6 a short note). Then Lean: call-by-value `Step`, confluence, classification of normal forms into (a)/(b)/(c).
+
+### D45: shared `let` only on run-time terms over atoms — superseded by D46 (round reverted)
+- User: "what if shared-let is in this shape only (\x.t1) (b d) or {l=v, ...} x". Agent: normal order plus sharing of finished run-time terms; widen to atoms. User: "7 yes. atom should also contains multiple path like a.l1.l2.l3 and so on", "8. yes" (calls), "6. yes".
+- Section 6 forms: (1) atom `a ::= d | x.l₁⋯lₙ`; (2) run-time term `r ::= b {lᵢ = aᵢ}` (E-Opcode does not fire) `| {lᵢ = aᵢ} a` (0 < k, `a` not data) `| a {lᵢ = aᵢ}` (`a` not data, a call); (3) shared let `(λx. t₁) r`; (4) `w`. Rows 5 `(λx. t₁) r → t₁`, 6 `(λx. t₁) t₂ → E-Beta`; `u` (copyable) dropped. 6/22(3): an argument that becomes a run-time term only after a step is copied. 6/25: run-time branch → `select`, call → `call`; a branch of jumps is substituted. 6/26(2): `(λx. []) Ω ▷ₛ []`; normalization expected, not proved.
+- Lean updated (`isPath`, `isAtom`, `atomFields`, `isRunTime`, `runTime_W`): `StepS.step`, `StepS.det`, `progress`, `W_iff`, `SN.reaches_W`, `dropOmega_stepS` build, no `sorry`.
+- User asked whether it aligns with the BANF shaper: not fully — the shaper reduces a block-body let's value first and keeps any Apply/Struct/Project as a let; it never shares branches. To follow the doc it would decide on the unreduced shape (code work, Open 5).
+
+### D44: Lean for `▷ₛ` — done
+- User: "4. yes start". New `proofs/Oymomo/Strategy.lean`: `isCopyable` (form 1), `UStep` = `Step` with E-Beta only on a copyable argument, `W t := ∀ t', ¬ UStep t t'` (form 3: every redex is a shared let), `StepS` with one constructor per row 4–20 (row 17 split into `operands` for a byte-array head and `arg` for other heads; each constructor states that earlier rows don't match).
+- Proved, no `sorry`: `StepS.step` (each `▷ₛ` step is a `▷` step; axioms `propext`), `StepS.det` (deterministic; `propext`), `StepS.not_W` and `progress` (every term is in `w` or has a step; `propext`, `Quot.sound`), `W_iff` (`w` = no `▷ₛ` step). Constructive: `progress` decides `w`.
+- 6/26's "if a term has a normal form, `▷ₛ` reaches its shared normal form" is false: `(λx. []) Ω` has normal form `[]`, but `Ω` is not copyable, row 6 reduces it first and `Ω ▷ₛ Ω` (Lean `dropOmega_stuck`). Proved instead: a strongly normalizing term reaches `w` (`SN.reaches_W`). User: "6. yes and 7a. try the proof in 4". Doc: 6/21 and 6/26 say "(proved in Lean)"; 6/26(1) SN result, 6/26(2) the counterexample (under review).
+
+### D43: unbound effects are a warning, outside semantics.tex — agreed
+- User: "shared let works for any neutral, but we should force user to use strict let for pre-listed effect opcodes. So anytime if we throw away this strategy, full-beta should hold." Agent: option A (effects strictly bound) over B (every run-time op strict: pure ops only cost when copied).
+- User: "we have an assumption that user knows what they are doing, so we can warn the user if they missed strict application for the effects. but if strictness is missed, then it is not an error".
+- User: "i guess this issue not related to this semantics doc. it is just a info to user". So semantics.tex is unchanged; the warning is compiler work (Open 7). With no warning, every full-β path gives the same output; with one, the compiled output is the `▷ₛ` path (6/22(2)).
 
 ### D42: `λx. t` instead of the arrow; intro says "extension of the untyped λ-calculus" — agreed (accepted)
 - User: "Maybe use \x syntax instead of arrow to comply standards. Mention that oymomo semantics is an extension of untyped lambda calculus".

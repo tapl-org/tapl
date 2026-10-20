@@ -64,6 +64,7 @@
    \end{tabular*}\par}
 \newcommand{\axiomrow}[2]{\ruleline{#1}{$#2$}\vspace{8pt}}
 \newcommand{\rulerow}[3]{\ruleline{#1}{$\inferrule{#2}{#3}$}\vspace{12pt}}
+\newcommand{\oldrow}[2]{\par\noindent\begin{tabular*}{\linewidth}{@{}l@{\extracolsep{\fill}}c@{\extracolsep{\fill}}r@{}}\makebox[\rulenamewidth][l]{} & \sout{#2} & \makebox[\rulenamewidth][r]{\sout{\rn{#1}}}\end{tabular*}\par\vspace{8pt}}  % a removed rule, not numbered
 
 \title{Oymomo Semantics\\[8pt]\normalsize\textsc{Draft --- under review}}
 \author{Orti Bazar\\ \texttt{orti.bazar@gmail.com}}
@@ -75,8 +76,8 @@
 
 \medskip\noindent
 Oymomo is an extension of the untyped $\lambda$-calculus: to variables, abstraction and
-application it adds strict application, structs, projection and byte arrays, which name
-opcodes. Section~\ref{sec:syntax} gives the syntax, Sections~\ref{sec:computation}
+application it adds structs, projection and byte arrays, which name
+opcodes; its $\beta$ rule is call-by-value, so a run-time operation is never copied. Section~\ref{sec:syntax} gives the syntax, Sections~\ref{sec:computation}
 and~\ref{sec:congruence} the reduction (full $\beta$), Section~\ref{sec:runs} what runs at compile time
 and at run time, Section~\ref{sec:modules} how a program maps to LLVM, and Section~\ref{sec:strategy} the
 order the compiler reduces in.
@@ -94,20 +95,22 @@ order the compiler reduces in.
 \pt &   & \mid & x & \textit{variable} \\
 \pt &   & \mid & \lam{x}{t} & \textit{abstraction} \\
 \pt &   & \mid & t\ t & \textit{application} \\
-\pt &   & \mid & t\ {!}t & \textit{strict application} \\
 \pt &   & \mid & \{l_i = t_i\}_{i<k} & \textit{struct} \\
 \pt &   & \mid & t.l & \textit{projection} \\
 \pt &   & \mid & b & \textit{byte array} \\[6pt]
 \pt & v & ::= & \lam{x}{t} \mid \{l_i = v_i\}_{i<k} \mid b &
   \textit{value} \\
 \pt & d & ::= & b \mid \{l_i = d_i\}_{i<k} &
-  \textit{data}
+  \textit{data} \\
+\pt & u & ::= & v \mid x.l_1 \cdots l_n \quad (0 \le n) &
+  \textit{copyable}
 \end{array}
 \]
 \begin{points}
 \item $x$ ranges over variables, $l$ over labels, $b$ over byte
   arrays and $t$ over
-  terms. Subscripts ($t_1$, $t_2$, \dots) mark different terms in one
+  terms; $u$ over copyable terms, the values and the paths $x.l_1\cdots l_n$ (row 9), which
+  \rn{E-Beta} may copy. Subscripts ($t_1$, $t_2$, \dots) mark different terms in one
   rule.
 \item A lambda $\lam{x}{t}$ extends as far right as possible:
   $\lam{x}{\lam{y}{t}}$ is $\lam{x}{(\lam{y}{t})}$. The dot right after the binder ends the binder; every other
@@ -142,7 +145,7 @@ order the compiler reduces in.
   \item Effects include printing and every memory opcode: $\str{alloca}$,
     $\str{load}$ and $\str{store}$.
   \item Reduction has no memory: it never computes an address or the contents of
-    one; the program orders memory opcodes with strict applications or by using
+    one; the program orders memory opcodes with $\kw{let}$s (1/19) or by using
     one's result in the next (4/3).
   \end{subpoints}
 \item Positions count every field, labeled or not, from $0$; a label is a
@@ -164,25 +167,12 @@ order the compiler reduces in.
   \item With more fields it is a multi-way branch, as LLVM's $\kw{switch}$.
   \item The labels only document the arms.
   \end{subpoints}
-\item A strict application $t_1\ {!}t_2$ applies $t_1$ to $t_2$ only once the argument is a
-  value: $(\lam{x}{t})\ {!}y$ waits, while $(\lam{x}{t})\ y$ reduces to
-  $\subst{x}{y}{t}$.
+\item Sugar for $\kw{let}$: $\kw{let}\ x = t_1\ \kw{in}\ t_2$ is $(\lam{x}{t_2})\ t_1$.
   \begin{subpoints}
-  \item It is the only way to order effects and to use one result more than once:
-    $(\lam{c}{f\ c\ c})\ {!}e$ runs $e$ once, then the body; with $\lam{\_}{t}$ it
-    only orders.
-  \item The $!$ does not change grouping: it marks the argument as it is without
-    $!$. So $f\ {!}x\ y$ is $(f\ {!}x)\ y$, and a compound argument needs
-    parentheses: $f\ {!}(g\ y)$.
-  \item The $!$ is not a term on its own.
-  \end{subpoints}
-\item Sugar for $\kw{let}$:
-  \begin{subpoints}
-  \item $\kw{let}\ x = t_1\ \kw{in}\ t_2$ is $(\lam{x}{t_2})\ t_1$; it may copy
-    $t_1$ to every use of $x$ or drop it.
-  \item $\kw{let}\ x \mathrel{=!} t_1\ \kw{in}\ t_2$ is $(\lam{x}{t_2})\ {!}(t_1)$;
-    it runs $t_1$ once, first. Here $=!$ is one sign: the strictness belongs to the
-    binding, so $t_1$ extends to $\kw{in}$ as in a plain $\kw{let}$.
+  \item When $t_1$ reduces to a copyable term, \rn{E-Beta} copies
+    it to every use of $x$ (or drops it).
+  \item Otherwise, as for a run-time operation, the $\kw{let}$ stays: $t_1$ runs
+    once, first, and $x$ names its result.
   \end{subpoints}
 \item Sugar: $\kw{if}\ c\ \kw{then}\ t_1\ \kw{else}\ t_2$ is $\{t_2, t_1\}\ c$.
 \item Terms are equal up to $\alpha$-equivalence (renaming bound variables).
@@ -200,7 +190,9 @@ order the compiler reduces in.
   \end{subpoints}
 \item A program whose normal form contains a stuck term, anywhere, is rejected at
   compile time. An unknown opcode or undefined behavior is not stuck: it is a
-  run-time operation (1/15).
+  run-time operation (1/15). A normal form that is not in the shape LLVM needs
+  (Section~\ref{sec:modules}) is rejected too, such as an operand that is a run-time operation:
+  $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$; it is written with a $\kw{let}$ instead.
 \end{points}
 
 %% ── Computation ────────────────────────────────────────────────────────
@@ -209,9 +201,7 @@ order the compiler reduces in.
 
 \begin{rules}
 \axiomrow{E-Beta}
-  {(\lam{x}{t_1})\ t_2 \;\step\; \subst{x}{t_2}{t_1}}
-\axiomrow{E-Strict}
-  {t\ {!}v \;\step\; t\ v}
+  {(\lam{x}{t_1})\ u \;\step\; \subst{x}{u}{t_1}}
 \rulerow{E-Proj}
   {l_j = l}
   {\{l_i = t_i\}_{i<k}.l \;\step\; t_j}
@@ -226,15 +216,17 @@ order the compiler reduces in.
   {b\ \{l_i = d_i\}_{i<k} \;\step\; b'}
 \end{rules}
 \begin{points}
-\item A value is $\lam{x}{t}$, a struct or a byte array (Section~\ref{sec:syntax}).
+\item A value is $\lam{x}{t}$, a struct of values or a byte array (Section~\ref{sec:syntax}).
+  \rn{E-Beta} substitutes only a copyable argument (row 1/9): $(\lam{x}{t})\ (\str{print}\ \{\str{h}\})$
+  is not a redex, so the $\kw{print}$ is never copied or dropped; it stays a $\kw{let}$ (1/19).
 \item \rn{E-Proj} takes the field labeled $l$ (labels are unique), and \rn{E-Index}
   the field at position $b$~(\rn{E-Default} the last field).
   \begin{subpoints}
   \item The other fields are discarded, even one with an effect:
     $\{a = e, b = \hex{01}\}.b \step \hex{01}$. Full $\beta$ may
     reduce $e$ or not, but $e$ is not in the normal form: it is dropped.
-  \item To run it, bind it first with a strict application:
-    $(\lam{x}{\{a = x, b = \hex{01}\}.b})\ {!}e$.
+  \item To run it, bind it first with a $\kw{let}$:
+    $(\lam{x}{\{a = x, b = \hex{01}\}.b})\ e$.
   \end{subpoints}
 \item So a branch whose condition is known at compile time
   keeps one arm and discards the others. Full $\beta$
@@ -242,18 +234,11 @@ order the compiler reduces in.
 \item \rn{E-Opcode} computes the call at compile time, when $\fn{op}(b)$ is
   defined: \[\str{add}\ \{\str{i32}, \hex{02000000}, \hex{03000000}\} \step \hex{05000000}\]
   \begin{subpoints}
-  \item All operands are data: byte arrays, or structs of data (row 9), never
+  \item All operands are data: byte arrays, or structs of data (row 8), never
     a lambda, so they never step and the result is the same in every reduction order.
   \item Otherwise reduction cannot reduce the call: it is a run-time operation: an effect, undefined behavior, or an operand not known until run
     time. The translation to LLVM emits it as an instruction.
   \item Operands are computed by \rn{E-App2} and \rn{E-Struct}.
-  \end{subpoints}
-\item \rn{E-Strict} fires only on a value: a value has no effect left to run.
-  \begin{subpoints}
-  \item A strict application whose argument is a run-time operation waits; the
-    translation to LLVM emits the operation first, then the rest, with the result
-    as an SSA value.
-  \item The argument is computed by \rn{E-SApp2}.
   \end{subpoints}
 \end{points}
 
@@ -265,8 +250,6 @@ order the compiler reduces in.
 \rulerow{E-Abs}{t \step t'}{\lam{x}{t} \;\step\; \lam{x}{t'}}
 \rulerow{E-App1}{t_1 \step t_1'}{t_1\ t_2 \;\step\; t_1'\ t_2}
 \rulerow{E-App2}{t_2 \step t_2'}{t_1\ t_2 \;\step\; t_1\ t_2'}
-\rulerow{E-SApp1}{t_1 \step t_1'}{t_1\ {!}t_2 \;\step\; t_1'\ {!}t_2}
-\rulerow{E-SApp2}{t_2 \step t_2'}{t_1\ {!}t_2 \;\step\; t_1\ {!}t_2'}
 \rulerow{E-Struct}{t_i \step t_i'}
   {\{\dots, l_i = t_i, \dots\} \;\step\; \{\dots, l_i = t_i', \dots\}}
 \rulerow{E-Proj1}{t \step t'}{t.l \;\step\; t'.l}
@@ -274,11 +257,11 @@ order the compiler reduces in.
 \begin{points}
 \item $\step$ is full $\beta$: a rule of Section~\ref{sec:computation} may fire
   anywhere, under a lambda, in a struct field (so in every arm of a branch) too.
-\item $\step$ is confluent: it is the $\lambda$-calculus with
-   structs, projection, branching and
-  strict application (Church--Rosser; projection is the usual record rule). The
+\item $\step$ is confluent: it is the call-by-value $\lambda$-calculus (Plotkin's $\lambda_v$) with
+   structs, projection and branching (Church--Rosser; projection is the usual record rule). The
   proof is in Lean 4, in \texttt{proofs/} (theorem \texttt{Oymomo.confluence}), for
-  every opcode table $\fn{op}$.
+  every opcode table $\fn{op}$; it is still for the previous rules (full $\beta$ and strict
+  application) and is being updated.
 \end{points}
 
 %% ── Meaning ────────────────────────────────────────────────────────────
@@ -286,7 +269,7 @@ order the compiler reduces in.
 \section{What Runs}\label{sec:runs}
 
 \begin{points}
-\item At compile time, reduction never runs an effect: an effectful operation (an opcode call reduction cannot reduce, 2/10) is left as it is at compile time. Full $\beta$ may copy or discard a term
+\item At compile time, reduction never runs an effect: an effectful operation (an opcode call reduction cannot reduce, 2/9) is left as it is at compile time. Full $\beta$ may copy or discard a term
   freely; since it is confluent, every order reaches the same normal form.
 \item At run time an effect runs as a step: $p = \kw{print}\ \str{h}$ steps to its
   result $r$ and writes $\str{h}$. Any order of steps is allowed, so one program may
@@ -369,7 +352,7 @@ order the compiler reduces in.
   \item The user may replace them (with a fixed-point combinator) to compute calls
     at compile time; a call to a declaration stays stuck: it has no $\mathit{body}$.
   \end{subpoints}
-\item For example, Euclid's $\gcd$, with the sugars of 1/20 and 1/21:
+\item For example, Euclid's $\gcd$, with the sugars of 1/19 and 1/20:
   \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
 @vlamm.@ {
   gcd = {gives = 'i32', body = @vlamf.@ {
@@ -451,7 +434,7 @@ Each row below matches a shape and chooses either a rule of Section~\ref{sec:com
   \end{subpoints}
 \item Outermost first (rows 12, 13 and 16 before row 15), so a branch whose condition is known fires before its arms, and
   a discarded arm is never reduced. With a run-time condition, each arm is reduced.
-\item For a term in $w$ (row 3), substituting its shared $\kw{let}$s and reducing on gives its normal form under $\step$ (3/9).
+\item For a term in $w$ (row 3), substituting its shared $\kw{let}$s and reducing on gives its normal form under $\step$ (3/7).
 \item The shared normal form of a block's body is a chain of $\kw{let}$s ending in a jump,
   a branch or a result. The translation to LLVM emits each $\kw{let}$ as one instruction.
   \begin{subpoints}
