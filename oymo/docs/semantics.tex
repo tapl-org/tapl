@@ -93,7 +93,7 @@
 Oymomo is an extension of the untyped $\lambda$-calculus: to variables, abstraction and
 application it adds structs, projection and byte arrays, which name
 opcodes; its $\beta$ rule is call-by-value: a function is applied only to a value, so a term that still has to run is never copied or dropped. Section~\ref{sec:goal} states the goal, Section~\ref{sec:syntax} gives the syntax, Section~\ref{sec:sugar} the sugar, Sections~\ref{sec:computation}
-and~\ref{sec:congruence} the reduction (reduction anywhere), Section~\ref{sec:runs} what runs, Section~\ref{sec:modules} how a program maps to LLVM,  Section~\ref{sec:strategy} the
+and~\ref{sec:congruence} the reduction (reduction anywhere),  Section~\ref{sec:modules} how a program maps to LLVM,  Section~\ref{sec:strategy} the
 reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Section~\ref{sec:llvm} the translation to LLVM.
 
 
@@ -194,7 +194,7 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
   When a bound variable of $t_1$ clashes with a free variable of $t_2$,
   $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then
   substitutes.
-\item A value is a variable, $\lam{x}{t}$, a byte array, a struct of values or a projection of a value (Section~\ref{sec:syntax}).
+\item\label{p:values} A value is a variable, $\lam{x}{t}$, a byte array, a struct of values or a projection of a value (Section~\ref{sec:syntax}).
   \rn{E-Beta} substitutes only a value, so it never copies or drops a term that still has to
   run: in $(\lam{x}{\{x, x\}})\ (m.\mathit{print}\ \{r\})$ the call is not a value, so it stays as
   written, a $\kw{let}$ (\pref{p:let}), and runs once. A variable is a value because it stands for one.
@@ -221,9 +221,13 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
   \item $\fn{op}(b)$ is a partial function from operand values to a byte array.
   \item Effects include memory opcodes, such as $\str{alloca}$, $\str{load}$ and $\str{store}$.
   \item Reduction has no memory: it never computes an address or the contents of
-    one; the program orders memory opcodes by binding each with a  $\kw{let}$, which
-    waits until its argument is a value (\pref{p:let}), or by using
-    one's result in the next (\pref{p:effect-order}).
+    one, and it never runs a memory opcode. It never moves a term that is not a value either
+    (\pref{p:values}), so the order the program gives its effects survives into the normal form: in
+    \[\begin{array}{l}\kw{let}\ u = \str{store}\ \{\str{i32}, \hex{05000000}, p\}\ \kw{in} \\
+    \kw{let}\ x = \str{load}\ \{\str{i32}, p\}\ \kw{in} \\
+    t\end{array}\]
+    the $\str{store}$ stays outside the $\str{load}$, and the translation to LLVM emits the $\str{store}$
+    first, so the $\str{load}$ reads $\hex{05000000}$. Using one's result in the next orders them too.
   \item All operands are data: byte arrays, or structs of data (row \pref{p:data}), never
     a lambda, so they never step and the result is the same in every reduction order.
   \item Otherwise the call does not reduce: an effect, undefined behavior, an unknown opcode, or an
@@ -318,39 +322,6 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
   is normal but not in ANF shape; written with a  $\kw{let}$ for the $\str{mul}$, it is.
 \end{points}
 
-%% ── Meaning ────────────────────────────────────────────────────────────
-
-\section{What Runs}\label{sec:runs}
-
-\begin{points}
-\item At compile time, reduction never runs an effect: an effectful operation (an opcode call reduction cannot reduce, \pref{p:opcode}) is left as it is at compile time. Full $\beta$ may copy or discard a term
-  freely; since it is confluent, every order reaches the same normal form.
-\item At run time an effect runs as a step: $p = \kw{print}\ \str{h}$ steps to its
-  result $r$ and writes $\str{h}$. Any order of steps is allowed, so one program may
-  write different output on different paths, even though every path reaches the same
-  normal form, which does not show the output. For example, $(\lam{x}{\{x, x\}})\ p$:
-  \begin{subpoints}
-  \item\label{p:path-once} $(\lam{x}{\{x, x\}})\ p \step (\lam{x}{\{x, x\}})\ r$, writing $\str{h}$,
-    then $\step \{r, r\}$: the output is $\str{h}$;
-  \item $(\lam{x}{\{x, x\}})\ p \step \{p, p\}$, then each $p$ runs:
-    $\{r, r\}$ again, but the output is $\str{hh}$.
-  \end{subpoints}
-\item\label{p:effect-order} To run an effect exactly once, use a strict application:
-  $(\lam{x}{\{x, x\}})\ {!}p$ waits until $p$ is a value, so only path \pref{p:path-once} is
-  possible, and the output is $\str{h}$. Effects run in the order the program asks for,
-  with a strict application or by using one effect's result in another; any other
-  order, and how many times a copied effect runs, is free.
-\item So the translation to LLVM may follow any path (it follows Section~\ref{sec:strategy}): it runs an effect under a strict
-  application exactly once, and a copied effect once or once per copy. For example, with $p = \kw{print}\ \str{h}$ and
-  $q = \kw{add}\ \{\str{i32}, a, b\}$ (pure):
-  \begin{subpoints}
-  \item $\{p, p\}$ may become one or two $\kw{print}$ instructions;
-  \item $\{q, q\}$ may become one $\kw{add}$ instruction whose result fills both
-    fields;
-  \item $(\lam{x}{\{x, x\}})\ {!}p$ becomes one $\kw{print}$ instruction whose
-    result fills both fields.
-  \end{subpoints}
-\end{points}
 
 %% ── Modules ──────────────────────────────────────────────────────────
 
@@ -484,7 +455,7 @@ Sharing normal order, $\stepS$, is the reduction order that finds the normal for
 \item A shared $\kw{let}$ (row \pref{s6:shared}) holds, for example, a run-time operation. It is not contracted: $t_2$ steps until it is in $w$, then $t$ (rows \pref{s6:let-first} to \pref{s6:let-last}).
   \begin{subpoints}
   \item Keeping the $\kw{let}$ may leave a projection or an index on $x$; it stays as an instruction.
-  \item $t_2$ is not copied: it runs once, as in path \pref{p:path-once}.
+  \item $t_2$ is not copied: it runs once.
   \end{subpoints}
 \item Outermost first (rows \pref{s6:index}, \pref{s6:default} and \pref{s6:cond} before row \pref{s6:arms}), so a branch whose condition is known fires before its arms, and
   a discarded arm is never reduced. With a run-time condition, each arm is reduced.
