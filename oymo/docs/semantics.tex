@@ -418,55 +418,46 @@
 \section{Modules}\label{sec:modules}
 
 \begin{points}
-\item A module is $\lam{m}{\{l_i = t_i\}_{i<k}}$: a struct of symbols, each a
-  declaration, a definition, a constant or a global variable. Each label is a global name, as LLVM's
-  $\kw{@gcd}$ or $\kw{@puts}$. They refer to each other through $m$.
+\item\label{p:module} A module is $\lam{m}{\{l_i = t_i\}_{i<k}}$: a struct of symbols, each a
+  declaration, a definition, a constant or a global variable. They refer to each other through $m$. A program may wrap the module in more
+  abstractions, such as $\lam{d}{\lam{m}{\dots}}$; once those are applied, its shape is $\lam{m}{\{l_i = t_i\}_{i<k}}$.
 \item A definition is a struct
-  $\{\mathit{gives} = t',\
-  \mathit{body} = \lam{f}{\{l_i = t_i'\}_{i<k}}\}$, with $0 < k$ blocks. It becomes
-  LLVM's $\kw{define}$.
+  $\{\mathit{gives} = t,\
+  \mathit{body} = \lam{f}{\{l_i = k_i\}_{i<k}}\}$, with $0 < k$ blocks $k_i$ (\pref{p:block}).
   \begin{subpoints}
   \item $\mathit{gives}$ is the result type; types are ordinary terms (\pref{p:types}).
   \item The parameters and their types are those of the first block, at position $0$.
   \item $\mathit{body}$ is a recursive function: $f$ names its own struct of blocks.
   \end{subpoints}
-\item A block is a struct $\{\mathit{takes} = \{x_i = t_i\}_{i<k},\
+\item\label{p:block} A block is a struct $\{\mathit{takes} = \{x_i = t_i\}_{i<k},\
   \mathit{body} = \lam{p}{e}\}$, where $e$ is a block body in ANF (\pref{p:anf}).
   \begin{subpoints}
-  \item $\mathit{takes}$ declares the types of the block parameters (LLVM's
-    $\kw{phi}$).
+  \item $\mathit{takes}$ declares the types of the block parameters.
   \item $\mathit{body}$ takes one argument, a struct of the same form as
-    $\mathit{takes}$: $\{x_i = t_i'\}_{i<k}$; $t$ reads it as $p.x_i$.
+    $\mathit{takes}$: $\{x_i = a_i\}_{i<k}$, a struct of atoms (\pref{p:anf}); $e$ reads it as $p.x_i$.
   \item The first block (position $0$) runs first: the translation takes the first
-    field as the entry, so any label works there ($\mathit{entry}$ in \pref{p:gcd}). No block jumps to it, as LLVM's entry block has no predecessors. Full
-    $\beta$ may still reach it, by its label or by position;
+    field as the entry, so any label works there ($\mathit{entry}$ in \pref{p:gcd}). No block jumps to it, as LLVM's entry block has no predecessors. Reduction may still reach it, by its label or by position;
     only the translation to LLVM rejects such a jump.
-  \item A jump is $f.l.\mathit{body}\ \{x_i = t_i'\}_{i<k}$, LLVM's $\kw{br}$.
+  \item A jump is $f.l.\mathit{body}\ \{x_i = a_i\}_{i<k}$. It ends an expression (\pref{p:anf}): a jump through $f$ that
+    is not at the end is rejected.
   \item A block sees only its own argument, $f$ and $m$.
   \end{subpoints}
-\item A declaration is a struct $\{\mathit{takes} = \{x_i = t_i\}_{i<k},\ \mathit{gives} = t'\}$,
+\item A declaration is a struct $\{\mathit{takes} = \{x_i = t_i\}_{i<k},\ \mathit{gives} = t\}$,
   a function defined outside the module; $\mathit{takes}$ holds the parameter
-  types in order: $\{\mathit{takes} = \{s = \str{ptr}\},\ \mathit{gives} = \str{i32}\}$
-  becomes LLVM's $\kw{declare\ i32\ @puts(ptr)}$.
+  types in order: $\{\mathit{takes} = \{s = \str{ptr}\},\ \mathit{gives} = \str{i32}\}$.
 \item A constant is a struct $\{\mathit{type} = t_1,\ \mathit{value} = v\}$:
-  $\{\mathit{type} = \str{i32},\ \mathit{value} = \hex{2a000000}\}$ becomes LLVM's
-  $\kw{@answer\ =\ constant\ i32\ 42}$. $m.l$ stands for the value $v$.
+  $\{\mathit{type} = \str{i32},\ \mathit{value} = \hex{2a000000}\}$. $m.l$ stands for its address; the program reads it with $\str{load}$ (\pref{p:anf}).
 \item A global variable is a struct $\{\mathit{type} = t_1,\ \mathit{init} = v\}$:
-  $\{\mathit{type} = \str{i32},\ \mathit{init} = \hex{29000000}\}$ becomes LLVM's
-  $\kw{@counter\ =\ global\ i32\ 41}$. $m.l$ stands for its address, a
+  $\{\mathit{type} = \str{i32},\ \mathit{init} = \hex{29000000}\}$. $m.l$ stands for its address, a
   $\str{ptr}$; the program reads and writes it with $\str{load}$ and
   $\str{store}$.
-\item $m.l$ stands for the function $l$ itself, so a call is a plain
-  application to one struct: $m.l\ \{x_i = t_i'\}_{i<k}$, LLVM's $\kw{call}$. For a definition, $m.l$
-  is the $\mathit{body}$ of its first block with $f$ tied to its own
-  struct of blocks.
-\item $m$ and $f$ stay free variables, so calls and jumps don't reduce at compile time.
+\item $m.l$ stands for the function $l$ itself, so a call is a function call (\pref{p:anf}): $m.l\ \{x_i = a_i\}_{i<k}$. The linker connects $m.l$ to the definition or the declaration; reduction never
+  does (\pref{p:call}).
+\item Reduction never binds $m$ or $f$, so calls and jumps never reduce.
   \begin{subpoints}
   \item Reduction never unfolds them, and a recursive function or a loop doesn't
     make reduction loop.
-  \item The user may replace them (with a fixed-point combinator) to compute calls
-    at compile time; a call to a declaration stays stuck: it has no $\mathit{body}$.
-  \end{subpoints}
+    \end{subpoints}
 \item\label{p:gcd} For example, Euclid's $\gcd$, with the sugars of \pref{p:let} and \pref{p:if}:
   \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
 @vlamm.@ {
@@ -509,6 +500,25 @@
   Oymomo has no types and no type checking: it is an untyped $\lambda$-calculus. An LLVM type is an
   ordinary term that only an opcode reads, as an operand: $\str{add}\ \{\str{i32}, a, b\}$ is LLVM's
   $\kw{add\ i32}\ a, b$.
+\item Each symbol of the module (\pref{p:module}) becomes an LLVM global named by its label, as
+  $\kw{@gcd}$ or $\kw{@puts}$:
+  \begin{subpoints}
+  \item A definition becomes LLVM's $\kw{define}$; its first block is the entry block.
+  \item A declaration becomes LLVM's $\kw{declare}$: $\{\mathit{takes} = \{s = \str{ptr}\},\ \mathit{gives} = \str{i32}\}$ is
+    $\kw{declare\ i32\ @puts(ptr)}$.
+  \item A constant becomes $\kw{@answer\ =\ constant\ i32\ 42}$.
+  \item A global variable becomes $\kw{@counter\ =\ global\ i32\ 41}$.
+  \item A block's $\mathit{takes}$ becomes the block's $\kw{phi}$ instructions.
+  \end{subpoints}
+\item An expression in ANF (\pref{p:anf}) becomes the instructions of a block:
+  \begin{subpoints}
+  \item Each $\kw{let}$ becomes one instruction: an opcode call the opcode's instruction, and a call
+    through $m$ LLVM's $\kw{call}$.
+  \item A return becomes $\kw{ret}$, a jump through $f$ becomes $\kw{br}$, and a jump through $m$ becomes
+    $\kw{call}$ then $\kw{ret}$.
+  \item A conditional jump becomes $\kw{br\ i1}$ or $\kw{switch}$; an arm that returns becomes a small block
+    with a $\kw{ret}$.
+  \end{subpoints}
 \end{points}
 
 \end{document}
