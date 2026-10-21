@@ -190,7 +190,7 @@ The user's orders, kept as given. Follow them in every task.
     one bullet (a short sentence, then the display) whose rows are its lettered
     sub-points, `a.`, `b.` (`\pt` steps the `spt` counter, reset by each bullet); a lone
     formula row keeps its own number (`\ptone`). User: "lets put all formulas into
-    sub-bullet if they are more than 1". The user refers to points
+    sub-bullet if they are more than 1". Everything in semantics.tex is in a bullet, the opening paragraph included (user, D74: "everything inside doc must be in the bullet"). The user refers to points
     as "docN.M".
     Subsections are 4a, 4b, ... so they never look like a point number (user's order).
   - Term classes are named reducible (takes a `⟶w` step), value, neutral, stuck

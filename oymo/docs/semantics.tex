@@ -89,14 +89,6 @@
 \maketitle
 
 
-\medskip\noindent
-Oymomo is an extension of the untyped $\lambda$-calculus: to variables, abstraction and
-application it adds structs, projection and byte arrays, which name
-opcodes; its $\beta$ rule is call-by-value: a function is applied only to a value, so a term that still has to run is never copied or dropped. Section~\ref{sec:goal} states the goal, Section~\ref{sec:syntax} gives the syntax, Section~\ref{sec:sugar} the sugar, Sections~\ref{sec:computation}
-and~\ref{sec:congruence} the reduction (reduction anywhere),  Section~\ref{sec:modules} how a program maps to LLVM,  Section~\ref{sec:strategy} the
-reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Section~\ref{sec:llvm} the translation to LLVM.
-
-
 
 
 %% ── Goal ───────────────────────────────────────────────────────────────
@@ -104,6 +96,12 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \section{Goal}\label{sec:goal}
 
 \begin{points}
+\item Oymomo is an extension of the untyped $\lambda$-calculus: to variables, abstraction and
+  application it adds structs, projection and byte arrays, which name
+  opcodes; its $\beta$ rule is call-by-value: a function is applied only to a value, so a term that still has to run is never copied or dropped.
+\item Section~\ref{sec:goal} states the goal, Section~\ref{sec:syntax} gives the syntax, Section~\ref{sec:sugar} the sugar,
+  Sections~\ref{sec:computation} and~\ref{sec:congruence} the reduction, Section~\ref{sec:banf} ANF (A-normal form) and how to
+  reach it, Section~\ref{sec:modules} how a program is made of modules, and Section~\ref{sec:llvm} the translation to LLVM.
 \item\label{p:goal-anywhere} Reduction happens anywhere: a rule may fire in any position, under a
   $\lambda$, in a struct field and in an argument.
 \item\label{p:goal-banf} A term in ANF (Section~\ref{sec:banf}) is a normal form: it
@@ -323,6 +321,72 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \end{points}
 
 
+%% ── ANF and Strategy ─────────────────────────────────────────────────
+
+\section{ANF and Strategy}\label{sec:banf}\label{sec:strategy}
+
+\begin{points}
+\item A normal form (\pref{p:normal}) in ANF can be translated to LLVM (Section~\ref{sec:llvm}). This section is to be written: what ANF is, and how it is checked.
+\item If a term's normal form is in ANF, the strategy below is one way to reach it.
+  Sharing normal order, $\stepS$, is the reduction order that finds the normal form. (Not reviewed yet: it still describes the previous rules.)
+\item It uses three more forms:
+\[
+\begin{array}{l@{\qquad}l@{\qquad}l}
+\pt & u ::= v \mid x & \textit{copyable} \\
+\pt\plabel{s6:shared} & (\lam{x}{t_1})\ t_2 \quad t_2 \notin u & \textit{shared } \kw{let} \\
+\pt\plabel{s6:w} & w: \text{ a term in which every redex is a shared } \kw{let} & \textit{shared normal form}
+\end{array}
+\]
+\item Each row below matches a shape and chooses either a rule of Section~\ref{sec:computation}, which fires at the root, or a part of the term, which takes its own $\stepS$ step.
+
+\[
+\begin{array}{l@{\qquad}l@{\qquad}l}
+& \textit{shape} & \textit{choose} \\ \hline
+\pt\plabel{s6:let-first} & (\lam{x}{t_1})\ u & \rn{E-Beta} \\
+\pt & (\lam{x}{t_1})\ w & t_1 \\
+\pt\plabel{s6:let-last} & (\lam{x}{t_1})\ t_2 & t_2 \\
+\pt & t\ {!}v & \rn{E-Strict} \\
+\pt & t_1\ {!}w & t_1 \\
+\pt & t_1\ {!}t_2 & t_2 \\
+\pt & \{l_i = t_i\}_{i<k}.l \quad l_j = l & \rn{E-Proj} \\
+\pt & t.l & t \\
+\pt\plabel{s6:index} & \{l_i = t_i\}_{i<k}\ b \quad b < k & \rn{E-Index} \\
+\pt\plabel{s6:default} & \{l_i = t_i\}_{i<k}\ b \quad 0 < k \le b & \rn{E-Default} \\
+\pt & b\ \{l_i = d_i\}_{i<k} \quad \fn{op}(b)(d_i)_{i<k} = b' & \rn{E-Opcode} \\
+\pt\plabel{s6:arms} & \{l_i = t_i\}_{i<k}\ w & \{l_i = t_i\}_{i<k} \\
+\pt\plabel{s6:cond} & \{l_i = t_i\}_{i<k}\ t_2 & t_2 \\
+\pt & w\ t_2 & t_2 \\
+\pt & t_1\ t_2 & t_1 \\
+\pt & \lam{x}{t} & t \\
+\pt & \{l_i = t_i\}_{i<k} \quad t_j \notin w,\ t_i \in w \text{ for } i < j & t_j \\
+\end{array}
+\]
+\item Rows are tried top to bottom; the first whose shape matches chooses. A chosen part
+  steps by $\stepS$, and the rule of Section~\ref{sec:congruence} for its position (for
+  example \rn{E-App2} for $t_2$ in $t_1\ t_2$) carries the step to the whole term. A term in $w$ has
+  no $\stepS$ step: no row chooses it, or the chosen part is in $w$. Every other term has one.
+\item A shared $\kw{let}$ (row \pref{s6:shared}) holds, for example, a run-time operation. It is not contracted: $t_2$ steps until it is in $w$, then $t$ (rows \pref{s6:let-first} to \pref{s6:let-last}).
+  \begin{subpoints}
+  \item Keeping the $\kw{let}$ may leave a projection or an index on $x$; it stays as an instruction.
+  \item $t_2$ is not copied: it runs once.
+  \end{subpoints}
+\item Outermost first (rows \pref{s6:index}, \pref{s6:default} and \pref{s6:cond} before row \pref{s6:arms}), so a branch whose condition is known fires before its arms, and
+  a discarded arm is never reduced. With a run-time condition, each arm is reduced.
+\item For a term in $w$ (row \pref{s6:w}), substituting its shared $\kw{let}$s and reducing on gives its normal form under $\step$ (\pref{p:confluent}).
+\item The shared normal form of a block's body is a chain of $\kw{let}$s ending in a jump,
+  a branch or a result. The translation to LLVM emits each $\kw{let}$ as one instruction.
+  \begin{subpoints}
+  \item A shared $\kw{let}$ of a branch whose arms are data, variables or fields of a
+    variable ($d$, $x$ or $x.l$), $\{l_i = t_i\}_{i<k}\ t$, is
+    emitted as LLVM's $\kw{select}$ (a chain of them when $2 < k$):
+    $\kw{let}\ r = \kw{if}\ z\ \kw{then}\ p.a\ \kw{else}\ [02]\ \kw{in}\ t$.
+  \item A shared $\kw{let}$ of any other branch, such as a branch of jumps, is rejected at
+    compile time; the branch is written as the block's end instead.
+  \end{subpoints}
+\item $\stepS$ is deterministic, and each of its steps is a $\step$ step. If a term has a
+  normal form, $\stepS$ is expected to reach its shared normal form (not proved yet).
+\end{points}
+
 %% ── Modules ──────────────────────────────────────────────────────────
 
 \section{Modules}\label{sec:modules}
@@ -409,77 +473,6 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 }
 \end{Verbatim}
 \end{points}
-
-%% ── Strategy ─────────────────────────────────────────────────────────
-
-\section{Strategy}\label{sec:strategy}
-
-Sharing normal order, $\stepS$, is the reduction order that finds the normal form.
-\begin{points}
-\item It uses three more forms:
-\[
-\begin{array}{l@{\qquad}l@{\qquad}l}
-\pt & u ::= v \mid x & \textit{copyable} \\
-\pt\plabel{s6:shared} & (\lam{x}{t_1})\ t_2 \quad t_2 \notin u & \textit{shared } \kw{let} \\
-\pt\plabel{s6:w} & w: \text{ a term in which every redex is a shared } \kw{let} & \textit{shared normal form}
-\end{array}
-\]
-\item Each row below matches a shape and chooses either a rule of Section~\ref{sec:computation}, which fires at the root, or a part of the term, which takes its own $\stepS$ step.
-
-\[
-\begin{array}{l@{\qquad}l@{\qquad}l}
-& \textit{shape} & \textit{choose} \\ \hline
-\pt\plabel{s6:let-first} & (\lam{x}{t_1})\ u & \rn{E-Beta} \\
-\pt & (\lam{x}{t_1})\ w & t_1 \\
-\pt\plabel{s6:let-last} & (\lam{x}{t_1})\ t_2 & t_2 \\
-\pt & t\ {!}v & \rn{E-Strict} \\
-\pt & t_1\ {!}w & t_1 \\
-\pt & t_1\ {!}t_2 & t_2 \\
-\pt & \{l_i = t_i\}_{i<k}.l \quad l_j = l & \rn{E-Proj} \\
-\pt & t.l & t \\
-\pt\plabel{s6:index} & \{l_i = t_i\}_{i<k}\ b \quad b < k & \rn{E-Index} \\
-\pt\plabel{s6:default} & \{l_i = t_i\}_{i<k}\ b \quad 0 < k \le b & \rn{E-Default} \\
-\pt & b\ \{l_i = d_i\}_{i<k} \quad \fn{op}(b)(d_i)_{i<k} = b' & \rn{E-Opcode} \\
-\pt\plabel{s6:arms} & \{l_i = t_i\}_{i<k}\ w & \{l_i = t_i\}_{i<k} \\
-\pt\plabel{s6:cond} & \{l_i = t_i\}_{i<k}\ t_2 & t_2 \\
-\pt & w\ t_2 & t_2 \\
-\pt & t_1\ t_2 & t_1 \\
-\pt & \lam{x}{t} & t \\
-\pt & \{l_i = t_i\}_{i<k} \quad t_j \notin w,\ t_i \in w \text{ for } i < j & t_j \\
-\end{array}
-\]
-\item Rows are tried top to bottom; the first whose shape matches chooses. A chosen part
-  steps by $\stepS$, and the rule of Section~\ref{sec:congruence} for its position (for
-  example \rn{E-App2} for $t_2$ in $t_1\ t_2$) carries the step to the whole term. A term in $w$ has
-  no $\stepS$ step: no row chooses it, or the chosen part is in $w$. Every other term has one.
-\item A shared $\kw{let}$ (row \pref{s6:shared}) holds, for example, a run-time operation. It is not contracted: $t_2$ steps until it is in $w$, then $t$ (rows \pref{s6:let-first} to \pref{s6:let-last}).
-  \begin{subpoints}
-  \item Keeping the $\kw{let}$ may leave a projection or an index on $x$; it stays as an instruction.
-  \item $t_2$ is not copied: it runs once.
-  \end{subpoints}
-\item Outermost first (rows \pref{s6:index}, \pref{s6:default} and \pref{s6:cond} before row \pref{s6:arms}), so a branch whose condition is known fires before its arms, and
-  a discarded arm is never reduced. With a run-time condition, each arm is reduced.
-\item For a term in $w$ (row \pref{s6:w}), substituting its shared $\kw{let}$s and reducing on gives its normal form under $\step$ (\pref{p:confluent}).
-\item The shared normal form of a block's body is a chain of $\kw{let}$s ending in a jump,
-  a branch or a result. The translation to LLVM emits each $\kw{let}$ as one instruction.
-  \begin{subpoints}
-  \item A shared $\kw{let}$ of a branch whose arms are data, variables or fields of a
-    variable ($d$, $x$ or $x.l$), $\{l_i = t_i\}_{i<k}\ t$, is
-    emitted as LLVM's $\kw{select}$ (a chain of them when $2 < k$):
-    $\kw{let}\ r = \kw{if}\ z\ \kw{then}\ p.a\ \kw{else}\ [02]\ \kw{in}\ t$.
-  \item A shared $\kw{let}$ of any other branch, such as a branch of jumps, is rejected at
-    compile time; the branch is written as the block's end instead.
-  \end{subpoints}
-\item $\stepS$ is deterministic, and each of its steps is a $\step$ step. If a term has a
-  normal form, $\stepS$ is expected to reach its shared normal form (not proved yet).
-\end{points}
-
-%% ── ANF ──────────────────────────────────────────────────────────────
-
-\section{ANF Validation}\label{sec:banf}
-
-A normal form (\pref{p:normal}) is checked to be in ANF before it
-is translated. This section is to be written.
 
 %% ── LLVM ─────────────────────────────────────────────────────────────
 
