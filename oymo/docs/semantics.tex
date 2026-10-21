@@ -92,7 +92,7 @@
 \medskip\noindent
 Oymomo is an extension of the untyped $\lambda$-calculus: to variables, abstraction and
 application it adds structs, projection and byte arrays, which name
-opcodes; its $\beta$ rule is full $\beta$, and a strict application $t\ {!}t_1$ waits until $t_1$ is a value, so an effect bound strictly runs once. Section~\ref{sec:goal} states the goal, Section~\ref{sec:syntax} gives the syntax, Section~\ref{sec:sugar} the sugar, Sections~\ref{sec:computation}
+opcodes; its $\beta$ rule is call-by-value: a function is applied only to a value, so a term that still has to run is never copied or dropped. Section~\ref{sec:goal} states the goal, Section~\ref{sec:syntax} gives the syntax, Section~\ref{sec:sugar} the sugar, Sections~\ref{sec:computation}
 and~\ref{sec:congruence} the reduction (full $\beta$), Section~\ref{sec:runs} what runs, Section~\ref{sec:modules} how a program maps to LLVM,  Section~\ref{sec:strategy} the
 reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Section~\ref{sec:llvm} the translation to LLVM.
 
@@ -110,8 +110,8 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
   has no step left, so reaching ANF never needs a rule that lifts a term into a $\kw{let}$.
 \item\label{p:goal-agree} Every path agrees: if one reduction path ends in an ANF term, every path that ends,
   ends in that same term. This is confluence (\pref{p:confluent}).
-\item Confluence can't promise that every path ends: with recursion some orders may loop while
-  others finish. So every path that ends gives the same normal form, and the reduction order (Section~\ref{sec:strategy}) is one that ends whenever some order does.
+\item Confluence can't promise that every path ends:  some orders may loop while
+  others finish, as in $\{a = \Omega, b = \hex{01}\}.b$, where $\Omega = (\lam{x}{x\ x})\ (\lam{x}{x\ x})$ steps to itself. It promises only that every path that ends gives the same normal form, and that is all the goal needs.
 \end{points}
 
 %% ── Syntax ─────────────────────────────────────────────────────────────
@@ -126,20 +126,16 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \pt &   & \mid & x & \textit{variable} \\
 \pt &   & \mid & \lam{x}{t} & \textit{abstraction} \\
 \pt &   & \mid & t\ t & \textit{application} \\
-\pt &   & \mid & t\ {!}t & \textit{strict application} \\
 \pt &   & \mid & \{l_i = t_i\}_{i<k} & \textit{struct} \\
 \pt &   & \mid & t.l & \textit{projection} \\
 \pt &   & \mid & b & \textit{byte array} \\
 \pt &   & \mid & \kw{fix}\ t & \textit{fixed point} \\[6pt]
-\pt & v & ::= & \lam{x}{t} \mid \kw{fix}\ (\lam{x}{t}) \mid \{l_i = v_i\}_{i<k} \mid b &
+\pt & v & ::= & x \mid \lam{x}{t} \mid \kw{fix}\ (\lam{x}{t}) \mid \{l_i = v_i\}_{i<k} \mid b &
   \textit{value} \\
 \pt\plabel{p:data} & d & ::= & b \mid \{l_i = d_i\}_{i<k} &
   \textit{data}
 \end{array}
 \]
-\item\label{p:strict} A strict application $t\ {!}t_1$ applies $t$ to $t_1$ once $t_1$ is a value
-  (\pref{r:E-Strict}). The $!$ does not change grouping: $f\ {!}x\ y$ is $(f\ {!}x)\ y$; it is
-  not a term on its own.
 \item A lambda $\lam{x}{t}$ extends as far right as possible:
   $\lam{x}{\lam{y}{t}}$ is $\lam{x}{(\lam{y}{t})}$. The dot right after the binder ends the binder; every other
   dot is projection: $\lam{p}{p.a}$ is $\lam{p}{(p.a)}$.
@@ -169,7 +165,6 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \begin{array}{l@{\qquad}l@{\qquad}l}
  & \textit{sugar syntax} & \textit{kernel syntax} \\ \hline
 \pt\plabel{p:let} & \kw{let}\ x = t_1\ \kw{in}\ t_2 & (\lam{x}{t_2})\ t_1 \\
-\pt\plabel{p:slet} & \kw{let}\ x =! t_1\ \kw{in}\ t_2 & (\lam{x}{t_2})\ {!}t_1 \\
 \pt\plabel{p:if} & \kw{if}\ t_1\ \kw{then}\ t_2\ \kw{else}\ t_3 & \{t_3, t_2\}\ t_1
 \end{array}
 \]
@@ -182,9 +177,7 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \item The computation rules reduce a term at its root.
 \begin{rules}
 \axiomrow{E-Beta}
-  {(\lam{x}{t_1})\ t_2 \;\step\; \subst{x}{t_2}{t_1}}
-\axiomrow{E-Strict}
-  {t\ {!}v \;\step\; t\ v}
+  {(\lam{x}{t_1})\ v \;\step\; \subst{x}{v}{t_1}}
 \axiomrow{E-Fix}
   {(\kw{fix}\ (\lam{x}{t_1}))\ v \;\step\; (\subst{x}{\kw{fix}\ (\lam{x}{t_1})}{t_1})\ v}
 \rulerow{E-Proj}
@@ -200,11 +193,11 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
   {\fn{op}(b)(d_i)_{i<k} = b'}
   {b\ \{l_i = d_i\}_{i<k} \;\step\; b'}
 \end{rules}
-\item A value is $\lam{x}{t}$, $\kw{fix}\ (\lam{x}{t})$, a struct of values or a byte array (Section~\ref{sec:syntax}).
+\item A value is a variable, $\lam{x}{t}$, $\kw{fix}\ (\lam{x}{t})$, a struct of values or a byte array (Section~\ref{sec:syntax}).
   
-  \rn{E-Beta} substitutes any argument, so it may copy or drop it: $(\lam{x}{\{x, x\}})\ (m.\mathit{print}\ \{r\})$
-  holds two calls. A strict $\kw{let}$ (\pref{p:slet}) waits until its argument is a value; a call never
-  becomes one, so $(\lam{x}{\{x, x\}})\ {!}(m.\mathit{print}\ \{r\})$ stays as written and the call runs once.
+  \rn{E-Beta} substitutes only a value, so it never copies or drops a term that still has to
+  run: in $(\lam{x}{\{x, x\}})\ (m.\mathit{print}\ \{r\})$ the call is not a value, so it stays as
+  written, a $\kw{let}$ (\pref{p:let}), and runs once. A variable is a value because it stands for one.
 \item Terms are equal up to $\alpha$-equivalence (renaming bound variables).
   When a bound variable of $t_1$ clashes with a free variable of $t_2$,
   $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then
@@ -238,8 +231,8 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
   \item The other fields are discarded, even one with an effect:
     $\{a = e, b = \hex{01}\}.b \step \hex{01}$. Full $\beta$ may
     reduce $e$ or not, but $e$ is not in the normal form: it is dropped.
-  \item To run it, bind it first with a strict $\kw{let}$:
-    $(\lam{x}{\{a = x, b = \hex{01}\}.b})\ {!}e$.
+  \item To run it, bind it first with a  $\kw{let}$:
+    $(\lam{x}{\{a = x, b = \hex{01}\}.b})\ e$.
   \end{subpoints}
 \item\label{p:branch} A branch is a struct applied to a condition that is not a byte array yet; when it becomes one, \rn{E-Index} or \rn{E-Default} picks the arm (\pref{r:E-Index}, \pref{r:E-Default}).
   \begin{subpoints}
@@ -259,8 +252,8 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
   \item $\fn{op}(b)$ is a partial function from operand values to a byte array.
   \item Effects include memory opcodes, such as $\str{alloca}$, $\str{load}$ and $\str{store}$.
   \item Reduction has no memory: it never computes an address or the contents of
-    one; the program orders memory opcodes by binding each with a strict $\kw{let}$, which
-    waits until its argument is a value (\pref{p:slet}), or by using
+    one; the program orders memory opcodes by binding each with a  $\kw{let}$, which
+    waits until its argument is a value (\pref{p:let}), or by using
     one's result in the next (\pref{p:effect-order}).
   \item All operands are data: byte arrays, or structs of data (row \pref{p:data}), never
     a lambda, so they never step and the result is the same in every reduction order.
@@ -269,7 +262,7 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
     \end{subpoints}
 \item\label{p:call} A call to a function, such as $m.\mathit{print}\ \{r\}$ (Section~\ref{sec:modules}),
   is an effect too. Reduction never binds $m$: the linker connects it, so the call never
-  reduces. \rn{E-Beta} may copy or drop it like any argument; bind it with a strict $\kw{let}$ (\pref{p:slet}) to run it exactly once.
+  reduces. It is not a value, so \rn{E-Beta} never copies or drops it: a $\kw{let}$ (\pref{p:let}) keeps it where it is written.
 \end{points}
 
 %% ── Congruence ─────────────────────────────────────────────────────────
@@ -282,8 +275,6 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \rulerow{E-Abs}{t \step t'}{\lam{x}{t} \;\step\; \lam{x}{t'}}
 \rulerow{E-App1}{t_1 \step t_1'}{t_1\ t_2 \;\step\; t_1'\ t_2}
 \rulerow{E-App2}{t_2 \step t_2'}{t_1\ t_2 \;\step\; t_1\ t_2'}
-\rulerow{E-SApp1}{t_1 \step t_1'}{t_1\ {!}t_2 \;\step\; t_1'\ {!}t_2}
-\rulerow{E-SApp2}{t_2 \step t_2'}{t_1\ {!}t_2 \;\step\; t_1\ {!}t_2'}
 \rulerow{E-Struct}{t_i \step t_i'}
   {\{\dots, l_i = t_i, \dots\} \;\step\; \{\dots, l_i = t_i', \dots\}}
 \rulerow{E-Proj1}{t \step t'}{t.l \;\step\; t'.l}
@@ -293,10 +284,10 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
   anywhere, under a lambda, in a struct field (so in every arm of a branch) too.
   A struct's fields are computed in no particular order.
   $t \steps t'$ is zero or more $\step$ steps.
-\item\label{p:confluent} $\step$ is confluent: it is full $\beta$ with strict application, with
+\item\label{p:confluent} $\step$ is confluent: it is the call-by-value $\lambda$-calculus (Plotkin's $\lambda_v$) with reduction anywhere, with
    structs, projection and branching (Church--Rosser; projection is the usual record rule). The
   proof is in Lean 4, in \texttt{proofs/} (theorem \texttt{Oymomo.confluence}), for
-  every opcode table $\fn{op}$; it does not cover $\kw{fix}$ yet.
+  every opcode table $\fn{op}$; it is still for the previous rules (full $\beta$ with strict application) and does not cover $\kw{fix}$ yet.
   \begin{subpoints}
   \item Confluence is what lets programs be combined. For two programs $A$ and $B$ merged as
     $A\ B$: reducing $A$ and $B$ first, $A \steps A'$ and $B \steps B'$, and then $A\ B$ is one of the orders of $A\ B$
@@ -310,12 +301,12 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \begin{array}{l@{\quad}rcll}
 \ptone\plabel{p:normal} & n & ::= & x \mid b \mid \lam{x}{n} \mid \{l_i = n_i\}_{i<k} & \textit{normal} \\
  & & \mid & \kw{fix}\ n & \\
- & & \mid & n.l \quad (n \text{ of the form } x,\ t\ t,\ t\ {!}t \text{ or } t.l) & \\
- & & \mid &  (\kw{fix}\ (\lam{x}{n_1}))\ n_2 \mid n_1\ {!}n_2 \quad (n_2 \notin v) & \\
- & & \mid & \{l_i = n_i\}_{i<k}\ n \quad (0 < k,\ n \text{ of the form } x,\ t\ t,\ t\ {!}t \text{ or } t.l) & \\
+ & & \mid & n.l \quad (n \text{ of the form } x,\ t\ t \text{ or } t.l) & \\
+ & & \mid & (\lam{x}{n_1})\ n_2 \mid{} (\kw{fix}\ (\lam{x}{n_1}))\ n_2  \quad (n_2 \notin v) & \\
+ & & \mid & \{l_i = n_i\}_{i<k}\ n \quad (0 < k,\ n \text{ of the form } x,\ t\ t \text{ or } t.l) & \\
  & & \mid & b\ n \quad (n \text{ a struct, no } \lambda \text{ or } \kw{fix} \text{ in it, not } \rn{E-Opcode}) & \\
- & & \mid & b\ n \quad (n \text{ of the form } x,\ t\ t,\ t\ {!}t \text{ or } t.l) & \\
- & & \mid & n_1\ n_2 \mid (\kw{fix}\ n_1)\ n_2 \quad (n_1 \text{ of the form } x,\ t\ t,\ t\ {!}t \text{ or } t.l) &
+ & & \mid & b\ n \quad (n \text{ of the form } x,\ t\ t \text{ or } t.l) & \\
+ & & \mid & n_1\ n_2 \mid (\kw{fix}\ n_1)\ n_2 \quad (n_1 \text{ of the form } x,\ t\ t \text{ or } t.l) &
 \end{array}
 \]
 \begin{points}
@@ -341,7 +332,7 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \item\label{p:forms} Every term is reducible (it has a $\step$ step), normal (\pref{p:normal}) or stuck (\pref{p:stuck}).
   A program $t$ with $t \steps t'$ for a stuck $t'$ is rejected. An unknown opcode or undefined behavior is not stuck: the call is normal (\pref{p:opcode}). A normal form is in ANF shape (Section~\ref{sec:banf}) or
   not; only one in ANF shape is translated to LLVM. $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$
-  is normal but not in ANF shape; written with a strict $\kw{let}$ for the $\str{mul}$, it is.
+  is normal but not in ANF shape; written with a  $\kw{let}$ for the $\str{mul}$, it is.
 \end{points}
 
 %% ── Meaning ────────────────────────────────────────────────────────────
