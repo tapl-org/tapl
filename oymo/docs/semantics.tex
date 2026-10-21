@@ -83,12 +83,27 @@
 \medskip\noindent
 Oymomo is an extension of the untyped $\lambda$-calculus: to variables, abstraction and
 application it adds structs, projection and byte arrays, which name
-opcodes; its $\beta$ rule is call-by-value, so an opcode call that does not reduce is never copied. Section~\ref{sec:syntax} gives the syntax, Section~\ref{sec:sugar} the sugar, Sections~\ref{sec:computation}
+opcodes; its $\beta$ rule is call-by-value, so an opcode call that does not reduce is never copied. Section~\ref{sec:goal} states the goal, Section~\ref{sec:syntax} gives the syntax, Section~\ref{sec:sugar} the sugar, Sections~\ref{sec:computation}
 and~\ref{sec:congruence} the reduction (full $\beta$), Section~\ref{sec:runs} what runs, Section~\ref{sec:modules} how a program maps to LLVM,  Section~\ref{sec:strategy} the
-order the compiler reduces in, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm} the translation to LLVM.
+reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm} the translation to LLVM.
 
 
 
+
+%% ── Goal ───────────────────────────────────────────────────────────────
+
+\section{Goal}\label{sec:goal}
+
+\begin{points}
+\item\label{p:goal-anywhere} Reduction happens anywhere (full $\beta$): a rule may fire in any position, under a
+  $\lambda$, in a struct field and in an argument.
+\item\label{p:goal-banf} A term in BANF (block A-normal form, Section~\ref{sec:banf}) is a normal form: it
+  has no step left, so reaching BANF never needs a rule that lifts a term into a $\kw{let}$.
+\item\label{p:goal-agree} Every path agrees: if one reduction path ends in a BANF term, every path that ends,
+  ends in that same term. This is confluence (\pref{p:confluent}).
+\item Confluence can't promise that every path ends: with recursion some orders may loop while
+  others finish. So every path that ends gives the same normal form, and the reduction order (Section~\ref{sec:strategy}) is one that ends whenever some order does.
+\end{points}
 
 %% ── Syntax ─────────────────────────────────────────────────────────────
 
@@ -108,12 +123,16 @@ order the compiler reduces in, Section~\ref{sec:banf} the BANF check and Section
   \textit{value} \\
 \pt\plabel{p:data} & d & ::= & b \mid \{l_i = d_i\}_{i<k} &
   \textit{data} \\
-\pt\plabel{p:path} & p & ::= & x \mid p.l & \textit{path} \\
-\pt\plabel{p:subst} & s & ::= & v \mid p \mid \{l_i = s_i\}_{i<k}  &
+\pt\plabel{p:subst} & s & ::= & v \mid x \mid s.l \mid \{l_i = s_i\}_{i<k}  &
   \textit{substitutable}
 \end{array}
 \]
 \begin{points}
+\item A substitutable term (row \pref{p:subst}) is one that is safe to substitute: copying or
+  dropping it can't copy or drop an effect, because it never reduces to an opcode call (a
+  lambda's body runs only when the lambda is applied). It may still
+  reduce: $\{a = \str{a}\}.a$ is substitutable. Row \pref{p:subst} is closed under substitution and
+  reduction, which confluence needs (\pref{p:confluent}).
 \item A lambda $\lam{x}{t}$ extends as far right as possible:
   $\lam{x}{\lam{y}{t}}$ is $\lam{x}{(\lam{y}{t})}$. The dot right after the binder ends the binder; every other
   dot is projection: $\lam{p}{p.a}$ is $\lam{p}{(p.a)}$.
@@ -262,7 +281,7 @@ order the compiler reduces in, Section~\ref{sec:banf} the BANF check and Section
   \item Confluence is what lets programs be combined. For two programs $A$ and $B$ merged as
     $A\ B$: reducing $A$ and $B$ first, $A \steps A'$ and $B \steps B'$, and then $A\ B$ is one of the orders of $A\ B$
     (\rn{E-App1}, \rn{E-App2}: $A\ B \steps A'\ B'$), so it reaches the same normal form as applying first.
-  \item It also lets the compiler choose any order that finds the normal form
+  \item It also lets  any order that finds the normal form be used
     (Section~\ref{sec:strategy}).
   \end{subpoints}
 \end{points}
@@ -429,7 +448,7 @@ order the compiler reduces in, Section~\ref{sec:banf} the BANF check and Section
 
 \section{Strategy}\label{sec:strategy}
 
-Sharing normal order, $\stepS$, is the order the compiler reduces in.
+Sharing normal order, $\stepS$, is the reduction order that finds the normal form.
 It uses three more forms:
 \[
 \begin{array}{l@{\qquad}l@{\qquad}l}
