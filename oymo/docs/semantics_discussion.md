@@ -243,6 +243,18 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D72: one point each for E-Proj, E-Index and E-Default; Z at the end — agreed (accepted; 4.5a "consumed by" removed by the user)
+- User: "lets split 4.6 and 4.7 into 3 bullets: E-Proj, E-Index, and E-Default" and "move 4.5 into the end of the section". 4.5 E-Proj (consumed by, discards other fields, bind with let, extractvalue); 4.6 E-Index (positions, extractvalue, branch `p:branch`, switch, labels, discards arms); 4.7 E-Default (last field is the default arm, `q [05] = c`; the empty struct has no default); 4.8 Z (`p:z`).
+
+### D71: E-Opcode point merged into the opcode-call point — agreed (accepted)
+- User: "merge 4.8 into 4.4". 4.4 (`p:opcode`) now says what an opcode call is, that E-Opcode computes it when `op(b)` is defined (example), and carries the old 4.8 sub-points a–e. Label `p:e-opcode` dropped; Section 6's reference now points to `p:opcode`.
+
+### D70: opcode-call point after values; call point under values — agreed (accepted)
+- User: "move 4.7 to after 4.3" (opcode-call syntax, `p:opcode`, now 4.4) and "should 4.9 be sub-bullet of 4.3?" Agent: yes, its point is that a call is not a value, so E-Beta never copies it; now 4.3d (`p:call`).
+
+### D69: E-Opcode right after E-Beta; α-equivalence before values — agreed (accepted)
+- User: "move 4.1e to before E-Proj", "move 4.3 to before 4.2". Rules 4.1: E-Beta, E-Opcode, E-Proj, E-Index, E-Default. Points: 4.2 α-equivalence, 4.3 values.
+
 ### D68: a projection of a value is a value — agreed (accepted)
 - User: "why is path (p = x | p.l) not considered as value?" Agent (Answer 30): values must stay values under substitution; `[y↦v](y.l) = v.l` may have no field `l`; counterexample `(λy. (λx. [01]) y.l) {m = [00]}` (inner first: [01]; outer first: `{m=[00]}.l` not a value, never [01]). User: "6b. also add a bullet which describes path does not work, and we need v.l using 3 counterexample".
 - Doc: row 2.1g `v ::= x | λx. t | b | {lᵢ = vᵢ} | v.l`; 4.2 adds "or a projection of a value"; sub-points 4.2a (projection is safe to copy; `add p.x p.y` inlines), 4.2b (`p:vproj`, why paths fail, the counterexample), 4.2c (a stuck projection like `{}.l` is a value; a normal form that holds it is stuck).

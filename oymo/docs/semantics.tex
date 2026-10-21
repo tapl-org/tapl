@@ -177,6 +177,9 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \begin{rules}
 \axiomrow{E-Beta}
   {(\lam{x}{t_1})\ v \;\step\; \subst{x}{v}{t_1}}
+\rulerow{E-Opcode}
+  {\fn{op}(b)(d_i)_{i<k} = b'}
+  {b\ \{l_i = d_i\}_{i<k} \;\step\; b'}
 \rulerow{E-Proj}
   {l_j = l}
   {\{l_i = t_i\}_{i<k}.l \;\step\; t_j}
@@ -186,10 +189,11 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \rulerow{E-Default}
   {0 < k \le b}
   {\{l_i = t_i\}_{i<k}\ b \;\step\; t_{k-1}}
-\rulerow{E-Opcode}
-  {\fn{op}(b)(d_i)_{i<k} = b'}
-  {b\ \{l_i = d_i\}_{i<k} \;\step\; b'}
 \end{rules}
+\item Terms are equal up to $\alpha$-equivalence (renaming bound variables).
+  When a bound variable of $t_1$ clashes with a free variable of $t_2$,
+  $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then
+  substitutes.
 \item A value is a variable, $\lam{x}{t}$, a byte array, a struct of values or a projection of a value (Section~\ref{sec:syntax}).
   \rn{E-Beta} substitutes only a value, so it never copies or drops a term that still has to
   run: in $(\lam{x}{\{x, x\}})\ (m.\mathit{print}\ \{r\})$ the call is not a value, so it stays as
@@ -205,11 +209,51 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
     confluence. With $v.l$ a value, $\{m = \hex{00}\}.l$ is one too, and both paths give $\hex{01}$.
   \item So a stuck projection, such as $\{\}.l$, is a value as well: \rn{E-Beta} may copy or drop it
     like any value. A normal form that still holds it is stuck (\pref{p:stuck}).
+  \item\label{p:call} A call to a function, such as $m.\mathit{print}\ \{r\}$ (Section~\ref{sec:modules}),
+    is an effect too. Reduction never binds $m$: the linker connects it, so the call never
+    reduces. It is not a value, so \rn{E-Beta} never copies or drops it: a $\kw{let}$ (\pref{p:let}) keeps it where it is written.
   \end{subpoints}
-\item Terms are equal up to $\alpha$-equivalence (renaming bound variables).
-  When a bound variable of $t_1$ clashes with a free variable of $t_2$,
-  $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then
-  substitutes.
+\item\label{p:opcode} A byte array applied to a struct, $b\ \{l_i = t_i\}_{i<k}$, is an
+  opcode call: $b$ names the opcode and the struct holds its operands, as in
+  $\str{add}\ \{\str{i32}, a, b\}$. \rn{E-Opcode} computes the call when $\fn{op}(b)$ is
+  defined: \[\str{add}\ \{\str{i32}, \hex{02000000}, \hex{03000000}\} \step \hex{05000000}\]
+  \begin{subpoints}
+  \item $\fn{op}(b)$ is a partial function from operand values to a byte array.
+  \item Effects include memory opcodes, such as $\str{alloca}$, $\str{load}$ and $\str{store}$.
+  \item Reduction has no memory: it never computes an address or the contents of
+    one; the program orders memory opcodes by binding each with a  $\kw{let}$, which
+    waits until its argument is a value (\pref{p:let}), or by using
+    one's result in the next (\pref{p:effect-order}).
+  \item All operands are data: byte arrays, or structs of data (row \pref{p:data}), never
+    a lambda, so they never step and the result is the same in every reduction order.
+  \item Otherwise the call does not reduce: an effect, undefined behavior, an unknown opcode, or an
+    operand that is not data, such as a parameter $p.a$. With normal operands it is normal. The translation to LLVM emits it as an instruction.
+    \end{subpoints}
+\item \rn{E-Proj} takes the field labeled $l$ (labels are unique): $\{x = a, b, y = c\}.x \step a$.
+  \begin{subpoints}
+  \item The other fields are discarded, even one with an effect:
+    $\{a = e, b = \hex{01}\}.b \step \hex{01}$. Reduction may
+    reduce $e$ or not, but $e$ is not in the normal form: it is dropped.
+  \item To run it, bind it first with a $\kw{let}$:
+    $(\lam{x}{\{a = x, b = \hex{01}\}.b})\ e$.
+  \item Projection becomes LLVM's $\kw{extractvalue}$ with a constant index.
+  \end{subpoints}
+\item \rn{E-Index}: a struct applied to a byte array $b$, with $b < k$, selects the field at position $b$.
+  In $q = \{x = a, b, y = c\}$: $q\ \hex{00} = q.x = a$, $q\ \hex{01} = b$,
+  $q\ \hex{02} = q.y = c$. An unlabeled field is reached only by its position.
+  \begin{subpoints}
+  \item With a constant byte array, it becomes LLVM's $\kw{extractvalue}$ with a constant index.
+  \item\label{p:branch} A branch is a struct applied to a condition that is not a byte array yet; when it
+    becomes one, \rn{E-Index} or \rn{E-Default} picks the arm.
+    $\{\mathit{false} = t_2, \mathit{true} = t_1\}\ c$ takes $t_1$ when $c$ is
+    not $0$ and $t_2$ when it is $0$, as LLVM's $\kw{br\ i1}$.
+  \item With more fields it is a multi-way branch, as LLVM's $\kw{switch}$.
+  \item The labels only document the arms.
+  \item It keeps one arm and discards the others. Reduction
+    may reduce a discarded arm or not, but it does not contribute to the normal form.
+  \end{subpoints}
+\item \rn{E-Default}: past the last field, a byte array selects the last one, so the last field is
+  a default arm: $q\ \hex{05} = c$. The empty struct has no default (\pref{p:stuck}).
 \item\label{p:z} Recursion uses the Z combinator, an ordinary term:
   $Z = \lam{f}{(\lam{x}{f\ (\lam{v}{x\ x\ v})})\ (\lam{x}{f\ (\lam{v}{x\ x\ v})})}$.
   \begin{subpoints}
@@ -227,52 +271,6 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
     every path of $F\ 3$ that ends gives $6$. $F\ p.n$ has no normal form: recursion on an
     unknown never stops. Recursion in LLVM goes through $m$ and $f$ (Section~\ref{sec:modules}).
   \end{subpoints}
-\item \rn{E-Proj} takes the field labeled $l$ (labels are unique), and \rn{E-Index}
-  the field at position $b$~(\rn{E-Default} the last field).
-  \begin{subpoints}
-  \item A struct is consumed by projection, by opcodes, and by a byte array:
-    applied to one, it selects a field (\pref{p:branch}).
-  \item A struct applied to a byte array $b$ selects the field at position $b$;
-    past the last field it selects the last one, so the last field is a default arm.
-  \item In $q = \{x = a, b, y = c\}$: $q\ \hex{00} = q.x = a$, $q\ \hex{01} = b$,
-    $q\ \hex{02} = q.y = c$. An unlabeled field is reached only by its position.
-  \item With a constant byte array, selection and projection both become LLVM's
-    $\kw{extractvalue}$ with a constant index.
-  \item The other fields are discarded, even one with an effect:
-    $\{a = e, b = \hex{01}\}.b \step \hex{01}$. Reduction may
-    reduce $e$ or not, but $e$ is not in the normal form: it is dropped.
-  \item To run it, bind it first with a  $\kw{let}$:
-    $(\lam{x}{\{a = x, b = \hex{01}\}.b})\ e$.
-  \end{subpoints}
-\item\label{p:branch} A branch is a struct applied to a condition that is not a byte array yet; when it becomes one, \rn{E-Index} or \rn{E-Default} picks the arm (\pref{r:E-Index}, \pref{r:E-Default}).
-  \begin{subpoints}
-  \item $\{\mathit{false} = t_2, \mathit{true} = t_1\}\ c$ takes $t_1$ when $c$ is
-    not $0$ and $t_2$ when it is $0$, as LLVM's $\kw{br\ i1}$.
-  \item With more fields it is a multi-way branch, as LLVM's $\kw{switch}$.
-  \item The labels only document the arms.
-  \item When its condition is a byte array it keeps one arm and discards the others. Reduction
-    may reduce a discarded arm or not, but it does not contribute to the normal form.
-  \end{subpoints}
-\item\label{p:opcode} A byte array applied to a struct, $b\ \{l_i = t_i\}_{i<k}$, is an
-  opcode call: $b$ names the opcode and the struct holds its operands, as in
-  $\str{add}\ \{\str{i32}, a, b\}$.
-\item\label{p:e-opcode} \rn{E-Opcode} computes the call when $\fn{op}(b)$ is
-  defined: \[\str{add}\ \{\str{i32}, \hex{02000000}, \hex{03000000}\} \step \hex{05000000}\]
-  \begin{subpoints}
-  \item $\fn{op}(b)$ is a partial function from operand values to a byte array.
-  \item Effects include memory opcodes, such as $\str{alloca}$, $\str{load}$ and $\str{store}$.
-  \item Reduction has no memory: it never computes an address or the contents of
-    one; the program orders memory opcodes by binding each with a  $\kw{let}$, which
-    waits until its argument is a value (\pref{p:let}), or by using
-    one's result in the next (\pref{p:effect-order}).
-  \item All operands are data: byte arrays, or structs of data (row \pref{p:data}), never
-    a lambda, so they never step and the result is the same in every reduction order.
-  \item Otherwise the call does not reduce: an effect, undefined behavior, an unknown opcode, or an
-    operand that is not data, such as a parameter $p.a$. With normal operands it is normal. The translation to LLVM emits it as an instruction.
-    \end{subpoints}
-\item\label{p:call} A call to a function, such as $m.\mathit{print}\ \{r\}$ (Section~\ref{sec:modules}),
-  is an effect too. Reduction never binds $m$: the linker connects it, so the call never
-  reduces. It is not a value, so \rn{E-Beta} never copies or drops it: a $\kw{let}$ (\pref{p:let}) keeps it where it is written.
 \end{points}
 
 %% ── Congruence ─────────────────────────────────────────────────────────
@@ -325,7 +323,7 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \section{What Runs}\label{sec:runs}
 
 \begin{points}
-\item At compile time, reduction never runs an effect: an effectful operation (an opcode call reduction cannot reduce, \pref{p:e-opcode}) is left as it is at compile time. Full $\beta$ may copy or discard a term
+\item At compile time, reduction never runs an effect: an effectful operation (an opcode call reduction cannot reduce, \pref{p:opcode}) is left as it is at compile time. Full $\beta$ may copy or discard a term
   freely; since it is confluent, every order reaches the same normal form.
 \item At run time an effect runs as a step: $p = \kw{print}\ \str{h}$ steps to its
   result $r$ and writes $\str{h}$. Any order of steps is allowed, so one program may
