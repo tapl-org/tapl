@@ -245,6 +245,16 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D87: final read-through fixes — agreed (accepted)
+- User: "3a. move them to section 9 / 3b yes / 3c yes / 3d fix / 3e yes / 3f yes / 3g yes / 3h yes". 4.5c and 4.6a (extractvalue) removed, 4.6b/c lose "as LLVM's br i1/switch"; 9.3c says br i1 for two arms, switch for more; new 9.3d: a projection or a constant selection becomes extractvalue. 8.4 "as for puts"; 8.5 refers to 7.2b (`p:atom`); 9.3a reads "an opcode call becomes…, a call through m becomes…"; 5.6 "in ANF" (no "shape"); 6.3d split into two sentences; 5.3c removed (repeats 6.1); 8.2c kept.
+- Also explained (3c): a struct of atoms is a value, so a let of it is substituted and there is no separate insertvalue.
+
+### D86: margins fixed; constant and global types are `t` — agreed (accepted)
+- User: "3a yes 3b fix them". 4.8: Z formula on its own line; 6.2: narrower table columns; 7.4: the example moved inside the sentence; 8.5, 8.6: `type = t`. No overfull lines left.
+
+### D85: a jump to the first block is allowed; the translation adds a new entry block — agreed (accepted)
+- User: "8.3c say like this LLVM duplicates entry point creates a new first block which calls next one." 8.3c: the first block runs first; a block may jump to it by label or position (no rejection). 9.2b (`p:entry`): LLVM's entry block has no predecessors, so the translation then adds a new entry block that only jumps to the first one.
+
 ### D84: Modules review; LLVM mapping moved to Section 9 — agreed (accepted)
 - User: "4a. there is no d. d may appear as a wrapper abstraction. but when shaping the module, it should be disappeared." and "4b–4g yes".
 - Section 8: 8.1 a wrapper such as `λd. λm. …` is applied away, leaving `λm. {lᵢ = tᵢ}` (label `p:module`); 8.3b `e` reads `p.xᵢ`; 8.3c "Reduction may still reach it"; 8.3d a jump ends an expression, one through `f` not at the end is rejected; 8.5 a constant's `m.l` is its address, read with `'load'`; 8.7 a call is a function call (7.1), the linker connects `m.l`; 8.8 reduction never binds `m` or `f`; the fixed-point sub-point removed. All "becomes LLVM's …" parts struck in Section 8.
