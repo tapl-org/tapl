@@ -93,7 +93,7 @@
 Oymomo is an extension of the untyped $\lambda$-calculus: to variables, abstraction and
 application it adds structs, projection and byte arrays, which name
 opcodes; its $\beta$ rule is call-by-value: a function is applied only to a value, so a term that still has to run is never copied or dropped. Section~\ref{sec:goal} states the goal, Section~\ref{sec:syntax} gives the syntax, Section~\ref{sec:sugar} the sugar, Sections~\ref{sec:computation}
-and~\ref{sec:congruence} the reduction (full $\beta$), Section~\ref{sec:runs} what runs, Section~\ref{sec:modules} how a program maps to LLVM,  Section~\ref{sec:strategy} the
+and~\ref{sec:congruence} the reduction (reduction anywhere), Section~\ref{sec:runs} what runs, Section~\ref{sec:modules} how a program maps to LLVM,  Section~\ref{sec:strategy} the
 reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Section~\ref{sec:llvm} the translation to LLVM.
 
 
@@ -104,7 +104,7 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \section{Goal}\label{sec:goal}
 
 \begin{points}
-\item\label{p:goal-anywhere} Reduction happens anywhere (full $\beta$): a rule may fire in any position, under a
+\item\label{p:goal-anywhere} Reduction happens anywhere: a rule may fire in any position, under a
   $\lambda$, in a struct field and in an argument.
 \item\label{p:goal-banf} A term in ANF (Section~\ref{sec:banf}) is a normal form: it
   has no step left, so reaching ANF never needs a rule that lifts a term into a $\kw{let}$.
@@ -128,9 +128,8 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \pt &   & \mid & t\ t & \textit{application} \\
 \pt &   & \mid & \{l_i = t_i\}_{i<k} & \textit{struct} \\
 \pt &   & \mid & t.l & \textit{projection} \\
-\pt &   & \mid & b & \textit{byte array} \\
-\pt &   & \mid & \kw{fix}\ t & \textit{fixed point} \\[6pt]
-\pt & v & ::= & x \mid \lam{x}{t} \mid \kw{fix}\ (\lam{x}{t}) \mid \{l_i = v_i\}_{i<k} \mid b &
+\pt &   & \mid & b & \textit{byte array} \\[6pt]
+\pt & v & ::= & x \mid \lam{x}{t} \mid   \{l_i = v_i\}_{i<k} \mid b &
   \textit{value} \\
 \pt\plabel{p:data} & d & ::= & b \mid \{l_i = d_i\}_{i<k} &
   \textit{data}
@@ -178,8 +177,6 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \begin{rules}
 \axiomrow{E-Beta}
   {(\lam{x}{t_1})\ v \;\step\; \subst{x}{v}{t_1}}
-\axiomrow{E-Fix}
-  {(\kw{fix}\ (\lam{x}{t_1}))\ v \;\step\; (\subst{x}{\kw{fix}\ (\lam{x}{t_1})}{t_1})\ v}
 \rulerow{E-Proj}
   {l_j = l}
   {\{l_i = t_i\}_{i<k}.l \;\step\; t_j}
@@ -193,7 +190,7 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
   {\fn{op}(b)(d_i)_{i<k} = b'}
   {b\ \{l_i = d_i\}_{i<k} \;\step\; b'}
 \end{rules}
-\item A value is a variable, $\lam{x}{t}$, $\kw{fix}\ (\lam{x}{t})$, a struct of values or a byte array (Section~\ref{sec:syntax}).
+\item A value is a variable, $\lam{x}{t}$,  a struct of values or a byte array (Section~\ref{sec:syntax}).
   
   \rn{E-Beta} substitutes only a value, so it never copies or drops a term that still has to
   run: in $(\lam{x}{\{x, x\}})\ (m.\mathit{print}\ \{r\})$ the call is not a value, so it stays as
@@ -202,20 +199,22 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
   When a bound variable of $t_1$ clashes with a free variable of $t_2$,
   $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then
   substitutes.
-\item $\kw{fix}\ t$ is for recursion that reduction unfolds: $(\kw{fix}\ (\lam{f}{t}))\ v$ unfolds
-  once, putting $\kw{fix}\ (\lam{f}{t})$ in for $f$ (\pref{r:E-Fix}).
+\item\label{p:z} Recursion uses the Z combinator, an ordinary term:
+  $Z = \lam{f}{(\lam{x}{f\ (\lam{v}{x\ x\ v})})\ (\lam{x}{f\ (\lam{v}{x\ x\ v})})}$.
   \begin{subpoints}
-  \item It unfolds only when applied to a value, so an unapplied
-    $\kw{fix}\ (\lam{f}{t})$ is a value and stays as it is, even though reduction goes under
-    $\lambda$.
-  \item A recursive call whose argument is not a value, such as a parameter $p.n$ or an opcode call on a parameter,
-    does not unfold. A normal form that still contains $\kw{fix}$ is not in ANF shape (\pref{p:forms}):
-    recursion in LLVM goes through $m$ and $f$ (Section~\ref{sec:modules}).
+  \item $Z\ g \steps g\ (\lam{v}{X\ X\ v})$, where $X = \lam{x}{g\ (\lam{v}{x\ x\ v})}$: $g$ receives
+    a lambda, a value, so it is applied, and each recursive call $X\ X\ v$ unfolds once more.
+  \item The Y combinator, $\lam{f}{(\lam{x}{f\ (x\ x)})\ (\lam{x}{f\ (x\ x)})}$, never works:
+    $f$ waits for $x\ x$ to become a value, and it never does.
+  \item Reduction under $\lambda$ may also unfold $X\ X$ inside $\lam{v}{X\ X\ v}$, again and
+    again. Such paths loop, but every path that ends gives the same normal form
+    (\pref{p:confluent}). A term that still holds $Z\ g$ has no normal form, so a normal
+    form never contains $Z$.
   \item For example, with numbers in decimal standing for $\str{i32}$ byte arrays,
-    \[\begin{array}{l}F = \kw{fix}\ (\lam{f}{\lam{n}{\kw{if}\ \str{icmp}\ \{\str{eq}, \str{i32}, n, 0\}\ \kw{then}\ 1}} \\
+    \[\begin{array}{l}F = Z\ (\lam{f}{\lam{n}{\kw{if}\ \str{icmp}\ \{\str{eq}, \str{i32}, n, 0\}\ \kw{then}\ 1}} \\
 \qquad \kw{else}\ \str{mul}\ \{\str{i32}, n, f\ (\str{sub}\ \{\str{i32}, n, 1\})\})\end{array}\]
-    $F\ 3$ reduces to $6$, in ANF. $F\ p.n$ does not unfold ($p.n$ is not a value): a normal form that
-    contains $\kw{fix}$, not in ANF.
+    every path of $F\ 3$ that ends gives $6$. $F\ p.n$ has no normal form: recursion on an
+    unknown never stops. Recursion in LLVM goes through $m$ and $f$ (Section~\ref{sec:modules}).
   \end{subpoints}
 \item \rn{E-Proj} takes the field labeled $l$ (labels are unique), and \rn{E-Index}
   the field at position $b$~(\rn{E-Default} the last field).
@@ -229,7 +228,7 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
   \item With a constant byte array, selection and projection both become LLVM's
     $\kw{extractvalue}$ with a constant index.
   \item The other fields are discarded, even one with an effect:
-    $\{a = e, b = \hex{01}\}.b \step \hex{01}$. Full $\beta$ may
+    $\{a = e, b = \hex{01}\}.b \step \hex{01}$. Reduction may
     reduce $e$ or not, but $e$ is not in the normal form: it is dropped.
   \item To run it, bind it first with a  $\kw{let}$:
     $(\lam{x}{\{a = x, b = \hex{01}\}.b})\ e$.
@@ -240,7 +239,7 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
     not $0$ and $t_2$ when it is $0$, as LLVM's $\kw{br\ i1}$.
   \item With more fields it is a multi-way branch, as LLVM's $\kw{switch}$.
   \item The labels only document the arms.
-  \item When its condition is a byte array it keeps one arm and discards the others. Full $\beta$
+  \item When its condition is a byte array it keeps one arm and discards the others. Reduction
     may reduce a discarded arm or not, but it does not contribute to the normal form.
   \end{subpoints}
 \item\label{p:opcode} A byte array applied to a struct, $b\ \{l_i = t_i\}_{i<k}$, is an
@@ -267,7 +266,7 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 
 %% ── Congruence ─────────────────────────────────────────────────────────
 
-\section{Full \texorpdfstring{$\beta$}{beta}}\label{sec:congruence}
+\section{Reduction Anywhere}\label{sec:congruence}
 
 \begin{points}
 \item The congruence rules reduce a term inside it.
@@ -278,17 +277,20 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \rulerow{E-Struct}{t_i \step t_i'}
   {\{\dots, l_i = t_i, \dots\} \;\step\; \{\dots, l_i = t_i', \dots\}}
 \rulerow{E-Proj1}{t \step t'}{t.l \;\step\; t'.l}
-\rulerow{E-Fix1}{t \step t'}{\kw{fix}\ t \;\step\; \kw{fix}\ t'}
 \end{rules}
-\item $\step$ is full $\beta$: a rule of Section~\ref{sec:computation} may fire
+\item $\step$ is reduction anywhere: a rule of Section~\ref{sec:computation} may fire
   anywhere, under a lambda, in a struct field (so in every arm of a branch) too.
   A struct's fields are computed in no particular order.
   $t \steps t'$ is zero or more $\step$ steps.
 \item\label{p:confluent} $\step$ is confluent: it is the call-by-value $\lambda$-calculus (Plotkin's $\lambda_v$) with reduction anywhere, with
    structs, projection and branching (Church--Rosser; projection is the usual record rule). The
   proof is in Lean 4, in \texttt{proofs/} (theorem \texttt{Oymomo.confluence}), for
-  every opcode table $\fn{op}$; it is still for the previous rules (full $\beta$ with strict application) and does not cover $\kw{fix}$ yet.
+  every opcode table $\fn{op}$; it is still for the previous rules (full $\beta$ with strict application).
   \begin{subpoints}
+  \item Paths that end agree, even when other paths loop: if $t \steps n_1$ and $t \steps n_2$ with
+    both normal, confluence gives a $u$ with $n_1 \steps u$ and $n_2 \steps u$; a normal form has
+    no step, so $n_1 = u = n_2$. Looping paths don't matter: confluence never asks every
+    path to end. Recursion through $Z$ (\pref{p:z}) adds no rule, so it adds nothing to prove.
   \item Confluence is what lets programs be combined. For two programs $A$ and $B$ merged as
     $A\ B$: reducing $A$ and $B$ first, $A \steps A'$ and $B \steps B'$, and then $A\ B$ is one of the orders of $A\ B$
     (\rn{E-App1}, \rn{E-App2}: $A\ B \steps A'\ B'$), so it reaches the same normal form as applying first. Merging never binds a
@@ -297,40 +299,12 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
     (Section~\ref{sec:strategy}).
   \end{subpoints}
 \end{points}
-\[
-\begin{array}{l@{\quad}rcll}
-\ptone\plabel{p:normal} & n & ::= & x \mid b \mid \lam{x}{n} \mid \{l_i = n_i\}_{i<k} & \textit{normal} \\
- & & \mid & \kw{fix}\ n & \\
- & & \mid & n.l \quad (n \text{ of the form } x,\ t\ t \text{ or } t.l) & \\
- & & \mid & (\lam{x}{n_1})\ n_2 \mid{} (\kw{fix}\ (\lam{x}{n_1}))\ n_2  \quad (n_2 \notin v) & \\
- & & \mid & \{l_i = n_i\}_{i<k}\ n \quad (0 < k,\ n \text{ of the form } x,\ t\ t \text{ or } t.l) & \\
- & & \mid & b\ n \quad (n \text{ a struct, no } \lambda \text{ or } \kw{fix} \text{ in it, not } \rn{E-Opcode}) & \\
- & & \mid & b\ n \quad (n \text{ of the form } x,\ t\ t \text{ or } t.l) & \\
- & & \mid & n_1\ n_2 \mid (\kw{fix}\ n_1)\ n_2 \quad (n_1 \text{ of the form } x,\ t\ t \text{ or } t.l) &
-\end{array}
-\]
 \begin{points}
-\item A normal form is a term that no rule of Section~\ref{sec:computation} reduces anywhere
-  and that is not stuck: each line of row \pref{p:normal} says why its root is neither a redex nor stuck, and
-  its parts are normal forms.
-  \begin{subpoints}
-  \item So every term is exactly one of: reducible (it has a $\step$ step), normal (an $n$) or
-    stuck (\pref{p:stuck}).
-  \item By confluence (\pref{p:confluent}), a term has at most one normal form.
-  \item A normal form is in ANF shape or not (\pref{p:forms}).
-  \end{subpoints}
-\item\label{p:stuck} A term is stuck when it has no step and contains one of these, which no rule
-  will ever reduce, whatever is substituted into it:
-  \begin{subpoints}
-  \item a struct applied to a lambda, a fixed point or a struct;
-  \item the empty struct applied to anything;
-  \item a byte array applied to a lambda, a fixed point or a byte array;
-  \item an opcode call with a lambda or a fixed point anywhere in its operand struct;
-  \item $t.l$ where $t$ is a lambda, a fixed point, a byte array or a struct with no field $l$;
-  \item $\kw{fix}\ v\ t$ where $v$ is a fixed point, a struct or a byte array.
-  \end{subpoints}
-\item\label{p:forms} Every term is reducible (it has a $\step$ step), normal (\pref{p:normal}) or stuck (\pref{p:stuck}).
-  A program $t$ with $t \steps t'$ for a stuck $t'$ is rejected. An unknown opcode or undefined behavior is not stuck: the call is normal (\pref{p:opcode}). A normal form is in ANF shape (Section~\ref{sec:banf}) or
+\item\label{p:normal} A normal form is a term with no step. By confluence (\pref{p:confluent}), a term has at most one.
+\item\label{p:stuck} A normal form is stuck when it contains a part that no substitution can make
+  reduce, such as $\{\}\ t$, a byte array applied to a lambda, or $t.l$ where $t$ is a lambda. A
+  program $t$ with $t \steps t'$ for a stuck $t'$ is rejected.
+\item\label{p:forms} A normal form that is not stuck is valid. An unknown opcode or undefined behavior is not stuck: the call is normal (\pref{p:opcode}). A normal form is in ANF shape (Section~\ref{sec:banf}) or
   not; only one in ANF shape is translated to LLVM. $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$
   is normal but not in ANF shape; written with a  $\kw{let}$ for the $\str{mul}$, it is.
 \end{points}
@@ -524,7 +498,7 @@ Sharing normal order, $\stepS$, is the reduction order that finds the normal for
 
 \section{ANF Validation}\label{sec:banf}
 
-A normal form (row \pref{p:normal}) is checked to be in ANF before it
+A normal form (\pref{p:normal}) is checked to be in ANF before it
 is translated. This section is to be written.
 
 %% ── LLVM ─────────────────────────────────────────────────────────────

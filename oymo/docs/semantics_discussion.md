@@ -243,6 +243,20 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D66: Section 5 is "Reduction Anywhere" — agreed (accepted)
+- User: "6a" (rename Section 5 from "Full β" to "Reduction Anywhere", matching 1.1 and 5.2).
+
+### D65: normal form = no step; stuck as one short point — agreed (accepted)
+- User asked why normal and stuck classes are needed. Agent (Answer 23): the semantics needs neither; the grammar only describes no-step terms; stuck terms give early, precise rejection that survives merging. User: "6. okay" (option 5b).
+- Doc: row 5.4 (normal-form grammar) and its point removed; 5.4: a normal form is a term with no step, at most one by confluence; 5.5: stuck = a normal form with a part no substitution can make reduce (examples), rejected; 5.6: a normal form that is not stuck is valid; ANF or not. This settles the stuck bug, the neutral class and the overlap questions.
+
+### D64: "reduction anywhere" instead of "full β" — agreed (accepted)
+- User: "4.b yes". Intro, 1.1, 4.5e, 4.6d and 5.2 now say "reduction anywhere" / "Reduction". The Section 5 title and 5.3 (which names the previous rules) are unchanged.
+
+### D63: no `fix`; recursion with the Z combinator; why paths that end agree — agreed (accepted)
+- User: "I don't need a fix syntax. let's see this example. \"Y g\", some path leads to infinite loop. but some of them ends to a normal form. can i conclude that paths which ends agree?" Agent (Answer 21): yes, by confluence (two normal forms join, a normal form has no step); Y never works under strict application, Z does. User: "5. yes" (remove `fix`), "i liked 2. descrition. add this into doc5.3", "Ignore Section 8 now".
+- Doc: `fix t` row, `fix (λx. t)` value, E-Fix, E-Fix1, the `fix` cases of row 5.4 and 5.6 removed; 4.4 (`p:z`) rewritten: Z, why Y fails, looping paths under λ, a normal form never contains Z, factorial `F = Z (…)`: every path of `F 3` that ends gives 6, `F p.n` has no normal form; new 5.3a: paths that end agree (the Answer 21 argument).
+
 ### D62: Goal 1.4 needs only confluence — agreed (accepted)
 - User: "lets put fix on the side now. what is a problem?" Agent: discarding rules (E-Proj, E-Index, β dropping a value) let one order end while another loops, even without recursion. User: "I dont need to know which order ends. I just need that paths wich end agree." and "Section 8 is not reviewed yet, it is subject to change. dont rely on it. Lets only talk about sections 1 - 5".
 - 1.4: drop "with recursion" and the claim about Section 8's order; example `{a = Ω, b = [01]}.b`; "It promises only that every path that ends gives the same normal form, and that is all the goal needs." `fix`/Z is set aside (D61's Z part on hold).
