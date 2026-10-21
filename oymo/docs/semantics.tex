@@ -129,7 +129,7 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \pt &   & \mid & b & \textit{byte array} \\
 \pt &   & \mid & \{l_i = t_i\}_{i<k} & \textit{struct} \\
 \pt &   & \mid & t.l & \textit{projection} \\[6pt]
-\pt & v & ::= & x \mid \lam{x}{t} \mid b \mid \{l_i = v_i\}_{i<k} &
+\pt & v & ::= & x \mid \lam{x}{t} \mid b \mid \{l_i = v_i\}_{i<k} \mid v.l &
   \textit{value} \\
 \pt\plabel{p:data} & d & ::= & b \mid \{l_i = d_i\}_{i<k} &
   \textit{data}
@@ -190,11 +190,22 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
   {\fn{op}(b)(d_i)_{i<k} = b'}
   {b\ \{l_i = d_i\}_{i<k} \;\step\; b'}
 \end{rules}
-\item A value is a variable, $\lam{x}{t}$, a byte array or a struct of values (Section~\ref{sec:syntax}).
-  
+\item A value is a variable, $\lam{x}{t}$, a byte array, a struct of values or a projection of a value (Section~\ref{sec:syntax}).
   \rn{E-Beta} substitutes only a value, so it never copies or drops a term that still has to
   run: in $(\lam{x}{\{x, x\}})\ (m.\mathit{print}\ \{r\})$ the call is not a value, so it stays as
   written, a $\kw{let}$ (\pref{p:let}), and runs once. A variable is a value because it stands for one.
+  \begin{subpoints}
+  \item A projection has no effect, so it is safe to copy: with $\mathit{add} = \lam{a}{\lam{b}{\str{add}\ \{\str{i32}, a, b\}}}$,
+    $\mathit{add}\ p.x\ p.y$ reduces to $\str{add}\ \{\str{i32}, p.x, p.y\}$.
+  \item\label{p:vproj} A path, $x.l_1\cdots l_j$, is not enough as a value: values must stay values when a value
+    is substituted into them, and $[y \mapsto v]\,(y.l) = v.l$ may have no field $l$. In
+    $(\lam{y}{(\lam{x}{\hex{01}})\ y.l})\ \{m = \hex{00}\}$, reducing the inner application first gives
+    $\hex{01}$; reducing the outer one first gives $(\lam{x}{\hex{01}})\ \{m = \hex{00}\}.l$, where the
+    argument is no path, so it would never reach $\hex{01}$: two paths, two ends, and no
+    confluence. With $v.l$ a value, $\{m = \hex{00}\}.l$ is one too, and both paths give $\hex{01}$.
+  \item So a stuck projection, such as $\{\}.l$, is a value as well: \rn{E-Beta} may copy or drop it
+    like any value. A normal form that still holds it is stuck (\pref{p:stuck}).
+  \end{subpoints}
 \item Terms are equal up to $\alpha$-equivalence (renaming bound variables).
   When a bound variable of $t_1$ clashes with a free variable of $t_2$,
   $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then

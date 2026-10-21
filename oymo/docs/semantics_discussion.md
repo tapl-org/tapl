@@ -243,6 +243,10 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D68: a projection of a value is a value — agreed (accepted)
+- User: "why is path (p = x | p.l) not considered as value?" Agent (Answer 30): values must stay values under substitution; `[y↦v](y.l) = v.l` may have no field `l`; counterexample `(λy. (λx. [01]) y.l) {m = [00]}` (inner first: [01]; outer first: `{m=[00]}.l` not a value, never [01]). User: "6b. also add a bullet which describes path does not work, and we need v.l using 3 counterexample".
+- Doc: row 2.1g `v ::= x | λx. t | b | {lᵢ = vᵢ} | v.l`; 4.2 adds "or a projection of a value"; sub-points 4.2a (projection is safe to copy; `add p.x p.y` inlines), 4.2b (`p:vproj`, why paths fail, the counterexample), 4.2c (a stuck projection like `{}.l` is a value; a normal form that holds it is stuck).
+
 ### D67: byte array row before struct; value row and 4.2 in the same order — agreed (accepted)
 - User: "should we move 2.1f to before struct". Agent: yes; byte arrays are atoms like variables, and struct and projection belong together; points 2.4/2.5 already come in that order. Rows 2.1: x, λ, application, byte array, struct, projection.
 
