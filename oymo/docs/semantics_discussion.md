@@ -243,6 +243,13 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D56: Section 4 review — agreed (accepted)
+- User: "doc57. what does it mean?" ("Operands are computed by E-App2 and E-Struct.") Agent: it only repeats full β (operands reduce in place). User: "253a" → removed.
+
+### D55: `'icmp' {'eq', …}` instead of `'icmp_eq' {…}` — agreed (accepted)
+- User asked for the factorial trace step by step (given in chat: 23 steps with the condition reduced first; `F p.n` stops after one unfolding). Then: "modify 'icmp_eq' {'i32', n, 0} ---> 'icmp' {'eq', 'i32', n, 0}".
+- Changed in the factorial (now two lines) and in the gcd listing (reverses D36's "keep 'icmp_eq'"). On accept: replace the `\vicmp` review macro in the listing with the plain line `let z = 'icmp' {'eq', 'i32', p.b, [00000000]} in`, and delete the macro.
+
 ### D54: Goal section; substitutable closed under substitution; no "compiler"; point on substitutable — agreed (accepted)
 - User: "i'm lost. Lets start discussion from scratch. I want full beta support lambda calculus, but I don't want lifting when converting normal form to ANF. So my intention is if ANF can be a normal form, then any path of reduction should produce that ANF." Agent: (a) reduction anywhere, (b) BANF terms are normal forms, (c) every path agrees = confluence; confluence can't promise every path ends. β must not fire on an opcode call, and the class β accepts must be closed under reduction and substitution. Option 1 (value-like class, current design) vs Option 2 (two sorts, monadic `do`).
 - User: "196 and 197 state my goal correctly, add those into new Goal section"; "option 1"; "yes" to Fix A.

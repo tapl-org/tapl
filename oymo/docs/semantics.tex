@@ -203,7 +203,8 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
     does not unfold. A normal form that still contains $\kw{fix}$ is not in BANF shape (\pref{p:forms}):
     recursion in LLVM goes through $m$ and $f$ (Section~\ref{sec:modules}).
   \item For example, with numbers in decimal standing for $\str{i32}$ byte arrays,
-    \[F = \kw{fix}\ (\lam{f}{\lam{n}{\kw{if}\ \str{icmp\_eq}\ \{\str{i32}, n, 0\}\ \kw{then}\ 1\ \kw{else}\ \str{mul}\ \{\str{i32}, n, f\ (\str{sub}\ \{\str{i32}, n, 1\})\}}})\]
+    \[\begin{array}{l}F = \kw{fix}\ (\lam{f}{\lam{n}{\kw{if}\ \str{icmp}\ \{\str{eq}, \str{i32}, n, 0\}\ \kw{then}\ 1}} \\
+\qquad \kw{else}\ \str{mul}\ \{\str{i32}, n, f\ (\str{sub}\ \{\str{i32}, n, 1\})\})\end{array}\]
     $F\ 3$ reduces to $6$, in BANF. $F\ p.n$ unfolds once ($p.n$ is substitutable), but the inner
     call's argument $\str{sub}\ \{\str{i32}, p.n, 1\}$ is not, so it stops: a normal form that
     contains $\kw{fix}$, not in BANF.
@@ -250,8 +251,7 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
     a lambda, so they never step and the result is the same in every reduction order.
   \item Otherwise the call does not reduce: an effect, undefined behavior, an unknown opcode, or an
     operand that is not data, such as a parameter $p.a$. With normal operands it is normal. The translation to LLVM emits it as an instruction.
-  \item Operands are computed by \rn{E-App2} and \rn{E-Struct}.
-  \end{subpoints}
+    \end{subpoints}
 \end{points}
 
 %% ── Congruence ─────────────────────────────────────────────────────────
@@ -419,7 +419,7 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
         f.loop.body {a = p.a, b = p.b}
       },
       loop = {takes = {a = 'i32', b = 'i32'}, body = @vlamp.
-        let z = 'icmp_eq' {'i32', p.b, [00000000]} in
+        let z = 'icmp' {'eq', 'i32', p.b, [00000000]} in
         if z then
           f.done.body {a = p.a}
         else
