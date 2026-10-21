@@ -400,7 +400,8 @@
   \end{subpoints}
 \item\label{p:anf-normal} A term in ANF is a normal form (\pref{p:normal}), as Goal \pref{p:goal-banf} asks: an operation is not a
   value, so \rn{E-Beta} never fires on its $\kw{let}$; atoms are values but never a lambda or a
-  struct, so no other rule fires; and no part is stuck.
+  struct, so no other rule fires; and no part is stuck. The proof is in Lean 4, in \texttt{proofs/} (theorem
+  \texttt{Oymomo.anf\_normal}).
 \item A normal form that is not in ANF, such as $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$ (\pref{p:forms}), is valid but is not translated. The fix is the program's: bind the
   inner operation with a $\kw{let}$. No rule lifts it.
 \item For example, the loop block of Euclid's $\gcd$ (\pref{p:gcd}) has this body in ANF:
