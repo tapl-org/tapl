@@ -374,23 +374,31 @@
 \section{ANF}\label{sec:banf}
 
 \begin{points}
-\item\label{p:anf} A term in ANF is built from atoms, operations and block ends:
+\item\label{p:anf} ANF is a list of $\kw{let}$s with a terminal at the end:
 \[
 \begin{array}{l@{\quad}rcll}
-\pt & a & ::= & x \mid b \mid x.l_1\cdots l_j & \textit{atom} \\
-\pt & o & ::= & b\ \{l_i = a_i\}_{i<k} \mid m.l\ \{l_i = a_i\}_{i<k} & \textit{operation} \\
-\pt & j & ::= & f.l.\mathit{body}\ \{l_i = a_i\}_{i<k} & \textit{jump} \\
-\pt & e & ::= & \kw{let}\ x = o\ \kw{in}\ e \mid a \mid j \mid \{l_i = j_i\}_{i<k}\ a & \textit{block body}
+\pt & g & ::= & y \mid g.l & \textit{free path} \\
+\pt & a & ::= & x \mid x.l_1\cdots l_j \mid g \mid b & \textit{atom} \\
+\pt & u & ::= & g\ \{l_i = a_i\}_{i<k} & \textit{function call} \\
+\pt & o & ::= & b\ \{l_i = a_i\}_{i<k} \mid u & \textit{operation} \\
+\pt & r & ::= & a \mid u & \textit{return or jump} \\
+\pt & \tau & ::= & r \mid \{l_i = r_i\}_{i<k}\ a & \textit{terminal} \\
+\pt & e & ::= & \kw{let}\ x = o\ \kw{in}\ e \mid \tau & \textit{expression}
 \end{array}
 \]
   \begin{subpoints}
-  \item An atom is a variable, a byte array, or a field of a variable, such as $p.a$.
-  \item An operation is an opcode call or a call to a function (\pref{p:call}), its operands atoms. An
+  \item A free path is a free variable $y$, such as $m$ or $f$, or a field of one, such as $m.l$ or
+    $f.l.\mathit{body}$. A free variable is never bound by reduction (\pref{p:call}). $x$ is a let variable,
+    bound by a $\kw{let}$ or as a block's parameter.
+  \item An atom is a let variable, a path from one, such as $p.a$, a free path, or a byte array. A free
+    path as an atom stands for the address of a symbol: $\str{load}\ \{\str{i32}, m.\mathit{counter}\}$ reads a global
+    variable or a constant, and $\str{store}$ writes a global variable.
+  \item An operation is an opcode call or a function call: a free path applied to a struct of atoms. An
     opcode call in ANF is one that \rn{E-Opcode} does not compute (\pref{p:opcode}).
-  \item A block body is a chain of $\kw{let}$s, one per operation, ending in a result $a$, a jump
-    $j$, or a branch whose arms are jumps. A branch's condition is not a byte array.
-  \item Each $\kw{let}$ becomes one LLVM instruction, a jump LLVM's $\kw{br}$, a branch $\kw{br\ i1}$ or
-    $\kw{switch}$, and a result $\kw{ret}$ (Section~\ref{sec:llvm}).
+  \item A terminal is an atom (a return), a jump, or a conditional jump. A jump is a function call
+    at the end; a conditional jump is a branch whose arms are returns or jumps, and its condition is an
+    atom that is not a byte array.
+  \item An expression is a list of $\kw{let}$s, one per operation, with a terminal at the end.
   \end{subpoints}
 \item\label{p:anf-normal} A term in ANF is a normal form (\pref{p:normal}), as Goal \pref{p:goal-banf} asks: an operation is not a
   value, so \rn{E-Beta} never fires on its $\kw{let}$; atoms are values but never a lambda or a
