@@ -126,10 +126,10 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
 \pt &   & \mid & x & \textit{variable} \\
 \pt &   & \mid & \lam{x}{t} & \textit{abstraction} \\
 \pt &   & \mid & t\ t & \textit{application} \\
+\pt &   & \mid & b & \textit{byte array} \\
 \pt &   & \mid & \{l_i = t_i\}_{i<k} & \textit{struct} \\
-\pt &   & \mid & t.l & \textit{projection} \\
-\pt &   & \mid & b & \textit{byte array} \\[6pt]
-\pt & v & ::= & x \mid \lam{x}{t} \mid   \{l_i = v_i\}_{i<k} \mid b &
+\pt &   & \mid & t.l & \textit{projection} \\[6pt]
+\pt & v & ::= & x \mid \lam{x}{t} \mid b \mid \{l_i = v_i\}_{i<k} &
   \textit{value} \\
 \pt\plabel{p:data} & d & ::= & b \mid \{l_i = d_i\}_{i<k} &
   \textit{data}
@@ -190,7 +190,7 @@ reduction order, Section~\ref{sec:banf} the ANF (A-normal form) check and Sectio
   {\fn{op}(b)(d_i)_{i<k} = b'}
   {b\ \{l_i = d_i\}_{i<k} \;\step\; b'}
 \end{rules}
-\item A value is a variable, $\lam{x}{t}$,  a struct of values or a byte array (Section~\ref{sec:syntax}).
+\item A value is a variable, $\lam{x}{t}$, a byte array or a struct of values (Section~\ref{sec:syntax}).
   
   \rn{E-Beta} substitutes only a value, so it never copies or drops a term that still has to
   run: in $(\lam{x}{\{x, x\}})\ (m.\mathit{print}\ \{r\})$ the call is not a value, so it stays as

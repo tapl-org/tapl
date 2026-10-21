@@ -243,6 +243,9 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
 
+### D67: byte array row before struct; value row and 4.2 in the same order — agreed (accepted)
+- User: "should we move 2.1f to before struct". Agent: yes; byte arrays are atoms like variables, and struct and projection belong together; points 2.4/2.5 already come in that order. Rows 2.1: x, λ, application, byte array, struct, projection.
+
 ### D66: Section 5 is "Reduction Anywhere" — agreed (accepted)
 - User: "6a" (rename Section 5 from "Full β" to "Reduction Anywhere", matching 1.1 and 5.2).
 
