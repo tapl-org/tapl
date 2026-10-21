@@ -294,7 +294,7 @@
 \item\label{p:confluent} $\step$ is confluent: it is the call-by-value $\lambda$-calculus (Plotkin's $\lambda_v$) with reduction anywhere, with
    structs, projection and branching (Church--Rosser; projection is the usual record rule). The
   proof is in Lean 4, in \texttt{proofs/} (theorem \texttt{Oymomo.confluence}), for
-  every opcode table $\fn{op}$; it is still for the previous rules (full $\beta$ with strict application).
+  every opcode table $\fn{op}$.
   \begin{subpoints}
   \item Paths that end agree, even when other paths loop: if $t \steps n_1$ and $t \steps n_2$ with
     both normal, confluence gives a $u$ with $n_1 \steps u$ and $n_2 \steps u$; a normal form has

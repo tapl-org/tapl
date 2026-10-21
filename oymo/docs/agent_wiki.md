@@ -103,8 +103,11 @@ The user's orders, kept as given. Follow them in every task.
     D27 (supersedes D5's round one): `oymo/proofs/` exists (Lean 4.35.0, no Mathlib;
     build with `PATH=$HOME/.elan/bin:$PATH lake build` in `proofs/`). It proves
     `Oymomo.confluence` for full β (Takahashi: `cd`, triangle) with `op` abstract; de
-    Bruijn indices, structs as `scons`/`snil` chains. D28: `Classification.lean` proves
-    every normal form is a value, neutral or stuck (disjoint). `⟶w` later.
+    Bruijn indices, structs as `scons`/`snil` chains. D28's `Classification.lean` and D44's `Strategy.lean`
+    were for the old rules and are removed (D88). D88: `Oymomo.confluence` is now for the
+    current rules: call-by-value E-Beta (values `x | λ | b | {v} | v.l`, `ValSub` for the
+    substitution lemma), E-Opcode, E-Proj, E-Index/E-Default, reduction anywhere; no
+    strict application, no `fix`. Axioms: `propext`, `Quot.sound` only.
     The user allowed one code reference in semantics.tex: 3/8 names `proofs/` and
     `Oymomo.confluence`.
     D7 (revised, points 1–2 agreed): a `stuck t` term (users can write it) replaces

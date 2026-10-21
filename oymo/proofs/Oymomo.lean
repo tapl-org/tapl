@@ -4,5 +4,5 @@ import Oymomo.Syntax
 import Oymomo.Substitution
 import Oymomo.Reduction
 import Oymomo.Confluence
-import Oymomo.Classification
-import Oymomo.Strategy
+
+

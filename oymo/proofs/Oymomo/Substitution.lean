@@ -25,7 +25,6 @@ def ren (ξ : Nat → Nat) : Term → Term
   | scons l t r => scons l (ren ξ t) (ren ξ r)
   | proj t l => proj (ren ξ t) l
   | bytes b => bytes b
-  | sapp a b => sapp (ren ξ a) (ren ξ b)
 
 /-- Lifts a substitution under one binder. -/
 def ups (σ : Nat → Term) : Nat → Term
@@ -40,7 +39,6 @@ def subst (σ : Nat → Term) : Term → Term
   | scons l t r => scons l (subst σ t) (subst σ r)
   | proj t l => proj (subst σ t) l
   | bytes b => bytes b
-  | sapp a b => sapp (subst σ a) (subst σ b)
 
 /-- `inst u` puts `u` in for index 0 and lowers the others. -/
 def inst (u : Term) : Nat → Term
@@ -59,7 +57,6 @@ theorem ren_ren (ξ ζ : Nat → Nat) (t : Term) : ren ξ (ren ζ t) = ren (ξ �
   | scons l t r iht ihr => simp only [ren, iht, ihr]
   | proj t l ih => simp only [ren, ih]
   | bytes b => rfl
-  | sapp a b iha ihb => simp only [ren, iha, ihb]
 
 theorem ren_ups (ξ : Nat → Nat) (σ : Nat → Term) :
     (fun n => ren (upr ξ) (ups σ n)) = ups (fun n => ren ξ (σ n)) := by
@@ -80,7 +77,6 @@ theorem ren_subst (ξ : Nat → Nat) (σ : Nat → Term) (t : Term) :
   | scons l t r iht ihr => simp only [subst, ren, iht, ihr]
   | proj t l ih => simp only [subst, ren, ih]
   | bytes b => rfl
-  | sapp a b iha ihb => simp only [subst, ren, iha, ihb]
 
 theorem ups_upr (σ : Nat → Term) (ξ : Nat → Nat) :
     (fun n => ups σ (upr ξ n)) = ups (fun n => σ (ξ n)) := by
@@ -96,7 +92,6 @@ theorem subst_ren (σ : Nat → Term) (ξ : Nat → Nat) (t : Term) :
   | scons l t r iht ihr => simp only [subst, ren, iht, ihr]
   | proj t l ih => simp only [subst, ren, ih]
   | bytes b => rfl
-  | sapp a b iha ihb => simp only [subst, ren, iha, ihb]
 
 theorem subst_ups (τ σ : Nat → Term) :
     (fun n => subst (ups τ) (ups σ n)) = ups (fun n => subst τ (σ n)) := by
@@ -117,7 +112,6 @@ theorem subst_subst (τ σ : Nat → Term) (t : Term) :
   | scons l t r iht ihr => simp only [subst, iht, ihr]
   | proj t l ih => simp only [subst, ih]
   | bytes b => rfl
-  | sapp a b iha ihb => simp only [subst, iha, ihb]
 
 theorem ups_var : ups var = var := by
   funext n; cases n <;> rfl
@@ -131,7 +125,6 @@ theorem subst_var (t : Term) : subst var t = t := by
   | scons l t r iht ihr => simp only [subst, iht, ihr]
   | proj t l ih => simp only [subst, ih]
   | bytes b => rfl
-  | sapp a b iha ihb => simp only [subst, iha, ihb]
 
 /-- Substitution goes through E-Beta's substitution. -/
 theorem subst_inst (σ : Nat → Term) (u t : Term) :

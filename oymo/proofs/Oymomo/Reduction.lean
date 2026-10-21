@@ -3,11 +3,12 @@
 import Oymomo.Substitution
 
 /-!
-# Reduction (semantics.tex, Sections 2 and 3)
+# Reduction (semantics.tex, Sections 4 and 5)
 
-`Step op t t'` is `t ▷ t'`: a rule of Section 2 anywhere in `t` (full β). `op` is the
-opcode table, left abstract: `op b s = some b'` when `op(b)` is defined on the operands `s`.
-E-Opcode reads it only when `s` is data (row 9), which never steps.
+`Step op t t'` is `t ⟶ t'`: a rule of Section 4 anywhere in `t` (reduction anywhere,
+Section 5). `op` is the opcode table, left abstract: `op b s = some b'` when `op(b)` is
+defined on the operands `s`. E-Opcode reads it only when `s` is data (row 2.1h), which
+never steps. E-Beta substitutes only a value (row 2.1g).
 
 `Par op t t'` is parallel reduction: any set of redexes of `t` at once. It is the tool for
 confluence (Tait and Martin-Löf).
@@ -46,10 +47,10 @@ end Star
 
 variable (op : Bytes → Term → Option Bytes)
 
-/-- One step, `t ▷ t'`. -/
+/-- One step, `t ⟶ t'`. -/
 inductive Step : Term → Term → Prop
   /-- E-Beta. -/
-  | beta (t u : Term) : Step (app (lam t) u) (subst (inst u) t)
+  | beta {t u : Term} : isValue u = true → Step (app (lam t) u) (subst (inst u) t)
   /-- E-Proj. -/
   | proj {s u : Term} {l : String} : lookup s l = some u → Step (proj s l) u
   /-- E-Index and E-Default. -/
@@ -57,8 +58,6 @@ inductive Step : Term → Term → Prop
   /-- E-Opcode. -/
   | opcode {s : Term} {b b' : Bytes} :
       isStruct s = true → isData s = true → op b s = some b' → Step (app (bytes b) s) (bytes b')
-  /-- E-Strict. -/
-  | strict {t v : Term} : isValue v = true → Step (sapp t v) (app t v)
   /-- E-Abs. -/
   | lam {t t' : Term} : Step t t' → Step (lam t) (lam t')
   /-- E-App1. -/
@@ -71,10 +70,6 @@ inductive Step : Term → Term → Prop
   | scons2 {l : String} {t r r' : Term} : Step r r' → Step (scons l t r) (scons l t r')
   /-- E-Proj1. -/
   | proj1 {t t' : Term} {l : String} : Step t t' → Step (proj t l) (proj t' l)
-  /-- E-SApp1. -/
-  | sapp1 {a a' b : Term} : Step a a' → Step (sapp a b) (sapp a' b)
-  /-- E-SApp2. -/
-  | sapp2 {a b b' : Term} : Step b b' → Step (sapp a b) (sapp a b')
 
 /-- Parallel reduction. -/
 inductive Par : Term → Term → Prop
@@ -85,15 +80,13 @@ inductive Par : Term → Term → Prop
   | app {a a' b b' : Term} : Par a a' → Par b b' → Par (app a b) (app a' b')
   | scons {l : String} {t t' r r' : Term} : Par t t' → Par r r' → Par (scons l t r) (scons l t' r')
   | proj {t t' : Term} {l : String} : Par t t' → Par (proj t l) (proj t' l)
-  | sapp {a a' b b' : Term} : Par a a' → Par b b' → Par (sapp a b) (sapp a' b')
-  | beta {t t' u u' : Term} : Par t t' → Par u u' → Par (app (lam t) u) (subst (inst u') t')
+  | beta {t t' u u' : Term} :
+      isValue u = true → Par t t' → Par u u' → Par (app (lam t) u) (subst (inst u') t')
   | projR {s u u' : Term} {l : String} : lookup s l = some u → Par u u' → Par (proj s l) u'
   | indexR {s u u' : Term} {b : Bytes} :
       select s b.toNat = some u → Par u u' → Par (app s (bytes b)) u'
   | opcodeR {s : Term} {b b' : Bytes} :
       isStruct s = true → isData s = true → op b s = some b' → Par (app (bytes b) s) (bytes b')
-  | strictR {t t' v v' : Term} :
-      isValue v = true → Par t t' → Par v v' → Par (sapp t v) (app t' v')
 
 variable {op}
 
@@ -158,20 +151,51 @@ theorem select_subst {s u : Term} {n : Nat} (σ : Nat → Term) (h : select s n 
       | _ => simp [select] at h
   | _ => simp [select] at h
 
+/-- A field of a struct of values is a value. -/
+theorem lookup_value {s u : Term} {l : String} (hs : isValue s = true) (h : lookup s l = some u) :
+    isValue u = true := by
+  induction s with
+  | scons l' t r _ ihr =>
+    simp only [isValue, Bool.and_eq_true] at hs
+    simp only [lookup] at h
+    split at h
+    · cases h; exact hs.1
+    · exact ihr hs.2 h
+  | _ => simp [lookup] at h
+
 theorem isValue_ren {v : Term} (ξ : Nat → Nat) (h : isValue v = true) :
     isValue (ren ξ v) = true := by
   induction v generalizing ξ with
   | scons l t r iht ihr =>
     simp only [isValue, Bool.and_eq_true] at h
     simp [ren, isValue, iht _ h.1, ihr _ h.2]
+  | proj t l ih =>
+    simp only [isValue] at h
+    simp [ren, isValue, ih _ h]
   | _ => simp_all [isValue, ren]
 
-theorem isValue_subst {v : Term} (σ : Nat → Term) (h : isValue v = true) :
+/-- A substitution of values. -/
+def ValSub (σ : Nat → Term) : Prop := ∀ n, isValue (σ n) = true
+
+theorem ValSub.ups {σ : Nat → Term} (h : ValSub σ) : ValSub (ups σ)
+  | 0 => rfl
+  | n + 1 => isValue_ren _ (h n)
+
+theorem ValSub.inst {u : Term} (h : isValue u = true) : ValSub (inst u)
+  | 0 => h
+  | _ + 1 => rfl
+
+/-- Substituting values into a value gives a value. -/
+theorem isValue_subst {v : Term} {σ : Nat → Term} (hσ : ValSub σ) (h : isValue v = true) :
     isValue (subst σ v) = true := by
   induction v generalizing σ with
+  | var n => exact hσ n
   | scons l t r iht ihr =>
     simp only [isValue, Bool.and_eq_true] at h
-    simp [subst, isValue, iht _ h.1, ihr _ h.2]
+    simp [subst, isValue, iht hσ h.1, ihr hσ h.2]
+  | proj t l ih =>
+    simp only [isValue] at h
+    simp [subst, isValue, ih hσ h]
   | _ => simp_all [isValue, subst]
 
 /-- Data has no variables. -/
@@ -199,23 +223,33 @@ theorem Par.refl : ∀ t : Term, Par op t t
   | .scons _ t r => .scons (Par.refl t) (Par.refl r)
   | .proj t _ => .proj (Par.refl t)
   | .bytes b => .bytes b
-  | .sapp a b => .sapp (Par.refl a) (Par.refl b)
+
+/-- Values stay values. -/
+theorem Par.value {v v' : Term} (h : Par op v v') (hv : isValue v = true) : isValue v' = true := by
+  induction h with
+  | scons _ _ iht ihr =>
+    simp only [isValue, Bool.and_eq_true] at hv ⊢
+    exact ⟨iht hv.1, ihr hv.2⟩
+  | proj _ ih =>
+    simp only [isValue] at hv ⊢
+    exact ih hv
+  | projR hl _ ih =>
+    simp only [isValue] at hv
+    exact ih (lookup_value hv hl)
+  | _ => first | rfl | exact absurd hv Bool.false_ne_true
 
 theorem Step.par {t t' : Term} (h : Step op t t') : Par op t t' := by
   induction h with
-  | beta t u => exact .beta (.refl t) (.refl u)
+  | beta hu => exact .beta hu (.refl _) (.refl _)
   | proj h => exact .projR h (.refl _)
   | index h => exact .indexR h (.refl _)
   | opcode h1 h2 h3 => exact .opcodeR h1 h2 h3
-  | strict h => exact .strictR h (.refl _) (.refl _)
   | lam _ ih => exact .lam ih
   | app1 _ ih => exact .app ih (.refl _)
   | app2 _ ih => exact .app (.refl _) ih
   | scons1 _ ih => exact .scons ih (.refl _)
   | scons2 _ ih => exact .scons (.refl _) ih
   | proj1 _ ih => exact .proj ih
-  | sapp1 _ ih => exact .sapp ih (.refl _)
-  | sapp2 _ ih => exact .sapp (.refl _) ih
 
 theorem Par.star {t t' : Term} (h : Par op t t') : Star (Step op) t t' := by
   induction h with
@@ -230,20 +264,13 @@ theorem Par.star {t t' : Term} (h : Par op t t') : Star (Step op) t t' := by
     exact (Star.map (fun x => Term.scons l x r) (fun h => Step.scons1 h) iht).trans
       (Star.map (Term.scons l t') (fun h => Step.scons2 h) ihr)
   | @proj t t' l _ ih => exact Star.map (fun x => Term.proj x l) (fun h => Step.proj1 h) ih
-  | @sapp a a' b b' _ _ iha ihb =>
-    exact (Star.map (fun x => Term.sapp x b) (fun h => Step.sapp1 h) iha).trans
-      (Star.map (Term.sapp a') (fun h => Step.sapp2 h) ihb)
-  | @beta t t' u u' _ _ iht ihu =>
+  | @beta t t' u u' hu _ huu iht ihu =>
     have h1 := Star.map (fun x => Term.app (Term.lam x) u) (fun h => Step.app1 (Step.lam h)) iht
     have h2 := Star.map (Term.app (Term.lam t')) (fun h => Step.app2 h) ihu
-    exact (h1.trans h2).tail (Step.beta t' u')
+    exact (h1.trans h2).tail (Step.beta (huu.value hu))
   | projR h _ ih => exact Star.head (Step.proj h) ih
   | indexR h _ ih => exact Star.head (Step.index h) ih
   | opcodeR h1 h2 h3 => exact Star.single (Step.opcode h1 h2 h3)
-  | @strictR t t' v v' hv _ _ iht ihv =>
-    have h1 := Star.map (fun x => Term.app x v) (fun h => Step.app1 h) iht
-    have h2 := Star.map (Term.app t') (fun h => Step.app2 h) ihv
-    exact Star.head (Step.strict hv) (h1.trans h2)
 
 /-- Data never steps. -/
 theorem Par.data {s s' : Term} (h : Par op s s') (hd : isData s = true) : s' = s := by
@@ -254,14 +281,6 @@ theorem Par.data {s s' : Term} (h : Par op s s') (hd : isData s = true) : s' = s
     simp only [isData, Bool.and_eq_true] at hd
     rw [iht hd.1, ihr hd.2]
   | _ => simp_all [isData]
-
-/-- Values stay values. -/
-theorem Par.value {v v' : Term} (h : Par op v v') (hv : isValue v = true) : isValue v' = true := by
-  induction h with
-  | scons _ _ iht ihr =>
-    simp only [isValue, Bool.and_eq_true] at hv ⊢
-    exact ⟨iht hv.1, ihr hv.2⟩
-  | _ => first | rfl | exact absurd hv Bool.false_ne_true
 
 theorem Par.isStruct {s s' : Term} (h : Par op s s') (hs : isStruct s = true) :
     isStruct s' = true := by

@@ -3,12 +3,16 @@
 import Oymomo.Reduction
 
 /-!
-# Confluence of full β (semantics.tex, 3/8)
+# Confluence (semantics.tex, 5.3)
 
 Takahashi's proof: `cd t`, the complete development of `t`, contracts every redex of `t`
 at once. Every parallel step from `t` can be completed to `cd t` in one more parallel step
 (the triangle), so parallel reduction has the diamond property, and its closure, which is
-the closure of `▷`, is confluent.
+the closure of `⟶`, is confluent.
+
+E-Beta substitutes only values, so the substitution lemma asks the substitution to map
+every variable to a value (`ValSub`); values are closed under substitution of values and
+under parallel reduction (`isValue_subst`, `Par.value`).
 -/
 
 namespace Oymomo
@@ -28,18 +32,16 @@ theorem Par.ren {t t' : Term} (h : Par op t t') (ξ : Nat → Nat) :
   | app _ _ iha ihb => exact .app (iha _) (ihb _)
   | scons _ _ iht ihr => exact .scons (iht _) (ihr _)
   | proj _ ih => exact .proj (ih _)
-  | sapp _ _ iha ihb => exact .sapp (iha _) (ihb _)
-  | beta _ _ iht ihu =>
+  | beta hu _ _ iht ihu =>
     simp only [Oymomo.ren]
     rw [ren_inst]
-    exact .beta (iht _) (ihu _)
+    exact .beta (isValue_ren _ hu) (iht _) (ihu _)
   | projR h _ ih => exact .projR (lookup_ren ξ h) (ih _)
   | indexR h _ ih => exact .indexR (select_ren ξ h) (ih _)
   | opcodeR h1 h2 h3 =>
     simp only [Oymomo.ren]
     rw [ren_data ξ h2]
     exact .opcodeR h1 h2 h3
-  | strictR hv _ _ iht ihv => exact .strictR (isValue_ren ξ hv) (iht _) (ihv _)
 
 theorem Par.ups {σ τ : Nat → Term} (h : ∀ n, Par op (σ n) (τ n)) :
     ∀ n, Par op (Oymomo.ups σ n) (Oymomo.ups τ n)
@@ -47,27 +49,26 @@ theorem Par.ups {σ τ : Nat → Term} (h : ∀ n, Par op (σ n) (τ n)) :
   | n + 1 => (h n).ren Nat.succ
 
 theorem Par.subst {t t' : Term} (h : Par op t t') {σ τ : Nat → Term}
-    (hσ : ∀ n, Par op (σ n) (τ n)) : Par op (Oymomo.subst σ t) (Oymomo.subst τ t') := by
+    (hσ : ∀ n, Par op (σ n) (τ n)) (hv : ValSub σ) :
+    Par op (Oymomo.subst σ t) (Oymomo.subst τ t') := by
   induction h generalizing σ τ with
   | var n => exact hσ n
   | bytes b => exact .bytes b
   | snil => exact .snil
-  | lam _ ih => exact .lam (ih (Par.ups hσ))
-  | app _ _ iha ihb => exact .app (iha hσ) (ihb hσ)
-  | scons _ _ iht ihr => exact .scons (iht hσ) (ihr hσ)
-  | proj _ ih => exact .proj (ih hσ)
-  | sapp _ _ iha ihb => exact .sapp (iha hσ) (ihb hσ)
-  | beta _ _ iht ihu =>
+  | lam _ ih => exact .lam (ih (Par.ups hσ) hv.ups)
+  | app _ _ iha ihb => exact .app (iha hσ hv) (ihb hσ hv)
+  | scons _ _ iht ihr => exact .scons (iht hσ hv) (ihr hσ hv)
+  | proj _ ih => exact .proj (ih hσ hv)
+  | beta hu _ _ iht ihu =>
     simp only [Oymomo.subst]
     rw [subst_inst]
-    exact .beta (iht (Par.ups hσ)) (ihu hσ)
-  | projR h _ ih => exact .projR (lookup_subst _ h) (ih hσ)
-  | indexR h _ ih => exact .indexR (select_subst _ h) (ih hσ)
+    exact .beta (isValue_subst hv hu) (iht (Par.ups hσ) hv.ups) (ihu hσ hv)
+  | projR h _ ih => exact .projR (lookup_subst _ h) (ih hσ hv)
+  | indexR h _ ih => exact .indexR (select_subst _ h) (ih hσ hv)
   | opcodeR h1 h2 h3 =>
     simp only [Oymomo.subst]
     rw [subst_data _ h2]
     exact .opcodeR h1 h2 h3
-  | strictR hv _ _ iht ihv => exact .strictR (isValue_subst _ hv) (iht hσ) (ihv hσ)
 
 theorem Par.inst {u u' : Term} (h : Par op u u') :
     ∀ n, Par op (Oymomo.inst u n) (Oymomo.inst u' n)
@@ -84,9 +85,8 @@ def cd : Term → Term
   | snil => snil
   | scons l t r => scons l (cd t) (cd r)
   | bytes b => bytes b
-  | sapp t v => if isValue v then app (cd t) (cd v) else sapp (cd t) (cd v)
   | proj s l => if (lookup s l).isSome then (lookup (cd s) l).getD snil else proj (cd s) l
-  | app (lam t) u => subst (inst (cd u)) (cd t)
+  | app (lam t) u => if isValue u then subst (inst (cd u)) (cd t) else app (lam (cd t)) (cd u)
   | app (bytes b) s =>
     match isStruct s && isData s, op b s with
     | true, some b' => bytes b'
@@ -163,15 +163,6 @@ theorem Par.triangle {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
   | snil => exact .snil
   | lam _ ih => exact .lam ih
   | scons _ _ iht ihr => exact .scons iht ihr
-  | @sapp a a' b b' _ hbb iha ihb =>
-    simp only [cd]
-    cases hv : isValue b with
-    | true =>
-      simp only [ite_true]
-      exact .strictR (hbb.value hv) iha ihb
-    | false =>
-      simp only [Bool.false_eq_true, ite_false]
-      exact .sapp iha ihb
   | @proj t t' l htt ih =>
     simp only [cd]
     cases hl : lookup t l with
@@ -214,7 +205,13 @@ theorem Par.triangle {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
         obtain ⟨t', rfl, _⟩ := hab.lam_inv
         obtain ⟨_, he, ht⟩ := iha.lam_inv
         cases he
-        exact .beta ht ihb
+        cases hv : isValue b with
+        | true =>
+          simp only [cd, hv, ite_true]
+          exact .beta (hbb.value hv) ht ihb
+        | false =>
+          simp only [cd, hv, Bool.false_eq_true, ite_false]
+          exact .app (.lam ht) ihb
       | bytes c =>
         rw [hab.bytes_inv]
         simp only [cd]
@@ -225,9 +222,9 @@ theorem Par.triangle {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
           exact .opcodeR hc.1 hc.2 ho
         next => exact .app (.bytes c) ihb
       | _ => exact absurd hh Bool.false_ne_true
-  | @beta t t' u u' _ _ iht ihu =>
-    simp only [cd]
-    exact iht.subst ihu.inst
+  | @beta t t' u u' hu _ huu iht ihu =>
+    simp only [cd, hu, ite_true]
+    exact iht.subst ihu.inst (ValSub.inst (huu.value hu))
   | @indexR s u u' b hsel _ ih =>
     cases s with
     | scons l t r =>
@@ -239,9 +236,6 @@ theorem Par.triangle {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
   | @opcodeR s b b' h1 h2 h3 =>
     simp only [cd, h1, h2, h3, Bool.and_self]
     exact .bytes b'
-  | @strictR t t' v v' hv _ _ iht ihv =>
-    simp only [cd, hv, ite_true]
-    exact .app iht ihv
 
 /-! ## Confluence -/
 
@@ -276,7 +270,7 @@ theorem star_par_iff {t s : Term} : Star (Par op) t s ↔ Star (Step op) t s := 
   · intro h
     exact Star.map id (fun h => h.par) h
 
-/-- Full β is confluent: two reduction sequences from one term meet again. -/
+/-- `⟶` is confluent: two reduction sequences from one term meet again. -/
 theorem confluence {t a b : Term} (ha : Star (Step op) t a) (hb : Star (Step op) t b) :
     ∃ c, Star (Step op) a c ∧ Star (Step op) b c := by
   obtain ⟨c, hac, hbc⟩ := Par.confluent (star_par_iff.mpr ha) (star_par_iff.mpr hb)
