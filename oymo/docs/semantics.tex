@@ -30,24 +30,32 @@
 
 \mprset{sep=1.5em}
 
-%% Numbered points: rules, formula rows, bullets and sub-bullets share one counter for
-%% the whole document, shown as 1., 2., ... A point that is referred to has a \label; a
-%% reference is \pref{label}, so renumbering never changes the text of a reference.
+%% Numbered points: rules, formula rows and bullets share one counter per section,
+%% shown as N.M (N the section, M the point); a sub-bullet of point N.M is N.Ma, N.Mb, ...
+%% A point that is referred to has a \label; a reference is \pref{label}, so
+%% renumbering never changes the text of a reference.
 \newcounter{pt}
+\counterwithin*{pt}{section}
 \renewcommand{\thesubsection}{\thesection\alph{subsection}}  % 4a, 4b, ...
-\renewcommand{\thept}{\arabic{pt}}
-\newcommand{\pt}{\refstepcounter{pt}\textup{\thept.}}  % number a formula row
+\renewcommand{\thept}{\thesection.\arabic{pt}}
+\newcommand{\ptone}{\refstepcounter{pt}\textup{\thept.}}  % number a lone formula row
+%% A group of formula rows (or rules) is the sub-points of one bullet: each row shows
+%% its letter, a., b., ..., and a reference to it reads N.Ma.
+\newcounter{spt}
+\renewcommand{\thespt}{\thesection.\arabic{pointsi}\alph{spt}}
+\newcommand{\pt}{\refstepcounter{spt}\textup{\alph{spt}.}}  % number a formula row
 \newcommand{\pref}[1]{\ref{#1}}  % a reference to a numbered point
 \makeatletter\newcommand{\plabel}[1]{\ltx@label{#1}}\makeatother  % a label in a display (amsmath allows one)
 \newlist{points}{enumerate}{1}
-%% A sub-bullet list starts after its enclosing item and hands its
-%% last number back to the enclosing list, so the numbering never restarts.
-\setlist[points]{label=\arabic*., ref=\arabic*, leftmargin=*,
+\counterwithin*{spt}{pointsi}
+%% A bullet list continues the section's count, so the numbering never restarts
+%% inside a section.
+\setlist[points]{label=\thesection.\arabic*., ref=\thesection.\arabic*, leftmargin=*,
   start=\numexpr\value{pt}+1\relax, after={\setcounter{pt}{\value{pointsi}}}}
+%% A sub-bullet is shown by its letter only (a., b., ...); a reference to it is N.Ma.
 \newlist{subpoints}{enumerate}{1}
-\setlist[subpoints]{label=\arabic*., ref=\arabic*,
-  nosep, leftmargin=*, start=\numexpr\value{pointsi}+1\relax,
-  after={\setcounter{pt}{\value{subpointsi}}\setcounter{pointsi}{\value{subpointsi}}}}
+\setlist[subpoints]{label=\alph*.,
+  ref=\thesection.\arabic{pointsi}\alph*, nosep, leftmargin=*}
 
 %% Review marks; removed once the user accepts a change.
 \newcommand{\new}[1]{{\color{blue}#1}}          % new or changed text
@@ -109,6 +117,9 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
 
 \section{Kernel Syntax}\label{sec:syntax}
 
+\begin{points}
+\item The terms $t$ and three classes of them: values $v$, data $d$ and substitutable
+  terms $s$.
 \[
 \begin{array}{l@{\quad}rcll}
  & t & ::= & & \textit{term} \\
@@ -127,7 +138,6 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
   \textit{substitutable}
 \end{array}
 \]
-\begin{points}
 \item A substitutable term (row \pref{p:subst}) is one that is safe to substitute: copying or
   dropping it can't copy or drop an effect, because it never reduces to an opcode call (a
   lambda's body runs only when the lambda is applied). It may still
@@ -156,6 +166,8 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
 
 \section{Sugar Syntax}\label{sec:sugar}
 
+\begin{points}
+\item Each sugar form stands for a kernel term.
 \[
 \begin{array}{l@{\qquad}l@{\qquad}l}
  & \textit{sugar syntax} & \textit{kernel syntax} \\ \hline
@@ -163,10 +175,13 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
 \pt\plabel{p:if} & \kw{if}\ t_1\ \kw{then}\ t_2\ \kw{else}\ t_3 & \{t_3, t_2\}\ t_1
 \end{array}
 \]
+\end{points}
 %% ── Computation ────────────────────────────────────────────────────────
 
 \section{Computation (at the root)}\label{sec:computation}
 
+\begin{points}
+\item The computation rules reduce a term at its root.
 \begin{rules}
 \axiomrow{E-Beta}
   {(\lam{x}{t_1})\ s \;\step\; \subst{x}{s}{t_1}}
@@ -185,7 +200,6 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
   {\fn{op}(b)(d_i)_{i<k} = b'}
   {b\ \{l_i = d_i\}_{i<k} \;\step\; b'}
 \end{rules}
-\begin{points}
 \item A value is $\lam{x}{t}$, $\kw{fix}\ (\lam{x}{t})$, a struct of values or a byte array (Section~\ref{sec:syntax}).
   \rn{E-Beta} substitutes only a substitutable argument (row \pref{p:subst}): $(\lam{x}{t})\ (\str{print}\ \{\str{h}\})$
   is not a redex, so the $\kw{print}$ is never copied or dropped; it stays a $\kw{let}$ (\pref{p:let}).
@@ -258,6 +272,8 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
 
 \section{Full \texorpdfstring{$\beta$}{beta}}\label{sec:congruence}
 
+\begin{points}
+\item The congruence rules reduce a term inside it.
 \begin{rules}
 \rulerow{E-Abs}{t \step t'}{\lam{x}{t} \;\step\; \lam{x}{t'}}
 \rulerow{E-App1}{t_1 \step t_1'}{t_1\ t_2 \;\step\; t_1'\ t_2}
@@ -267,7 +283,6 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
 \rulerow{E-Proj1}{t \step t'}{t.l \;\step\; t'.l}
 \rulerow{E-Fix1}{t \step t'}{\kw{fix}\ t \;\step\; \kw{fix}\ t'}
 \end{rules}
-\begin{points}
 \item $\step$ is full $\beta$: a rule of Section~\ref{sec:computation} may fire
   anywhere, under a lambda, in a struct field (so in every arm of a branch) too.
   A struct's fields are computed in no particular order.
@@ -287,7 +302,7 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
 \end{points}
 \[
 \begin{array}{l@{\quad}rcll}
-\pt\plabel{p:normal} & n & ::= & x \mid b \mid \lam{x}{n} \mid \{l_i = n_i\}_{i<k} & \textit{normal} \\
+\ptone\plabel{p:normal} & n & ::= & x \mid b \mid \lam{x}{n} \mid \{l_i = n_i\}_{i<k} & \textit{normal} \\
  & & \mid & \kw{fix}\ n & \\
  & & \mid & n.l \quad (n \text{ of the form } x,\ t\ t \text{ or } t.l) & \\
  & & \mid & (\lam{x}{n_1})\ n_2 \mid (\kw{fix}\ (\lam{x}{n_1}))\ n_2 \quad (n_2 \notin s) & \\
@@ -449,7 +464,8 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
 \section{Strategy}\label{sec:strategy}
 
 Sharing normal order, $\stepS$, is the reduction order that finds the normal form.
-It uses three more forms:
+\begin{points}
+\item It uses three more forms:
 \[
 \begin{array}{l@{\qquad}l@{\qquad}l}
 \pt & u ::= v \mid x & \textit{copyable} \\
@@ -457,7 +473,7 @@ It uses three more forms:
 \pt\plabel{s6:w} & w: \text{ a term in which every redex is a shared } \kw{let} & \textit{shared normal form}
 \end{array}
 \]
-Each row below matches a shape and chooses either a rule of Section~\ref{sec:computation}, which fires at the root, or a part of the term, which takes its own $\stepS$ step.
+\item Each row below matches a shape and chooses either a rule of Section~\ref{sec:computation}, which fires at the root, or a part of the term, which takes its own $\stepS$ step.
 
 \[
 \begin{array}{l@{\qquad}l@{\qquad}l}
@@ -481,7 +497,6 @@ Each row below matches a shape and chooses either a rule of Section~\ref{sec:com
 \pt & \{l_i = t_i\}_{i<k} \quad t_j \notin w,\ t_i \in w \text{ for } i < j & t_j \\
 \end{array}
 \]
-\begin{points}
 \item Rows are tried top to bottom; the first whose shape matches chooses. A chosen part
   steps by $\stepS$, and the rule of Section~\ref{sec:congruence} for its position (for
   example \rn{E-App2} for $t_2$ in $t_1\ t_2$) carries the step to the whole term. A term in $w$ has

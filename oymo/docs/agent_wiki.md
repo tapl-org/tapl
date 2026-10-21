@@ -179,13 +179,19 @@ The user's orders, kept as given. Follow them in every task.
     drop the legend if no marks are left. A removed rule row can't be struck (`\sout`
     breaks it): it is shown as `{\color{red}\rulerow{Name (old)}…}`; delete it on accept.
   - Numbered points (user's order, so they can be referred to): rules, formula rows
-    and bullets share one counter for the whole document (user, D50), shown as 1.,
-    2., ... (`pt` counter, `points` list, `\pt` in array rows; a rule's number is its left
+    and bullets share one counter per section (user, D57; replaces D50's global
+    counter), shown as `N.M.` with N the section (`pt` counter reset by `\section`,
+    `points` list, `\pt` in array rows; a rule's number is its left
     column). A point that is referred to gets a `\label` (`\plabel` in a display, where
     amsmath allows only one; rule rows get `r:<Name>` automatically), and a reference is
-    `\pref{label}`, so renumbering never changes a reference's text. Sub-bullets, at any
-    depth, take the next number too, and every number is shown as `N.` (user: "parenthesis
-    adding verbosity").
+    `\pref{label}`, so renumbering never changes a reference's text. Sub-bullets show only
+    their letter, `a.`, `b.` (user: "for the sub-bullet just letter is enough"); a
+    reference to one reads `N.Ma` (D57). A group of more than one formula row or rule is
+    one bullet (a short sentence, then the display) whose rows are its lettered
+    sub-points, `a.`, `b.` (`\pt` steps the `spt` counter, reset by each bullet); a lone
+    formula row keeps its own number (`\ptone`). User: "lets put all formulas into
+    sub-bullet if they are more than 1". The user refers to points
+    as "docN.M".
     Subsections are 4a, 4b, ... so they never look like a point number (user's order).
   - Term classes are named reducible (takes a `⟶w` step), value, neutral, stuck
     (user named "reducible"); values are weak (no reduction under `λ` or in fields).
