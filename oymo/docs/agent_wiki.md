@@ -165,10 +165,11 @@ The user's orders, kept as given. Follow them in every task.
     D6 (done): roadmap node `term-classes` (classes-doc, classes-lean, classes-check,
     classes-code) under `foundations`; `conf-lean` under `confluence`. `classes-code`
     is kept apart from `conf-form` (that one is E-Reform and dropping `strip`).
-  - Answers (user's order): give every item, option and question a unique number
-    (1, 2, 2a, …) so the user can refer to it by number. The numbers keep increasing
-    across answers in one conversation: each answer starts after the last number of the
-    previous one, so an earlier bullet can still be referred to.
+  - Answers (user's order): every answer is fully bulleted and numbered. Answers get
+    a number that keeps increasing across the conversation (shown as "Answer N" at the
+    top); bullets inside each answer start from 1 (sub-items 1a, 1b, …). A single
+    number `M` from the user means bullet M of the last answer; `N.M` means bullet M
+    of answer N.
   - Order of work (user, D18): semantics.tex first, then the Lean 4 proof; all code
     implementations come after the Lean 4 proof. Don't propose code changes before that.
   - Review marks (user's order): every change is colored until the user accepts it:
