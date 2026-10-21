@@ -201,8 +201,8 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
   {b\ \{l_i = d_i\}_{i<k} \;\step\; b'}
 \end{rules}
 \item A value is $\lam{x}{t}$, $\kw{fix}\ (\lam{x}{t})$, a struct of values or a byte array (Section~\ref{sec:syntax}).
-  \rn{E-Beta} substitutes only a substitutable argument (row \pref{p:subst}): $(\lam{x}{t})\ (\str{print}\ \{\str{h}\})$
-  is not a redex, so the $\kw{print}$ is never copied or dropped; it stays a $\kw{let}$ (\pref{p:let}).
+  \rn{E-Beta} substitutes only a substitutable argument (row \pref{p:subst}): $(\lam{x}{t})\ (m.\mathit{print}\ \{r\})$
+  is not a redex, so the call is never copied or dropped; it stays a $\kw{let}$ (\pref{p:let}).
 \item Terms are equal up to $\alpha$-equivalence (renaming bound variables).
   When a bound variable of $t_1$ clashes with a free variable of $t_2$,
   $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then
@@ -266,6 +266,9 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
   \item Otherwise the call does not reduce: an effect, undefined behavior, an unknown opcode, or an
     operand that is not data, such as a parameter $p.a$. With normal operands it is normal. The translation to LLVM emits it as an instruction.
     \end{subpoints}
+\item\label{p:call} A call to a function, such as $m.\mathit{print}\ \{r\}$ (Section~\ref{sec:modules}),
+  is an effect too. Reduction never binds $m$: the linker connects it, so the call never
+  reduces. It is not substitutable, so \rn{E-Beta} never copies or drops it either.
 \end{points}
 
 %% ── Congruence ─────────────────────────────────────────────────────────
@@ -295,7 +298,8 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
   \begin{subpoints}
   \item Confluence is what lets programs be combined. For two programs $A$ and $B$ merged as
     $A\ B$: reducing $A$ and $B$ first, $A \steps A'$ and $B \steps B'$, and then $A\ B$ is one of the orders of $A\ B$
-    (\rn{E-App1}, \rn{E-App2}: $A\ B \steps A'\ B'$), so it reaches the same normal form as applying first.
+    (\rn{E-App1}, \rn{E-App2}: $A\ B \steps A'\ B'$), so it reaches the same normal form as applying first. Merging never binds a
+    module's $m$ (\pref{p:call}), so a call between $A$ and $B$ is never inlined.
   \item It also lets  any order that finds the normal form be used
     (Section~\ref{sec:strategy}).
   \end{subpoints}

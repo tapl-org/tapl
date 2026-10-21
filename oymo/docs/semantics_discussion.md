@@ -27,7 +27,7 @@ nothing is lost between sessions. We continue the discussion here.
 7. Compiler warning, not in semantics.tex (D43): an effect (opcode on a list, maybe calls
    `m.l {…}`) that is not the argument of a strict application gets a warning, not an error.
    Open: the effect list, whether calls count, check on the normal form.
-8. Reminders for the section-by-section review (D53): at Section 6 (Modules), ask about renaming the declaration label `{s = 'ptr'}`, and move its LLVM-mapping parts to Section 9.
+8. Reminders for the section-by-section review (D53): at Section 6 (Modules), ask about renaming the declaration label `{s = 'ptr'}`, and move its LLVM-mapping parts to Section 9. Also (D58): module shape `λd. λm. …` (`m` connected only by the linker; ask what `d` is); drop "the user may replace them with a fixed-point combinator" and the compile-time wording.
 
 ## Goal
 
@@ -242,6 +242,12 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Wrong terms with no rule (stuck later): a struct applied; `v.l` with `v` an abstraction or a struct without `l`.
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
+
+### D58: calls are effects; `m` is bound only by the linker — agreed (accepted)
+- Agent's question: name printing as an example of an effect? User: "printing is a call to another symbol, and it is considered as an effect. this is like "m.print.body result". i see problem here".
+- Problems (user: "2a, 2b, and 2c are problems"): (a) 4.2 used `'print' {'h'}` as an opcode; (b) the effects point named only opcodes, not calls; (c) merging `A B` could bind `m`, inline calls and loop on recursion.
+- User: "3a. yes" (merging never binds `m`; the linker connects modules). "A call through m does not happen. if A is called, then A's content may be \d.\m. ..... So m is connected by linker".
+- Doc: 4.2 example is `(λx. t) (m.print {r})`; new point 4.9 (`p:call`): a call is an effect, reduction never binds `m`, the call never reduces and is not substitutable; 5.3a: merging never binds `m`, so a call between A and B is never inlined. Section 7 shape `λd. λm. …` waits for its review.
 
 ### D57: per-section numbering N.M — agreed (accepted)
 - User: "lets number each bullet N.M. where N is a section number, and M is a bullet inside that number. you can use N.Ma style for the sub-bullet". Replaces D50's one global counter: rules, rows and bullets count per section (`N.M`); sub-bullets are lettered after their point (`N.Ma`). References (`\pref`) follow automatically. Then: "for the sub-bullet just letter is enough" → a sub-bullet shows only `a.`; a reference to it still reads `N.Ma`. Then: "lets put all formulas into sub-bullet if they are more than 1… create a one bullet which encompasses them" → each group of rows or rules (kernel grammar, sugar table, computation rules, congruence rules, the two old Strategy tables) is one bullet with a short sentence; its rows are lettered. The lone normal-form row keeps its own number.
