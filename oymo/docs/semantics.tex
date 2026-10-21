@@ -361,8 +361,21 @@
   \end{subpoints}
 \item Each step of this order is a $\step$ step, and when no row applies the term has no step
   (completeness), so when the order ends, it ends in the normal form (\pref{p:normal}). If a term has a
-  normal form, the order is meant to reach it (guarantee). Both are part of the goal (\pref{p:goal-strategy}), and neither is proved yet. Completeness and the guarantee matter for an implementation that follows
+  normal form, the order is meant to reach it (guarantee). Both are part of the goal (\pref{p:goal-strategy}). In Lean 4, in \texttt{proofs/}, the order is a relation with one rule per row of the table;
+  each rule says that the row's shape matches, that the chosen part has a step, and that no
+  earlier row of its group applies. Completeness and the guarantee matter for an implementation that follows
   this order: it never stops early, and it never loops when a normal form exists.
+  \begin{subpoints}
+  \item Soundness (theorem \texttt{Oymomo.sstep\_step}): each step of the order is a $\step$ step, so the
+    order defines no rule of its own. Each row's rule is a rule of Section~\ref{sec:computation} or~\ref{sec:congruence}.
+  \item Completeness (theorem \texttt{Oymomo.sstep\_complete}): if a term has a $\step$ step, the order chooses
+    one. The proof goes by the shape of the term: a rule at the root is a row of its own, and
+    otherwise the step is inside a part, which the order reaches by the rows that choose a part.
+  \item Determinism (theorem \texttt{Oymomo.sstep\_det}): the order chooses at most one step, since the rows of
+    a group exclude each other. With completeness, every term with a step gets exactly one choice.
+  \item The guarantee is not proved yet. It is a normalization theorem, as for leftmost-outermost
+    reduction in the $\lambda$-calculus, and needs its own argument for these rules.
+  \end{subpoints}
 \end{points}
 
 %% ── ANF ──────────────────────────────────────────────────────────────
