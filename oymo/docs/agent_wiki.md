@@ -92,7 +92,7 @@ The user's orders, kept as given. Follow them in every task.
     only if a rule uses it. D22/D42: lambda is written `λx. t` (D42 replaced the arrow
     `x → t`; the dot right after the binder ends it, every other dot is projection) and
     called "lambda" (not "function": function = Section 5 definition/declaration); the
-    step relation is `⟶` (TAPL's arrow, D49), many steps `⟶*`; terms are reducible, normal or stuck; the target shape is BANF. The doc opens by calling Oymomo an extension of the untyped
+    step relation is `⟶` (TAPL's arrow, D49), many steps `⟶*`; terms are reducible, normal or stuck; the target shape is called ANF in semantics.tex (user, D60: "replace BANF with ANF, and do not mention block a-normal form"); BANF stays a code name. The doc opens by calling Oymomo an extension of the untyped
     λ-calculus.
     D4 (agreed): term classes, progress and determinism describe `⟶w`; full β is
     needed eventually (confluence, then its own normal forms).
