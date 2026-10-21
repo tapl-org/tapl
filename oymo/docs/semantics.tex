@@ -91,7 +91,7 @@
 \medskip\noindent
 Oymomo is an extension of the untyped $\lambda$-calculus: to variables, abstraction and
 application it adds structs, projection and byte arrays, which name
-opcodes; its $\beta$ rule is call-by-value, so an opcode call that does not reduce is never copied. Section~\ref{sec:goal} states the goal, Section~\ref{sec:syntax} gives the syntax, Section~\ref{sec:sugar} the sugar, Sections~\ref{sec:computation}
+opcodes; its $\beta$ rule is full $\beta$, and a strict application $t\ {!}t_1$ waits until $t_1$ is a value, so an effect bound strictly runs once. Section~\ref{sec:goal} states the goal, Section~\ref{sec:syntax} gives the syntax, Section~\ref{sec:sugar} the sugar, Sections~\ref{sec:computation}
 and~\ref{sec:congruence} the reduction (full $\beta$), Section~\ref{sec:runs} what runs, Section~\ref{sec:modules} how a program maps to LLVM,  Section~\ref{sec:strategy} the
 reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm} the translation to LLVM.
 
@@ -118,14 +118,14 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
 \section{Kernel Syntax}\label{sec:syntax}
 
 \begin{points}
-\item The terms $t$ and three classes of them: values $v$, data $d$ and substitutable
-  terms $s$.
+\item The terms $t$ and two classes of them: values $v$ and data $d$.
 \[
 \begin{array}{l@{\quad}rcll}
  & t & ::= & & \textit{term} \\
 \pt &   & \mid & x & \textit{variable} \\
 \pt &   & \mid & \lam{x}{t} & \textit{abstraction} \\
 \pt &   & \mid & t\ t & \textit{application} \\
+\pt &   & \mid & t\ {!}t & \textit{strict application} \\
 \pt &   & \mid & \{l_i = t_i\}_{i<k} & \textit{struct} \\
 \pt &   & \mid & t.l & \textit{projection} \\
 \pt &   & \mid & b & \textit{byte array} \\
@@ -133,16 +133,12 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
 \pt & v & ::= & \lam{x}{t} \mid \kw{fix}\ (\lam{x}{t}) \mid \{l_i = v_i\}_{i<k} \mid b &
   \textit{value} \\
 \pt\plabel{p:data} & d & ::= & b \mid \{l_i = d_i\}_{i<k} &
-  \textit{data} \\
-\pt\plabel{p:subst} & s & ::= & v \mid x \mid s.l \mid \{l_i = s_i\}_{i<k}  &
-  \textit{substitutable}
+  \textit{data}
 \end{array}
 \]
-\item A substitutable term (row \pref{p:subst}) is one that is safe to substitute: copying or
-  dropping it can't copy or drop an effect, because it never reduces to an opcode call (a
-  lambda's body runs only when the lambda is applied). It may still
-  reduce: $\{a = \str{a}\}.a$ is substitutable. Row \pref{p:subst} is closed under substitution and
-  reduction, which confluence needs (\pref{p:confluent}).
+\item\label{p:strict} A strict application $t\ {!}t_1$ applies $t$ to $t_1$ once $t_1$ is a value
+  (\pref{r:E-Strict}). The $!$ does not change grouping: $f\ {!}x\ y$ is $(f\ {!}x)\ y$; it is
+  not a term on its own.
 \item A lambda $\lam{x}{t}$ extends as far right as possible:
   $\lam{x}{\lam{y}{t}}$ is $\lam{x}{(\lam{y}{t})}$. The dot right after the binder ends the binder; every other
   dot is projection: $\lam{p}{p.a}$ is $\lam{p}{(p.a)}$.
@@ -172,6 +168,7 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
 \begin{array}{l@{\qquad}l@{\qquad}l}
  & \textit{sugar syntax} & \textit{kernel syntax} \\ \hline
 \pt\plabel{p:let} & \kw{let}\ x = t_1\ \kw{in}\ t_2 & (\lam{x}{t_2})\ t_1 \\
+\pt\plabel{p:slet} & \kw{let}\ x =! t_1\ \kw{in}\ t_2 & (\lam{x}{t_2})\ {!}t_1 \\
 \pt\plabel{p:if} & \kw{if}\ t_1\ \kw{then}\ t_2\ \kw{else}\ t_3 & \{t_3, t_2\}\ t_1
 \end{array}
 \]
@@ -184,9 +181,11 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
 \item The computation rules reduce a term at its root.
 \begin{rules}
 \axiomrow{E-Beta}
-  {(\lam{x}{t_1})\ s \;\step\; \subst{x}{s}{t_1}}
+  {(\lam{x}{t_1})\ t_2 \;\step\; \subst{x}{t_2}{t_1}}
+\axiomrow{E-Strict}
+  {t\ {!}v \;\step\; t\ v}
 \axiomrow{E-Fix}
-  {(\kw{fix}\ (\lam{x}{t_1}))\ s \;\step\; (\subst{x}{\kw{fix}\ (\lam{x}{t_1})}{t_1})\ s}
+  {(\kw{fix}\ (\lam{x}{t_1}))\ v \;\step\; (\subst{x}{\kw{fix}\ (\lam{x}{t_1})}{t_1})\ v}
 \rulerow{E-Proj}
   {l_j = l}
   {\{l_i = t_i\}_{i<k}.l \;\step\; t_j}
@@ -201,26 +200,27 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
   {b\ \{l_i = d_i\}_{i<k} \;\step\; b'}
 \end{rules}
 \item A value is $\lam{x}{t}$, $\kw{fix}\ (\lam{x}{t})$, a struct of values or a byte array (Section~\ref{sec:syntax}).
-  \rn{E-Beta} substitutes only a substitutable argument (row \pref{p:subst}): $(\lam{x}{t})\ (m.\mathit{print}\ \{r\})$
-  is not a redex, so the call is never copied or dropped; it stays a $\kw{let}$ (\pref{p:let}).
+  
+  \rn{E-Beta} substitutes any argument, so it may copy or drop it: $(\lam{x}{\{x, x\}})\ (m.\mathit{print}\ \{r\})$
+  holds two calls. A strict $\kw{let}$ (\pref{p:slet}) waits until its argument is a value; a call never
+  becomes one, so $(\lam{x}{\{x, x\}})\ {!}(m.\mathit{print}\ \{r\})$ stays as written and the call runs once.
 \item Terms are equal up to $\alpha$-equivalence (renaming bound variables).
   When a bound variable of $t_1$ clashes with a free variable of $t_2$,
   $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then
   substitutes.
-\item $\kw{fix}\ t$ is for recursion that reduction unfolds: $(\kw{fix}\ (\lam{f}{t}))\ s$ unfolds
+\item $\kw{fix}\ t$ is for recursion that reduction unfolds: $(\kw{fix}\ (\lam{f}{t}))\ v$ unfolds
   once, putting $\kw{fix}\ (\lam{f}{t})$ in for $f$ (\pref{r:E-Fix}).
   \begin{subpoints}
-  \item It unfolds only when applied to a substitutable argument, so an unapplied
+  \item It unfolds only when applied to a value, so an unapplied
     $\kw{fix}\ (\lam{f}{t})$ is a value and stays as it is, even though reduction goes under
     $\lambda$.
-  \item A recursive call whose argument is not substitutable, such as an opcode call on a parameter,
+  \item A recursive call whose argument is not a value, such as a parameter $p.n$ or an opcode call on a parameter,
     does not unfold. A normal form that still contains $\kw{fix}$ is not in BANF shape (\pref{p:forms}):
     recursion in LLVM goes through $m$ and $f$ (Section~\ref{sec:modules}).
   \item For example, with numbers in decimal standing for $\str{i32}$ byte arrays,
     \[\begin{array}{l}F = \kw{fix}\ (\lam{f}{\lam{n}{\kw{if}\ \str{icmp}\ \{\str{eq}, \str{i32}, n, 0\}\ \kw{then}\ 1}} \\
 \qquad \kw{else}\ \str{mul}\ \{\str{i32}, n, f\ (\str{sub}\ \{\str{i32}, n, 1\})\})\end{array}\]
-    $F\ 3$ reduces to $6$, in BANF. $F\ p.n$ unfolds once ($p.n$ is substitutable), but the inner
-    call's argument $\str{sub}\ \{\str{i32}, p.n, 1\}$ is not, so it stops: a normal form that
+    $F\ 3$ reduces to $6$, in BANF. $F\ p.n$ does not unfold ($p.n$ is not a value): a normal form that
     contains $\kw{fix}$, not in BANF.
   \end{subpoints}
 \item \rn{E-Proj} takes the field labeled $l$ (labels are unique), and \rn{E-Index}
@@ -237,8 +237,8 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
   \item The other fields are discarded, even one with an effect:
     $\{a = e, b = \hex{01}\}.b \step \hex{01}$. Full $\beta$ may
     reduce $e$ or not, but $e$ is not in the normal form: it is dropped.
-  \item To run it, bind it first with a $\kw{let}$:
-    $(\lam{x}{\{a = x, b = \hex{01}\}.b})\ e$.
+  \item To run it, bind it first with a strict $\kw{let}$:
+    $(\lam{x}{\{a = x, b = \hex{01}\}.b})\ {!}e$.
   \end{subpoints}
 \item\label{p:branch} A branch is a struct applied to a condition that is not a byte array yet; when it becomes one, \rn{E-Index} or \rn{E-Default} picks the arm (\pref{r:E-Index}, \pref{r:E-Default}).
   \begin{subpoints}
@@ -258,8 +258,8 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
   \item $\fn{op}(b)$ is a partial function from operand values to a byte array.
   \item Effects include memory opcodes, such as $\str{alloca}$, $\str{load}$ and $\str{store}$.
   \item Reduction has no memory: it never computes an address or the contents of
-    one; the program orders memory opcodes by binding each with a $\kw{let}$, which
-    \rn{E-Beta} never applies to an argument that is not substitutable (\pref{p:let}), or by using
+    one; the program orders memory opcodes by binding each with a strict $\kw{let}$, which
+    waits until its argument is a value (\pref{p:slet}), or by using
     one's result in the next (\pref{p:effect-order}).
   \item All operands are data: byte arrays, or structs of data (row \pref{p:data}), never
     a lambda, so they never step and the result is the same in every reduction order.
@@ -268,7 +268,7 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
     \end{subpoints}
 \item\label{p:call} A call to a function, such as $m.\mathit{print}\ \{r\}$ (Section~\ref{sec:modules}),
   is an effect too. Reduction never binds $m$: the linker connects it, so the call never
-  reduces. It is not substitutable, so \rn{E-Beta} never copies or drops it either.
+  reduces. \rn{E-Beta} may copy or drop it like any argument; bind it with a strict $\kw{let}$ (\pref{p:slet}) to run it exactly once.
 \end{points}
 
 %% ── Congruence ─────────────────────────────────────────────────────────
@@ -281,6 +281,8 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
 \rulerow{E-Abs}{t \step t'}{\lam{x}{t} \;\step\; \lam{x}{t'}}
 \rulerow{E-App1}{t_1 \step t_1'}{t_1\ t_2 \;\step\; t_1'\ t_2}
 \rulerow{E-App2}{t_2 \step t_2'}{t_1\ t_2 \;\step\; t_1\ t_2'}
+\rulerow{E-SApp1}{t_1 \step t_1'}{t_1\ {!}t_2 \;\step\; t_1'\ {!}t_2}
+\rulerow{E-SApp2}{t_2 \step t_2'}{t_1\ {!}t_2 \;\step\; t_1\ {!}t_2'}
 \rulerow{E-Struct}{t_i \step t_i'}
   {\{\dots, l_i = t_i, \dots\} \;\step\; \{\dots, l_i = t_i', \dots\}}
 \rulerow{E-Proj1}{t \step t'}{t.l \;\step\; t'.l}
@@ -290,11 +292,10 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
   anywhere, under a lambda, in a struct field (so in every arm of a branch) too.
   A struct's fields are computed in no particular order.
   $t \steps t'$ is zero or more $\step$ steps.
-\item\label{p:confluent} $\step$ is confluent: it is the call-by-value $\lambda$-calculus (Plotkin's $\lambda_v$) with
+\item\label{p:confluent} $\step$ is confluent: it is full $\beta$ with strict application, with
    structs, projection and branching (Church--Rosser; projection is the usual record rule). The
   proof is in Lean 4, in \texttt{proofs/} (theorem \texttt{Oymomo.confluence}), for
-  every opcode table $\fn{op}$; it is still for the previous rules (full $\beta$ and strict
-  application) and is being updated.
+  every opcode table $\fn{op}$; it does not cover $\kw{fix}$ yet.
   \begin{subpoints}
   \item Confluence is what lets programs be combined. For two programs $A$ and $B$ merged as
     $A\ B$: reducing $A$ and $B$ first, $A \steps A'$ and $B \steps B'$, and then $A\ B$ is one of the orders of $A\ B$
@@ -308,12 +309,12 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
 \begin{array}{l@{\quad}rcll}
 \ptone\plabel{p:normal} & n & ::= & x \mid b \mid \lam{x}{n} \mid \{l_i = n_i\}_{i<k} & \textit{normal} \\
  & & \mid & \kw{fix}\ n & \\
- & & \mid & n.l \quad (n \text{ of the form } x,\ t\ t \text{ or } t.l) & \\
- & & \mid & (\lam{x}{n_1})\ n_2 \mid (\kw{fix}\ (\lam{x}{n_1}))\ n_2 \quad (n_2 \notin s) & \\
- & & \mid & \{l_i = n_i\}_{i<k}\ n \quad (0 < k,\ n \text{ of the form } x,\ t\ t \text{ or } t.l) & \\
+ & & \mid & n.l \quad (n \text{ of the form } x,\ t\ t,\ t\ {!}t \text{ or } t.l) & \\
+ & & \mid &  (\kw{fix}\ (\lam{x}{n_1}))\ n_2 \mid n_1\ {!}n_2 \quad (n_2 \notin v) & \\
+ & & \mid & \{l_i = n_i\}_{i<k}\ n \quad (0 < k,\ n \text{ of the form } x,\ t\ t,\ t\ {!}t \text{ or } t.l) & \\
  & & \mid & b\ n \quad (n \text{ a struct, no } \lambda \text{ or } \kw{fix} \text{ in it, not } \rn{E-Opcode}) & \\
- & & \mid & b\ n \quad (n \text{ of the form } x,\ t\ t \text{ or } t.l) & \\
- & & \mid & n_1\ n_2 \mid (\kw{fix}\ n_1)\ n_2 \quad (n_1 \text{ of the form } x,\ t\ t \text{ or } t.l) &
+ & & \mid & b\ n \quad (n \text{ of the form } x,\ t\ t,\ t\ {!}t \text{ or } t.l) & \\
+ & & \mid & n_1\ n_2 \mid (\kw{fix}\ n_1)\ n_2 \quad (n_1 \text{ of the form } x,\ t\ t,\ t\ {!}t \text{ or } t.l) &
 \end{array}
 \]
 \begin{points}
@@ -339,7 +340,7 @@ reduction order, Section~\ref{sec:banf} the BANF check and Section~\ref{sec:llvm
 \item\label{p:forms} Every term is reducible (it has a $\step$ step), normal (\pref{p:normal}) or stuck (\pref{p:stuck}).
   A program $t$ with $t \steps t'$ for a stuck $t'$ is rejected. An unknown opcode or undefined behavior is not stuck: the call is normal (\pref{p:opcode}). A normal form is in BANF shape (Section~\ref{sec:modules}) or
   not; only one in BANF shape is translated to LLVM. $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$
-  is normal but not in BANF shape; written with a $\kw{let}$ for the $\str{mul}$, it is.
+  is normal but not in BANF shape; written with a strict $\kw{let}$ for the $\str{mul}$, it is.
 \end{points}
 
 %% ── Meaning ────────────────────────────────────────────────────────────

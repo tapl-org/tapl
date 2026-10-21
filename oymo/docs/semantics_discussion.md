@@ -27,7 +27,7 @@ nothing is lost between sessions. We continue the discussion here.
 7. Compiler warning, not in semantics.tex (D43): an effect (opcode on a list, maybe calls
    `m.l {…}`) that is not the argument of a strict application gets a warning, not an error.
    Open: the effect list, whether calls count, check on the normal form.
-8. Reminders for the section-by-section review (D53): at Section 6 (Modules), ask about renaming the declaration label `{s = 'ptr'}`, and move its LLVM-mapping parts to Section 9. Also (D58): module shape `λd. λm. …` (`m` connected only by the linker; ask what `d` is); drop "the user may replace them with a fixed-point combinator" and the compile-time wording.
+8. Reminders for the section-by-section review (D53): at Section 6 (Modules), ask about renaming the declaration label `{s = 'ptr'}`, and move its LLVM-mapping parts to Section 9. Also (D58): module shape `λd. λm. …` (`m` connected only by the linker; ask what `d` is); drop "the user may replace them with a fixed-point combinator" and the compile-time wording. Also (D59): the gcd listing's operation `let`s become `let x =! …`.
 
 ## Goal
 
@@ -242,6 +242,11 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Wrong terms with no rule (stuck later): a struct applied; `v.l` with `v` an abstraction or a struct without `l`.
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
+
+### D59: strict application is back; plain β is full β — agreed (accepted)
+- User: "it getting complex. I might be in the wrong direction. Strict Application syntax looks better. What we loose if we return strict one?" Agent listed gains (TAPL full β, no `s` class, Lean proof already done, `=!` marks ordered effects, more laziness) and losses (effects safe only with `!`; BANF only with `=!` lets; plain lets of pure operations get copied; calls not protected by the rules). User: "5a, and keep current doc structure". Reverses D46's call-by-value E-Beta and its removal of strict application.
+- Doc: row 2.1d `t !t`; the `s` row and its point removed; new point 2.2 (`p:strict`, grouping as D29); sugar 3.1b `let x =! t₁ in t₂` = `(λx. t₂) !t₁` (`p:slet`); E-Beta on any argument; E-Strict `t !v ⟶ t v`; E-Fix unfolds only on a value (so `F p.n` doesn't unfold); E-SApp1/2; 4.2 shows the copy and the strict let; 4.5f, 4.8c, 4.9, 5.7 use the strict `let`; 5.3 confluence: full β with strict application, Lean proof doesn't cover `fix` yet; row 5.4: `t !t` is neutral, `n₁ !n₂` (n₂ not a value) is normal, `(λx. n₁) n₂` no longer normal.
+- Later (Section 7 review): the gcd listing's `let`s of operations become `=!`.
 
 ### D58: calls are effects; `m` is bound only by the linker — agreed (accepted)
 - Agent's question: name printing as an example of an effect? User: "printing is a call to another symbol, and it is considered as an effect. this is like "m.print.body result". i see problem here".
