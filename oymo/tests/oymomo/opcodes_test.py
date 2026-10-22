@@ -6,6 +6,7 @@ from oymo.oymomo import terms
 from oymo.oymomo.opcodes import OPCODES, PTR, bit_width, byte_width, decode_uint, lookup
 
 I1, I8, I16, I32, I64 = (terms.ByteArray(name) for name in (b'i1', b'i8', b'i16', b'i32', b'i64'))
+EQ = terms.ByteArray(b'eq')
 
 
 def operand(form, value):
@@ -27,7 +28,7 @@ def ev(name, form, operands, to=None):
 def test_one_opcode_per_llvm_instruction():
     assert set(OPCODES) == {
         *('add', 'sub', 'mul', 'sdiv', 'udiv', 'srem', 'urem', 'shl', 'lshr', 'ashr', 'and', 'or', 'xor'),
-        *(f'icmp_{p}' for p in ('eq', 'ne', 'slt', 'sle', 'sgt', 'sge', 'ult', 'ule', 'ugt', 'uge')),
+        'icmp',
         *('zext', 'sext', 'trunc'),
         *('alloca', 'getelementptr', 'load', 'store', 'global'),
     }
@@ -36,17 +37,21 @@ def test_one_opcode_per_llvm_instruction():
 def test_form_of():
     x = terms.Variable('x')
     assert OPCODES['add'].form_of([I32, x, x]) == I32
-    assert OPCODES['icmp_eq'].form_of([I32, x, x]) == I1
+    assert OPCODES['icmp'].form_of([EQ, I32, x, x]) == I1
     assert OPCODES['zext'].form_of([I8, x, I32]) == I32
     # The fields don't tell it: a wrong count, or a form that isn't a byte array.
     assert OPCODES['add'].form_of([I32, x]) is None
     assert OPCODES['add'].form_of([x, x, x]) is None
     assert OPCODES['zext'].form_of([I8, x, x]) is None
+    # `icmp` needs a predicate it knows in field 0.
+    assert OPCODES['icmp'].form_of([I32, x, x]) is None
+    assert OPCODES['icmp'].form_of([terms.ByteArray(b'lt'), I32, x, x]) is None
+    assert OPCODES['icmp'].form_of([x, I32, x, x]) is None
 
 
 def test_evaluate_gives_the_result_bytes():
     assert OPCODES['add'].evaluate([I32, operand(I32, 1), operand(I32, 2)]) == operand(I32, 3)
-    assert OPCODES['icmp_eq'].evaluate([I8, operand(I8, 7), operand(I8, 7)]) == operand(I1, 1)
+    assert OPCODES['icmp'].evaluate([EQ, I8, operand(I8, 7), operand(I8, 7)]) == operand(I1, 1)
     assert OPCODES['zext'].evaluate([I8, operand(I8, 0xFF), I32]) == operand(I32, 0xFF)
 
 
@@ -127,16 +132,26 @@ def test_evaluate_has_no_result_where_llvm_has_none():
         assert ev(name, 'i8', [1, 7]) is not None
 
 
+def icmp(predicate, form, a, b):
+    """`evaluate` on `{predicate, form, a, b}`, as a number (or None)."""
+    form = terms.ByteArray.from_str(form)
+    fields = [terms.ByteArray.from_str(predicate), form, operand(form, a), operand(form, b)]
+    result = OPCODES['icmp'].evaluate(fields)
+    return None if result is None else int.from_bytes(result.value, 'little')
+
+
 def test_evaluate_comparisons():
-    assert ev('icmp_eq', 'i8', [7, 7]) == 1
-    assert ev('icmp_ne', 'i1', [1, 1]) == 0
+    assert icmp('eq', 'i8', 7, 7) == 1
+    assert icmp('ne', 'i1', 1, 1) == 0
     # 0xff is -1 signed, 255 unsigned.
-    assert ev('icmp_slt', 'i8', [0xFF, 0x00]) == 1
-    assert ev('icmp_ult', 'i8', [0xFF, 0x00]) == 0
-    assert ev('icmp_sge', 'i16', [0x8000, 0x7FFF]) == 0
-    assert ev('icmp_uge', 'i16', [0x8000, 0x7FFF]) == 1
-    assert ev('icmp_sle', 'i32', [5, 5]) == 1
-    assert ev('icmp_ugt', 'i64', [2**64 - 1, 0]) == 1
+    assert icmp('slt', 'i8', 0xFF, 0x00) == 1
+    assert icmp('ult', 'i8', 0xFF, 0x00) == 0
+    assert icmp('sge', 'i16', 0x8000, 0x7FFF) == 0
+    assert icmp('uge', 'i16', 0x8000, 0x7FFF) == 1
+    assert icmp('sle', 'i32', 5, 5) == 1
+    assert icmp('ugt', 'i64', 2**64 - 1, 0) == 1
+    assert icmp('sgt', 'i8', 0x01, 0xFF) == 1
+    assert icmp('ule', 'i8', 0x01, 0xFF) == 1
 
 
 def test_evaluate_conversions():

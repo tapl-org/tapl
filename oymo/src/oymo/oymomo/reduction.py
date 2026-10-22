@@ -114,8 +114,30 @@ def substitute(term: syntax.Term, index: int, value: syntax.Term) -> syntax.Term
 
 
 def beta(lambda_: terms.Lambda, argument: syntax.Term) -> syntax.Term:
-    """`(λx. body) argument` with `argument` put in for `x`."""
+    """`(λx. body) argument` with `argument` put in for `x`. E-Beta (`reduce`) calls it
+    only on a value; it substitutes any term."""
     return shift(substitute(lambda_.body, 0, shift(argument, 1)), -1)
+
+
+def is_value(term: syntax.Term) -> bool:
+    """A value (2.1g): a variable, a lambda, a byte array, or a struct of values.
+    A projection is never one."""
+    match term:
+        case terms.Variable() | terms.BruijnIndex() | terms.Lambda() | terms.ByteArray():
+            return True
+        case terms.Struct(fields=fields):
+            return all(is_value(f.value) for f in fields)
+    return False
+
+
+def is_data(term: syntax.Term) -> bool:
+    """Data (2.1h): a byte array, or a struct of data. It never steps."""
+    match term:
+        case terms.ByteArray():
+            return True
+        case terms.Struct(fields=fields):
+            return all(is_data(f.value) for f in fields)
+    return False
 
 
 def field_position(struct: terms.Struct, label: str) -> int | None:
@@ -124,16 +146,16 @@ def field_position(struct: terms.Struct, label: str) -> int | None:
 
 
 def fold_opcode(call: terms.Apply) -> syntax.Term:
-    """`'name' {fields}` on literals gives the result: the bytes LLVM would compute
-    (`opcode.evaluate`). Returns `call` itself where it doesn't fold: an unknown name, an
-    impure opcode, or fields the opcode can't evaluate (a run-time operand, no defined
-    result in LLVM).
+    """E-Opcode: `'name' {d}` with data operands gives the result, the bytes LLVM would
+    compute (`opcode.evaluate`). Returns `call` itself where it doesn't fold: an unknown
+    name, an impure opcode, an operand that is not data (4.4d), or operands the opcode
+    can't evaluate (no defined result in LLVM).
 
     Root-only: it reduces nothing. Fields are positional and labels are ignored.
     """
     opcode = opcodes.lookup(call.function)
     argument = call.argument
-    if opcode is None or not opcode.pure or not isinstance(argument, terms.Struct):
+    if opcode is None or not opcode.pure or not isinstance(argument, terms.Struct) or not is_data(argument):
         return call
     fields = [field.value for field in argument.fields]
     if (result := opcode.evaluate(fields)) is None:
@@ -176,7 +198,8 @@ def reduce(term: syntax.Term) -> syntax.Term:
     Never looks inside `term` and never raises, so `reduce(t) is t` tells that the root is not a redex.
     """
     match term:
-        case terms.Apply(function=terms.Lambda() as lambda_, argument=argument):
+        case terms.Apply(function=terms.Lambda() as lambda_, argument=argument) if is_value(argument):
+            # E-Beta is call-by-value (4.3): a term that still has to run is never copied or dropped.
             return beta(lambda_, argument)
         case terms.Apply(function=terms.ByteArray()):
             return fold_opcode(term)

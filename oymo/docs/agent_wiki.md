@@ -266,6 +266,8 @@ The user's orders, kept as given. Follow them in every task.
   done: no forms (`~`, `⇒`), no builtins (`$name`); lambda is `λx. t` or ASCII `\x. t`
   (user's choice); text byte arrays are any printable UTF-8; `''` is index 0; duplicate
   labels are a parse error (empty labels never clash). E-Opcode returns a bare byte array.
+  Stage 2 done: `reduction.is_value`/`is_data`; E-Beta fires only on a value; E-Opcode
+  only on data operands; one `'icmp' {pred, form, a, b}` opcode replaces `icmp_<pred>`.
   The old BANF/LLVM pipeline no longer imports; `tests/conftest.py` leaves its tests out
   until their stage (user chose "expected-to-fail"; collection errors can't be xfailed).
 

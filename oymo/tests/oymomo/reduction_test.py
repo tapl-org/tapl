@@ -72,6 +72,10 @@ def test_beta_avoids_capture():
     ('source', 'expected'),
     [
         ('(λx. x) y', 'y'),
+        # E-Beta substitutes a value: a variable, a lambda, a byte array, a struct of values.
+        ('(λx. {x, x}) (λy. y)', '{λy. y, λy. y}'),
+        ('(λx. {x, x}) [01]', '{[01], [01]}'),
+        ('(λx. {x, x}) {a = y, b = {[01]}}', '{{a = y, b = {[01]}}, {a = y, b = {[01]}}}'),
         ('{a = e}.a', 'e'),
         ('if [01] then a else b', 'a'),
         ('if [00] then a else b', 'b'),
@@ -105,6 +109,19 @@ def test_reduce_one_step(source, expected):
         'if ((λx. x) [01]) then a else b',
         'λx. (λy. y) x',
         '{e}.a',
+        # E-Beta is call-by-value (4.3): the argument must be a value. A projection is not one.
+        '(λx. x) ((λy. y) z)',
+        '(λx. y) ((λw. w w) (λw. w w))',
+        '(λx. {x, x}) p.n',
+        "(λx. {x, x}) ('add' {'i32', e, e})",
+        '(λx. x) {a = (λy. y) z}',
+        '(λx. x) {a = {b = p.n}}',
+        # E-Opcode needs data operands (4.4d): never a variable, a lambda or a projection.
+        "'add' {'i32', {[01]}, [02]}",
+        "'icmp' {'eq', 'i8', λx. x, [01]}",
+        "'icmp' {'eq', 'i8', p.n, [01]}",
+        "'icmp' {'lt', 'i8', [01], [01]}",
+        "'icmp' {'i8', [01], [01]}",
         # An opcode folds only where it can evaluate its fields: an integer form, and
         # operands of its size, three fields.
         "'add' {'i32', [01], [02000000]}",
@@ -140,7 +157,7 @@ def test_reduce_one_step(source, expected):
     ],
 )
 def test_reduce_returns_the_term_itself(source):
-    term = resolved(source, ('a', 'b', 'e', 'g', 'p'))
+    term = resolved(source, ('a', 'b', 'e', 'g', 'p', 'y', 'z'))
     assert reduction.reduce(term) is term
 
 
@@ -175,10 +192,12 @@ def test_reduce_returns_the_term_itself(source):
         ("'lshr' {'i16', [0080], [0f00]}", '[0100]'),
         ("'ashr' {'i16', [0080], [0f00]}", '[ffff]'),
         # Comparisons give an i1.
-        ("'icmp_eq' {'i8', [07], [07]}", '[01]'),
-        ("'icmp_ne' {'i32', [07000000], [07000000]}", '[00]'),
-        ("'icmp_slt' {'i8', [ff], [00]}", '[01]'),
-        ("'icmp_ult' {'i8', [ff], [00]}", '[00]'),
+        ("'icmp' {'eq', 'i8', [07], [07]}", '[01]'),
+        ("'icmp' {'ne', 'i32', [07000000], [07000000]}", '[00]'),
+        ("'icmp' {'slt', 'i8', [ff], [00]}", '[01]'),
+        ("'icmp' {'ult', 'i8', [ff], [00]}", '[00]'),
+        # Operands may be any data, labels ignored.
+        ("'add' {form = 'i8', a = [01], b = [02]}", '[03]'),
         # Conversions change the width.
         ("'zext' {'i8', [ff], 'i32'}", '[ff000000]'),
         ("'sext' {'i8', [ff], 'i32'}", '[ffffffff]'),
@@ -256,3 +275,28 @@ def test_reduce_struct_apply_stuck(source):
 )
 def test_index_value(source, expected):
     assert reduction.index_value(resolved(source, ('i',))) == expected
+
+
+@pytest.mark.parametrize(
+    ('source', 'value', 'data'),
+    [
+        ('x', True, False),
+        ('λy. (λz. z) y', True, False),
+        ('[01]', True, True),
+        ("''", True, True),
+        ('{}', True, True),
+        ("{a = [01], b = {'i32'}}", True, True),
+        ('{a = x, b = λy. y}', True, False),
+        # A projection is never a value (D92), nor a struct holding one.
+        ('x.l', False, False),
+        ('{a = x.l}', False, False),
+        ('{l = [01]}.l', False, False),
+        ('(λy. y) x', False, False),
+        ("'add' {'i32', [01000000], [02000000]}", False, False),
+        ('{a = [01], b = (λy. y) x}', False, False),
+    ],
+)
+def test_is_value_and_is_data(source, value, data):
+    term = resolved(source, ('x',))
+    assert reduction.is_value(term) is value
+    assert reduction.is_data(term) is data

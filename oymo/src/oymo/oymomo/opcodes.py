@@ -8,8 +8,7 @@ ignored. An opcode has no declared params: it reads its fields itself, by positi
 tells what it can from them. `form_of` gives the result's form, `evaluate` the result's
 bytes when every field it needs is a literal.
 
-Shared by `reduction`, BANF (`banf_translate`) and LLVM (`llvm_opcodes`), so it
-holds no BANF and no LLVM and imports only `terms`.
+Shared by `reduction`, ANF and LLVM, so it holds neither and imports only `terms`.
 """
 
 from collections.abc import Callable, Sequence
@@ -156,6 +155,53 @@ def _binary(name: str, compute: _Compute, *, result: terms.Term | None = None) -
     return Opcode(name, form_of, evaluate)
 
 
+# `icmp`'s predicates (LLVM's names): how each compares, and whether it reads its operands
+# as two's complement.
+ICMP_PREDICATES: dict[str, tuple[Callable[[int, int], bool], bool]] = {
+    'eq': (lambda a, b: a == b, False),
+    'ne': (lambda a, b: a != b, False),
+    'slt': (lambda a, b: a < b, True),
+    'sle': (lambda a, b: a <= b, True),
+    'sgt': (lambda a, b: a > b, True),
+    'sge': (lambda a, b: a >= b, True),
+    'ult': (lambda a, b: a < b, False),
+    'ule': (lambda a, b: a <= b, False),
+    'ugt': (lambda a, b: a > b, False),
+    'uge': (lambda a, b: a >= b, False),
+}
+
+# `icmp` has four fields: `{predicate, form, a, b}`.
+ICMP_FIELD_COUNT = 4
+
+
+def icmp_predicate(fields: Fields) -> str | None:
+    """The predicate an `icmp` call names in field 0, or None if it names none."""
+    if not fields or not isinstance(fields[0], terms.ByteArray):
+        return None
+    name = fields[0].as_str
+    return name if name in ICMP_PREDICATES else None
+
+
+def _icmp() -> Opcode:
+    """`'icmp' {'eq', 'i32', a, b}`: LLVM's `icmp eq i32 a, b`, an `i1`."""
+
+    def form_of(fields: Fields) -> terms.Term | None:
+        if len(fields) != ICMP_FIELD_COUNT or icmp_predicate(fields) is None:
+            return None
+        return _I1 if isinstance(fields[1], terms.ByteArray) else None
+
+    def evaluate(fields: Fields) -> terms.ByteArray | None:
+        if form_of(fields) is None or (bits := find_bit_width(fields[1])) is None:
+            return None
+        a, b = decode_uint(fields[2], fields[1]), decode_uint(fields[3], fields[1])
+        if a is None or b is None:
+            return None
+        compare, signed = ICMP_PREDICATES[icmp_predicate(fields)]
+        return _encode(_compare(compare, signed=signed)(bits, a, b), 1)
+
+    return Opcode('icmp', form_of, evaluate)
+
+
 def _convert(name: str, compute: _Compute, *, widening: bool) -> Opcode:
     """`{form, value, to}`: one operand read at `form`, the result formed as `to`.
     It evaluates only where LLVM converts: `to` wider than `form` (`zext`, `sext`), or
@@ -181,8 +227,8 @@ def _convert(name: str, compute: _Compute, *, widening: bool) -> Opcode:
 
 PTR = terms.ByteArray.from_str('ptr')
 
-# What a `store` gives: LLVM's `store` gives no value, and only `$seq` may use it
-# .
+# What a `store` gives: LLVM's `store` gives no value. A `let` binds it to a name that
+# nothing reads; the `let` only orders the store (4.4c).
 STORE_RESULT = terms.Struct([])
 
 # `getelementptr` takes a form, a pointer and at least one index.
@@ -287,20 +333,7 @@ def _generate():
     yield _binary('and', lambda _bits, a, b: a & b)
     yield _binary('or', lambda _bits, a, b: a | b)
     yield _binary('xor', lambda _bits, a, b: a ^ b)
-    # One opcode per predicate, named `icmp_` and LLVM's predicate.
-    for predicate, compare, signed in (
-        ('eq', lambda a, b: a == b, False),
-        ('ne', lambda a, b: a != b, False),
-        ('slt', lambda a, b: a < b, True),
-        ('sle', lambda a, b: a <= b, True),
-        ('sgt', lambda a, b: a > b, True),
-        ('sge', lambda a, b: a >= b, True),
-        ('ult', lambda a, b: a < b, False),
-        ('ule', lambda a, b: a <= b, False),
-        ('ugt', lambda a, b: a > b, False),
-        ('uge', lambda a, b: a >= b, False),
-    ):
-        yield _binary(f'icmp_{predicate}', _compare(compare, signed=signed), result=_I1)
+    yield _icmp()
     # `compute` gets the source width; the result wraps to the target width, so `trunc`
     # keeps the low bits and a negative `sext` result becomes the target's two's complement.
     yield _convert('zext', lambda _bits, value: value, widening=True)
