@@ -277,6 +277,12 @@ The user's orders, kept as given. Follow them in every task.
   struct, a byte array applied to a lambda or byte array, `t.l` of a lambda, byte array or
   struct without `l`); `anf.anf_error(t, local)` follows 7.1 (`local` = innermost binders
   that are let variables, 1 for a block body under `λp`) and names the first bad part.
+  Stages 5 and 6 done together: `module.py` reads a normal form `λm. {symbols}` into
+  `Definition` (gives, blocks), `Block` (takes, ANF body under p, f, m), `Declaration`,
+  `Constant`, `Global`; it checks calls `m.l {..}` and jumps `f.l.body {..}` (labels in
+  order, jumps never under a let), atoms `m.l`, `p.x`. `module_of` = resolve, normalize,
+  stuck check, read. The block body stays a term (no separate IR). `banf_terms.py`,
+  `banf_translate.py`, `banf_rename.py` and their tests are deleted.
   The old BANF/LLVM pipeline no longer imports; `tests/conftest.py` leaves its tests out
   until their stage (user chose "expected-to-fail"; collection errors can't be xfailed).
 

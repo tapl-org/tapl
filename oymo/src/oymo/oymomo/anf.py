@@ -110,6 +110,12 @@ def _operation_error(term, local):
             return None
         case terms.Apply():
             return _call_error(term, local)
+        case terms.Project():
+            return AnfError(
+                'A let must bind an opcode call or a function call; '
+                'a projection is not a value, so E-Beta never substitutes it (4.3).',
+                term,
+            )
     return AnfError('A let must bind an opcode call or a function call.', term)
 
 

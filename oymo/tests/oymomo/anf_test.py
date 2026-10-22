@@ -94,7 +94,13 @@ def test_in_anf(source):
         ),
         ('{p.a, p.b} (m.test {})', 'A branch condition must be a variable or a path.', '$2.test {}'),
         # A let binds an operation.
-        ('let x = p.a in x', 'A let must bind an opcode call or a function call.', '$0.a'),
+        (
+            'let x = p.a in x',
+            'A let must bind an opcode call or a function call; '
+            'a projection is not a value, so E-Beta never substitutes it (4.3).',
+            '$0.a',
+        ),
+        ('let x = {} in x', 'A let must bind an opcode call or a function call.', '{}'),
         # An opcode call that E-Opcode computes (not normal).
         (
             "let x = 'add' {'i8', [01], [02]} in x",
