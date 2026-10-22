@@ -213,3 +213,28 @@ def reduce(term: syntax.Term) -> syntax.Term:
             # This is also `if`: `if c then t else e` is `{e, t} c`, true for any nonzero `c`.
             return fields[min(position, len(fields) - 1)].value
     return term
+
+
+def stuck_part(term: syntax.Term) -> syntax.Term | None:
+    """A part of the normal form `term` that no substitution can make reduce (5.5), or None.
+
+    A stuck part is one of: the empty struct applied (no field to select); a struct
+    applied to a lambda or a struct (never a byte array); a byte array applied to a lambda
+    or a byte array (no rule); a projection of a lambda or a byte array, or of a struct
+    without the label. Parts are searched outermost first, left to right.
+    """
+    match term:
+        case terms.Apply(function=terms.Struct(fields=[])):
+            return term
+        case terms.Apply(function=terms.Struct(), argument=terms.Lambda() | terms.Struct()):
+            return term
+        case terms.Apply(function=terms.ByteArray(), argument=terms.Lambda() | terms.ByteArray()):
+            return term
+        case terms.Project(struct=terms.Lambda() | terms.ByteArray()):
+            return term
+        case terms.Project(struct=terms.Struct() as struct, label=label) if project(struct, label) is None:
+            return term
+    for child in term.children():
+        if (found := stuck_part(child)) is not None:
+            return found
+    return None

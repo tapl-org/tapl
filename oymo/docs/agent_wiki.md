@@ -273,6 +273,10 @@ The user's orders, kept as given. Follow them in every task.
   `ReductionError` past the limit or on `RecursionError`. `banf_shape.py` and its tests and
   `programs_test.py` are deleted (programs moved into `strategy_test.py` with Z). A random
   test compares `normalize` with a search over every `⟶` order.
+  Stage 4 done: `reduction.stuck_part` (5.5: `{} t`, a struct applied to a lambda or
+  struct, a byte array applied to a lambda or byte array, `t.l` of a lambda, byte array or
+  struct without `l`); `anf.anf_error(t, local)` follows 7.1 (`local` = innermost binders
+  that are let variables, 1 for a block body under `λp`) and names the first bad part.
   The old BANF/LLVM pipeline no longer imports; `tests/conftest.py` leaves its tests out
   until their stage (user chose "expected-to-fail"; collection errors can't be xfailed).
 
