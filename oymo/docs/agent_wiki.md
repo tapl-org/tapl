@@ -189,6 +189,8 @@ The user's orders, kept as given. Follow them in every task.
     top); bullets inside each answer start from 1 (sub-items 1a, 1b, …). A single
     number `M` from the user means bullet M of the last answer; `N.M` means bullet M
     of answer N.
+  - Questions (user's order): ask each question inside the bullet it is about, not
+    collected in a list at the end of the answer.
   - Order of work (user, D18): semantics.tex first, then the Lean 4 proof; all code
     implementations come after the Lean 4 proof. Don't propose code changes before that.
   - Review marks (user's order): every change is colored until the user accepts it:
@@ -515,6 +517,182 @@ plans are kept verbatim below.
 - Moved (user's order): `deps` is now under `foundations`, because
   how a form alias works with `deps` must be designed together with `form-alias`.
   `imports` keeps only `l1-interfaces`.
+
+### `deps-decide` (decided; Answers 1–11 of the deps session)
+
+Supersedes the `single`/`struct` flag, struct spread and `module~{…}` ideas above.
+
+- User's vision: the CLI works on one or many files; it emits normal-form oymomo or `.ll`
+  (after the bootstrap also machine code directly); `.ll` only when the normal form is one
+  compilation unit in module shape. Many files are merged by a small oymomo **glue** term
+  into one source.
+- Glue (accepted: both inline and as a file): its free names are files; the CLI binds them
+  with `let`, in command-line order: `let x = ⟦main.oymo⟧ in let y = … in GLUE`. No new
+  language feature: E-Beta fires once each file's term is a value. Each file is parsed and
+  resolved alone (a free name in a dependency is "Unknown name" there); only the glue sees
+  the bound names. Replaces `--deps=single|struct` (`single` is `a b`, `struct` is
+  `a {lib = b}`).
+- Binding syntax (Answer 9, option H, accepted): no names on the CLI. The glue is a closed
+  lambda applied to the files in order: `oymo run link.oymo a.oymo b.oymo` is `LINK A B`;
+  inline `-e "λa. λb. a b" a.oymo b.oymo`. This replaces the free-names-bound-by-`let`
+  idea above. Rejected: bare `a=a.oymo` (`=` in paths), `--bind`, `-D` (means macros in
+  C), `--let`, per-name flags `--let_a=` (user's first sketch; argparse can't list them),
+  names from file names and `import "a.oymo"` (file names leak into source).
+- CLI format (Answers 16–18, accepted): `oymo <command> [flags] <files…> [-- args]` (as
+  `go`, `zig`, `git`; command = what to produce, flag = how to read files, as `cc -c`).
+  `--unit=each|merge|apply` (user wanted one structured flag, not `--merge`/`--apply`
+  booleans; `--unit` because the vision says "compilation unit"):
+  - `each` (default with several files, as `cc a.c b.c` and `ocamlopt`): a unit per file,
+    linked by name; works because each part's `symbols` declares what it calls.
+  - `merge`: one unit, a built-in glue over parts (concat `symbols`, concat_disjoint
+    `data`, a group per file in `code`); plain oymomo, printed by `oymo merge`.
+  - `apply`: one unit, `F₁ F₂ … Fₙ` (option H); `-e GLUE` means apply.
+  - Rejected: a struct mode (`apply` with `-e "λa. λb. {a, b}"` does it).
+  - `each` output: `run` links with `clang` (kept in `deps-cli`); `emit-llvm`/`normal`
+    need `-o DIR` for several files.
+- Sharing goes through `m`, as a linker does: every file reaches every symbol through
+  `m.x`; the final module is built once, in the glue. Diamond: D is listed once in the
+  glue; B and C only declare and call D's symbols. Pure compile-time helpers may still be
+  copied by `let`.
+- User's concern: struct manipulation by reduction is slow. Answer (accepted): E-Opcode's
+  `op(b)` returns any **data** `d'`, not only a byte array (`op(b)(dᵢ) = d'`). Confluence
+  unchanged (operands are data, the result is closed and normal); Lean only changes `op`'s
+  result type. Struct ops run natively, one reduction step.
+- First ops (accepted): `'struct.concat' {s₁, s₂, …}` (equal duplicate fields merge, other
+  duplicates: no step) and `'struct.concat_disjoint'` (any duplicate: no step). A
+  compile-time-only op that doesn't fold is rejected by translation. Later, user-written ops
+  run in Spindle, in process (user: no subprocess); Spindle is under `after-1-0`, so they
+  wait for it unless it moves earlier.
+- Program shape (accepted): `{symbols, data, code}`.
+  - `symbols`, data: what a caller needs. A function is `{takes, gives}`, the same whether
+    it is defined here or external; a global/constant is `{type}`. So two files declaring
+    `puts` give equal data, which `concat` merges (C's rule: many equal declarations, one
+    definition).
+  - `data`, data: what only the definer needs: initial values now; later linkage, section,
+    alignment, attributes. Merged with `concat_disjoint`.
+  - Constant vs global (Answers 13–14; user chose a struct per `data` entry):
+    `{init = v}` is a global, `{value = v}` a constant; `symbols` is `{type}` for both.
+    Why: in an object file read-only-ness is only the definer's section (`.rodata` vs
+    `.data`/`.bss`); a user's object has just an undefined name and a relocation, and the
+    linker matches names only. `extern const` / LLVM `external constant` are hints to the
+    user's compiler. Putting `constant` in `symbols` would force every declaring file to
+    repeat it or `concat` fails. Rejected: one part per section (`data`, `rodata`, bare
+    bytes) and a bare value plus a flag. The entry struct leaves room for later definer
+    fields (linkage, section, alignment).
+  - `code = λm. {…}`: definitions only, the only part with `λ`. A tree (A′, accepted after
+    an example): a `λ` leaf is a definition, its label the symbol name; a struct field is a
+    group; groups may be unlabeled (`λm. {a.code m, b.code m}`); the translator flattens.
+    Labels unique across the tree; each names a function in `symbols`.
+  - Why the split: only definitions hold `λ`, so only they can't pass through an op.
+    Rejected for merging code: struct spread `{..s}` in the kernel (new rule, doc, Lean);
+    listing by hand (names twice); CLI merging (hidden, not "manual"); code as quoted data
+    (too big).
+- Definitions (accepted): `λp. λf. {blocks}`. `p` (typed by the symbol's `takes`) is seen by
+  every block (lexical scope; LLVM arguments dominate every block). Order `λp. λf.` so `fix`
+  binds `f` to the struct of blocks when run by reduction.
+  - Block 0 is a plain expression; nothing jumps to it (user: no jump back to block 0); no
+    `start` block needed.
+  - Another block is an expression, jumped with a bare `f.l`, or a curried lambda
+    `λx₁. … λxₙ. e`, jumped with `f.l q₁ … qₙ` (all n). History: the user first said
+    "only block 0 is an expression, other blocks must be lambda", then accepted
+    expression blocks (Answer 10, 3c) once shown why blocks with nothing to pass are
+    needed: loops over locals in `alloca` (how `alcor-core` lowers), joins after effects,
+    shared exits. Loops can't be avoided by copying the tail.
+  - A bare `f.l` in reduction: when compiling, `f` is never bound, so it is a normal free
+    path and the translator reads it as `br`; when run by reduction, `fix` binds `f` and
+    E-FixProj + E-Proj put the block's expression in its place (the jump is a
+    substitution). ANF already rejects `f.l` as a return, so a tail `f.l` is a jump.
+  - Unused block parameters are dropped with their arguments, repeated until nothing
+    changes (jump arguments are operands, no effects). Unused `let`s of pure opcodes may
+    go (LLVM drops them anyway); calls and memory opcodes stay; unused `p` fields stay
+    (ABI).
+  - Block parameter types are inferred from uses (user accepted the inference; it extends
+    9.2): opcode type fields, call `takes`, `gives`, through jumps across blocks. A used
+    parameter with no typed use (e.g. only `x.l`), or two types: an error asking for a
+    type. Later escape hatch: a no-op
+    `'as' {type, x}`.
+  - Rejected: a block seeing another block's `let`s (breaks lexical scope).
+- Addresses in initial values (accepted): in a `'ptr'` slot, a byte array is a symbol name
+  (`''` is null), a struct `{'arr', [08]}` is symbol plus byte offset; a function name is a
+  function pointer. No `inttoptr` constants.
+- Missing `.ll` features (linkage, `constant`, `unnamed_addr`, calling conventions,
+  attributes, varargs, section, alignment, `thread_local`, aliases, comdat, metadata) are
+  not implemented now, but every design step is checked against them (user's order). Rule:
+  caller info in `symbols`, definer info in `data`/`code`.
+- Other answers: no warning on large inlined terms; errors in a dependency point into its
+  file (`Location` gets a file); dependency files need the `language oymomo` header;
+  termination is already `MAX_STEPS`; partial normalization moves to
+  `separate-compilation`.
+
+### `module-shape` and SSA-shaped ANF (decided; Answers 20–52 of the deps session)
+
+Supersedes, in `deps-decide` above: `{symbols, data, code}`, `'struct.concat'` /
+`'struct.concat_disjoint'`, definitions `λp. λf. {…}`, curried blocks under `f`, struct
+spread, the `blocks`-as-`letrec` idea, and dropping unused block parameters.
+
+- Module `{meta, code}` (user: `code` holds `λ`, so it can't be data and no `'module.…'`
+  op can touch it; everything else goes in one data part). Names: `meta` chosen from long
+  lists (rejected: `symbols`, `header`, `manifest`, `interface`, `declarations`, `data`,
+  `metadata` (LLVM metadata clash), `descriptor`, `info`, …); `code` chosen over
+  `functions` because the field is `λm. λrun. {…}`, a maker of functions, not the
+  functions (user's point). Binders stay `m` and `run`.
+- `meta` holds everything about the module except code: `globals`, `target`, later
+  optimizer hints, module flags, DWARF debug tables, LLVM metadata (user: "who knows?").
+  `meta.globals` name not settled.
+- Earlier step (Answer 20–21): `symbols` and `data` merged into one entry per name; a
+  function's type is `{'function', params, result}` (user proposed `type = {{s = 'ptr'},
+  'i32'}`; a tag is needed because a plain struct is already a struct type in 9.1).
+- No shared global namespace (user liked it, from Wasm). Roles as fields on each entry:
+  `import = 'name'`, `export = 'name'`, or neither = internal. LLVM: import → `declare`/
+  `external`, export → external linkage under its name, internal → `internal`. Why Wasm
+  has imports/exports: sandboxed modules, no system linker, the host instantiates them.
+  Rejected: Wasm-style separate `imports`/`exports` parts (names twice; LLVM has no export
+  list). `init` (global, `.data`) vs `value` (constant, `.rodata`) on the entry (user chose
+  a struct per entry; object files: read-only-ness is only the definer's section).
+- Link op `'module.link'` on `meta` (dedicated logic, user's idea: `'module.merge_symbols'`
+  "or something like this"): imports matched to exports, internals renamed on clash,
+  equal-type imports merge, an export name twice fails, targets equal. Name may change.
+- SSA-shaped ANF (name: user wanted "ANF for SSA", easy to understand, long OK; picked
+  from SSA-shaped ANF, ANF for SSA, SSA ANF, …; "mirror form" liked earlier; BANF avoided,
+  D60). Rules (user: "along the way we will add rules"):
+  - R1, one-to-one: every LLVM and Cranelift block, label, instruction written in the
+    source; the translator adds none ("we could not introduce new block label during the
+    translation"); only groups are flattened, in source order.
+  - R2, runnable by reduction: module functions can be used at reduction time.
+- Form: definition `λp. e`; group `run (λg. {l₀ = e, l₁ = b, …})`; top group's field 0 is
+  the labeled entry block; a nested group's field 0 is unlabeled and continues the
+  current block; nested groups give dominance (user's goal: no passing variables block to
+  block). Blocks: expression (jumped `g.l`) or `λx₁. … λxₙ. e` (jumped `g.l q₁ … qₙ`;
+  Cranelift block args, LLVM phis). Arms only jump; returns only at block ends; `if` on
+  an `i1` only (no added `icmp ne`); `switch` on positions with default last (user: no
+  arbitrary case values). Single-entry phis kept as written.
+- Rejected forms: nested operands (user: no); nested `let` (translation must not reshape;
+  user: no helpers that use `let`); `if` as a value (user: a `'select'` opcode later);
+  `letrec` as a kernel term or as an opcode with lambda operands (user: no new kernel
+  syntax); `blocks` as a value.
+- `run`: groups need a marker so R2 can run them: free when compiling, bound when running:
+  `run := λG. (fix G) [00]`, `M := fix (λm. code m run)`. Rejected: harness rewriting
+  (can't find groups), unfolding in the kernel (the `fix` problem), `m.run` (takes a
+  symbol label).
+- Why `fix` can't make run-time loops (user asked): E-FixApp fires on any argument, and
+  reduction goes into the arms of an unknown branch, so a loop whose exit depends on a
+  run-time value unrolls forever (4.8 `F p.n`). Restricting to data arguments fails for
+  `loop 0 0` with an unknown bound. A never-applied lambda (`m`, `g`) is what keeps
+  loops for LLVM.
+- `letrec x = t₁ in t₂ ≝ let x = fix (λx. t₁) in t₂` (user: common sense; usable outside
+  modules; compile-time recursion). Recursion at run time goes through `m`.
+- Block parameter types inferred (user, Answer 45: opcode result types give every `let`'s
+  type, so parameters follow from arguments and uses; repeated until stable). Why LLVM and
+  Cranelift write them: forward references in one-pass parsing/building, values created
+  typed, cycles with no source, local verifier errors. Hole: literal-only parameters;
+  error, and later typed constants (`typed-consts`).
+- Sugars to remind the user about when working on sugars (`ssa-sugar`): `let _ =`,
+  `blocks g = {…} in t ≝ run (λg. {t, …})` (name "for now until found a better name";
+  always struct form), typed lambdas.
+- Debug info: tables in `meta`; attachments (`!dbg` on instructions) need a design
+  without a new kernel term.
+- Examples accepted by the user (shapes): plain (`calc`), branching (`max`, `clamp`,
+  `kind`), dominance (`f` with nested group), loop (`sum`).
 
 ### Retired notes.md (before the refactor)
 

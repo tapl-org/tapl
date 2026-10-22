@@ -15,13 +15,15 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
-      - `deps-decide` Answer the open questions
-      - 🚫 `deps-cli` CLI flag: `single` or `struct` deps
-      - 🚫 `struct-tools` Concatenate, modify, build structs
-      - 🚫 `deps-goldens` Golden tests: diamond, template pattern, built declarations
+      - 🚫 `module-shape` Modules `{meta, code}` in SSA-shaped ANF
+      - `struct-tools` Opcodes return data; `'module.link'` on `meta`
+      - 🚫 `deps-cli` Many files: `--unit=each|merge|apply`, `-e` glue
+      - 🚫 `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
+      - 🚫 `typed-consts` Folding keeps constants' types
+      - 🚫 `deps-goldens` Golden tests: diamond, template pattern, merged declarations
   - `alcor-l0` Alcor layer 0
     - `alcor-decide` Alcor decisions
-      - `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai
+      - `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai, Goose
       - 🚫 `alcor-syntax` Syntax, decided per topic, checked with samples and a grammar sketch
       - `alcor-layer1` What layer 1 means
       - `alcor-ub` Undefined behaviour: checked and optimized build modes
@@ -32,7 +34,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `ptr-compare` Pointer comparison and `'null' {}`
       - 🚫 `ptr-casts` `'ptrtoint'`, `'inttoptr'`
       - 🚫 `bulk-memory` `'memcpy'`, `'memmove'`, `'memset'`
-      - 🚫 `void` `gives = {}` returns, a call as a statement
+      - 🚫 `void` Result type `{}`, a call as a statement
       - 🚫 `alcor-memory-frontend` Alcor syntax and lowering for memory
     - `build` `oymo build`: executables, `-c` objects, `.c` files linked in
       - 🚫 `target` Host triple and data layout in the `.ll`
@@ -139,41 +141,131 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ## Leaf details
 
-### `deps-decide` Answer the open questions
+### `module-shape` Modules `{meta, code}` in SSA-shaped ANF
 
-- Decide: flag name and values (`--deps=single|struct`?); default when no deps given
-- Decide: may a dependency be written inline on the command line, or only as a file?
-- Decide: struct labels: valid, unique; unknown `deps.x` names the missing label
-- Decide: warn on large inlined terms?
-- Decide: errors inside inlined library code point into the library file?
-- Decide: partial normalization (postponed)
-
-### `deps-cli` CLI flag: `single` or `struct` deps
-
-- Head file `λdeps. λm. {...}` (semantics.tex 8.1); a dependency file is any term
-- CLI reads files and applies; no wiring:
+- semantics.tex Sections 7–9, then Lean (`Anf.lean`), then code (`module.py`, `anf.py`,
+  `llvm_translate.py`); goldens and `strategy_test.py` rewritten; old shape removed
 
   ```
-  $ oymo a.oymo                                          program = A
-  $ oymo a.oymo --deps=single b.oymo                     program = A B
-  $ oymo a.oymo --deps=struct lib=b.oymo util=c.oymo     program = A {lib = B, util = C}
+  {
+    meta = {
+      globals = {
+        puts = {type = {'function', {s = 'ptr'}, 'i32'}, import = 'puts'},
+        gcd  = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'}, export = 'gcd'},
+        counter = {type = 'i32', init = [00000000]},
+      },
+      target = {triple = 'x86_64-unknown-linux-gnu'},
+    },
+    code = λm. λrun. {
+      gcd = λp. run (λg. {
+        entry = g.loop p.a p.b,
+        loop  = λa. λb.
+          let z = 'icmp' {'eq', 'i32', b, [00000000]} in
+          run (λh. {
+            if z then g.done a else h.step,
+            step = let r = 'urem' {'i32', a, b} in g.loop b r,
+          }),
+        done  = λr. r,
+      }),
+    },
+  }
   ```
 
-- File terms come after their frontends, if not `language oymomo`
-- Output by flag: the normal form or `.ll`
+- R1, one-to-one: every LLVM/Cranelift block, label, instruction is in the source; the
+  translator adds none; groups flattened in source order
+- R2, runnable by reduction: `run := λG. (fix G) [00]`, `M := fix (λm. code m run)`;
+  `M.f {…}` on data reduces to the result
+- `meta`, data: `globals` (name → `{type, …}`), `target`, later hints, debug tables, LLVM
+  metadata
+- `globals` entry: `{'function', params, result}` or a type; `import = 'name'`,
+  `export = 'name'`, or neither (internal); `init` (global) or `value` (constant); in a
+  `'ptr'` slot of `init`/`value` a byte array names a symbol (`''` null),
+  `{'arr', [08]}` symbol plus offset
+- LLVM: import → `declare` / `external global`; export → external linkage under its name;
+  other → `internal`
+- `code = λm. λrun. {…}`: a tree; a `λ` leaf `λp. e` defines the symbol of its label; a
+  struct field is a group of definitions, labeled or not
+- Form:
 
-### `struct-tools` Concatenate, modify, build structs
+  ```
+  e ::= q | let x = v in e | if q then j else j | {j, …, j} q | j
+      | run (λg. {l₀ = e, l₁ = b, …})
+  b ::= e | λx₁. … λxₙ. e
+  j ::= g.l | g.l q₁ … qₙ
+  v ::= b' {q, …} | m.l q
+  q ::= x | x.l… | m.l | b' | {l = q, …}
+  ```
 
-- Struct tools: concatenate, modify, build
-- Example use: a module's symbols built from `deps.lib`, as `concat {main = …} (deps.lib m)`
-- Decide: which operations, as oymomo terms: oymomo has no built-ins (open item 3
-  closed), so nothing lists a struct's fields
+- Top group: field 0 labeled, the entry block; nested group: field 0 unlabeled, continues
+  the current block; nested groups give dominance
+- Arms only jump; return only at a block's end; `if` condition an `i1`; `switch` on
+  positions, default last
+- No nested operands, no nested `let`, no `if` as a value
+- Block parameter types inferred from arguments and uses; untyped: error "give 'x' a
+  typed argument or a typed use"; single-entry `phi`s kept
+- Check the design against later fields: linkage, `constant`, `unnamed_addr`, calling
+  conventions, attributes, varargs, section, alignment, `thread_local`, aliases, comdat
+- Decide: name of `meta.globals` (`globals`, `symbols`, …)
 
-### `deps-goldens` Golden tests: diamond, template pattern, built declarations
+### `struct-tools` Opcodes return data; `'module.link'` on `meta`
 
-- Golden: diamond wiring (`let d = deps.d in let b = deps.b d in let c = deps.c d in`)
-- Golden: template pattern (`sort = deps.lib.sort 'i32' m`, emitted as `@sort`)
-- Golden: built `module` declarations
+- semantics.tex E-Opcode: `op(b)(dᵢ) = d'`, any data; Lean: `op`'s result type
+- `'module.link' {meta₁, meta₂, …}` (name until a better one):
+  - imports matched to exports by name, then dropped
+  - internal symbols of different modules renamed on a clash
+  - unmatched imports united; equal types merge; different: no step
+  - an export name twice: no step
+  - `target`s equal
+- Compile-time only: a call that doesn't fold is rejected by translation
+- Tests: link, rename, conflicts, non-data operand stays
+
+### `deps-cli` Many files: `--unit=each|merge|apply`, `-e` glue
+
+- Format `oymo <command> [flags] <files…> [-- args]`; flags anywhere; `--` passes the
+  rest to the program
+- `--unit` says how files become compilation units:
+
+  ```
+  $ oymo run a.oymo b.oymo c.oymo                         each (default): a unit per file, linked
+  $ oymo emit-llvm --unit=merge a.oymo b.oymo -o ab.ll    one unit: built-in glue
+  $ oymo normal --unit=apply link.oymo a.oymo b.oymo      one unit: LINK A B
+  $ oymo run -e "λa. λb. a b" a.oymo b.oymo               -e means apply
+  $ oymo run a.oymo -- 5 7                                program arguments
+  ```
+
+- `merge`: `{meta = 'module.link' {F₁.meta, …}, code = λm. λrun. {F₁.code m run, …}}`;
+  `oymo merge` prints it
+- `-e` with `--unit=each` or `merge`: error; unknown value: error listing the three
+- `each`: `run` builds every unit with `clang` and links; `emit-llvm`, `normal` need
+  `-o DIR` for more than one file; `check` checks every unit
+- For `check`, `emit-llvm`, `normal`, `run`; not `fmt`
+- Each file parsed and resolved alone, the glue too
+- Every file starts with `language oymomo`; an `-e` glue has no header
+- `Location` carries its file; errors print `b.oymo:3:5: error: …`
+
+### `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
+
+- `letrec x = t₁ in t₂` ≝ `let x = fix (λx. t₁) in t₂`
+- `let _ = v in e`: a `let` kept only for its effect
+- `blocks g = {l₁ = b₁, …} in t` ≝ `run (λg. {t, l₁ = b₁, …})`; always the struct form
+- Typed lambdas `λ(i: 'i32'). e` for block parameters, if inference needs help
+- semantics.tex Section 3, grammar, printer; reserved words
+- Decide: a better name than `blocks`
+
+### `typed-consts` Folding keeps constants' types
+
+- Constants that reach SSA-shaped ANF untyped (literal-only block parameters)
+- Decide: how reduction folds at compile time and still keeps a constant's type; e.g.
+  `{'const', t, b}` accepted and returned by opcodes; branches on it are stuck (5.5)
+- Decide: `'select' {type, c, a, b}` opcode (LLVM `select`) for value choices
+
+### `deps-goldens` Golden tests: diamond, template pattern, merged declarations
+
+- Golden: diamond: `a`, `b`, `c`, `d` linked once each; `d` exports, `b` and `c` import
+- Golden: template pattern: a generic instantiated once in a file's `code`
+- Golden: `puts` imported by two files, merged by `'module.link'`
+- Golden: two internal symbols with one name in two files, renamed
+- Test: mutual recursion between blocks of one group
 
 ### `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai
 
@@ -294,9 +386,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Tests and a golden
 - Commit: `oymomo: add bulk memory ops`
 
-### `void` `gives = {}` returns, a call as a statement
+### `void` Result type `{}`, a call as a statement
 
-- `gives = {}` for functions returning nothing
+- `{'function', params, {}}` for functions returning nothing
 - A call as a statement
 - LLVM `void` declarations, definitions, calls, `ret void`
 
@@ -312,6 +404,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `target` Host triple and data layout in the `.ll`
 
 - A real `Target`: host triple and data layout written in the `.ll`
+- From `meta.target`; the host's when absent
 
 ### `obj-link` `.o` via `clang -c`, link with `cc`
 
@@ -371,8 +464,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `meta-table` Metadata table: `!n = ...` after the code
 
-- `terms.Program(code, meta)`: numbered nodes, named metadata, module properties
-- `translate` takes a `Program` or a bare term (empty table)
+- The table lives in the module's `meta` (data): numbered nodes, named metadata, module
+  properties
 - Table grammar and printer, one entry per line after the code, LLVM's syntax:
 
   ```
@@ -388,6 +481,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Tests: round trip; no table → unchanged
 - Commit: `oymomo: add metadata table`
 - Decide: metadata strings: `'text'`, or LLVM's `"text"`?
+- Decide: the table as oymomo data in `meta`, or LLVM's text syntax as below
 
 ### `meta-attach` Attachments `e !dbg !4`
 
@@ -398,6 +492,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Tokens: `!` + digits is a reference; `!` + name is a kind
 - Tests: precedence examples; unknown index is an error with location
 - Commit: `oymomo: add attachments`
+- Decide: attachments without a new kernel term (user: no new kernel syntax)
 
 ### `meta-keep` Reduction and lowering keep attachments
 
@@ -662,8 +757,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Scalars and pointers only; by-value struct at the boundary: error "pass a pointer"
 - Done when: a C `main` calls a Mizar library through a header that reads as
   hand-written
-- Decide: where is an export written: a tag on the symbol in the module, or a
-  separate export list?
+- Exports as `export = 'name'` on `meta.globals` entries (`module-shape`)
 
 ### `c-api` C API and Python package
 
@@ -948,6 +1042,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Separate compilation and multiple modules, on module interfaces
 - Incremental rebuilds
 - Done when: changing one function body in the compiler rebuilds one object
+- Decide: partial normalization: normalize a file before the glue binds it?
 
 ### `full-stdlib` Closures; formatted I/O, containers, pool and Boehm allocators
 
