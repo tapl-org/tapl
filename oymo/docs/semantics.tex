@@ -516,6 +516,14 @@
   \item A struct whose field $0$ is $\str{array}$, $\str{vector}$ or $\str{packed}$ is read by these shapes, never as a plain
     struct.
   \end{subpoints}
+\item A byte array has no type of its own either: it takes the type its use needs, the opcode's type operand,
+  the $\mathit{takes}$ of the block or function it is passed to, the $\mathit{gives}$ of the function it returns from, or the
+  $\mathit{type}$ of a constant or global variable. As an $\str{i}N$ it has $\lceil N/8 \rceil$ bytes:
+  $\str{add}\ \{\str{i32}, \hex{01000000}, p.a\}$, never $\hex{01}$.
+  \begin{subpoints}
+  \item A count or index of $\str{alloca}$ or $\str{getelementptr}$ has no type operand: a byte array of $8$ bytes there is an
+    $\str{i64}$, any other an $\str{i32}$.
+  \end{subpoints}
 \item Each symbol of the module (\pref{p:module}) becomes an LLVM global named by its label, as
   $\kw{@gcd}$ or $\kw{@puts}$:
   \begin{subpoints}

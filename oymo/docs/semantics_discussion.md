@@ -18,7 +18,7 @@ nothing is lost between sessions. We continue the discussion here.
 2. Shapes of type terms (`{'array', n, 'i32'}`, …): postponed (D23). — done (D95).
 3. Built-ins `$fix`, `$struct_to_fields`, `$fields_to_struct`: postponed (D24; maybe dropped). — closed: dropped (Z replaces `$fix`, D63; the code has no built-ins since the refactor; user: "yes").
 4. Literal widths: the LLVM width of a literal that no opcode types (e.g. passed straight
-   to a block parameter) is not stated.
+   to a block parameter) is not stated. — done (D96).
 5. Code, after the Lean proofs (D18): refactor the Python implementation to semantics.tex — done (stages 1–8 after D93): terms and grammar (`λx. t`, no forms or builtins), call-by-value E-Beta and data-only E-Opcode, `strategy.py` (table 6.2), `anf.py`, `module.py` (Section 8), `llvm_translate.py` (Section 9), D94 operands.
 6. Goldens and tests move to the new syntax with 5. — done: 9 goldens (`.oymo`, `.normal.oymo`, `.ll`), including `gcd` (8.9) and `helpers`.
 7. Compiler warning, not in semantics.tex (D43): an effect (opcode on a list, maybe calls
@@ -254,6 +254,10 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Wrong terms with no rule (stuck later): a struct applied; `v.l` with `v` an abstraction or a struct without `l`.
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
+
+### D96: literal widths — agreed (accepted)
+- Open item 4. Since the refactor, a byte array takes its LLVM type from its use (opcode type operand, callee or block `takes`, `gives`, constant/global `type`); a bare `alloca` count or `getelementptr` index of 8 bytes is `i64`, else `i32`. User: "proceed with next".
+- Doc: 9.2 (new point after 9.1): a byte array takes the type its use needs, with ⌈N/8⌉ bytes as an `iN`; sub-point for counts and indices.
 
 ### D95: shapes of type terms — agreed (accepted)
 - Open item 2. The code (`llvm_translate.llvm_type`) reads `'iN'`, `'ptr'`, structs, `{'array', n, t}`, `{'vector', n, t}`, `{'packed', …}`; the doc said only that a type is an ordinary term. Agent proposed stating the shapes in 9.1; user: "yes".

@@ -300,6 +300,8 @@ The user's orders, kept as given. Follow them in every task.
   bytes is `i64`, else `i32`. `tests/conftest.py` is gone (no test is left out).
   D95 (accepted): 9.1 states the type shapes (`'iN'`, `'ptr'`, struct, `array`, `vector`,
   `packed`); `scalable_vector` was removed from the code. Open item 3 (built-ins) closed.
+  D96 (accepted): a byte array takes its type from its use (9.2); `alloca`/gep counts and
+  indices are `i64` at 8 bytes, else `i32`. Open item 4 closed.
   The old BANF/LLVM pipeline no longer imports; `tests/conftest.py` leaves its tests out
   until their stage (user chose "expected-to-fail"; collection errors can't be xfailed).
 
