@@ -3,16 +3,17 @@
 Anyone can write Mizar, or their own language, and mix it with C in one program, with no
 glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
-- Releases `0.1` to `1.0`; each is a toolchain someone can use, one capability each.
-- The compiler writes LLVM IR as text and runs `clang`; no JIT before 1.0.
+- Before 1.0, a release is tagged by its date (`2026.10.22`); its notes list the ids it
+  finished. Each is a toolchain someone can use. `production` is 1.0; semver after.
+- The compiler builds LLVM IR through an LLVM API (llvmlite before the bootstrap, the
+  LLVM C API after) and runs `clang`; no JIT before 1.0.
 - Before 1.0, oymomo, Alcor and Mizar syntax, public API and CLI may break.
 - 🚫 marks a blocked leaf. Each node has a fixed id.
 
 ## Tree
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
-  - `foundations` CLI, confluence, BANF removed
-    - `banf-removal` 0.3 `.ll` written as text via an IR builder; llvmlite dropped
+  - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
       - `deps-decide` Answer the open questions
       - 🚫 `deps-cli` CLI flag: `single` or `struct` deps
@@ -26,21 +27,21 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - `alcor-ub` Undefined behaviour: checked and optimized build modes
       - `alcor-generics` Generics: syntax, type-argument inference, lowering
       - `alcor-safety-syntax` Syntax for dependent and substructural types
-    - 🚫 `alcor-core` 0.4 Functions, integers, locals, `if`, loops, `switch`, with `oymo run`
-    - `alcor-memory` 0.5 Pointers, structs, arrays, strings, `void`, casts; `extern` to libc
+    - 🚫 `alcor-core` Functions, integers, locals, `if`, loops, `switch`, with `oymo run`
+    - `alcor-memory` Pointers, structs, arrays, strings, `void`, casts; `extern` to libc
       - 🚫 `ptr-compare` Pointer comparison and `'null' {}`
       - 🚫 `ptr-casts` `'ptrtoint'`, `'inttoptr'`
       - 🚫 `bulk-memory` `'memcpy'`, `'memmove'`, `'memset'`
       - 🚫 `void` `gives = {}` returns, a call as a statement
       - 🚫 `alcor-memory-frontend` Alcor syntax and lowering for memory
-    - `build` 0.6 `oymo build`: executables, `-c` objects, `.c` files linked in
+    - `build` `oymo build`: executables, `-c` objects, `.c` files linked in
       - 🚫 `target` Host triple and data layout in the `.ll`
       - 🚫 `obj-link` `.o` via `clang -c`, link with `cc`
       - 🚫 `driver` `oymo build a.oymo -o a`, `oymo run`, `-c`
       - 🚫 `e2e-libc` End-to-end tests calling libc and a small C library
-    - 🚫 `tagged-unions` 0.7 Enums and tagged unions; `switch` binds the payload
+    - 🚫 `tagged-unions` Enums and tagged unions; `switch` binds the payload
   - `types-files` Types and multiple files
-    - `layer1` 0.8 Layer 1: basic types and generics
+    - `layer1` Layer 1: basic types and generics
       - 🚫 `l1-subprocess` Layer 1 → oymomo → `.ll` → `clang` → run as a subprocess
       - 🚫 `l1-runtime` Type values, equality, located errors
       - 🚫 `l1-two-layer` `<expr:Type>` two-layer expressions
@@ -50,28 +51,28 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
         - 🚫 `meta-table` Metadata table: `!n = ...` after the code
         - 🚫 `meta-attach` Attachments `e !dbg !4`
         - 🚫 `meta-keep` Reduction and lowering keep attachments
-    - `imports` 0.9 Module interfaces and imports between files
+    - `imports` Module interfaces and imports between files
       - 🚫 `l1-interfaces` Module interfaces: each export as `<form:type>`
-    - `fn-pointers` 0.10 Function pointers and callbacks
+    - `fn-pointers` Function pointers and callbacks
       - 🚫 `fn-address` `module.f` as an address; indirect call through `'ptr'`
       - 🚫 `alcor-fn-values` Alcor function values → function pointers; closures as code + `void *`
   - `rewrite-tools` Tools for the rewrite
-    - `bootstrap-stdlib` 0.11 Bootstrap standard library, `oymo test`, new `oymo/` folder
+    - `bootstrap-stdlib` Bootstrap standard library, `oymo test`, new `oymo/` folder
       - 🚫 `stdlib-core` Strings, slices, I/O, allocator interface, first allocators
       - 🚫 `oymo-test` `oymo test`
       - 🚫 `folder-split` `oymo/` → `oymo-py/`; new self-contained `oymo/`
-    - `debugging` 0.12 Debugging and editors
+    - `debugging` Debugging and editors
       - 🚫 `meta-emit` `llvm_translate` writes the metadata table and attachments
       - 🚫 `line-tables` `-g` line tables
       - 🚫 `asan` ASan
       - 🚫 `lsp` `oymo lsp` and a VS Code extension
 - `bootstrap` Bootstrap: oymo in Alcor
   - `seed-decide` Seed: storage, refresh, oymomo or `.ll`
-  - 🚫 `rewrite-core` 0.13 PEG engine and the oymomo pipeline in Alcor
-  - `rewrite-alcor` 0.14 Alcor grammar, both layers, layer-1 subprocess, `oymo lsp`
+  - 🚫 `rewrite-core` PEG engine and the oymomo pipeline in Alcor
+  - `rewrite-alcor` Alcor grammar, both layers, layer-1 subprocess, `oymo lsp`
     - 🚫 `frontend-interface` The compiler is an oymomo core plus frontends
     - 🚫 `emit-oymomo` `oymo emit-oymomo`: normal-form oymomo as text, one file per module
-  - `self-host` 0.15 Self-hosting
+  - `self-host` Self-hosting
     - 🚫 `stage0` `stage0.ll`: normal-form oymomo text → `.ll`
     - 🚫 `seed-files` Seed files, `build.sh`, CI builds from the seed
     - 🚫 `deps-seed` Seed files are normal-form output, no `deps`
@@ -79,48 +80,48 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - 🚫 `own-repo` `oymo/` exported to its own repository
 - `single-thread` Single-threaded, in the Alcor-written compiler
   - `safety` Memory safety
-    - 🚫 `dependent-types` 0.16 `Array(u8, ^16)`, `Index(n)`; unproven index is a build error
-    - 🚫 `substructural-types` 0.17 `Own(T, A)`, second-class borrows; stdlib moves
+    - 🚫 `dependent-types` `Array(u8, ^16)`, `Index(n)`; unproven index is a build error
+    - 🚫 `substructural-types` `Own(T, A)`, second-class borrows; stdlib moves
   - `api` Exports and APIs
-    - 🚫 `c-calls-mizar` 0.18 `export`, `.a`/`.so`, generated `.h`
-    - 🚫 `c-api` 0.19 C API and Python package
-    - 🚫 `registry` 0.20 Language registry and oymomo API; example `calc`
-    - 🚫 `mizar-api` 0.21 Mizar API; cross-language imports
+    - 🚫 `c-calls-mizar` `export`, `.a`/`.so`, generated `.h`
+    - 🚫 `c-api` C API and Python package
+    - 🚫 `registry` Language registry and oymomo API; example `calc`
+    - 🚫 `mizar-api` Mizar API; cross-language imports
   - `c-abi` Full C ABI
-    - 🚫 `build-systems` 0.22 `cc`-style flags, `-MD`/`-MF`, `compile_commands.json`, pkg-config
-    - `floats` 0.23 `f32`, `f64`; libm
+    - 🚫 `build-systems` `cc`-style flags, `-MD`/`-MF`, `compile_commands.json`, pkg-config
+    - `floats` `f32`, `f64`; libm
       - 🚫 `float-forms` `'f32'`, `'f64'`: literals, params, results, imports
       - 🚫 `float-arith` `'fadd'`, `'fsub'`, `'fmul'`, `'fdiv'`, `'frem'`, `'fneg'`
       - 🚫 `float-compare` Comparisons, one symbol per predicate
       - 🚫 `float-convert` `'fpext'`, `'fptrunc'`, `'fptosi'`, ... conversions
       - 🚫 `float-intrinsics` `'sqrt'`, `'fabs'`, `'floor'`, ... exact intrinsics
       - 🚫 `mizar-floats` Mizar `f32`, `f64`; libm through headers
-    - 🚫 `by-value-structs` 0.24 By-value structs, x86-64 SysV, both directions; unions
-    - 🚫 `varargs` 0.25 Call `printf`; define `...` functions via `va_list`
-    - 🚫 `volatile-asm` 0.26 `volatile` and inline asm
+    - 🚫 `by-value-structs` By-value structs, x86-64 SysV, both directions; unions
+    - 🚫 `varargs` Call `printf`; define `...` functions via `va_list`
+    - 🚫 `volatile-asm` `volatile` and inline asm
   - `c-headers` C headers
-    - 🚫 `c-import` 0.27 C headers → oymomo: `c_import`, `oymo import-c`
-    - 🚫 `mizar-headers` 0.28 C headers in Mizar, type-checked
+    - 🚫 `c-import` C headers → oymomo: `c_import`, `oymo import-c`
+    - 🚫 `mizar-headers` C headers in Mizar, type-checked
     - 🚫 `meta-c-import` `c_import` origins and debug types from a ctype
   - `quality` Debug info, optimization, safety, separate compilation
-    - 🚫 `debug-info` 0.29 Params, locals, types in DWARF
-    - `optimization` 0.30 `-O0..-O3`, LTO across C and Mizar
+    - 🚫 `debug-info` Params, locals, types in DWARF
+    - `optimization` `-O0..-O3`, LTO across C and Mizar
       - 🚫 `align` Optional `align` on `'load'`, `'store'`, `'alloca'` and global variables
       - 🚫 `noalias` `{'noalias', 'ptr'}` on params and results
       - 🚫 `bswap` `'bswap'` for byte order per access
       - 🚫 `alias-scopes` `!alias.scope`, `!noalias`, if `noalias` isn't enough
       - 🚫 `lto` `-O` levels and LTO
-    - 🚫 `safety-checks` 0.31 Checked build traps on overflow, OOB, null; UBSan on C
-    - 🚫 `separate-compilation` 0.32 Separate compilation, incremental rebuilds
+    - 🚫 `safety-checks` Checked build traps on overflow, OOB, null; UBSan on C
+    - 🚫 `separate-compilation` Separate compilation, incremental rebuilds
   - `completion` Standard library, rest of C, tools
-    - 🚫 `full-stdlib` 0.33 Closures; formatted I/O, containers, pool and Boehm allocators
-    - 🚫 `rest-of-c` 0.34 `static inline` and function-like macros from headers
-    - 🚫 `dev-tools` 0.35 `oymo fmt` for Mizar, full LSP, published VS Code extension
+    - 🚫 `full-stdlib` Closures; formatted I/O, containers, pool and Boehm allocators
+    - 🚫 `rest-of-c` `static inline` and function-like macros from headers
+    - 🚫 `dev-tools` `oymo fmt` for Mizar, full LSP, published VS Code extension
 - `threads-1-0` Threads, distribution, 1.0
-  - 🚫 `atomics` 0.36 rmw, cmpxchg, fences, orderings; C11 `_Atomic`
-  - 🚫 `tls` 0.37 Thread-local storage; `_Thread_local` shared with C
-  - 🚫 `threads` 0.38 Threads in stdlib, thread-safe allocators, TSan
-  - 🚫 `distribution` 0.39 Standalone binary, CMake module, reproducible builds
+  - 🚫 `atomics` rmw, cmpxchg, fences, orderings; C11 `_Atomic`
+  - 🚫 `tls` Thread-local storage; `_Thread_local` shared with C
+  - 🚫 `threads` Threads in stdlib, thread-safe allocators, TSan
+  - 🚫 `distribution` Standalone binary, CMake module, reproducible builds
   - 🚫 `production` 1.0 Frozen and versioned; spec, fuzzing, benchmarks, docs
 - `after-1-0` After 1.0
   - 🚫 `targets` 1.1–1.3 Linux AArch64, macOS AArch64, Windows x86-64
@@ -137,17 +138,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `more-layers` Back to more than two layers, if real use cases appear
 
 ## Leaf details
-
-### `banf-removal` 0.3 `.ll` written as text via an IR builder; llvmlite dropped
-
-- Add an IR builder: new module, block, instruction, global; writes `.ll` text itself
-- Translate the module (`module.py`, semantics.tex Section 8) straight to the IR builder;
-  never LLVM or text directly
-- Remove llvmlite (the BANF code is gone)
-- Move tests that use llvmlite's JIT or target data (float edge-operand tests,
-  Spindle layout) to `clang`, or keep llvmlite test-only
-- Decide: `clang`, or llvmlite kept test-only, for JIT and target-data tests
-- Done when: same output as before on every test; llvmlite gone
 
 ### `deps-decide` Answer the open questions
 
@@ -257,7 +247,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - annotations on C functions that return or consume owned values
 - Decide: affine types too, or linear plus explicit `drop`?
 
-### `alcor-core` 0.4 Functions, integers, locals, `if`, loops, `switch`, with `oymo run`
+### `alcor-core` Functions, integers, locals, `if`, loops, `switch`, with `oymo run`
 
 - Grammar on the PEG engine; tree classes with `separate()`
 - Lower layer 0 to an oymomo program (`module -> {...}`): functions → structs of
@@ -342,7 +332,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - End-to-end tests calling libc and a small C test library, built and run
 - Done when: `oymo build hello.oymo util.c -o hello` runs; a program reverses a file
 
-### `tagged-unions` 0.7 Enums and tagged unions; `switch` binds the payload
+### `tagged-unions` Enums and tagged unions; `switch` binds the payload
 
 - Alcor enums and tagged unions
 - Lower tagged unions to oymomo structs and `switch`
@@ -527,14 +517,16 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Write in `oymo/compiler/`, mirroring `oymo-py/src/oymo/`, file by file:
   - `core/`: PEG engine
   - `oymomo/`: parser, reduction, strategy, ANF and module checks, translation
-  - `ir/`: IR builder, writes `.ll` text, ported line for line
+  - `ir/`: LLVM IR through the LLVM C API (`extern` bindings), where the Python
+    compiler uses llvmlite
   - `driver/`: the `oymo` command
 - Add nothing new; same behaviour and logic as the Python compiler
 - Widest int stays `i64`
 - Run the confluence test and the oymomo goldens against it
 - Check that reduction handles a megabyte-size term in reasonable time
 - Measure seed size and build time
-- Done when: byte-identical `.ll` vs the Python compiler on every oymomo test
+- Done when: byte-identical `.ll` vs the Python compiler on every oymomo test, both
+  printed by LLVM (`llvm-dis`)
 
 ### `frontend-interface` The compiler is an oymomo core plus frontends
 
@@ -577,7 +569,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   | `bootstrap/stage0.ll` | normal-form oymomo text → `.ll` |
   | `bootstrap/oymomo.oymo` | core: parser, reduction, strategy, translation, extension interface, driver |
   | `bootstrap/alcor/*.oymo` | Alcor frontend, one file per part |
-  | `bootstrap/clang-version` | minimum and tested clang version |
+  | `bootstrap/clang-version` | minimum and tested clang and libLLVM version |
 
 - Generate all `.oymo` seed files from the compiler's source (Alcor, layer 0 only)
 - `build.sh` builds from the seed:
@@ -586,7 +578,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   clang   stage0.ll                  -> stage0
   stage0  oymomo.oymo                -> oymomo.ll
   stage0  alcor/*.oymo               -> alcor/*.ll
-  clang   oymomo.ll alcor/*.ll       -> stage1     # knows Alcor only
+  clang   oymomo.ll alcor/*.ll -lLLVM -> stage1    # knows Alcor only
   stage1  compiler/                  -> stage2     # adds Mizar
   stage2  compiler/                  -> stage3     # must match stage2 byte for byte
   ```
@@ -595,7 +587,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - CI builds from the seed on every change, with the minimum and tested clang versions
 - CI builds the seed for two targets
 - Freeze the Python compiler
-- Done when: with `clang` and no Python, a fresh clone builds from the seed, builds
+- Done when: with `clang`, libLLVM and no Python, a fresh clone builds from the seed, builds
   itself twice to identical output, passes every test
 
 ### `deps-seed` Seed files are normal-form output, no `deps`
@@ -1025,7 +1017,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Speed of code: benchmark set (same programs in C and Mizar), within a set % of
   `clang -O2`, in CI
 - Speed of compiler: measured on its own source; budget per 10k lines; cache layer-1
-  results for unchanged files; LLVM C API builder behind the IR builder if text is slow
+  results for unchanged files
 - Target: Linux x86-64 (ELF, SysV, glibc and musl); `--target` built so new targets only
   add entries
 - Docs: tutorial, Mizar reference, C interop guide, language author's guide (both

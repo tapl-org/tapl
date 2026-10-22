@@ -314,8 +314,6 @@ The user's orders, kept as given. Follow them in every task.
   Open items 7 (effect warning: none, user's choice) and 8 (review reminders: all covered)
   closed; no open item is left. semantics_discussion.md was folded into section 4,
   "Semantics decisions (D1–D96)", and deleted (user's order).
-  The old BANF/LLVM pipeline no longer imports; `tests/conftest.py` leaves its tests out
-  until their stage (user chose "expected-to-fail"; collection errors can't be xfailed).
 
 ## 2. Index
 
@@ -358,7 +356,7 @@ All in `src/oymo/oymomo/`; each module has a test of the same name in `tests/oym
 | `opcodes.py` | opcode table: `result_type`, `evaluate` for E-Opcode (4.4) |
 | `anf.py` | `anf_error`: the first part not in ANF (Section 7) |
 | `module.py` | `module_of`, `read_module`: Section 8 checks, `Module`/`Definition`/`Block` |
-| `llvm_translate.py`, `llvm_opcodes.py` | Section 9, with llvmlite (`banf-removal` will drop it) |
+| `llvm_translate.py`, `llvm_opcodes.py` | Section 9, with llvmlite (kept until the bootstrap; the Alcor compiler uses the LLVM C API) |
 | `../cli.py` | `oymo check / emit-llvm / fmt / normal / run` |
 
 Lean (`proofs/Oymomo/`) mirrors the doc: `Syntax`, `Substitution`, `Reduction`,
@@ -509,7 +507,7 @@ plans are kept verbatim below.
   `needs`, ...).
 - Roadmap place: the oymomo mechanism under 0.9 (module interfaces and imports); after
   0.3, since BANF must go before new oymomo features.
-- Moved (user's order): `deps` is now under `foundations`, after `banf-removal`, because
+- Moved (user's order): `deps` is now under `foundations`, because
   how a form alias works with `deps` must be designed together with `form-alias`.
   `imports` keeps only `l1-interfaces`.
 
