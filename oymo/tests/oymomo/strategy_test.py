@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """The strategy of table 6.2 (semantics.tex, Section 6): one test per row, and the cases
-of open item 11 in `docs/semantics_discussion.md`."""
+of open item 11 in `docs/agent_wiki.md` (section 4, "Semantics decisions")."""
 
 import random
 from dataclasses import replace
@@ -105,7 +105,7 @@ def test_order_goes_under_lambda_last():
     assert step('{λu. (λy. y) u, {(λy. y) a}}') == same('{λu. (λy. y) u, {a}}')
 
 
-# Open item 11 (semantics_discussion.md): reduction unit tests.
+# Open item 11 (agent_wiki.md, "Semantics decisions"): reduction unit tests.
 
 
 def test_11a_projection_is_not_a_value():
