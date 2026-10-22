@@ -302,6 +302,8 @@ The user's orders, kept as given. Follow them in every task.
   `packed`); `scalable_vector` was removed from the code. Open item 3 (built-ins) closed.
   D96 (accepted): a byte array takes its type from its use (9.2); `alloca`/gep counts and
   indices are `i64` at 8 bytes, else `i32`. Open item 4 closed.
+  Open items 7 (effect warning: none, user's choice) and 8 (review reminders: all covered)
+  closed; semantics_discussion.md has no open item left.
   The old BANF/LLVM pipeline no longer imports; `tests/conftest.py` leaves its tests out
   until their stage (user chose "expected-to-fail"; collection errors can't be xfailed).
 
