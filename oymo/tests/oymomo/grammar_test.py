@@ -88,7 +88,7 @@ def test_duplicate_labels_are_rejected():
     assert term.message == "Duplicate label 'x'."
     assert term.location == syntax.Location(15, 20)
     assert isinstance(parse('λp. {a = {l = p, l = p}}'), syntax.ErrorTerm)
-    # Empty labels never clash (2.4b).
+    # Empty labels never clash (2.5b).
     assert show(parse('{a, b, c}')) == '{a, b, c}'
     # Equal labels in different structs are fine.
     assert show(parse('{l = {l = a}}')) == '{l = {l = a}}'
@@ -122,8 +122,24 @@ def test_if():
     )
 
 
-def test_fix_is_a_plain_name():
-    assert parse('λfix. fix') == terms.Lambda('fix', terms.Variable('fix'))
+def test_fix():
+    g, a = terms.Variable('g'), terms.Variable('a')
+    assert parse('fix g') == terms.Fix(g)
+    # 2.3: `fix t` parses as an application does.
+    assert parse('fix g.l a') == terms.Apply(terms.Fix(terms.Project(g, 'l')), a)
+    assert parse('f (fix g)') == terms.Apply(terms.Variable('f'), terms.Fix(g))
+    assert show(parse('fix (λx. x)')) == 'fix (λx. x)'
+    assert show(parse('(fix g).l')) == '(fix g).l'
+    assert show(parse('fix g.l a')) == 'fix g.l a'
+    assert show(parse('f (fix g)')) == 'f (fix g)'
+    assert show(parse('f fix g')) == 'error'
+    assert show(parse('fix')) == 'error'
+
+
+def test_fix_is_a_keyword():
+    assert show(parse('λfix. fix')) == 'error'
+    assert show(parse('fixed')) == 'fixed'
+    assert show(parse('λ"fix". "fix"')) == 'λ"fix". "fix"'
 
 
 def test_reserved_words_are_not_names():
@@ -152,7 +168,7 @@ def test_text_byte_array():
 
 
 def test_text_byte_array_is_utf8():
-    # 2.3c: any valid UTF-8 text may be written as text.
+    # 2.4c: any valid UTF-8 text may be written as text.
     assert parse("'λ'") == terms.ByteArray('λ'.encode())
     assert show(parse("'λ'")) == "'λ'"
 

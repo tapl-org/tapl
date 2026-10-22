@@ -42,19 +42,24 @@ def same(source):
     ('row', 'source', 'expected'),
     [
         ('a', '{x = a, y = (λz. z) b}.y', '(λz. z) b'),
-        ('b', '((λs. s) {x = a}).x', '{x = a}.x'),
-        ('b', '{y = (λz. z) a}.x', '{y = a}.x'),
-        ('c', '(λx. {x, x}) (λy. y)', '{λy. y, λy. y}'),
-        ('d', '(λx. x) ((λy. y) a)', '(λx. x) a'),
-        ('e', "'add' {'i8', [01], [02]}", '[03]'),
-        ('f', '{a, b, c} [01]', 'b'),
-        ('g', '{a, b, c} [05]', 'c'),
-        ('h', '{a, b} ((λy. y) c)', '{a, b} c'),
-        ('i', '((λy. y) g) ((λy. y) a)', 'g ((λy. y) a)'),
-        ('j', 'g ((λy. y) a)', 'g a'),
-        ('k', '{f = λu. (λy. y) u, g = (λy. y) a}', '{f = λu. (λy. y) u, g = a}'),
-        ('l', '{f = λu. (λy. y) u, g = a}', '{f = λu. u, g = a}'),
-        ('m', 'λu. (λy. y) u', 'λu. u'),
+        ('b', '(fix (λs. {x = a, y = s})).y', '{x = a, y = fix (λs. {x = a, y = s})}.y'),
+        ('c', '((λs. s) {x = a}).x', '{x = a}.x'),
+        ('c', '{y = (λz. z) a}.x', '{y = a}.x'),
+        ('c', '(fix ((λy. y) (λs. s))).x', '(fix (λs. s)).x'),
+        ('d', '(λx. {x, x}) (λy. y)', '{λy. y, λy. y}'),
+        ('d', '(λx. {x, x}) (fix (λs. s))', '{fix (λs. s), fix (λs. s)}'),
+        ('e', '(λx. x) ((λy. y) a)', '(λx. x) a'),
+        ('f', '(fix (λs. λn. s n)) ((λy. y) a)', '(λn. fix (λs. λn. s n) n) ((λy. y) a)'),
+        ('g', "'add' {'i8', [01], [02]}", '[03]'),
+        ('h', '{a, b, c} [01]', 'b'),
+        ('i', '{a, b, c} [05]', 'c'),
+        ('j', '{a, b} ((λy. y) c)', '{a, b} c'),
+        ('k', '((λy. y) g) ((λy. y) a)', 'g ((λy. y) a)'),
+        ('l', 'g ((λy. y) a)', 'g a'),
+        ('m', '{f = λu. (λy. y) u, g = (λy. y) a}', '{f = λu. (λy. y) u, g = a}'),
+        ('n', '{f = λu. (λy. y) u, g = a}', '{f = λu. u, g = a}'),
+        ('o', 'λu. (λy. y) u', 'λu. u'),
+        ('p', 'fix (λs. (λy. y) s)', 'fix (λs. s)'),
     ],
 )
 def test_each_row(row, source, expected):
@@ -78,25 +83,29 @@ def test_each_row(row, source, expected):
         '{} a',
         '[01] (λx. x)',
         '(λx. x).l',
+        'fix (λs. s)',
+        'fix (λs. {l = λq. s.l q})',
+        'fix [01]',
+        'fix p.n',
     ],
 )
 def test_normal_forms_have_no_step(source):
     assert strategy.sstep(resolved(source)) is None
 
 
-def test_row_d_before_rows_i():
+def test_row_e_before_row_k():
     # The argument of a lambda is reduced before the lambda's body.
     assert step('(λx. (λy. y) x) ((λy. y) a)') == same('(λx. (λy. y) x) a')
     # With a normal argument that is not a value, the body is next.
     assert step('(λx. (λy. y) x) p.n') == same('(λx. x) p.n')
 
 
-def test_row_h_before_row_i():
+def test_row_j_before_row_k():
     # A branch's condition is reduced before its arms.
     assert step('{(λy. y) a, b} ((λy. y) c)') == same('{(λy. y) a, b} c')
 
 
-def test_row_k_before_row_l():
+def test_row_m_before_row_n():
     # 6.3d: a field that is not a value comes first.
     assert step('{λu. (λy. y) u, (λy. y) a}') == same('{λu. (λy. y) u, a}')
 
@@ -117,7 +126,7 @@ def test_11b_projection_drops_a_looping_field():
     assert normal(f'{{a = {OMEGA}, b = [01]}}.b') == '[01]'
 
 
-def test_11c_row_k_never_enters_a_looping_lambda():
+def test_11c_row_m_never_enters_a_looping_lambda():
     assert normal(f'(λx. x.g) {{f = λu. {OMEGA}, g = (λy. y) [01]}}') == '[01]'
 
 
@@ -165,6 +174,39 @@ def test_normalize_gives_up():
         normal(OMEGA, max_steps=50)
 
 
+# Euclid on blocks that jump to each other: the gcd of 8.10, run by reduction. Reduction never
+# binds `m` or `f` (8.8), so the program binds them itself with `fix` (8.8b).
+GCD_MODULE_PROGRAM = """
+let module = λm. {
+  gcd = {gives = 'i32', body = λf. {
+      entry = {takes = {a = 'i32', b = 'i32'}, body = λp.
+        f.loop.body {a = p.a, b = p.b}
+      },
+      loop = {takes = {a = 'i32', b = 'i32'}, body = λp.
+        let t0 = 'icmp' {'eq', 'i32', p.b, [00000000]} in
+        if t0 then f.done.body {a = p.a} else f.step.body {a = p.a, b = p.b}
+      },
+      step = {takes = {a = 'i32', b = 'i32'}, body = λp.
+        let t1 = 'urem' {'i32', p.a, p.b} in
+        f.loop.body {a = p.b, b = t1}
+      },
+      done = {takes = {a = 'i32'}, body = λp.
+        p.a
+      }
+    }
+  }
+} in
+let gcd = (fix (fix module).gcd.body).entry.body in
+  gcd {a = [30000000], b = [12000000]}
+"""
+
+# The factorial of 4.8d.
+FACT = (
+    "fix (λf. λn. if 'icmp' {'eq', 'i32', n, [00000000]} then [01000000] "
+    "else 'mul' {'i32', n, f ('sub' {'i32', n, [01000000]})})"
+)
+
+
 @pytest.mark.parametrize(
     ('source', 'expected'),
     [
@@ -184,16 +226,28 @@ def test_normalize_gives_up():
             "else 'udiv' {'i32', n, [02000000]})}) [07000000]",
             '[10000000]',
         ),
-        # gcd 48 18 = 6.
-        (
-            f"{Z} (λgcd. λq. if 'icmp' {{'eq', 'i32', q.b, [00000000]}} then q.a "
-            "else gcd {a = q.b, b = 'urem' {'i32', q.a, q.b}}) {a = [30000000], b = [12000000]}",
-            '[06000000]',
-        ),
+        # gcd 48 18 = 6, in module shape (Section 8).
+        (GCD_MODULE_PROGRAM, '[06000000]'),
+        # 3! = 6.
+        (f'{FACT} [03000000]', '[06000000]'),
     ],
 )
 def test_whole_programs(source, expected):
     assert normal(source) == expected
+
+
+def test_fix_recursion_on_an_unknown_never_stops():
+    # 4.8d: `F p.n` has no normal form.
+    with pytest.raises(reduction.ReductionError, match=r'No normal form|too deep'):
+        normal(f'{FACT} p.n', max_steps=300)
+
+
+def test_fix_stays_where_it_is_not_used():
+    # 4.8c: a normal form holds a fixed point only where it is not used.
+    source = 'fix (λs. {l = λq. s.l q})'
+    assert normal(source) == same(source)
+    # Used, it unfolds; here the copy is dropped, so the normal form has none.
+    assert normal('(fix (λs. {a = [01], b = s})).a') == '[01]'
 
 
 def all_steps(term):
@@ -210,6 +264,8 @@ def all_steps(term):
             found += [replace(term, argument=a) for a in all_steps(argument)]
         case terms.Project(struct=struct):
             found += [replace(term, struct=s) for s in all_steps(struct)]
+        case terms.Fix(body=body):
+            found += [replace(term, body=b) for b in all_steps(body)]
         case terms.Struct(fields=fields):
             for i, f in enumerate(fields):
                 for v in all_steps(f.value):
@@ -219,8 +275,8 @@ def all_steps(term):
 
 def random_term(rng, depth, scope):
     """A small random term over `scope` bound variables: lambdas, applications, structs,
-    projections and byte arrays, with an Ω now and then."""
-    choices = ['bytes', 'lam', 'app', 'app', 'struct', 'proj', 'omega']
+    projections, fixed points and byte arrays, with an Ω now and then."""
+    choices = ['bytes', 'lam', 'app', 'app', 'struct', 'proj', 'fix', 'omega']
     if scope:
         choices += ['var', 'var']
     kind = rng.choice(choices) if depth > 0 else rng.choice(['bytes', 'var'] if scope else ['bytes'])
@@ -238,16 +294,24 @@ def random_term(rng, depth, scope):
             return terms.Struct([terms.Field(label, random_term(rng, depth - 1, scope)) for label in labels])
         case 'proj':
             return terms.Project(random_term(rng, depth - 1, scope), rng.choice(['l', 'm']))
+        case 'fix':
+            return terms.Fix(terms.Lambda('s', random_term(rng, depth - 1, scope + 1)))
     return resolved(OMEGA, ())
 
 
 def normal_forms(term, limit=300):
     """The normal forms reachable from `term` by any order, searching at most `limit` terms;
-    None if the search did not finish."""
+    None if the search did not finish. It gives up on a term that grows too big, as a
+    fixed point unfolding without end does."""
     seen, todo, normals = set(), [term], set()
     while todo:
         current = todo.pop()
-        key = show(current)
+        try:
+            key = show(current)
+        except RecursionError:
+            return None
+        if len(key) > 400:
+            return None
         if key in seen:
             continue
         seen.add(key)

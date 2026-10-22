@@ -81,11 +81,17 @@ def test_beta_avoids_capture():
         ('if [00] then a else b', 'b'),
         # Any nonzero index is true: past the last field is the last field.
         ('if [02] then a else b', 'a'),
-        # The empty byte array is 0 (2.3a).
+        # The empty byte array is 0 (2.4a).
         ("if '' then a else b", 'b'),
         ('{e, a = b}.a', 'b'),
         # A tagged struct is a struct: β builds one as any other.
         ("(λe. {'array', [03000000], e}) 'i8'", "{'array', [03000000], 'i8'}"),
+        # A fixed point is a value: E-Beta copies it.
+        ('(λx. {x, x}) (fix (λs. s))', '{fix (λs. s), fix (λs. s)}'),
+        # E-FixProj and E-FixApp (4.8): the fixed point unfolds once where it is used.
+        ('(fix (λs. {a = e, b = s})).b', '{a = e, b = fix (λs. {a = e, b = s})}.b'),
+        ('(fix (λs. λn. s n)) e', '(λn. fix (λs. λn. s n) n) e'),
+        ('(fix (λs. λn. s n)) ((λy. y) e)', '(λn. fix (λs. λn. s n) n) ((λy. y) e)'),
     ],
 )
 def test_reduce_one_step(source, expected):
@@ -154,6 +160,10 @@ def test_reduce_one_step(source, expected):
         "'load' {'i32', e}",
         # Unknown opcode names never fold.
         "'add_i32' {[01000000], [02000000]}",
+        # A fixed point on its own never steps at the root (4.8a); nor one of a non-lambda.
+        'fix (λs. s)',
+        '(fix e).a',
+        '(fix ((λs. s) (λs. s))).a',
     ],
 )
 def test_reduce_returns_the_term_itself(source):
@@ -294,9 +304,28 @@ def test_index_value(source, expected):
         ('(λy. y) x', False, False),
         ("'add' {'i32', [01000000], [02000000]}", False, False),
         ('{a = [01], b = (λy. y) x}', False, False),
+        # A fixed point of a lambda is a value, never data.
+        ('fix (λs. s)', True, False),
+        ('{fix (λs. s)}', True, False),
+        ('fix x', False, False),
     ],
 )
 def test_is_value_and_is_data(source, value, data):
     term = resolved(source, ('x',))
     assert reduction.is_value(term) is value
     assert reduction.is_data(term) is data
+
+
+@pytest.mark.parametrize(
+    ('source', 'stuck'),
+    [
+        ('fix [01]', 'fix [01]'),
+        ('{a = fix {}}', 'fix {}'),
+        ('fix (λs. s)', None),
+        ('fix x', None),
+    ],
+)
+def test_stuck_fix(source, stuck):
+    # 5.5: `fix b` and `fix {…}` never become a fixed point of a lambda.
+    found = reduction.stuck_part(resolved(source, ('x',)))
+    assert (None if found is None else show(found)) == stuck

@@ -4,7 +4,7 @@
 
 `sstep(t)` takes the step that table 6.2 chooses, or returns None when `t` is a normal
 form. Rows are tried top to bottom within a term's group (projection, application,
-struct, lambda), and a part is chosen only when it has a step. It follows Lean's
+struct, lambda, fixed point), and a part is chosen only when it has a step. It follows Lean's
 `Oymomo.SStep`, one branch per row, so the theorems carry over:
 
 - every step is a `⟶` step (`Oymomo.sstep_step`);
@@ -34,39 +34,43 @@ def sstep(term: syntax.Term) -> syntax.Term | None:
         case terms.Struct():
             return _struct(term)
         case terms.Lambda(body=body):
-            # Row m: E-Abs on the body.
+            # Row o: E-Abs on the body.
+            stepped = sstep(body)
+            return None if stepped is None else replace(term, body=stepped)
+        case terms.Fix(body=body):
+            # Row p: E-Fix1 on the body.
             stepped = sstep(body)
             return None if stepped is None else replace(term, body=stepped)
     return None
 
 
 def _project(term: terms.Project) -> syntax.Term | None:
-    # Row a: E-Proj.
-    if (projected := reduction.project(term.struct, term.label)) is not None:
-        return projected
-    # Row b: E-Proj1 on the projected term.
+    # Rows a and b: E-Proj, E-FixProj.
+    if (reduced := reduction.reduce(term)) is not term:
+        return reduced
+    # Row c: E-Proj1 on the projected term.
     stepped = sstep(term.struct)
     return None if stepped is None else replace(term, struct=stepped)
 
 
 def _apply(term: terms.Apply) -> syntax.Term | None:
-    # Rows c, e, f, g: E-Beta, E-Opcode, E-Index, E-Default at the root.
+    # Rows d, f, g, h, i: E-Beta, E-FixApp, E-Opcode, E-Index, E-Default at the root.
     if (reduced := reduction.reduce(term)) is not term:
         return reduced
     function, argument = term.function, term.argument
     if isinstance(function, terms.Lambda | terms.Struct):
-        # Row d: the argument of a lambda (not a value, or E-Beta would fire).
-        # Row h: a branch's condition (not a byte array, or E-Index would fire).
+        # Row e: the argument of a lambda (not a value, or E-Beta would fire).
+        # Row j: a branch's condition (not a byte array, or E-Index would fire).
         stepped = sstep(argument)
         if stepped is not None:
             return replace(term, argument=stepped)
-        # Rows i and j: the argument has no step, so only the function can.
+        # Rows k and l: the argument has no step, so only the function can.
         stepped = sstep(function)
         return None if stepped is None else replace(term, function=stepped)
-    # Row i: E-App1 on the function.
+    # Row k: E-App1 on the function.
     if (stepped := sstep(function)) is not None:
         return replace(term, function=stepped)
-    # Row j: E-App2 on the argument.
+    # Row l: E-App2 on the argument.
     stepped = sstep(argument)
     return None if stepped is None else replace(term, argument=stepped)
 
@@ -84,11 +88,11 @@ def _struct(term: terms.Struct) -> syntax.Term | None:
         fields[i] = replace(fields[i], value=steps[i])
         return replace(term, fields=fields)
 
-    # Row k: E-Struct on the first field that is not a value and has a step.
+    # Row m: E-Struct on the first field that is not a value and has a step.
     for i, f in enumerate(term.fields):
         if not reduction.is_value(f.value) and field_step(i) is not None:
             return with_field(i)
-    # Row l: E-Struct on the first field with a step.
+    # Row n: E-Struct on the first field with a step.
     for i in range(len(term.fields)):
         if field_step(i) is not None:
             return with_field(i)

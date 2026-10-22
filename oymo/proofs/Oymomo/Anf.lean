@@ -86,6 +86,7 @@ theorem Path.normal {p t' : Term} (hp : Path p) : ¬ Step op p t' := by
     cases h with
     | proj hl => rw [hp.lookup_none] at hl; cases hl
     | proj1 h => exact ih h
+    | fixProj => cases hp
 
 theorem Atom.normal {a t' : Term} (ha : Atom a) : ¬ Step op a t' := by
   cases ha with
@@ -118,6 +119,7 @@ theorem Call.normal {u t' : Term} (hu : Call u) : ¬ Step op u t' := by
     | opcode _ _ _ => cases hg
     | app1 h => exact hg.normal h
     | app2 h => exact hs.normal h
+    | fixApp => cases hg
 
 theorem Op.normal {o t' : Term} (ho : Op op o) : ¬ Step op o t' := by
   cases ho with
@@ -155,6 +157,7 @@ theorem Terminal.normal {t t' : Term} (ht : Terminal t) : ¬ Step op t t' := by
     | opcode _ _ _ => cases hs
     | app1 h => exact hs.normal h
     | app2 h => exact hc.normal h
+    | fixApp => cases hs
 
 theorem Op.not_value {o : Term} (ho : Op op o) : isValue o = false := by
   cases ho with

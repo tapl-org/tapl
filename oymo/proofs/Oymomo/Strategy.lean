@@ -38,7 +38,7 @@ def isLam : Term → Bool
   | _ => false
 
 variable (op) in
-/-- Some field of the struct is not a value and has a step (row 6.2k applies). -/
+/-- Some field of the struct is not a value and has a step (row 6.2m applies). -/
 def NVRed : Term → Prop
   | scons _ t r => (isValue t = false ∧ Red op t) ∨ NVRed r
   | _ => False
@@ -48,61 +48,71 @@ variable (op) in
 inductive SStep : Term → Term → Prop
   /-- Row a, E-Proj. -/
   | proj {s u : Term} {l : String} : lookup s l = some u → SStep (proj s l) u
-  /-- Row b, E-Proj1 on `t`. -/
+  /-- Row b, E-FixProj. -/
+  | fixProj {t : Term} {l : String} :
+      SStep (proj (fix (lam t)) l) (proj (subst (inst (fix (lam t))) t) l)
+  /-- Row c, E-Proj1 on `t`. -/
   | proj1 {t t' : Term} {l : String} :
-      lookup t l = none → SStep t t' → SStep (proj t l) (proj t' l)
-  /-- Row c, E-Beta. -/
+      lookup t l = none → isFixLam t = false → SStep t t' → SStep (proj t l) (proj t' l)
+  /-- Row d, E-Beta. -/
   | beta {t u : Term} : isValue u = true → SStep (app (lam t) u) (subst (inst u) t)
-  /-- Row d, E-App2 on the argument of a lambda. -/
+  /-- Row e, E-App2 on the argument of a lambda. -/
   | arg {t u u' : Term} : isValue u = false → SStep u u' → SStep (app (lam t) u) (app (lam t) u')
-  /-- Row e, E-Opcode. -/
+  /-- Row f, E-FixApp. -/
+  | fixApp {t u : Term} : SStep (app (fix (lam t)) u) (app (subst (inst (fix (lam t))) t) u)
+  /-- Row g, E-Opcode. -/
   | opcode {s : Term} {b b' : Bytes} :
       isStruct s = true → isData s = true → op b s = some b' → SStep (app (bytes b) s) (bytes b')
-  /-- Rows f and g, E-Index and E-Default. -/
+  /-- Rows h and i, E-Index and E-Default. -/
   | index {s u : Term} {b : Bytes} : select s b.toNat = some u → SStep (app s (bytes b)) u
-  /-- Row h, E-App2 on a branch's condition. -/
+  /-- Row j, E-App2 on a branch's condition. -/
   | cond {s c c' : Term} : isStruct s = true → SStep c c' → SStep (app s c) (app s c')
-  /-- Row i, E-App1. -/
+  /-- Row k, E-App1. -/
   | app1 {a a' b : Term} :
-      ¬ RootRed op (app a b) → ¬ (isLam a = true ∧ Red op b) → ¬ (isStruct a = true ∧ Red op b) →
-      SStep a a' → SStep (app a b) (app a' b)
-  /-- Row j, E-App2. -/
+      ¬ RootRed op (app a b) → isFixLam a = false → ¬ (isLam a = true ∧ Red op b) →
+      ¬ (isStruct a = true ∧ Red op b) → SStep a a' → SStep (app a b) (app a' b)
+  /-- Row l, E-App2. -/
   | app2 {a b b' : Term} :
-      ¬ RootRed op (app a b) → isLam a = false → isStruct a = false → ¬ Red op a →
-      SStep b b' → SStep (app a b) (app a b')
-  /-- Row k, E-Struct on the first field that is not a value and has a step: the head. -/
+      ¬ RootRed op (app a b) → isFixLam a = false → isLam a = false → isStruct a = false →
+      ¬ Red op a → SStep b b' → SStep (app a b) (app a b')
+  /-- Row m, E-Struct on the first field that is not a value and has a step: the head. -/
   | fieldNV {l : String} {t t' r : Term} :
       isValue t = false → SStep t t' → SStep (scons l t r) (scons l t' r)
-  /-- Row k, a later field. -/
+  /-- Row m, a later field. -/
   | fieldNVTail {l : String} {t r r' : Term} :
       ¬ (isValue t = false ∧ Red op t) → NVRed op r → SStep r r' → SStep (scons l t r) (scons l t r')
-  /-- Row l, E-Struct on the first field with a step: the head. -/
+  /-- Row n, E-Struct on the first field with a step: the head. -/
   | field {l : String} {t t' r : Term} :
       ¬ NVRed op (scons l t r) → SStep t t' → SStep (scons l t r) (scons l t' r)
-  /-- Row l, a later field. -/
+  /-- Row n, a later field. -/
   | fieldTail {l : String} {t r r' : Term} :
       ¬ NVRed op (scons l t r) → ¬ Red op t → SStep r r' → SStep (scons l t r) (scons l t r')
-  /-- Row m, E-Abs. -/
+  /-- Row o, E-Abs. -/
   | lam {t t' : Term} : SStep t t' → SStep (lam t) (lam t')
+  /-- Row p, E-Fix1. -/
+  | fix {t t' : Term} : SStep t t' → SStep (fix t) (fix t')
 
 /-! ## Each step of the order is a `⟶` step -/
 
 theorem sstep_step {t t' : Term} (h : SStep op t t') : Step op t t' := by
   induction h with
   | proj h => exact .proj h
-  | proj1 _ _ ih => exact .proj1 ih
+  | fixProj => exact .fixProj
+  | proj1 _ _ _ ih => exact .proj1 ih
   | beta h => exact .beta h
   | arg _ _ ih => exact .app2 ih
+  | fixApp => exact .fixApp
   | opcode h1 h2 h3 => exact .opcode h1 h2 h3
   | index h => exact .index h
   | cond _ _ ih => exact .app2 ih
-  | app1 _ _ _ _ ih => exact .app1 ih
-  | app2 _ _ _ _ _ ih => exact .app2 ih
+  | app1 _ _ _ _ _ ih => exact .app1 ih
+  | app2 _ _ _ _ _ _ ih => exact .app2 ih
   | fieldNV _ _ ih => exact .scons1 ih
   | fieldNVTail _ _ _ ih => exact .scons2 ih
   | field _ _ ih => exact .scons1 ih
   | fieldTail _ _ _ ih => exact .scons2 ih
   | lam _ ih => exact .lam ih
+  | fix _ ih => exact .fix ih
 
 theorem SStep.red {t t' : Term} (h : SStep op t t') : Red op t := ⟨t', sstep_step h⟩
 
@@ -118,13 +128,19 @@ theorem NVRed.red {r : Term} (h : NVRed op r) : Red op r := by
   | _ => exact h.elim
 
 theorem Step.root_or_parts {a b t' : Term} (h : Step op (app a b) t') :
-    RootRed op (app a b) ∨ Red op a ∨ Red op b := by
+    RootRed op (app a b) ∨ isFixLam a = true ∨ Red op a ∨ Red op b := by
   cases h with
   | beta hv => exact .inl hv
   | index hs => cases a <;> first | exact .inl ⟨_, hs⟩ | (simp [RootRed]; exact .inl ⟨_, hs⟩) | simp [select] at hs
   | opcode h1 h2 h3 => exact .inl ⟨h1, h2, _, h3⟩
-  | app1 h => exact .inr (.inl ⟨_, h⟩)
-  | app2 h => exact .inr (.inr ⟨_, h⟩)
+  | app1 h => exact .inr (.inr (.inl ⟨_, h⟩))
+  | app2 h => exact .inr (.inr (.inr ⟨_, h⟩))
+  | fixApp => exact .inr (.inl rfl)
+
+theorem isFixLam_false {a : Term} (h : ¬ isFixLam a = true) : isFixLam a = false := by
+  cases h' : isFixLam a with
+  | false => rfl
+  | true => exact absurd h' h
 
 theorem RootRed.sstep {a b : Term} (h : RootRed op (app a b)) : ∃ t', SStep op (app a b) t' := by
   cases a with
@@ -155,15 +171,28 @@ theorem sstep_complete : ∀ {t : Term}, Red op t → ∃ t', SStep op t t'
     | lam h =>
       obtain ⟨t', ht⟩ := sstep_complete ⟨_, h⟩
       exact ⟨_, .lam ht⟩
+  | fix t, ⟨_, h⟩ => by
+    cases h with
+    | fix h =>
+      obtain ⟨t', ht⟩ := sstep_complete ⟨_, h⟩
+      exact ⟨_, .fix ht⟩
   | proj t l, ⟨_, h⟩ => by
     cases hl : lookup t l with
     | some u => exact ⟨_, .proj hl⟩
     | none =>
+      by_cases hf : isFixLam t = true
+      · cases t with
+        | fix x =>
+          cases x with
+          | lam _ => exact ⟨_, .fixProj⟩
+          | _ => simp [isFixLam] at hf
+        | _ => simp [isFixLam] at hf
       cases h with
       | proj h => rw [hl] at h; cases h
       | proj1 h =>
         obtain ⟨t', ht⟩ := sstep_complete ⟨_, h⟩
-        exact ⟨_, .proj1 hl ht⟩
+        exact ⟨_, .proj1 hl (isFixLam_false hf) ht⟩
+      | fixProj => exact absurd rfl hf
   | scons l t r, ⟨_, h⟩ => by
     by_cases hnv : NVRed op (scons l t r)
     · by_cases hh : isValue t = false ∧ Red op t
@@ -186,8 +215,17 @@ theorem sstep_complete : ∀ {t : Term}, Red op t → ∃ t', SStep op t t'
   | app a b, ⟨_, h⟩ => by
     by_cases hroot : RootRed op (app a b)
     · exact hroot.sstep
-    · rcases h.root_or_parts with hr | ha | hb
+    · by_cases hf : isFixLam a = true
+      · cases a with
+        | fix x =>
+          cases x with
+          | lam _ => exact ⟨_, .fixApp⟩
+          | _ => simp [isFixLam] at hf
+        | _ => simp [isFixLam] at hf
+      have hf := isFixLam_false hf
+      rcases h.root_or_parts with hr | hf' | ha | hb
       · exact absurd hr hroot
+      · rw [hf] at hf'; cases hf'
       · -- the head has a step
         cases hl : isLam a with
         | true =>
@@ -201,14 +239,14 @@ theorem sstep_complete : ∀ {t : Term}, Red op t → ∃ t', SStep op t t'
               obtain ⟨b', hb'⟩ := sstep_complete hb
               exact ⟨_, .arg hv hb'⟩
             · obtain ⟨a', ha'⟩ := sstep_complete ha
-              exact ⟨_, .app1 hroot (fun h => hb h.2) (fun h => hb h.2) ha'⟩
+              exact ⟨_, .app1 hroot hf (fun h => hb h.2) (fun h => hb h.2) ha'⟩
           | _ => simp [isLam] at hl
         | false =>
           by_cases hc : isStruct a = true ∧ Red op b
           · obtain ⟨b', hb'⟩ := sstep_complete hc.2
             exact ⟨_, .cond hc.1 hb'⟩
           · obtain ⟨a', ha'⟩ := sstep_complete ha
-            exact ⟨_, .app1 hroot (fun h => by rw [hl] at h; exact Bool.false_ne_true h.1) hc ha'⟩
+            exact ⟨_, .app1 hroot hf (fun h => by rw [hl] at h; exact Bool.false_ne_true h.1) hc ha'⟩
       · -- the argument has a step
         obtain ⟨b', hb'⟩ := sstep_complete hb
         cases hl : isLam a with
@@ -227,9 +265,9 @@ theorem sstep_complete : ∀ {t : Term}, Red op t → ∃ t', SStep op t t'
           | false =>
             by_cases ha : Red op a
             · obtain ⟨a', ha'⟩ := sstep_complete ha
-              exact ⟨_, .app1 hroot (fun h => by rw [hl] at h; exact Bool.false_ne_true h.1)
+              exact ⟨_, .app1 hroot hf (fun h => by rw [hl] at h; exact Bool.false_ne_true h.1)
                 (fun h => by rw [hs] at h; exact Bool.false_ne_true h.1) ha'⟩
-            · exact ⟨_, .app2 hroot hl hs ha hb'⟩
+            · exact ⟨_, .app2 hroot hf hl hs ha hb'⟩
 
 /-! ## The order chooses at most one step -/
 
@@ -247,70 +285,88 @@ theorem sstep_det {t a b : Term} (ha : SStep op t a) (hb : SStep op t b) : a = b
   | proj h =>
     cases hb with
     | proj h' => rw [h] at h'; cases h'; rfl
-    | proj1 hn _ => rw [h] at hn; cases hn
-  | proj1 hn _ ih =>
+    | fixProj => simp [lookup] at h
+    | proj1 hn _ _ => rw [h] at hn; cases hn
+  | fixProj =>
+    cases hb with
+    | proj h => simp [lookup] at h
+    | fixProj => rfl
+    | proj1 _ hf _ => simp [isFixLam] at hf
+  | proj1 hn hf _ ih =>
     cases hb with
     | proj h' => rw [hn] at h'; cases h'
-    | proj1 _ h' => rw [ih h']
+    | fixProj => simp [isFixLam] at hf
+    | proj1 _ _ h' => rw [ih h']
   | beta hv =>
     cases hb with
     | beta _ => rfl
     | arg hv' _ => rw [hv] at hv'; cases hv'
     | index hs => simp [select] at hs
     | cond hs _ => simp [isStruct] at hs
-    | app1 hr _ _ _ => exact absurd hv hr
-    | app2 hr _ _ _ _ => exact absurd hv hr
+    | app1 hr _ _ _ _ => exact absurd hv hr
+    | app2 hr _ _ _ _ _ => exact absurd hv hr
   | arg hv hs ih =>
     cases hb with
     | beta hv' => rw [hv] at hv'; cases hv'
     | arg _ h' => rw [ih h']
     | index hsel => simp [select] at hsel
     | cond hst _ => simp [isStruct] at hst
-    | app1 _ hl _ _ => exact absurd ⟨rfl, hs.red⟩ hl
-    | app2 _ hl _ _ _ => simp [isLam] at hl
+    | app1 _ _ hl _ _ => exact absurd ⟨rfl, hs.red⟩ hl
+    | app2 _ _ hl _ _ _ => simp [isLam] at hl
+  | fixApp =>
+    cases hb with
+    | fixApp => rfl
+    | index hs => simp [select] at hs
+    | cond hst _ => simp [isStruct] at hst
+    | app1 _ hf _ _ _ => simp [isFixLam] at hf
+    | app2 _ hf _ _ _ _ => simp [isFixLam] at hf
   | opcode h1 h2 h3 =>
     cases hb with
     | opcode _ _ h3' => rw [h3] at h3'; cases h3'; rfl
     | index _ => simp [isStruct] at h1
     | cond hst _ => simp [isStruct] at hst
-    | app1 hr _ _ _ => exact absurd ⟨h1, h2, _, h3⟩ hr
-    | app2 hr _ _ _ _ => exact absurd ⟨h1, h2, _, h3⟩ hr
+    | app1 hr _ _ _ _ => exact absurd ⟨h1, h2, _, h3⟩ hr
+    | app2 hr _ _ _ _ _ => exact absurd ⟨h1, h2, _, h3⟩ hr
   | index hs =>
     cases hb with
     | beta _ => simp [select] at hs
     | arg _ h => exact absurd h.red not_red_bytes
+    | fixApp => simp [select] at hs
     | opcode h1 _ _ => simp [isStruct] at h1
     | index hs' => rw [hs] at hs'; cases hs'; rfl
     | cond _ hc => exact absurd hc.red not_red_bytes
-    | app1 hr _ _ _ => exact absurd (index_root hs) hr
-    | app2 hr _ _ _ _ => exact absurd (index_root hs) hr
+    | app1 hr _ _ _ _ => exact absurd (index_root hs) hr
+    | app2 hr _ _ _ _ _ => exact absurd (index_root hs) hr
   | cond hst hc ih =>
     cases hb with
     | beta _ => simp [isStruct] at hst
     | arg _ _ => simp [isStruct] at hst
+    | fixApp => simp [isStruct] at hst
     | opcode _ _ _ => simp [isStruct] at hst
     | index _ => exact absurd hc.red not_red_bytes
     | cond _ h' => rw [ih h']
-    | app1 _ _ hs _ => exact absurd ⟨hst, hc.red⟩ hs
-    | app2 _ _ hs _ _ => rw [hst] at hs; cases hs
-  | app1 hr hl hs ha ih =>
+    | app1 _ _ _ hs _ => exact absurd ⟨hst, hc.red⟩ hs
+    | app2 _ _ _ hs _ _ => rw [hst] at hs; cases hs
+  | app1 hr hf hl hs ha ih =>
     cases hb with
     | beta hv => exact absurd hv hr
     | arg _ hb' => exact absurd ⟨rfl, hb'.red⟩ hl
+    | fixApp => simp [isFixLam] at hf
     | opcode h1 h2 h3 => exact absurd ⟨h1, h2, _, h3⟩ hr
     | index hsel => exact absurd (index_root hsel) hr
     | cond hst hc => exact absurd ⟨hst, hc.red⟩ hs
-    | app1 _ _ _ h' => rw [ih h']
-    | app2 _ _ _ hna _ => exact absurd ha.red hna
-  | app2 hr hl hs hna _ ih =>
+    | app1 _ _ _ _ h' => rw [ih h']
+    | app2 _ _ _ _ hna _ => exact absurd ha.red hna
+  | app2 hr hf hl hs hna _ ih =>
     cases hb with
     | beta hv => exact absurd hv hr
     | arg _ _ => simp [isLam] at hl
+    | fixApp => simp [isFixLam] at hf
     | opcode h1 h2 h3 => exact absurd ⟨h1, h2, _, h3⟩ hr
     | index hsel => exact absurd (index_root hsel) hr
     | cond hst _ => rw [hs] at hst; cases hst
-    | app1 _ _ _ ha' => exact absurd ha'.red hna
-    | app2 _ _ _ _ h' => rw [ih h']
+    | app1 _ _ _ _ ha' => exact absurd ha'.red hna
+    | app2 _ _ _ _ _ h' => rw [ih h']
   | fieldNV hv ht ih =>
     cases hb with
     | fieldNV _ h' => rw [ih h']
@@ -338,5 +394,8 @@ theorem sstep_det {t a b : Term} (ha : SStep op t a) (hb : SStep op t b) : a = b
   | lam _ ih =>
     cases hb with
     | lam h' => rw [ih h']
+  | fix _ ih =>
+    cases hb with
+    | fix h' => rw [ih h']
 
 end Oymomo

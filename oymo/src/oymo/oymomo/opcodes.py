@@ -255,7 +255,7 @@ def tagged_type(typ: terms.Term) -> tuple[str, list[terms.Field]] | None:
 
 def tag_count(term: terms.Term) -> int | None:
     """The `count` of an array or a vector: a byte array read as an unsigned,
-    little-endian number (`[03]` is 3, 2.3a), or None."""
+    little-endian number (`[03]` is 3, 2.4a), or None."""
     if isinstance(term, terms.ByteArray):
         return int.from_bytes(term.value, 'little')
     return None

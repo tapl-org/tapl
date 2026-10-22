@@ -98,7 +98,7 @@
 \begin{points}
 \item Oymomo is an extension of the untyped $\lambda$-calculus: to variables, abstraction and
   application it adds structs, projection and byte arrays, which name
-  opcodes; its $\beta$ rule is call-by-value: a function is applied only to a value, so a term that still has to run is never copied or dropped.
+  opcodes, and a fixed point for recursion; its $\beta$ rule is call-by-value: a function is applied only to a value, so a term that still has to run is never copied or dropped.
 \item Section~\ref{sec:goal} states the goal, Section~\ref{sec:syntax} gives the syntax, Section~\ref{sec:sugar} the sugar,
   Sections~\ref{sec:computation} and~\ref{sec:congruence} the reduction, Section~\ref{sec:strategy} how to reach a normal form, Section~\ref{sec:banf} ANF (A-normal form), Section~\ref{sec:modules} modules, and Section~\ref{sec:llvm} the translation to LLVM.
 \item\label{p:goal-anywhere} Reduction happens anywhere: a rule may fire in any position, under a
@@ -127,8 +127,9 @@
 \pt &   & \mid & t\ t & \textit{application} \\
 \pt &   & \mid & b & \textit{byte array} \\
 \pt &   & \mid & \{l_i = t_i\}_{i<k} & \textit{struct} \\
-\pt &   & \mid & t.l & \textit{projection} \\[6pt]
-\pt & v & ::= & x \mid \lam{x}{t} \mid b \mid \{l_i = v_i\}_{i<k}  &
+\pt &   & \mid & t.l & \textit{projection} \\
+\pt &   & \mid & \kw{fix}\ t & \textit{fixed point} \\[6pt]
+\pt & v & ::= & x \mid \lam{x}{t} \mid b \mid \{l_i = v_i\}_{i<k} \mid \kw{fix}\ (\lam{x}{t})  &
   \textit{value} \\
 \pt\plabel{p:data} & d & ::= & b \mid \{l_i = d_i\}_{i<k} &
   \textit{data}
@@ -137,6 +138,8 @@
 \item A lambda $\lam{x}{t}$ extends as far right as possible:
   $\lam{x}{\lam{y}{t}}$ is $\lam{x}{(\lam{y}{t})}$. The dot right after the binder ends the binder; every other
   dot is projection: $\lam{p}{p.a}$ is $\lam{p}{(p.a)}$.
+\item $\kw{fix}$ is a keyword. $\kw{fix}\ t$ parses as an application does:
+  $\kw{fix}\ g.l\ a$ is $(\kw{fix}\ (g.l))\ a$.
 \item A byte array $b$ is a sequence of bytes.
   \begin{subpoints}
   \item Where a number is expected, $b$ is read as an unsigned, little-endian
@@ -188,12 +191,16 @@
 \rulerow{E-Default}
   {0 < k \le b}
   {\{l_i = t_i\}_{i<k}\ b \;\step\; t_{k-1}}
+\axiomrow{E-FixProj}
+  {(\kw{fix}\ (\lam{x}{t})).l \;\step\; (\subst{x}{\kw{fix}\ (\lam{x}{t})}{t}).l}
+\axiomrow{E-FixApp}
+  {(\kw{fix}\ (\lam{x}{t_1}))\ t_2 \;\step\; (\subst{x}{\kw{fix}\ (\lam{x}{t_1})}{t_1})\ t_2}
 \end{rules}
 \item Terms are equal up to $\alpha$-equivalence (renaming bound variables).
   When a bound variable of $t_1$ clashes with a free variable of $t_2$,
   $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then
   substitutes.
-\item\label{p:values} A value is a variable, $\lam{x}{t}$, a byte array or a struct of values (Section~\ref{sec:syntax}).
+\item\label{p:values} A value is a variable, $\lam{x}{t}$, a byte array, a struct of values or a fixed point $\kw{fix}\ (\lam{x}{t})$ (Section~\ref{sec:syntax}).
   \rn{E-Beta} substitutes only a value, so it never copies or drops a term that still has to
   run: in $(\lam{x}{\{x, x\}})\ (m.\mathit{print}\ \{r\})$ the call is not a value, so it stays as
   written, a $\kw{let}$ (\pref{p:let}), and runs once. A variable is a value because it stands for one.
@@ -201,6 +208,8 @@
   \item\label{p:call} A call to a function, such as $m.\mathit{print}\ \{r\}$ (Section~\ref{sec:modules}),
     is an effect too. Reduction never binds $m$: the linker connects it, so the call never
     reduces. It is not a value, so \rn{E-Beta} never copies or drops it: a $\kw{let}$ (\pref{p:let}) keeps it where it is written.
+  \item A fixed point is a value: it has no effect, so copying it runs nothing twice, and it
+    unfolds only when it is used (\pref{p:fix}).
   \end{subpoints}
 \item\label{p:opcode} A byte array applied to a struct, $b\ \{l_i = t_i\}_{i<k}$, is an
   opcode call: $b$ names the opcode and the struct holds its operands, as in
@@ -245,22 +254,23 @@
   \end{subpoints}
 \item \rn{E-Default}: past the last field, a byte array selects the last one, so the last field is
   a default arm: $q\ \hex{05} = c$. The empty struct has no default (\pref{p:stuck}).
-\item\label{p:z} Recursion uses the Z combinator, an ordinary term:
-  \[Z = \lam{f}{(\lam{x}{f\ (\lam{v}{x\ x\ v})})\ (\lam{x}{f\ (\lam{v}{x\ x\ v})})}\]
+\item\label{p:fix} A fixed point $\kw{fix}\ (\lam{x}{t})$ is recursion on any value, a struct
+  too: it stands for $t$, with $x$ standing for the fixed point itself.
   \begin{subpoints}
-  \item $Z\ g \steps g\ (\lam{v}{X\ X\ v})$, where $X = \lam{x}{g\ (\lam{v}{x\ x\ v})}$: $g$ receives
-    a lambda, a value, so it is applied, and each recursive call $X\ X\ v$ unfolds once more.
-  \item The Y combinator, $\lam{f}{(\lam{x}{f\ (x\ x)})\ (\lam{x}{f\ (x\ x)})}$, never works:
-    $f$ waits for $x\ x$ to become a value, and it never does.
-  \item Reduction under $\lambda$ may also unfold $X\ X$ inside $\lam{v}{X\ X\ v}$, again and
-    again. Such paths loop, but every path that ends gives the same normal form
-    (\pref{p:confluent}). A term that still holds $Z\ g$ has no normal form, so a normal
-    form never contains $Z$.
+  \item It unfolds only when it is used: projected (\rn{E-FixProj}) or applied (\rn{E-FixApp}).
+    Each use unfolds it once, putting $\kw{fix}\ (\lam{x}{t})$ in for $x$; on its own it never
+    steps at the root.
+  \item On a struct: in $\kw{fix}\ (\lam{f}{\{l = \lam{p}{f.l\ p}\}})$, $f$ is the fixed point
+    itself, so $f.l$ unfolds it and takes the field $l$.
+  \item An unfolded copy holds the fixed point again, often under a lambda, where reduction may
+    unfold it again and again. Every path that ends gives the same
+    normal form (\pref{p:confluent}); a normal form holds a fixed point only where it is not used.
   \item For example, with numbers in decimal standing for $\str{i32}$ byte arrays,
-    \[\begin{array}{l}F = Z\ (\lam{f}{\lam{n}{\kw{if}\ \str{icmp}\ \{\str{eq}, \str{i32}, n, 0\}\ \kw{then}\ 1}} \\
+    \[\begin{array}{l}F = \kw{fix}\ (\lam{f}{\lam{n}{\kw{if}\ \str{icmp}\ \{\str{eq}, \str{i32}, n, 0\}\ \kw{then}\ 1}} \\
 \qquad \kw{else}\ \str{mul}\ \{\str{i32}, n, f\ (\str{sub}\ \{\str{i32}, n, 1\})\})\end{array}\]
     every path of $F\ 3$ that ends gives $6$. $F\ p.n$ has no normal form: recursion on an
     unknown never stops. Recursion in LLVM goes through $m$ and $f$ (Section~\ref{sec:modules}).
+  \item For example, $\kw{fix}$ binds $m$ and $f$ to run a module by reduction (\pref{p:run-module}).
   \end{subpoints}
 \end{points}
 
@@ -277,20 +287,22 @@
 \rulerow{E-Struct}{t_i \step t_i'}
   {\{\dots, l_i = t_i, \dots\} \;\step\; \{\dots, l_i = t_i', \dots\}}
 \rulerow{E-Proj1}{t \step t'}{t.l \;\step\; t'.l}
+\rulerow{E-Fix1}{t \step t'}{\kw{fix}\ t \;\step\; \kw{fix}\ t'}
 \end{rules}
 \item $\step$ is reduction anywhere: a rule of Section~\ref{sec:computation} may fire
   anywhere, under a lambda, in a struct field (so in every arm of a branch) too.
   A struct's fields are computed in no particular order.
   $t \steps t'$ is zero or more $\step$ steps.
 \item\label{p:confluent} $\step$ is confluent: it is the call-by-value $\lambda$-calculus (Plotkin's $\lambda_v$) with reduction anywhere, with
-   structs, projection and branching (Church--Rosser; projection is the usual record rule). The
+   structs, projection, branching and a fixed point (Church--Rosser; projection is the usual record rule). The
   proof is in Lean 4, in \texttt{proofs/} (theorem \texttt{Oymomo.confluence}), for
   every opcode table $\fn{op}$.
   \begin{subpoints}
   \item Paths that end agree, even when other paths loop: if $t \steps n_1$ and $t \steps n_2$ with
     both normal, confluence gives a $u$ with $n_1 \steps u$ and $n_2 \steps u$; a normal form has
     no step, so $n_1 = u = n_2$. Looping paths don't matter: confluence never asks every
-    path to end. Recursion through $Z$ (\pref{p:z}) adds no rule, so it adds nothing to prove.
+    path to end.
+    $\kw{fix}$ adds \rn{E-FixProj}, \rn{E-FixApp} and \rn{E-Fix1} (\pref{p:fix}); the proof covers them.
   \item Confluence is what lets programs be combined. For two programs $A$ and $B$ merged as
     $A\ B$: reducing $A$ and $B$ first, $A \steps A'$ and $B \steps B'$, and then $A\ B$ is one of the orders of $A\ B$
     (\rn{E-App1}, \rn{E-App2}: $A\ B \steps A'\ B'$), so it reaches the same normal form as applying first. Merging never binds a
@@ -300,7 +312,7 @@
 \begin{points}
 \item\label{p:normal} A normal form is a term with no step. By confluence (\pref{p:confluent}), a term has at most one.
 \item\label{p:stuck} A normal form is stuck when it contains a part that no substitution can make
-  reduce, such as $\{\}\ t$, a byte array applied to a lambda, or $t.l$ where $t$ is a lambda. A
+  reduce, such as $\{\}\ t$, a byte array applied to a lambda, or $t.l$ where $t$ is a lambda, or $\kw{fix}\ t$ where $t$ is a byte array or a struct. A
   program $t$ with $t \steps t'$ for a stuck $t'$ is rejected.
 \item\label{p:forms} A normal form that is not stuck is valid. An unknown opcode or undefined behavior is not stuck: the call is normal (\pref{p:opcode}). A normal form is in ANF (Section~\ref{sec:banf}) or
   not; only one in ANF is translated to LLVM. $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$
@@ -318,15 +330,17 @@
 \item\label{p:order} This order is one way. Each row matches a shape and chooses either a rule of
   Section~\ref{sec:computation}, which fires at the root, or a part of the term, which takes the next step
   by the rule of Section~\ref{sec:congruence} shown; the order defines no rule of its own. Rows are tried top to bottom, and a part is chosen only when it has a step.
-  A term matches rows of only one group (projection, application, struct, lambda), so only the
+  A term matches rows of only one group (projection, application, struct, lambda, fixed point), so only the
   order within a group matters.
 \[
 \begin{array}{l@{\quad}l@{\quad}l}
  & \textit{shape} & \textit{choose} \\ \hline
 \pt & \{l_i = t_i\}_{i<k}.l \quad l_j = l & \rn{E-Proj} \\
+\pt & (\kw{fix}\ (\lam{x}{t})).l & \rn{E-FixProj} \\
 \pt\plabel{p:order-proj} & t.l & \rn{E-Proj1}\text{ on }t \\
 \pt & (\lam{x}{t_1})\ v & \rn{E-Beta} \\
 \pt\plabel{p:order-arg} & (\lam{x}{t_1})\ t_2 & \rn{E-App2}\text{ on }t_2 \\
+\pt & (\kw{fix}\ (\lam{x}{t_1}))\ t_2 & \rn{E-FixApp} \\
 \pt & b\ \{l_i = d_i\}_{i<k} \quad \fn{op}(b)(d_i)_{i<k} = b' & \rn{E-Opcode} \\
 \pt & \{l_i = t_i\}_{i<k}\ b \quad b < k & \rn{E-Index} \\
 \pt & \{l_i = t_i\}_{i<k}\ b \quad 0 < k \le b & \rn{E-Default} \\
@@ -335,7 +349,8 @@
 \pt & t_1\ t_2 & \rn{E-App2}\text{ on }t_2 \\
 \pt\plabel{p:order-field} & \{l_i = t_i\}_{i<k} & \rn{E-Struct}\text{ on the first } t_i \text{ not a value} \text{ with a step} \\
 \pt & \{l_i = t_i\}_{i<k} & \rn{E-Struct}\text{ on the first } t_i \text{ with a step} \\
-\pt\plabel{p:order-lam} & \lam{x}{t} & \rn{E-Abs}\text{ on }t
+\pt\plabel{p:order-lam} & \lam{x}{t} & \rn{E-Abs}\text{ on }t \\
+\pt & \kw{fix}\ t & \rn{E-Fix1}\text{ on }t
 \end{array}
 \]
 \item What the order gives:
@@ -345,8 +360,8 @@
   \item An argument is reduced to a value before the function's body (row \pref{p:order-arg}).
   \item A branch's condition is reduced before its arms (row \pref{p:order-cond}); when it is a byte array,
     \rn{E-Index} or \rn{E-Default} keeps one arm and the others are never reduced.
-  \item The order goes under a lambda only when nothing outside it can step (row \pref{p:order-lam}), so a $Z$
-    unfolds only when it is applied (\pref{p:z}). In a
+  \item The order goes under a lambda only when nothing outside it can step (row \pref{p:order-lam}), so a fixed point inside a lambda unfolds only
+    when nothing outside can step (\pref{p:fix}). In a
     struct, a field that is not a value is reduced before a field that is (row \pref{p:order-field}):
     $(\lam{x}{x.g})\ \{f = \lam{u}{\Omega}, g = (\lam{y}{y})\ \hex{01}\}$ reduces $g$ and never enters $\lam{u}{\Omega}$.
   \end{subpoints}
@@ -461,6 +476,11 @@
   \begin{subpoints}
   \item Reduction never unfolds them, and a recursive function or a loop doesn't
     make reduction loop.
+  \item\label{p:run-module} To run a module by reduction, as a test does, a program binds $m$ and
+    $f$ itself with $\kw{fix}$ (\pref{p:fix}). With $M$ the module of \pref{p:gcd}:
+    \[\begin{array}{l}\kw{let}\ \mathit{gcd} = (\kw{fix}\ (\kw{fix}\ M).\mathit{gcd}.\mathit{body}).\mathit{entry}.\mathit{body}\ \kw{in} \\
+    \mathit{gcd}\ \{a = \hex{30000000}, b = \hex{12000000}\} \steps \hex{06000000}\end{array}\]
+    ANF has no $\kw{fix}$ (\pref{p:anf}), so such a program is not translated.
     \end{subpoints}
 \item\label{p:gcd} For example, Euclid's $\gcd$, with the sugars of \pref{p:let} and \pref{p:if}:
   \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]

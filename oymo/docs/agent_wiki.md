@@ -35,8 +35,9 @@ The user's orders, kept as given. Follow them in every task.
   - **Current state (after D96; supersedes the history in the sub-bullets below where they
     differ):** sections 1 Goal, 2 Kernel Syntax, 3 Sugar Syntax, 4 Computation, 5 Reduction
     Anywhere, 6 Strategy, 7 ANF, 8 Modules, 9 LLVM Translation. Call-by-value E-Beta (values
-    `x | λx. t | b | {v}`), E-Opcode on data, E-Proj, E-Index, E-Default; Z for recursion; no
-    forms, no `fix`, no strict application, no stuck term, no built-ins. ANF has operands
+    `x | λx. t | b | {v} | fix (λx. t)`), E-Opcode on data, E-Proj, E-Index, E-Default, lazy
+    `fix` (E-FixProj, E-FixApp, E-Fix1; D98; the doc never mentions Z); no forms, no strict
+    application, no stuck term, no built-ins. ANF has operands
     `q ::= a | {lᵢ = qᵢ}` (D94). Types are data of the shapes in 9.1 (D95); a byte array
     takes its type from its use (9.2, D96). Lean theorem names are the only code references.
     Numbering, review marks and answer rules are as stated below and in this section.
@@ -116,7 +117,8 @@ The user's orders, kept as given. Follow them in every task.
     current rules: call-by-value E-Beta (values `x | λ | b | {v}` since D92, no `v.l`;
     `ValSub` for the
     substitution lemma), E-Opcode, E-Proj, E-Index/E-Default, reduction anywhere; no
-    strict application, no `fix`. Axioms: `propext`, `Quot.sound` only.
+    strict application; lazy `fix` since D98 (`Term.fix`, E-FixProj, E-FixApp, E-Fix1; rows
+    b, f, p of 6.2). Axioms unchanged.
     Code references allowed in semantics.tex: `proofs/` and the Lean theorem names
     (`Oymomo.confluence`, `anf_normal`, `sstep_step`, `sstep_complete`, `sstep_det`, `guarantee`).
     D93: `Measure.lean` (`ParM`, Takahashi's measure with `occ`) and `Guarantee.lean`
@@ -5934,6 +5936,15 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Wrong terms with no rule (stuck later): a struct applied; `v.l` with `v` an abstraction or a struct without `l`.
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
+
+##### D98: lazy `fix`; no Z in the doc — agreed (accepted)
+- User wanted the gcd test of `strategy_test.py` in module shape, as `let gcd = ($fix ($fix module).gcd).entry in gcd {…}`. `Z` can't do it: it binds `f` to a lambda, so `f.loop` is stuck; `(Z (Z module).gcd.body {}).entry.body` works only with `λf. λu. {…}` and `(f {}).l` jumps (Answers 138–140). Options (Answer 142): TAPL `fix` (unfolds anywhere, no normal form while it remains) or lazy `fix` (a value, unfolds only when used); `letrec` (Answer 143) is the same power with a binder. User: "142 lazy fix. lets start implement".
+- User: "doc4.9b no need to mention Z" → 4.9b is now a struct example without Z.
+- User: "dont mention Z in the whole document" → point `p:z` removed (Z, Y, the factorial); the factorial moves into `p:fix` as `F = fix (λf. λn. …)`; 5.3a drops "Recursion through Z adds no rule"; 6.3d says a fixed point inside a lambda unfolds only when nothing outside can step.
+- 2.1h: `fix (λx. t)` last in the value row; 4.3 lists the fixed point last too. User: "yes, and accepted".
+- Doc draft: 1.1; 2.1 term `fix t`, value `fix (λx. t)`; 2.3 `fix` keyword, parses like an application; 4.1 E-FixProj `(fix (λx. t)).l ⟶ ([x ↦ fix (λx. t)] t).l`, E-FixApp `(fix (λx. t₁)) t₂ ⟶ ([x ↦ fix (λx. t₁)] t₁) t₂`; values point: a fixed point is a value (no effect); new point `p:fix` after `p:z`; 5.1 E-Fix1; 5.3 and 5.3a; 5.5 `fix b`, `fix {…}` stuck; 6.2 rows E-FixProj (projection group), E-FixApp (application group, after the argument row), group fixed point `fix t` → E-Fix1 on `t`; 6.3d; 8.8 sub-point `p:run-module` with the gcd example; ANF has no `fix`.
+- Lean done: `Term.fix`, `isFixLam`; Step/Par/ParM rules `fixProj(R)`, `fixApp(R)`, `fix`; `cd` unfolds fixed points; SStep rows b, f, p, with `isFixLam a = false` on rows c, k, l; IPar `rootFixProj`, `rootFixApp`, `fix`. All six theorems build, no `sorry`, axioms as before.
+- Code done: `terms.Fix`; `fix` is reserved and parses like an application (`fix project` heads an apply chain); printer at apply level; `reduction.unfold`, `is_value`, `stuck_part`; strategy rows b, f, p. Tests: rows relabeled a–p, fix rows, gcd in module shape as `let gcd = (fix (fix module).gcd.body).entry.body in gcd {…}`, factorial via `fix`, random check with fixed points (search gives up on terms over 400 chars). Z tests kept (fib, Collatz, 11f).
 
 ##### D97: doc matches the code — agreed (accepted)
 - User: "review one more time 'The doc, Lean, code, goldens and open items are all done'". Agent's review found the doc saying more than the code does: 9.3d "or a selection with a constant byte array" (not in 7.1); 8.3c jump to the first block "by position" (no positional jump: `g ::= y | g.l`); 9.2f `takes` → `phi` (code: only with more than one predecessor). While editing, also 8.3d and 8.7 still wrote `aᵢ` where D94 made them operands `qᵢ`. User: "yes".

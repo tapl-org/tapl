@@ -42,6 +42,17 @@ theorem Par.ren {t t' : Term} (h : Par op t t') (ξ : Nat → Nat) :
     simp only [Oymomo.ren]
     rw [ren_data ξ h2]
     exact .opcodeR h1 h2 h3
+  | fix _ ih => exact .fix (ih _)
+  | fixProjR _ ih =>
+    simp only [Oymomo.ren]
+    rw [ren_inst]
+    simp only [Oymomo.ren]
+    exact .fixProjR (ih _)
+  | fixAppR _ _ iht ihu =>
+    simp only [Oymomo.ren]
+    rw [ren_inst]
+    simp only [Oymomo.ren]
+    exact .fixAppR (iht _) (ihu _)
 
 theorem Par.ups {σ τ : Nat → Term} (h : ∀ n, Par op (σ n) (τ n)) :
     ∀ n, Par op (Oymomo.ups σ n) (Oymomo.ups τ n)
@@ -69,6 +80,17 @@ theorem Par.subst {t t' : Term} (h : Par op t t') {σ τ : Nat → Term}
     simp only [Oymomo.subst]
     rw [subst_data _ h2]
     exact .opcodeR h1 h2 h3
+  | fix _ ih => exact .fix (ih hσ hv)
+  | fixProjR _ ih =>
+    simp only [Oymomo.subst]
+    rw [subst_inst]
+    simp only [Oymomo.subst]
+    exact .fixProjR (ih (Par.ups hσ) hv.ups)
+  | fixAppR _ _ iht ihu =>
+    simp only [Oymomo.subst]
+    rw [subst_inst]
+    simp only [Oymomo.subst]
+    exact .fixAppR (iht (Par.ups hσ) hv.ups) (ihu hσ hv)
 
 theorem Par.inst {u u' : Term} (h : Par op u u') :
     ∀ n, Par op (Oymomo.inst u n) (Oymomo.inst u' n)
@@ -85,12 +107,15 @@ def cd : Term → Term
   | snil => snil
   | scons l t r => scons l (cd t) (cd r)
   | bytes b => bytes b
+  | fix t => fix (cd t)
+  | proj (fix (lam t)) l => proj (subst (inst (fix (lam (cd t)))) (cd t)) l
   | proj s l => if (lookup s l).isSome then (lookup (cd s) l).getD snil else proj (cd s) l
   | app (lam t) u => if isValue u then subst (inst (cd u)) (cd t) else app (lam (cd t)) (cd u)
   | app (bytes b) s =>
     match isStruct s && isData s, op b s with
     | true, some b' => bytes b'
     | _, _ => app (bytes b) (cd s)
+  | app (fix (lam t)) u => app (subst (inst (fix (lam (cd t)))) (cd t)) (cd u)
   | app s (bytes b) =>
     if (select s b.toNat).isSome then (select (cd s) b.toNat).getD snil
     else app (cd s) (bytes b)
@@ -100,17 +125,31 @@ def cd : Term → Term
 def isHead : Term → Bool
   | lam _ => true
   | bytes _ => true
+  | fix (lam _) => true
   | _ => false
 
 theorem cd_app_bytes {a : Term} (d : Bytes) (ha : isHead a = false) :
     cd op (app a (bytes d)) =
       if (select a d.toNat).isSome then (select (cd op a) d.toNat).getD snil
       else app (cd op a) (bytes d) := by
-  cases a <;> first | rfl | exact absurd ha (by simp [isHead])
+  cases a with
+  | fix x => cases x <;> first | rfl | exact absurd ha (by simp [isHead])
+  | _ => first | rfl | exact absurd ha (by simp [isHead])
 
 theorem cd_app_other {a u : Term} (ha : isHead a = false) (hu : ∀ d, u ≠ bytes d) :
     cd op (app a u) = app (cd op a) (cd op u) := by
-  cases a <;> cases u <;> first | rfl | exact (hu _ rfl).elim | exact absurd ha (by simp [isHead])
+  cases a with
+  | fix x =>
+    cases x <;> cases u <;>
+      first | rfl | exact (hu _ rfl).elim | exact absurd ha (by simp [isHead])
+  | _ => cases u <;> first | rfl | exact (hu _ rfl).elim | exact absurd ha (by simp [isHead])
+
+theorem cd_proj_other {s : Term} (l : String) (hs : isFixLam s = false) :
+    cd op (proj s l) =
+      if (lookup s l).isSome then (lookup (cd op s) l).getD snil else proj (cd op s) l := by
+  cases s with
+  | fix x => cases x <;> first | rfl | exact absurd hs (by simp [isFixLam])
+  | _ => rfl
 
 theorem lookup_cd {s u : Term} {l : String} (h : lookup s l = some u) :
     lookup (cd op s) l = some (cd op u) := by
@@ -155,6 +194,14 @@ theorem Par.lam_inv {t s : Term} (h : Par op (Term.lam t) s) :
 theorem Par.bytes_inv {b : Bytes} {s : Term} (h : Par op (Term.bytes b) s) : s = Term.bytes b := by
   cases h; rfl
 
+theorem Par.fix_lam_inv {t s : Term} (h : Par op (Term.fix (Term.lam t)) s) :
+    ∃ t', s = Term.fix (Term.lam t') ∧ Par op t t' := by
+  cases h with
+  | fix h => cases h with | lam h => exact ⟨_, rfl, h⟩
+
+theorem ValSub.inst_fix (t : Term) : ValSub (Oymomo.inst (Term.fix (Term.lam t))) :=
+  ValSub.inst (u := Term.fix (Term.lam t)) rfl
+
 /-- Every parallel step from `t` reaches `cd t` in one more. -/
 theorem Par.triangle {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
   induction h with
@@ -163,8 +210,29 @@ theorem Par.triangle {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
   | snil => exact .snil
   | lam _ ih => exact .lam ih
   | scons _ _ iht ihr => exact .scons iht ihr
-  | @proj t t' l htt ih =>
+  | fix _ ih => exact .fix ih
+  | @fixProjR t t' l _ ih =>
     simp only [cd]
+    exact .proj (ih.subst (Par.inst (.fix (.lam ih))) (ValSub.inst_fix _))
+  | @fixAppR t t' u u' _ _ iht ihu =>
+    simp only [cd]
+    exact .app (iht.subst (Par.inst (.fix (.lam iht))) (ValSub.inst_fix _)) ihu
+  | @proj t t' l htt ih =>
+    cases hf : isFixLam t with
+    | true =>
+      cases t with
+      | fix x =>
+        cases x with
+        | lam a =>
+          obtain ⟨a', rfl, _⟩ := htt.fix_lam_inv
+          simp only [cd] at ih ⊢
+          obtain ⟨_, he, ha⟩ := ih.fix_lam_inv
+          cases he
+          exact .fixProjR ha
+        | _ => simp [isFixLam] at hf
+      | _ => simp [isFixLam] at hf
+    | false =>
+    rw [cd_proj_other l hf]
     cases hl : lookup t l with
     | none => simpa using Par.proj ih
     | some u =>
@@ -176,7 +244,12 @@ theorem Par.triangle {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
       subst hw'
       exact .projR hw hww'
   | @projR s u u' l hl _ ih =>
-    simp only [cd, hl, Option.isSome_some, ite_true]
+    have hf : isFixLam s = false := by
+      cases s with
+      | fix x => simp [lookup] at hl
+      | _ => rfl
+    rw [cd_proj_other l hf]
+    simp only [hl, Option.isSome_some, ite_true]
     rw [lookup_cd hl, Option.getD_some]
     exact ih
   | @app a a' b b' hab hbb iha ihb =>
@@ -221,6 +294,15 @@ theorem Par.triangle {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
           rw [hbb.data hc.2]
           exact .opcodeR hc.1 hc.2 ho
         next => exact .app (.bytes c) ihb
+      | fix x =>
+        cases x with
+        | lam t =>
+          obtain ⟨t', rfl, _⟩ := hab.fix_lam_inv
+          simp only [cd] at iha ⊢
+          obtain ⟨_, he, ht⟩ := iha.fix_lam_inv
+          cases he
+          exact .fixAppR ht ihb
+        | _ => exact absurd hh (by simp [isHead])
       | _ => exact absurd hh Bool.false_ne_true
   | @beta t t' u u' hu _ huu iht ihu =>
     simp only [cd, hu, ite_true]

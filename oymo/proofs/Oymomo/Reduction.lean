@@ -7,8 +7,9 @@ import Oymomo.Substitution
 
 `Step op t t'` is `t ⟶ t'`: a rule of Section 4 anywhere in `t` (reduction anywhere,
 Section 5). `op` is the opcode table, left abstract: `op b s = some b'` when `op(b)` is
-defined on the operands `s`. E-Opcode reads it only when `s` is data (row 2.1h), which
-never steps. E-Beta substitutes only a value (row 2.1g).
+defined on the operands `s`. E-Opcode reads it only when `s` is data (row 2.1i), which
+never steps. E-Beta substitutes only a value (row 2.1h). E-FixProj and E-FixApp unfold a
+fixed point `fix (λx. t)` once, where it is projected or applied (4.8).
 
 `Par op t t'` is parallel reduction: any set of redexes of `t` at once. It is the tool for
 confluence (Tait and Martin-Löf).
@@ -70,6 +71,13 @@ inductive Step : Term → Term → Prop
   | scons2 {l : String} {t r r' : Term} : Step r r' → Step (scons l t r) (scons l t r')
   /-- E-Proj1. -/
   | proj1 {t t' : Term} {l : String} : Step t t' → Step (proj t l) (proj t' l)
+  /-- E-FixProj. -/
+  | fixProj {t : Term} {l : String} :
+      Step (proj (fix (lam t)) l) (proj (subst (inst (fix (lam t))) t) l)
+  /-- E-FixApp. -/
+  | fixApp {t u : Term} : Step (app (fix (lam t)) u) (app (subst (inst (fix (lam t))) t) u)
+  /-- E-Fix1. -/
+  | fix {t t' : Term} : Step t t' → Step (fix t) (fix t')
 
 /-- Parallel reduction. -/
 inductive Par : Term → Term → Prop
@@ -87,6 +95,11 @@ inductive Par : Term → Term → Prop
       select s b.toNat = some u → Par u u' → Par (app s (bytes b)) u'
   | opcodeR {s : Term} {b b' : Bytes} :
       isStruct s = true → isData s = true → op b s = some b' → Par (app (bytes b) s) (bytes b')
+  | fix {t t' : Term} : Par t t' → Par (fix t) (fix t')
+  | fixProjR {t t' : Term} {l : String} :
+      Par t t' → Par (proj (fix (lam t)) l) (proj (subst (inst (fix (lam t'))) t') l)
+  | fixAppR {t t' u u' : Term} :
+      Par t t' → Par u u' → Par (app (fix (lam t)) u) (app (subst (inst (fix (lam t'))) t') u')
 
 variable {op}
 
@@ -157,6 +170,7 @@ theorem isValue_ren {v : Term} (ξ : Nat → Nat) (h : isValue v = true) :
   | scons l t r iht ihr =>
     simp only [isValue, Bool.and_eq_true] at h
     simp [ren, isValue, iht _ h.1, ihr _ h.2]
+  | fix x _ => cases x <;> simp_all [isValue, ren]
   | _ => simp_all [isValue, ren]
 
 /-- A substitution of values. -/
@@ -178,6 +192,7 @@ theorem isValue_subst {v : Term} {σ : Nat → Term} (hσ : ValSub σ) (h : isVa
   | scons l t r iht ihr =>
     simp only [isValue, Bool.and_eq_true] at h
     simp [subst, isValue, iht hσ h.1, ihr hσ h.2]
+  | fix x _ => cases x <;> simp_all [isValue, subst]
   | _ => simp_all [isValue, subst]
 
 /-- Data has no variables. -/
@@ -205,6 +220,7 @@ theorem Par.refl : ∀ t : Term, Par op t t
   | .scons _ t r => .scons (Par.refl t) (Par.refl r)
   | .proj t _ => .proj (Par.refl t)
   | .bytes b => .bytes b
+  | .fix t => .fix (Par.refl t)
 
 /-- Values stay values. -/
 theorem Par.value {v v' : Term} (h : Par op v v') (hv : isValue v = true) : isValue v' = true := by
@@ -212,6 +228,7 @@ theorem Par.value {v v' : Term} (h : Par op v v') (hv : isValue v = true) : isVa
   | scons _ _ iht ihr =>
     simp only [isValue, Bool.and_eq_true] at hv ⊢
     exact ⟨iht hv.1, ihr hv.2⟩
+  | fix h _ => cases h <;> first | rfl | simp [isValue] at hv
   | _ => first | rfl | exact absurd hv Bool.false_ne_true
 
 theorem Step.par {t t' : Term} (h : Step op t t') : Par op t t' := by
@@ -226,6 +243,9 @@ theorem Step.par {t t' : Term} (h : Step op t t') : Par op t t' := by
   | scons1 _ ih => exact .scons ih (.refl _)
   | scons2 _ ih => exact .scons (.refl _) ih
   | proj1 _ ih => exact .proj ih
+  | fixProj => exact .fixProjR (.refl _)
+  | fixApp => exact .fixAppR (.refl _) (.refl _)
+  | fix _ ih => exact .fix ih
 
 theorem Par.star {t t' : Term} (h : Par op t t') : Star (Step op) t t' := by
   induction h with
@@ -247,6 +267,15 @@ theorem Par.star {t t' : Term} (h : Par op t t') : Star (Step op) t t' := by
   | projR h _ ih => exact Star.head (Step.proj h) ih
   | indexR h _ ih => exact Star.head (Step.index h) ih
   | opcodeR h1 h2 h3 => exact Star.single (Step.opcode h1 h2 h3)
+  | fix _ ih => exact Star.map Term.fix (fun h => Step.fix h) ih
+  | @fixProjR t t' l _ ih =>
+    exact (Star.map (fun x => Term.proj (Term.fix (Term.lam x)) l)
+      (fun h => Step.proj1 (Step.fix (Step.lam h))) ih).tail Step.fixProj
+  | @fixAppR t t' u u' _ _ iht ihu =>
+    have h1 := Star.map (fun x => Term.app (Term.fix (Term.lam x)) u)
+      (fun h => Step.app1 (Step.fix (Step.lam h))) iht
+    have h2 := Star.map (Term.app (Term.fix (Term.lam t'))) (fun h => Step.app2 h) ihu
+    exact (h1.trans h2).tail Step.fixApp
 
 /-- Data never steps. -/
 theorem Par.data {s s' : Term} (h : Par op s s') (hd : isData s = true) : s' = s := by

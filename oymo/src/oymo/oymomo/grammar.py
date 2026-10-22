@@ -4,13 +4,14 @@
 
     expression ::= λx. expression | let x = expression in expression
                  | if expression then expression else expression | apply
-    apply      ::= apply project | project
+    apply      ::= apply project | fix project | project
     project    ::= project.name | primary
     primary    ::= b | {fields} | (expression) | $i | name
 
 A lambda is written `λx. t` or, in ASCII, `\\x. t`; it extends as far right as possible
-(2.2), so as an operand it needs parentheses. A struct's labels are unique, except the
-empty label of an unlabeled field (2.4b).
+(2.2), so as an operand it needs parentheses. `fix t` parses as an application does
+(2.3): `fix g.l a` is `(fix (g.l)) a`. A struct's labels are unique, except the empty
+label of an unlabeled field (2.5b).
 """
 
 import unicodedata
@@ -21,7 +22,7 @@ from oymo.core.terminals import Comment, Eof, Fixed, HexBytes, Identifier, Integ
 from oymo.oymomo import rule_names as rn
 from oymo.oymomo import terms
 
-RESERVED = frozenset({'if', 'then', 'else', 'let', 'in'})
+RESERVED = frozenset({'if', 'then', 'else', 'let', 'in', 'fix'})
 
 TRIVIA = Memoized(ZeroOrMore(First(Whitespace(' \t\r\n'), Comment('//'))))
 
@@ -104,7 +105,7 @@ def is_text_char(char: str) -> bool:
 
 
 class _TextBytes(String):
-    """`'text'` as the UTF-8 bytes of its characters (2.3c)."""
+    """`'text'` as the UTF-8 bytes of its characters (2.4c)."""
 
     def __init__(self, *, skip):
         super().__init__(
@@ -190,6 +191,7 @@ RULES: dict[str, Clause] = {
             Ref(rn.PROJECT),
             action=lambda c: terms.Apply(function=c.values[0], argument=c.values[1], location=_location(c)),
         ),
+        Seq(_punct('fix'), Ref(rn.PROJECT), action=lambda c: terms.Fix(body=c.values[0], location=_location(c))),
         Ref(rn.PROJECT),
     ),
     rn.PROJECT: First(
@@ -234,7 +236,7 @@ RULES: dict[str, Clause] = {
 
 def duplicate_label(term: syntax.Term) -> terms.Field | None:
     """The first field, in source order, whose label an earlier field of the same struct
-    already has. Empty labels never clash (2.4b)."""
+    already has. Empty labels never clash (2.5b)."""
     if isinstance(term, terms.Struct):
         seen = set()
         for f in term.fields:

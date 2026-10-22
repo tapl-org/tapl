@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Oymomo terms (semantics.tex, Section 2): `x | λx. t | t t | b | {lᵢ = tᵢ} | t.l`.
+"""Oymomo terms (semantics.tex, Section 2): `x | λx. t | t t | b | {lᵢ = tᵢ} | t.l | fix t`.
 
 A `Variable` is a name as written; `reduction.resolve` turns each one into the
 `BruijnIndex` of its binder.
@@ -83,6 +83,18 @@ class Project(Term):
 
     def children(self) -> Generator[Term, None, None]:
         yield self.struct
+
+
+@dataclass
+class Fix(Term):
+    """`fix body`, a fixed point (4.8). `fix (λx. t)` is a value; it unfolds, once, where it
+    is projected (E-FixProj) or applied (E-FixApp)."""
+
+    body: Term
+    location: Location | None = field(default=None, compare=False)
+
+    def children(self) -> Generator[Term, None, None]:
+        yield self.body
 
 
 # A type such as `'i32'` is the byte array of its name.

@@ -50,6 +50,8 @@ def _map_children(term, f):
             return replace(term, fields=[replace(field, value=f(field.value)) for field in fields])
         case terms.Project(struct=struct):
             return replace(term, struct=f(struct))
+        case terms.Fix(body=body):
+            return replace(term, body=f(body))
     return term
 
 
@@ -120,18 +122,20 @@ def beta(lambda_: terms.Lambda, argument: syntax.Term) -> syntax.Term:
 
 
 def is_value(term: syntax.Term) -> bool:
-    """A value (2.1g): a variable, a lambda, a byte array, or a struct of values.
-    A projection is never one."""
+    """A value (2.1h): a variable, a lambda, a byte array, a struct of values, or a fixed
+    point `fix (λx. t)`. A projection is never one."""
     match term:
         case terms.Variable() | terms.BruijnIndex() | terms.Lambda() | terms.ByteArray():
             return True
         case terms.Struct(fields=fields):
             return all(is_value(f.value) for f in fields)
+        case terms.Fix(body=terms.Lambda()):
+            return True
     return False
 
 
 def is_data(term: syntax.Term) -> bool:
-    """Data (2.1h): a byte array, or a struct of data. It never steps."""
+    """Data (2.1i): a byte array, or a struct of data. It never steps."""
     match term:
         case terms.ByteArray():
             return True
@@ -170,8 +174,16 @@ def project(struct: syntax.Term, label: str) -> syntax.Term | None:
     return None
 
 
+def unfold(fixed: terms.Fix) -> syntax.Term:
+    """`fix (λx. t)` unfolded once: `t` with `fix (λx. t)` put in for `x` (E-FixProj,
+    E-FixApp). `fixed.body` must be a lambda."""
+    if not isinstance(fixed.body, terms.Lambda):
+        raise TypeError('Only a fixed point of a lambda unfolds.')
+    return beta(fixed.body, fixed)
+
+
 def index_value(term: syntax.Term) -> int | None:
-    """The index a byte array spells, unsigned little-endian; `''` is 0 (2.3a).
+    """The index a byte array spells, unsigned little-endian; `''` is 0 (2.4a).
     None for anything that is not a byte array."""
     if isinstance(term, terms.ByteArray):
         return int.from_bytes(term.value, 'little')
@@ -203,6 +215,12 @@ def reduce(term: syntax.Term) -> syntax.Term:
             return beta(lambda_, argument)
         case terms.Apply(function=terms.ByteArray()):
             return fold_opcode(term)
+        case terms.Project(struct=terms.Fix(body=terms.Lambda()) as fixed):
+            # E-FixProj: the fixed point unfolds once where it is used (4.8).
+            return replace(term, struct=unfold(fixed))
+        case terms.Apply(function=terms.Fix(body=terms.Lambda()) as fixed):
+            # E-FixApp.
+            return replace(term, function=unfold(fixed))
         case terms.Project(struct=struct, label=label) if (projected := project(struct, label)) is not None:
             return projected
         case terms.Apply(function=terms.Struct(fields=fields), argument=argument) if (
@@ -221,7 +239,8 @@ def stuck_part(term: syntax.Term) -> syntax.Term | None:
     A stuck part is one of: the empty struct applied (no field to select); a struct
     applied to a lambda or a struct (never a byte array); a byte array applied to a lambda
     or a byte array (no rule); a projection of a lambda or a byte array, or of a struct
-    without the label. Parts are searched outermost first, left to right.
+    without the label; `fix b` or `fix {…}` (never a lambda). Parts are searched outermost
+    first, left to right.
     """
     match term:
         case terms.Apply(function=terms.Struct(fields=[])):
@@ -233,6 +252,8 @@ def stuck_part(term: syntax.Term) -> syntax.Term | None:
         case terms.Project(struct=terms.Lambda() | terms.ByteArray()):
             return term
         case terms.Project(struct=terms.Struct() as struct, label=label) if project(struct, label) is None:
+            return term
+        case terms.Fix(body=terms.ByteArray() | terms.Struct()):
             return term
     for child in term.children():
         if (found := stuck_part(child)) is not None:

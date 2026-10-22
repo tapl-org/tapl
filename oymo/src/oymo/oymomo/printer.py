@@ -68,7 +68,7 @@ def _loosest(term):
             return _EXPRESSION
         case terms.Apply() if reduction.branch(term) is not None:
             return _EXPRESSION  # printed as `if`
-        case terms.Apply():
+        case terms.Apply() | terms.Fix():
             return _APPLY
     return _PROJECT
 
@@ -114,6 +114,8 @@ def _flat(term, level, names, *, grouped=True):
             text = '{' + ', '.join(f'{_label(f.label, separator)}{sub(f.value, _EXPRESSION)}' for f in fields) + '}'
         case terms.Project(struct=struct, label=label):
             text = f'{sub(struct, _PROJECT)}.{_name(label)}'
+        case terms.Fix(body=body):
+            text = f'fix {sub(body, _PROJECT)}'
         case terms.ByteArray(value=value):
             text = _bytes_text(value, grouped=grouped)
         case syntax.ErrorTerm():
@@ -166,6 +168,8 @@ def _pretty(term, level, depth, column, width, indent, names):
             text = '{\n' + '\n'.join(lines) + '\n' + pad + '}'
         case terms.Project(struct=struct, label=label):
             text = f'{sub(struct, _PROJECT, depth, column)}.{_name(label)}'
+        case terms.Fix(body=body):
+            text = f'fix {sub(body, _PROJECT, depth, column + 4)}'
         case _:
             return flat
     return f'({text})' if grouped else text
@@ -186,7 +190,7 @@ def _has_let_chain(term):
             return _has_let_chain(body)
         case terms.Struct(fields=fields):
             return any(_has_let_chain(f.value) for f in fields)
-        case terms.Project(struct=struct):
+        case terms.Project(struct=struct) | terms.Fix(body=struct):
             return _has_let_chain(struct)
     return False
 

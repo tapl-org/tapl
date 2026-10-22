@@ -35,6 +35,7 @@ def occ (μ : Nat → Nat) : Term → Nat
   | scons _ t r => occ μ t + occ μ r
   | proj t _ => occ μ t
   | bytes _ => 0
+  | fix t => occ μ t
 
 theorem occ_congr {μ ν : Nat → Nat} (h : ∀ n, μ n = ν n) (t : Term) : occ μ t = occ ν t := by
   have : μ = ν := funext h
@@ -52,6 +53,7 @@ theorem occ_ren (μ : Nat → Nat) (ξ : Nat → Nat) (t : Term) :
   | scons l t r iht ihr => simp only [ren, occ, iht, ihr]
   | proj t l ih => simp only [ren, occ, ih]
   | bytes b => rfl
+  | fix t ih => simp only [ren, occ, ih]
 
 theorem occ_zero (t : Term) : occ (fun _ => 0) t = 0 := by
   induction t with
@@ -65,6 +67,7 @@ theorem occ_zero (t : Term) : occ (fun _ => 0) t = 0 := by
   | scons l t r iht ihr => simp only [occ, iht, ihr]
   | proj t l ih => simp only [occ, ih]
   | bytes b => rfl
+  | fix t ih => simp only [occ, ih]
 
 theorem occ_add (μ ν : Nat → Nat) (t : Term) :
     occ μ t + occ ν t = occ (fun n => μ n + ν n) t := by
@@ -79,6 +82,7 @@ theorem occ_add (μ ν : Nat → Nat) (t : Term) :
   | scons l t r iht ihr => simp only [occ]; rw [← iht, ← ihr]; omega
   | proj t l ih => simp only [occ, ih]
   | bytes b => rfl
+  | fix t ih => simp only [occ, ih]
 
 theorem occ_subst (μ : Nat → Nat) (σ : Nat → Term) (t : Term) :
     occ μ (subst σ t) = occ (fun n => occ μ (σ n)) t := by
@@ -95,6 +99,7 @@ theorem occ_subst (μ : Nat → Nat) (σ : Nat → Term) (t : Term) :
   | scons l t r iht ihr => simp only [subst, occ, iht, ihr]
   | proj t l ih => simp only [subst, occ, ih]
   | bytes b => rfl
+  | fix t ih => simp only [subst, occ, ih]
 
 variable (op : Bytes → Term → Option Bytes)
 
@@ -118,6 +123,15 @@ inductive ParM : Term → Term → Nat → Prop
       select s b.toNat = some u → ParM u u' m → ParM (app s (bytes b)) u' (m + 1)
   | opcodeR {s : Term} {b b' : Bytes} :
       isStruct s = true → isData s = true → op b s = some b' → ParM (app (bytes b) s) (bytes b') 1
+  | fix {t t' : Term} {m : Nat} : ParM t t' m → ParM (fix t) (fix t') m
+  /-- Unfolding copies `fix (λx. t')` once per occurrence of `x`, with the steps inside it. -/
+  | fixProjR {t t' : Term} {l : String} {m : Nat} :
+      ParM t t' m →
+      ParM (proj (fix (lam t)) l) (proj (subst (inst (fix (lam t'))) t') l) (1 + m + occ (w0 m) t')
+  | fixAppR {t t' u u' : Term} {m₁ m₂ : Nat} :
+      ParM t t' m₁ → ParM u u' m₂ →
+      ParM (app (fix (lam t)) u) (app (subst (inst (fix (lam t'))) t') u')
+        (1 + m₁ + occ (w0 m₁) t' + m₂)
 
 variable {op}
 
@@ -137,6 +151,9 @@ theorem ParM.par {t t' : Term} {m : Nat} (h : ParM op t t' m) : Par op t t' := b
   | projR h _ ih => exact .projR h ih
   | indexR h _ ih => exact .indexR h ih
   | opcodeR h1 h2 h3 => exact .opcodeR h1 h2 h3
+  | fix _ ih => exact .fix ih
+  | fixProjR _ ih => exact .fixProjR ih
+  | fixAppR _ _ iht ihu => exact .fixAppR iht ihu
 
 theorem Par.parM {t t' : Term} (h : Par op t t') : ∃ m, ParM op t t' m := by
   induction h with
@@ -152,6 +169,10 @@ theorem Par.parM {t t' : Term} (h : Par op t t') : ∃ m, ParM op t t' m := by
   | projR h _ ih => obtain ⟨_, h'⟩ := ih; exact ⟨_, .projR h h'⟩
   | indexR h _ ih => obtain ⟨_, h'⟩ := ih; exact ⟨_, .indexR h h'⟩
   | opcodeR h1 h2 h3 => exact ⟨_, .opcodeR h1 h2 h3⟩
+  | fix _ ih => obtain ⟨_, h⟩ := ih; exact ⟨_, .fix h⟩
+  | fixProjR _ ih => obtain ⟨_, h⟩ := ih; exact ⟨_, .fixProjR h⟩
+  | fixAppR _ _ iht ihu =>
+    obtain ⟨_, ht⟩ := iht; obtain ⟨_, hu⟩ := ihu; exact ⟨_, .fixAppR ht hu⟩
 
 theorem ParM.refl : ∀ t : Term, ParM op t t 0
   | .var n => .var n
@@ -161,6 +182,7 @@ theorem ParM.refl : ∀ t : Term, ParM op t t 0
   | .scons _ t r => .scons (ParM.refl t) (ParM.refl r)
   | .proj t _ => .proj (ParM.refl t)
   | .bytes b => .bytes b
+  | .fix t => .fix (ParM.refl t)
 
 /-- Renaming keeps the measure. -/
 theorem ParM.ren {t t' : Term} {m : Nat} (h : ParM op t t' m) (ξ : Nat → Nat) :
@@ -184,6 +206,19 @@ theorem ParM.ren {t t' : Term} {m : Nat} (h : ParM op t t' m) (ξ : Nat → Nat)
     simp only [Oymomo.ren]
     rw [ren_data ξ h2]
     exact .opcodeR h1 h2 h3
+  | fix _ ih => exact .fix (ih _)
+  | @fixProjR t t' l m _ ih =>
+    simp only [Oymomo.ren]
+    rw [ren_inst]
+    simp only [Oymomo.ren]
+    have h := ParM.fixProjR (l := l) (ih (upr ξ))
+    rwa [occ_ren, occ_congr (ν := w0 _) (by intro n; cases n <;> rfl)] at h
+  | fixAppR _ _ iht ihu =>
+    simp only [Oymomo.ren]
+    rw [ren_inst]
+    simp only [Oymomo.ren]
+    have h := ParM.fixAppR (iht (upr ξ)) (ihu ξ)
+    rwa [occ_ren, occ_congr (ν := w0 _) (by intro n; cases n <;> rfl)] at h
 
 theorem ParM.ups {σ τ : Nat → Term} {μ : Nat → Nat} (h : ∀ n, ParM op (σ n) (τ n) (μ n)) :
     ∀ n, ParM op (Oymomo.ups σ n) (Oymomo.ups τ n) (shiftW μ n)
@@ -230,6 +265,53 @@ theorem ParM.subst {t t' : Term} {m : Nat} (h : ParM op t t' m) {σ τ : Nat →
     simp only [Oymomo.subst]
     rw [subst_data _ h2]
     exact (ParM.opcodeR h1 h2 h3).cast (by simp [occ])
+  | fix _ ih => exact (ParM.fix (ih hσ hv)).cast (by simp [occ])
+  | @fixProjR t t' l M _ ih =>
+    simp only [Oymomo.subst]
+    rw [subst_inst]
+    simp only [Oymomo.subst]
+    have h := ParM.fixProjR (l := l) (ih (ParM.ups hσ) hv.ups)
+    refine h.cast ?_
+    have e1 : ∀ K, occ (w0 K) (Oymomo.subst (Oymomo.ups τ) t') = occ (w0 K) t' := by
+      intro K
+      rw [occ_subst]
+      apply occ_congr; intro n
+      cases n with
+      | zero => rfl
+      | succ n => simp only [Oymomo.ups]; rw [occ_ren]; exact occ_zero _
+    have e2 : occ (shiftW μ) t' + occ (w0 (M + occ μ (Term.fix (Term.lam t')))) t' =
+        occ (w0 M) t' + occ μ (Oymomo.subst (inst (Term.fix (Term.lam t'))) t') := by
+      rw [occ_subst, occ_add, occ_add]
+      apply occ_congr; intro n
+      cases n with
+      | zero => simp [shiftW, w0, inst]
+      | succ n => simp [shiftW, w0, inst, occ]
+    rw [e1]
+    simp only [occ] at e2 ⊢
+    omega
+  | @fixAppR t t' u u' M m₂ _ _ iht ihu =>
+    simp only [Oymomo.subst]
+    rw [subst_inst]
+    simp only [Oymomo.subst]
+    have h := ParM.fixAppR (iht (ParM.ups hσ) hv.ups) (ihu hσ hv)
+    refine h.cast ?_
+    have e1 : ∀ K, occ (w0 K) (Oymomo.subst (Oymomo.ups τ) t') = occ (w0 K) t' := by
+      intro K
+      rw [occ_subst]
+      apply occ_congr; intro n
+      cases n with
+      | zero => rfl
+      | succ n => simp only [Oymomo.ups]; rw [occ_ren]; exact occ_zero _
+    have e2 : occ (shiftW μ) t' + occ (w0 (M + occ μ (Term.fix (Term.lam t')))) t' =
+        occ (w0 M) t' + occ μ (Oymomo.subst (inst (Term.fix (Term.lam t'))) t') := by
+      rw [occ_subst, occ_add, occ_add]
+      apply occ_congr; intro n
+      cases n with
+      | zero => simp [shiftW, w0, inst]
+      | succ n => simp [shiftW, w0, inst, occ]
+    rw [e1]
+    simp only [occ] at e2 ⊢
+    omega
 
 theorem ParM.inst {u u' : Term} {m : Nat} (h : ParM op u u' m) :
     ∀ n, ParM op (Oymomo.inst u n) (Oymomo.inst u' n) (w0 m n)

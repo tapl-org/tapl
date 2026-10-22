@@ -16,7 +16,7 @@ namespace Oymomo
 /-- A byte array. -/
 abbrev Bytes := List UInt8
 
-/-- A byte array read as an unsigned, little-endian number; the empty one is `0` (2.3a). -/
+/-- A byte array read as an unsigned, little-endian number; the empty one is `0` (2.4a). -/
 def Bytes.toNat : Bytes → Nat
   | [] => 0
   | b :: bs => b.toNat + 256 * Bytes.toNat bs
@@ -29,20 +29,27 @@ inductive Term where
   | scons : String → Term → Term → Term   -- a field `l = t` in front of the rest
   | proj : Term → String → Term           -- `t.l`
   | bytes : Bytes → Term                  -- `b`
+  | fix : Term → Term                     -- `fix t`
   deriving Inhabited
 
 open Term
 
-/-- Values `v` (row 2.1g): `x`, `λx. t`, `b`, a struct of values. -/
+/-- Values `v` (row 2.1h): `x`, `λx. t`, `b`, a struct of values, `fix (λx. t)`. -/
 def isValue : Term → Bool
   | var _ => true
   | lam _ => true
   | snil => true
   | scons _ t r => isValue t && isValue r
   | bytes _ => true
+  | fix (lam _) => true
   | _ => false
 
-/-- Data `d` (row 2.1h): a byte array or a struct of data. -/
+/-- A fixed point of a lambda, `fix (λx. t)`, which E-FixProj and E-FixApp unfold (4.8). -/
+def isFixLam : Term → Bool
+  | fix (lam _) => true
+  | _ => false
+
+/-- Data `d` (row 2.1i): a byte array or a struct of data. -/
 def isData : Term → Bool
   | snil => true
   | scons _ t r => isData t && isData r

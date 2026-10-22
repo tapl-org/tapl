@@ -33,6 +33,7 @@ def WF : Term → Prop
   | app a b => WF a ∧ WF b
   | scons _ t r => WF t ∧ WF r ∧ Oymomo.isStruct r = true
   | proj t _ => WF t
+  | fix t => WF t
   | _ => True
 
 theorem isStruct_ren (ξ : Nat → Nat) (r : Term) : Oymomo.isStruct (ren ξ r) = Oymomo.isStruct r := by
@@ -51,6 +52,7 @@ theorem WF.ren (ξ : Nat → Nat) {t : Term} (h : WF t) : WF (ren ξ t) := by
   | scons l t r iht ihr => exact ⟨iht _ h.1, ihr _ h.2.1, by rw [isStruct_ren]; exact h.2.2⟩
   | proj t l ih => exact ih _ h
   | bytes b => trivial
+  | fix t ih => exact ih _ h
 
 theorem WF.subst {σ : Nat → Term} (hσ : ∀ n, WF (σ n)) {t : Term} (h : WF t) :
     WF (subst σ t) := by
@@ -66,6 +68,7 @@ theorem WF.subst {σ : Nat → Term} (hσ : ∀ n, WF (σ n)) {t : Term} (h : WF
   | scons l t r iht ihr => exact ⟨iht hσ h.1, ihr hσ h.2.1, isStruct_subst σ h.2.2⟩
   | proj t l ih => exact ih hσ h
   | bytes b => trivial
+  | fix t ih => exact ih hσ h
 
 theorem WF.lookup {s u : Term} {l : String} (h : WF s) (hl : lookup s l = some u) : WF u := by
   induction s with
@@ -108,6 +111,13 @@ theorem Step.wf {t t' : Term} (h : Step op t t') : WF t → WF t' := by
   | scons1 _ ih => intro hw; exact ⟨ih hw.1, hw.2.1, hw.2.2⟩
   | scons2 hr ih => intro hw; exact ⟨hw.1, ih hw.2.1, hr.isStruct hw.2.2⟩
   | proj1 _ ih => exact ih
+  | fixProj =>
+    intro hw
+    exact WF.subst (fun n => by cases n with | zero => exact hw | succ n => trivial) hw
+  | fixApp =>
+    intro hw
+    exact ⟨WF.subst (fun n => by cases n with | zero => exact hw.1 | succ n => trivial) hw.1, hw.2⟩
+  | fix _ ih => exact ih
 
 theorem SStep.wf {t t' : Term} (h : SStep op t t') (hw : WF t) : WF t' := (sstep_step h).wf hw
 
@@ -165,6 +175,28 @@ theorem Par.normal_eq {t u : Term} (h : Par op t u) (hn : ¬ Red op t) : u = t :
   | projR hl _ _ => exact absurd ⟨_, .proj hl⟩ hn
   | indexR hs _ _ => exact absurd ⟨_, .index hs⟩ hn
   | opcodeR h1 h2 h3 => exact absurd ⟨_, .opcode h1 h2 h3⟩ hn
+  | fix _ ih => rw [ih (fun ⟨_, h⟩ => hn ⟨_, .fix h⟩)]
+  | fixProjR _ _ => exact absurd ⟨_, .fixProj⟩ hn
+  | fixAppR _ _ _ _ => exact absurd ⟨_, .fixApp⟩ hn
+
+theorem isFixLam_inv {s : Term} (h : isFixLam s = true) : ∃ t, s = Term.fix (Term.lam t) := by
+  cases s with
+  | fix x =>
+    cases x with
+    | lam t => exact ⟨t, rfl⟩
+    | _ => simp [isFixLam] at h
+  | _ => simp [isFixLam] at h
+
+theorem isFixLam_fix (t : Term) : isFixLam (Term.fix t) = isLam t := by
+  cases t <;> rfl
+
+theorem isValue_fix (t : Term) : isValue (Term.fix t) = isLam t := by
+  cases t <;> rfl
+
+theorem Par.fixLam {s s' : Term} (h : Par op s s') (hf : isFixLam s = true) : isFixLam s' = true := by
+  obtain ⟨t, rfl⟩ := isFixLam_inv hf
+  obtain ⟨t', rfl, _⟩ := h.fix_lam_inv
+  rfl
 
 /-- On a well-formed struct whose fields that are not values are normal, a parallel step
 keeps some field not a value. -/
@@ -245,67 +277,83 @@ any parallel step. -/
 inductive IPar : Term → Term → Prop
   /-- A normal form. -/
   | normal {t : Term} : ¬ Red op t → IPar t t
-  /-- Rows c, e, f, g: the root is chosen, and stays. -/
+  /-- Rows d, g, h, i: the root is chosen, and stays. -/
   | rootApp {a a' b b' : Term} :
       RootRed op (app a b) → Par op a a' → Par op b b' → IPar (app a b) (app a' b')
   /-- Row a. -/
   | rootProj {s s' : Term} {l : String} :
       (∃ u, lookup s l = some u) → Par op s s' → IPar (proj s l) (proj s' l)
-  /-- Row b. -/
+  /-- Row b: the root is chosen, and stays. -/
+  | rootFixProj {s s' : Term} {l : String} :
+      isFixLam s = true → Par op s s' → IPar (proj s l) (proj s' l)
+  /-- Row c. -/
   | proj1 {s s' : Term} {l : String} :
-      lookup s l = none → Red op s → IPar s s' → IPar (proj s l) (proj s' l)
-  /-- Row d. -/
+      lookup s l = none → isFixLam s = false → Red op s → IPar s s' → IPar (proj s l) (proj s' l)
+  /-- Row e. -/
   | arg {t t' u u' : Term} :
       isValue u = false → Red op u → Par op t t' → IPar u u' →
       IPar (app (lam t) u) (app (lam t') u')
-  /-- Row h. -/
+  /-- Row f: the root is chosen, and stays. -/
+  | rootFixApp {a a' b b' : Term} :
+      isFixLam a = true → Par op a a' → Par op b b' → IPar (app a b) (app a' b')
+  /-- Row j. -/
   | cond {s s' c c' : Term} :
       Oymomo.isStruct s = true → Red op c → Par op s s' → IPar c c' → IPar (app s c) (app s' c')
-  /-- Row i. -/
+  /-- Row k. -/
   | app1 {a a' b b' : Term} :
-      ¬ RootRed op (app a b) → ¬ (isLam a = true ∧ Red op b) →
+      ¬ RootRed op (app a b) → isFixLam a = false → ¬ (isLam a = true ∧ Red op b) →
       ¬ (Oymomo.isStruct a = true ∧ Red op b) → Red op a → IPar a a' → Par op b b' →
       IPar (app a b) (app a' b')
-  /-- Row j. -/
+  /-- Row l. -/
   | app2 {a b b' : Term} :
-      ¬ RootRed op (app a b) → isLam a = false → Oymomo.isStruct a = false → ¬ Red op a →
-      Red op b → IPar b b' → IPar (app a b) (app a b')
-  /-- Row k, the head. -/
+      ¬ RootRed op (app a b) → isFixLam a = false → isLam a = false →
+      Oymomo.isStruct a = false → ¬ Red op a → Red op b → IPar b b' → IPar (app a b) (app a b')
+  /-- Row m, the head. -/
   | fieldNV {l : String} {t t' r r' : Term} :
       isValue t = false → Red op t → IPar t t' → Par op r r' →
       IPar (scons l t r) (scons l t' r')
-  /-- Row k, a later field. -/
+  /-- Row m, a later field. -/
   | fieldNVTail {l : String} {t t' r r' : Term} :
       ¬ (isValue t = false ∧ Red op t) → NVRed op r → Par op t t' → IPar r r' →
       IPar (scons l t r) (scons l t' r')
-  /-- Row l, the head. -/
+  /-- Row n, the head. -/
   | field {l : String} {t t' r r' : Term} :
       ¬ NVRed op (scons l t r) → Red op t → IPar t t' → Par op r r' →
       IPar (scons l t r) (scons l t' r')
-  /-- Row l, a later field. -/
+  /-- Row n, a later field. -/
   | fieldTail {l : String} {t r r' : Term} :
       ¬ NVRed op (scons l t r) → ¬ Red op t → IPar r r' → IPar (scons l t r) (scons l t r')
-  /-- Row m. -/
+  /-- Row o. -/
   | lam {t t' : Term} : IPar t t' → IPar (lam t) (lam t')
+  /-- Row p. -/
+  | fix {t t' : Term} : IPar t t' → IPar (fix t) (fix t')
 
 theorem IPar.par {t u : Term} (h : IPar op t u) : Par op t u := by
   induction h with
   | normal _ => exact .refl _
   | rootApp _ ha hb => exact .app ha hb
   | rootProj _ hs => exact .proj hs
-  | proj1 _ _ _ ih => exact .proj ih
+  | rootFixProj _ hs => exact .proj hs
+  | proj1 _ _ _ _ ih => exact .proj ih
   | arg _ _ ht _ ih => exact .app (.lam ht) ih
+  | rootFixApp _ ha hb => exact .app ha hb
   | cond _ _ hs _ ih => exact .app hs ih
-  | app1 _ _ _ _ _ hb ih => exact .app ih hb
-  | app2 _ _ _ _ _ _ ih => exact .app (.refl _) ih
+  | app1 _ _ _ _ _ _ hb ih => exact .app ih hb
+  | app2 _ _ _ _ _ _ _ ih => exact .app (.refl _) ih
   | fieldNV _ _ _ hr ih => exact .scons ih hr
   | fieldNVTail _ _ ht _ ih => exact .scons ht ih
   | field _ _ _ hr ih => exact .scons ih hr
   | fieldTail _ _ _ ih => exact .scons (.refl _) ih
   | lam _ ih => exact .lam ih
+  | fix _ ih => exact .fix ih
 
 theorem IPar.isLam_eq {t u : Term} (h : IPar op t u) : isLam u = isLam t := by
   cases h <;> rfl
+
+theorem IPar.isFixLam_eq {t u : Term} (h : IPar op t u) : isFixLam u = isFixLam t := by
+  cases h with
+  | fix h' => rw [isFixLam_fix, isFixLam_fix, h'.isLam_eq]
+  | _ => rfl
 
 theorem IPar.isStruct_eq {t u : Term} (h : IPar op t u) : Oymomo.isStruct u = Oymomo.isStruct t := by
   cases h <;> rfl
@@ -322,11 +370,19 @@ theorem IPar.red {t u : Term} (h : IPar op t u) (ht : Red op t) : Red op u := by
     obtain ⟨_, hl⟩ := hl
     obtain ⟨_, hl', _⟩ := lookup_par hs hl
     exact ⟨_, .proj hl'⟩
-  | proj1 _ hs _ ih => obtain ⟨_, h⟩ := ih hs; exact ⟨_, .proj1 h⟩
+  | rootFixProj hf hs =>
+    obtain ⟨_, he⟩ := isFixLam_inv (hs.fixLam hf)
+    rw [he]
+    exact ⟨_, .fixProj⟩
+  | proj1 _ _ hs _ ih => obtain ⟨_, h⟩ := ih hs; exact ⟨_, .proj1 h⟩
   | arg _ hu _ _ ih => obtain ⟨_, h⟩ := ih hu; exact ⟨_, .app2 h⟩
+  | rootFixApp hf ha _ =>
+    obtain ⟨_, he⟩ := isFixLam_inv (ha.fixLam hf)
+    rw [he]
+    exact ⟨_, .fixApp⟩
   | cond _ hc _ _ ih => obtain ⟨_, h⟩ := ih hc; exact ⟨_, .app2 h⟩
-  | app1 _ _ _ ha _ _ ih => obtain ⟨_, h⟩ := ih ha; exact ⟨_, .app1 h⟩
-  | app2 _ _ _ _ hb _ ih => obtain ⟨_, h⟩ := ih hb; exact ⟨_, .app2 h⟩
+  | app1 _ _ _ _ ha _ _ ih => obtain ⟨_, h⟩ := ih ha; exact ⟨_, .app1 h⟩
+  | app2 _ _ _ _ _ hb _ ih => obtain ⟨_, h⟩ := ih hb; exact ⟨_, .app2 h⟩
   | fieldNV _ hr _ _ ih => obtain ⟨_, h⟩ := ih hr; exact ⟨_, .scons1 h⟩
   | fieldNVTail _ hnv _ _ ih => obtain ⟨_, h⟩ := ih hnv.red; exact ⟨_, .scons2 h⟩
   | field _ hr _ _ ih => obtain ⟨_, h⟩ := ih hr; exact ⟨_, .scons1 h⟩
@@ -341,6 +397,10 @@ theorem IPar.red {t u : Term} (h : IPar op t u) (ht : Red op t) : Red op u := by
     obtain ⟨_, h⟩ := ht
     cases h with
     | lam h => obtain ⟨_, h'⟩ := ih ⟨_, h⟩; exact ⟨_, .lam h'⟩
+  | fix _ ih =>
+    obtain ⟨_, h⟩ := ht
+    cases h with
+    | fix h => obtain ⟨_, h'⟩ := ih ⟨_, h⟩; exact ⟨_, .fix h'⟩
 
 /-- An internal step never makes a value of a term that is not one. -/
 theorem IPar.nv {t u : Term} (h : IPar op t u) : WF t → isValue t = false → isValue u = false := by
@@ -348,11 +408,13 @@ theorem IPar.nv {t u : Term} (h : IPar op t u) : WF t → isValue t = false → 
   | normal _ => intro _ h; exact h
   | rootApp _ _ _ => intro _ _; rfl
   | rootProj _ _ => intro _ _; rfl
-  | proj1 _ _ _ _ => intro _ _; rfl
+  | rootFixProj _ _ => intro _ _; rfl
+  | proj1 _ _ _ _ _ => intro _ _; rfl
   | arg _ _ _ _ _ => intro _ _; rfl
+  | rootFixApp _ _ _ => intro _ _; rfl
   | cond _ _ _ _ _ => intro _ _; rfl
-  | app1 _ _ _ _ _ _ _ => intro _ _; rfl
-  | app2 _ _ _ _ _ _ _ => intro _ _; rfl
+  | app1 _ _ _ _ _ _ _ _ => intro _ _; rfl
+  | app2 _ _ _ _ _ _ _ _ => intro _ _; rfl
   | fieldNV hv _ _ _ ih => intro hw _; simp [isValue, ih hw.1 hv]
   | fieldNVTail _ hnv _ _ ih => intro hw _; simp [isValue, ih hw.2.1 hnv.nv]
   | @field l t t' r r' hn hr _ hrr _ =>
@@ -371,8 +433,13 @@ theorem IPar.nv {t u : Term} (h : IPar op t u) : WF t → isValue t = false → 
       have hrv : isValue r = false := by simpa [isValue, htv] using hv
       simp [isValue, ih hw.2.1 hrv]
   | lam _ _ => intro _ h; cases h
+  | fix h' _ =>
+    intro _ hv
+    rw [isValue_fix] at hv ⊢
+    rw [h'.isLam_eq]
+    exact hv
 
-/-- An internal step keeps row k applicable. -/
+/-- An internal step keeps row m applicable. -/
 theorem IPar.nvred {r r' : Term} (h : IPar op r r') : WF r → NVRed op r → NVRed op r' := by
   induction h with
   | normal _ => intro _ h; exact h
@@ -401,9 +468,22 @@ theorem ParM.split1 {t u : Term} {m : Nat} (h : ParM op t u m) :
     rcases ih with h' | ⟨t₁, m₁, hs, hm, hlt⟩
     · exact .inl (.lam h')
     · exact .inr ⟨_, _, .lam hs, .lam hm, hlt⟩
+  | fix h ih =>
+    rcases ih with h' | ⟨t₁, m₁, hs, hm, hlt⟩
+    · exact .inl (.fix h')
+    · exact .inr ⟨_, _, .fix hs, .fix hm, hlt⟩
+  | @fixProjR t t' l m ht _ =>
+    exact .inr ⟨_, _, .fixProj,
+      .proj (ht.subst (ParM.inst (.fix (.lam ht))) (ValSub.inst_fix _)), by omega⟩
+  | @fixAppR t t' u u' m₁ m₂ ht hu _ _ =>
+    exact .inr ⟨_, _, .fixApp,
+      .app (ht.subst (ParM.inst (.fix (.lam ht))) (ValSub.inst_fix _)) hu, by omega⟩
   | @app a a' b b' m₁ m₂ ha hb iha ihb =>
     by_cases hroot : RootRed op (Term.app a b)
     · exact .inl (.rootApp hroot ha.par hb.par)
+    by_cases hfa : isFixLam a = true
+    · exact .inl (.rootFixApp hfa ha.par hb.par)
+    have hfa := isFixLam_false hfa
     by_cases hlb : isLam a = true ∧ Red op b
     · cases a with
       | lam t₀ =>
@@ -423,8 +503,8 @@ theorem ParM.split1 {t u : Term} {m : Nat} (h : ParM op t u m) :
       · exact .inr ⟨_, _, .cond hsb.1 hs, .app ha hm, by omega⟩
     by_cases hra : Red op a
     · rcases iha with h' | ⟨a₁, m₁', hs, hm, hlt⟩
-      · exact .inl (.app1 hroot hlb hsb hra h' hb.par)
-      · exact .inr ⟨_, _, .app1 hroot hlb hsb hs, .app hm hb, by omega⟩
+      · exact .inl (.app1 hroot hfa hlb hsb hra h' hb.par)
+      · exact .inr ⟨_, _, .app1 hroot hfa hlb hsb hs, .app hm hb, by omega⟩
     have ha' : a' = a := ha.par.normal_eq hra
     subst a'
     by_cases hrb : Red op b
@@ -437,13 +517,14 @@ theorem ParM.split1 {t u : Term} {m : Nat} (h : ParM op t u m) :
         | false => rfl
         | true => exact absurd ⟨hs, hrb⟩ hsb
       rcases ihb with h' | ⟨b₁, m₂', hs', hm, hlt⟩
-      · exact .inl (.app2 hroot hl hs hra hrb h')
-      · exact .inr ⟨_, _, .app2 hroot hl hs hra hs', .app ha hm, by omega⟩
+      · exact .inl (.app2 hroot hfa hl hs hra hrb h')
+      · exact .inr ⟨_, _, .app2 hroot hfa hl hs hra hs', .app ha hm, by omega⟩
     · have hb' : b' = b := hb.par.normal_eq hrb
       subst b'
       refine .inl (.normal fun ⟨_, hst⟩ => ?_)
-      rcases hst.root_or_parts with h | h | h
+      rcases hst.root_or_parts with h | h | h | h
       · exact hroot h
+      · rw [hfa] at h; cases h
       · exact hra h
       · exact hrb h
   | @scons l t t' r r' m₁ m₂ ht hr iht ihr =>
@@ -478,20 +559,24 @@ theorem ParM.split1 {t u : Term} {m : Nat} (h : ParM op t u m) :
   | @proj s s' l m hs ih =>
     by_cases hl : ∃ u, lookup s l = some u
     · exact .inl (.rootProj hl hs.par)
+    by_cases hf : isFixLam s = true
+    · exact .inl (.rootFixProj hf hs.par)
+    have hf := isFixLam_false hf
     have hn : lookup s l = none := by
       cases h : lookup s l with
       | none => rfl
       | some u => exact absurd ⟨u, h⟩ hl
     by_cases hrs : Red op s
     · rcases ih with h' | ⟨s₁, m', hst, hm, hlt⟩
-      · exact .inl (.proj1 hn hrs h')
-      · exact .inr ⟨_, _, .proj1 hn hst, .proj hm, hlt⟩
+      · exact .inl (.proj1 hn hf hrs h')
+      · exact .inr ⟨_, _, .proj1 hn hf hst, .proj hm, hlt⟩
     · have hs' : s' = s := hs.par.normal_eq hrs
       subst s'
       refine .inl (.normal fun ⟨_, hst⟩ => ?_)
       cases hst with
       | proj h => rw [hn] at h; cases h
       | proj1 h => exact hrs ⟨_, h⟩
+      | fixProj => simp [isFixLam] at hf
   | @beta t t' u u' m₁ m₂ hu ht hu' _ _ =>
     exact .inr ⟨_, _, .beta hu, ht.subst (ParM.inst hu') (ValSub.inst hu), by omega⟩
   | projR hl hu _ => exact .inr ⟨_, _, .proj hl, hu, by omega⟩
@@ -548,7 +633,25 @@ theorem IPar.merge {t u : Term} (h : IPar op t u) :
     obtain ⟨w', hw', hp⟩ := lookup_par hs hw
     rw [sstep_det hu (.proj hw')]
     exact ⟨_, .proj hw, hp⟩
-  | @proj1 s s' l hn hrs hip ih =>
+  | rootFixProj hf hs =>
+    intro _ _ hu
+    obtain ⟨t, rfl⟩ := isFixLam_inv hf
+    obtain ⟨t', rfl, ht⟩ := hs.fix_lam_inv
+    rw [sstep_det hu .fixProj]
+    exact ⟨_, .fixProj, .proj (ht.subst (Par.inst (.fix (.lam ht))) (ValSub.inst_fix _))⟩
+  | rootFixApp hf ha hb =>
+    intro _ _ hu
+    obtain ⟨t, rfl⟩ := isFixLam_inv hf
+    obtain ⟨t', rfl, ht⟩ := ha.fix_lam_inv
+    rw [sstep_det hu .fixApp]
+    exact ⟨_, .fixApp, .app (ht.subst (Par.inst (.fix (.lam ht))) (ValSub.inst_fix _)) hb⟩
+  | fix _ ih =>
+    intro hw _ hu
+    cases hu with
+    | fix h' =>
+      obtain ⟨t₂, ht₂, hp⟩ := ih hw h'
+      exact ⟨_, .fix ht₂, .fix hp⟩
+  | @proj1 s s' l hn hf hrs hip ih =>
     intro hw _ hu
     have hn' : lookup s' l = none := by
       cases hip with
@@ -576,9 +679,13 @@ theorem IPar.merge {t u : Term} (h : IPar op t u) :
       | _ => rfl
     cases hu with
     | proj h' => rw [hn'] at h'; cases h'
-    | proj1 _ h' =>
+    | fixProj =>
+      have h := hip.isFixLam_eq
+      rw [hf] at h
+      simp [isFixLam] at h
+    | proj1 _ _ h' =>
       obtain ⟨s₂, hs₂, hp⟩ := ih hw h'
-      exact ⟨_, .proj1 hn hs₂, .proj hp⟩
+      exact ⟨_, .proj1 hn hf hs₂, .proj hp⟩
   | @arg t t' u u' hv hru ht hip ih =>
     intro hw _ hu
     have hv' : isValue u' = false := hip.nv hw.2 hv
@@ -590,8 +697,8 @@ theorem IPar.merge {t u : Term} (h : IPar op t u) :
       exact ⟨_, .arg hv hu₂, .app (.lam ht) hp⟩
     | index hs => simp [select] at hs
     | cond hst _ => simp [Oymomo.isStruct] at hst
-    | app1 _ hl _ _ => exact absurd ⟨rfl, hru'⟩ hl
-    | app2 _ hl _ _ _ => simp [isLam] at hl
+    | app1 _ _ hl _ _ => exact absurd ⟨rfl, hru'⟩ hl
+    | app2 _ _ hl _ _ _ => simp [isLam] at hl
   | @cond s s' c c' hst hrc hs hip ih =>
     intro hw _ hu
     have hst' : Oymomo.isStruct s' = true := hs.isStruct hst
@@ -599,14 +706,15 @@ theorem IPar.merge {t u : Term} (h : IPar op t u) :
     cases hu with
     | beta _ => simp [Oymomo.isStruct] at hst'
     | arg _ _ => simp [Oymomo.isStruct] at hst'
+    | fixApp => simp [Oymomo.isStruct] at hst'
     | opcode _ _ _ => simp [Oymomo.isStruct] at hst'
     | index _ => rw [hip.bytes_eq] at hrc; exact absurd hrc not_red_bytes
     | cond _ h' =>
       obtain ⟨c₂, hc₂, hp⟩ := ih hw.2 h'
       exact ⟨_, .cond hst hc₂, .app hs hp⟩
-    | app1 _ _ hns _ => exact absurd ⟨hst', hrc'⟩ hns
-    | app2 _ _ hns _ _ => rw [hst'] at hns; cases hns
-  | @app1 a a' b b' hr hl hs hra hip hb ih =>
+    | app1 _ _ _ hns _ => exact absurd ⟨hst', hrc'⟩ hns
+    | app2 _ _ _ hns _ _ => rw [hst'] at hns; cases hns
+  | @app1 a a' b b' hr hf hl hs hra hip hb ih =>
     intro hw _ hu
     have hra' : Red op a' := hip.red hra
     cases hu with
@@ -622,6 +730,10 @@ theorem IPar.merge {t u : Term} (h : IPar op t u) :
       have hnb : ¬ Red op b := fun h => hl ⟨hla, h⟩
       rw [hb.normal_eq hnb] at h'
       exact absurd h'.red hnb
+    | fixApp =>
+      have h := hip.isFixLam_eq
+      rw [hf] at h
+      simp [isFixLam] at h
     | opcode _ _ _ => rw [hip.bytes_eq] at hra; exact absurd hra not_red_bytes
     | index hsel =>
       have hsa' : Oymomo.isStruct a' = true := by
@@ -639,23 +751,24 @@ theorem IPar.merge {t u : Term} (h : IPar op t u) :
       have hnb : ¬ Red op b := fun h => hs ⟨hsa, h⟩
       rw [hb.normal_eq hnb] at h'
       exact absurd h'.red hnb
-    | app1 _ _ _ h' =>
+    | app1 _ _ _ _ h' =>
       obtain ⟨a₂, ha₂, hp⟩ := ih hw.1 h'
-      exact ⟨_, .app1 hr hl hs ha₂, .app hp hb⟩
-    | app2 _ _ _ hna _ => exact absurd hra' hna
-  | @app2 a b b' hr hl hs hna hrb hip ih =>
+      exact ⟨_, .app1 hr hf hl hs ha₂, .app hp hb⟩
+    | app2 _ _ _ _ hna _ => exact absurd hra' hna
+  | @app2 a b b' hr hf hl hs hna hrb hip ih =>
     intro hw _ hu
     have hrb' : Red op b' := hip.red hrb
     cases hu with
     | beta _ => simp [isLam] at hl
     | arg _ _ => simp [isLam] at hl
+    | fixApp => simp [isFixLam] at hf
     | opcode _ h2 _ => exact absurd hrb' (not_red_data h2)
     | index _ => exact absurd hrb' not_red_bytes
     | cond hst _ => rw [hs] at hst; cases hst
-    | app1 _ _ _ h' => exact absurd h'.red hna
-    | app2 _ _ _ _ h' =>
+    | app1 _ _ _ _ h' => exact absurd h'.red hna
+    | app2 _ _ _ _ _ h' =>
       obtain ⟨b₂, hb₂, hp⟩ := ih hw.2 h'
-      exact ⟨_, .app2 hr hl hs hna hb₂, .app (.refl _) hp⟩
+      exact ⟨_, .app2 hr hf hl hs hna hb₂, .app (.refl _) hp⟩
   | @fieldNV l t t' r r' hv hrt hip hr ih =>
     intro hw _ hu
     have hv' : isValue t' = false := hip.nv hw.1 hv
