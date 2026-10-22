@@ -324,16 +324,198 @@ One line per section, to grep and jump.
 | Section | Contents |
 |---|---|
 | [1. Rules for agents](#1-rules-for-agents) | the user's orders |
-| [3. Project knowledge](#3-project-knowledge) | `notes.md`, `glossary.md`, verbatim |
-| [4. Decisions and whys](#4-decisions-and-whys) | new decisions by roadmap id; old roadmap and plans, verbatim; semantics decisions D1–D96 (was `semantics_discussion.md`) |
+| [3. Project knowledge](#3-project-knowledge) | current reference: files, syntax, reduction, modules, opcodes, errors, tests, words |
+| [4. Decisions and whys](#4-decisions-and-whys) | new decisions by roadmap id; retired notes, glossary, roadmap and plans, verbatim; semantics decisions D1–D98 (was `semantics_discussion.md`) |
 | [5. History](#5-history) | implemented plans, verbatim |
 | [6. Work log](#6-work-log) | restructuring log |
 
 ## 3. Project knowledge
 
-### notes.md
+### Current reference
 
-Moved verbatim from `docs/notes.md`. Links in it point to retired files.
+How the code is today (after the refactor and D98). The language itself is defined in
+[semantics.tex](semantics.tex); this is the map from it to the code. The old `notes.md`
+and `glossary.md` describe the language before the refactor (arrow lambdas, forms,
+`$fix`, BANF); they are kept, retired, under
+[4. Decisions and whys](#4-decisions-and-whys).
+
+#### Pipeline and files
+
+```
+source --grammar.parse--> terms --reduction.resolve--> indices --strategy.normalize--> normal form
+       --module.read_module (ANF check: anf.anf_error)--> Module --llvm_translate--> LLVM IR
+```
+
+All in `src/oymo/oymomo/`; each module has a test of the same name in `tests/oymomo/`.
+
+| File | Role (semantics.tex) |
+|---|---|
+| `terms.py` | `Variable`, `BruijnIndex`, `Lambda`, `Apply`, `Struct`/`Field`, `Project`, `ByteArray`, `Fix` (Section 2) |
+| `grammar.py`, `rule_names.py` | parser; `RESERVED` words (2.2, 2.3, Section 3) |
+| `printer.py` | `show(term, pretty=…, name_indices=…)`; prints `let`, `if`; parses back |
+| `reduction.py` | `resolve`, `shift`/`substitute`/`beta`, `is_value`, `is_data`, `unfold`, `reduce` (root rules, Section 4), `stuck_part` (5.5) |
+| `strategy.py` | `sstep` (table 6.2, one branch per row), `normalize` (`MAX_STEPS`) |
+| `opcodes.py` | opcode table: `result_type`, `evaluate` for E-Opcode (4.4) |
+| `anf.py` | `anf_error`: the first part not in ANF (Section 7) |
+| `module.py` | `module_of`, `read_module`: Section 8 checks, `Module`/`Definition`/`Block` |
+| `llvm_translate.py`, `llvm_opcodes.py` | Section 9, with llvmlite (`banf-removal` will drop it) |
+| `../cli.py` | `oymo check / emit-llvm / fmt / normal / run` |
+
+Lean (`proofs/Oymomo/`) mirrors the doc: `Syntax`, `Substitution`, `Reduction`,
+`Confluence`, `Anf`, `Strategy`, `Measure`, `Guarantee`. Build:
+`cd proofs && lake build Oymomo`.
+
+#### Syntax cheat sheet
+
+```
+λx. t   \x. t            lambda, extends as far right as possible (2.2)
+f a b                    (f a) b
+fix g.l a                (fix (g.l)) a: fix parses as an application does (2.3)
+{a = t, u}               struct; an unlabeled field has label ''
+s.a                      projection; every dot after the binder's is projection
+s [01]                   struct applied to a byte array: field by position
+if c then t else e       {e, t} c
+let x = t in u           (λx. u) t
+[2a000000]  'i32'  ''    byte arrays: hex, UTF-8 text, empty (= 0)
+"a b"                    quoted name (escapes \" \\ \u{hex})
+$0                       a BruijnIndex, as the printer writes it
+// comment
+```
+
+- Reserved: `if then else let in fix`. A quoted name may be any of them: `"fix"`.
+- Precedence, loosest first: `λ`/`let`/`if` (as far right as possible); application
+  (left; `fix t` heads a chain); projection (left); atoms.
+- A source file starts with the line `language oymomo`.
+- Labels are unique in a struct, except `''` (else "Duplicate label").
+
+#### Reduction and the strategy
+
+- Values: `x | λx. t | b | {lᵢ = vᵢ} | fix (λx. t)`; data: `b | {lᵢ = dᵢ}`. A
+  projection is never a value (D92).
+- `reduction.reduce` fires one root rule or returns the term itself: E-Beta (value
+  argument), E-Opcode (`fold_opcode`, data operands, pure opcodes only), E-FixProj,
+  E-FixApp (`unfold`), E-Proj, E-Index/E-Default.
+- `strategy.sstep` follows table 6.2 rows a–p; `normalize` raises `ReductionError`
+  ("No normal form within N steps", "Term too deep to reduce").
+- Recursion: `fix (λf. …)`. In a module, recursion goes through `m` and `f`, which
+  reduction never binds; a test binds them with `fix` to run a module by reduction:
+  `let gcd = (fix (fix module).gcd.body).entry.body in gcd {…}` (8.8b).
+
+#### Modules and LLVM
+
+- A module is `λm. {symbols}`: a definition `{gives, body = λf. {blocks}}`, a block
+  `{takes = {x = t, …}, body = λp. e}`, a declaration `{takes, gives}`, a constant
+  `{type, value}`, a global `{type, init}` (Section 8). Example:
+  `tests/goldens/gcd.oymo`.
+- A block body is in ANF (7.1): lets of opcode or function calls, ending in a return
+  (an operand), a jump `f.l.body {…}`, or a branch on a path.
+- Types are data (9.1): `'iN'`, `'ptr'`, structs, `{'array', n, t}`,
+  `{'vector', n, t}`, `{'packed', …}`; a byte array takes its type from its use (9.2).
+- `oymo run` builds with `clang` and prints `main`'s result (the exit status).
+
+#### Opcodes
+
+Called as `'name' {fields}`, positional, in LLVM's order: `add sub mul sdiv udiv srem
+urem shl lshr ashr and or xor` (`{type, a, b}`), `icmp` (`{pred, type, a, b}`, `pred`
+one of `eq ne slt sle sgt sge ult ule ugt uge`), `zext sext trunc` (`{type, value, to}`),
+and the impure `alloca getelementptr load store` (`store` is `{type, value, ptr}`).
+Integer types: `i1 i8 i16 i32 i64`. Pure opcodes fold on data where LLVM defines the
+result; to add one, add it to `opcodes._generate` and to `llvm_opcodes`, with tests.
+
+#### Error messages (where they come from)
+
+| Source | Examples |
+|---|---|
+| `cli.py` | "Expected the first line to be 'language oymomo'.", "oymo run needs clang…", "Cannot read the file…" |
+| `grammar.py` | "Syntax error.", "Duplicate label 'x'." |
+| `reduction.py`, `strategy.py` | "Unknown name 'x'.", "No normal form within N steps.", "Term too deep to reduce." |
+| `module.py` | "The program is stuck here…" (5.5), "A module must be λm. {symbols}…", "Block 'b' is not in ANF: …", "f names the blocks; it is only for jumps…" |
+| `anf.py` | "… must be an atom or a struct of operands: bind it with a let.", "A return must be an operand, and a jump a function call.", "A branch condition must be a variable or a path." |
+| `llvm_translate.py`, `llvm_opcodes.py` | "… is not an LLVM type.", "The constant does not fit in i8.", "'add' takes 3 fields, got 2." |
+
+#### Tests and how to
+
+- Everything: `hatch run full-check` (lint, pyrefly, tests). Tests only: `hatch test`.
+- Try a program: `hatch run python -m oymo.cli normal FILE` (or `check`, `emit-llvm`,
+  `fmt`, `run`).
+- Goldens (`tests/golden_test.py`, approvaltests): each `tests/goldens/NAME.oymo` has
+  `NAME.normal.oymo` and `NAME.ll`; a new output appears as `.received`, approve it by
+  renaming. Goldens: simplest, effects, pointer, memory, aggregate, globals, fact, gcd,
+  helpers.
+- `tests/oymomo/strategy_test.py`: one test per row of table 6.2, the item 11 cases,
+  whole programs (factorial, fib, Collatz, gcd in module shape, all with `fix`), and a
+  random check that the strategy agrees with every order.
+- `tests/cli_test.py`: `run` on every golden with a `main` (skipped without clang).
+
+#### Words
+
+| Word | Meaning |
+|---|---|
+| ANF | the block-body form of Section 7; replaces BANF |
+| atom, operand | `x`, a path `x.l…`, a free path `g`, a byte array; an operand is an atom or a struct of operands (D94) |
+| data | a byte array or a struct of data; the only opcode operands that compute |
+| fixed point | `fix (λx. t)`: a value that unfolds once where it is projected or applied (D98) |
+| free path | `y` or `g.l`, a path from a variable reduction never binds, such as `m.l` or `f.l.body` |
+| stuck | a normal form with a part no substitution can make reduce (5.5); rejected |
+| value | `x`, `λx. t`, `b`, a struct of values, `fix (λx. t)` |
+
+
+## 4. Decisions and whys
+
+New entries are tagged with their roadmap id, e.g. `[deps-cli]`. The retired roadmap and
+plans are kept verbatim below.
+
+### `cli` (implemented)
+
+- Code: `src/oymo/cli.py`, `main(argv) -> int`; installed as the `oymo` script
+  (`[project.scripts]`). Tests: `tests/cli_test.py`. Goal program: `tests/goldens/fact.oymo`
+  (also a golden).
+- Errors: `file:line:column: error: message` on stderr, exit 1. Line and column are
+  1-based; columns count characters, not bytes. No location: `file: error: message`.
+  Term locations index the source after the header; the CLI adds the header's length.
+- Header: the first line must be `language oymomo`; the CLI checks and strips it (the
+  parser still doesn't know layers).
+- `check`: parse, `shape`, `convert` (which verifies BANF); silent on success. It does not
+  run the LLVM translation (spec says "verify the shaped program").
+- `fmt`: prints the pretty form to stdout, as the golden test writes it. No in-place
+  write: the parser drops `//` comments, so `fmt` loses them.
+- `emit-llvm`: stdout, or `-o file`. Target fixed to `x86_64-unknown-linux-gnu`, empty
+  data layout, until `target`.
+- `run`: `clang -Wno-override-module -x ir program.ll -o program` in a temp dir, runs it
+  (its stdout passes through), then prints the exit status as `main`'s result. Only the
+  low 8 bits of `main`'s result survive; a signal is reported and gives exit 1. No
+  `clang` on `PATH`: an error saying so.
+- The machine used for the first version had no `clang`; `run` was checked with a fake
+  `clang` in tests, and `fact.ll` built natively (llvmlite object + `cc`) returned 120.
+  `test_run_fact` is skipped without `clang`.
+
+### `deps` (from this session; plan_deps.md)
+
+- `deps` can be any term, not only a struct.
+- CLI: a flag says how deps are passed: `single` (one term) or `struct` (`label=file`
+  pairs). The CLI only reads files and applies; no `$fix`, no wiring.
+- Diamonds are solved by hand: the head makes a shared dependency once (`let`) and
+  passes the same value on. Pure code inlined twice is harmless (only code size); a
+  `module` symbol or a cell must exist once.
+- The pipeline is unchanged: reduce to `module~{declarations} -> {definitions}`, then
+  naming, then `convert`. Partial shaping (shaping with `deps` unbound) is postponed,
+  as an optimization.
+- `module` declarations are built with struct tools, not listed by hand, and not
+  automatic. That needs the `module` binder's form reduced to a literal before naming;
+  today `shape` never reduces forms.
+- Rejected: inferring declarations from used `deps` fields. Usage is gone once inlined,
+  and it breaks "module declares every symbol" and "return forms are declared".
+- Name: the user prefers `deps` among the alternatives (`given`, `uses`, `inputs`,
+  `needs`, ...).
+- Roadmap place: the oymomo mechanism under 0.9 (module interfaces and imports); after
+  0.3, since BANF must go before new oymomo features.
+- Moved (user's order): `deps` is now under `foundations`, after `banf-removal`, because
+  how a form alias works with `deps` must be designed together with `form-alias`.
+  `imports` keeps only `l1-interfaces`.
+
+### Retired notes.md (before the refactor)
+
+Moved verbatim from `docs/notes.md`; it describes the language before the refactor (arrow lambdas, forms, `$fix`, BANF). The current map is [3. Project knowledge](#3-project-knowledge). Links in it point to retired files.
 
 #### Oymo notes
 
@@ -2475,9 +2657,9 @@ A formed name or let with a written form is used as-is only if its LLVM type mat
 else it's rejected. No `bitcast`, widening or narrowing: a form is not a type, and
 conversions are explicit opcodes.
 
-### glossary.md
+### Retired glossary.md (before the refactor)
 
-Moved verbatim from `docs/glossary.md`. Links in it point to retired files.
+Moved verbatim from `docs/glossary.md`; words before the refactor. Links in it point to retired files.
 
 #### Oymo glossary
 
@@ -2510,60 +2692,6 @@ Moved verbatim from `docs/glossary.md`. Links in it point to retired files.
 | **reduce_until_top_stable** | Fire the root rule or reduce the blocker until neither changes the term; its top constructor then can't change. | [Translation](notes.md#blockers) |
 | **shape / shaped term** | An oymomo term reduced until every position looks like BANF. Output of `banf_translate.shape`. | [Translation](notes.md#translation-oymomo--banf--llvm) |
 | **struct apply** | `s [01]`: pick a field by position. | [oymomo syntax](notes.md#projection-and-struct-apply) |
-
-
-## 4. Decisions and whys
-
-New entries are tagged with their roadmap id, e.g. `[deps-cli]`. The retired roadmap and
-plans are kept verbatim below.
-
-### `cli` (implemented)
-
-- Code: `src/oymo/cli.py`, `main(argv) -> int`; installed as the `oymo` script
-  (`[project.scripts]`). Tests: `tests/cli_test.py`. Goal program: `tests/goldens/fact.oymo`
-  (also a golden).
-- Errors: `file:line:column: error: message` on stderr, exit 1. Line and column are
-  1-based; columns count characters, not bytes. No location: `file: error: message`.
-  Term locations index the source after the header; the CLI adds the header's length.
-- Header: the first line must be `language oymomo`; the CLI checks and strips it (the
-  parser still doesn't know layers).
-- `check`: parse, `shape`, `convert` (which verifies BANF); silent on success. It does not
-  run the LLVM translation (spec says "verify the shaped program").
-- `fmt`: prints the pretty form to stdout, as the golden test writes it. No in-place
-  write: the parser drops `//` comments, so `fmt` loses them.
-- `emit-llvm`: stdout, or `-o file`. Target fixed to `x86_64-unknown-linux-gnu`, empty
-  data layout, until `target`.
-- `run`: `clang -Wno-override-module -x ir program.ll -o program` in a temp dir, runs it
-  (its stdout passes through), then prints the exit status as `main`'s result. Only the
-  low 8 bits of `main`'s result survive; a signal is reported and gives exit 1. No
-  `clang` on `PATH`: an error saying so.
-- The machine used for the first version had no `clang`; `run` was checked with a fake
-  `clang` in tests, and `fact.ll` built natively (llvmlite object + `cc`) returned 120.
-  `test_run_fact` is skipped without `clang`.
-
-### `deps` (from this session; plan_deps.md)
-
-- `deps` can be any term, not only a struct.
-- CLI: a flag says how deps are passed: `single` (one term) or `struct` (`label=file`
-  pairs). The CLI only reads files and applies; no `$fix`, no wiring.
-- Diamonds are solved by hand: the head makes a shared dependency once (`let`) and
-  passes the same value on. Pure code inlined twice is harmless (only code size); a
-  `module` symbol or a cell must exist once.
-- The pipeline is unchanged: reduce to `module~{declarations} -> {definitions}`, then
-  naming, then `convert`. Partial shaping (shaping with `deps` unbound) is postponed,
-  as an optimization.
-- `module` declarations are built with struct tools, not listed by hand, and not
-  automatic. That needs the `module` binder's form reduced to a literal before naming;
-  today `shape` never reduces forms.
-- Rejected: inferring declarations from used `deps` fields. Usage is gone once inlined,
-  and it breaks "module declares every symbol" and "return forms are declared".
-- Name: the user prefers `deps` among the alternatives (`given`, `uses`, `inputs`,
-  `needs`, ...).
-- Roadmap place: the oymomo mechanism under 0.9 (module interfaces and imports); after
-  0.3, since BANF must go before new oymomo features.
-- Moved (user's order): `deps` is now under `foundations`, after `banf-removal`, because
-  how a form alias works with `deps` must be designed together with `form-alias`.
-  `imports` keeps only `l1-interfaces`.
 
 ### Retired roadmap and plans
 
@@ -5675,7 +5803,7 @@ The plan intended the old names' error to name the new spelling (design step 3).
 same result in the VM; the goal program calls `putchar` once, yields `7`, and resumed
 with `15` returns `5`.
 
-### Semantics decisions (D1–D96), moved from `semantics_discussion.md`
+### Semantics decisions (D1–D98), moved from `semantics_discussion.md`
 
 The whole semantics review, verbatim: the open list (all items done or closed), the
 goal and rebuild notes, and the decisions D1–D96, newest first. It was

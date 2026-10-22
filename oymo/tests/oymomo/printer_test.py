@@ -225,3 +225,11 @@ def test_unlabeled_fields_print_only_their_value():
           b= '2',
           c,
         }""")
+
+
+def test_pretty_breaks_a_long_fixed_point():
+    # `fix t` breaks inside `t`, and the result parses back to the same term (4.8).
+    source = '(fix (λs. {aaaaaaaaaaaaaaaa = λq. s.aaaaaaaaaaaaaaaa q, bbbbbbbbbbbbbbbb = λq. s.bbbbbbbbbbbbbbbb q})).aaaaaaaaaaaaaaaa'
+    text = pretty(source)
+    assert text.startswith('(fix (λs. {\n')
+    assert parse(text) == parse(source)

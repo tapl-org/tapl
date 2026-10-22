@@ -135,9 +135,7 @@ def test_11d_projection_first_then_beta():
 
 
 def test_11f_fix_recursion():
-    # The factorial of 4.8d: 3! = 6.
-    assert normal(f'{FACT} [03000000]') == '[06000000]'
-    # Recursion on an unknown never stops: the term grows until a limit stops it.
+    # The factorial of 4.8d on an unknown never stops: the term grows until a limit stops it.
     with pytest.raises(reduction.ReductionError, match=r'No normal form|too deep'):
         normal(f'{FACT} p.n', max_steps=300)
     # Y never works under call-by-value.
@@ -226,6 +224,8 @@ fix (λcollatz. λn.
 @pytest.mark.parametrize(
     ('source', 'expected'),
     [
+        # 3! = 6.
+        (f'{FACT} [03000000]', '[06000000]'),
         (FIB_PROGRAM, '[08000000]'),
         (COLLATZ_PROGRAM, '[10000000]'),
         # gcd 48 18 = 6, in module shape (Section 8).
