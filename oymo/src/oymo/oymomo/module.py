@@ -17,6 +17,8 @@ parts and checks what ANF alone does not:
   block's body (it is never bound by a `let`);
 - an atom `m.l` names a symbol; `f` is only for jumps; a parameter is read as `p.x`.
 
+An operand (D94) is an atom or a struct of operands: in an opcode call, a call, a jump or a return.
+
 `module_of` runs the whole way from a parsed program: resolve, normalize (Section 6),
 reject a stuck normal form (5.5), and read the module.
 """
@@ -239,7 +241,7 @@ def _check_block(module, definition, block):
 
 def _check_operation(scope, term):
     if isinstance(term.function, terms.ByteArray):
-        _check_atoms(scope, term.argument)
+        _check_operands(scope, term.argument)
     else:
         _check_call(scope, term, at_end=False)
 
@@ -255,15 +257,22 @@ def _check_terminal(scope, term):
 
 
 def _check_return(scope, term):
-    if anf.is_atom(term):
-        _check_atom(scope, term)
+    if anf.is_operand(term):
+        _check_operand(scope, term)
     else:
         _check_call(scope, term, at_end=True)
 
 
-def _check_atoms(scope, struct):
+def _check_operands(scope, struct):
     for f in struct.fields:
-        _check_atom(scope, f.value)
+        _check_operand(scope, f.value)
+
+
+def _check_operand(scope, term):
+    if isinstance(term, terms.Struct):
+        _check_operands(scope, term)
+    else:
+        _check_atom(scope, term)
 
 
 def _check_atom(scope, term):
@@ -312,4 +321,4 @@ def _check_arguments(scope, term, what, takes):
         raise ModuleError(
             f'The call to {what} must give {names}, in order; it gives {given}.', _location(term.argument)
         )
-    _check_atoms(scope, term.argument)
+    _check_operands(scope, term.argument)

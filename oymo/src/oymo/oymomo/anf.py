@@ -4,9 +4,10 @@
 
     g ::= y | g.l                      free path
     a ::= x | x.l₁⋯lⱼ | g | b          atom
-    u ::= g {lᵢ = aᵢ}                  function call
-    o ::= b {lᵢ = aᵢ} | u              operation
-    r ::= a | u                        return or jump
+    q ::= a | {lᵢ = qᵢ}                operand
+    u ::= g {lᵢ = qᵢ}                  function call
+    o ::= b {lᵢ = qᵢ} | u              operation
+    r ::= q | u                        return or jump
     τ ::= r | {lᵢ = rᵢ} a              terminal
     e ::= let x = o in e | τ           expression
 
@@ -74,14 +75,30 @@ def is_atom(term: syntax.Term) -> bool:
     return is_path(term) or isinstance(term, terms.ByteArray)
 
 
-def _atoms_error(struct, what):
-    """The first field of `struct` that is not an atom."""
+def is_operand(term: syntax.Term) -> bool:
+    """`q`: an atom or a struct of operands (D94)."""
+    if isinstance(term, terms.Struct):
+        return all(is_operand(f.value) for f in term.fields)
+    return is_atom(term)
+
+
+def _operand_error(term, what):
+    """The first part of `term` that keeps it from being an operand."""
+    if isinstance(term, terms.Struct):
+        for f in term.fields:
+            if (error := _operand_error(f.value, what)) is not None:
+                return error
+        return None
+    if is_atom(term):
+        return None
+    return AnfError(f'{what} must be an atom or a struct of operands: bind it with a let.', term)
+
+
+def _operands_error(struct, what):
+    """The first field of `struct` that is not an operand."""
     if not isinstance(struct, terms.Struct):
-        return AnfError(f'{what} must be a struct of atoms.', struct)
-    for f in struct.fields:
-        if not is_atom(f.value):
-            return AnfError(f'{what} must be an atom: bind it with a let.', f.value)
-    return None
+        return AnfError(f'{what} must be a struct of operands.', struct)
+    return _operand_error(struct, what)
 
 
 def is_call(term: syntax.Term, local: int) -> bool:
@@ -89,21 +106,21 @@ def is_call(term: syntax.Term, local: int) -> bool:
     return (
         isinstance(term, terms.Apply)
         and is_free_path(term.function, local)
-        and _atoms_error(term.argument, 'An argument') is None
+        and _operands_error(term.argument, 'An argument') is None
     )
 
 
 def _call_error(term, local):
     if not is_free_path(term.function, local):
         return AnfError('A call must be through a free path, such as m.l or f.l.body.', term.function)
-    return _atoms_error(term.argument, 'An argument')
+    return _operands_error(term.argument, 'An argument')
 
 
 def _operation_error(term, local):
     """`o`: an opcode call that E-Opcode does not compute, or a function call."""
     match term:
         case terms.Apply(function=terms.ByteArray()):
-            if (error := _atoms_error(term.argument, 'An operand')) is not None:
+            if (error := _operands_error(term.argument, 'An operand')) is not None:
                 return error
             if reduction.reduce(term) is not term:
                 return AnfError('E-Opcode computes this opcode call.', term)
@@ -120,12 +137,12 @@ def _operation_error(term, local):
 
 
 def _return_error(term, local):
-    """`r`: an atom or a function call."""
-    if is_atom(term):
+    """`r`: an operand or a function call."""
+    if is_operand(term):
         return None
     if isinstance(term, terms.Apply) and not isinstance(term.function, terms.ByteArray | terms.Struct):
         return _call_error(term, local)
-    return AnfError('A return must be an atom, and a jump a function call.', term)
+    return AnfError('A return must be an operand, and a jump a function call.', term)
 
 
 def _terminal_error(term, local):
@@ -139,7 +156,7 @@ def _terminal_error(term, local):
                 return AnfError('A branch condition must be a variable or a path.', condition)
             return None
         case terms.Apply(function=terms.ByteArray()):
-            return _atoms_error(term.argument, 'An operand') or AnfError(
+            return _operands_error(term.argument, 'An operand') or AnfError(
                 'An opcode call at the end must be bound by a let and its variable returned.', term
             )
     return _return_error(term, local)

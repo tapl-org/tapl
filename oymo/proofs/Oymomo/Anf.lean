@@ -11,12 +11,12 @@ not need to tell them apart.
 
 * `Path`: `x | p.l` (a let variable, a free path, or a field of one).
 * `Atom`: a path or a byte array (row 7.1b).
-* `Atoms`: a struct of atoms.
-* `Call`: `g {lᵢ = aᵢ}` (row 7.1c).
-* `Op`: an opcode call that E-Opcode does not compute, or a call (row 7.1d).
-* `Ret`: an atom or a call (row 7.1e).
-* `Terminal`: a return or jump, or a branch of them on a path (row 7.1f).
-* `Expr`: `let x = o in e`, that is `(λx. e) o`, or a terminal (row 7.1g).
+* `Operand`: an atom or a struct of operands (row 7.1c, D94); `Operands`: a struct of them.
+* `Call`: `g {lᵢ = qᵢ}` (row 7.1d).
+* `Op`: an opcode call `b {lᵢ = qᵢ}` that E-Opcode does not compute, or a call (row 7.1e).
+* `Ret`: an operand or a call (row 7.1f).
+* `Terminal`: a return or jump, or a branch of them on a path (row 7.1g).
+* `Expr`: `let x = o in e`, that is `(λx. e) o`, or a terminal (row 7.1h).
 
 `anf_normal`: a term in ANF has no step (7.3, Goal 1.4).
 -/
@@ -34,22 +34,29 @@ inductive Atom : Term → Prop
   | path {p : Term} : Path p → Atom p
   | bytes (b : Bytes) : Atom (bytes b)
 
-/-- A struct of atoms. -/
-inductive Atoms : Term → Prop
-  | snil : Atoms snil
-  | scons {l : String} {a r : Term} : Atom a → Atoms r → Atoms (scons l a r)
+mutual
+  /-- An atom or a struct of operands. -/
+  inductive Operand : Term → Prop
+    | atom {a : Term} : Atom a → Operand a
+    | struct {s : Term} : Operands s → Operand s
+
+  /-- A struct of operands. -/
+  inductive Operands : Term → Prop
+    | snil : Operands snil
+    | scons {l : String} {q r : Term} : Operand q → Operands r → Operands (scons l q r)
+end
 
 inductive Call : Term → Prop
-  | mk {g s : Term} : Path g → Atoms s → Call (app g s)
+  | mk {g s : Term} : Path g → Operands s → Call (app g s)
 
 variable (op) in
 inductive Op : Term → Prop
   | opcode {b : Bytes} {s : Term} :
-      Atoms s → (∀ b', isData s = true → op b s ≠ some b') → Op (app (bytes b) s)
+      Operands s → (∀ b', isData s = true → op b s ≠ some b') → Op (app (bytes b) s)
   | call {u : Term} : Call u → Op u
 
 inductive Ret : Term → Prop
-  | atom {a : Term} : Atom a → Ret a
+  | operand {q : Term} : Operand q → Ret q
   | call {u : Term} : Call u → Ret u
 
 /-- A struct of returns and jumps: the arms of a branch. -/
@@ -85,14 +92,21 @@ theorem Atom.normal {a t' : Term} (ha : Atom a) : ¬ Step op a t' := by
   | path hp => exact hp.normal
   | bytes b => intro h; cases h
 
-theorem Atoms.normal {s t' : Term} (hs : Atoms s) : ¬ Step op s t' := by
-  induction hs generalizing t' with
-  | snil => intro h; cases h
-  | scons ha _ ih =>
-    intro h
-    cases h with
-    | scons1 h => exact ha.normal h
-    | scons2 h => exact ih h
+mutual
+  theorem Operand.normal {q t' : Term} : Operand q → ¬ Step op q t'
+    | .atom ha => ha.normal
+    | .struct hs => hs.normal
+
+  theorem Operands.normal {s t' : Term} : Operands s → ¬ Step op s t'
+    | .snil => fun h => by cases h
+    | .scons hq hr => fun h => by
+      cases h with
+      | scons1 h => exact hq.normal h
+      | scons2 h => exact hr.normal h
+end
+
+theorem Operands.not_bytes {s : Term} {b : Bytes} (hs : Operands s) : s ≠ bytes b := by
+  cases hs <;> simp
 
 theorem Call.normal {u t' : Term} (hu : Call u) : ¬ Step op u t' := by
   cases hu with
@@ -100,7 +114,7 @@ theorem Call.normal {u t' : Term} (hu : Call u) : ¬ Step op u t' := by
     intro h
     cases h with
     | beta _ => cases hg
-    | index _ => cases hs
+    | index _ => exact absurd rfl hs.not_bytes
     | opcode _ _ _ => cases hg
     | app1 h => exact hg.normal h
     | app2 h => exact hs.normal h
@@ -110,7 +124,7 @@ theorem Op.normal {o t' : Term} (ho : Op op o) : ¬ Step op o t' := by
   | opcode hs hn =>
     intro h
     cases h with
-    | index _ => cases hs
+    | index _ => exact absurd rfl hs.not_bytes
     | opcode _ hd ho => exact hn _ hd ho
     | app1 h => cases h
     | app2 h => exact hs.normal h
@@ -118,7 +132,7 @@ theorem Op.normal {o t' : Term} (ho : Op op o) : ¬ Step op o t' := by
 
 theorem Ret.normal {r t' : Term} (hr : Ret r) : ¬ Step op r t' := by
   cases hr with
-  | atom ha => exact ha.normal
+  | operand hq => exact hq.normal
   | call hu => exact hu.normal
 
 theorem Rets.normal {s t' : Term} (hs : Rets s) : ¬ Step op s t' := by

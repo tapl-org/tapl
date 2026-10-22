@@ -380,9 +380,10 @@
 \begin{array}{l@{\quad}rcll}
 \pt & g & ::= & y \mid g.l & \textit{free path} \\
 \pt & a & ::= & x \mid x.l_1\cdots l_j \mid g \mid b & \textit{atom} \\
-\pt & u & ::= & g\ \{l_i = a_i\}_{i<k} & \textit{function call} \\
-\pt & o & ::= & b\ \{l_i = a_i\}_{i<k} \mid u & \textit{operation} \\
-\pt & r & ::= & a \mid u & \textit{return or jump} \\
+\pt & q & ::= & a \mid \{l_i = q_i\}_{i<k} & \textit{operand} \\
+\pt & u & ::= & g\ \{l_i = q_i\}_{i<k} & \textit{function call} \\
+\pt & o & ::= & b\ \{l_i = q_i\}_{i<k} \mid u & \textit{operation} \\
+\pt & r & ::= & q \mid u & \textit{return or jump} \\
 \pt & \tau & ::= & r \mid \{l_i = r_i\}_{i<k}\ a & \textit{terminal} \\
 \pt & e & ::= & \kw{let}\ x = o\ \kw{in}\ e \mid \tau & \textit{expression}
 \end{array}
@@ -395,17 +396,21 @@
     such as $p.a$, a free path, or a byte array. A free path as an atom stands for the address of a
     symbol: $\str{load}\ \{\str{i32}, m.\mathit{counter}\}$ reads a global variable or a constant, and $\str{store}$
     writes a global variable.
-  \item $u$: a function call is a free path applied to a struct of atoms.
+  \item $q$: an operand is an atom or a struct of operands. Its parts are normal, so it is normal. The
+    first call reads a struct of type $\{\str{i8}, \str{i32}\}$; the second writes the struct value $\{p.a, w\}$:
+    \[\str{load}\ \{\{\str{i8}, \str{i32}\}, p\} \qquad \str{store}\ \{\{\str{i8}, \str{i32}\}, \{p.a, w\}, s\}\]
+  \item $u$: a function call is a free path applied to a struct of operands; a field that is a struct is a
+    parameter of struct type.
   \item $o$: an operation is an opcode call or a function call. An opcode call in ANF is one that
     \rn{E-Opcode} does not compute (\pref{p:opcode}).
-  \item $r$: a return is an atom, and a jump is a function call at the end.
+  \item $r$: a return is an operand, and a jump is a function call at the end.
   \item $\tau$: a terminal is a return, a jump, or a conditional jump: a branch whose arms are returns or
     jumps, and whose condition is an atom that is not a byte array.
   \item $e$: an expression is a list of $\kw{let}$s, one per operation, with a terminal at the end.
   \end{subpoints}
 \item\label{p:anf-normal} A term in ANF is a normal form (\pref{p:normal}), as Goal \pref{p:goal-banf} asks: an operation is not a
   value, so \rn{E-Beta} never fires on its $\kw{let}$; atoms are never a lambda or a
-  struct, so no other rule fires; and no part is stuck. The proof is in Lean 4, in \texttt{proofs/} (theorem
+  struct, and an operand is never applied or projected, so no other rule fires; and no part is stuck. The proof is in Lean 4, in \texttt{proofs/} (theorem
   \texttt{Oymomo.anf\_normal}).
 \item A normal form that is not in ANF, such as $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$ (\pref{p:forms}), is valid but is not translated. The fix is the program's: bind the
   inner operation with a $\kw{let}$. No rule lifts it.
@@ -435,7 +440,7 @@
   \begin{subpoints}
   \item $\mathit{takes}$ declares the types of the block parameters.
   \item $\mathit{body}$ takes one argument, a struct of the same form as
-    $\mathit{takes}$: $\{x_i = a_i\}_{i<k}$, a struct of atoms (\pref{p:anf}); $e$ reads it as $p.x_i$.
+    $\mathit{takes}$: $\{x_i = q_i\}_{i<k}$, a struct of operands (\pref{p:anf}); $e$ reads it as $p.x_i$.
   \item The first block (position $0$) runs first, so any label works there ($\mathit{entry}$ in \pref{p:gcd}). A block may jump to it too, by its label or by
     position (\pref{p:entry}).
   \item A jump is $f.l.\mathit{body}\ \{x_i = a_i\}_{i<k}$. It ends an expression (\pref{p:anf}): a jump through $f$ that

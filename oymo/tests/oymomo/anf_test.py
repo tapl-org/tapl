@@ -47,6 +47,13 @@ def error(source):
         "let z = 'icmp' {'eq', 'i32', p.b, [00000000]} in {f.step.body {a = p.a, b = p.b}, f.done.body {a = p.a}} z",
         '{p.a, m.zero, [00]} p.tag',
         '{a = p.x, b = f.next.body {}} p.c',
+        # Operands (D94): structs of operands in opcode calls, calls, jumps and returns.
+        "let x = 'load' {{'i8', 'i32'}, m.pair} in x",
+        "let u = 'store' {{'i8', 'i32'}, {p.a, [02000000]}, m.pair} in u",
+        'm.f {q = {a = p.a, b = {[01]}}}',
+        'f.next.body {q = {p.a, p.b}}',
+        '{a = p.a, b = {m.c, [00]}}',
+        '{{p.a}, f.next.body {q = {p.b}}} p.c',
     ],
 )
 def test_in_anf(source):
@@ -61,12 +68,12 @@ def test_in_anf(source):
         # 5.6: normal, but not in ANF; the fix is a let.
         (
             "'add' {'i32', 'mul' {'i32', p.a, p.a}, p.b}",
-            'An operand must be an atom: bind it with a let.',
+            'An operand must be an atom or a struct of operands: bind it with a let.',
             "'mul' {'i32', $0.a, $0.a}",
         ),
         (
             "let x = 'add' {'i32', 'mul' {'i32', p.a, p.a}, p.b} in x",
-            'An operand must be an atom: bind it with a let.',
+            'An operand must be an atom or a struct of operands: bind it with a let.',
             "'mul' {'i32', $0.a, $0.a}",
         ),
         (
@@ -76,20 +83,24 @@ def test_in_anf(source):
         ),
         (
             'm.f {a = m.g {}}',
-            'An argument must be an atom: bind it with a let.',
+            'An argument must be an atom or a struct of operands: bind it with a let.',
             '$2.g {}',
         ),
-        ('m.f p.a', 'An argument must be a struct of atoms.', '$0.a'),
+        ('m.f p.a', 'An argument must be a struct of operands.', '$0.a'),
         # A call is through a free path, never a let variable.
         ('p.k {}', 'A call must be through a free path, such as m.l or f.l.body.', '$0.k'),
         ("let x = 'load' {'ptr', m.fp} in x {}", 'A call must be through a free path, such as m.l or f.l.body.', '$0'),
-        ('(m.f {}).x', 'A return must be an atom, and a jump a function call.', '($2.f {}).x'),
-        ('{a = p, b = p}', 'A return must be an atom, and a jump a function call.', '{a = $0, b = $0}'),
-        ('λx. x', 'A return must be an atom, and a jump a function call.', 'λx. $0'),
+        ('(m.f {}).x', 'A return must be an operand, and a jump a function call.', '($2.f {}).x'),
+        (
+            '{a = p, b = {m.f {}}}',
+            'A return must be an operand, and a jump a function call.',
+            '{a = $0, b = {$2.f {}}}',
+        ),
+        ('λx. x', 'A return must be an operand, and a jump a function call.', 'λx. $0'),
         # A branch's arms are returns or jumps; its condition is a path.
         (
             "{p.a, 'add' {'i32', p.a, p.b}} p.c",
-            'A return must be an atom, and a jump a function call.',
+            'A return must be an operand, and a jump a function call.',
             "'add' {'i32', $0.a, $0.b}",
         ),
         ('{p.a, p.b} (m.test {})', 'A branch condition must be a variable or a path.', '$2.test {}'),

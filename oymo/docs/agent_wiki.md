@@ -289,8 +289,10 @@ The user's orders, kept as given. Follow them in every task.
   position in the value's struct type term; `start` entry block when block 0 has
   predecessors; arms that return, call through m, or share a target get small blocks
   `label.i`; 2 arms on a wide int compare `!= 0`; `store` is `{type, value, ptr}` (4.4c);
-  the `'global'` opcode is gone. Spec gap found: a struct type operand (`'load' {{'i8',
-  'i32'}, p}`) is not an atom in 7.1, so it is not ANF.
+  the `'global'` opcode is gone. D94 (accepted): operands `q ::= a | {lᵢ = qᵢ}` in opcode
+  calls, calls, jumps and returns (fixes struct type operands); Lean `Operand`/`Operands`
+  (mutual) in `Anf.lean`; `anf.is_operand`; LLVM builds a struct operand as a constant if
+  it is data, else `insertvalue` into `undef`, in the type its use needs.
   The old BANF/LLVM pipeline no longer imports; `tests/conftest.py` leaves its tests out
   until their stage (user chose "expected-to-fail"; collection errors can't be xfailed).
 

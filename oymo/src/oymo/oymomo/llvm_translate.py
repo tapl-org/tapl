@@ -268,7 +268,10 @@ class _Function:
     # Atoms
 
     def atom(self, block, lets, term, expected, what):
-        """An atom as an LLVM value. `expected` is the type term its use needs, or None."""
+        """An operand (an atom or a struct of operands) as an LLVM value. `expected` is the
+        type term its use needs, or None."""
+        if isinstance(term, terms.Struct):
+            return self._struct(block, lets, term, expected, what)
         if isinstance(term, terms.ByteArray):
             if expected is None:
                 raise LlvmTranslationError(
@@ -285,6 +288,27 @@ class _Function:
         if value.value is None:
             raise LlvmTranslationError("A store's result has no value.", getattr(term, 'location', None))
         return value
+
+    def _struct(self, block, lets, term, expected, what):
+        """A struct operand (D94): a constant when it is data, else `insertvalue`s into
+        `undef`, one per field, in the struct type its use needs."""
+        if expected is None:
+            raise LlvmTranslationError(
+                f'The struct {printer.show(term)} needs a type here; {what} does not give one.', term.location
+            )
+        if reduction.is_data(term):
+            return _Value(constant(expected, term), expected)
+        parts = _type_parts(expected)
+        if parts is None or len(parts) != len(term.fields):
+            raise LlvmTranslationError(
+                f'{what} needs {llvm_type(expected)}, which is not a struct of {len(term.fields)} fields.',
+                term.location,
+            )
+        value = ir.Constant(llvm_type(expected), ir.Undefined)
+        for i, (part, f) in enumerate(zip(parts, term.fields, strict=True)):
+            field = self.atom(block, lets, f.value, part, what)
+            value = self._builder.insert_value(value, field.value, i)
+        return _Value(value, expected)
 
     def _path_value(self, block, lets, term):
         index, projections = _path(term)
@@ -355,7 +379,7 @@ class _Function:
         """A return, a jump through `f`, or a jump through `m` (`call` then `ret`)."""
         self._builder = builder
         gives = self.definition.gives
-        if anf.is_atom(term):
+        if anf.is_operand(term):
             builder.ret(self.atom(block, lets, term, gives, f'the result of {self.definition.name!r}').value)
         elif self._is_jump(term, len(lets)):
             target, values = self._jump(block, lets, term)

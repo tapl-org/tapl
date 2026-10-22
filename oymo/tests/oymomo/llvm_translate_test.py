@@ -259,3 +259,39 @@ def test_errors(source, message):
         # `'icmp' {'lt', …}` names no predicate: reduction leaves it, LLVM rejects it.
         message = "'icmp': field 0 must be a predicate, one of ['eq', 'ne', 'slt', 'sle', 'sgt', 'sge', 'ult', 'ule', 'ugt', 'uge']."
     assert error(source) == message
+
+
+def test_struct_operands():
+    """D94: an operand is an atom or a struct of operands, in opcode calls, calls, jumps
+    and returns. A struct of byte arrays is a constant; another is built with `insertvalue`."""
+    source = """
+    λm. {
+      pair = {type = {'i8', 'i32'}, init = {[00], [00000000]}},
+      swap = {gives = {'i32', 'i8'}, body = λf. {entry = {takes = {q = {a = 'i8', b = 'i32'}}, body = λp.
+        {p.q.b, p.q.a}
+      }}},
+      main = {gives = 'i32', body = λf. {
+        entry = {takes = {x = 'i32'}, body = λp.
+          let u = 'store' {{'i8', 'i32'}, {[07], p.x}, m.pair} in
+          let v = 'load' {{'i8', 'i32'}, m.pair} in
+          let w = m.swap {q = {a = [01], b = [02000000]}} in
+          f.done.body {r = {p.x, [03000000]}}
+        },
+        done = {takes = {r = {a = 'i32', b = 'i32'}}, body = λp. p.r.b},
+      }},
+    }
+    """
+    text = llvm(source)
+    swap = function(text, 'swap')
+    assert 'insertvalue {i32, i8} undef, i32' in swap
+    assert 'ret {i32, i8}' in swap
+    main = function(text, 'main')
+    assert 'insertvalue {i8, i32} undef, i8 7, 0' in main
+    assert 'i32 %"x", 1' in main
+    assert 'store {i8, i32} %' in main
+    assert '%"v" = load {i8, i32}, ptr @"pair"' in main
+    # All byte arrays: a constant.
+    assert 'call {i32, i8} @"swap"({i8, i32} {i8 1, i32 2})' in main
+    # A struct of the wrong shape for its use is an error, before LLVM's verifier.
+    with pytest.raises(llvm_translate.LlvmTranslationError, match='not a struct of 3 fields'):
+        llvm(source.replace('{r = {p.x, [03000000]}}', '{r = {p.x, p.x, p.x}}'))

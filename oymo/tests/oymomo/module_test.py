@@ -172,7 +172,7 @@ def wrap(body, takes="{a = 'i32'}", extra=''):
         # Checks of block bodies.
         (
             wrap("'add' {'i32', 'mul' {'i32', p.a, p.a}, p.a}"),
-            "Block 'entry' is not in ANF: An operand must be an atom: bind it with a let.",
+            "Block 'entry' is not in ANF: An operand must be an atom or a struct of operands: bind it with a let.",
         ),
         (wrap('p.z'), "Block 'entry' reads its parameters as p.x, x one of ['a']."),
         (wrap('p'), "Block 'entry' reads its parameters as p.x, x one of ['a']."),
