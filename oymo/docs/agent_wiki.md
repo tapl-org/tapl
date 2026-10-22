@@ -268,6 +268,11 @@ The user's orders, kept as given. Follow them in every task.
   labels are a parse error (empty labels never clash). E-Opcode returns a bare byte array.
   Stage 2 done: `reduction.is_value`/`is_data`; E-Beta fires only on a value; E-Opcode
   only on data operands; one `'icmp' {pred, form, a, b}` opcode replaces `icmp_<pred>`.
+  Stage 3 done: `strategy.sstep` is table 6.2 row by row (as Lean's `SStep`; a part "has a
+  step" iff `sstep` gives one, by completeness), `strategy.normalize(t, max_steps)` raises
+  `ReductionError` past the limit or on `RecursionError`. `banf_shape.py` and its tests and
+  `programs_test.py` are deleted (programs moved into `strategy_test.py` with Z). A random
+  test compares `normalize` with a search over every `⟶` order.
   The old BANF/LLVM pipeline no longer imports; `tests/conftest.py` leaves its tests out
   until their stage (user chose "expected-to-fail"; collection errors can't be xfailed).
 
