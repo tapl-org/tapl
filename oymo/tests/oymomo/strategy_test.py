@@ -13,7 +13,6 @@ from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show
 
 OMEGA = '((λw. w w) (λw. w w))'
-Z = '(λf. (λx. f (λv. x x v)) (λx. f (λv. x x v)))'
 FREE = ('a', 'b', 'c', 'e', 'g', 'm', 'p', 'r', 'z')
 
 
@@ -135,15 +134,12 @@ def test_11d_projection_first_then_beta():
     assert normal('(λx. x x) ({l = (λy. y) [01]}.l)') == same('[01] [01]')
 
 
-def test_11f_z_recursion():
-    fact = (
-        f"{Z} (λf. λn. if 'icmp' {{'eq', 'i32', n, [00000000]}} then [01000000] "
-        "else 'mul' {'i32', n, f ('sub' {'i32', n, [01000000]})})"
-    )
-    assert normal(f'{fact} [03000000]') == '[06000000]'
+def test_11f_fix_recursion():
+    # The factorial of 4.8d: 3! = 6.
+    assert normal(f'{FACT} [03000000]') == '[06000000]'
     # Recursion on an unknown never stops: the term grows until a limit stops it.
     with pytest.raises(reduction.ReductionError, match=r'No normal form|too deep'):
-        normal(f'{fact} p.n', max_steps=300)
+        normal(f'{FACT} p.n', max_steps=300)
     # Y never works under call-by-value.
     y = '(λf. (λx. f (x x)) (λx. f (x x)))'
     with pytest.raises(reduction.ReductionError, match='No normal form'):
@@ -201,45 +197,43 @@ let gcd = (fix (fix module).gcd.body).entry.body in
 """
 
 # The factorial of 4.8d.
-FACT = (
-    "fix (λf. λn. if 'icmp' {'eq', 'i32', n, [00000000]} then [01000000] "
-    "else 'mul' {'i32', n, f ('sub' {'i32', n, [01000000]})})"
-)
+FACT = """
+fix (λf. λn.
+  if 'icmp' {'eq', 'i32', n, [00000000]} then [01000000]
+  else 'mul' {'i32', n, f ('sub' {'i32', n, [01000000]})})
+"""
+
+# fib 6 = 8.
+FIB_PROGRAM = """
+fix (λfib. λn.
+  if 'icmp' {'ult', 'i32', n, [02000000]} then n
+  else 'add' {'i32', fib ('sub' {'i32', n, [01000000]}), fib ('sub' {'i32', n, [02000000]})})
+[06000000]
+"""
+
+# Collatz from 7 takes 16 steps.
+COLLATZ_PROGRAM = """
+fix (λcollatz. λn.
+  if 'icmp' {'eq', 'i32', n, [01000000]} then [00000000]
+  else 'add' {'i32', [01000000], collatz (
+    if 'and' {'i32', n, [01000000]}
+    then 'add' {'i32', 'mul' {'i32', n, [03000000]}, [01000000]}
+    else 'udiv' {'i32', n, [02000000]})})
+[07000000]
+"""
 
 
 @pytest.mark.parametrize(
     ('source', 'expected'),
     [
-        # fib 6 = 8.
-        (
-            f"{Z} (λfib. λn. if 'icmp' {{'ult', 'i32', n, [02000000]}} then n "
-            "else 'add' {'i32', fib ('sub' {'i32', n, [01000000]}), fib ('sub' {'i32', n, [02000000]})}) "
-            '[06000000]',
-            '[08000000]',
-        ),
-        # Collatz from 7 takes 16 steps.
-        (
-            f"{Z} (λcollatz. λn. if 'icmp' {{'eq', 'i32', n, [01000000]}} then [00000000] "
-            "else 'add' {'i32', [01000000], collatz ("
-            "if 'and' {'i32', n, [01000000]} "
-            "then 'add' {'i32', 'mul' {'i32', n, [03000000]}, [01000000]} "
-            "else 'udiv' {'i32', n, [02000000]})}) [07000000]",
-            '[10000000]',
-        ),
+        (FIB_PROGRAM, '[08000000]'),
+        (COLLATZ_PROGRAM, '[10000000]'),
         # gcd 48 18 = 6, in module shape (Section 8).
         (GCD_MODULE_PROGRAM, '[06000000]'),
-        # 3! = 6.
-        (f'{FACT} [03000000]', '[06000000]'),
     ],
 )
 def test_whole_programs(source, expected):
     assert normal(source) == expected
-
-
-def test_fix_recursion_on_an_unknown_never_stops():
-    # 4.8d: `F p.n` has no normal form.
-    with pytest.raises(reduction.ReductionError, match=r'No normal form|too deep'):
-        normal(f'{FACT} p.n', max_steps=300)
 
 
 def test_fix_stays_where_it_is_not_used():
