@@ -42,7 +42,7 @@ def _int_type(name: str, fields: Sequence[syntax.Term], index: int) -> syntax.Te
 def _type(name: str, fields: Sequence[syntax.Term], index: int) -> syntax.Term:
     """Field `index`, any type term."""
     field = fields[index]
-    if not opcodes.is_literal_form(field):
+    if not opcodes.is_literal_type(field):
         raise LlvmTranslationError(f"{name!r}: field {index} must be a type, such as 'i32'.")
     return field
 
@@ -140,7 +140,7 @@ def _check_indices(typ: syntax.Term, fields: Sequence[syntax.Term]) -> None:
     packed struct, it is a byte array below its field count, as LLVM's constant `i32`; into an
     array or a vector, it may be known only at run time."""
     for index, field in enumerate(fields, start=1):
-        tagged = opcodes.tagged_form(typ)
+        tagged = opcodes.tagged_type(typ)
         if tagged is not None and tagged[0] in opcodes.SEQUENCE_TAGS:
             typ = tagged[1][1].value
             continue

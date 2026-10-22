@@ -32,6 +32,14 @@ The user's orders, kept as given. Follow them in every task.
 - `docs/semantics.tex` (`review-rules`): the agent edits it as the user directs.
   Markdown can't render LaTeX, so the rules moved from `reduction_rules.md` (deleted on
   the user's order) to `.tex`. `make -C oymo/docs` builds the PDF (git-ignored).
+  - **Current state (after D96; supersedes the history in the sub-bullets below where they
+    differ):** sections 1 Goal, 2 Kernel Syntax, 3 Sugar Syntax, 4 Computation, 5 Reduction
+    Anywhere, 6 Strategy, 7 ANF, 8 Modules, 9 LLVM Translation. Call-by-value E-Beta (values
+    `x | λx. t | b | {v}`), E-Opcode on data, E-Proj, E-Index, E-Default; Z for recursion; no
+    forms, no `fix`, no strict application, no stuck term, no built-ins. ANF has operands
+    `q ::= a | {lᵢ = qᵢ}` (D94). Types are data of the shapes in 9.1 (D95); a byte array
+    takes its type from its use (9.2, D96). Lean theorem names are the only code references.
+    Numbering, review marks and answer rules are as stated below and in this section.
   Layout (user's choice): `mathpartir` rules with the name above (`lab=`), a judgment
   line over each group, `array` grammars; no boxes. Named `semantics.tex` (user's choice).
   - It is an abstract document: no θ-calculus or layering, no references to code

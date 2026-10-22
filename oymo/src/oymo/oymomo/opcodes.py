@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""The opcodes: one entry per LLVM instruction, polymorphic in `form`.
+"""The opcodes: one entry per LLVM instruction, polymorphic in `type`.
 
 An opcode is called as a byte array applied to a struct, `'add' {'i32', a, b}`, which is
 LLVM's `add i32 a, b`. Fields are positional, in LLVM's operand order; labels are
 ignored. An opcode has no declared params: it reads its fields itself, by position, and
-tells what it can from them. `form_of` gives the result's form, `evaluate` the result's
+tells what it can from them. `result_type` gives the result's type, `evaluate` the result's
 bytes when every field it needs is a literal.
 
 Shared by `reduction`, ANF and LLVM, so it holds neither and imports only `terms`.
@@ -16,11 +16,11 @@ from dataclasses import dataclass
 
 from oymo.oymomo import terms
 
-INT_FORMS = ('i1', 'i8', 'i16', 'i32', 'i64')
+INT_TYPES = ('i1', 'i8', 'i16', 'i32', 'i64')
 
 type Fields = Sequence[terms.Term]
 
-# Every integer opcode has three fields: `{form, a, b}`, or `{form, value, to}`. Memory
+# Every integer opcode has three fields: `{type, a, b}`, or `{type, value, to}`. Memory
 # opcodes count their own.
 FIELD_COUNT = 3
 
@@ -29,28 +29,28 @@ FIELD_COUNT = 3
 class Opcode:
     """One LLVM instruction.
 
-    `form_of`: the result's form, or None if unknown.
+    `result_type`: the result's type, or None if unknown.
     `evaluate`: the result's value as LLVM computes it, or None if the needed fields
     aren't literals or LLVM leaves the result undefined.
     `pure`: has no side effects, so reduction may fold it.
     """
 
     name: str
-    form_of: Callable[[Fields], terms.Term | None]
+    result_type: Callable[[Fields], terms.Term | None]
     evaluate: Callable[[Fields], terms.ByteArray | None]
     pure: bool = True
 
 
-def find_bit_width(form: terms.Term) -> int | None:
-    """The width of an integer form such as `'i32'` (32), or None for any other term."""
-    name = form.as_str if isinstance(form, terms.ByteArray) else None
-    return int(name[1:]) if name is not None and name in INT_FORMS else None
+def find_bit_width(typ: terms.Term) -> int | None:
+    """The width of an integer type such as `'i32'` (32), or None for any other term."""
+    name = typ.as_str if isinstance(typ, terms.ByteArray) else None
+    return int(name[1:]) if name is not None and name in INT_TYPES else None
 
 
-def bit_width(form: terms.Term) -> int:
-    """`find_bit_width`, for a form known to be an integer form: raises ValueError otherwise."""
-    if (width := find_bit_width(form)) is None:
-        raise ValueError(f'Not an integer form: {form!r}.')
+def bit_width(typ: terms.Term) -> int:
+    """`find_bit_width`, for a type known to be an integer type: raises ValueError otherwise."""
+    if (width := find_bit_width(typ)) is None:
+        raise ValueError(f'Not an integer type: {typ!r}.')
     return width
 
 
@@ -59,15 +59,15 @@ def byte_width(bits: int) -> int:
     return (bits + 7) // 8
 
 
-def decode_uint(term: terms.Term, form: terms.Term) -> int | None:
-    """The unsigned value of `term` read at the integer form `form`, or None.
+def decode_uint(term: terms.Term, typ: terms.Term) -> int | None:
+    """The unsigned value of `term` read at the integer type `type`, or None.
 
     `term` must be a byte array of exactly `(N + 7) // 8` bytes, below `2^N`.
     """
     if not isinstance(term, terms.ByteArray):
         return None
     data = term.value
-    bits = find_bit_width(form)
+    bits = find_bit_width(typ)
     if bits is None or len(data) != byte_width(bits):
         return None
     number = int.from_bytes(data, 'little')
@@ -125,23 +125,23 @@ _I1 = terms.ByteArray.from_str('i1')
 
 
 def _binary(name: str, compute: _Compute, *, result: terms.Term | None = None) -> Opcode:
-    """`{form, a, b}`: two operands read at `form`. The result is formed as `form`, or as
+    """`{type, a, b}`: two operands read at `type`. The result is typed as `type`, or as
     `result` if given (`i1` for a comparison)."""
 
-    def form_of(fields: Fields) -> terms.Term | None:
+    def result_type(fields: Fields) -> terms.Term | None:
         if len(fields) != FIELD_COUNT or not isinstance(fields[0], terms.ByteArray):
             return None
         return fields[0] if result is None else result
 
     def evaluate(fields: Fields) -> terms.ByteArray | None:
-        if (form := form_of(fields)) is None or (bits := find_bit_width(fields[0])) is None:
+        if (typ := result_type(fields)) is None or (bits := find_bit_width(fields[0])) is None:
             return None
         a, b = decode_uint(fields[1], fields[0]), decode_uint(fields[2], fields[0])
         if a is None or b is None or (value := compute(bits, a, b)) is None:
             return None
-        return _encode(value, bit_width(form))
+        return _encode(value, bit_width(typ))
 
-    return Opcode(name, form_of, evaluate)
+    return Opcode(name, result_type, evaluate)
 
 
 # `icmp`'s predicates (LLVM's names): how each compares, and whether it reads its operands
@@ -159,7 +159,7 @@ ICMP_PREDICATES: dict[str, tuple[Callable[[int, int], bool], bool]] = {
     'uge': (lambda a, b: a >= b, False),
 }
 
-# `icmp` has four fields: `{predicate, form, a, b}`.
+# `icmp` has four fields: `{predicate, type, a, b}`.
 ICMP_FIELD_COUNT = 4
 
 
@@ -174,14 +174,14 @@ def icmp_predicate(fields: Fields) -> str | None:
 def _icmp() -> Opcode:
     """`'icmp' {'eq', 'i32', a, b}`: LLVM's `icmp eq i32 a, b`, an `i1`."""
 
-    def form_of(fields: Fields) -> terms.Term | None:
+    def result_type(fields: Fields) -> terms.Term | None:
         if len(fields) != ICMP_FIELD_COUNT or icmp_predicate(fields) is None:
             return None
         return _I1 if isinstance(fields[1], terms.ByteArray) else None
 
     def evaluate(fields: Fields) -> terms.ByteArray | None:
         predicate = icmp_predicate(fields)
-        if predicate is None or form_of(fields) is None or (bits := find_bit_width(fields[1])) is None:
+        if predicate is None or result_type(fields) is None or (bits := find_bit_width(fields[1])) is None:
             return None
         a, b = decode_uint(fields[2], fields[1]), decode_uint(fields[3], fields[1])
         if a is None or b is None:
@@ -191,21 +191,21 @@ def _icmp() -> Opcode:
             a, b = _signed(bits, a), _signed(bits, b)
         return _encode(int(compare(a, b)), 1)
 
-    return Opcode('icmp', form_of, evaluate)
+    return Opcode('icmp', result_type, evaluate)
 
 
 def _convert(name: str, compute: _Compute, *, widening: bool) -> Opcode:
-    """`{form, value, to}`: one operand read at `form`, the result formed as `to`.
-    It evaluates only where LLVM converts: `to` wider than `form` (`zext`, `sext`), or
+    """`{type, value, to}`: one operand read at `type`, the result typed as `to`.
+    It evaluates only where LLVM converts: `to` wider than `type` (`zext`, `sext`), or
     narrower (`trunc`)."""
 
-    def form_of(fields: Fields) -> terms.Term | None:
+    def result_type(fields: Fields) -> terms.Term | None:
         if len(fields) != FIELD_COUNT or not isinstance(fields[2], terms.ByteArray):
             return None
         return fields[2]
 
     def evaluate(fields: Fields) -> terms.ByteArray | None:
-        if form_of(fields) is None:
+        if result_type(fields) is None:
             return None
         source, target = find_bit_width(fields[0]), find_bit_width(fields[2])
         if source is None or target is None or (target > source) != widening or target == source:
@@ -214,7 +214,7 @@ def _convert(name: str, compute: _Compute, *, widening: bool) -> Opcode:
             return None
         return _encode(result, target)
 
-    return Opcode(name, form_of, evaluate)
+    return Opcode(name, result_type, evaluate)
 
 
 PTR = terms.ByteArray.from_str('ptr')
@@ -223,10 +223,10 @@ PTR = terms.ByteArray.from_str('ptr')
 # nothing reads; the `let` only orders the store (4.4c).
 STORE_RESULT = terms.Struct([])
 
-# `getelementptr` takes a form, a pointer and at least one index.
+# `getelementptr` takes a type, a pointer and at least one index.
 GEP_MIN_FIELDS = 3
 
-# `load` takes `{form, ptr}`, `store` takes `{form, value, ptr}` (4.4c).
+# `load` takes `{type, ptr}`, `store` takes `{type, value, ptr}` (4.4c).
 LOAD_FIELDS = 2
 STORE_FIELDS = 3
 
@@ -234,23 +234,23 @@ STORE_FIELDS = 3
 # LLVM's aggregate types other than a plain struct are tagged structs: field 0 names the
 # type, and the fields after it are its parts. Only LLVM
 # translation reads the tag; to reduction they are structs like any other.
-FORM_TAGS = frozenset({'array', 'vector', 'packed'})
+TYPE_TAGS = frozenset({'array', 'vector', 'packed'})
 
 # The tags whose parts are `count, element`.
 SEQUENCE_TAGS = frozenset({'array', 'vector'})
 SEQUENCE_PARTS = 2
 
 
-def tagged_form(form: terms.Term) -> tuple[str, list[terms.Field]] | None:
-    """`(tag, parts)` for a struct whose field 0 is one of `FORM_TAGS`, else None. The tag's
+def tagged_type(typ: terms.Term) -> tuple[str, list[terms.Field]] | None:
+    """`(tag, parts)` for a struct whose field 0 is one of `TYPE_TAGS`, else None. The tag's
     label is ignored. `{'i32', x = 'i8'}` is a plain struct: `'i32'` is not a tag."""
-    if not isinstance(form, terms.Struct) or not form.fields:
+    if not isinstance(typ, terms.Struct) or not typ.fields:
         return None
-    tag = form.fields[0].value
+    tag = typ.fields[0].value
     name = tag.as_str if isinstance(tag, terms.ByteArray) else None
-    if name is None or name not in FORM_TAGS:
+    if name is None or name not in TYPE_TAGS:
         return None
-    return name, form.fields[1:]
+    return name, typ.fields[1:]
 
 
 def tag_count(term: terms.Term) -> int | None:
@@ -261,22 +261,22 @@ def tag_count(term: terms.Term) -> int | None:
     return None
 
 
-def is_literal_form(term: terms.Term) -> bool:
-    """A named form (`'i32'`, `'ptr'`), a struct of literal forms, or a tagged struct of
-    them, with a literal `count`: what a form field must be."""
-    if (tagged := tagged_form(term)) is not None:
+def is_literal_type(term: terms.Term) -> bool:
+    """A named type (`'i32'`, `'ptr'`), a struct of literal types, or a tagged struct of
+    them, with a literal `count`: what a type field must be."""
+    if (tagged := tagged_type(term)) is not None:
         tag, parts = tagged
         if tag in SEQUENCE_TAGS:
             return (
                 len(parts) == SEQUENCE_PARTS
                 and tag_count(parts[0].value) is not None
-                and is_literal_form(parts[1].value)
+                and is_literal_type(parts[1].value)
             )
-        return all(is_literal_form(f.value) for f in parts)
+        return all(is_literal_type(f.value) for f in parts)
     if isinstance(term, terms.ByteArray):
         return term.as_str is not None
     if isinstance(term, terms.Struct):
-        return all(is_literal_form(f.value) for f in term.fields)
+        return all(is_literal_type(f.value) for f in term.fields)
     return False
 
 
@@ -285,23 +285,23 @@ def _never(_fields: Fields) -> terms.ByteArray | None:
 
 
 def _alloca_form_of(fields: Fields) -> terms.Term | None:
-    """`{form}` or `{form, count}`: a pointer to a stack slot for one `form`, or `count` of them."""
-    return PTR if len(fields) in (1, 2) and is_literal_form(fields[0]) else None
+    """`{type}` or `{type, count}`: a pointer to a stack slot for one `type`, or `count` of them."""
+    return PTR if len(fields) in (1, 2) and is_literal_type(fields[0]) else None
 
 
 def _getelementptr_form_of(fields: Fields) -> terms.Term | None:
-    """`{form, ptr, i0, ..., in}`: `ptr` moved by `i0` whole `form`s, then into `form`'s parts."""
-    return PTR if len(fields) >= GEP_MIN_FIELDS and is_literal_form(fields[0]) else None
+    """`{type, ptr, i0, ..., in}`: `ptr` moved by `i0` whole `type`s, then into `type`'s parts."""
+    return PTR if len(fields) >= GEP_MIN_FIELDS and is_literal_type(fields[0]) else None
 
 
 def _load_form_of(fields: Fields) -> terms.Term | None:
-    """`{form, ptr}`: the `form` read at `ptr`. LLVM translation checks the field count."""
-    return fields[0] if fields and is_literal_form(fields[0]) else None
+    """`{type, ptr}`: the `type` read at `ptr`. LLVM translation checks the field count."""
+    return fields[0] if fields and is_literal_type(fields[0]) else None
 
 
 def _store_form_of(fields: Fields) -> terms.Term | None:
-    """`{form, value, ptr}`: writes `value`, a `form`, at `ptr` and gives `{}`."""
-    return STORE_RESULT if fields and is_literal_form(fields[0]) else None
+    """`{type, value, ptr}`: writes `value`, a `type`, at `ptr` and gives `{}`."""
+    return STORE_RESULT if fields and is_literal_type(fields[0]) else None
 
 
 def _generate():

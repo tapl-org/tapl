@@ -9,16 +9,16 @@ I1, I8, I16, I32, I64 = (terms.ByteArray(name) for name in (b'i1', b'i8', b'i16'
 EQ = terms.ByteArray(b'eq')
 
 
-def operand(form, value):
-    """`value` as the bare bytes of an operand read at `form`."""
-    return terms.ByteArray(value.to_bytes(byte_width(bit_width(form)), 'little'))
+def operand(typ, value):
+    """`value` as the bare bytes of an operand read at `type`."""
+    return terms.ByteArray(value.to_bytes(byte_width(bit_width(typ)), 'little'))
 
 
-def ev(name, form, operands, to=None):
-    """`evaluate` on `{form, operands...}`, or `{form, operand, to}` for a conversion, as an
+def ev(name, typ, operands, to=None):
+    """`evaluate` on `{type, operands...}`, or `{type, operand, to}` for a conversion, as an
     unsigned number (or None)."""
-    form = terms.ByteArray.from_str(form)
-    fields = [form, *(operand(form, value) for value in operands)]
+    typ = terms.ByteArray.from_str(typ)
+    fields = [typ, *(operand(typ, value) for value in operands)]
     if to is not None:
         fields.append(terms.ByteArray.from_str(to))
     result = OPCODES[name].evaluate(fields)
@@ -36,17 +36,17 @@ def test_one_opcode_per_llvm_instruction():
 
 def test_form_of():
     x = terms.Variable('x')
-    assert OPCODES['add'].form_of([I32, x, x]) == I32
-    assert OPCODES['icmp'].form_of([EQ, I32, x, x]) == I1
-    assert OPCODES['zext'].form_of([I8, x, I32]) == I32
-    # The fields don't tell it: a wrong count, or a form that isn't a byte array.
-    assert OPCODES['add'].form_of([I32, x]) is None
-    assert OPCODES['add'].form_of([x, x, x]) is None
-    assert OPCODES['zext'].form_of([I8, x, x]) is None
+    assert OPCODES['add'].result_type([I32, x, x]) == I32
+    assert OPCODES['icmp'].result_type([EQ, I32, x, x]) == I1
+    assert OPCODES['zext'].result_type([I8, x, I32]) == I32
+    # The fields don't tell it: a wrong count, or a type that isn't a byte array.
+    assert OPCODES['add'].result_type([I32, x]) is None
+    assert OPCODES['add'].result_type([x, x, x]) is None
+    assert OPCODES['zext'].result_type([I8, x, x]) is None
     # `icmp` needs a predicate it knows in field 0.
-    assert OPCODES['icmp'].form_of([I32, x, x]) is None
-    assert OPCODES['icmp'].form_of([terms.ByteArray(b'lt'), I32, x, x]) is None
-    assert OPCODES['icmp'].form_of([x, I32, x, x]) is None
+    assert OPCODES['icmp'].result_type([I32, x, x]) is None
+    assert OPCODES['icmp'].result_type([terms.ByteArray(b'lt'), I32, x, x]) is None
+    assert OPCODES['icmp'].result_type([x, I32, x, x]) is None
 
 
 def test_evaluate_gives_the_result_bytes():
@@ -58,7 +58,7 @@ def test_evaluate_gives_the_result_bytes():
 def test_evaluate_reads_bare_operands():
     assert OPCODES['add'].evaluate([I8, operand(I8, 1), operand(I8, 2)]) == operand(I8, 3)
     assert decode_uint(operand(I8, 1), I8) == 1
-    # The bytes are read at the opcode's form: a wrong size does not decode.
+    # The bytes are read at the opcode's type: a wrong size does not decode.
     assert decode_uint(operand(I8, 1), I32) is None
 
 
@@ -85,7 +85,7 @@ def test_lookup():
 
 
 def test_byte_width():
-    assert [byte_width(bit_width(form)) for form in (I1, I8, I16, I32, I64)] == [1, 1, 2, 4, 8]
+    assert [byte_width(bit_width(typ)) for typ in (I1, I8, I16, I32, I64)] == [1, 1, 2, 4, 8]
 
 
 def test_evaluate_wraps_to_the_result_width():
@@ -132,10 +132,10 @@ def test_evaluate_has_no_result_where_llvm_has_none():
         assert ev(name, 'i8', [1, 7]) is not None
 
 
-def icmp(predicate, form, a, b):
-    """`evaluate` on `{predicate, form, a, b}`, as a number (or None)."""
-    form = terms.ByteArray.from_str(form)
-    fields = [terms.ByteArray.from_str(predicate), form, operand(form, a), operand(form, b)]
+def icmp(predicate, typ, a, b):
+    """`evaluate` on `{predicate, type, a, b}`, as a number (or None)."""
+    typ = terms.ByteArray.from_str(typ)
+    fields = [terms.ByteArray.from_str(predicate), typ, operand(typ, a), operand(typ, b)]
     result = OPCODES['icmp'].evaluate(fields)
     return None if result is None else int.from_bytes(result.value, 'little')
 
@@ -172,26 +172,26 @@ def test_only_memory_opcodes_are_impure():
 def test_memory_opcodes_give_a_pointer_and_never_evaluate():
     x = terms.Variable('x')
     point = terms.Struct([terms.Field('x', I32), terms.Field('y', I64)])
-    assert OPCODES['alloca'].form_of([I32]) == PTR
-    assert OPCODES['alloca'].form_of([point, x]) == PTR
-    assert OPCODES['getelementptr'].form_of([point, x, x, x]) == PTR
-    # A form that isn't a literal, or a wrong count.
-    assert OPCODES['alloca'].form_of([x]) is None
-    assert OPCODES['alloca'].form_of([]) is None
-    assert OPCODES['alloca'].form_of([I32, x, x]) is None
-    assert OPCODES['getelementptr'].form_of([I32, x]) is None
+    assert OPCODES['alloca'].result_type([I32]) == PTR
+    assert OPCODES['alloca'].result_type([point, x]) == PTR
+    assert OPCODES['getelementptr'].result_type([point, x, x, x]) == PTR
+    # A type that isn't a literal, or a wrong count.
+    assert OPCODES['alloca'].result_type([x]) is None
+    assert OPCODES['alloca'].result_type([]) is None
+    assert OPCODES['alloca'].result_type([I32, x, x]) is None
+    assert OPCODES['getelementptr'].result_type([I32, x]) is None
     assert OPCODES['alloca'].evaluate([I32]) is None
 
 
 def test_load_gives_its_form_and_store_gives_the_empty_struct():
     x = terms.Variable('x')
     point = terms.Struct([terms.Field('x', I32), terms.Field('y', I64)])
-    assert OPCODES['load'].form_of([I32, x]) == I32
-    assert OPCODES['load'].form_of([point, x]) == point
-    assert OPCODES['load'].form_of([PTR, x]) == PTR
-    assert OPCODES['load'].form_of([x, x]) is None
-    assert OPCODES['store'].form_of([I32, x, x]) == terms.Struct([])
-    assert OPCODES['store'].form_of([x, x, x]) is None
+    assert OPCODES['load'].result_type([I32, x]) == I32
+    assert OPCODES['load'].result_type([point, x]) == point
+    assert OPCODES['load'].result_type([PTR, x]) == PTR
+    assert OPCODES['load'].result_type([x, x]) is None
+    assert OPCODES['store'].result_type([I32, x, x]) == terms.Struct([])
+    assert OPCODES['store'].result_type([x, x, x]) is None
     # Neither runs in reduction: oymomo has no memory.
     assert OPCODES['load'].evaluate([I32, x]) is None
     assert OPCODES['store'].evaluate([I32, terms.ByteArray(bytes(4)), x]) is None

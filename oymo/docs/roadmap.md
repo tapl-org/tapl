@@ -12,24 +12,10 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `foundations` CLI, confluence, BANF removed
-    - `review-rules` Review semantics.tex
-    - `term-classes` Every term in one class, proved in Lean
-      - `classes-doc` semantics.tex: term classes; section 4 tables follow from them
-      - `classes-lean` Lean 4 in `oymo/proofs/`: progress, exclusivity, determinism
-      - 🚫 `classes-check` Doc tables checked against the Lean definitions
-      - 🚫 `classes-code` Code follows the new rules
-    - 🚫 `form-alias` Form alias, e.g. `Point = {x = 'i32', y = 'i32'}`
-    - `confluence` 0.2 Reduction order doesn't change the result
-      - 🚫 `conf-reducer` Full-β reference reducer and confluence test
-      - 🚫 `conf-form` A form on a form is replaced; beta always wraps
-      - 🚫 `conf-builtins` Built-in rules commute with reduction
-      - 🚫 `conf-shape` `shape` keeps the meaning of its input
-      - 🚫 `conf-lean` Lean proof that full β is confluent
-    - 🚫 `banf-removal` 0.3 BANF removed: oymomo → `.ll` text via an IR builder; llvmlite dropped
+    - `banf-removal` 0.3 `.ll` written as text via an IR builder; llvmlite dropped
     - `deps` Compile-time dependencies between `.oymo` files
       - `deps-decide` Answer the open questions
       - 🚫 `deps-cli` CLI flag: `single` or `struct` deps
-      - 🚫 `deps-module-form` Reduce the `module` form to a literal before naming
       - 🚫 `struct-tools` Concatenate, modify, build structs
       - 🚫 `deps-goldens` Golden tests: diamond, template pattern, built declarations
   - `alcor-l0` Alcor layer 0
@@ -45,7 +31,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `ptr-compare` Pointer comparison and `'null' {}`
       - 🚫 `ptr-casts` `'ptrtoint'`, `'inttoptr'`
       - 🚫 `bulk-memory` `'memcpy'`, `'memmove'`, `'memset'`
-      - 🚫 `void` `=> {}` returns, a call as a statement
+      - 🚫 `void` `gives = {}` returns, a call as a statement
       - 🚫 `alcor-memory-frontend` Alcor syntax and lowering for memory
     - `build` 0.6 `oymo build`: executables, `-c` objects, `.c` files linked in
       - 🚫 `target` Host triple and data layout in the `.ll`
@@ -84,11 +70,11 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - 🚫 `rewrite-core` 0.13 PEG engine and the oymomo pipeline in Alcor
   - `rewrite-alcor` 0.14 Alcor grammar, both layers, layer-1 subprocess, `oymo lsp`
     - 🚫 `frontend-interface` The compiler is an oymomo core plus frontends
-    - 🚫 `emit-oymomo` `oymo emit-oymomo`: shaped oymomo as text, one file per module
+    - 🚫 `emit-oymomo` `oymo emit-oymomo`: normal-form oymomo as text, one file per module
   - `self-host` 0.15 Self-hosting
-    - 🚫 `stage0` `stage0.ll`: shaped oymomo text → `.ll`
+    - 🚫 `stage0` `stage0.ll`: normal-form oymomo text → `.ll`
     - 🚫 `seed-files` Seed files, `build.sh`, CI builds from the seed
-    - 🚫 `deps-seed` Seed files are shaped output, no `deps`
+    - 🚫 `deps-seed` Seed files are normal-form output, no `deps`
     - 🚫 `mizar-ext` `language mizar` as an extension of Alcor, adding nothing yet
     - 🚫 `own-repo` `oymo/` exported to its own repository
 - `single-thread` Single-threaded, in the Alcor-written compiler
@@ -119,7 +105,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `quality` Debug info, optimization, safety, separate compilation
     - 🚫 `debug-info` 0.29 Params, locals, types in DWARF
     - `optimization` 0.30 `-O0..-O3`, LTO across C and Mizar
-      - 🚫 `align` Optional `align` on `'load'`, `'store'`, `'alloca'`, `'global'`
+      - 🚫 `align` Optional `align` on `'load'`, `'store'`, `'alloca'` and global variables
       - 🚫 `noalias` `{'noalias', 'ptr'}` on params and results
       - 🚫 `bswap` `'bswap'` for byte order per access
       - 🚫 `alias-scopes` `!alias.scope`, `!noalias`, if `noalias` isn't enough
@@ -148,168 +134,34 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `mizar-later` SIMD, language versions in the header
 - `someday` Someday / maybe
   - `block-comments` `/* */` block comments; stuck-term errors shown in them
-  - `fields-strict` `$fields_to_struct` argument allows only its own labels
   - `more-layers` Back to more than two layers, if real use cases appear
 
 ## Leaf details
 
-### `review-rules` Review semantics.tex
-
-- Review `docs/semantics.tex` (`make -C oymo/docs` builds `semantics.pdf`)
-
-### `classes-doc` semantics.tex: term classes; section 4 tables follow from them
-
-- Add the rules decided for term classes:
-  - opcode: `n₀ {lᵢ = operandᵢ} ⟶ m~R` where `op(n₀)` gives a result; a run-time
-    operation where it gives none
-  - E-AppForm `(t₁~F) t₂ ⟶ (t₁ t₂)~(F t₂)`
-  - `(t~F).l ⟶ (t.l)~(F.l)`, replacing E-ProjForm
-  - E-FuncFormApp `(P ⇒ R) t ⟶ R`
-  - E-FormOfForm `t~(G~F) ⟶ t~G`
-- `⟶w`: forms fully normalized (normal order inside a form)
-- Term classes grammar: values, neutral (`ne`, incl. run-time operations), stuck,
-  one class per `⟶w` rule; `operand ::= n | n~F | {lᵢ = operandᵢ} | ne`
-- Rewrite section 4 (All Combinations) from the classes
-- Review marks as usual
-
-### `classes-lean` Lean 4 in `oymo/proofs/`: progress, exclusivity, determinism
-
-- Install `elan`; latest stable Lean 4; `lake` project in `oymo/proofs/`; no Mathlib
-- `Term`: de Bruijn indices, struct fields as a list, `Nat` numbers, `String` labels
-- Substitution; computation rules with `op` as a parameter (a partial function)
-- `⟶w`, including full normalization of forms
-- `Value`, `Neutral`, `Stuck`
-- Prove: progress (every term steps or is in a class), exclusivity (at most one),
-  determinism of `⟶w`
-- `lake build` passes; how to build noted in `oymo/proofs/`
-
-### `classes-check` Doc tables checked against the Lean definitions
-
-- Compare section 4 of semantics.tex with the Lean classes, case by case
-- Fix either side where they differ
-
-### `classes-code` Code follows the new rules
-
-- `reduction.reduce`: E-AppForm, projection through a form, E-FuncFormApp,
-  E-FormOfForm
-- Opcodes: a call that doesn't fold is a run-time operation; a non-operand field
-  is an error
-- Forms fully normalized where evaluation reaches them
-- Update golden files
-- Commit: `oymomo: forms flow through elimination`
-
-### `form-alias` Form alias, e.g. `Point = {x = 'i32', y = 'i32'}`
-
-- Add form aliases: `Point = {x = 'i32', y = 'i32'}`
-- Works today: `let Point = {...} in module~{...} -> {...}`; the `let` reduces and each
-  use becomes the literal form
-- Fails today: a form from `deps` (`args~{x = deps.I}`): `form must be a literal, got
-  ({I = 'i32'}.I)`, since `shape` never reduces forms
-- Decide: reduce every form to a literal before naming (covers `deps-module-form` too),
-  or only the `module` form?
-- Decide: alias as `let` (no new syntax), sugar `Point = {...}` without `let ... in`, or
-  LLVM named types (`%Point = type {...}`, declared in `module`)?
-
-### `conf-reducer` Full-β reference reducer and confluence test
-
-- Add test-only `tests/oymomo/full_beta.py`:
-  - `reducts(term)`: every term one full-β step away, at any position
-    (`reduction.reduce` at the root, then every child: `Lambda.body`,
-    `Lambda.param_form`, struct fields, arguments, forms)
-  - `normalize(term, fuel, choose)`: step with `choose(reducts)` until none; raise when
-    out of fuel
-  - strategies: leftmost-outermost, innermost, seeded random
-- Confluence test: normalize each corpus term with each strategy; all that terminate
-  give the same term (`==`)
-- Corpus:
-  - the counterexample `(x~'i16' -> x) ((y -> y~'i8') a)`, as `xfail`
-  - one term per critical pair
-  - every source in `banf_reduce_test.py` and `banf_translate_test.py`
-  - small seeded random terms (constructors, free variables, byte arrays, `$fix`)
-- Commit: `oymomo: test that reduction is confluent`
-- Decide: random terms: seeded hand-written generator, or `hypothesis`?
-- Decide: should `normalize` live in `src` as `reduction.normalize`?
-
-### `conf-form` A form on a form is replaced; beta always wraps
-
-- Add rule E-Reform: `(t~G)~F → t~F`, at the root in `reduction.reduce`
-- Drop `strip`; beta never looks at its argument:
-  - E-Beta: `(λx. t1) t2 → [x ↦ t2] t1`
-  - E-BetaForm: `(λx~F. t1) t2 → [x ↦ t2~F] t1`
-  - E-ProjForm: `reduction.project` gives `tk~Fm`, without stripping `tk`
-  - E-Formed1: `banf_shape.unblock`'s `Formed` case keeps the inner form
-- E-Select: `index_value` accepts `[b]` and `[b]~F`
-- Check `convert` takes whnf before reading a form (nested forms in shaped terms)
-- Update golden files that gain a form level
-- Remove the counterexample's `xfail`
-- `reduction.beta` docstring: the form goes with the argument; E-Reform drops its own
-- Commit: `oymomo: a form replaces a form`
-
-### `conf-builtins` Built-in rules commute with reduction
-
-- Contract per built-in `reduce` case: if `rule(call, a)` gives `r` and `a →* a'`, then
-  `rule(call, a')` gives some `r'` joinable with `r`; `None` on `a` and a result on `a'`
-  is allowed, not the reverse
-- Rules read only what reduction can't change: whnf constructor, labels, byte arrays
-- Test each built-in in `BUILTINS` on sample arguments, reducing the argument in every
-  order
-- `$seq` samples: `$seq {[01], x}`, `$seq {{a = [01]}.a, x}`, `$seq {s, x}`
-- Add samples for the struct-pack and constant-folding rules
-- Commit: `oymomo: built-in rules commute with reduction`
-
-### `conf-shape` `shape` keeps the meaning of its input
-
-- Test `normalize(shape(t)) == normalize(t)` when both terminate, on the
-  `banf_reduce_test.py` and `banf_translate_test.py` programs
-- Effect samples, each under every strategy and with `shape`:
-
-  | Program | `normalize(t)` |
-  |---|---|
-  | `let q = putchar 'h' in let r = putchar {c = $seq {q, 'i'}} in r` | both calls |
-  | the same without `$seq` | only `putchar 'i'` |
-  | `let s = 'store' {n, p} in let v = 'load' {'i32', p} in v` | `'load' {'i32', p}` |
-  | the same with `$seq {s, p}` as the load's pointer | the store is kept |
-  | `let v = 'load' .. in let s = 'store' .. in 'add' {'i32', $seq {s, v}, v}` | 2 loads |
-  | `let a = putchar 'h' in let b = putchar 'i' in $seq {a, b}` | `$seq` of both calls |
-
-- Commit: `oymomo: shape is a reduction`
-- Decide: should `shape` keep lazy termination (drop an unused let before reducing its
-  value)? Leaning: no
-- Done when: confluence test passes on every golden and generated term; counterexample
-  fixed
-
-### `conf-lean` Lean proof that full β is confluent
-
-- In `oymo/proofs/`, on the `classes-lean` definitions
-- Full β: a step at any position (the congruence rules of semantics.tex)
-- Prove confluence by parallel reduction (Tait–Martin-Löf), including E-Reform,
-  E-FormOfForm, E-AppForm and struct fields
-
-### `banf-removal` 0.3 BANF removed: oymomo → `.ll` text via an IR builder; llvmlite dropped
+### `banf-removal` 0.3 `.ll` written as text via an IR builder; llvmlite dropped
 
 - Add an IR builder: new module, block, instruction, global; writes `.ll` text itself
-- Translate shaped oymomo straight to the IR builder; never LLVM or text directly
-- Remove BANF code and llvmlite
-- `oymo check` checks the shaped program
+- Translate the module (`module.py`, semantics.tex Section 8) straight to the IR builder;
+  never LLVM or text directly
+- Remove llvmlite (the BANF code is gone)
 - Move tests that use llvmlite's JIT or target data (float edge-operand tests,
   Spindle layout) to `clang`, or keep llvmlite test-only
 - Decide: `clang`, or llvmlite kept test-only, for JIT and target-data tests
-- Done when: same output as before on every test; BANF code and llvmlite gone
+- Done when: same output as before on every test; llvmlite gone
 
 ### `deps-decide` Answer the open questions
 
 - Decide: flag name and values (`--deps=single|struct`?); default when no deps given
 - Decide: may a dependency be written inline on the command line, or only as a file?
 - Decide: struct labels: valid, unique; unknown `deps.x` names the missing label
-- Decide: termination: fuel limit and error for a looping `$fix`?
 - Decide: warn on large inlined terms?
 - Decide: errors inside inlined library code point into the library file?
-- Decide: partial shaping (postponed)
+- Decide: partial normalization (postponed)
 
 ### `deps-cli` CLI flag: `single` or `struct` deps
 
-- Head file `deps -> module~{...} -> {...}`; a dependency file is any term
-- CLI reads files and applies; no `$fix`, no wiring:
+- Head file `λdeps. λm. {...}` (semantics.tex 8.1); a dependency file is any term
+- CLI reads files and applies; no wiring:
 
   ```
   $ oymo a.oymo                                          program = A
@@ -318,23 +170,19 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   ```
 
 - File terms come after their frontends, if not `language oymomo`
-- Output by flag: shaped oymomo or `.ll`
-
-### `deps-module-form` Reduce the `module` form to a literal before naming
-
-- Before naming, reduce the `module` binder's form to a literal struct
+- Output by flag: the normal form or `.ll`
 
 ### `struct-tools` Concatenate, modify, build structs
 
 - Struct tools: concatenate, modify, build
-- Example use: `module~(concat {main = => 'i32'} (deps.lib module).decls) -> ...`
-- Decide: which operations, and where: built-ins, or oymomo functions over
-  `$struct_to_fields` / `$fields_to_struct`
+- Example use: a module's symbols built from `deps.lib`, as `concat {main = …} (deps.lib m)`
+- Decide: which operations, as oymomo terms: oymomo has no built-ins (open item 3
+  closed), so nothing lists a struct's fields
 
 ### `deps-goldens` Golden tests: diamond, template pattern, built declarations
 
 - Golden: diamond wiring (`let d = deps.d in let b = deps.b d in let c = deps.c d in`)
-- Golden: template pattern (`sort = deps.lib.sort 'i32' module`, emitted as `@sort`)
+- Golden: template pattern (`sort = deps.lib.sort 'i32' m`, emitted as `@sort`)
 - Golden: built `module` declarations
 
 ### `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai
@@ -422,27 +270,27 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `ptr-compare` Pointer comparison and `'null' {}`
 
-- `'icmp_eq' {'ptr', p, q}` and the other nine predicates on `'ptr'`; only the LLVM
+- `'icmp' {'eq', 'ptr', p, q}` and the other nine predicates on `'ptr'`; only the LLVM
   lowering changes
 - `'null' {}`: gives `'ptr'`, pure, no fold, LLVM `ptr null`
-- Goal program: length of a linked list, load `next` until `'icmp_eq'` with `'null' {}`
+- Goal program: length of a linked list, load `next` until `'icmp' {'eq', …}` with `'null' {}`
 - Tests and a golden
 - Commit: `oymomo: compare pointers`
-- Decide: should `'icmp_eq'` of two `'null' {}` fold?
+- Decide: should `'icmp' {'eq', 'ptr', …}` of two `'null' {}` fold?
 
 ### `ptr-casts` `'ptrtoint'`, `'inttoptr'`
 
 - `'ptrtoint' {'ptr', p, 'i64'}`, `'inttoptr' {'i64', n, 'ptr'}`, shaped like `'zext'`
-- Any integer form (truncates or zero-extends); pure, no fold
+- Any integer type (truncates or zero-extends); pure, no fold
 - Goal program: round an address up to 16 bytes within a 32-byte `alloca`
 - Tests and a golden
 - Commit: `oymomo: add pointer casts`
 - Decide: how a program learns the target's pointer width and byte order: a
-  module-level value, a form (`'iptr'`), or not at all
+  module-level value, a type (`'iptr'`), or not at all
 
 ### `bulk-memory` `'memcpy'`, `'memmove'`, `'memset'`
 
-- Three impure opcodes, result `{}`, usable only by `$seq`:
+- Three impure opcodes, result `{}`, bound by a `let` that only orders them (4.4c):
 
   | Opcode | Fields | LLVM |
   |---|---|---|
@@ -450,15 +298,15 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   | `'memmove'` | `{dst, src, len}` | `@llvm.memmove.p0.p0.iN(...)` |
   | `'memset'` | `{dst, byte, len}` | `@llvm.memset.p0.iN(ptr, i8, iN, i1 false)` |
 
-- `len`'s integer form picks `iN`; `volatile` is `false`, no field
+- `len`'s integer type picks `iN`; `volatile` is `false`, no field
 - Declare the intrinsics by name
 - Goal program: copy 1024 `'i32'`; under `-O2` one `memcpy` call remains
 - Tests and a golden
 - Commit: `oymomo: add bulk memory ops`
 
-### `void` `=> {}` returns, a call as a statement
+### `void` `gives = {}` returns, a call as a statement
 
-- `=> {}` return form for functions returning nothing
+- `gives = {}` for functions returning nothing
 - A call as a statement
 - LLVM `void` declarations, definitions, calls, `ret void`
 
@@ -584,7 +432,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `fn-address` `module.f` as an address; indirect call through `'ptr'`
 
 - `module.f` as an address
-- Indirect call through `'ptr'` with a function form
+- Indirect call through `'ptr'` with a function type
 
 ### `alcor-fn-values` Alcor function values → function pointers; closures as code + `void *`
 
@@ -649,7 +497,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `seed-decide` Seed: storage, refresh, oymomo or `.ll`
 
-- Pick the seed form: shaped oymomo text in split files (proposed) or `bootstrap/oymo.ll`
+- Pick the seed form: normal-form oymomo text in split files (proposed) or `bootstrap/oymo.ll`
 - Record the decision before `rewrite-core` starts
 - Decide: storage and refresh: commit and regenerate only when needed, Git LFS, or a
   release artifact
@@ -678,13 +526,13 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - Write in `oymo/compiler/`, mirroring `oymo-py/src/oymo/`, file by file:
   - `core/`: PEG engine
-  - `oymomo/`: parser, reduction, `shape`, translation
+  - `oymomo/`: parser, reduction, strategy, ANF and module checks, translation
   - `ir/`: IR builder, writes `.ll` text, ported line for line
   - `driver/`: the `oymo` command
 - Add nothing new; same behaviour and logic as the Python compiler
 - Widest int stays `i64`
 - Run the confluence test and the oymomo goldens against it
-- Check that reduction and `shape` handle a megabyte-size term in reasonable time
+- Check that reduction handles a megabyte-size term in reasonable time
 - Measure seed size and build time
 - Done when: byte-identical `.ll` vs the Python compiler on every oymomo test
 
@@ -700,17 +548,17 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Done when: same output as the Python compiler on every Alcor test (layer-1 errors too);
   VS Code extension works unchanged
 
-### `emit-oymomo` `oymo emit-oymomo`: shaped oymomo as text, one file per module
+### `emit-oymomo` `oymo emit-oymomo`: normal-form oymomo as text, one file per module
 
-- Add `oymo emit-oymomo`: write a program's shaped oymomo as text, one file per module
-- Keep the printed shaped form stable
+- Add `oymo emit-oymomo`: write a program's normal-form oymomo as text, one file per module
+- Keep the printed normal form stable
 - Each file declares the symbols it exports and imports
-- `shape` stops at the file boundary: no specialization across files
+- Reduction stops at the file boundary: no specialization across files
 - Add `emit-oymomo` to the Python compiler only if CI checks the seed against it
 
-### `stage0` `stage0.ll`: shaped oymomo text → `.ll`
+### `stage0` `stage0.ll`: normal-form oymomo text → `.ll`
 
-- Write `bootstrap/stage0.ll`: translates shaped oymomo text only (no reduction) to `.ll`
+- Write `bootstrap/stage0.ll`: translates normal-form oymomo text only (no reduction) to `.ll`
 - Builds with `clang` alone
 - Output uses the portable `.ll` subset:
   - no `target triple`, no `target datalayout`
@@ -726,8 +574,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
   | File | Holds |
   |---|---|
-  | `bootstrap/stage0.ll` | shaped oymomo text → `.ll` |
-  | `bootstrap/oymomo.oymo` | core: parser, reduction, `shape`, translation, extension interface, driver |
+  | `bootstrap/stage0.ll` | normal-form oymomo text → `.ll` |
+  | `bootstrap/oymomo.oymo` | core: parser, reduction, strategy, translation, extension interface, driver |
   | `bootstrap/alcor/*.oymo` | Alcor frontend, one file per part |
   | `bootstrap/clang-version` | minimum and tested clang version |
 
@@ -750,9 +598,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Done when: with `clang` and no Python, a fresh clone builds from the seed, builds
   itself twice to identical output, passes every test
 
-### `deps-seed` Seed files are shaped output, no `deps`
+### `deps-seed` Seed files are normal-form output, no `deps`
 
-- Write seed files as shaped output; no `deps` in them
+- Write seed files as normal-form output; no `deps` in them
 
 ### `mizar-ext` `language mizar` as an extension of Alcor, adding nothing yet
 
@@ -813,16 +661,16 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `export` on a function or global → oymomo exports
 - Linkage: exported vs internal; C name ≠ label; no mangling; the rest `internal`
-- Exported data and cells (`extern int counter;` reads a `'global'`)
+- Exported constants and global variables (`extern int counter;` reads a global variable)
 - Callbacks: an oymomo function passed to C and called back
 - Generate `.h` from the module interface: prototypes, structs, include guards; layer-1
-  types (`unsigned`, `const char *`, named structs); forms alone give `int`-sized and
+  types (`unsigned`, `const char *`, named structs); LLVM types alone give `int`-sized and
   `void *`
 - Output `.a` and `.so`: `oymo build lib.oymo --emit=h,a,so`
 - Scalars and pointers only; by-value struct at the boundary: error "pass a pointer"
 - Done when: a C `main` calls a Mizar library through a header that reads as
   hand-written
-- Decide: where is an export written: a tag on the definition in `module`'s form, or a
+- Decide: where is an export written: a tag on the symbol in the module, or a
   separate export list?
 
 ### `c-api` C API and Python package
@@ -901,7 +749,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `fdiv` by zero gives ∞ or NaN
 - Printed as LLVM: `fadd f64 a, b`
 - Tests: edge operands (`±0`, `±1`, smallest subnormal, largest finite, `±∞`, NaN, both
-  forms) vs LLVM; `1.0 + 2.0` folds to `[0000000000000840]~'f64'`; `0.0 / 0.0` stays;
+  forms) vs LLVM; `1.0 + 2.0` folds to `[0000000000000840]`; `0.0 / 0.0` stays;
   `'f32'` `0.1 + 0.2` folds to the `f32` bits
 
 ### `float-compare` Comparisons, one symbol per predicate
@@ -912,7 +760,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `ord`, `uno`
 - No `fcmp false`/`fcmp true`
 - `-0.0` equals `+0.0` under `oeq`
-- Error: `'icmp_ult' takes an integer form, got f32; for floats use 'fcmp_ult'.`
+- Error: `'icmp' takes an integer type, got f32; for floats use 'fcmp_ult'.`
 - Tests: every predicate × `{-∞, -1, -0, +0, 1, +∞, NaN}` vs LLVM; literal folds;
   `'fcmp_uno'` with NaN folds to `[01]~'i1'`
 
@@ -1046,25 +894,24 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide: locals: is a location enough, or do `alloca`s need `#dbg_declare` records
   (`DILocalVariable`)?
 
-### `align` Optional `align` on `'load'`, `'store'`, `'alloca'`, `'global'`
+### `align` Optional `align` on `'load'`, `'store'`, `'alloca'` and global variables
 
 - One more positional field, last, a literal power of two, read unsigned:
 
   | Opcode | Fields |
   |---|---|
-  | `'load'` | `{form, ptr}`, `{form, ptr, align}` |
-  | `'store'` | `{value, ptr}`, `{value, ptr, align}` |
-  | `'alloca'` | `{form}`, `{form, count}`, `{form, count, align}` |
-  | `'global'` | `{form}`, `{form, init}`, `{form, init, align}` |
+  | `'load'` | `{type, ptr}`, `{type, ptr, align}` |
+  | `'store'` | `{type, value, ptr}`, `{type, value, ptr, align}` |
+  | `'alloca'` | `{type}`, `{type, count}`, `{type, count, align}` |
 
-- `'alloca'`: `count` must be written to give `align`; `'global'`: `init` must be
-  written (zeros if need be)
+- A global variable (semantics.tex 8.6): `{type, init}` or `{type, init, align}`
+- `'alloca'`: `count` must be written to give `align`
 - Too large `align` is undefined behaviour, unchecked
 - Test: unaligned `'i32'` read from a packed struct, `align 1`
 
 ### `noalias` `{'noalias', 'ptr'}` on params and results
 
-- Tagged form `{'noalias', 'ptr'}`; `'noalias'` becomes a reserved tag
+- Tagged type `{'noalias', 'ptr'}`; `'noalias'` becomes a reserved tag (9.1)
 - Allowed on: an entry block's param, an import's param, an import's or definition's
   result (`malloc = {size = 'i64'} => {'noalias', 'ptr'}`); elsewhere an error
 - Everywhere else it counts as `'ptr'` (a jump may pass it to a `'ptr'` param)
@@ -1078,7 +925,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `'bswap' {'i32', x}`: `llvm.bswap.iN`, pure, folded
 - Test: read a big-endian `'i32'` header field on a little-endian target
 - Decide: how does a program learn the target's pointer width and byte order: a
-  module-level value, a form (`'iptr'`), or not at all?
+  module-level value, a type (`'iptr'`), or not at all?
 
 ### `alias-scopes` `!alias.scope`, `!noalias`, if `noalias` isn't enough
 
@@ -1228,7 +1075,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `Program`: code array, constant pool, function table (entry, arity, slots,
   `max_stack`), host slots (name, arity), data; a listing printer
 - Tests: every op/terminator; swap is correct; `max_stack` is the deepest stack
-- Decide: what Spindle runs: the shaped oymomo program, or LLVM IR after LLVM's optimizer
+- Decide: what Spindle runs: the normal-form oymomo program, or LLVM IR after LLVM's optimizer
 - Decide: values in a C/Mizar port: `iN` ≤ 64 fits a word; wider ints and host values
   need handles released when a fiber dies?
 

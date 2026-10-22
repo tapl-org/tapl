@@ -61,7 +61,7 @@ def show_type(term: syntax.Term) -> str:
 def llvm_type(term: syntax.Term) -> ir.Type:
     """The LLVM type a type term names (9.1, D95): `'iN'`, `'ptr'`, a struct of types, or a
     tagged struct (`{'array', n, t}`, `{'vector', n, t}`, `{'packed', ...}`)."""
-    if (tagged := opcodes.tagged_form(term)) is not None:
+    if (tagged := opcodes.tagged_type(term)) is not None:
         return _tagged_type(term, *tagged)
     name = term.as_str if isinstance(term, terms.ByteArray) else None
     if name is not None and (match := _INT_TYPE.fullmatch(name)):
@@ -108,7 +108,7 @@ def constant(type_term: syntax.Term, value: syntax.Term) -> ir.Constant:
 
 def _type_parts(type_term):
     """The type terms of an aggregate's elements, in order, or None."""
-    if (tagged := opcodes.tagged_form(type_term)) is not None:
+    if (tagged := opcodes.tagged_type(type_term)) is not None:
         tag, parts = tagged
         if tag in opcodes.SEQUENCE_TAGS:
             count = opcodes.tag_count(parts[0].value)
@@ -121,7 +121,7 @@ def _type_parts(type_term):
 
 def _field_type(type_term, label, location):
     """`(position, type term)` of the field labeled `label` in a struct type."""
-    if isinstance(type_term, terms.Struct) and opcodes.tagged_form(type_term) is None:
+    if isinstance(type_term, terms.Struct) and opcodes.tagged_type(type_term) is None:
         position = reduction.field_position(type_term, label)
         if position is not None:
             return position, type_term.fields[position].value
@@ -349,7 +349,7 @@ class _Function:
             error.location = error.location or term.location
             raise
         opcode = opcodes.OPCODES.get(name)
-        result_type = opcode.form_of(fields) if opcode is not None else None
+        result_type = opcode.result_type(fields) if opcode is not None else None
         if name == 'store':
             return _Value(None, None)
         return _Value(value, result_type)
