@@ -443,6 +443,9 @@ result; to add one, add it to `opcodes._generate` and to `llvm_opcodes`, with te
 - `tests/oymomo/strategy_test.py`: one test per row of table 6.2, the item 11 cases,
   whole programs (factorial, fib, Collatz, gcd in module shape, all with `fix`), and a
   random check that the strategy agrees with every order.
+  - The random check is the slowest test (~1.8s). Ω is parsed once (`omega_term`,
+    `functools.cache`): parsing it for every random term was ~45% of its time. The rest
+    is `show` as the seen-key in `normal_forms` and `all_steps`/`replace`.
 - `tests/cli_test.py`: `run` on every golden with a `main` (skipped without clang).
 
 #### Words

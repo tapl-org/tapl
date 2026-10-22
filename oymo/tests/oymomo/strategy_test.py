@@ -3,6 +3,7 @@
 """The strategy of table 6.2 (semantics.tex, Section 6): one test per row, and the cases
 of open item 11 in `docs/agent_wiki.md` (section 4, "Semantics decisions")."""
 
+import functools
 import random
 from dataclasses import replace
 
@@ -267,6 +268,12 @@ def all_steps(term):
     return found
 
 
+@functools.cache
+def omega_term():
+    """Ω, parsed once and shared: no code changes a term in place."""
+    return resolved(OMEGA, ())
+
+
 def random_term(rng, depth, scope):
     """A small random term over `scope` bound variables: lambdas, applications, structs,
     projections, fixed points and byte arrays, with an Ω now and then."""
@@ -290,7 +297,7 @@ def random_term(rng, depth, scope):
             return terms.Project(random_term(rng, depth - 1, scope), rng.choice(['l', 'm']))
         case 'fix':
             return terms.Fix(terms.Lambda('s', random_term(rng, depth - 1, scope + 1)))
-    return resolved(OMEGA, ())
+    return omega_term()
 
 
 def normal_forms(term, limit=300):
