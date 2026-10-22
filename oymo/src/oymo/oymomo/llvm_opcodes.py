@@ -114,6 +114,11 @@ _BINARY = {
 _CONVERT = {'zext': 'zext', 'sext': 'sext', 'trunc': 'trunc'}
 
 
+def _type_of(value: ir.Value) -> ir.Type | None:
+    """An LLVM value's type (llvmlite's `Value` declares no `type`, its subclasses do)."""
+    return getattr(value, 'type', None)
+
+
 def _opaque(instruction: ir.Instruction) -> ir.Instruction:
     """llvmlite types a pointer it makes by what it points to; LLVM's `ptr` is opaque."""
     instruction.type = ir.PointerType()
@@ -125,8 +130,8 @@ def _alloca(builder, fields, operand: Operand):
         raise LlvmTranslationError(f"'alloca' takes a type and an optional count, got {len(fields)} fields.")
     typ = llvm_type(_type('alloca', fields, 0))
     count = _index(operand, fields[1]) if len(fields) > 1 else None
-    if count is not None and not isinstance(count.type, ir.IntType):
-        raise LlvmTranslationError(f"'alloca': count must be an integer, got {count.type}.")
+    if count is not None and not isinstance(_type_of(count), ir.IntType):
+        raise LlvmTranslationError(f"'alloca': count must be an integer, got {_type_of(count)}.")
     return _opaque(builder.alloca(typ, size=count))
 
 
@@ -160,8 +165,8 @@ def _getelementptr(builder, fields, operand: Operand):
     pointer = operand(fields[1], _PTR)
     indices = [_index(operand, field) for field in fields[2:]]
     for i, value in enumerate(indices):
-        if not isinstance(value.type, ir.IntType):
-            raise LlvmTranslationError(f"'getelementptr': index {i} must be an integer, got {value.type}.")
+        if not isinstance(_type_of(value), ir.IntType):
+            raise LlvmTranslationError(f"'getelementptr': index {i} must be an integer, got {_type_of(value)}.")
     _check_indices(typ, fields[3:])
     return _opaque(builder.gep(pointer, indices, source_etype=llvm_type(typ)))
 

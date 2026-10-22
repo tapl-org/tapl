@@ -121,17 +121,6 @@ def _shift(shift: Callable[[int, int, int], int]) -> _Compute:
     return lambda bits, value, amount: None if amount >= bits else shift(bits, value, amount)
 
 
-def _compare(compare: Callable[[int, int], bool], *, signed: bool) -> _Compute:
-    """A comparison giving 1 or 0 (an `i1`), on operands read as unsigned or two's complement."""
-
-    def compute(bits: int, lhs: int, rhs: int) -> int:
-        if signed:
-            lhs, rhs = _signed(bits, lhs), _signed(bits, rhs)
-        return int(compare(lhs, rhs))
-
-    return compute
-
-
 _I1 = terms.ByteArray.from_str('i1')
 
 
@@ -191,13 +180,16 @@ def _icmp() -> Opcode:
         return _I1 if isinstance(fields[1], terms.ByteArray) else None
 
     def evaluate(fields: Fields) -> terms.ByteArray | None:
-        if form_of(fields) is None or (bits := find_bit_width(fields[1])) is None:
+        predicate = icmp_predicate(fields)
+        if predicate is None or form_of(fields) is None or (bits := find_bit_width(fields[1])) is None:
             return None
         a, b = decode_uint(fields[2], fields[1]), decode_uint(fields[3], fields[1])
         if a is None or b is None:
             return None
-        compare, signed = ICMP_PREDICATES[icmp_predicate(fields)]
-        return _encode(_compare(compare, signed=signed)(bits, a, b), 1)
+        compare, signed = ICMP_PREDICATES[predicate]
+        if signed:
+            a, b = _signed(bits, a), _signed(bits, b)
+        return _encode(int(compare(a, b)), 1)
 
     return Opcode('icmp', form_of, evaluate)
 

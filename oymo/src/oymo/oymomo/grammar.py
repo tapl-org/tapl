@@ -254,6 +254,7 @@ def parse(text: str) -> syntax.Term:
     term = result[1]
     if isinstance(term, syntax.Term):
         if (duplicate := duplicate_label(term)) is not None:
-            return syntax.ErrorTerm(message=f'Duplicate label {duplicate.label!r}.', location=duplicate.location)
+            location = duplicate.location or syntax.Location(start=0, end=len(text))
+            return syntax.ErrorTerm(message=f'Duplicate label {duplicate.label!r}.', location=location)
         return term
     raise RuntimeError(f'Unexpected parse result type: {type(term)}')
