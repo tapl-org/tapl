@@ -24,12 +24,29 @@ def test_check_ok(capsys) -> None:
 
 
 def test_check_error_is_located(tmp_path, capsys) -> None:
-    # `nope` is on line 3, column 55 (columns count characters, not bytes: `⇒` and `→`).
-    path = write(
-        tmp_path, "language oymomo\n// a comment\nmodule~{main= ⇒ 'i32'} → {main= f → {entry= args~{} → nope}}\n"
-    )
+    # Columns count characters, not bytes: `λ` is one column.
+    line = "λm. {main = {gives = 'i32', body = λf. {entry = {takes = {}, body = λp. nope}}}}"
+    path = write(tmp_path, f'language oymomo\n// a comment\n{line}\n')
     assert cli.main(['check', path]) == 1
-    assert capsys.readouterr().err == f"{path}:3:55: error: Unknown name 'nope'.\n"
+    assert capsys.readouterr().err == f"{path}:3:{line.index('nope') + 1}: error: Unknown name 'nope'.\n"
+
+
+def test_check_reports_a_module_error(tmp_path, capsys) -> None:
+    line = "λm. {main = {gives = 'i32', body = λf. {entry = {takes = {}, body = λp. p.z}}}}"
+    path = write(tmp_path, f'language oymomo\n{line}\n')
+    assert cli.main(['check', path]) == 1
+    assert capsys.readouterr().err == (
+        f"{path}:2:{line.index('p.z') + 1}: error: Block 'entry' reads its parameters as p.x, x one of [].\n"
+    )
+
+
+def test_check_reports_an_llvm_error(tmp_path, capsys) -> None:
+    line = "λm. {main = {gives = 'i32', body = λf. {entry = {takes = {}, body = λp. [01]}}}}"
+    path = write(tmp_path, f'language oymomo\n{line}\n')
+    assert cli.main(['check', path]) == 1
+    assert capsys.readouterr().err == (
+        f'{path}:2:{line.index("[01]") + 1}: error: A constant of type i32 is a byte array of 4 bytes.\n'
+    )
 
 
 def test_syntax_error(tmp_path, capsys) -> None:
@@ -51,11 +68,16 @@ def test_missing_file(tmp_path, capsys) -> None:
 
 
 def test_fmt_prints_the_pretty_form(tmp_path, capsys) -> None:
-    path = write(tmp_path, "language oymomo\nmodule~{main= ⇒ 'i32'}→{main= f→{entry= args~{}→[00000000]~'i32'}}\n")
+    path = write(tmp_path, "language oymomo\nλm.{main={gives='i32',body=λf.{entry={takes={},body=λp.[00000000]}}}}\n")
     assert cli.main(['fmt', path]) == 0
     assert capsys.readouterr().out == (
-        "language oymomo\nmodule~{main= ⇒ 'i32'} → {main= f → {entry= args~{} → [00000000]~'i32'}}\n"
+        "language oymomo\nλm. {main= {gives= 'i32', body= λf. {entry= {takes= {}, body= λp. [00000000]}}}}\n"
     )
+
+
+def test_normal_prints_the_normal_form(capsys) -> None:
+    assert cli.main(['normal', str(GOLDENS / 'helpers.oymo')]) == 0
+    assert capsys.readouterr().out == (GOLDENS / 'helpers.normal.oymo').read_text(encoding='utf-8')
 
 
 def test_fmt_keeps_a_pretty_file(capsys) -> None:

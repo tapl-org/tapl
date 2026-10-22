@@ -1,3 +1,0 @@
-main: i32
-  entry(a: i32):
-    return [00000000]:i32

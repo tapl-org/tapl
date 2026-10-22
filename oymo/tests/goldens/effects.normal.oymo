@@ -1,0 +1,30 @@
+language oymomo
+λm. {
+  putchar= {takes= {c= 'i32'}, gives= 'i32'},
+  hi= {
+    gives= 'i32',
+    body= λf. {
+      entry= {
+        takes= {},
+        body= λp.
+          let q = m.putchar {c= [68000000]} in
+          let r = m.putchar {c= [69000000]} in r,
+      },
+    },
+  },
+  count= {
+    gives= 'i32',
+    body= λf. {
+      entry= {takes= {}, body= λp. f.loop.body {i= [00000000]}},
+      loop= {
+        takes= {i= 'i32'},
+        body= λp.
+          let x = m.putchar {c= [2a000000]} in
+          let j = 'add' {'i32', p.i, [01000000]} in
+          let done = 'icmp' {'eq', 'i32', j, [03000000]} in
+          if done then f.exit.body {n= j} else f.loop.body {i= j},
+      },
+      exit= {takes= {n= 'i32'}, body= λp. p.n},
+    },
+  },
+}

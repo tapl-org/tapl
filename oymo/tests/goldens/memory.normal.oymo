@@ -1,0 +1,41 @@
+language oymomo
+λm. {
+  bump= {
+    gives= 'i32',
+    body= λf. {
+      entry= {
+        takes= {n= 'i32'},
+        body= λp.
+          let a = 'alloca' {'i32'} in
+          let s = 'store' {'i32', p.n, a} in
+          let v = 'load' {'i32', a} in
+          let w = 'add' {'i32', v, [01000000]} in w,
+      },
+    },
+  },
+  sum= {
+    gives= 'i32',
+    body= λf. {
+      entry= {
+        takes= {n= 'i32'},
+        body= λp.
+          let acc = 'alloca' {'i32'} in
+          let z = 'store' {'i32', [00000000], acc} in
+          f.loop.body {acc= acc, i= p.n},
+      },
+      loop= {
+        takes= {acc= 'ptr', i= 'i32'},
+        body= λp.
+          let old = 'load' {'i32', p.acc} in
+          let new = 'add' {'i32', old, p.i} in
+          let s = 'store' {'i32', new, p.acc} in
+          let j = 'sub' {'i32', p.i, [01000000]} in
+          let done = 'icmp' {'eq', 'i32', j, [00000000]} in
+          if done
+          then f.exit.body {acc= p.acc}
+          else f.loop.body {acc= p.acc, i= j},
+      },
+      exit= {takes= {acc= 'ptr'}, body= λp. let r = 'load' {'i32', p.acc} in r},
+    },
+  },
+}

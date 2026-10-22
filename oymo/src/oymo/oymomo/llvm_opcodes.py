@@ -19,7 +19,16 @@ from oymo.oymomo import opcodes, terms
 from oymo.oymomo.llvm_translate import LlvmTranslationError, OpcodeImpl, Operand, llvm_type
 
 _I32 = terms.ByteArray(b'i32')
+_I64 = terms.ByteArray(b'i64')
 _PTR = terms.ByteArray(b'ptr')
+
+
+def _index(operand: Operand, field: syntax.Term) -> ir.Value:
+    """A count or an index. Written as a byte array, its length gives its type: eight
+    bytes are an `i64`, others an `i32`, as clang emits them."""
+    if isinstance(field, terms.ByteArray):
+        return operand(field, _I64 if len(field.value) == 8 else _I32)  # noqa: PLR2004
+    return operand(field, None)
 
 
 def _int_type(name: str, fields: Sequence[syntax.Term], index: int) -> syntax.Term:
@@ -115,8 +124,7 @@ def _alloca(builder, fields, operand: Operand):
     if len(fields) not in (1, 2):
         raise LlvmTranslationError(f"'alloca' takes a type and an optional count, got {len(fields)} fields.")
     typ = llvm_type(_type('alloca', fields, 0))
-    # A count written as a byte array is an `i32`, as clang emits it.
-    count = operand(fields[1], _I32) if len(fields) > 1 else None
+    count = _index(operand, fields[1]) if len(fields) > 1 else None
     if count is not None and not isinstance(count.type, ir.IntType):
         raise LlvmTranslationError(f"'alloca': count must be an integer, got {count.type}.")
     return _opaque(builder.alloca(typ, size=count))
@@ -150,9 +158,7 @@ def _getelementptr(builder, fields, operand: Operand):
         )
     typ = _type('getelementptr', fields, 0)
     pointer = operand(fields[1], _PTR)
-    indices = [
-        operand(field, _I32) if isinstance(field, terms.ByteArray) else operand(field, None) for field in fields[2:]
-    ]
+    indices = [_index(operand, field) for field in fields[2:]]
     for i, value in enumerate(indices):
         if not isinstance(value.type, ir.IntType):
             raise LlvmTranslationError(f"'getelementptr': index {i} must be an integer, got {value.type}.")

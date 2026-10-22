@@ -18,7 +18,7 @@ entry:
   br label %"loop"
 loop:
   %"i" = phi  i32 [0, %"entry"], [%"j", %"loop"]
-  %"p" = call i32 @"putchar"(i32 42)
+  %"x" = call i32 @"putchar"(i32 42)
   %"j" = add i32 %"i", 1
   %"done" = icmp eq i32 %"j", 3
   br i1 %"done", label %"exit", label %"loop"

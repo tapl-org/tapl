@@ -16,13 +16,13 @@ entry:
 loop:
   %"a" = phi  ptr [%"a.1", %"entry"], [%"a", %"loop"]
   %"i" = phi  i64 [0, %"entry"], [%"j", %"loop"]
-  %"total" = phi  i32 [0, %"entry"], [%"t", %"loop"]
-  %"p" = getelementptr [3 x i32], ptr %"a", i64 0, i64 %"i"
-  %"x" = load i32, ptr %"p"
-  %"t" = add i32 %"total", %"x"
+  %"total" = phi  i32 [0, %"entry"], [%"s", %"loop"]
+  %"q" = getelementptr [3 x i32], ptr %"a", i64 0, i64 %"i"
+  %"x" = load i32, ptr %"q"
+  %"s" = add i32 %"total", %"x"
   %"j" = add i64 %"i", 1
   %"done" = icmp eq i64 %"j", 3
   br i1 %"done", label %"exit", label %"loop"
 exit:
-  ret i32 %"t"
+  ret i32 %"s"
 }

@@ -1,0 +1,14 @@
+language oymomo
+λm. {
+  main= {
+    gives= 'i32',
+    body= λf. {
+      entry= {
+        takes= {n= 'i32'},
+        body= λp.
+          let x = 'mul' {'i32', p.n, [02000000]} in
+          let y = 'add' {'i32', x, [01000000]} in y,
+      },
+    },
+  },
+}

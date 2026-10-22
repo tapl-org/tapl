@@ -7,10 +7,11 @@ import pathlib
 import subprocess
 
 import llvmlite.binding as llvm
+import pytest
 from approvaltests.approvals import verify
 from approvaltests.core.namer import Namer
 
-from oymo.oymomo import banf_terms, banf_translate, grammar, llvm_opcodes, llvm_translate, printer
+from oymo.oymomo import grammar, llvm_opcodes, llvm_translate, module, printer, reduction, strategy
 
 
 def run_command(command):
@@ -69,48 +70,43 @@ TARGET = llvm_translate.Target(triple='x86_64-unknown-linux-gnu', data_layout=''
 LANGUAGE_HEADER = 'language oymomo\n'
 
 
-def compile_oymo(source: str) -> tuple[str, str, str]:
-    """Returns the shaped oymomo source, the BANF and the LLVM IR text of an oymomo program."""
+def parse(source: str):
     assert source.startswith(LANGUAGE_HEADER)
-    shaped = banf_translate.shape(grammar.parse(source.removeprefix(LANGUAGE_HEADER)))
-    module = banf_translate.convert(shaped)
-    ir_text = str(llvm_translate.translate(module, TARGET))
+    return grammar.parse(source.removeprefix(LANGUAGE_HEADER))
+
+
+def show(term) -> str:
+    return LANGUAGE_HEADER + printer.show(term, pretty=True, name_indices=True) + '\n'
+
+
+def compile_oymo(source: str) -> tuple[str, str]:
+    """The normal form (semantics.tex, Section 6), pretty-printed, and the LLVM IR text."""
+    normal = strategy.normalize(reduction.resolve(parse(source)))
+    ir_text = str(llvm_translate.translate(module.module_of(parse(source)), TARGET))
     llvm.parse_assembly(ir_text).verify()
-    shaped_text = LANGUAGE_HEADER + printer.show(shaped, pretty=True, name_indices=True) + '\n'
-    return shaped_text, banf_terms.show(module), ir_text
-
-
-def pretty_oymo(source: str) -> str:
-    """The oymomo source, parsed and pretty-printed, before shaping."""
-    assert source.startswith(LANGUAGE_HEADER)
-    parsed = grammar.parse(source.removeprefix(LANGUAGE_HEADER))
-    return LANGUAGE_HEADER + printer.show(parsed, pretty=True, name_indices=True) + '\n'
+    return show(normal), ir_text
 
 
 def run_golden_test(test_name: str) -> None:
     base_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'goldens')
     source_path = pathlib.Path(os.path.join(base_directory, f'{test_name}.oymo'))
     source = source_path.read_text()
-    pretty_text = pretty_oymo(source)
+    pretty_text = show(parse(source))
     if source != pretty_text:
-        # The source is kept pretty-printed: replace it by its pretty form, which must give the same BANF.
+        # The source is kept pretty-printed: replace it by its pretty form, which must give the same LLVM IR.
         assert compile_oymo(pretty_text)[1] == compile_oymo(source)[1]
         source_path.write_text(pretty_text)
         source = pretty_text
-    assert pretty_oymo(source) == source
-    shaped_text, banf_text, ir_text = compile_oymo(source)
-    verify(shaped_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.shaped.oymo')))
-    # The shaped source is itself a program that gives the same BANF.
-    assert compile_oymo(shaped_text)[1] == banf_text
-    verify(banf_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.banf')))
+    normal_text, ir_text = compile_oymo(source)
+    verify(normal_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.normal.oymo')))
+    # The normal form is itself a program, already normal, that gives the same LLVM IR.
+    assert compile_oymo(normal_text) == (normal_text, ir_text)
     verify(ir_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.ll')))
 
 
-def test_goldens():
-    run_golden_test('simplest')
-    run_golden_test('seq')
-    run_golden_test('pointer')
-    run_golden_test('memory')
-    run_golden_test('aggregate')
-    run_golden_test('globals')
-    run_golden_test('fact')
+GOLDENS = ['simplest', 'effects', 'pointer', 'memory', 'aggregate', 'globals', 'fact', 'gcd', 'helpers']
+
+
+@pytest.mark.parametrize('name', GOLDENS)
+def test_golden(name):
+    run_golden_test(name)

@@ -1,0 +1,17 @@
+language oymomo
+λm. {
+  fill= {takes= {p= 'ptr', n= 'i64'}, gives= 'i32'},
+  main= {
+    gives= 'i32',
+    body= λf. {
+      entry= {
+        takes= {},
+        body= λp.
+          let q = 'alloca' {{x= 'i32', y= 'i64'}} in
+          let y = 'getelementptr'
+            {{x= 'i32', y= 'i64'}, q, [00000000 00000000], [01000000]} in
+          let r = m.fill {p= y, n= [08000000 00000000]} in r,
+      },
+    },
+  },
+}

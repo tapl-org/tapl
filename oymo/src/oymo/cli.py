@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""The `oymo` command: `emit-llvm`, `check`, `fmt`, `run`."""
+"""The `oymo` command: `emit-llvm`, `check`, `fmt`, `normal`, `run`."""
 
 import argparse
 import pathlib
@@ -10,7 +10,8 @@ import sys
 import tempfile
 
 from oymo.core import syntax
-from oymo.oymomo import banf_translate, grammar, llvm_opcodes, llvm_translate, printer, reduction
+from oymo.oymomo import grammar, llvm_opcodes, llvm_translate, printer, reduction, strategy
+from oymo.oymomo import module as modules
 
 LANGUAGE_HEADER = 'language oymomo\n'
 
@@ -44,29 +45,34 @@ def _located(message: str, location: syntax.Location | None) -> CliError:
     return CliError(message, None if start is None else start + len(LANGUAGE_HEADER))
 
 
-def _shaped(source: str) -> syntax.Term:
+def _module(source: str) -> modules.Module:
+    """The program's module: resolved, normalized (semantics.tex, Section 6), not stuck, read
+    as Section 8 says."""
     try:
-        return banf_translate.shape(_parse(source))
-    except (banf_translate.TranslationError, reduction.ReductionError) as error:
+        return modules.module_of(_parse(source))
+    except (reduction.ReductionError, modules.ModuleError) as error:
         raise _located(error.message, error.location) from error
 
 
 def _check(source: str) -> None:
-    try:
-        banf_translate.convert(_shaped(source))
-    except banf_translate.TranslationError as error:
-        raise _located(error.message, error.location) from error
+    _emit_llvm(source)
 
 
 def _emit_llvm(source: str) -> str:
-    shaped = _shaped(source)
+    module = _module(source)
     try:
-        module = banf_translate.convert(shaped)
         return str(llvm_translate.translate(module, TARGET))
-    except banf_translate.TranslationError as error:
-        raise _located(error.message, error.location) from error
     except llvm_translate.LlvmTranslationError as error:
         raise _located(error.message, error.location) from error
+
+
+def _normal(source: str) -> str:
+    """The program's normal form, pretty-printed: a program that gives the same module."""
+    try:
+        normal = strategy.normalize(reduction.resolve(_parse(source)))
+    except reduction.ReductionError as error:
+        raise _located(error.message, error.location) from error
+    return LANGUAGE_HEADER + printer.show(normal, pretty=True, name_indices=True) + '\n'
 
 
 def _fmt(source: str) -> str:
@@ -124,6 +130,8 @@ def _argument_parser() -> argparse.ArgumentParser:
     check.add_argument('file')
     fmt = commands.add_parser('fmt', help='print a program pretty-printed')
     fmt.add_argument('file')
+    normal = commands.add_parser('normal', help='print the normal form of a program, pretty-printed')
+    normal.add_argument('file')
     run = commands.add_parser('run', help="build a program with clang, run it, print main's result")
     run.add_argument('file')
     return parser
@@ -147,6 +155,8 @@ def main(argv: list[str] | None = None) -> int:
             _check(source)
         elif args.command == 'fmt':
             sys.stdout.write(_fmt(source))
+        elif args.command == 'normal':
+            sys.stdout.write(_normal(source))
         else:
             return _run(source)
     except CliError as error:

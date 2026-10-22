@@ -19,11 +19,8 @@ nothing is lost between sessions. We continue the discussion here.
 3. Built-ins `$fix`, `$struct_to_fields`, `$fields_to_struct`: postponed (D24; maybe dropped).
 4. Literal widths: the LLVM width of a literal that no opcode types (e.g. passed straight
    to a block parameter) is not stated.
-5. Code, after the Lean proofs (D18): refactor the Python implementation to semantics.tex —
-   blocks/modules/declarations/constants/globals (D19, D20, D23, D33), `takes`/`gives` (D35),
-   strict application `t !u` and `let x =! t in …` instead of `$seq` (D29), default arm and
-   empty byte array = 0 (D23), no forms and no `form_of` (D23), reject duplicate labels (D16).
-6. Goldens and tests move to the new syntax with 5.
+5. Code, after the Lean proofs (D18): refactor the Python implementation to semantics.tex — done (stages 1–8 after D93): terms and grammar (`λx. t`, no forms or builtins), call-by-value E-Beta and data-only E-Opcode, `strategy.py` (table 6.2), `anf.py`, `module.py` (Section 8), `llvm_translate.py` (Section 9), D94 operands.
+6. Goldens and tests move to the new syntax with 5. — done: 9 goldens (`.oymo`, `.normal.oymo`, `.ll`), including `gcd` (8.9) and `helpers`.
 7. Compiler warning, not in semantics.tex (D43): an effect (opcode on a list, maybe calls
    `m.l {…}`) that is not the argument of a strict application gets a warning, not an error.
    Open: the effect list, whether calls count, check on the normal form.
@@ -31,7 +28,7 @@ nothing is lost between sessions. We continue the discussion here.
 9. Lean, after the doc is done (user, D79): two proofs for the strategy table (Section 6): (a) completeness: every term with a step gets exactly one choice; (b) guarantee: if a term has a normal form, the order reaches it. Then say so in the doc. — (a) done (D90): `Oymomo.sstep_complete`, with `sstep_step` and `sstep_det`; (b) done (D93): `Oymomo.guarantee`. (b) tested (D91): a random search (about 250k terms with a normal form, with Ω traps) found no counterexample; the same search finds counterexamples for the old row k within seconds.
 10. Lean, after the doc is done (user, D83): prove that every term in ANF (7.1) is a normal form (7.3, Goal 1.4). Then say so in the doc. — done (D89): `Oymomo.anf_normal`.
 
-11. Reduction unit tests (user, D92: "remember all those counterexample. we will use them in oymomo reduction unit tests"). Cases, with the expected result:
+11. Reduction unit tests (user, D92: "remember all those counterexample. we will use them in oymomo reduction unit tests"). — done in `tests/oymomo/strategy_test.py` (cases a–d, f–j; e is Lean-only; k is a random test there). Cases, with the expected result:
    - a. `(λy. (λx. [01]) y.l) {m = [00]}` → `(λx. [01]) {m = [00]}.l` (stuck) on every order: no projection is a value, so neither path gives `[01]` (D92; with paths as values one path gives `[01]` and the other gets stuck, D46; with `v.l` values both give `[01]`, D68).
    - b. `{a = Ω, b = [01]}.b`, `Ω = (λx. x x) (λx. x x)` → `[01]`; reducing `Ω` first loops (1.6).
    - c. `(λx. x.g) {f = λu. Ω, g = (λy. y) [01]}` → `[01]`; the order must reduce `g` and never enter `λu. Ω` (old row k looped; 6.3d, D79).

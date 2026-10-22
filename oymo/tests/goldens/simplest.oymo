@@ -1,2 +1,7 @@
 language oymomo
-module~{main= ⇒ 'i32'} → {main= f → {entry= args~{a= 'i32'} → [00000000]~'i32'}}
+λm. {
+  main= {
+    gives= 'i32',
+    body= λf. {entry= {takes= {a= 'i32'}, body= λp. [00000000]}},
+  },
+}

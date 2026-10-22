@@ -1,13 +1,19 @@
 language oymomo
-module~{answer= 'i32', counter= 'ptr', main= ⇒ 'i32'} → {
-  answer= [2a000000],
-  counter= 'global' {'i32', [29000000]~'i32'},
-  main= f → {
-    entry= args~{} →
-      let a = module.answer in
-      let c = 'load' {'i32', module.counter} in
-      let d = 'add' {'i32', c, a} in
-      let s = 'store' {d, module.counter} in
-      let e = 'load' {'i32', $seq {s, module.counter}} in e,
+λm. {
+  answer= {type= 'i32', value= [2a000000]},
+  counter= {type= 'i32', init= [29000000]},
+  main= {
+    gives= 'i32',
+    body= λf. {
+      entry= {
+        takes= {},
+        body= λp.
+          let a = 'load' {'i32', m.answer} in
+          let c = 'load' {'i32', m.counter} in
+          let d = 'add' {'i32', c, a} in
+          let s = 'store' {'i32', d, m.counter} in
+          let e = 'load' {'i32', m.counter} in e,
+      },
+    },
   },
 }

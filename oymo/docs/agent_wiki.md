@@ -293,6 +293,11 @@ The user's orders, kept as given. Follow them in every task.
   calls, calls, jumps and returns (fixes struct type operands); Lean `Operand`/`Operands`
   (mutual) in `Anf.lean`; `anf.is_operand`; LLVM builds a struct operand as a constant if
   it is data, else `insertvalue` into `undef`, in the type its use needs.
+  Stage 8 done (refactor complete): goldens are `name.oymo` (kept pretty), `name.normal.oymo`
+  (normal form, itself a program giving the same IR) and `name.ll`; `effects` replaces `seq`;
+  new `gcd`, `helpers`. CLI: `check`, `emit-llvm`, `fmt`, `normal` (new), `run`, all on
+  `module.module_of` + `llvm_translate.translate`. A bare gep index or alloca count of 8
+  bytes is `i64`, else `i32`. `tests/conftest.py` is gone (no test is left out).
   The old BANF/LLVM pipeline no longer imports; `tests/conftest.py` leaves its tests out
   until their stage (user chose "expected-to-fail"; collection errors can't be xfailed).
 

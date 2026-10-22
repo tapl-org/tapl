@@ -1,12 +1,20 @@
 language oymomo
-module~{main= ⇒ 'i32'} → {
-  main= f → {
-    entry= args~{} → f.loop {acc= [01000000]~'i32', n= [05000000]~'i32'},
-    loop= args~{acc= 'i32', n= 'i32'} →
-      let next = 'mul' {'i32', args.acc, args.n} in
-      let m = 'sub' {'i32', args.n, [01000000]~'i32'} in
-      let done = 'icmp_eq' {'i32', m, [00000000]~'i32'} in
-      if done then f.exit {acc= next} else f.loop {acc= next, n= m},
-    exit= args~{acc= 'i32'} → args.acc,
+λm. {
+  main= {
+    gives= 'i32',
+    body= λf. {
+      entry= {takes= {}, body= λp. f.loop.body {acc= [01000000], n= [05000000]}},
+      loop= {
+        takes= {acc= 'i32', n= 'i32'},
+        body= λp.
+          let next = 'mul' {'i32', p.acc, p.n} in
+          let k = 'sub' {'i32', p.n, [01000000]} in
+          let done = 'icmp' {'eq', 'i32', k, [00000000]} in
+          if done
+          then f.exit.body {acc= next}
+          else f.loop.body {acc= next, n= k},
+      },
+      exit= {takes= {acc= 'i32'}, body= λp. p.acc},
+    },
   },
 }

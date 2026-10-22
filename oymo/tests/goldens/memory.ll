@@ -5,9 +5,9 @@ target datalayout = ""
 define i32 @"bump"(i32 %"n")
 {
 entry:
-  %"p" = alloca i32
-  store i32 %"n", ptr %"p"
-  %"v" = load i32, ptr %"p"
+  %"a" = alloca i32
+  store i32 %"n", ptr %"a"
+  %"v" = load i32, ptr %"a"
   %"w" = add i32 %"v", 1
   ret i32 %"w"
 }
