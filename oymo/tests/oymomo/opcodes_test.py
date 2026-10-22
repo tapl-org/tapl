@@ -50,12 +50,11 @@ def test_evaluate_gives_the_result_bytes():
     assert OPCODES['zext'].evaluate([I8, operand(I8, 0xFF), I32]) == operand(I32, 0xFF)
 
 
-def test_evaluate_reads_bare_or_formed_operands():
-    formed = terms.Formed(operand(I8, 1), I8)
-    assert OPCODES['add'].evaluate([I8, formed, operand(I8, 2)]) == operand(I8, 3)
-    assert decode_uint(formed, I8) == 1
-    # A written form is not compared: the bytes are read at the opcode's form.
-    assert decode_uint(terms.Formed(operand(I8, 1), I32), I8) == 1
+def test_evaluate_reads_bare_operands():
+    assert OPCODES['add'].evaluate([I8, operand(I8, 1), operand(I8, 2)]) == operand(I8, 3)
+    assert decode_uint(operand(I8, 1), I8) == 1
+    # The bytes are read at the opcode's form: a wrong size does not decode.
+    assert decode_uint(operand(I8, 1), I32) is None
 
 
 def test_evaluate_needs_what_it_can_read():

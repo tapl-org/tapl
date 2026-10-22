@@ -261,6 +261,13 @@ The user's orders, kept as given. Follow them in every task.
   build structs, so they can be combined by hand.
 - Before 1.0, anything may be redesigned freely: oymomo syntax, Alcor and Mizar syntax,
   public API, CLI.
+- Code refactor to semantics.tex (after D93; plan in 8 stages: terms/grammar, values and
+  rules, strategy table, stuck/ANF checks, ANF IR, modules, LLVM, goldens/CLI). Stage 1
+  done: no forms (`~`, `⇒`), no builtins (`$name`); lambda is `λx. t` or ASCII `\x. t`
+  (user's choice); text byte arrays are any printable UTF-8; `''` is index 0; duplicate
+  labels are a parse error (empty labels never clash). E-Opcode returns a bare byte array.
+  The old BANF/LLVM pipeline no longer imports; `tests/conftest.py` leaves its tests out
+  until their stage (user chose "expected-to-fail"; collection errors can't be xfailed).
 
 ## 2. Index
 

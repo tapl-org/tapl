@@ -1,11 +1,22 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Surface syntax of oymomo."""
+"""Surface syntax of oymomo (semantics.tex, Sections 2 and 3).
+
+    expression ::= λx. expression | let x = expression in expression
+                 | if expression then expression else expression | apply
+    apply      ::= apply project | project
+    project    ::= project.name | primary
+    primary    ::= b | {fields} | (expression) | $i | name
+
+A lambda is written `λx. t` or, in ASCII, `\\x. t`; it extends as far right as possible
+(2.2), so as an operand it needs parentheses. A struct's labels are unique, except the
+empty label of an unlabeled field (2.4b).
+"""
 
 import unicodedata
 
 from oymo.core import syntax
-from oymo.core.peg import MISMATCH, Clause, First, Memoized, Optional, Parser, Ref, Separated, Seq, ZeroOrMore, drop
+from oymo.core.peg import MISMATCH, Clause, First, Memoized, Parser, Ref, Separated, Seq, ZeroOrMore, drop
 from oymo.core.terminals import Comment, Eof, Fixed, HexBytes, Identifier, Integer, String, Whitespace
 from oymo.oymomo import rule_names as rn
 from oymo.oymomo import terms
@@ -36,8 +47,10 @@ def _token_location(ctx):
     return syntax.Location(start=ctx.token_pos, end=ctx.end)
 
 
-def _punct(*literals):
-    return Fixed(*literals, skip=TRIVIA, action=drop)
+def _punct(*literals, word_chars=None):
+    if word_chars is None:
+        return Fixed(*literals, skip=TRIVIA, action=drop)
+    return Fixed(*literals, word_chars=word_chars, skip=TRIVIA, action=drop)
 
 
 def _decode_quoted_name(body):
@@ -84,20 +97,21 @@ class _QuotedName(String):
         return MISMATCH if m.value is None else m
 
 
-# Bytes a single-quoted byte array may hold: printable ASCII, except `'` and `\`
-# (no escapes, so `\` is kept free for adding them later).
-ASCII_TEXT = frozenset(chr(b) for b in range(0x20, 0x7F)) - {"'", '\\'}
+def is_text_char(char: str) -> bool:
+    """Whether a single-quoted byte array may hold `char` as it is: a printable character,
+    except `'` and `\\` (no escapes, so `\\` is kept free for adding them later)."""
+    return char.isprintable() and char not in "'\\"
 
 
-class _AsciiBytes(String):
-    """`'text'` as the bytes of its printable-ASCII characters."""
+class _TextBytes(String):
+    """`'text'` as the UTF-8 bytes of its characters (2.3c)."""
 
     def __init__(self, *, skip):
         super().__init__(
             quote="'",
             escapes=False,
             skip=skip,
-            action=lambda c: c.body.encode('ascii') if all(ch in ASCII_TEXT for ch in c.body) else None,
+            action=lambda c: c.body.encode('utf-8') if all(is_text_char(ch) for ch in c.body) else None,
         )
 
     def match(self, parser, pos):
@@ -114,33 +128,9 @@ NAME = Memoized(
 )
 
 
-# `~form` after a lambda param or a let name; omitted means `Empty`.
-# A form is an ordinary formed-level expression, as after any other `~`. It never holds a
-# lambda, so in `x~'i32' -> x` the form stops at `->`. An application needs parentheses:
-# `x~(f a) -> x`.
-FORM_OPT = Optional(
-    Seq(_punct('~'), Ref(rn.FORMED), action=lambda c: c.values[0]),
-    action=lambda c: c.value if c.matched else terms.Empty,
-)
-
-
-def _function_form(c):
-    param, result = c.values
-    return terms.FunctionForm(param=param, result=result, location=_location(c))
-
-
-def _function_form_without_param(c):
-    return terms.FunctionForm(param=terms.Empty, result=c.values[0], location=_location(c))
-
-
-def _formed(c):
-    term, form = c.values
-    return terms.Formed(term=term, form=form, location=_location(c))
-
-
 def _lambda(c):
-    (name, _), form, body = c.values
-    return terms.Lambda(param_name=name, param_form=form, body=body, location=_location(c))
+    (name, _), body = c.values
+    return terms.Lambda(param_name=name, body=body, location=_location(c))
 
 
 def _if(c):
@@ -154,10 +144,10 @@ def _if(c):
 
 
 def _let(c):
-    """`let x = e in body` is `(x -> body) e`."""
-    (name, _), form, value, body = c.values
+    """`let x = e in body` is `(λx. body) e`."""
+    (name, _), value, body = c.values
     location = _location(c)
-    function = terms.Lambda(param_name=name, param_form=form, body=body, location=location)
+    function = terms.Lambda(param_name=name, body=body, location=location)
     return terms.Apply(function=function, argument=value, location=location)
 
 
@@ -174,7 +164,8 @@ def _unlabeled_field(c):
 RULES: dict[str, Clause] = {
     rn.START: Seq(Ref(rn.EXPRESSION), Eof(skip=TRIVIA), action=lambda c: c.values[0]),
     rn.EXPRESSION: First(Ref(rn.LAMBDA), Ref(rn.IF), Ref(rn.LET), Ref(rn.APPLY)),
-    rn.LAMBDA: Seq(NAME, FORM_OPT, _punct('->', '→'), Ref(rn.EXPRESSION), action=_lambda),
+    # `λ` and `\` are not word characters, so `λx` needs no space.
+    rn.LAMBDA: Seq(_punct('λ', '\\', word_chars=''), NAME, _punct('.'), Ref(rn.EXPRESSION), action=_lambda),
     rn.IF: Seq(
         _punct('if'),
         Ref(rn.EXPRESSION),
@@ -187,7 +178,6 @@ RULES: dict[str, Clause] = {
     rn.LET: Seq(
         _punct('let'),
         NAME,
-        FORM_OPT,
         _punct('='),
         Ref(rn.EXPRESSION),
         _punct('in'),
@@ -197,25 +187,9 @@ RULES: dict[str, Clause] = {
     rn.APPLY: First(
         Seq(
             Ref(rn.APPLY),
-            Ref(rn.FORMED),
+            Ref(rn.PROJECT),
             action=lambda c: terms.Apply(function=c.values[0], argument=c.values[1], location=_location(c)),
         ),
-        Ref(rn.FORMED),
-    ),
-    # `e~F` is a Formed. Like `=>`, it builds a value, so it binds tighter than apply; it
-    # binds looser than `=>`. It is right associative: `f a~g b` is `f (a~g) b`,
-    # `x~A => B` is `x~(A => B)`, `a~b~c` is `a~(b~c)`. A lambda is tried first,
-    # so `x~F -> body` is still a lambda with a param form.
-    rn.FORMED: First(
-        Seq(Ref(rn.ARROW), _punct('~'), Ref(rn.FORMED), action=_formed),
-        Ref(rn.ARROW),
-    ),
-    # `P => R` is a FunctionForm. It binds tighter than apply and looser than `.`, so
-    # `f a => g b` is `f (a => g) b`. It is right associative. `=> R` leaves the param out
-    # (`Empty`), which differs from `{} => R`, a param struct with no fields.
-    rn.ARROW: First(
-        Seq(Ref(rn.PROJECT), _punct('=>', '⇒'), Ref(rn.ARROW), action=_function_form),
-        Seq(_punct('=>', '⇒'), Ref(rn.ARROW), action=_function_form_without_param),
         Ref(rn.PROJECT),
     ),
     rn.PROJECT: First(
@@ -227,23 +201,13 @@ RULES: dict[str, Clause] = {
         ),
         Ref(rn.PRIMARY),
     ),
-    rn.PRIMARY: First(
-        Ref(rn.BYTE_ARRAY), Ref(rn.STRUCT), Ref(rn.GROUP), Ref(rn.BRUIJN_INDEX), Ref(rn.BUILTIN), Ref(rn.VARIABLE)
-    ),
+    rn.PRIMARY: First(Ref(rn.BYTE_ARRAY), Ref(rn.STRUCT), Ref(rn.GROUP), Ref(rn.BRUIJN_INDEX), Ref(rn.VARIABLE)),
     rn.VARIABLE: Seq(NAME, action=lambda c: terms.Variable(name=c.values[0][0], location=c.values[0][1])),
     # `$i`, as the printer writes a BruijnIndex. No trivia between `$` and the digits.
     rn.BRUIJN_INDEX: Seq(
         _punct('$'),
         Integer(bases=(), separator=''),
         action=lambda c: terms.BruijnIndex(index=c.values[0], location=_location(c)),
-    ),
-    # `$name`, a built-in. No trivia between `$` and the name, which is a plain identifier:
-    # nothing is reserved, and it can't be quoted. `$` with digits is a BruijnIndex, tried
-    # first; an identifier can't start with a digit, so the two never overlap.
-    rn.BUILTIN: Seq(
-        _punct('$'),
-        Identifier(reserved=frozenset(), action=lambda c: c.token_text),
-        action=lambda c: terms.Builtin(name=c.values[0], location=_location(c)),
     ),
     # A field is `label = value` or just `value`. The labeled form is tried first, so `{a}`
     # is an unlabeled field holding the variable `a`, and `{a = b}` is the field `a`.
@@ -261,11 +225,26 @@ RULES: dict[str, Clause] = {
         action=lambda c: terms.Struct(fields=c.values[0], location=_location(c)),
     ),
     rn.BYTE_ARRAY: Seq(
-        First(HexBytes(skip=TRIVIA), _AsciiBytes(skip=TRIVIA)),
+        First(HexBytes(skip=TRIVIA), _TextBytes(skip=TRIVIA)),
         action=lambda c: terms.ByteArray(value=c.values[0], location=_location(c)),
     ),
     rn.GROUP: Seq(_punct('('), Ref(rn.EXPRESSION), _punct(')'), action=lambda c: c.values[0]),
 }
+
+
+def duplicate_label(term: syntax.Term) -> terms.Field | None:
+    """The first field, in source order, whose label an earlier field of the same struct
+    already has. Empty labels never clash (2.4b)."""
+    if isinstance(term, terms.Struct):
+        seen = set()
+        for f in term.fields:
+            if f.label and f.label in seen:
+                return f
+            seen.add(f.label)
+    for child in term.children():
+        if (found := duplicate_label(child)) is not None:
+            return found
+    return None
 
 
 def parse(text: str) -> syntax.Term:
@@ -274,5 +253,7 @@ def parse(text: str) -> syntax.Term:
         return syntax.ErrorTerm(message='Syntax error.', location=syntax.Location(start=0, end=len(text)))
     term = result[1]
     if isinstance(term, syntax.Term):
+        if (duplicate := duplicate_label(term)) is not None:
+            return syntax.ErrorTerm(message=f'Duplicate label {duplicate.label!r}.', location=duplicate.location)
         return term
     raise RuntimeError(f'Unexpected parse result type: {type(term)}')

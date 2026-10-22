@@ -6,19 +6,19 @@ import pytest
 
 from oymo.oymomo import reduction, terms
 from oymo.oymomo.grammar import parse
-from oymo.oymomo.printer import show, show_form
+from oymo.oymomo.printer import show
 
 FACT = """
-decls~{} -> defs -> {
-fact = f -> {
-  entry = args~{n = 'i32'} ->
-    (t0 -> if t0 then f.then0 {} else f.else0 {n = args.n})
-      ('icmp_eq' {'i32', args.n, [00000000]~'i32'}),
-  then0 = args~{} -> [01000000]~'i32',
-  else0 = args~{n = 'i32'} ->
-    (t1 -> (t2 -> (t3 -> t3) ('mul' {'i32', args.n, t2}))
-             (defs.fact {n = t1}))
-      ('sub' {'i32', args.n, [01000000]~'i32'}),
+λm. {
+fact = λf. {
+  entry = λp.
+    (λt0. if t0 then f.then0 {} else f.else0 {n = p.n})
+      ('icmp' {'eq', 'i32', p.n, [00000000]}),
+  then0 = λp. [01000000],
+  else0 = λp.
+    (λt1. (λt2. (λt3. t3) ('mul' {'i32', p.n, t2}))
+             (m.fact {n = t1}))
+      ('sub' {'i32', p.n, [01000000]}),
 }}
 """
 
@@ -28,7 +28,7 @@ def pretty(source):
 
 
 def test_compact_is_one_line_with_parens_only_where_needed():
-    assert show(parse('f a (b -> b)')) == 'f a (b → b)'
+    assert show(parse('f a (λb. b)')) == 'f a (λb. b)'
     assert show(parse(FACT)).count('\n') == 0
 
 
@@ -37,15 +37,13 @@ def test_compact_is_one_line_with_parens_only_where_needed():
     [
         ('f a b', 'f a b'),
         ('f (g a) b', 'f (g a) b'),
-        ('(x -> x) y', 'let x = y in x'),
+        ('(λx. x) y', 'let x = y in x'),
         ('(let x = y in f) a', '(let x = y in f) a'),
         ('f (let x = y in x)', 'f (let x = y in x)'),
-        ('f (x -> x)', 'f (x → x)'),
+        ('f (λx. x)', 'f (λx. x)'),
         ('(f a).x', '(f a).x'),
-        ('$fix f x', '$fix f x'),
-        ('$fix (f a)', '$fix (f a)'),
         ('f (if c then a else b)', 'f (if c then a else b)'),
-        ('if c then x -> x else (y -> y) z', 'if c then x → x else let y = z in y'),
+        ('if c then λx. x else (λy. y) z', 'if c then λx. x else let y = z in y'),
     ],
 )
 def test_pretty_parenthesizes_only_where_needed(source, expected):
@@ -58,7 +56,6 @@ def test_pretty_parenthesizes_only_where_needed(source, expected):
         # `if c then t else e` is `{e, t} c`, and every such struct apply prints as `if`.
         ('{e, t} c', 'if c then t else e'),
         ("{'1', '2'} [01]", "if [01] then '2' else '1'"),
-        ("{a, b} [02]~'i8'", "if [02]~'i8' then b else a"),
         ('f ({e, t} c)', 'f (if c then t else e)'),
         ('{e, t} (f x)', 'if f x then t else e'),
         ('{e, {b, a} d} c', 'if c then if d then a else b else e'),
@@ -73,68 +70,16 @@ def test_two_field_struct_apply_prints_as_if(source, expected):
     assert parse(expected) == parse(source)
 
 
-def test_pretty_omits_empty_forms():
-    assert pretty('x -> x') == 'x → x'
-    assert pretty('[00]') == '[00]'
-
-
-def test_void_is_an_ordinary_form_name():
-    assert pretty("x~'void' -> x") == "x~'void' → x"
-
-
-def test_binder_forms_print_at_the_formed_level():
-    assert pretty('x~(i32) -> x') == 'x~i32 → x'
-    assert pretty('x~(a -> b) -> c') == 'x~(a → b) → c'
-    assert pretty("[00]~(f 'i8')") == "[00]~(f 'i8')"  # `~` binds tighter than apply
-    assert pretty('x~(i8) => (s.f) -> x') == 'x~i8 ⇒ s.f → x'
-    assert pretty('x~(f a) -> x') == 'x~(f a) → x'
-    assert pretty("x~([00]~'i8') => 'i32' -> x") == "x~([00]~'i8') ⇒ 'i32' → x"
-
-
-@pytest.mark.parametrize(
-    ('source', 'expected'),
-    [
-        ("=> 'i1'", "⇒ 'i1'"),
-        ("=> => 'i1'", "⇒ ⇒ 'i1'"),
-        ("{} => 'i1'", "{} ⇒ 'i1'"),
-        ("{main = => 'i1'}", "{main = ⇒ 'i1'}"),
-        ('a => => b', 'a ⇒ ⇒ b'),
-        ('(=> a) => b', '(⇒ a) ⇒ b'),
-        # As an apply argument, `⇒ b` needs parens, or `f` would read as its param.
-        ('f (=> b)', 'f (⇒ b)'),
-        ('f ((=> a)~x)', 'f (⇒ a~x)'),
-        ('(=> a) b', '⇒ a b'),
-        ('y~=> a', 'y~⇒ a'),
-        ('x~=> a -> x', 'x~⇒ a → x'),
-    ],
-)
-def test_function_form_without_param(source, expected):
-    assert show(parse(source)) == expected
-    assert parse(expected) == parse(source)
-    assert parse(pretty(source)) == parse(source)
-
-
-def test_struct_shaped_like_a_function_form_prints_as_a_struct():
-    assert pretty("x~{tag = ' => ', param = {c = 'i8'}, result = 'i32'} -> x") == (
-        "x~{tag= ' => ', param= {c= 'i8'}, result= 'i32'} → x"
-    )
-
-
-def test_pretty_function_forms_group_only_as_params():
-    assert pretty("g~({c = 'i8'} => 'i32') -> g") == "g~{c= 'i8'} ⇒ 'i32' → g"
-    assert pretty("[]~{f = {c = 'i8'} => 'i32'}") == "[]~{f= {c= 'i8'} ⇒ 'i32'}"
-    assert pretty("[]~{f = ({a = 'i8'} => 'i8') => 'i32'}") == "[]~{f= ({a= 'i8'} ⇒ 'i8') ⇒ 'i32'}"
-
-
 def test_pretty_quotes_names_that_need_it():
-    assert pretty('"if" -> "a b"') == '"if" → "a b"'
+    assert pretty('λ"if". "a b"') == 'λ"if". "a b"'
     assert pretty(r'"a\"b\\c"') == r'"a\"b\\c"'
     assert pretty('s."1st"') == 's."1st"'
     assert show(terms.Variable('a\nb', terms.Location(0, 0)), pretty=True) == r'"a\u{a}b"'
 
 
 def test_pretty_groups_bytes_by_four():
-    assert pretty("[deadbeefcafebabe00]~'i64'") == "[deadbeef cafebabe 00]~'i64'"
+    assert pretty('[deadbeefcafebabe00]') == '[deadbeef cafebabe 00]'
+    assert show(parse('[deadbeefcafebabe00]')) == '[deadbeefcafebabe00]'
 
 
 @pytest.mark.parametrize(
@@ -147,12 +92,11 @@ def test_pretty_groups_bytes_by_four():
         ('[486900]', '[486900]'),  # 00 is not text
         ('[4127]', '[4127]'),  # no escapes, so `'` stays hex
         ('[415c]', '[415c]'),  # and so does `\`
-        ("[4869]~'i8'", "[4869]~'i8'"),  # a written form keeps hex
-        ("'Hi'~'i8'", "[4869]~'i8'"),
-        ('[]~{}', '[]~{}'),
+        ('[cebb]', "'λ'"),  # UTF-8 text
+        ('[ce]', '[ce]'),  # not valid UTF-8
     ],
 )
-def test_text_bytes_print_quoted_without_a_form(source, expected):
+def test_text_bytes_print_quoted(source, expected):
     assert show(parse(source)) == expected
     assert show(parse(source), pretty=True) == expected
 
@@ -165,27 +109,22 @@ def test_text_bytes_print_quoted_only_up_to_128_bytes():
 
 def test_pretty_breaks_long_terms():
     assert pretty(FACT) == textwrap.dedent("""\
-        decls~{} → defs → {
-          fact= f → {
-            entry= args~{n= 'i32'} →
-              let t0 = 'icmp_eq' {'i32', args.n, [00000000]~'i32'} in
-              if t0 then f.then0 {} else f.else0 {n= args.n},
-            then0= args~{} → [01000000]~'i32',
-            else0= args~{n= 'i32'} →
-              let t1 = 'sub' {'i32', args.n, [01000000]~'i32'} in
-              let t2 = defs.fact {n= t1} in
-              let t3 = 'mul' {'i32', args.n, t2} in t3,
+        λm. {
+          fact= λf. {
+            entry= λp.
+              let t0 = 'icmp' {'eq', 'i32', p.n, [00000000]} in
+              if t0 then f.then0 {} else f.else0 {n= p.n},
+            then0= λp. [01000000],
+            else0= λp.
+              let t1 = 'sub' {'i32', p.n, [01000000]} in
+              let t2 = m.fact {n= t1} in
+              let t3 = 'mul' {'i32', p.n, t2} in t3,
           },
         }""")
 
 
 def test_compact_let():
-    assert show(parse("let x~'i8' = e in x")) == "let x~'i8' = e in x"
     assert show(parse('let x = e in x')) == 'let x = e in x'
-
-
-def test_pretty_let_keeps_written_form():
-    assert pretty("let t0~'i1' = f a in t0") == "let t0~'i1' = f a in t0"
 
 
 def test_pretty_breaks_let_chain_one_per_line():
@@ -211,42 +150,42 @@ def test_pretty_keeps_single_let_on_one_line():
 
 
 def test_bruijn_index():
-    term = reduction.resolve(parse('a -> b -> let x = a in b x'))
-    assert show(term) == 'a → b → let x = $1 in $1 $0'
-    assert show(term, pretty=True) == 'a → b → let x = $1 in $1 $0'
+    term = reduction.resolve(parse('λa. λb. let x = a in b x'))
+    assert show(term) == 'λa. λb. let x = $1 in $1 $0'
+    assert show(term, pretty=True) == 'λa. λb. let x = $1 in $1 $0'
     assert show(parse(show(term))) == show(term)
 
 
 def test_bruijn_index_and_variable_print_as_they_are():
-    term = parse('x -> f $1 x')
-    assert show(term) == 'x → f $1 x'
-    assert show(term, name_indices=True) == 'x → f $1 x'
+    term = parse('λx. f $1 x')
+    assert show(term) == 'λx. f $1 x'
+    assert show(term, name_indices=True) == 'λx. f $1 x'
 
 
 @pytest.mark.parametrize(
     ('source', 'expected'),
     [
-        ('a -> b -> let x = a in b x', 'a → b → let x = a in b x'),
-        ('x -> x -> $1', 'x → x → $1'),
-        ('x -> y -> x -> f -> f $2 x', 'x → y → x → f → f y x'),
-        ('x -> $4 x', 'x → $4 x'),
+        ('λa. λb. let x = a in b x', 'λa. λb. let x = a in b x'),
+        ('λx. λx. $1', 'λx. λx. $1'),
+        ('λx. λy. λx. λf. f $2 x', 'λx. λy. λx. λf. f y x'),
+        ('λx. $4 x', 'λx. $4 x'),
     ],
 )
 def test_name_indices_where_safe(source, expected):
     term = reduction.resolve(parse(source))
-    for pretty in (False, True):
-        named = show(term, pretty=pretty, name_indices=True)
+    for pretty_mode in (False, True):
+        named = show(term, pretty=pretty_mode, name_indices=True)
         assert named == expected
         assert show(reduction.resolve(parse(named))) == show(term)
 
 
 def test_width_and_indent_flags():
-    term = parse('defs -> {main = f a, id = x -> x}')
-    assert show(term, pretty=True) == 'defs → {main= f a, id= x → x}'
+    term = parse('λm. {main = f a, id = λx. x}')
+    assert show(term, pretty=True) == 'λm. {main= f a, id= λx. x}'
     assert show(term, pretty=True, width=20, indent=4) == textwrap.dedent("""\
-        defs → {
+        λm. {
             main= f a,
-            id= x → x,
+            id= λx. x,
         }""")
 
 
@@ -254,46 +193,19 @@ def test_width_and_indent_flags():
     'source',
     [
         FACT,
-        'f a (b -> b) (if c then d else e).x',
-        '"if" -> "a b" -> s."\\u{3bb}"',
-        "d~{putchar = {c = 'i8'} => 'i32', errno = 'i32'} -> []~({} => 'i32')",
-        "{f = {a = 'i8'} => 'i32', g = (f a) => (g => h) => i}",
-        "x~([00]~'i8') => 'i32' -> f ([01]~'i8') => g [02]~'i8'",
-        'x~(y) -> [00]~(f x) => {}',
+        'f a (λb. b) (if c then d else e).x',
+        'λ"if". λ"a b". s."\\u{3bb}"',
         "'tag'",
-        'if c then if d then a else b else $fix f',
-        "let x~'i8' = let y = e in y in f (let z = x in z)",
-        "f 'Hello world' [48656c6c6f]~'i8' '' [00]",
-        'y~x',
-        'f a~g b',
-        'a~b~c',
-        '(a~b)~c',
-        'x -> y -> y~x',
-        'f (y~x) z',
-        '(f~g) x',
-        'y~(a -> b)',
-        'y~a => b',
-        '(a~b) => c',
-        '{a = e~t}',
-        'if c~t then a~t else b~t',
-        "let x~'i8' = v~t in x~t",
-        '[01]~y',
-        "([01]~'i8')~'i16'",
-        'y~(f a)',
-        '(f a)~t',
-        'f y~x z',
-        '$fix f~t',
-        '($fix f)~t',
-        'x~decls.t',
-        "f [01]~'u8' [02]",
+        'if c then if d then a else b else f a',
+        'let x = let y = e in y in f (let z = x in z)',
+        "f 'Hello world' [48656c6c6f] '' [00]",
         "{'1', '2'}",
         "{'1', b = '2'}",
         '{a}',
-        '{x -> x, let y = a in y, a~t}',
-        '$add_i32',
+        '{λx. x, let y = a in y, a}',
         "'add' {'i32', x, x}",
         '$0',
-        'f $fix ($fix g).a',
+        "'λ'",
     ],
 )
 def test_output_parses_back_to_the_same_term(source):
@@ -313,44 +225,3 @@ def test_unlabeled_fields_print_only_their_value():
           b= '2',
           c,
         }""")
-    assert show_form(parse("{'i32', y = 'i8'}")) == "{'i32', y = 'i8'}"
-
-
-def test_show_form():
-    i8, i32 = terms.ByteArray(b'i8'), terms.ByteArray(b'i32')
-    form = terms.Struct([terms.Field('f', terms.FunctionForm(i8, i32)), terms.Field('x', terms.ByteArray(b'unknown'))])
-    assert show_form(form) == "{f = 'i8' ⇒ 'i32', x = 'unknown'}"
-    assert show_form(form, pretty=True) == "{f= 'i8' ⇒ 'i32', x= 'unknown'}"
-    assert show_form(terms.FunctionForm(form, i32)) == "{f = 'i8' ⇒ 'i32', x = 'unknown'} ⇒ 'i32'"
-    assert show_form(terms.Variable('i32')) == 'i32'
-    assert show_form(terms.Apply(terms.Variable('f'), i32)) == "(f 'i32')"
-
-
-def test_formed():
-    a, b, c, f, x, y = (terms.Variable(name) for name in 'abcfxy')
-    byte = terms.ByteArray(b'\x01')
-    assert show(terms.Formed(y, x)) == 'y~x'
-    assert show(terms.Formed(y, x), pretty=True) == 'y~x'
-    assert show(terms.Formed(byte, terms.ByteArray(b'i1'))) == "[01]~'i1'"
-    assert show(terms.Formed(terms.Apply(f, y), terms.Apply(f, x))) == '(f y)~(f x)'
-    assert show(terms.Apply(f, terms.Formed(y, x))) == 'f y~x'
-    assert show(terms.Apply(terms.Formed(f, x), y)) == 'f~x y'
-    fix = terms.Builtin('fix')
-    assert show(terms.Apply(fix, terms.Formed(f, x))) == '$fix f~x'
-    assert show(terms.Formed(terms.Apply(fix, f), x)) == '($fix f)~x'
-    assert show(terms.Lambda('x', terms.Empty, terms.Formed(y, x))) == 'x → y~x'
-    assert show(terms.Formed(y, terms.Lambda('a', terms.Empty, b))) == 'y~(a → b)'
-    assert show(terms.Formed(y, terms.FunctionForm(a, b))) == 'y~a ⇒ b'
-    assert show(terms.FunctionForm(terms.Formed(a, b), c)) == '(a~b) ⇒ c'
-    assert show(terms.Formed(a, terms.Formed(b, c))) == 'a~b~c'
-    assert show(terms.Formed(terms.Formed(a, b), c)) == '(a~b)~c'
-    assert show(terms.Formed(terms.Project(y, 'p'), x)) == 'y.p~x'
-
-
-def test_formed_byte_array_in_parens_where_needed():
-    # `[01]~'i8'~'i16'` would read as `[01]~('i8'~'i16')`.
-    i8, i16 = terms.ByteArray(b'i8'), terms.ByteArray(b'i16')
-    byte = terms.ByteArray(b'\x01')
-    assert show(terms.Formed(terms.Formed(byte, i8), i16)) == "([01]~'i8')~'i16'"
-    assert show(terms.Apply(terms.Variable('f'), terms.Formed(byte, i8))) == "f [01]~'i8'"
-    assert show(terms.Formed(byte, terms.Formed(i8, i16))) == "[01]~[6938]~'i16'"

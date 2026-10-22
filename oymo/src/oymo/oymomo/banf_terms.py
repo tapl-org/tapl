@@ -385,7 +385,7 @@ def _check_cell_addresses(atoms, module, location):
 
 def _check_no_store_use(atoms, stores, location):
     """A store gives `{}`, which only `$seq` may use, and `$seq` is gone by BANF
-   : a store's name is used nowhere."""
+    : a store's name is used nowhere."""
     for atom in atoms:
         if isinstance(atom, Var) and atom.name in stores:
             raise FormError(f'{atom.name!r} is the result of a store; only $seq can use it.', atom.location or location)

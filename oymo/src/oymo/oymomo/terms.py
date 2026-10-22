@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+"""Oymomo terms (semantics.tex, Section 2): `x | λx. t | t t | b | {lᵢ = tᵢ} | t.l`.
+
+A `Variable` is a name as written; `reduction.resolve` turns each one into the
+`BruijnIndex` of its binder.
+"""
+
 from collections.abc import Generator
 from dataclasses import dataclass, field
 
@@ -8,11 +14,8 @@ from oymo.core import syntax
 Term = syntax.Term
 Location = syntax.Location
 
-# An omitted form: not written.
-Empty = syntax.Empty
 
-
-# Every `location` is left out of `==`, so a parsed form equals the same form built in code.
+# Every `location` is left out of `==`, so a parsed term equals the same term built in code.
 @dataclass
 class Variable(Term):
     name: str
@@ -32,28 +35,14 @@ class BruijnIndex(Term):
 
 
 @dataclass
-class Builtin(Term):
-    """A built-in, written `$name`, applied like a function: `$fix g`.
-
-    No binder introduces it, so it means the same at any depth.
-    """
-
-    name: str
-    location: Location | None = field(default=None, compare=False)
-
-    def children(self) -> Generator[Term, None, None]:
-        yield from ()
-
-
-@dataclass
 class Lambda(Term):
+    """`λx. body`."""
+
     param_name: str
-    param_form: Term
     body: Term
     location: Location | None = field(default=None, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
-        yield self.param_form
         yield self.body
 
 
@@ -70,6 +59,8 @@ class Apply(Term):
 
 @dataclass
 class Field:
+    """`label = value`; an unlabeled field has the label `''`."""
+
     label: str
     value: Term
     location: Location | None = field(default=None, compare=False)
@@ -94,8 +85,7 @@ class Project(Term):
         yield self.struct
 
 
-# Only bytes. `[01]~'i8'` is `Formed(ByteArray([01]), 'i8')`.
-# Forms are terms. A named form such as `i32` is the byte array `'i32'`.
+# A type such as `'i32'` is the byte array of its name.
 @dataclass
 class ByteArray(Term):
     value: bytes
@@ -116,28 +106,3 @@ class ByteArray(Term):
 
     def children(self) -> Generator[Term, None, None]:
         yield from ()
-
-
-# `term~form`: `term`, formed as `form`.
-@dataclass
-class Formed(Term):
-    term: Term
-    form: Term
-    location: Location | None = field(default=None, compare=False)
-
-    def children(self) -> Generator[Term, None, None]:
-        yield self.term
-        yield self.form
-
-
-# `P => R`: the form of a function from `P` to `R`.
-# Unlike a Lambda's body, `R` is not under a binder, so `P => R` needs its own term class.
-@dataclass
-class FunctionForm(Term):
-    param: Term
-    result: Term
-    location: Location | None = field(default=None, compare=False)
-
-    def children(self) -> Generator[Term, None, None]:
-        yield self.param
-        yield self.result

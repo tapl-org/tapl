@@ -54,8 +54,8 @@ def _check_labeled(fields, location, what):
 
 def _check_data_form(form, location, what, *, nested=False):
     """A data form is a named form, a struct of data forms, or a tagged struct of them
-   : no Empty parts, no function forms, and no other terms. Its
-    fields may be unlabeled. `nested`: inside a struct, a packed struct or an array."""
+    : no Empty parts, no function forms, and no other terms. Its
+     fields may be unlabeled. `nested`: inside a struct, a packed struct or an array."""
     if (tagged := opcodes.tagged_form(form)) is not None:
         _check_tagged_form(*tagged, location, what, nested=nested)
     elif isinstance(form, terms.FunctionForm):

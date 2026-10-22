@@ -63,14 +63,11 @@ def byte_width(bits: int) -> int:
 def decode_uint(term: terms.Term, form: terms.Term) -> int | None:
     """The unsigned value of `term` read at the integer form `form`, or None.
 
-    `term` must be a byte array of exactly `(N + 7) // 8` bytes, below `2^N`, bare or
-    formed. A written form is not compared with `form`: the bytes are read at `form`.
+    `term` must be a byte array of exactly `(N + 7) // 8` bytes, below `2^N`.
     """
-    match term:
-        case terms.ByteArray(value=data) | terms.Formed(term=terms.ByteArray(value=data)):
-            pass
-        case _:
-            return None
+    if not isinstance(term, terms.ByteArray):
+        return None
+    data = term.value
     bits = find_bit_width(form)
     if bits is None or len(data) != byte_width(bits):
         return None
@@ -185,7 +182,7 @@ def _convert(name: str, compute: _Compute, *, widening: bool) -> Opcode:
 PTR = terms.ByteArray.from_str('ptr')
 
 # What a `store` gives: LLVM's `store` gives no value, and only `$seq` may use it
-#.
+# .
 STORE_RESULT = terms.Struct([])
 
 # `getelementptr` takes a form, a pointer and at least one index.
@@ -218,10 +215,10 @@ def tagged_form(form: terms.Term) -> tuple[str, list[terms.Field]] | None:
 
 
 def tag_count(term: terms.Term) -> int | None:
-    """The `count` of an array or a vector: a byte array formed as an integer form, read
-    unsigned (`[03000000]~'i32'` is 3), or None."""
-    if isinstance(term, terms.Formed) and isinstance(term.term, terms.ByteArray):
-        return decode_uint(term, term.form)
+    """The `count` of an array or a vector: a byte array read as an unsigned,
+    little-endian number (`[03]` is 3, 2.3a), or None."""
+    if isinstance(term, terms.ByteArray):
+        return int.from_bytes(term.value, 'little')
     return None
 
 
