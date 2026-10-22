@@ -242,10 +242,10 @@ STORE_FIELDS = 3
 # LLVM's aggregate types other than a plain struct are tagged structs: field 0 names the
 # type, and the fields after it are its parts. Only LLVM
 # translation reads the tag; to reduction they are structs like any other.
-FORM_TAGS = frozenset({'array', 'vector', 'scalable_vector', 'packed'})
+FORM_TAGS = frozenset({'array', 'vector', 'packed'})
 
 # The tags whose parts are `count, element`.
-SEQUENCE_TAGS = frozenset({'array', 'vector', 'scalable_vector'})
+SEQUENCE_TAGS = frozenset({'array', 'vector'})
 SEQUENCE_PARTS = 2
 
 

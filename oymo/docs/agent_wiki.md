@@ -298,6 +298,8 @@ The user's orders, kept as given. Follow them in every task.
   new `gcd`, `helpers`. CLI: `check`, `emit-llvm`, `fmt`, `normal` (new), `run`, all on
   `module.module_of` + `llvm_translate.translate`. A bare gep index or alloca count of 8
   bytes is `i64`, else `i32`. `tests/conftest.py` is gone (no test is left out).
+  D95 (accepted): 9.1 states the type shapes (`'iN'`, `'ptr'`, struct, `array`, `vector`,
+  `packed`); `scalable_vector` was removed from the code. Open item 3 (built-ins) closed.
   The old BANF/LLVM pipeline no longer imports; `tests/conftest.py` leaves its tests out
   until their stage (user chose "expected-to-fail"; collection errors can't be xfailed).
 

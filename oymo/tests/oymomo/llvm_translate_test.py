@@ -295,3 +295,30 @@ def test_struct_operands():
     # A struct of the wrong shape for its use is an error, before LLVM's verifier.
     with pytest.raises(llvm_translate.LlvmTranslationError, match='not a struct of 3 fields'):
         llvm(source.replace('{r = {p.x, [03000000]}}', '{r = {p.x, p.x, p.x}}'))
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        ("'i1'", 'i1'),
+        ("'i64'", 'i64'),
+        ("'ptr'", 'ptr'),
+        ("{x = 'i8', y = 'i32'}", '{i8, i32}'),
+        ('{}', '{}'),
+        ("{'array', [03], 'i32'}", '[3 x i32]'),
+        ("{'vector', [04000000], 'i8'}", '<4 x i8>'),
+        ("{'packed', 'i8', 'i32'}", '<{i8, i32}>'),
+        ("{'array', [02], {'packed', 'i8', {'i16'}}}", '[2 x <{i8, {i16}}>]'),
+    ],
+)
+def test_type_shapes(source, expected):
+    """9.1 (D95): the shapes of type terms."""
+    assert str(llvm_translate.llvm_type(parse(source))) == expected
+
+
+@pytest.mark.parametrize(
+    'source', ["'f32'", "'i0'", "{'scalable_vector', [04], 'i8'}", "{'array', 'i32'}", "{'array', [03], 'x'}", '[01]']
+)
+def test_not_types(source):
+    with pytest.raises(llvm_translate.LlvmTranslationError, match='is not an LLVM type'):
+        llvm_translate.llvm_type(parse(source))

@@ -15,8 +15,8 @@ nothing is lost between sessions. We continue the discussion here.
 ## Open
 
 1. Strategy: `▷ₛ` (sharing normal order) is Section 6 (D38, replaces `⟶w`). Lean (D44): `▷ₛ ⊆ ▷`, determinism, `w` = no `▷ₛ` step, SN terms reach `w` — done. "Normal form ⇒ ▷ₛ reaches it" is false (`(λx. []) Ω`).
-2. Shapes of type terms (`{'array', n, 'i32'}`, …): postponed (D23).
-3. Built-ins `$fix`, `$struct_to_fields`, `$fields_to_struct`: postponed (D24; maybe dropped).
+2. Shapes of type terms (`{'array', n, 'i32'}`, …): postponed (D23). — done (D95).
+3. Built-ins `$fix`, `$struct_to_fields`, `$fields_to_struct`: postponed (D24; maybe dropped). — closed: dropped (Z replaces `$fix`, D63; the code has no built-ins since the refactor; user: "yes").
 4. Literal widths: the LLVM width of a literal that no opcode types (e.g. passed straight
    to a block parameter) is not stated.
 5. Code, after the Lean proofs (D18): refactor the Python implementation to semantics.tex — done (stages 1–8 after D93): terms and grammar (`λx. t`, no forms or builtins), call-by-value E-Beta and data-only E-Opcode, `strategy.py` (table 6.2), `anf.py`, `module.py` (Section 8), `llvm_translate.py` (Section 9), D94 operands.
@@ -254,6 +254,10 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Wrong terms with no rule (stuck later): a struct applied; `v.l` with `v` an abstraction or a struct without `l`.
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
+
+### D95: shapes of type terms — agreed (accepted)
+- Open item 2. The code (`llvm_translate.llvm_type`) reads `'iN'`, `'ptr'`, structs, `{'array', n, t}`, `{'vector', n, t}`, `{'packed', …}`; the doc said only that a type is an ordinary term. Agent proposed stating the shapes in 9.1; user: "yes".
+- Doc: 9.1 says a type is data of one of these shapes, with sub-points: `'iN'`; `'ptr'`; a struct of types (labels only name fields; `x.l` becomes the label's index); `{'array', n, t}`, `{'vector', n, t}`; `{'packed', t…}`; a struct whose field 0 is a tag is read by the tag. `scalable_vector` (in the code, not supported by llvmlite) is left out.
 
 ### D94: operands in ANF — agreed (accepted)
 - Found in code stage 7: `'load' {{'i8', 'i32'}, p}` is not in ANF, since a struct type is not an atom (7.1), so no program can load, allocate or index a struct type. Agent: (a) data as atoms, only as opcode operands; (b) struct types only through a symbol `m.pt`. User: "6a lgtm".

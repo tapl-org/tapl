@@ -59,8 +59,8 @@ def show_type(term: syntax.Term) -> str:
 
 
 def llvm_type(term: syntax.Term) -> ir.Type:
-    """The LLVM type a type term names: `'iN'`, `'ptr'`, a struct of types, or a tagged
-    struct (`{'array', n, t}`, `{'vector', n, t}`, `{'packed', ...}`)."""
+    """The LLVM type a type term names (9.1, D95): `'iN'`, `'ptr'`, a struct of types, or a
+    tagged struct (`{'array', n, t}`, `{'vector', n, t}`, `{'packed', ...}`)."""
     if (tagged := opcodes.tagged_form(term)) is not None:
         return _tagged_type(term, *tagged)
     name = term.as_str if isinstance(term, terms.ByteArray) else None
@@ -81,8 +81,6 @@ def _tagged_type(term, tag, parts):
     count = opcodes.tag_count(parts[0].value) if len(parts) == opcodes.SEQUENCE_PARTS else None
     if count is None:
         raise LlvmTranslationError(f'{show_type(term)} is not an LLVM type.', getattr(term, 'location', None))
-    if tag == 'scalable_vector':
-        raise LlvmTranslationError(f'{show_type(term)} has no LLVM type in llvmlite.', getattr(term, 'location', None))
     element = llvm_type(parts[1].value)
     return ir.ArrayType(element, count) if tag == 'array' else ir.VectorType(element, count)
 

@@ -505,6 +505,17 @@
   Oymomo has no types and no type checking: it is an untyped $\lambda$-calculus. An LLVM type is an
   ordinary term that only an opcode reads, as an operand: $\str{add}\ \{\str{i32}, a, b\}$ is LLVM's
   $\kw{add\ i32}\ a, b$.
+  A type is data (row \pref{p:data}) of one of these shapes, with $t_i$ types and $n$ a byte array read as a number:
+  \begin{subpoints}
+  \item $\str{i}N$, such as $\str{i1}$, $\str{i8}$ or $\str{i32}$: LLVM's integer type $\kw{i}N$.
+  \item $\str{ptr}$: LLVM's opaque pointer.
+  \item $\{l_i = t_i\}_{i<k}$: LLVM's struct $\{t_0, \dots, t_{k-1}\}$. The labels only name the fields: a
+    projection $x.l$ becomes the index of $l$.
+  \item $\{\str{array}, n, t\}$ and $\{\str{vector}, n, t\}$: LLVM's $[n \times t]$ and $\langle n \times t\rangle$.
+  \item $\{\str{packed}, t_0, \dots, t_{k-1}\}$: LLVM's packed struct $\langle\{t_0, \dots, t_{k-1}\}\rangle$.
+  \item A struct whose field $0$ is $\str{array}$, $\str{vector}$ or $\str{packed}$ is read by these shapes, never as a plain
+    struct.
+  \end{subpoints}
 \item Each symbol of the module (\pref{p:module}) becomes an LLVM global named by its label, as
   $\kw{@gcd}$ or $\kw{@puts}$:
   \begin{subpoints}
