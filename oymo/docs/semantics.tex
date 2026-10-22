@@ -441,9 +441,8 @@
   \item $\mathit{takes}$ declares the types of the block parameters.
   \item $\mathit{body}$ takes one argument, a struct of the same form as
     $\mathit{takes}$: $\{x_i = q_i\}_{i<k}$, a struct of operands (\pref{p:anf}); $e$ reads it as $p.x_i$.
-  \item The first block (position $0$) runs first, so any label works there ($\mathit{entry}$ in \pref{p:gcd}). A block may jump to it too, by its label or by
-    position (\pref{p:entry}).
-  \item A jump is $f.l.\mathit{body}\ \{x_i = a_i\}_{i<k}$. It ends an expression (\pref{p:anf}): a jump through $f$ that
+  \item The first block (position $0$) runs first, so any label works there ($\mathit{entry}$ in \pref{p:gcd}). A block may jump to it too, by its label (\pref{p:entry}).
+  \item A jump is $f.l.\mathit{body}\ \{x_i = q_i\}_{i<k}$. It ends an expression (\pref{p:anf}): a jump through $f$ that
     is not at the end is rejected.
   \item A block sees only its own argument, $f$ and $m$.
   \end{subpoints}
@@ -456,7 +455,7 @@
   $\{\mathit{type} = \str{i32},\ \mathit{init} = \hex{29000000}\}$. $m.l$ stands for its address, a
   $\str{ptr}$; the program reads and writes it with $\str{load}$ and
   $\str{store}$.
-\item $m.l$ stands for the function $l$ itself, so a call is a function call (\pref{p:anf}): $m.l\ \{x_i = a_i\}_{i<k}$. The linker connects $m.l$ to the definition or the declaration; reduction never
+\item $m.l$ stands for the function $l$ itself, so a call is a function call (\pref{p:anf}): $m.l\ \{x_i = q_i\}_{i<k}$. The linker connects $m.l$ to the definition or the declaration; reduction never
   does (\pref{p:call}).
 \item Reduction never binds $m$ or $f$, so calls and jumps never reduce.
   \begin{subpoints}
@@ -534,7 +533,8 @@
     $\kw{declare\ i32\ @puts(ptr)}$.
   \item A constant becomes $\kw{@answer\ =\ constant\ i32\ 42}$.
   \item A global variable becomes $\kw{@counter\ =\ global\ i32\ 41}$.
-  \item A block's $\mathit{takes}$ becomes the block's $\kw{phi}$ instructions.
+  \item A block's $\mathit{takes}$ becomes the block's $\kw{phi}$ instructions when it has more than one predecessor;
+    otherwise each parameter is the value passed, and the first block's are the function's parameters.
   \end{subpoints}
 \item An expression in ANF (\pref{p:anf}) becomes the instructions of a block:
   \begin{subpoints}
@@ -544,7 +544,7 @@
     $\kw{call}$ then $\kw{ret}$.
   \item A conditional jump becomes $\kw{br\ i1}$ when it has two arms, or $\kw{switch}$ when it has more; an arm that returns becomes a small block
     with a $\kw{ret}$.
-  \item A projection $x.l$, or a selection with a constant byte array, becomes LLVM's $\kw{extractvalue}$
+  \item A projection $x.l$ becomes LLVM's $\kw{extractvalue}$
     with a constant index.
   \end{subpoints}
 \end{points}

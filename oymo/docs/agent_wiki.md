@@ -117,8 +117,8 @@ The user's orders, kept as given. Follow them in every task.
     `ValSub` for the
     substitution lemma), E-Opcode, E-Proj, E-Index/E-Default, reduction anywhere; no
     strict application, no `fix`. Axioms: `propext`, `Quot.sound` only.
-    The user allowed one code reference in semantics.tex: 3/8 names `proofs/` and
-    `Oymomo.confluence`.
+    Code references allowed in semantics.tex: `proofs/` and the Lean theorem names
+    (`Oymomo.confluence`, `anf_normal`, `sstep_step`, `sstep_complete`, `sstep_det`, `guarantee`).
     D93: `Measure.lean` (`ParM`, Takahashi's measure with `occ`) and `Guarantee.lean`
     (`WF`: every struct tail is a struct; `IPar`: internal parallel step, one constructor
     per row of table 6.2; `Par.split`, `IPar.merge`, `IPar.red`; `Oymomo.guarantee`).
@@ -5934,6 +5934,10 @@ The user: "forget ~ sigil syntax". An opcode like `'add'` takes a struct whose f
 - Wrong terms with no rule (stuck later): a struct applied; `v.l` with `v` an abstraction or a struct without `l`.
 - Byte arrays `b` (values; `num(b)` unsigned little-endian). The user: a struct applied to a byte array is allowed only when the struct is a value (all fields values), so it can't act as an `if`; branching is `case`. E-Index: `{l₁ = v₁, …, lₙ = vₙ} b ⟶ drop v₁ (⋯ (drop vₙ vₖ))` with `num(b) = k − 1 < n`, like LLVM `extractvalue`. Class `sv` (struct value). Numbers `n` removed (the user): a byte array can be seen as an unsigned, little-endian number at any time; `case` arms are byte-array literals, E-Index uses `b = k − 1 < n`.
 - Numbers `n` (values) and `case t when n₁ then t₁ ⋯ when nₖ then tₖ else t₀` (D9) added: E-Case (`n = nᵢ` → `tᵢ`), E-CaseElse (no match → `t₀`), congruence E-Case1 (scrutinee) and E-CaseArm (any arm, default included). Arms share variables (&): each arm uses the same variables once; discarded arms need no drop. `case ne …` is neutral; a `case` on an abstraction or a struct, a number applied, `n.l` are wrong (stuck later).
+
+##### D97: doc matches the code — agreed (accepted)
+- User: "review one more time 'The doc, Lean, code, goldens and open items are all done'". Agent's review found the doc saying more than the code does: 9.3d "or a selection with a constant byte array" (not in 7.1); 8.3c jump to the first block "by position" (no positional jump: `g ::= y | g.l`); 9.2f `takes` → `phi` (code: only with more than one predecessor). While editing, also 8.3d and 8.7 still wrote `aᵢ` where D94 made them operands `qᵢ`. User: "yes".
+- Doc: 8.3c drops "or by position"; 8.3d jump and 8.7 call use `qᵢ`; 9.2f phi only with more than one predecessor, else the value passed (the first block's are the function's parameters); 9.3d drops the selection. No code change.
 
 ##### D96: literal widths — agreed (accepted)
 - Open item 4. Since the refactor, a byte array takes its LLVM type from its use (opcode type operand, callee or block `takes`, `gives`, constant/global `type`); a bare `alloca` count or `getelementptr` index of 8 bytes is `i64`, else `i32`. User: "proceed with next".
