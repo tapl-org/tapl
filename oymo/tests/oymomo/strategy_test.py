@@ -300,27 +300,53 @@ def random_term(rng, depth, scope):
     return omega_term()
 
 
-def normal_forms(term, limit=300):
-    """The normal forms reachable from `term` by any order, searching at most `limit` terms;
-    None if the search did not finish. It gives up on a term that grows too big, as a
-    fixed point unfolding without end does."""
+def key(term):
+    """`term` as nested tuples, to compare and hash (the term classes do neither), and its
+    size in nodes."""
+    match term:
+        case terms.BruijnIndex(index=index):
+            return ('var', index), 1
+        case terms.ByteArray(value=value):
+            return ('bytes', value), 1
+        case terms.Lambda(param_name=name, body=body):
+            body_key, size = key(body)
+            return ('lam', name, body_key), size + 1
+        case terms.Apply(function=function, argument=argument):
+            (function_key, function_size), (argument_key, argument_size) = key(function), key(argument)
+            return ('app', function_key, argument_key), function_size + argument_size + 1
+        case terms.Project(struct=struct, label=label):
+            struct_key, size = key(struct)
+            return ('proj', struct_key, label), size + 1
+        case terms.Fix(body=body):
+            body_key, size = key(body)
+            return ('fix', body_key), size + 1
+        case terms.Struct(fields=fields):
+            parts = [(f.label, key(f.value)) for f in fields]
+            return ('struct', *((label, k) for label, (k, _) in parts)), sum(s for _, (_, s) in parts) + 1
+    raise TypeError(term)
+
+
+def normal_forms(term, limit=300, max_size=100):
+    """The keys of the normal forms reachable from `term` by any order, searching at most
+    `limit` terms; None if the search did not finish. It gives up on a term that grows past
+    `max_size` nodes, as a fixed point unfolding without end does."""
     seen, todo, normals = set(), [term], set()
     while todo:
         current = todo.pop()
         try:
-            key = show(current)
+            current_key, size = key(current)
         except RecursionError:
             return None
-        if len(key) > 400:
+        if size > max_size:
             return None
-        if key in seen:
+        if current_key in seen:
             continue
-        seen.add(key)
+        seen.add(current_key)
         if len(seen) > limit:
             return None
         steps = all_steps(current)
         if not steps:
-            normals.add(key)
+            normals.add(current_key)
         todo += steps
     return normals
 
@@ -338,7 +364,7 @@ def test_strategy_agrees_with_every_order():
         assert len(normals) == 1, show(term)
         stepped = strategy.sstep(term)
         if stepped is not None:
-            assert show(stepped) in {show(s) for s in all_steps(term)}, show(term)
-        assert show(strategy.normalize(term, max_steps=1000)) in normals, show(term)
+            assert key(stepped)[0] in {key(s)[0] for s in all_steps(term)}, show(term)
+        assert key(strategy.normalize(term, max_steps=1000))[0] in normals, show(term)
         checked += 1
     assert checked > 1000
