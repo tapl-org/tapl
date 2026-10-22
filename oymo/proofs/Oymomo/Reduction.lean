@@ -151,27 +151,12 @@ theorem select_subst {s u : Term} {n : Nat} (σ : Nat → Term) (h : select s n 
       | _ => simp [select] at h
   | _ => simp [select] at h
 
-/-- A field of a struct of values is a value. -/
-theorem lookup_value {s u : Term} {l : String} (hs : isValue s = true) (h : lookup s l = some u) :
-    isValue u = true := by
-  induction s with
-  | scons l' t r _ ihr =>
-    simp only [isValue, Bool.and_eq_true] at hs
-    simp only [lookup] at h
-    split at h
-    · cases h; exact hs.1
-    · exact ihr hs.2 h
-  | _ => simp [lookup] at h
-
 theorem isValue_ren {v : Term} (ξ : Nat → Nat) (h : isValue v = true) :
     isValue (ren ξ v) = true := by
   induction v generalizing ξ with
   | scons l t r iht ihr =>
     simp only [isValue, Bool.and_eq_true] at h
     simp [ren, isValue, iht _ h.1, ihr _ h.2]
-  | proj t l ih =>
-    simp only [isValue] at h
-    simp [ren, isValue, ih _ h]
   | _ => simp_all [isValue, ren]
 
 /-- A substitution of values. -/
@@ -193,9 +178,6 @@ theorem isValue_subst {v : Term} {σ : Nat → Term} (hσ : ValSub σ) (h : isVa
   | scons l t r iht ihr =>
     simp only [isValue, Bool.and_eq_true] at h
     simp [subst, isValue, iht hσ h.1, ihr hσ h.2]
-  | proj t l ih =>
-    simp only [isValue] at h
-    simp [subst, isValue, ih hσ h]
   | _ => simp_all [isValue, subst]
 
 /-- Data has no variables. -/
@@ -230,12 +212,6 @@ theorem Par.value {v v' : Term} (h : Par op v v') (hv : isValue v = true) : isVa
   | scons _ _ iht ihr =>
     simp only [isValue, Bool.and_eq_true] at hv ⊢
     exact ⟨iht hv.1, ihr hv.2⟩
-  | proj _ ih =>
-    simp only [isValue] at hv ⊢
-    exact ih hv
-  | projR hl _ ih =>
-    simp only [isValue] at hv
-    exact ih (lookup_value hv hl)
   | _ => first | rfl | exact absurd hv Bool.false_ne_true
 
 theorem Step.par {t t' : Term} (h : Step op t t') : Par op t t' := by

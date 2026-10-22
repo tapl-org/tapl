@@ -8,3 +8,5 @@ import Oymomo.Confluence
 
 import Oymomo.Anf
 import Oymomo.Strategy
+import Oymomo.Measure
+import Oymomo.Guarantee

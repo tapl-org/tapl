@@ -105,11 +105,17 @@ The user's orders, kept as given. Follow them in every task.
     `Oymomo.confluence` for full β (Takahashi: `cd`, triangle) with `op` abstract; de
     Bruijn indices, structs as `scons`/`snil` chains. D28's `Classification.lean` and D44's `Strategy.lean`
     were for the old rules and are removed (D88). D88: `Oymomo.confluence` is now for the
-    current rules: call-by-value E-Beta (values `x | λ | b | {v} | v.l`, `ValSub` for the
+    current rules: call-by-value E-Beta (values `x | λ | b | {v}` since D92, no `v.l`;
+    `ValSub` for the
     substitution lemma), E-Opcode, E-Proj, E-Index/E-Default, reduction anywhere; no
     strict application, no `fix`. Axioms: `propext`, `Quot.sound` only.
     The user allowed one code reference in semantics.tex: 3/8 names `proofs/` and
     `Oymomo.confluence`.
+    D93: `Measure.lean` (`ParM`, Takahashi's measure with `occ`) and `Guarantee.lean`
+    (`WF`: every struct tail is a struct; `IPar`: internal parallel step, one constructor
+    per row of table 6.2; `Par.split`, `IPar.merge`, `IPar.red`; `Oymomo.guarantee`).
+    Inside `theorem Par.foo`, a bare `isStruct`/`app` resolves to `Par.isStruct`/`ParM.app`:
+    write `Oymomo.isStruct`, `Term.app`.
     D7 (revised, points 1–2 agreed): a `stuck t` term (users can write it) replaces
     the stuck class and the earlier `error` term; it keeps the wrong term. Each
     wrong shape (on values) wraps itself: `{a = t}.b ⟶ stuck ({a = t}.b)`.

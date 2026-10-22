@@ -33,14 +33,13 @@ inductive Term where
 
 open Term
 
-/-- Values `v` (row 2.1g): `x`, `λx. t`, `b`, a struct of values, `v.l`. -/
+/-- Values `v` (row 2.1g): `x`, `λx. t`, `b`, a struct of values. -/
 def isValue : Term → Bool
   | var _ => true
   | lam _ => true
   | snil => true
   | scons _ t r => isValue t && isValue r
   | bytes _ => true
-  | proj t _ => isValue t
   | _ => false
 
 /-- Data `d` (row 2.1h): a byte array or a struct of data. -/
