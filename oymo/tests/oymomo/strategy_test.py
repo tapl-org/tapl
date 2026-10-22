@@ -72,7 +72,7 @@ def test_each_row(row, source, expected):
         '{x = a}.y',
         'g a',
         "'add' {'i32', p.n, [01000000]}",
-        "'store' {[05000000], p}",
+        "'store' {'i32', [05000000], p}",
         '(λx. [01]) p.n',
         '{a, b} p.n',
         '{} a',
@@ -151,7 +151,7 @@ def test_11h_a_call_is_never_copied():
 
 
 def test_11j_store_stays_outside_load():
-    source = "let u = 'store' {[05000000], p} in let x = 'load' {'i32', p} in x"
+    source = "let u = 'store' {'i32', [05000000], p} in let x = 'load' {'i32', p} in x"
     assert normal(source) == same(source)
 
 

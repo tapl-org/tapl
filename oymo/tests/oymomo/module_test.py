@@ -71,7 +71,7 @@ def test_symbols():
       answer = {type = 'i32', value = [2a000000]},
       counter = {type = 'i32', init = [29000000]},
       main = {gives = 'i32', body = λf. {entry = {takes = {}, body = λp.
-        let u = 'store' {[05000000], m.counter} in
+        let u = 'store' {'i32', [05000000], m.counter} in
         let x = 'load' {'i32', m.answer} in
         let y = m.puts {s = m.answer} in
         x

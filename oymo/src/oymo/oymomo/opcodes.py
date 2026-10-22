@@ -234,13 +234,14 @@ STORE_RESULT = terms.Struct([])
 # `getelementptr` takes a form, a pointer and at least one index.
 GEP_MIN_FIELDS = 3
 
-# `load` takes `{form, ptr}`, `store` takes `{value, ptr}`.
-LOAD_STORE_FIELDS = 2
+# `load` takes `{form, ptr}`, `store` takes `{form, value, ptr}` (4.4c).
+LOAD_FIELDS = 2
+STORE_FIELDS = 3
 
 
 # LLVM's aggregate types other than a plain struct are tagged structs: field 0 names the
-# type, and the fields after it are its parts. Only BANF and
-# LLVM read the tag; to reduction they are structs like any other.
+# type, and the fields after it are its parts. Only LLVM
+# translation reads the tag; to reduction they are structs like any other.
 FORM_TAGS = frozenset({'array', 'vector', 'scalable_vector', 'packed'})
 
 # The tags whose parts are `count, element`.
@@ -302,21 +303,13 @@ def _getelementptr_form_of(fields: Fields) -> terms.Term | None:
 
 
 def _load_form_of(fields: Fields) -> terms.Term | None:
-    """`{form, ptr}`: the `form` read at `ptr`. The field count is the BANF verifier's
-    check, so that `'load' {'i32'}` says how many fields it takes."""
+    """`{form, ptr}`: the `form` read at `ptr`. LLVM translation checks the field count."""
     return fields[0] if fields and is_literal_form(fields[0]) else None
 
 
-def _store_form_of(_fields: Fields) -> terms.Term | None:
-    """`{value, ptr}`: writes `value` at `ptr` and gives `{}`. The field count is the BANF
-    verifier's check, as for `load`."""
-    return STORE_RESULT
-
-
-def _global_form_of(fields: Fields) -> terms.Term | None:
-    """`{form}` or `{form, init}`: a writable global of `form`, zeroed or set to `init`,
-    and its address. Only a body field may be one."""
-    return PTR if len(fields) in (1, 2) and is_literal_form(fields[0]) else None
+def _store_form_of(fields: Fields) -> terms.Term | None:
+    """`{form, value, ptr}`: writes `value`, a `form`, at `ptr` and gives `{}`."""
+    return STORE_RESULT if fields and is_literal_form(fields[0]) else None
 
 
 def _generate():
@@ -344,7 +337,6 @@ def _generate():
     yield Opcode('getelementptr', _getelementptr_form_of, _never, pure=False)
     yield Opcode('load', _load_form_of, _never, pure=False)
     yield Opcode('store', _store_form_of, _never, pure=False)
-    yield Opcode('global', _global_form_of, _never, pure=False)
 
 
 OPCODES: dict[str, Opcode] = {opcode.name: opcode for opcode in _generate()}

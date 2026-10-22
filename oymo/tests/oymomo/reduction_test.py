@@ -150,7 +150,7 @@ def test_reduce_one_step(source, expected):
         # Memory opcodes are impure: reduction never folds them.
         "'alloca' {'i32'}",
         "'getelementptr' {'i8', e, [01000000]}",
-        "'store' {[2a000000], e}",
+        "'store' {'i32', [2a000000], e}",
         "'load' {'i32', e}",
         # Unknown opcode names never fold.
         "'add_i32' {[01000000], [02000000]}",

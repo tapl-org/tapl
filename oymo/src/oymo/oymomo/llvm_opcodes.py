@@ -2,67 +2,86 @@
 
 """The default LLVM implementation of each opcode in `opcodes.OPCODES`.
 
-Each implementation reads the BANF fields of its call by position, as `opcodes` does:
-`{form, a, b}` for an arithmetic, logic or comparison opcode, `{form, value, to}` for a
-conversion, `{form}` or `{form, count}` for `alloca`, `{form, ptr, i0, ...}` for
-`getelementptr`, `{form, ptr}` for `load`, `{value, ptr}` for `store`. A form field is a
-`Const` with no form, whose bytes name the form (`'i32'`), or a `FormField` for a struct
-form.
+Each implementation reads its call's fields by position, as `opcodes` does: `{type, a, b}`
+for an arithmetic or logic opcode, `{predicate, type, a, b}` for `icmp`, `{type, value, to}`
+for a conversion, `{type}` or `{type, count}` for `alloca`, `{type, ptr, i₀, …}` for
+`getelementptr`, `{type, ptr}` for `load`, `{type, value, ptr}` for `store`. A type field is
+a type term (9.1); an operand takes the type the opcode reads it at, so a bare byte array
+there is a constant of that type.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 
 from llvmlite import ir
 
-from oymo.oymomo import banf_terms as banf
+from oymo.core import syntax
 from oymo.oymomo import opcodes, terms
-from oymo.oymomo.llvm_translate import LlvmTranslationError, llvm_type
+from oymo.oymomo.llvm_translate import LlvmTranslationError, OpcodeImpl, Operand, llvm_type
 
-# Turns a field into an LLVM value, read at the given form: a `Const` with no form takes
-# that form; any other atom is its own value.
-type Operand = Callable[[banf.Atom, terms.Term], ir.Value]
-
-# Gets the builder, the call's fields, and `Operand`.
-type OpcodeImpl = Callable[[ir.IRBuilder, Sequence[banf.Atom | banf.FormField], Operand], ir.Value]
+_I32 = terms.ByteArray(b'i32')
+_PTR = terms.ByteArray(b'ptr')
 
 
-def _form(name: str, fields: Sequence[banf.Atom], index: int) -> terms.Term:
-    """Field `index`, read as an integer form, such as `'i32'`."""
+def _int_type(name: str, fields: Sequence[syntax.Term], index: int) -> syntax.Term:
+    """Field `index`, an integer type such as `'i32'`."""
     field = fields[index]
-    form = terms.ByteArray(field.value) if isinstance(field, banf.Const) and field.form is terms.Empty else None
-    if form is None or opcodes.find_bit_width(form) is None:
-        raise LlvmTranslationError(f"{name!r}: field {index} must be an integer form, such as 'i32'.")
-    return form
+    if opcodes.find_bit_width(field) is None:
+        raise LlvmTranslationError(f"{name!r}: field {index} must be an integer type, such as 'i32'.")
+    return field
 
 
-def _arity(name: str, fields: Sequence[banf.Atom]) -> None:
-    if len(fields) != opcodes.FIELD_COUNT:
-        raise LlvmTranslationError(f'{name!r} takes {opcodes.FIELD_COUNT} fields, got {len(fields)}.')
+def _type(name: str, fields: Sequence[syntax.Term], index: int) -> syntax.Term:
+    """Field `index`, any type term."""
+    field = fields[index]
+    if not opcodes.is_literal_form(field):
+        raise LlvmTranslationError(f"{name!r}: field {index} must be a type, such as 'i32'.")
+    return field
+
+
+def _arity(name: str, fields: Sequence[syntax.Term], count: int) -> None:
+    if len(fields) != count:
+        raise LlvmTranslationError(f'{name!r} takes {count} fields, got {len(fields)}.')
 
 
 def _binary(name, method):
     def impl(builder, fields, operand):
-        _arity(name, fields)
-        form = _form(name, fields, 0)
-        return getattr(builder, method)(operand(fields[1], form), operand(fields[2], form))
+        _arity(name, fields, opcodes.FIELD_COUNT)
+        typ = _int_type(name, fields, 0)
+        return getattr(builder, method)(operand(fields[1], typ), operand(fields[2], typ))
 
     return impl
 
 
-def _compare(name, method, op):
-    def impl(builder, fields, operand):
-        _arity(name, fields)
-        form = _form(name, fields, 0)
-        return getattr(builder, method)(op, operand(fields[1], form), operand(fields[2], form))
+# `icmp`'s predicates: llvmlite's method and operator.
+_PREDICATES = {
+    'eq': ('icmp_unsigned', '=='),
+    'ne': ('icmp_unsigned', '!='),
+    'slt': ('icmp_signed', '<'),
+    'sle': ('icmp_signed', '<='),
+    'sgt': ('icmp_signed', '>'),
+    'sge': ('icmp_signed', '>='),
+    'ult': ('icmp_unsigned', '<'),
+    'ule': ('icmp_unsigned', '<='),
+    'ugt': ('icmp_unsigned', '>'),
+    'uge': ('icmp_unsigned', '>='),
+}
 
-    return impl
+
+def _icmp(builder, fields, operand):
+    _arity('icmp', fields, opcodes.ICMP_FIELD_COUNT)
+    predicate = opcodes.icmp_predicate(fields)
+    if predicate is None:
+        raise LlvmTranslationError(f"'icmp': field 0 must be a predicate, one of {list(_PREDICATES)}.")
+    typ = _type('icmp', fields, 1)
+    method, op = _PREDICATES[predicate]
+    return getattr(builder, method)(op, operand(fields[2], typ), operand(fields[3], typ))
 
 
 def _convert(name, method):
     def impl(builder, fields, operand):
-        _arity(name, fields)
-        form, to = _form(name, fields, 0), _form(name, fields, 2)
-        return getattr(builder, method)(operand(fields[1], form), ir.IntType(opcodes.bit_width(to)))
+        _arity(name, fields, opcodes.FIELD_COUNT)
+        typ, to = _int_type(name, fields, 0), _int_type(name, fields, 2)
+        return getattr(builder, method)(operand(fields[1], typ), ir.IntType(opcodes.bit_width(to)))
 
     return impl
 
@@ -83,40 +102,7 @@ _BINARY = {
     'ashr': 'ashr',
 }
 
-_COMPARE = {
-    'icmp_eq': ('icmp_unsigned', '=='),
-    'icmp_ne': ('icmp_unsigned', '!='),
-    'icmp_slt': ('icmp_signed', '<'),
-    'icmp_sle': ('icmp_signed', '<='),
-    'icmp_sgt': ('icmp_signed', '>'),
-    'icmp_sge': ('icmp_signed', '>='),
-    'icmp_ult': ('icmp_unsigned', '<'),
-    'icmp_ule': ('icmp_unsigned', '<='),
-    'icmp_ugt': ('icmp_unsigned', '>'),
-    'icmp_uge': ('icmp_unsigned', '>='),
-}
-
 _CONVERT = {'zext': 'zext', 'sext': 'sext', 'trunc': 'trunc'}
-
-_I32 = terms.ByteArray.from_str('i32')
-_I32_BYTES = opcodes.byte_width(opcodes.bit_width(_I32))
-
-
-def _any_form(name: str, fields: Sequence[banf.Atom | banf.FormField], index: int) -> terms.Term:
-    """Field `index`, read as any form: a named one (`'i32'`, `'ptr'`) or a struct."""
-    field = fields[index]
-    if isinstance(field, banf.FormField):
-        return field.form
-    if isinstance(field, banf.Const) and field.form is terms.Empty:
-        return terms.ByteArray(field.value)
-    raise LlvmTranslationError(f"{name!r}: field {index} must be a form, such as 'i32'.")
-
-
-def _formed(name: str, what: str, atom: banf.Atom | banf.FormField, operand: Operand) -> ir.Value:
-    """An operand with no form field to be read at: a bare byte array is an error."""
-    if isinstance(atom, banf.FormField) or (isinstance(atom, banf.Const) and atom.form is terms.Empty):
-        raise LlvmTranslationError(f"{name!r}: {what} must have a form, such as [01000000]~'i32'.")
-    return operand(atom, terms.Empty)
 
 
 def _opaque(instruction: ir.Instruction) -> ir.Instruction:
@@ -125,100 +111,77 @@ def _opaque(instruction: ir.Instruction) -> ir.Instruction:
     return instruction
 
 
-def _alloca(builder, fields, operand):
+def _alloca(builder, fields, operand: Operand):
     if len(fields) not in (1, 2):
-        raise LlvmTranslationError(f"'alloca' takes a form and an optional count, got {len(fields)} fields.")
-    form = llvm_type(_any_form('alloca', fields, 0))
-    count = _formed('alloca', 'count', fields[1], operand) if len(fields) > 1 else None
+        raise LlvmTranslationError(f"'alloca' takes a type and an optional count, got {len(fields)} fields.")
+    typ = llvm_type(_type('alloca', fields, 0))
+    # A count written as a byte array is an `i32`, as clang emits it.
+    count = operand(fields[1], _I32) if len(fields) > 1 else None
     if count is not None and not isinstance(count.type, ir.IntType):
         raise LlvmTranslationError(f"'alloca': count must be an integer, got {count.type}.")
-    return _opaque(builder.alloca(form, size=count))
+    return _opaque(builder.alloca(typ, size=count))
 
 
-def _check_indices(form: terms.Term, fields: Sequence[banf.Atom | banf.FormField]) -> None:
-    """Every index past the first goes into a part of the form so far: into a struct or a
-    packed struct, it is a literal `'i32'` below its field count, as in LLVM; into an array
-    or a vector, it may be known only at run time."""
-    for index, atom in enumerate(fields, start=1):
-        tagged = opcodes.tagged_form(form)
+def _check_indices(typ: syntax.Term, fields: Sequence[syntax.Term]) -> None:
+    """Every index past the first goes into a part of the type so far: into a struct or a
+    packed struct, it is a byte array below its field count, as LLVM's constant `i32`; into an
+    array or a vector, it may be known only at run time."""
+    for index, field in enumerate(fields, start=1):
+        tagged = opcodes.tagged_form(typ)
         if tagged is not None and tagged[0] in opcodes.SEQUENCE_TAGS:
-            form = tagged[1][1].value
+            typ = tagged[1][1].value
             continue
-        parts = tagged[1] if tagged is not None else form.fields if isinstance(form, terms.Struct) else None
+        parts = tagged[1] if tagged is not None else typ.fields if isinstance(typ, terms.Struct) else None
         if parts is None:
-            raise LlvmTranslationError(
-                f"'getelementptr': index {index} goes into {banf.show_form(form)}, which has no parts."
-            )
+            raise LlvmTranslationError(f"'getelementptr': index {index} goes into a type that has no parts.")
         count = len(parts)
-        if not (isinstance(atom, banf.Const) and atom.form == _I32 and len(atom.value) == _I32_BYTES):
+        position = opcodes.decode_uint(field, _I32)
+        if position is None or position >= count:
             raise LlvmTranslationError(
-                f"'getelementptr': index {index} into {banf.show_form(form)} must be a literal 'i32' below {count}."
+                f"'getelementptr': index {index} into a struct must be a 4-byte array below {count}."
             )
-        position = int.from_bytes(atom.value, 'little')
-        if position >= count:
-            raise LlvmTranslationError(
-                f"'getelementptr': index {index} into {banf.show_form(form)} must be a literal 'i32' below {count}."
-            )
-        form = parts[position].value
+        typ = parts[position].value
 
 
-def _getelementptr(builder, fields, operand):
+def _getelementptr(builder, fields, operand: Operand):
     if len(fields) < opcodes.GEP_MIN_FIELDS:
         raise LlvmTranslationError(
-            f"'getelementptr' takes a form, a pointer and at least one index, got {len(fields)} fields."
+            f"'getelementptr' takes a type, a pointer and at least one index, got {len(fields)} fields."
         )
-    form = _any_form('getelementptr', fields, 0)
-    pointer = _formed('getelementptr', 'the pointer', fields[1], operand)
-    if not isinstance(pointer.type, ir.PointerType):
-        raise LlvmTranslationError(f"'getelementptr' expects a pointer, got {pointer.type}.")
-    indices = [_formed('getelementptr', f'index {i}', atom, operand) for i, atom in enumerate(fields[2:])]
+    typ = _type('getelementptr', fields, 0)
+    pointer = operand(fields[1], _PTR)
+    indices = [
+        operand(field, _I32) if isinstance(field, terms.ByteArray) else operand(field, None) for field in fields[2:]
+    ]
     for i, value in enumerate(indices):
         if not isinstance(value.type, ir.IntType):
             raise LlvmTranslationError(f"'getelementptr': index {i} must be an integer, got {value.type}.")
-    _check_indices(form, fields[3:])
-    return _opaque(builder.gep(pointer, indices, source_etype=llvm_type(form)))
+    _check_indices(typ, fields[3:])
+    return _opaque(builder.gep(pointer, indices, source_etype=llvm_type(typ)))
 
 
-def _pointer(name, atom, operand):
-    pointer = _formed(name, 'the pointer', atom, operand)
-    if not isinstance(pointer.type, ir.PointerType):
-        raise LlvmTranslationError(f'{name!r} expects a pointer, got {pointer.type}.')
-    return pointer
+def _load(builder, fields, operand: Operand):
+    """`load T, ptr p`: no `align`, so LLVM assumes `T`'s ABI alignment."""
+    _arity('load', fields, opcodes.LOAD_FIELDS)
+    typ = _type('load', fields, 0)
+    return builder.load(operand(fields[1], _PTR), typ=llvm_type(typ))
 
 
-def _load_store_arity(name: str, fields: Sequence[banf.Atom | banf.FormField]) -> None:
-    if len(fields) != opcodes.LOAD_STORE_FIELDS:
-        raise LlvmTranslationError(f'{name!r} takes {opcodes.LOAD_STORE_FIELDS} fields, got {len(fields)}.')
+def _store(builder, fields, operand: Operand):
+    """`store T v, ptr p`. It gives no LLVM value: its let binds a name nothing reads."""
+    _arity('store', fields, opcodes.STORE_FIELDS)
+    typ = _type('store', fields, 0)
+    return builder.store(operand(fields[1], typ), operand(fields[2], _PTR))
 
 
-def _load(builder, fields, operand):
-    """`load F, ptr p`: no `align`, so LLVM assumes `F`'s ABI alignment."""
-    _load_store_arity('load', fields)
-    form = _any_form('load', fields, 0)
-    return builder.load(_pointer('load', fields[1], operand), typ=llvm_type(form))
-
-
-def _store(builder, fields, operand):
-    """`store F v, ptr p`, where `F` is the value's own type. It gives no LLVM value: the let
-    binds nothing, and only `$seq`, gone by now, may use it."""
-    _load_store_arity('store', fields)
-    value = _formed('store', 'value', fields[0], operand)
-    return builder.store(value, _pointer('store', fields[1], operand))
-
-
-def _global(_builder, _fields, _operand):
-    """Never in a block: `banf_translate` reads `'global'` only as a body field, a `Cell`."""
-    raise LlvmTranslationError("'global' must be a definition, such as counter = 'global' {...}.")
-
-
-_MEMORY = {'alloca': _alloca, 'getelementptr': _getelementptr, 'load': _load, 'store': _store, 'global': _global}
+_MEMORY = {'alloca': _alloca, 'getelementptr': _getelementptr, 'load': _load, 'store': _store}
 
 
 def _impl(name: str) -> OpcodeImpl:
     if name in _BINARY:
         return _binary(name, _BINARY[name])
-    if name in _COMPARE:
-        return _compare(name, *_COMPARE[name])
+    if name == 'icmp':
+        return _icmp
     if name in _MEMORY:
         return _MEMORY[name]
     return _convert(name, _CONVERT[name])

@@ -1,6 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Translates BANF into LLVM IR, one-to-one. Everything LLVM-specific comes in through Target."""
+"""LLVM translation (semantics.tex, Section 9): a module (Section 8) becomes LLVM IR.
+
+Oymomo is untyped (9.1). Every LLVM type comes from where a value is used: an opcode's
+type operand, the `takes` of a block or function being called, a function's `gives` for
+a return, a constant's or global variable's `type`. A byte array takes the type its use
+needs; a path `x.l₁⋯lⱼ` becomes `extractvalue`s, each index the label's position in the
+struct type the value has.
+
+- A definition becomes `define`; its first block is the entry block. When a block jumps
+  to the first block, a new entry block, `start`, jumps to it (9.2b).
+- A declaration becomes `declare`, a constant `constant`, a global variable `global`.
+- A block's `takes` becomes `phi`s where it has more than one predecessor; otherwise its
+  parameters are the values passed.
+- A `let` becomes one instruction; a return `ret`; a jump through `f` `br`; a jump
+  through `m` `call` then `ret`; a conditional jump `br i1` or `switch`, and an arm that
+  is not a jump to a block of its own becomes a small block.
+
+Everything target-specific (the opcodes' instructions) comes in through `Target`.
+"""
 
 import re
 from collections.abc import Callable, Mapping, Sequence
@@ -8,14 +26,22 @@ from dataclasses import dataclass
 
 from llvmlite import ir
 
-from oymo.oymomo import banf_terms as banf
-from oymo.oymomo import opcodes, terms
+from oymo.core import syntax
+from oymo.oymomo import anf, opcodes, printer, reduction, terms
+from oymo.oymomo import module as modules
 
-_INT_FORM = re.compile(r'i([1-9][0-9]*)')
+_INT_TYPE = re.compile(r'i([1-9][0-9]*)')
+
+# An operand of an opcode as an LLVM value: the field, and the type term it is read at
+# (None where the opcode doesn't say; a byte array then has no type and is an error).
+type Operand = Callable[[syntax.Term, syntax.Term | None], ir.Value]
+
+# By opcode name: gets the builder, the call's fields (by position) and `Operand`.
+type OpcodeImpl = Callable[[ir.IRBuilder, Sequence[syntax.Term], Operand], ir.Value]
 
 
 class LlvmTranslationError(Exception):
-    def __init__(self, message: str, location: terms.Location | None = None) -> None:
+    def __init__(self, message: str, location: syntax.Location | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.location = location
@@ -25,254 +51,413 @@ class LlvmTranslationError(Exception):
 class Target:
     triple: str
     data_layout: str
-    # By opcode name: gets the builder, the call's fields (by position), and a function that
-    # turns a field into an LLVM value read at a form (a formless `Const` takes that form).
-    opcodes: Mapping[
-        str,
-        Callable[
-            [ir.IRBuilder, Sequence[banf.Atom | banf.FormField], Callable[[banf.Atom, terms.Term], ir.Value]],
-            ir.Value,
-        ],
-    ]
+    opcodes: Mapping[str, OpcodeImpl]
 
 
-def llvm_type(form: terms.Term) -> ir.Type:
-    if (tagged := opcodes.tagged_form(form)) is not None:
-        return _tagged_type(form, *tagged)
-    name = form.as_str if isinstance(form, terms.ByteArray) else None
-    if name is not None and (match := _INT_FORM.fullmatch(name)):
+def show_type(term: syntax.Term) -> str:
+    return printer.show(term)
+
+
+def llvm_type(term: syntax.Term) -> ir.Type:
+    """The LLVM type a type term names: `'iN'`, `'ptr'`, a struct of types, or a tagged
+    struct (`{'array', n, t}`, `{'vector', n, t}`, `{'packed', ...}`)."""
+    if (tagged := opcodes.tagged_form(term)) is not None:
+        return _tagged_type(term, *tagged)
+    name = term.as_str if isinstance(term, terms.ByteArray) else None
+    if name is not None and (match := _INT_TYPE.fullmatch(name)):
         return ir.IntType(int(match.group(1)))
     if name == 'ptr':
         # LLVM's opaque pointer: it says nothing about what it points to.
         return ir.PointerType()
-    if isinstance(form, terms.Struct):
-        return ir.LiteralStructType([llvm_type(f.value) for f in form.fields])
-    raise LlvmTranslationError(f'Form {banf.show_form(form)} has no LLVM type.')
+    if isinstance(term, terms.Struct):
+        return ir.LiteralStructType([llvm_type(f.value) for f in term.fields])
+    raise LlvmTranslationError(f'{show_type(term)} is not an LLVM type.', getattr(term, 'location', None))
 
 
-def _tagged_type(form, tag, parts):
+def _tagged_type(term, tag, parts):
     """`[N x E]`, `<N x E>` or `<{...}>`."""
     if tag == 'packed':
         return ir.LiteralStructType([llvm_type(f.value) for f in parts], packed=True)
     count = opcodes.tag_count(parts[0].value) if len(parts) == opcodes.SEQUENCE_PARTS else None
     if count is None:
-        raise LlvmTranslationError(f'Form {banf.show_form(form)} has no LLVM type.')
+        raise LlvmTranslationError(f'{show_type(term)} is not an LLVM type.', getattr(term, 'location', None))
     if tag == 'scalable_vector':
-        raise LlvmTranslationError(f'Form {banf.show_form(form)} has no LLVM type in llvmlite.')
+        raise LlvmTranslationError(f'{show_type(term)} has no LLVM type in llvmlite.', getattr(term, 'location', None))
     element = llvm_type(parts[1].value)
     return ir.ArrayType(element, count) if tag == 'array' else ir.VectorType(element, count)
 
 
-def _const(atom: banf.Const) -> ir.Constant:
-    name = atom.form.as_str if isinstance(atom.form, terms.ByteArray) else None
-    match = _INT_FORM.fullmatch(name) if name is not None else None
-    if match is None:
-        raise LlvmTranslationError(
-            f'Only integer constants are supported, got {banf.show_form(atom.form)}.', atom.location
-        )
-    bits = int(match.group(1))
-    if len(atom.value) != (bits + 7) // 8:
-        raise LlvmTranslationError(f'A {name} constant needs {(bits + 7) // 8} bytes.', atom.location)
-    # Byte arrays are little-endian on every target. LLVM stores the integer in the
-    # data layout's byte order, so a big-endian target needs no swap here.
-    value = int.from_bytes(atom.value, 'little')
-    if value >= 1 << bits:
-        raise LlvmTranslationError(f'Constant does not fit in {name}.', atom.location)
-    return ir.Constant(ir.IntType(bits), value)
+def constant(type_term: syntax.Term, value: syntax.Term) -> ir.Constant:
+    """`value`, data, as an LLVM constant of the type `type_term` names: a byte array of an
+    integer type's size, or a struct (or array) of constants."""
+    location = getattr(value, 'location', None)
+    typ = llvm_type(type_term)
+    if isinstance(typ, ir.IntType):
+        size = (typ.width + 7) // 8
+        if not isinstance(value, terms.ByteArray) or len(value.value) != size:
+            raise LlvmTranslationError(f'A constant of type {typ} is a byte array of {size} bytes.', location)
+        # Byte arrays are little-endian on every target. LLVM stores the integer in the
+        # data layout's byte order, so a big-endian target needs no swap here.
+        number = int.from_bytes(value.value, 'little')
+        if number >= 1 << typ.width:
+            raise LlvmTranslationError(f'The constant does not fit in {typ}.', location)
+        return ir.Constant(typ, number)
+    parts = _type_parts(type_term)
+    if parts is not None and isinstance(value, terms.Struct) and len(value.fields) == len(parts):
+        return ir.Constant(typ, [constant(part, f.value) for part, f in zip(parts, value.fields, strict=True)])
+    raise LlvmTranslationError(f'No constant of type {typ} is written {printer.show(value)}.', location)
 
 
-def _successors(terminator):
-    match terminator:
-        case banf.Jump(target=target, args=args):
-            return [(target, args)]
-        case banf.Branch() as branch:
-            return [(branch.then_target, branch.then_args), (branch.else_target, branch.else_args)]
-        case banf.Switch(targets=targets):
-            return list(targets)
-    return []
+def _type_parts(type_term):
+    """The type terms of an aggregate's elements, in order, or None."""
+    if (tagged := opcodes.tagged_form(type_term)) is not None:
+        tag, parts = tagged
+        if tag in opcodes.SEQUENCE_TAGS:
+            count = opcodes.tag_count(parts[0].value)
+            return None if count is None else [parts[1].value] * count
+        return [f.value for f in parts]
+    if isinstance(type_term, terms.Struct):
+        return [f.value for f in type_term.fields]
+    return None
 
 
-class _FunctionTranslator:
-    def __init__(self, module, function, llvm_function, globals_, target):
-        self.module = module
-        self.function = function
+def _field_type(type_term, label, location):
+    """`(position, type term)` of the field labeled `label` in a struct type."""
+    if isinstance(type_term, terms.Struct) and opcodes.tagged_form(type_term) is None:
+        position = reduction.field_position(type_term, label)
+        if position is not None:
+            return position, type_term.fields[position].value
+    shown = 'an unknown type' if type_term is None else show_type(type_term)
+    raise LlvmTranslationError(f'.{label} reads a field of {shown}, which has no field {label!r}.', location)
+
+
+@dataclass
+class _Value:
+    """An LLVM value and the type term it has (None for a `store`'s result)."""
+
+    value: ir.Value | None
+    type: syntax.Term | None
+
+
+def _path(term):
+    labels = []
+    while isinstance(term, terms.Project):
+        labels.append(term)
+        term = term.struct
+    return term.index, labels[::-1]
+
+
+def _jump_target(term):
+    """The block label of a jump `f.l.body {…}` (checked by `module.read_module`)."""
+    return term.function.struct.label
+
+
+class _Function:
+    """One definition's blocks."""
+
+    def __init__(self, translator, definition, llvm_function):
+        self.translator = translator
+        self.definition = definition
         self.llvm_function = llvm_function
-        self.globals = globals_
-        self.target = target
-        self.blocks = {block.label: block for block in function.blocks}
+        self.blocks = {block.label: block for block in definition.blocks}
+        self.first = definition.blocks[0].label
         self.reachable = self._reachable()
         self.predecessors = dict.fromkeys(self.reachable, 0)
         for label in self.reachable:
-            for successor, _ in _successors(self.blocks[label].terminator):
-                self.predecessors[successor] += 1
+            for target in self._jumps(self.blocks[label]):
+                self.predecessors[target] += 1
+        # 9.2b: LLVM's entry block has no predecessors, so `start` jumps to the first block.
+        self.has_start = self.predecessors[self.first] > 0
+        if self.has_start:
+            self.predecessors[self.first] += 1
         self.llvm_blocks = {}
-        self.values = {}
+        self.params = {}
 
-    def value(self, atom, values):
-        if isinstance(atom, banf.Const):
-            return _const(atom)
-        # A cell's address is its global itself, as `@counter` is in LLVM.
-        value = self.globals[atom.name] if isinstance(atom, banf.CellAddress) else values[atom.name]
-        if atom.form is not terms.Empty and llvm_type(atom.form) != value.type:
-            # A form isn't a type, so BANF accepts any atom form. LLVM can't: it never converts.
-            raise LlvmTranslationError(
-                f'{atom.name!r} is formed as {banf.show_form(atom.form)}, but its LLVM type is {value.type}.',
-                atom.location,
-            )
-        return value
+    def _terminal(self, block):
+        term = block.body
+        while isinstance(term, terms.Apply) and isinstance(term.function, terms.Lambda):
+            term = term.function.body
+        return term
 
-    def operand(self, atom, form, values):
-        """An opcode field as an LLVM value, read at `form`: a `Const` with no form (a bare
-        byte array) takes it; any other atom is its own value."""
-        if isinstance(atom, banf.Const) and atom.form is terms.Empty:
-            return _const(banf.Const(atom.value, form, atom.location))
-        return self.value(atom, values)
+    def _arms(self, block):
+        terminal = self._terminal(block)
+        if isinstance(terminal, terms.Apply) and isinstance(terminal.function, terms.Struct):
+            return [f.value for f in terminal.function.fields]
+        return [terminal]
 
-    def translate(self):
-        entry = self.function.blocks[0]
-        for block in self.function.blocks:
-            if block.label in self.reachable:
-                self.llvm_blocks[block.label] = self.llvm_function.append_basic_block(block.label)
-        entry_values = {}
-        for (name, _), arg in zip(entry.params, self.llvm_function.args, strict=True):
-            arg.name = name
-            entry_values[name] = arg
-        self.values[entry.label] = entry_values
-        for block in self.function.blocks:
-            if block.label != entry.label and self.predecessors.get(block.label, 0) > 1:
-                builder = ir.IRBuilder(self.llvm_blocks[block.label])
-                self.values[block.label] = {
-                    name: builder.phi(llvm_type(form), name=name) for name, form in block.params
-                }
-        worklist = [entry.label]
-        done = set()
-        while worklist:
-            label = worklist.pop(0)
-            if label in done:
-                continue
-            done.add(label)
-            worklist.extend(successor for successor in self.block(self.blocks[label]) if successor not in done)
+    def _is_jump(self, term, lets):
+        if not isinstance(term, terms.Apply) or isinstance(term.function, terms.ByteArray | terms.Struct):
+            return False
+        index, _ = _path(term.function)
+        return index == lets + 1
+
+    def _jumps(self, block):
+        """The blocks `block` jumps to, once per jump."""
+        lets = self._let_count(block)
+        return [_jump_target(arm) for arm in self._arms(block) if self._is_jump(arm, lets)]
+
+    def _let_count(self, block):
+        count, term = 0, block.body
+        while isinstance(term, terms.Apply) and isinstance(term.function, terms.Lambda):
+            count, term = count + 1, term.function.body
+        return count
 
     def _reachable(self):
-        seen, stack = set(), [self.function.blocks[0].label]
+        seen, stack = set(), [self.first]
         while stack:
             label = stack.pop()
             if label not in seen:
                 seen.add(label)
-                stack.extend(successor for successor, _ in _successors(self.blocks[label].terminator))
+                stack.extend(self._jumps(self.blocks[label]))
         return seen
 
-    def block(self, block):
-        values = dict(self.values[block.label])
-        builder = ir.IRBuilder(self.llvm_blocks[block.label])
-        forms = dict(block.params)
-        for let in block.lets:
-            values[let.name] = self.op(builder, let, values, forms)
-            value = values[let.name]
-            if isinstance(value, ir.Instruction) and not isinstance(value.type, ir.VoidType):
-                # A `store` gives no value, so its let binds no LLVM name.
-                value.name = let.name
-            if let.form is not terms.Empty and llvm_type(let.form) != values[let.name].type:
-                # A form isn't a type, so BANF accepts any let form. LLVM can't: it never converts.
-                op_form = banf.form_of(let.value, forms, self.module)
-                raise LlvmTranslationError(
-                    f'Let {let.name!r} is formed as {banf.show_form(let.form)}, '
-                    f'but its op gives {banf.show_form(op_form)}.',
-                    let.location,
-                )
-            forms[let.name] = banf.let_form(let, forms, self.module)
-        return self.terminator(builder, block.terminator, values, forms)
-
-    def op(self, builder, let, values, forms):
-        op = let.value
-        match op:
-            case banf.OpcodeCall(opcode=name, fields=fields):
-                if name not in self.target.opcodes:
-                    raise LlvmTranslationError(f'Target has no implementation of {name!r}.', op.location)
-                try:
-                    return self.target.opcodes[name](
-                        builder, fields, lambda atom, form: self.operand(atom, form, values)
-                    )
-                except LlvmTranslationError as error:
-                    error.location = error.location or op.location
-                    raise
-            case banf.Call(function=name, args=args):
-                return builder.call(self.globals[name], [self.value(arg, values) for arg in args])
-            case banf.MakeStruct(fields=fields):
-                struct = ir.Constant(llvm_type(banf.form_of(op, forms, self.module)), ir.Undefined)
-                for index, (label, atom) in enumerate(fields):
-                    # An unlabeled field is named by its index: `p.0` rather than `p.`.
-                    name = f'{let.name}.{label or index}'
-                    struct = builder.insert_value(struct, self.value(atom, values), index, name=name)
-                return struct
-            case banf.GetField(struct=struct, label=label):
-                index = banf.field_index(banf.atom_form(struct, forms), label)
-                return builder.extract_value(self.value(struct, values), index)
-            case banf.GetIndex(struct=struct, index=index):
-                position, _ = banf.indexed_field(banf.atom_form(struct, forms), index)
-                return builder.extract_value(self.value(struct, values), position)
-            case banf.GetData(name=name):
-                variable = self.globals[name]
-                return builder.load(variable, typ=variable.value_type)
-        raise AssertionError(op)
-
-    def pass_args(self, target, args, values, from_block):
-        params = self.blocks[target].params
-        passed = [self.value(arg, values) for arg in args]
-        if self.predecessors[target] > 1:
-            for (name, _), value in zip(params, passed, strict=True):
-                self.values[target][name].add_incoming(value, from_block)
+    def translate(self):
+        args = self.llvm_function.args
+        for (name, _), arg in zip(self.definition.takes, args, strict=True):
+            arg.name = name
+        start = self.llvm_function.append_basic_block('start') if self.has_start else None
+        for block in self.definition.blocks:
+            if block.label in self.reachable:
+                self.llvm_blocks[block.label] = self.llvm_function.append_basic_block(block.label)
+        for label in self.reachable:
+            if self.predecessors[label] > 1:
+                builder = ir.IRBuilder(self.llvm_blocks[label])
+                self.params[label] = {
+                    name: _Value(builder.phi(llvm_type(t), name=name), t) for name, t in self.blocks[label].takes
+                }
+        first_values = [_Value(arg, t) for arg, (_, t) in zip(args, self.definition.takes, strict=True)]
+        if start is None:
+            self.params[self.first] = {
+                name: value for (name, _), value in zip(self.definition.takes, first_values, strict=True)
+            }
         else:
-            self.values[target] = {name: value for (name, _), value in zip(params, passed, strict=True)}
+            builder = ir.IRBuilder(start)
+            self._pass(self.first, first_values, start)
+            builder.branch(self.llvm_blocks[self.first])
+        order, done = [self.first], set()
+        while order:
+            label = order.pop(0)
+            if label in done:
+                continue
+            done.add(label)
+            self._block(self.blocks[label])
+            order.extend(t for t in self._jumps(self.blocks[label]) if t not in done)
 
-    def terminator(self, builder, terminator, values, forms):
-        match terminator:
-            case banf.Jump(target=target, args=args):
-                self.pass_args(target, args, values, builder.block)
-                builder.branch(self.llvm_blocks[target])
-                return [target]
-            case banf.Branch() as branch:
-                if branch.then_target == branch.else_target:
-                    raise LlvmTranslationError('A branch cannot have the same block as both targets.', branch.location)
-                self.pass_args(branch.then_target, branch.then_args, values, builder.block)
-                self.pass_args(branch.else_target, branch.else_args, values, builder.block)
-                builder.cbranch(
-                    self.value(branch.condition, values),
-                    self.llvm_blocks[branch.then_target],
-                    self.llvm_blocks[branch.else_target],
+    def _pass(self, target, values, from_block):
+        """Gives `target`'s parameters `values`, coming from `from_block`."""
+        names = [name for name, _ in self.blocks[target].takes]
+        if self.predecessors[target] > 1:
+            for name, value in zip(names, values, strict=True):
+                self.params[target][name].value.add_incoming(value.value, from_block)
+        else:
+            self.params[target] = dict(zip(names, values, strict=True))
+
+    def _block(self, block):
+        builder = ir.IRBuilder(self.llvm_blocks[block.label])
+        lets = []
+        term = block.body
+        while isinstance(term, terms.Apply) and isinstance(term.function, terms.Lambda):
+            name = term.function.param_name
+            value = self._operation(builder, block, lets, term.argument)
+            if value.value is not None and not isinstance(value.value.type, ir.VoidType):
+                value.value.name = name
+            lets.append(value)
+            term = term.function.body
+        self._terminal_code(builder, block, lets, term)
+
+    # Atoms
+
+    def atom(self, block, lets, term, expected, what):
+        """An atom as an LLVM value. `expected` is the type term its use needs, or None."""
+        if isinstance(term, terms.ByteArray):
+            if expected is None:
+                raise LlvmTranslationError(
+                    f'The byte array {printer.show(term)} needs a type here; {what} does not give one.',
+                    term.location,
                 )
-                return [branch.then_target, branch.else_target]
-            case banf.Switch() as switch:
-                return self.switch(builder, switch, values, forms)
-            case banf.Return(value=value):
-                builder.ret(self.value(value, values))
-                return []
-        raise AssertionError(terminator)
+            return _Value(constant(expected, term), expected)
+        value = self._path_value(block, lets, term)
+        if expected is not None and value.value is not None and value.value.type != llvm_type(expected):
+            raise LlvmTranslationError(
+                f'This value has LLVM type {value.value.type}, but {what} needs {llvm_type(expected)}.',
+                getattr(term, 'location', None),
+            )
+        if value.value is None:
+            raise LlvmTranslationError("A store's result has no value.", getattr(term, 'location', None))
+        return value
 
-    def switch(self, builder, switch, values, forms):
-        selector_form = banf.atom_form(switch.selector, forms)
-        name = selector_form.as_str if isinstance(selector_form, terms.ByteArray) else None
-        match = _INT_FORM.fullmatch(name) if name is not None else None
-        if match is None:
+    def _path_value(self, block, lets, term):
+        index, projections = _path(term)
+        builder_value = None
+        if index < len(lets):
+            builder_value = lets[-1 - index]
+        elif index == len(lets):
+            first, projections = projections[0], projections[1:]
+            builder_value = self.params[block.label][first.label]
+        else:
+            # `m.l`: the address of a symbol, or the function itself (checked by `module`).
+            first, projections = projections[0], projections[1:]
+            builder_value = _Value(self.translator.globals[first.label], self.translator.address_type)
+        for projection in projections:
+            position, field_type = _field_type(builder_value.type, projection.label, projection.location)
+            value = self._builder.extract_value(builder_value.value, position)
+            builder_value = _Value(value, field_type)
+        return builder_value
+
+    # Lets and terminals
+
+    def _operation(self, builder, block, lets, term):
+        self._builder = builder
+        if isinstance(term.function, terms.ByteArray):
+            return self._opcode(builder, block, lets, term)
+        return self._call(builder, block, lets, term)
+
+    def _opcode(self, builder, block, lets, term):
+        name = term.function.as_str
+        if name not in self.translator.target.opcodes:
+            raise LlvmTranslationError(f'The target has no opcode {printer.show(term.function)}.', term.location)
+        fields = [f.value for f in term.argument.fields]
+
+        def operand(field, expected):
+            return self.atom(block, lets, field, expected, f'opcode {name!r}').value
+
+        try:
+            value = self.translator.target.opcodes[name](builder, fields, operand)
+        except LlvmTranslationError as error:
+            error.location = error.location or term.location
+            raise
+        opcode = opcodes.OPCODES.get(name)
+        result_type = opcode.form_of(fields) if opcode is not None else None
+        if name == 'store':
+            return _Value(None, None)
+        return _Value(value, result_type)
+
+    def _call(self, builder, block, lets, term):
+        _, projections = _path(term.function)
+        callee = self.translator.module.lookup(projections[0].label)
+        args = self._arguments(block, lets, term, callee.takes, f'{callee.name!r}')
+        return _Value(builder.call(self.translator.globals[callee.name], args), callee.gives)
+
+    def _arguments(self, block, lets, term, takes, what):
+        return [
+            self.atom(block, lets, f.value, t, f'parameter {name!r} of {what}').value
+            for f, (name, t) in zip(term.argument.fields, takes, strict=True)
+        ]
+
+    def _terminal_code(self, builder, block, lets, term):
+        self._builder = builder
+        if isinstance(term, terms.Apply) and isinstance(term.function, terms.Struct):
+            self._branch(builder, block, lets, term)
+        else:
+            self._end(builder, block, lets, term)
+
+    def _end(self, builder, block, lets, term):
+        """A return, a jump through `f`, or a jump through `m` (`call` then `ret`)."""
+        self._builder = builder
+        gives = self.definition.gives
+        if anf.is_atom(term):
+            builder.ret(self.atom(block, lets, term, gives, f'the result of {self.definition.name!r}').value)
+        elif self._is_jump(term, len(lets)):
+            target, values = self._jump(block, lets, term)
+            self._pass(target, values, builder.block)
+            builder.branch(self.llvm_blocks[target])
+        else:
+            result = self._call(builder, block, lets, term)
+            if llvm_type(result.type) != llvm_type(gives):
+                raise LlvmTranslationError(
+                    f'The call gives {llvm_type(result.type)}, but {self.definition.name!r} gives {llvm_type(gives)}.',
+                    term.location,
+                )
+            builder.ret(result.value)
+
+    def _jump(self, block, lets, term):
+        """`(target, values)` of a jump `f.l.body {xᵢ = aᵢ}`."""
+        target = _jump_target(term)
+        takes = self.blocks[target].takes
+        values = self._arguments(block, lets, term, takes, f'block {target!r}')
+        return target, [_Value(value, t) for value, (_, t) in zip(values, takes, strict=True)]
+
+    def _branch(self, builder, block, lets, term):
+        arms = [f.value for f in term.function.fields]
+        condition = self.atom(block, lets, term.argument, None, 'a branch condition').value
+        if not isinstance(condition.type, ir.IntType):
             raise LlvmTranslationError(
-                f'Switch selector must be an integer form, got {banf.show_form(selector_form)}.', switch.location
+                f'A branch condition must be an integer, got {condition.type}.', term.argument.location
             )
-        # The last target is the default, so n targets need the cases 0 to n-2.
-        holds = (1 << int(match.group(1))) + 1
-        if len(switch.targets) > holds:
-            raise LlvmTranslationError(
-                f'A switch on {name} has {len(switch.targets)} targets; it holds {holds}.', switch.location
-            )
-        labels = [target for target, _ in switch.targets]
-        # A repeated target adds one phi entry per edge, all equal: BANF checks that a
-        # repeated target gets the same args.
-        for target, args in switch.targets:
-            self.pass_args(target, args, values, builder.block)
-        *cases, default = labels
-        instruction = builder.switch(self.value(switch.selector, values), self.llvm_blocks[default])
-        for value, target in enumerate(cases):
-            instruction.add_case(value, self.llvm_blocks[target])
-        return labels
+        targets = [_jump_target(arm) for arm in arms if self._is_jump(arm, len(lets))]
+        llvm_arms = []
+        for i, arm in enumerate(arms):
+            if self._is_jump(arm, len(lets)) and targets.count(_jump_target(arm)) == 1:
+                # A jump to a block of its own: a direct edge.
+                target, values = self._jump(block, lets, arm)
+                self._pass(target, values, builder.block)
+                llvm_arms.append(self.llvm_blocks[target])
+            else:
+                # 9.3c: an arm that returns, calls through m, or shares its block gets a small block.
+                small = self.llvm_function.append_basic_block(f'{block.label}.{i}')
+                self._end(ir.IRBuilder(small), block, lets, arm)
+                self._builder = builder
+                llvm_arms.append(small)
+        if len(llvm_arms) == 1:
+            builder.branch(llvm_arms[0])
+        elif len(llvm_arms) == 2:  # noqa: PLR2004
+            if condition.type.width != 1:
+                condition = builder.icmp_unsigned('!=', condition, ir.Constant(condition.type, 0))
+            builder.cbranch(condition, llvm_arms[1], llvm_arms[0])
+        else:
+            # E-Index and E-Default: arm i for i < n - 1, the last arm otherwise.
+            holds = (1 << condition.type.width) + 1
+            if len(llvm_arms) > holds:
+                raise LlvmTranslationError(
+                    f'A branch on {condition.type} has {len(llvm_arms)} arms; it holds {holds}.',
+                    term.location,
+                )
+            *cases, default = llvm_arms
+            switch = builder.switch(condition, default)
+            for value, target in enumerate(cases):
+                switch.add_case(ir.Constant(condition.type, value), target)
+
+
+class _Translator:
+    def __init__(self, module, target):
+        self.module = module
+        self.target = target
+        self.globals: dict[str, ir.GlobalValue] = {}
+        self.address_type = terms.ByteArray(b'ptr')
+
+    def translate(self):
+        llvm_module = ir.Module()
+        llvm_module.triple = self.target.triple
+        llvm_module.data_layout = self.target.data_layout
+        for symbol in self.module.symbols:
+            try:
+                self._symbol(llvm_module, symbol)
+            except LlvmTranslationError as error:
+                error.location = error.location or symbol.location
+                raise
+        for symbol in self.module.symbols:
+            if isinstance(symbol, modules.Definition):
+                _Function(self, symbol, self.globals[symbol.name]).translate()
+        return llvm_module
+
+    def _symbol(self, llvm_module, symbol):
+        match symbol:
+            case modules.Constant(name=name, type=type_term, value=value):
+                variable = _global(llvm_module, llvm_type(type_term), name)
+                variable.global_constant = True
+                variable.initializer = constant(type_term, value)
+                self.globals[name] = variable
+            case modules.Global(name=name, type=type_term, init=init):
+                variable = _global(llvm_module, llvm_type(type_term), name)
+                variable.initializer = constant(type_term, init)
+                self.globals[name] = variable
+            case modules.Definition() | modules.Declaration():
+                function_type = ir.FunctionType(llvm_type(symbol.gives), [llvm_type(t) for _, t in symbol.takes])
+                function = ir.Function(llvm_module, function_type, symbol.name)
+                if isinstance(symbol, modules.Declaration):
+                    for (name, _), arg in zip(symbol.takes, function.args, strict=True):
+                        arg.name = name
+                self.globals[symbol.name] = function
 
 
 def _global(llvm_module, typ, name):
@@ -283,42 +468,5 @@ def _global(llvm_module, typ, name):
     return variable
 
 
-def translate(module: banf.Module, target: Target) -> ir.Module:
-    llvm_module = ir.Module()
-    llvm_module.triple = target.triple
-    llvm_module.data_layout = target.data_layout
-    globals_: dict[str, ir.GlobalValue] = {}
-    for binding in module.bindings:
-        match binding:
-            case banf.Data(name=name, form=form, value=value):
-                # Read-only: `constant`, or `external constant`.
-                variable = _global(llvm_module, llvm_type(form), name)
-                variable.global_constant = True
-                if value is not None:
-                    variable.initializer = _const(banf.Const(value, form, binding.location))
-                globals_[name] = variable
-            case banf.Cell(name=name, form=None):
-                # Imported: LLVM wants a type, and `'ptr'` says nothing of what is stored
-                # there, so `[0 x i8]`, as clang does for C's `extern char a[];` (decision 18).
-                globals_[name] = _global(llvm_module, ir.ArrayType(ir.IntType(8), 0), name)
-            case banf.Cell(name=name, form=terms.Term() as form, value=value):
-                typ = llvm_type(form)
-                variable = _global(llvm_module, typ, name)
-                # Without `init`, `zeroinitializer`, as `'alloca'` has no initial value either.
-                init = None if value is None else _const(banf.Const(value, form, binding.location))
-                variable.initializer = ir.Constant(typ, None) if init is None else init
-                globals_[name] = variable
-            case (
-                banf.Signature(name=name, params=params, return_form=return_form)
-                | banf.Function(name=name, params=params, return_form=return_form)
-            ):
-                function_type = ir.FunctionType(llvm_type(return_form), [llvm_type(form) for _, form in params])
-                llvm_function = ir.Function(llvm_module, function_type, name)
-                globals_[name] = llvm_function
-                if isinstance(binding, banf.Signature):
-                    for (param, _), arg in zip(params, llvm_function.args, strict=True):
-                        arg.name = param
-    for binding in module.bindings:
-        if isinstance(binding, banf.Function):
-            _FunctionTranslator(module, binding, globals_[binding.name], globals_, target).translate()
-    return llvm_module
+def translate(module: modules.Module, target: Target) -> ir.Module:
+    return _Translator(module, target).translate()

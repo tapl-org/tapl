@@ -283,6 +283,14 @@ The user's orders, kept as given. Follow them in every task.
   order, jumps never under a let), atoms `m.l`, `p.x`. `module_of` = resolve, normalize,
   stuck check, read. The block body stays a term (no separate IR). `banf_terms.py`,
   `banf_translate.py`, `banf_rename.py` and their tests are deleted.
+  Stage 7 done: `llvm_translate.translate(module.Module, Target)`; LLVM types come from
+  use sites (opcode type field, callee/block `takes`, `gives`, constant/global `type`); a
+  bare byte array takes the type its use needs; `x.l` is `extractvalue` at the label's
+  position in the value's struct type term; `start` entry block when block 0 has
+  predecessors; arms that return, call through m, or share a target get small blocks
+  `label.i`; 2 arms on a wide int compare `!= 0`; `store` is `{type, value, ptr}` (4.4c);
+  the `'global'` opcode is gone. Spec gap found: a struct type operand (`'load' {{'i8',
+  'i32'}, p}`) is not an atom in 7.1, so it is not ANF.
   The old BANF/LLVM pipeline no longer imports; `tests/conftest.py` leaves its tests out
   until their stage (user chose "expected-to-fail"; collection errors can't be xfailed).
 

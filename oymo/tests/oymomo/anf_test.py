@@ -38,7 +38,7 @@ def error(source):
         # Lets of opcode calls and calls.
         "let x = 'add' {'i32', p.a, [01000000]} in x",
         "let x = 'add' {'i32', p.a, p.b} in let y = 'mul' {'i32', x, x} in m.print {y}",
-        "let u = 'store' {[05000000], m.counter} in let x = 'load' {'i32', m.counter} in x",
+        "let u = 'store' {'i32', [05000000], m.counter} in let x = 'load' {'i32', m.counter} in x",
         'let r = m.read {} in r.value',
         # An opcode E-Opcode does not compute: undefined behavior, an unknown opcode.
         "let x = 'sdiv' {'i32', [07000000], [00000000]} in x",
