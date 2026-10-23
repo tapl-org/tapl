@@ -149,8 +149,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   ```
   {
     symbols = {
-      puts    = {type = {'function', {s = 'ptr'}, 'i32'}, import = 'puts'},
-      gcd     = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'}, export = 'gcd',
+      puts    = {type = {'function', {s = 'ptr'}, 'i32'}, linkage = 'import'},
+      gcd     = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'}, linkage = 'export',
                  body = λm. λp. m [] (λg. {
                    entry = g.loop p.a p.b,
                    loop  = λa. λb.
@@ -161,8 +161,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
                      }),
                    done  = λr. r,
                  })},
-      counter = {type = 'i32', init = [00000000]},
-      msg     = {type = {'array', [03], 'i8'}, value = [686900]},
+      counter = {type = 'i32', linkage = 'local', init = [00000000]},
+      msg     = {type = {'array', [03], 'i8'}, linkage = 'local', value = [686900]},
     },
     target = {triple = 'x86_64-unknown-linux-gnu'},
   }
@@ -173,9 +173,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - A frontend lowers each source item to one closed `symbols` entry
 - Entry kind from its fields: `body` definition, `init` global, `value` constant, only
   `type` declaration; `{'function', params, result}` or a type
-- Roles: `import = 'name'`, `export = 'name'`, or neither (internal). LLVM: import →
-  `declare` / `external global`; export → external linkage under its name; other →
-  `internal`
+- `linkage` on every entry, Cranelift's words: `'import'` (no definition), `'export'`,
+  `'local'`; later `'preemptible'`, `'hidden'`. LLVM: import → `declare` / `external
+  global`; export → external; local → `internal`. The label is the symbol's name
 - In a `'ptr'` slot of `init`/`value`: a byte array names a symbol (`''` null);
   `{'arr', [08]}` is symbol plus byte offset
 - `body = λm. λp. e`, closed; the binder is always named `m`; `m` is free in `e` when
@@ -214,10 +214,10 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - semantics.tex and Lean: a grammar of normal forms, so the op's premise is syntactic, as
   data is today; the strategy normalizes op operands first
 - `'module.link' {A, B, …}` (name until a better one):
-  - imports matched to exports by name, then dropped
+  - an `'import'` matches an `'export'` with the same label, then is dropped
   - unmatched imports united; equal types merge; different: no step
-  - an export name twice: no step
-  - internal entries with one name: one renamed (`helper.1`), and `m.helper` rewritten to
+  - two `'export'` entries with one label: no step (multiple definition)
+  - `'local'` entries with one name: one renamed (`helper.1`), and `m.helper` rewritten to
     `m."helper.1"` in its module's bodies, as Wasm renumbers indices
   - `target`s equal
 - `'module.instantiate' {A}` (name until a better one):
@@ -269,9 +269,10 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `deps-goldens` Golden tests: diamond, template pattern, merged declarations
 
 - Golden: diamond: `a`, `b`, `c`, `d` linked once each; `d` exports, `b` and `c` import
+  (`linkage`)
 - Golden: template pattern: a generic instantiated once in a file's `code`
 - Golden: `puts` imported by two files, merged by `'module.link'`
-- Golden: two internal symbols with one name in two files, renamed
+- Golden: two `'local'` symbols with one name in two files, renamed
 - Test: mutual recursion between blocks of one group
 
 ### `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai
@@ -753,8 +754,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `c-calls-mizar` `export`, `.a`/`.so`, generated `.h`
 
-- `export` on a function or global → oymomo exports
-- Linkage: exported vs internal; C name ≠ label; no mangling; the rest `internal`
+- `export` on a function or global → `linkage = 'export'`; the rest `'local'`
+- The label is the C name; no mangling
 - Exported constants and global variables (`extern int counter;` reads a global variable)
 - Callbacks: an oymomo function passed to C and called back
 - Generate `.h` from the module interface: prototypes, structs, include guards; layer-1
@@ -764,7 +765,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Scalars and pointers only; by-value struct at the boundary: error "pass a pointer"
 - Done when: a C `main` calls a Mizar library through a header that reads as
   hand-written
-- Exports as `export = 'name'` on `symbols` entries (`module-shape`)
 
 ### `c-api` C API and Python package
 

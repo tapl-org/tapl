@@ -753,6 +753,24 @@ Supersedes `{meta, code}` above (user: "i am redesigning module shape").
 - Accepted with it: the binder is always named `m` (so `blocks` sugar can mention it);
   the translator rejects any `m b` other than `m []`. Spelling `m []`.
 
+### `linkage` replaces `import`/`export` (Answers 65–67)
+
+- User: "don't use export and import"; "stick to how LLVM and Cranelift did. our main
+  backends are they"; easier translation to their data structures.
+- LLVM: each global has a linkage (`external` default, `internal`, `private`, `weak`,
+  `linkonce_odr`, …) and a visibility; a declaration has no body; the name is the LLVM
+  name. Cranelift (`cranelift-module`): `Linkage::{Import, Local, Export, Preemptible,
+  Hidden}` on every declared function/data.
+- Decided: `linkage` on every symbol, Cranelift's words: `'import'`, `'export'`,
+  `'local'`, later `'preemptible'`, `'hidden'` (user liked Cranelift's wording). No
+  default (user accepted "no default"; Cranelift also requires it). The label is the
+  symbol's name; no renaming fields. `'import'` has no definition.
+- Link op as a linker: import matches export by label; two exports: multiple definition;
+  two locals: renamed; equal imports merge.
+- Visibility explained (Answer 67): ELF `STV_DEFAULT`/`HIDDEN`/`PROTECTED`, about the
+  shared-library boundary at load time, not about object files at link time. Cranelift
+  folds it into `Linkage` (`Hidden`, `Preemptible`), so one field covers both.
+
 ### Retired notes.md (before the refactor)
 
 Moved verbatim from `docs/notes.md`; it describes the language before the refactor (arrow lambdas, forms, `$fix`, BANF). The current map is [3. Project knowledge](#3-project-knowledge). Links in it point to retired files.
