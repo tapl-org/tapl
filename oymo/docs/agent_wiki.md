@@ -742,6 +742,17 @@ Supersedes `{meta, code}` above (user: "i am redesigning module shape").
   linking. Black-box analysis kept for reference: return/drop/copy/wrap are fine
   (left-linear, Klop orthogonality); comparing or inspecting non-normal bodies is not.
 
+### `run` replaced by `m []` (Answers 64–65)
+
+- User's idea: put the runner into field 0 of `m`, so a body is `λm. λp. e` and a group
+  is `m [] (λg. {…})`. Compiling: `m []` is a free variable applied to a byte array, a
+  normal form; the translator reads it as a group. Running: `'module.instantiate'` builds
+  `fix (λm. {λG. (fix G) [00], f = A.symbols.f.body m, …})`; `M []` unfolds (E-FixApp)
+  and E-Index picks field 0 (empty byte array = 0). Field 0 is unlabeled, so it takes no
+  symbol label (the objection to `m.run`).
+- Accepted with it: the binder is always named `m` (so `blocks` sugar can mention it);
+  the translator rejects any `m b` other than `m []`. Spelling `m []`.
+
 ### Retired notes.md (before the refactor)
 
 Moved verbatim from `docs/notes.md`; it describes the language before the refactor (arrow lambdas, forms, `$fix`, BANF). The current map is [3. Project knowledge](#3-project-knowledge). Links in it point to retired files.

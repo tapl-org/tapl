@@ -151,11 +151,11 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     symbols = {
       puts    = {type = {'function', {s = 'ptr'}, 'i32'}, import = 'puts'},
       gcd     = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'}, export = 'gcd',
-                 body = λm. λrun. λp. run (λg. {
+                 body = λm. λp. m [] (λg. {
                    entry = g.loop p.a p.b,
                    loop  = λa. λb.
                      let z = 'icmp' {'eq', 'i32', b, [00000000]} in
-                     run (λh. {
+                     m [] (λh. {
                        if z then g.done a else h.step,
                        step = let r = 'urem' {'i32', a, b} in g.loop b r,
                      }),
@@ -178,16 +178,18 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   `internal`
 - In a `'ptr'` slot of `init`/`value`: a byte array names a symbol (`''` null);
   `{'arr', [08]}` is symbol plus byte offset
-- `body = λm. λrun. λp. e`, closed; `m` and `run` free markers in `e` when compiling
+- `body = λm. λp. e`, closed; the binder is always named `m`; `m` is free in `e` when
+  compiling; `m []` (field 0) marks a group; any other `m b` is rejected
 - R1, one-to-one: every LLVM/Cranelift block, label, instruction is in the source; the
   translator adds none; groups flattened in source order
-- R2, runnable by reduction: with `run := λG. (fix G) [00]` and every body given the same
-  `M`, `M.f {…}` on data reduces to the result
+- R2, runnable by reduction: `M` holds the runner `λG. (fix G) [00]` in field 0 (no
+  label) and the symbols; every body gets the same `M`; `M.f {…}` on data reduces to the
+  result
 - Form of `e`:
 
   ```
   e ::= q | let x = v in e | if q then j else j | {j, …, j} q | j
-      | run (λg. {l₀ = e, l₁ = b, …})
+      | m [] (λg. {l₀ = e, l₁ = b, …})
   b ::= e | λx₁. … λxₙ. e
   j ::= g.l | g.l q₁ … qₙ
   v ::= b' {q, …} | m.l q
@@ -218,8 +220,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - internal entries with one name: one renamed (`helper.1`), and `m.helper` rewritten to
     `m."helper.1"` in its module's bodies, as Wasm renumbers indices
   - `target`s equal
-- `'module.instantiate' {A}` (name until a better one): `fix (λm. {f = A.symbols.f.body m
-  run, …})`, so `M.f {…}` runs by reduction (R2)
+- `'module.instantiate' {A}` (name until a better one):
+  `fix (λm. {λG. (fix G) [00], f = A.symbols.f.body m, …})`, so `M.f {…}` runs by
+  reduction (R2)
 - Compile-time only: a call that doesn't fold is rejected by translation
 - Tests: link, conflicts, renamed internals, instantiate and run `gcd`, non-module
   operand stays
@@ -251,7 +254,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `letrec x = t₁ in t₂` ≝ `let x = fix (λx. t₁) in t₂`
 - `let _ = v in e`: a `let` kept only for its effect
-- `blocks g = {l₁ = b₁, …} in t` ≝ `run (λg. {t, l₁ = b₁, …})`; always the struct form
+- `blocks g = {l₁ = b₁, …} in t` ≝ `m [] (λg. {t, l₁ = b₁, …})`; always the struct form
 - Typed lambdas `λ(i: 'i32'). e` for block parameters, if inference needs help
 - semantics.tex Section 3, grammar, printer; reserved words
 - Decide: a better name than `blocks`
