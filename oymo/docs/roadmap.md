@@ -16,7 +16,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
       - `module-shape` Modules `{symbols, target, …}`; bodies in SSA-shaped ANF
-      - 🚫 `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
+      - `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
       - 🚫 `deps-cli` Many files: `--unit=each|merge|apply`, `-e` glue
       - 🚫 `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
       - 🚫 `typed-consts` Folding keeps constants' types
@@ -207,21 +207,22 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
 
 - semantics.tex E-Opcode: `op(b)(dᵢ) = d'`, any data; Lean: `op`'s result type
-- `'module.…'` ops take module values: they read data fields and labels and copy each
-  closed `body` unchanged
+- `'module.…'` ops take and return closed normal forms (data grows to closed normal
+  forms); they may compare and rewrite bodies
+- semantics.tex and Lean: a grammar of normal forms, so the op's premise is syntactic, as
+  data is today; the strategy normalizes op operands first
 - `'module.link' {A, B, …}` (name until a better one):
   - imports matched to exports by name, then dropped
   - unmatched imports united; equal types merge; different: no step
   - an export name twice: no step
+  - internal entries with one name: one renamed (`helper.1`), and `m.helper` rewritten to
+    `m."helper.1"` in its module's bodies, as Wasm renumbers indices
   - `target`s equal
 - `'module.instantiate' {A}` (name until a better one): `fix (λm. {f = A.symbols.f.body m
   run, …})`, so `M.f {…}` runs by reduction (R2)
 - Compile-time only: a call that doesn't fold is rejected by translation
-- Tests: link, conflicts, instantiate and run `gcd`, non-module operand stays
-- Decide: E-Opcode on values with closed `λ` parts for `'module.…'` ops (copy, never
-  inspect), and the confluence argument in Lean
-- Decide: two internal entries with one name when linking: an error, or renaming through
-  a view of `m` (`{helper = m."helper.1", …}`), as relocations point to indices
+- Tests: link, conflicts, renamed internals, instantiate and run `gcd`, non-module
+  operand stays
 
 ### `deps-cli` Many files: `--unit=each|merge|apply`, `-e` glue
 

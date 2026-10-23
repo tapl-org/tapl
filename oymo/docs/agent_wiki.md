@@ -191,6 +191,12 @@ The user's orders, kept as given. Follow them in every task.
     of answer N.
   - Questions (user's order): ask each question inside the bullet it is about, not
     collected in a list at the end of the answer.
+  - No exceptions (user's correction): every answer, including one that reports file
+    edits, has its "Answer N" number, numbered bullets and lettered sub-bullets; each
+    question sits in a bullet or sub-bullet.
+  - Every bullet at every depth has a label, so the user can refer to it; labels
+    alternate by depth: `1.`, then `a.`, then `1.`, then `a.`, and so on; never an
+    unlabeled `-` bullet inside an answer (user's order).
   - Order of work (user, D18): semantics.tex first, then the Lean 4 proof; all code
     implementations come after the Lean 4 proof. Don't propose code changes before that.
   - Review marks (user's order): every change is colored until the user accepts it:
@@ -716,8 +722,25 @@ Supersedes `{meta, code}` above (user: "i am redesigning module shape").
 - Internal name clashes when linking: how linkers do it: ELF local symbols are referenced
   by relocations to a symbol-table index, never matched across objects; LLVM references
   are object pointers, so `llvm-link` renames `@helper` to `@helper.1` freely. Ours are by
-  name; options: error on clash (agent's pick now) or a view of `m` per module (later);
-  `--unit=each` never clashes. Not yet decided.
+  name; options: error on clash or a view of `m` per module; `--unit=each` never clashes.
+- Decided (Answer 59): module ops take module values, read data fields and labels, copy
+  each closed `body` unchanged (never inspect). Internal clashes on link: rename one
+  entry and give its module's bodies a view of `m` (`{helper = m."helper.1", …}`). Why:
+  WebAssembly has no internal names (code uses indices; names only in imports, exports
+  and the debug `name` section); instances never merge (= our `--unit=each`); `wasm-ld`
+  uses local symbols and relocations like ELF; `wasm-merge` renumbers indices. The view
+  is renumbering by indirection. Rejected: references by position (`m [03]`), unreadable
+  and still needs the view on merge; error on clash.
+- Superseded (Answers 61–62): module ops take and return **closed normal forms** (user's
+  idea), not black boxes. Why it is confluent: arguments are normal when the op fires, so
+  nothing competes; normal forms are unique; the result has no redex; it is today's
+  E-Opcode-on-data pattern with data grown to closed normal forms. Gains: ops may compare
+  bodies (Klop's non-left-linear counterexample needs non-normal terms), look inside, and
+  rename by rewriting `m.helper` to `m."helper.1"` (the view of `m` becomes optional).
+  Costs: "normal" must be a syntactic grammar in the doc and Lean (a step defined by the
+  absence of steps is a negative premise Lean rejects); a body with no normal form blocks
+  linking. Black-box analysis kept for reference: return/drop/copy/wrap are fine
+  (left-linear, Klop orthogonality); comparing or inspecting non-normal bodies is not.
 
 ### Retired notes.md (before the refactor)
 
