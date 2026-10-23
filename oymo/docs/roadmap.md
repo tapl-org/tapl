@@ -15,8 +15,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
-      - 🚫 `module-shape` Modules `{meta, code}` in SSA-shaped ANF
-      - `struct-tools` Opcodes return data; `'module.link'` on `meta`
+      - `module-shape` Modules `{symbols, target, …}`; bodies in SSA-shaped ANF
+      - 🚫 `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
       - 🚫 `deps-cli` Many files: `--unit=each|merge|apply`, `-e` glue
       - 🚫 `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
       - 🚫 `typed-consts` Folding keeps constants' types
@@ -141,51 +141,49 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ## Leaf details
 
-### `module-shape` Modules `{meta, code}` in SSA-shaped ANF
+### `module-shape` Modules `{symbols, target, …}`; bodies in SSA-shaped ANF
 
 - semantics.tex Sections 7–9, then Lean (`Anf.lean`), then code (`module.py`, `anf.py`,
   `llvm_translate.py`); goldens and `strategy_test.py` rewritten; old shape removed
 
   ```
   {
-    meta = {
-      globals = {
-        puts = {type = {'function', {s = 'ptr'}, 'i32'}, import = 'puts'},
-        gcd  = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'}, export = 'gcd'},
-        counter = {type = 'i32', init = [00000000]},
-      },
-      target = {triple = 'x86_64-unknown-linux-gnu'},
+    symbols = {
+      puts    = {type = {'function', {s = 'ptr'}, 'i32'}, import = 'puts'},
+      gcd     = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'}, export = 'gcd',
+                 body = λm. λrun. λp. run (λg. {
+                   entry = g.loop p.a p.b,
+                   loop  = λa. λb.
+                     let z = 'icmp' {'eq', 'i32', b, [00000000]} in
+                     run (λh. {
+                       if z then g.done a else h.step,
+                       step = let r = 'urem' {'i32', a, b} in g.loop b r,
+                     }),
+                   done  = λr. r,
+                 })},
+      counter = {type = 'i32', init = [00000000]},
+      msg     = {type = {'array', [03], 'i8'}, value = [686900]},
     },
-    code = λm. λrun. {
-      gcd = λp. run (λg. {
-        entry = g.loop p.a p.b,
-        loop  = λa. λb.
-          let z = 'icmp' {'eq', 'i32', b, [00000000]} in
-          run (λh. {
-            if z then g.done a else h.step,
-            step = let r = 'urem' {'i32', a, b} in g.loop b r,
-          }),
-        done  = λr. r,
-      }),
-    },
+    target = {triple = 'x86_64-unknown-linux-gnu'},
   }
   ```
 
+- A module is a struct value: `symbols`, plus meta fields beside it (`target`; later
+  debug tables, hints, LLVM metadata)
+- A frontend lowers each source item to one closed `symbols` entry
+- Entry kind from its fields: `body` definition, `init` global, `value` constant, only
+  `type` declaration; `{'function', params, result}` or a type
+- Roles: `import = 'name'`, `export = 'name'`, or neither (internal). LLVM: import →
+  `declare` / `external global`; export → external linkage under its name; other →
+  `internal`
+- In a `'ptr'` slot of `init`/`value`: a byte array names a symbol (`''` null);
+  `{'arr', [08]}` is symbol plus byte offset
+- `body = λm. λrun. λp. e`, closed; `m` and `run` free markers in `e` when compiling
 - R1, one-to-one: every LLVM/Cranelift block, label, instruction is in the source; the
   translator adds none; groups flattened in source order
-- R2, runnable by reduction: `run := λG. (fix G) [00]`, `M := fix (λm. code m run)`;
-  `M.f {…}` on data reduces to the result
-- `meta`, data: `globals` (name → `{type, …}`), `target`, later hints, debug tables, LLVM
-  metadata
-- `globals` entry: `{'function', params, result}` or a type; `import = 'name'`,
-  `export = 'name'`, or neither (internal); `init` (global) or `value` (constant); in a
-  `'ptr'` slot of `init`/`value` a byte array names a symbol (`''` null),
-  `{'arr', [08]}` symbol plus offset
-- LLVM: import → `declare` / `external global`; export → external linkage under its name;
-  other → `internal`
-- `code = λm. λrun. {…}`: a tree; a `λ` leaf `λp. e` defines the symbol of its label; a
-  struct field is a group of definitions, labeled or not
-- Form:
+- R2, runnable by reduction: with `run := λG. (fix G) [00]` and every body given the same
+  `M`, `M.f {…}` on data reduces to the result
+- Form of `e`:
 
   ```
   e ::= q | let x = v in e | if q then j else j | {j, …, j} q | j
@@ -196,8 +194,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   q ::= x | x.l… | m.l | b' | {l = q, …}
   ```
 
-- Top group: field 0 labeled, the entry block; nested group: field 0 unlabeled, continues
-  the current block; nested groups give dominance
+- Top group: field 0 labeled, the entry block; nested group: field 0 unlabeled,
+  continues the current block; nested groups give dominance
 - Arms only jump; return only at a block's end; `if` condition an `i1`; `switch` on
   positions, default last
 - No nested operands, no nested `let`, no `if` as a value
@@ -205,19 +203,25 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   typed argument or a typed use"; single-entry `phi`s kept
 - Check the design against later fields: linkage, `constant`, `unnamed_addr`, calling
   conventions, attributes, varargs, section, alignment, `thread_local`, aliases, comdat
-- Decide: name of `meta.globals` (`globals`, `symbols`, …)
 
-### `struct-tools` Opcodes return data; `'module.link'` on `meta`
+### `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
 
 - semantics.tex E-Opcode: `op(b)(dᵢ) = d'`, any data; Lean: `op`'s result type
-- `'module.link' {meta₁, meta₂, …}` (name until a better one):
+- `'module.…'` ops take module values: they read data fields and labels and copy each
+  closed `body` unchanged
+- `'module.link' {A, B, …}` (name until a better one):
   - imports matched to exports by name, then dropped
-  - internal symbols of different modules renamed on a clash
   - unmatched imports united; equal types merge; different: no step
   - an export name twice: no step
   - `target`s equal
+- `'module.instantiate' {A}` (name until a better one): `fix (λm. {f = A.symbols.f.body m
+  run, …})`, so `M.f {…}` runs by reduction (R2)
 - Compile-time only: a call that doesn't fold is rejected by translation
-- Tests: link, rename, conflicts, non-data operand stays
+- Tests: link, conflicts, instantiate and run `gcd`, non-module operand stays
+- Decide: E-Opcode on values with closed `λ` parts for `'module.…'` ops (copy, never
+  inspect), and the confluence argument in Lean
+- Decide: two internal entries with one name when linking: an error, or renaming through
+  a view of `m` (`{helper = m."helper.1", …}`), as relocations point to indices
 
 ### `deps-cli` Many files: `--unit=each|merge|apply`, `-e` glue
 
@@ -233,8 +237,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   $ oymo run a.oymo -- 5 7                                program arguments
   ```
 
-- `merge`: `{meta = 'module.link' {F₁.meta, …}, code = λm. λrun. {F₁.code m run, …}}`;
-  `oymo merge` prints it
+- `merge`: `'module.link' {F₁, …, Fₙ}`; `oymo merge` prints it
 - `-e` with `--unit=each` or `merge`: error; unknown value: error listing the three
 - `each`: `run` builds every unit with `clang` and links; `emit-llvm`, `normal` need
   `-o DIR` for more than one file; `check` checks every unit
@@ -404,7 +407,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `target` Host triple and data layout in the `.ll`
 
 - A real `Target`: host triple and data layout written in the `.ll`
-- From `meta.target`; the host's when absent
+- From the module's `target` field; the host's when absent
 
 ### `obj-link` `.o` via `clang -c`, link with `cc`
 
@@ -464,7 +467,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `meta-table` Metadata table: `!n = ...` after the code
 
-- The table lives in the module's `meta` (data): numbered nodes, named metadata, module
+- The table lives in a module field beside `symbols` (data): numbered nodes, named metadata, module
   properties
 - Table grammar and printer, one entry per line after the code, LLVM's syntax:
 
@@ -481,7 +484,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Tests: round trip; no table → unchanged
 - Commit: `oymomo: add metadata table`
 - Decide: metadata strings: `'text'`, or LLVM's `"text"`?
-- Decide: the table as oymomo data in `meta`, or LLVM's text syntax as below
+- Decide: the table as oymomo data in a module field, or LLVM's text syntax as below
 
 ### `meta-attach` Attachments `e !dbg !4`
 
@@ -757,7 +760,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Scalars and pointers only; by-value struct at the boundary: error "pass a pointer"
 - Done when: a C `main` calls a Mizar library through a header that reads as
   hand-written
-- Exports as `export = 'name'` on `meta.globals` entries (`module-shape`)
+- Exports as `export = 'name'` on `symbols` entries (`module-shape`)
 
 ### `c-api` C API and Python package
 

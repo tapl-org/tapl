@@ -694,6 +694,31 @@ spread, the `blocks`-as-`letrec` idea, and dropping unused block parameters.
 - Examples accepted by the user (shapes): plain (`calc`), branching (`max`, `clamp`,
   `kind`), dominance (`f` with nested group), loop (`sum`).
 
+### Module redesign: flat closed entries (Answers 54–57)
+
+Supersedes `{meta, code}` above (user: "i am redesigning module shape").
+
+- Module = struct value `{symbols = {…}, target = …, …}`. User's why: when lowering from
+  other languages, each local term lowers on its own into one entry. Meta fields sit
+  beside `symbols` (user: "maybe separate"), so no "meta" entry kind and no clash between
+  symbol names and `target`/`debug`.
+- Entry kinds from fields (accepted): `body` definition, `init` global, `value` constant,
+  only `type` declaration. Roles `import`/`export`/internal as before.
+- `body = λm. λrun. λp. e` (user moved the binders into each body): every entry closed;
+  the module has no outer `λ`. Still not data (bodies hold `λ`), so `'module.…'` ops must
+  accept values and copy closed bodies unchanged (proposed; confluence: reducing inside a
+  closed copied `λ` commutes with the op). Not yet confirmed by the user.
+- R2 needs one `M` for all bodies: `'module.instantiate'` builds
+  `fix (λm. {f = A.symbols.f.body m run, …})` (proposed).
+- Rejected: quote/unquote reflection (user first proposed "term to data, and data to
+  term", then "no quote. i changed my mind"). Risks noted: quote breaks confluence unless
+  it fires only on normal terms (Wand 1998).
+- Internal name clashes when linking: how linkers do it: ELF local symbols are referenced
+  by relocations to a symbol-table index, never matched across objects; LLVM references
+  are object pointers, so `llvm-link` renames `@helper` to `@helper.1` freely. Ours are by
+  name; options: error on clash (agent's pick now) or a view of `m` per module (later);
+  `--unit=each` never clashes. Not yet decided.
+
 ### Retired notes.md (before the refactor)
 
 Moved verbatim from `docs/notes.md`; it describes the language before the refactor (arrow lambdas, forms, `$fix`, BANF). The current map is [3. Project knowledge](#3-project-knowledge). Links in it point to retired files.
