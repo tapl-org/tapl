@@ -21,6 +21,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
       - 🚫 `typed-consts` Folding keeps constants' types
       - 🚫 `deps-goldens` Golden tests: diamond, template pattern, merged declarations
+    - `line-tables` `-g` line tables from spans
   - `alcor-l0` Alcor layer 0
     - `alcor-decide` Alcor decisions
       - `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai, Goose
@@ -49,10 +50,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `l1-two-layer` `<expr:Type>` two-layer expressions
       - 🚫 `l1-basic-types` Integers, `Ptr(T)`, structs, enums, tagged unions, function types
       - 🚫 `l1-generics` System F generics: `List(T)`, `Map(K, V)`
-      - `metadata` LLVM metadata
-        - 🚫 `meta-table` Metadata table: `!n = ...` after the code
-        - 🚫 `meta-attach` Attachments `e !dbg !4`
-        - 🚫 `meta-keep` Reduction and lowering keep attachments
     - `imports` Module interfaces and imports between files
       - 🚫 `l1-interfaces` Module interfaces: each export as `<form:type>`
     - `fn-pointers` Function pointers and callbacks
@@ -64,8 +61,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `oymo-test` `oymo test`
       - 🚫 `folder-split` `oymo/` → `oymo-py/`; new self-contained `oymo/`
     - `debugging` Debugging and editors
-      - 🚫 `meta-emit` `llvm_translate` writes the metadata table and attachments
-      - 🚫 `line-tables` `-g` line tables
       - 🚫 `asan` ASan
       - 🚫 `lsp` `oymo lsp` and a VS Code extension
 - `bootstrap` Bootstrap: oymo in Alcor
@@ -248,7 +243,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - For `check`, `emit-llvm`, `normal`, `run`; not `fmt`
 - Each file parsed and resolved alone, the glue too
 - Every file starts with `language oymomo`; an `-e` glue has no header
-- `Location` carries its file; errors print `b.oymo:3:5: error: …`
+- A span's row carries its file; errors print `b.oymo:3:5: error: …`
 
 ### `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
 
@@ -274,6 +269,22 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Golden: `puts` imported by two files, merged by `'module.link'`
 - Golden: two `'local'` symbols with one name in two files, renamed
 - Test: mutual recursion between blocks of one group
+
+### `line-tables` `-g` line tables from spans
+
+- `-g` on `emit-llvm` and `run` (`run` passes `-g` to `clang`); `oymo build` takes it when it exists
+- One `DICompileUnit` per row holding a function's span:
+  - `DIFile(filename, directory, checksumkind: CSK_MD5, checksum)` from the row
+  - `language: DW_LANG_C11`, `producer: "oymo <version>"`, `emissionKind: LineTablesOnly`
+  - module flags `Dwarf Version` 5, `Debug Info Version` 3
+- One `DISubprogram` per definition: `line:` from the symbol's field span, `scopeLine:`
+  from the `body` lambda's span; empty `DISubroutineType`
+- `!DILocation` (line, byte column) on every `let` and terminator; null span: `line: 0`
+- Code from another row's file under a `DILexicalBlockFile`; no `inlinedAt`
+- Each distinct location built once
+- Tests: golden IR; passes `opt -passes=verify`
+- Breakpoints, line stepping, backtraces in `gdb`/`lldb`
+- Done when: `gdb` breaks on a line of a `.oymo` file and steps by its lines
 
 ### `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai
 
@@ -470,52 +481,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Lowering as decided (one copy per type, or shared)
 - Done when: `List(T)` at two types; `List(i32)` for `List(u8)` is an error
 
-### `meta-table` Metadata table: `!n = ...` after the code
-
-- The table lives in a module field beside `symbols` (data): numbered nodes, named metadata, module
-  properties
-- Table grammar and printer, one entry per line after the code, LLVM's syntax:
-
-  ```
-  !2 = !DIFile(filename: 'main.anv', directory: '/src')     specialized node
-  !3 = distinct !DISubprogram(name: 'main', file: !2, ...)  distinct node
-  !5 = !{i32 2, 'Debug Info Version', i32 3}               generic tuple
-  !llvm.dbg.cu = !{!0}                                      named metadata
-  source_filename = 'main.anv'                              module property
-  ```
-
-- Values: string, integer field, typed integer in a tuple, enum token, `!n`, `null`
-- Indexes unique, not necessarily dense, usable before their line; `distinct` written
-- Tests: round trip; no table → unchanged
-- Commit: `oymomo: add metadata table`
-- Decide: metadata strings: `'text'`, or LLVM's `"text"`?
-- Decide: the table as oymomo data in a module field, or LLVM's text syntax as below
-
-### `meta-attach` Attachments `e !dbg !4`
-
-- New term `terms.Attached(term, attachments)`: tuple of `(kind, index)`
-- Postfix, repeatable syntax `e !dbg !4 !origin !1`; printer
-- Precedence level between apply and `->`/`if`/`let`:
-  `f a b !dbg !4` is `(f a b) !dbg !4`; `x -> f x !dbg !4` is `x -> ((f x) !dbg !4)`
-- Tokens: `!` + digits is a reference; `!` + name is a kind
-- Tests: precedence examples; unknown index is an error with location
-- Commit: `oymomo: add attachments`
-- Decide: attachments without a new kernel term (user: no new kernel syntax)
-
-### `meta-keep` Reduction and lowering keep attachments
-
-- An attachment sticks to its term's result:
-  - not a blocker: `(f !dbg !4) x` reduces as `f x`
-  - a redex keeps it on its result; a folded opcode keeps its call's
-  - inside a folded operand it goes
-  - substitution copies it
-  - on a literal in tail position it stays
-- Lowering puts attachments on the declaration, the let value, the terminator; drops
-  them elsewhere
-- Tests: survives beta and substitution; folded opcode keeps its call's; returned
-  literal keeps its own; stripping attachments gives the same code
-- Commit: `oymomo: keep attachments`
-
 ### `l1-interfaces` Module interfaces: each export as `<form:type>`
 
 - Each export as `<form:type>` (form: what oymomo needs to call; layer-1 type)
@@ -557,22 +522,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Nothing in `oymo/` refers to a path outside it; `oymo-py/` reads `oymo/` only
 - CI builds and tests a copy of `oymo/` alone
 - New tests are goldens or `oymo test` files
-
-### `meta-emit` `llvm_translate` writes the metadata table and attachments
-
-- Write nodes, named entries, module properties and attachments as they are
-- Check only that every reference has a line
-- Tests: golden IR; passes `llvm-as` and `opt -passes=verify`
-- Commit: `oymomo: emit metadata`
-- Decide: check node well-formedness before LLVM, or rely on LLVM's verifier?
-
-### `line-tables` `-g` line tables
-
-- Helpers that build common nodes, reusing equal ones: compile unit with module flags,
-  file, subprogram, location
-- `-g`: `DICompileUnit`, `DISubprogram`, `!DILocation` from layer-0 locations
-- Breakpoints, line stepping, Alcor backtraces in `gdb`/`lldb`
-- Done when: breakpoint on an Alcor line
 
 ### `asan` ASan
 

@@ -41,10 +41,10 @@ type OpcodeImpl = Callable[[ir.IRBuilder, Sequence[syntax.Term], Operand], ir.Va
 
 
 class LlvmTranslationError(Exception):
-    def __init__(self, message: str, location: syntax.Location | None = None) -> None:
+    def __init__(self, message: str, span: int = 0) -> None:
         super().__init__(message)
         self.message = message
-        self.location = location
+        self.span = span
 
 
 @dataclass
@@ -71,7 +71,7 @@ def llvm_type(term: syntax.Term) -> ir.Type:
         return ir.PointerType()
     if isinstance(term, terms.Struct):
         return ir.LiteralStructType([llvm_type(f.value) for f in term.fields])
-    raise LlvmTranslationError(f'{show_type(term)} is not an LLVM type.', getattr(term, 'location', None))
+    raise LlvmTranslationError(f'{show_type(term)} is not an LLVM type.', getattr(term, 'span', 0))
 
 
 def _tagged_type(term, tag, parts):
@@ -80,7 +80,7 @@ def _tagged_type(term, tag, parts):
         return ir.LiteralStructType([llvm_type(f.value) for f in parts], packed=True)
     count = opcodes.tag_count(parts[0].value) if len(parts) == opcodes.SEQUENCE_PARTS else None
     if count is None:
-        raise LlvmTranslationError(f'{show_type(term)} is not an LLVM type.', getattr(term, 'location', None))
+        raise LlvmTranslationError(f'{show_type(term)} is not an LLVM type.', getattr(term, 'span', 0))
     element = llvm_type(parts[1].value)
     return ir.ArrayType(element, count) if tag == 'array' else ir.VectorType(element, count)
 
@@ -88,22 +88,22 @@ def _tagged_type(term, tag, parts):
 def constant(type_term: syntax.Term, value: syntax.Term) -> ir.Constant:
     """`value`, data, as an LLVM constant of the type `type_term` names: a byte array of an
     integer type's size, or a struct (or array) of constants."""
-    location = getattr(value, 'location', None)
+    span = getattr(value, 'span', 0)
     typ = llvm_type(type_term)
     if isinstance(typ, ir.IntType):
         size = (typ.width + 7) // 8
         if not isinstance(value, terms.ByteArray) or len(value.value) != size:
-            raise LlvmTranslationError(f'A constant of type {typ} is a byte array of {size} bytes.', location)
+            raise LlvmTranslationError(f'A constant of type {typ} is a byte array of {size} bytes.', span)
         # Byte arrays are little-endian on every target. LLVM stores the integer in the
         # data layout's byte order, so a big-endian target needs no swap here.
         number = int.from_bytes(value.value, 'little')
         if number >= 1 << typ.width:
-            raise LlvmTranslationError(f'The constant does not fit in {typ}.', location)
+            raise LlvmTranslationError(f'The constant does not fit in {typ}.', span)
         return ir.Constant(typ, number)
     parts = _type_parts(type_term)
     if parts is not None and isinstance(value, terms.Struct) and len(value.fields) == len(parts):
         return ir.Constant(typ, [constant(part, f.value) for part, f in zip(parts, value.fields, strict=True)])
-    raise LlvmTranslationError(f'No constant of type {typ} is written {printer.show(value)}.', location)
+    raise LlvmTranslationError(f'No constant of type {typ} is written {printer.show(value)}.', span)
 
 
 def _type_parts(type_term):
@@ -119,14 +119,14 @@ def _type_parts(type_term):
     return None
 
 
-def _field_type(type_term, label, location):
+def _field_type(type_term, label, span):
     """`(position, type term)` of the field labeled `label` in a struct type."""
     if isinstance(type_term, terms.Struct) and opcodes.tagged_type(type_term) is None:
         position = reduction.field_position(type_term, label)
         if position is not None:
             return position, type_term.fields[position].value
     shown = 'an unknown type' if type_term is None else show_type(type_term)
-    raise LlvmTranslationError(f'.{label} reads a field of {shown}, which has no field {label!r}.', location)
+    raise LlvmTranslationError(f'.{label} reads a field of {shown}, which has no field {label!r}.', span)
 
 
 @dataclass
@@ -274,17 +274,17 @@ class _Function:
             if expected is None:
                 raise LlvmTranslationError(
                     f'The byte array {printer.show(term)} needs a type here; {what} does not give one.',
-                    term.location,
+                    term.span,
                 )
             return _Value(constant(expected, term), expected)
         value = self._path_value(block, lets, term)
         if expected is not None and value.value is not None and value.value.type != llvm_type(expected):
             raise LlvmTranslationError(
                 f'This value has LLVM type {value.value.type}, but {what} needs {llvm_type(expected)}.',
-                getattr(term, 'location', None),
+                getattr(term, 'span', 0),
             )
         if value.value is None:
-            raise LlvmTranslationError("A store's result has no value.", getattr(term, 'location', None))
+            raise LlvmTranslationError("A store's result has no value.", getattr(term, 'span', 0))
         return value
 
     def _struct(self, block, lets, term, expected, what):
@@ -292,7 +292,7 @@ class _Function:
         `undef`, one per field, in the struct type its use needs."""
         if expected is None:
             raise LlvmTranslationError(
-                f'The struct {printer.show(term)} needs a type here; {what} does not give one.', term.location
+                f'The struct {printer.show(term)} needs a type here; {what} does not give one.', term.span
             )
         if reduction.is_data(term):
             return _Value(constant(expected, term), expected)
@@ -300,7 +300,7 @@ class _Function:
         if parts is None or len(parts) != len(term.fields):
             raise LlvmTranslationError(
                 f'{what} needs {llvm_type(expected)}, which is not a struct of {len(term.fields)} fields.',
-                term.location,
+                term.span,
             )
         value = ir.Constant(llvm_type(expected), ir.Undefined)
         for i, (part, f) in enumerate(zip(parts, term.fields, strict=True)):
@@ -321,7 +321,7 @@ class _Function:
             first, projections = projections[0], projections[1:]
             builder_value = _Value(self.translator.globals[first.label], self.translator.address_type)
         for projection in projections:
-            position, field_type = _field_type(builder_value.type, projection.label, projection.location)
+            position, field_type = _field_type(builder_value.type, projection.label, projection.span)
             value = self._builder.extract_value(builder_value.value, position)
             builder_value = _Value(value, field_type)
         return builder_value
@@ -337,7 +337,7 @@ class _Function:
     def _opcode(self, builder, block, lets, term):
         name = term.function.as_str
         if name not in self.translator.target.opcodes:
-            raise LlvmTranslationError(f'The target has no opcode {printer.show(term.function)}.', term.location)
+            raise LlvmTranslationError(f'The target has no opcode {printer.show(term.function)}.', term.span)
         fields = [f.value for f in term.argument.fields]
 
         def operand(field, expected):
@@ -346,7 +346,7 @@ class _Function:
         try:
             value = self.translator.target.opcodes[name](builder, fields, operand)
         except LlvmTranslationError as error:
-            error.location = error.location or term.location
+            error.span = error.span or term.span
             raise
         opcode = opcodes.OPCODES.get(name)
         result_type = opcode.result_type(fields) if opcode is not None else None
@@ -388,7 +388,7 @@ class _Function:
             if llvm_type(result.type) != llvm_type(gives):
                 raise LlvmTranslationError(
                     f'The call gives {llvm_type(result.type)}, but {self.definition.name!r} gives {llvm_type(gives)}.',
-                    term.location,
+                    term.span,
                 )
             builder.ret(result.value)
 
@@ -404,7 +404,7 @@ class _Function:
         condition = self.atom(block, lets, term.argument, None, 'a branch condition').value
         if not isinstance(condition.type, ir.IntType):
             raise LlvmTranslationError(
-                f'A branch condition must be an integer, got {condition.type}.', term.argument.location
+                f'A branch condition must be an integer, got {condition.type}.', term.argument.span
             )
         targets = [_jump_target(arm) for arm in arms if self._is_jump(arm, len(lets))]
         llvm_arms = []
@@ -432,7 +432,7 @@ class _Function:
             if len(llvm_arms) > holds:
                 raise LlvmTranslationError(
                     f'A branch on {condition.type} has {len(llvm_arms)} arms; it holds {holds}.',
-                    term.location,
+                    term.span,
                 )
             *cases, default = llvm_arms
             switch = builder.switch(condition, default)
@@ -455,7 +455,7 @@ class _Translator:
             try:
                 self._symbol(llvm_module, symbol)
             except LlvmTranslationError as error:
-                error.location = error.location or symbol.location
+                error.span = error.span or symbol.span
                 raise
         for symbol in self.module.symbols:
             if isinstance(symbol, modules.Definition):

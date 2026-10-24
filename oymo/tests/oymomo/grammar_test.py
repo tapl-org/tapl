@@ -2,7 +2,7 @@
 
 import pytest
 
-from oymo.core import syntax
+from oymo.core import spans, syntax
 from oymo.oymomo import terms
 from oymo.oymomo.grammar import RESERVED, parse
 from oymo.oymomo.printer import show
@@ -13,13 +13,13 @@ x, y, a, b, f = (terms.Variable(n) for n in 'xyabf')
 def test_variable():
     term = parse('x')
     assert term == x
-    assert term.location == syntax.Location(0, 1)
+    assert term.span == spans.make(0, 1)
 
 
 def test_bruijn_index():
     term = parse('$12')
     assert term == terms.BruijnIndex(index=12)
-    assert term.location == syntax.Location(0, 3)
+    assert term.span == spans.make(0, 3)
     assert show(parse('λx. f $1 $0.a')) == 'λx. f $1 $0.a'
     assert show(parse('$ 0')) == 'error'
     assert show(parse('$')) == 'error'
@@ -86,7 +86,7 @@ def test_duplicate_labels_are_rejected():
     term = parse('{x = a, y = b, x = c}')
     assert isinstance(term, syntax.ErrorTerm)
     assert term.message == "Duplicate label 'x'."
-    assert term.location == syntax.Location(15, 20)
+    assert term.span == spans.make(15, 5)
     assert isinstance(parse('λp. {a = {l = p, l = p}}'), syntax.ErrorTerm)
     # Empty labels never clash (2.5b).
     assert show(parse('{a, b, c}')) == '{a, b, c}'
@@ -162,7 +162,7 @@ def test_byte_array_multiline():
 def test_text_byte_array():
     term = parse("'Hi there'")
     assert term == terms.ByteArray(value=b'Hi there')
-    assert term.location == syntax.Location(0, 10)
+    assert term.span == spans.make(0, 10)
     assert parse("''") == terms.ByteArray(b'')
     assert parse("f 'a' 'b'") == parse("(f 'a') 'b'")
 
@@ -198,7 +198,7 @@ def test_unlabeled_fields():
     assert fields("{'1', b = '2'}") == [('', one), ('b', two)]
     assert fields("{'1',}") == [('', one)]
     assert fields('{let y = a in y}')[0][0] == ''
-    assert parse('{a}').fields[0].location == syntax.Location(1, 2)
+    assert parse('{a}').fields[0].span == spans.make(1, 1)
 
 
 def test_a_written_label_is_never_empty():
@@ -277,9 +277,9 @@ def test_comments_and_whitespace():
 
 def test_locations_skip_leading_trivia():
     term = parse('  // c\n  f a')
-    assert term.location == syntax.Location(9, 12)
-    assert term.function.location == syntax.Location(9, 10)
-    assert term.argument.location == syntax.Location(11, 12)
+    assert term.span == spans.make(9, 3)
+    assert term.function.span == spans.make(9, 1)
+    assert term.argument.span == spans.make(11, 1)
 
 
 def test_gcd_module_parses():

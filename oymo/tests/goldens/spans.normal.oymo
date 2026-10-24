@@ -1,0 +1,21 @@
+language oymomo
+λm. {
+  main= {
+    gives= 'i32',
+    body= λf. {
+      entry= {
+        takes= {n= 'i32'},
+        body= λp.
+          let x = 'mul' {'i32', p.n, [02000000]} in
+          let y = 'add' {'i32', x, [01000000]} in y,
+      },
+    },
+  },
+}
+---
+info 1
+code 08b6f2709df49c2c014af23281fc8749
+start length file language hash lines
+1 83 'alcor/helpers.oymo' alcor 03195456326aa6783bfec8d01bf860e5 {0, f, 10, 38, 39, 52, 63, 75, 81, 83}
+spans
+.2 3a0049 .4 510032 .d 780009 300005 .5 6e0006 .2 5d0005 .9

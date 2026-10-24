@@ -12,14 +12,14 @@ from dataclasses import dataclass, field
 from oymo.core import syntax
 
 Term = syntax.Term
-Location = syntax.Location
 
 
-# Every `location` is left out of `==`, so a parsed term equals the same term built in code.
+# Every `span` (`oymo.core.spans`: where the term comes from; 0 for none) is left out of
+# `==`, so a parsed term equals the same term built in code.
 @dataclass
 class Variable(Term):
     name: str
-    location: Location | None = field(default=None, compare=False)
+    span: int = field(default=0, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield from ()
@@ -28,7 +28,7 @@ class Variable(Term):
 @dataclass
 class BruijnIndex(Term):
     index: int
-    location: Location | None = field(default=None, compare=False)
+    span: int = field(default=0, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield from ()
@@ -40,7 +40,7 @@ class Lambda(Term):
 
     param_name: str
     body: Term
-    location: Location | None = field(default=None, compare=False)
+    span: int = field(default=0, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield self.body
@@ -50,7 +50,7 @@ class Lambda(Term):
 class Apply(Term):
     function: Term
     argument: Term
-    location: Location | None = field(default=None, compare=False)
+    span: int = field(default=0, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield self.function
@@ -63,13 +63,13 @@ class Field:
 
     label: str
     value: Term
-    location: Location | None = field(default=None, compare=False)
+    span: int = field(default=0, compare=False)
 
 
 @dataclass
 class Struct(Term):
     fields: list[Field]
-    location: Location | None = field(default=None, compare=False)
+    span: int = field(default=0, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield from (f.value for f in self.fields)
@@ -79,7 +79,7 @@ class Struct(Term):
 class Project(Term):
     struct: Term
     label: str
-    location: Location | None = field(default=None, compare=False)
+    span: int = field(default=0, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield self.struct
@@ -91,7 +91,7 @@ class Fix(Term):
     is projected (E-FixProj) or applied (E-FixApp)."""
 
     body: Term
-    location: Location | None = field(default=None, compare=False)
+    span: int = field(default=0, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield self.body
@@ -101,7 +101,7 @@ class Fix(Term):
 @dataclass
 class ByteArray(Term):
     value: bytes
-    location: Location | None = field(default=None, compare=False)
+    span: int = field(default=0, compare=False)
 
     @classmethod
     def from_str(cls, text: str) -> 'ByteArray':

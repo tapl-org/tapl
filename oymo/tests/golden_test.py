@@ -11,7 +11,8 @@ import pytest
 from approvaltests.approvals import verify
 from approvaltests.core.namer import Namer
 
-from oymo.oymomo import grammar, llvm_opcodes, llvm_translate, module, printer, reduction, strategy
+from oymo.core import spans
+from oymo.oymomo import llvm_opcodes, llvm_translate, module, reduction, source, strategy
 
 
 def run_command(command):
@@ -67,44 +68,42 @@ def run_python_files(base_directory: str, filenames: list[str], output_file: str
 
 
 TARGET = llvm_translate.Target(triple='x86_64-unknown-linux-gnu', data_layout='', opcodes=llvm_opcodes.DEFAULT_OPCODES)
-LANGUAGE_HEADER = 'language oymomo\n'
 
 
-def parse(source: str):
-    assert source.startswith(LANGUAGE_HEADER)
-    return grammar.parse(source.removeprefix(LANGUAGE_HEADER))
+def parse(text: str, table: spans.SpanTable):
+    loaded = source.read(text, 'golden.oymo', table)
+    assert not loaded.warnings
+    return loaded.term
 
 
-def show(term) -> str:
-    return LANGUAGE_HEADER + printer.show(term, pretty=True, name_indices=True) + '\n'
-
-
-def compile_oymo(source: str) -> tuple[str, str]:
-    """The normal form (semantics.tex, Section 6), pretty-printed, and the LLVM IR text."""
-    normal = strategy.normalize(reduction.resolve(parse(source)))
-    ir_text = str(llvm_translate.translate(module.module_of(parse(source)), TARGET))
+def compile_oymo(text: str) -> tuple[str, str]:
+    """The normal form (semantics.tex, Section 6), pretty-printed with its spans, and the LLVM IR text."""
+    table = spans.SpanTable()
+    normal = strategy.normalize(reduction.resolve(parse(text, table)))
+    ir_text = str(llvm_translate.translate(module.module_of(parse(text, table)), TARGET))
     llvm.parse_assembly(ir_text).verify()
-    return show(normal), ir_text
+    return source.write(normal, table), ir_text
 
 
 def run_golden_test(test_name: str) -> None:
     base_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'goldens')
     source_path = pathlib.Path(os.path.join(base_directory, f'{test_name}.oymo'))
-    source = source_path.read_text()
-    pretty_text = show(parse(source))
-    if source != pretty_text:
+    text = source_path.read_text()
+    table = spans.SpanTable()
+    pretty_text = source.write(parse(text, table), table)
+    if text != pretty_text:
         # The source is kept pretty-printed: replace it by its pretty form, which must give the same LLVM IR.
-        assert compile_oymo(pretty_text)[1] == compile_oymo(source)[1]
+        assert compile_oymo(pretty_text)[1] == compile_oymo(text)[1]
         source_path.write_text(pretty_text)
-        source = pretty_text
-    normal_text, ir_text = compile_oymo(source)
+        text = pretty_text
+    normal_text, ir_text = compile_oymo(text)
     verify(normal_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.normal.oymo')))
     # The normal form is itself a program, already normal, that gives the same LLVM IR.
     assert compile_oymo(normal_text) == (normal_text, ir_text)
     verify(ir_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.ll')))
 
 
-GOLDENS = ['simplest', 'effects', 'pointer', 'memory', 'aggregate', 'globals', 'fact', 'gcd', 'helpers']
+GOLDENS = ['simplest', 'effects', 'pointer', 'memory', 'aggregate', 'globals', 'fact', 'gcd', 'helpers', 'spans']
 
 
 @pytest.mark.parametrize('name', GOLDENS)

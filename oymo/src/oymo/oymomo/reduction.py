@@ -14,10 +14,10 @@ from oymo.oymomo import opcodes, terms
 
 
 class ReductionError(Exception):
-    def __init__(self, message: str, location: syntax.Location | None) -> None:
+    def __init__(self, message: str, span: int) -> None:
         super().__init__(message)
         self.message = message
-        self.location = location
+        self.span = span
 
 
 def resolve(term: syntax.Term) -> syntax.Term:
@@ -27,11 +27,11 @@ def resolve(term: syntax.Term) -> syntax.Term:
 
 def _resolve(term, names):
     match term:
-        case terms.Variable(name=name, location=location):
+        case terms.Variable(name=name, span=span):
             for distance, bound in enumerate(reversed(names)):
                 if bound == name:
-                    return terms.BruijnIndex(distance, location)
-            raise ReductionError(f'Unknown name {name!r}.', location)
+                    return terms.BruijnIndex(distance, span)
+            raise ReductionError(f'Unknown name {name!r}.', span)
         case terms.Lambda(param_name=name, body=body):
             names.append(name)
             try:
@@ -164,7 +164,7 @@ def fold_opcode(call: terms.Apply) -> syntax.Term:
     fields = [field.value for field in argument.fields]
     if (result := opcode.evaluate(fields)) is None:
         return call
-    return terms.ByteArray(result.value, call.location)
+    return terms.ByteArray(result.value, call.span)
 
 
 def project(struct: syntax.Term, label: str) -> syntax.Term | None:

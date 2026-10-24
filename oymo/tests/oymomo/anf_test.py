@@ -4,6 +4,7 @@
 
 import pytest
 
+from oymo.core import spans
 from oymo.oymomo import anf, reduction, strategy
 from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show
@@ -128,7 +129,7 @@ def test_anf_error_has_the_part_location():
     source = "λm. λf. λp. 'add' {'i32', 'mul' {'i32', p.a, p.a}, p.b}"
     term = reduction.resolve(parse(source)).body.body.body
     found = anf.anf_error(term, local=1)
-    assert found.location.start == source.index("'mul'")
+    assert spans.start(found.span) == source.index("'mul'")
 
 
 def test_a_term_on_its_own_has_no_let_variables():

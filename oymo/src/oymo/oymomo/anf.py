@@ -34,8 +34,8 @@ class AnfError:
     term: syntax.Term
 
     @property
-    def location(self) -> syntax.Location | None:
-        return getattr(self.term, 'location', None)
+    def span(self) -> int:
+        return getattr(self.term, 'span', 0)
 
 
 def anf_error(term: syntax.Term, local: int = 0) -> AnfError | None:

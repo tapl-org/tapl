@@ -12,11 +12,15 @@ A lambda is written `λx. t` or, in ASCII, `\\x. t`; it extends as far right as 
 (2.2), so as an operand it needs parentheses. `fix t` parses as an application does
 (2.3): `fix g.l a` is `(fix (g.l)) a`. A struct's labels are unique, except the empty
 label of an unlabeled field (2.5b).
+
+`parse` gives each term and field a span (`oymo.core.spans`) of its characters in `text`:
+start and length count characters from 0. `source.read` turns them into spans of the
+file's row, in UTF-8 bytes.
 """
 
 import unicodedata
 
-from oymo.core import syntax
+from oymo.core import spans, syntax
 from oymo.core.peg import MISMATCH, Clause, First, Memoized, Parser, Ref, Separated, Seq, ZeroOrMore, drop
 from oymo.core.terminals import Comment, Eof, Fixed, HexBytes, Identifier, Integer, String, Whitespace
 from oymo.oymomo import rule_names as rn
@@ -28,7 +32,7 @@ TRIVIA = Memoized(ZeroOrMore(First(Whitespace(' \t\r\n'), Comment('//'))))
 
 
 def _skip_trivia(text, pos):
-    """Mirrors TRIVIA, so a Location starts at the first token rather than at leading trivia."""
+    """Mirrors TRIVIA, so a span starts at the first token rather than at leading trivia."""
     while pos < len(text):
         if text[pos] in ' \t\r\n':
             pos += 1
@@ -40,12 +44,13 @@ def _skip_trivia(text, pos):
     return pos
 
 
-def _location(ctx):
-    return syntax.Location(start=_skip_trivia(ctx.text, ctx.pos), end=ctx.end)
+def _span(ctx):
+    start = _skip_trivia(ctx.text, ctx.pos)
+    return spans.make(start, ctx.end - start)
 
 
-def _token_location(ctx):
-    return syntax.Location(start=ctx.token_pos, end=ctx.end)
+def _token_span(ctx):
+    return spans.make(ctx.token_pos, ctx.end - ctx.token_pos)
 
 
 def _punct(*literals, word_chars=None):
@@ -90,7 +95,7 @@ class _QuotedName(String):
         super().__init__(
             quote='"',
             skip=skip,
-            action=lambda c: (name, _token_location(c)) if (name := _decode_quoted_name(c.body)) else None,
+            action=lambda c: (name, _token_span(c)) if (name := _decode_quoted_name(c.body)) else None,
         )
 
     def match(self, parser, pos):
@@ -120,10 +125,10 @@ class _TextBytes(String):
         return MISMATCH if m.value is None else m
 
 
-# (name, Location) for a plain or a double-quoted identifier.
+# (name, span) for a plain or a double-quoted identifier.
 NAME = Memoized(
     First(
-        Identifier(reserved=RESERVED, skip=TRIVIA, action=lambda c: (c.token_text, _token_location(c))),
+        Identifier(reserved=RESERVED, skip=TRIVIA, action=lambda c: (c.token_text, _token_span(c))),
         _QuotedName(skip=TRIVIA),
     )
 )
@@ -131,35 +136,33 @@ NAME = Memoized(
 
 def _lambda(c):
     (name, _), body = c.values
-    return terms.Lambda(param_name=name, body=body, location=_location(c))
+    return terms.Lambda(param_name=name, body=body, span=_span(c))
 
 
 def _if(c):
     """`if c then t else e` is `{e, t} c`: `[00]` picks field 0, the else arm."""
     condition, then_clause, else_clause = c.values
-    location = _location(c)
-    fields = [
-        terms.Field(label='', value=arm, location=getattr(arm, 'location', None)) for arm in (else_clause, then_clause)
-    ]
-    return terms.Apply(function=terms.Struct(fields=fields, location=location), argument=condition, location=location)
+    span = _span(c)
+    fields = [terms.Field(label='', value=arm, span=getattr(arm, 'span', 0)) for arm in (else_clause, then_clause)]
+    return terms.Apply(function=terms.Struct(fields=fields, span=span), argument=condition, span=span)
 
 
 def _let(c):
     """`let x = e in body` is `(λx. body) e`."""
     (name, _), value, body = c.values
-    location = _location(c)
-    function = terms.Lambda(param_name=name, body=body, location=location)
-    return terms.Apply(function=function, argument=value, location=location)
+    span = _span(c)
+    function = terms.Lambda(param_name=name, body=body, span=span)
+    return terms.Apply(function=function, argument=value, span=span)
 
 
 def _field(c):
     (label, _), value = c.values
-    return terms.Field(label=label, value=value, location=_location(c))
+    return terms.Field(label=label, value=value, span=_span(c))
 
 
 def _unlabeled_field(c):
     """A field written without `label =`. Its label is `''`, which no written name can be."""
-    return terms.Field(label='', value=c.values[0], location=_location(c))
+    return terms.Field(label='', value=c.values[0], span=_span(c))
 
 
 RULES: dict[str, Clause] = {
@@ -189,9 +192,9 @@ RULES: dict[str, Clause] = {
         Seq(
             Ref(rn.APPLY),
             Ref(rn.PROJECT),
-            action=lambda c: terms.Apply(function=c.values[0], argument=c.values[1], location=_location(c)),
+            action=lambda c: terms.Apply(function=c.values[0], argument=c.values[1], span=_span(c)),
         ),
-        Seq(_punct('fix'), Ref(rn.PROJECT), action=lambda c: terms.Fix(body=c.values[0], location=_location(c))),
+        Seq(_punct('fix'), Ref(rn.PROJECT), action=lambda c: terms.Fix(body=c.values[0], span=_span(c))),
         Ref(rn.PROJECT),
     ),
     rn.PROJECT: First(
@@ -199,17 +202,17 @@ RULES: dict[str, Clause] = {
             Ref(rn.PROJECT),
             _punct('.'),
             NAME,
-            action=lambda c: terms.Project(struct=c.values[0], label=c.values[1][0], location=_location(c)),
+            action=lambda c: terms.Project(struct=c.values[0], label=c.values[1][0], span=_span(c)),
         ),
         Ref(rn.PRIMARY),
     ),
     rn.PRIMARY: First(Ref(rn.BYTE_ARRAY), Ref(rn.STRUCT), Ref(rn.GROUP), Ref(rn.BRUIJN_INDEX), Ref(rn.VARIABLE)),
-    rn.VARIABLE: Seq(NAME, action=lambda c: terms.Variable(name=c.values[0][0], location=c.values[0][1])),
+    rn.VARIABLE: Seq(NAME, action=lambda c: terms.Variable(name=c.values[0][0], span=c.values[0][1])),
     # `$i`, as the printer writes a BruijnIndex. No trivia between `$` and the digits.
     rn.BRUIJN_INDEX: Seq(
         _punct('$'),
         Integer(bases=(), separator=''),
-        action=lambda c: terms.BruijnIndex(index=c.values[0], location=_location(c)),
+        action=lambda c: terms.BruijnIndex(index=c.values[0], span=_span(c)),
     ),
     # A field is `label = value` or just `value`. The labeled form is tried first, so `{a}`
     # is an unlabeled field holding the variable `a`, and `{a = b}` is the field `a`.
@@ -224,11 +227,11 @@ RULES: dict[str, Clause] = {
             trailing=True,
         ),
         _punct('}'),
-        action=lambda c: terms.Struct(fields=c.values[0], location=_location(c)),
+        action=lambda c: terms.Struct(fields=c.values[0], span=_span(c)),
     ),
     rn.BYTE_ARRAY: Seq(
         First(HexBytes(skip=TRIVIA), _TextBytes(skip=TRIVIA)),
-        action=lambda c: terms.ByteArray(value=c.values[0], location=_location(c)),
+        action=lambda c: terms.ByteArray(value=c.values[0], span=_span(c)),
     ),
     rn.GROUP: Seq(_punct('('), Ref(rn.EXPRESSION), _punct(')'), action=lambda c: c.values[0]),
 }
@@ -252,11 +255,11 @@ def duplicate_label(term: syntax.Term) -> terms.Field | None:
 def parse(text: str) -> syntax.Term:
     result = Parser().parse(text, rn.START, RULES)
     if result is None:
-        return syntax.ErrorTerm(message='Syntax error.', location=syntax.Location(start=0, end=len(text)))
+        return syntax.ErrorTerm(message='Syntax error.', span=spans.make(0, len(text)))
     term = result[1]
     if isinstance(term, syntax.Term):
         if (duplicate := duplicate_label(term)) is not None:
-            location = duplicate.location or syntax.Location(start=0, end=len(text))
-            return syntax.ErrorTerm(message=f'Duplicate label {duplicate.label!r}.', location=location)
+            span = duplicate.span or spans.make(0, len(text))
+            return syntax.ErrorTerm(message=f'Duplicate label {duplicate.label!r}.', span=span)
         return term
     raise RuntimeError(f'Unexpected parse result type: {type(term)}')

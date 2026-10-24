@@ -107,8 +107,8 @@ def normalize(term: syntax.Term, max_steps: int = MAX_STEPS) -> syntax.Term:
         try:
             stepped = sstep(term)
         except RecursionError:
-            raise reduction.ReductionError('Term too deep to reduce.', getattr(term, 'location', None)) from None
+            raise reduction.ReductionError('Term too deep to reduce.', getattr(term, 'span', 0)) from None
         if stepped is None:
             return term
         term = stepped
-    raise reduction.ReductionError(f'No normal form within {max_steps} steps.', getattr(term, 'location', None))
+    raise reduction.ReductionError(f'No normal form within {max_steps} steps.', getattr(term, 'span', 0))

@@ -11,6 +11,10 @@ if TYPE_CHECKING:
 
 
 class Term:
+    # Where the term comes from (`oymo.core.spans`); 0 for no span. Subclasses that keep a
+    # span declare it as a field.
+    span: int = 0
+
     def children(self) -> Generator[Term, None, None]:
         """Yields the child terms of this term for tree traversal or visitor operations."""
         raise NotImplementedError(f'{self.__class__.__name__} must override Term.children() to yield its child terms.')
@@ -135,18 +139,9 @@ MODE_LIFT = Layers(layers=(MODE_EVALUATE, MODE_EVALUATE_WITH_SCOPE))
 
 
 @dataclass
-class Location:
-    start: int | None = None
-    end: int | None = None
-
-    def __repr__(self) -> str:
-        return f'{self.start if self.start else "-"}:{self.end if self.end else "-"}'
-
-
-@dataclass
 class ErrorTerm(Term):
     message: str
-    location: Location
+    span: int  # see `oymo.core.spans`
 
     def children(self) -> Generator[Term, None, None]:
         yield from ()

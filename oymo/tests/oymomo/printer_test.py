@@ -4,6 +4,7 @@ import textwrap
 
 import pytest
 
+from oymo.core import spans
 from oymo.oymomo import reduction, terms
 from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show
@@ -74,7 +75,7 @@ def test_pretty_quotes_names_that_need_it():
     assert pretty('λ"if". "a b"') == 'λ"if". "a b"'
     assert pretty(r'"a\"b\\c"') == r'"a\"b\\c"'
     assert pretty('s."1st"') == 's."1st"'
-    assert show(terms.Variable('a\nb', terms.Location(0, 0)), pretty=True) == r'"a\u{a}b"'
+    assert show(terms.Variable('a\nb', spans.make(0, 0)), pretty=True) == r'"a\u{a}b"'
 
 
 def test_pretty_groups_bytes_by_four():

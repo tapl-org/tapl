@@ -4,6 +4,7 @@
 
 import pytest
 
+from oymo.core import spans
 from oymo.oymomo import module, reduction
 from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show
@@ -199,7 +200,7 @@ def test_error_locations():
     source = wrap('p.z')
     with pytest.raises(module.ModuleError) as info:
         read(source)
-    assert info.value.location.start == source.index('p.z')
+    assert spans.start(info.value.span) == source.index('p.z')
 
 
 def test_no_normal_form():

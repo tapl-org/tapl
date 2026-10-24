@@ -2,6 +2,7 @@
 
 import pytest
 
+from oymo.core import spans
 from oymo.oymomo import reduction, terms
 from oymo.oymomo.grammar import RESERVED, parse
 from oymo.oymomo.printer import show
@@ -38,14 +39,14 @@ def test_resolve_keeps_labels():
 def test_resolve_keeps_location():
     term = reduction.resolve(parse('λx. x'))
     assert term.body == terms.BruijnIndex(0)
-    assert term.body.location == terms.Location(4, 5)
+    assert term.body.span == spans.make(4, 1)
 
 
 def test_resolve_unknown_name():
     with pytest.raises(reduction.ReductionError) as info:
         reduction.resolve(parse('λx. y'))
     assert info.value.message == "Unknown name 'y'."
-    assert info.value.location == terms.Location(4, 5)
+    assert info.value.span == spans.make(4, 1)
 
 
 def test_shift():

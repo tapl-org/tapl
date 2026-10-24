@@ -9,82 +9,84 @@ import subprocess
 import sys
 import tempfile
 
-from oymo.core import syntax
-from oymo.oymomo import grammar, llvm_opcodes, llvm_translate, printer, reduction, strategy
+from oymo.core import spans, syntax
+from oymo.oymomo import llvm_opcodes, llvm_translate, reduction, source, strategy
 from oymo.oymomo import module as modules
-
-LANGUAGE_HEADER = 'language oymomo\n'
 
 # The host is assumed to be x86-64 Linux until the `target` leaf reads the host's triple.
 TARGET = llvm_translate.Target(triple='x86_64-unknown-linux-gnu', data_layout='', opcodes=llvm_opcodes.DEFAULT_OPCODES)
 
 
 class CliError(Exception):
-    """An error to print as `file:line:column: error: message`. `offset` indexes the whole file."""
+    """An error to print as `file:line:column: error: message`, from its span (`oymo.core.spans`)."""
 
-    def __init__(self, message: str, offset: int | None = None) -> None:
+    def __init__(self, message: str, span: int = spans.NO_SPAN) -> None:
         super().__init__(message)
         self.message = message
-        self.offset = offset
+        self.span = span
 
 
-def _parse(source: str) -> syntax.Term:
-    """Checks and strips the `language oymomo` header, then parses."""
-    if not source.startswith(LANGUAGE_HEADER):
-        raise CliError(f'Expected the first line to be {LANGUAGE_HEADER.strip()!r}.', 0)
-    term = grammar.parse(source.removeprefix(LANGUAGE_HEADER))
-    errors = syntax.gather_errors(term)
-    if errors:
-        raise _located(errors[0].message, errors[0].location)
-    return term
+class _Program:
+    """The file named on the command line, and the run's span table."""
+
+    def __init__(self, path: str, text: str, table: spans.SpanTable) -> None:
+        self.path = path
+        self.text = text
+        self.table = table
+
+    def term(self) -> syntax.Term:
+        """The file's term: its header checked, its code parsed, its spans read."""
+        try:
+            loaded = source.read(self.text, self.path, self.table)
+        except source.SourceError as error:
+            raise CliError(error.message, error.span) from error
+        for message, span in loaded.warnings:
+            _print(self.table, self.path, 'warning', message, span)
+        if errors := syntax.gather_errors(loaded.term):
+            raise CliError(errors[0].message, errors[0].span)
+        return loaded.term
 
 
-def _located(message: str, location: syntax.Location | None) -> CliError:
-    """Locations index the source after the header; CLI errors index the whole file."""
-    start = location.start if location is not None else None
-    return CliError(message, None if start is None else start + len(LANGUAGE_HEADER))
-
-
-def _module(source: str) -> modules.Module:
+def _module(program: _Program) -> modules.Module:
     """The program's module: resolved, normalized (semantics.tex, Section 6), not stuck, read
     as Section 8 says."""
     try:
-        return modules.module_of(_parse(source))
+        return modules.module_of(program.term())
     except (reduction.ReductionError, modules.ModuleError) as error:
-        raise _located(error.message, error.location) from error
+        raise CliError(error.message, error.span) from error
 
 
-def _check(source: str) -> None:
-    _emit_llvm(source)
+def _check(program: _Program) -> None:
+    _emit_llvm(program)
 
 
-def _emit_llvm(source: str) -> str:
-    module = _module(source)
+def _emit_llvm(program: _Program) -> str:
+    module = _module(program)
     try:
         return str(llvm_translate.translate(module, TARGET))
     except llvm_translate.LlvmTranslationError as error:
-        raise _located(error.message, error.location) from error
+        raise CliError(error.message, error.span) from error
 
 
-def _normal(source: str) -> str:
+def _normal(program: _Program) -> str:
     """The program's normal form, pretty-printed: a program that gives the same module."""
     try:
-        normal = strategy.normalize(reduction.resolve(_parse(source)))
+        normal = strategy.normalize(reduction.resolve(program.term()))
     except reduction.ReductionError as error:
-        raise _located(error.message, error.location) from error
-    return LANGUAGE_HEADER + printer.show(normal, pretty=True, name_indices=True) + '\n'
+        raise CliError(error.message, error.span) from error
+    return source.write(normal, program.table)
 
 
-def _fmt(source: str) -> str:
-    return LANGUAGE_HEADER + printer.show(_parse(source), pretty=True, name_indices=True) + '\n'
+def _fmt(program: _Program) -> str:
+    return source.write(program.term(), program.table)
 
 
-def _run(source: str) -> int:
+def _run(program: _Program) -> int:
     """Builds the program with `clang`, runs it, prints `main`'s result; returns the exit status."""
     clang = shutil.which('clang')
     if clang is None:
         raise CliError('oymo run needs clang, which is not on PATH; install clang.')
-    ir_text = _emit_llvm(source)
+    ir_text = _emit_llvm(program)
     with tempfile.TemporaryDirectory(prefix='oymo-') as directory:
         ll_path = pathlib.Path(directory, 'program.ll')
         exe_path = pathlib.Path(directory, 'program')
@@ -107,17 +109,13 @@ def _run(source: str) -> int:
     return 0
 
 
-def _line_column(text: str, offset: int) -> tuple[int, int]:
-    line_start = text.rfind('\n', 0, offset) + 1
-    return text.count('\n', 0, offset) + 1, offset - line_start + 1
-
-
-def _report(path: str, source: str | None, error: CliError) -> None:
-    if error.offset is None or source is None:
-        print(f'{path}: error: {error.message}', file=sys.stderr)
+def _print(table: spans.SpanTable, path: str, kind: str, message: str, span: int) -> None:
+    """`file:line:column: kind: message`, the column in bytes; `path: kind: message` with no span."""
+    if (where := table.resolve(span)) is None:
+        print(f'{path}: {kind}: {message}', file=sys.stderr)
         return
-    line, column = _line_column(source, min(error.offset, len(source)))
-    print(f'{path}:{line}:{column}: error: {error.message}', file=sys.stderr)
+    file, line, column = where
+    print(f'{file}:{line}:{column}: {kind}: {message}', file=sys.stderr)
 
 
 def _argument_parser() -> argparse.ArgumentParser:
@@ -139,28 +137,29 @@ def _argument_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _argument_parser().parse_args(argv)
-    source = None
+    table = spans.SpanTable()
     try:
         try:
-            source = pathlib.Path(args.file).read_text(encoding='utf-8')
+            text = pathlib.Path(args.file).read_text(encoding='utf-8')
         except OSError as error:
             raise CliError(f'Cannot read the file: {error.strerror}.') from error
+        program = _Program(args.file, text, table)
         if args.command == 'emit-llvm':
-            ir_text = _emit_llvm(source)
+            ir_text = _emit_llvm(program)
             if args.output is None:
                 sys.stdout.write(ir_text)
             else:
                 pathlib.Path(args.output).write_text(ir_text, encoding='utf-8')
         elif args.command == 'check':
-            _check(source)
+            _check(program)
         elif args.command == 'fmt':
-            sys.stdout.write(_fmt(source))
+            sys.stdout.write(_fmt(program))
         elif args.command == 'normal':
-            sys.stdout.write(_normal(source))
+            sys.stdout.write(_normal(program))
         else:
-            return _run(source)
+            return _run(program)
     except CliError as error:
-        _report(args.file, source, error)
+        _print(table, args.file, 'error', error.message, error.span)
         return 1
     return 0
 

@@ -18,17 +18,23 @@ def write(tmp_path: pathlib.Path, text: str) -> str:
     return str(path)
 
 
+def _column(line: str, part: str) -> int:
+    """The 1-based byte column of `part` in `line`."""
+    return len(line[: line.index(part)].encode('utf-8')) + 1
+
+
 def test_check_ok(capsys) -> None:
     assert cli.main(['check', FACT]) == 0
     assert capsys.readouterr() == ('', '')
 
 
 def test_check_error_is_located(tmp_path, capsys) -> None:
-    # Columns count characters, not bytes: `λ` is one column.
+    # Columns count UTF-8 bytes: `λ` is two columns.
     line = "λm. {main = {gives = 'i32', body = λf. {entry = {takes = {}, body = λp. nope}}}}"
     path = write(tmp_path, f'language oymomo\n// a comment\n{line}\n')
     assert cli.main(['check', path]) == 1
-    assert capsys.readouterr().err == f"{path}:3:{line.index('nope') + 1}: error: Unknown name 'nope'.\n"
+    column = len(line[: line.index('nope')].encode('utf-8')) + 1
+    assert capsys.readouterr().err == f"{path}:3:{column}: error: Unknown name 'nope'.\n"
 
 
 def test_check_reports_a_module_error(tmp_path, capsys) -> None:
@@ -36,7 +42,7 @@ def test_check_reports_a_module_error(tmp_path, capsys) -> None:
     path = write(tmp_path, f'language oymomo\n{line}\n')
     assert cli.main(['check', path]) == 1
     assert capsys.readouterr().err == (
-        f"{path}:2:{line.index('p.z') + 1}: error: Block 'entry' reads its parameters as p.x, x one of [].\n"
+        f"{path}:2:{_column(line, 'p.z')}: error: Block 'entry' reads its parameters as p.x, x one of [].\n"
     )
 
 
@@ -45,7 +51,7 @@ def test_check_reports_an_llvm_error(tmp_path, capsys) -> None:
     path = write(tmp_path, f'language oymomo\n{line}\n')
     assert cli.main(['check', path]) == 1
     assert capsys.readouterr().err == (
-        f'{path}:2:{line.index("[01]") + 1}: error: A constant of type i32 is a byte array of 4 bytes.\n'
+        f'{path}:2:{_column(line, "[01]")}: error: A constant of type i32 is a byte array of 4 bytes.\n'
     )
 
 

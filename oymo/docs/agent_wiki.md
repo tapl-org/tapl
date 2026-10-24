@@ -195,8 +195,9 @@ The user's orders, kept as given. Follow them in every task.
     edits, has its "Answer N" number, numbered bullets and lettered sub-bullets; each
     question sits in a bullet or sub-bullet.
   - Every bullet at every depth has a label, so the user can refer to it; labels
-    alternate by depth: `1.`, then `a.`, then `1.`, then `a.`, and so on; never an
-    unlabeled `-` bullet inside an answer (user's order).
+    alternate by depth: `1.`, then `- a.`, then `1.`, then `- a.`, and so on (write
+    lettered sub-bullets as `- a.`, `- b.` because CommonMark collapses bare `a.` into the
+    parent line); never an unlabeled `-` bullet inside an answer (user's order).
   - Order of work (user, D18): semantics.tex first, then the Lean 4 proof; all code
     implementations come after the Lean 4 proof. Don't propose code changes before that.
   - Review marks (user's order): every change is colored until the user accepts it:
@@ -348,8 +349,9 @@ and `glossary.md` describe the language before the refactor (arrow lambdas, form
 #### Pipeline and files
 
 ```
-source --grammar.parse--> terms --reduction.resolve--> indices --strategy.normalize--> normal form
-       --module.read_module (ANF check: anf.anf_error)--> Module --llvm_translate--> LLVM IR
+file --source.read (grammar.parse, spans)--> terms --reduction.resolve--> indices
+     --strategy.normalize--> normal form --source.write--> file
+     --module.read_module (ANF check: anf.anf_error)--> Module --llvm_translate--> LLVM IR
 ```
 
 All in `src/oymo/oymomo/`; each module has a test of the same name in `tests/oymomo/`.
@@ -357,7 +359,8 @@ All in `src/oymo/oymomo/`; each module has a test of the same name in `tests/oym
 | File | Role (semantics.tex) |
 |---|---|
 | `terms.py` | `Variable`, `BruijnIndex`, `Lambda`, `Apply`, `Struct`/`Field`, `Project`, `ByteArray`, `Fix` (Section 2) |
-| `grammar.py`, `rule_names.py` | parser; `RESERVED` words (2.2, 2.3, Section 3) |
+| `source.py` | a source file: header, code, `---`, `info` section; `read`, `write`, `nodes` (pre-order) |
+| `grammar.py`, `rule_names.py` | parser; `RESERVED` words (2.2, 2.3, Section 3); spans in characters of its text |
 | `printer.py` | `show(term, pretty=…, name_indices=…)`; prints `let`, `if`; parses back |
 | `reduction.py` | `resolve`, `shift`/`substitute`/`beta`, `is_value`, `is_data`, `unfold`, `reduce` (root rules, Section 4), `stuck_part` (5.5) |
 | `strategy.py` | `sstep` (table 6.2, one branch per row), `normalize` (`MAX_STEPS`) |
@@ -365,7 +368,8 @@ All in `src/oymo/oymomo/`; each module has a test of the same name in `tests/oym
 | `anf.py` | `anf_error`: the first part not in ANF (Section 7) |
 | `module.py` | `module_of`, `read_module`: Section 8 checks, `Module`/`Definition`/`Block` |
 | `llvm_translate.py`, `llvm_opcodes.py` | Section 9, with llvmlite (kept until the bootstrap; the Alcor compiler uses the LLVM C API) |
-| `../cli.py` | `oymo check / emit-llvm / fmt / normal / run` |
+| `../cli.py` | `oymo check / emit-llvm / fmt / normal / run`; one `SpanTable` per run |
+| `../core/spans.py` | spans `start << 16 \| length`; `Row`, `SpanTable` (`add_file`, `add_row`, `row_of`, `resolve`) |
 
 Lean (`proofs/Oymomo/`) mirrors the doc: `Syntax`, `Substitution`, `Reduction`,
 `Confluence`, `Anf`, `Strategy`, `Measure`, `Guarantee`. Build:
@@ -386,12 +390,15 @@ let x = t in u           (λx. u) t
 "a b"                    quoted name (escapes \" \\ \u{hex})
 $0                       a BruijnIndex, as the printer writes it
 // comment
+---                      ends the code; then the info section (spans)
 ```
 
 - Reserved: `if then else let in fix`. A quoted name may be any of them: `"fix"`.
 - Precedence, loosest first: `λ`/`let`/`if` (as far right as possible); application
   (left; `fix t` heads a chain); projection (left); atoms.
-- A source file starts with the line `language oymomo`.
+- A source file starts with the line `language oymomo`. It may end with a line `---` and
+  an `info` section: `info 1`, `code <MD5>`, the column names, one row per frontend file,
+  `spans`, one entry per node (see "Spans" below).
 - Labels are unique in a struct, except `''` (else "Duplicate label").
 
 #### Reduction and the strategy
@@ -432,7 +439,8 @@ result; to add one, add it to `opcodes._generate` and to `llvm_opcodes`, with te
 
 | Source | Examples |
 |---|---|
-| `cli.py` | "Expected the first line to be 'language oymomo'.", "oymo run needs clang…", "Cannot read the file…" |
+| `cli.py` | "oymo run needs clang…", "Cannot read the file…" |
+| `source.py` | "Expected the first line to be 'language oymomo'.", "The info section must start with 'info 1'.", "The spans list has N entries; the code has M nodes.", "The span … is in no row of the info section."; warning "The code changed since its spans were written; the spans are dropped." |
 | `grammar.py` | "Syntax error.", "Duplicate label 'x'." |
 | `reduction.py`, `strategy.py` | "Unknown name 'x'.", "No normal form within N steps.", "Term too deep to reduce." |
 | `module.py` | "The program is stuck here…" (5.5), "A module must be λm. {symbols}…", "Block 'b' is not in ANF: …", "f names the blocks; it is only for jumps…" |
@@ -447,7 +455,11 @@ result; to add one, add it to `opcodes._generate` and to `llvm_opcodes`, with te
 - Goldens (`tests/golden_test.py`, approvaltests): each `tests/goldens/NAME.oymo` has
   `NAME.normal.oymo` and `NAME.ll`; a new output appears as `.received`, approve it by
   renaming. Goldens: simplest, effects, pointer, memory, aggregate, globals, fact, gcd,
-  helpers.
+  helpers, spans. `spans.oymo` is `helpers.oymo` with spans into a fake `language alcor`
+  file (`alcor/helpers.oymo`), the only golden with an `info` section.
+- Errors and warnings print `file:line:column`, the column in UTF-8 bytes from 1, from
+  the error's span (`SpanTable.resolve`); the file is the row's, so it can be a frontend
+  file.
 - `tests/oymomo/strategy_test.py`: one test per row of table 6.2, the item 11 cases,
   whole programs (factorial, fib, Collatz, gcd in module shape, all with `fix`), and a
   random check that the strategy agrees with every order.
@@ -457,6 +469,26 @@ result; to add one, add it to `opcodes._generate` and to `llvm_opcodes`, with te
     term dataclasses stay unchanged (user's choice). `max_size=100` nodes replaced the
     400-character limit: same 1724 of 3000 terms checked.
 - `tests/cli_test.py`: `run` on every golden with a `main` (skipped without clang).
+
+#### Spans
+
+- Every term and `Field` has `span: int` (`compare=False`), `start << 16 | length`
+  (`core/spans.py`); `0` is no span; length `ffff` means that many bytes or more.
+- A run has one `SpanTable`. `source.read` adds a row for the file it reads (language
+  `oymomo`), turns `grammar.parse`'s character spans into byte spans of that row, then
+  adds the `info` rows (same file, language, hash, lines and length: one row) and moves
+  the listed spans into them. Rows start at 1; the next row starts after the previous
+  one's last position plus one, so a position at a file's end stays in its row.
+- `spans` entries follow `source.nodes`: a node, then its children; a struct's `Field`
+  before its value. `.` gives the parent's span (the root's parent is `0`), `.N` is N
+  dots (hex), `0` no span.
+- `source.write` writes `.` for a span into a `language oymomo` row or into no row, `.`
+  where a span equals its parent's (as read back), `0` for no span under a spanned
+  parent; with no span left, no `info` section. Rows are renumbered from 1 in table
+  order.
+- Reduction keeps spans as before (E-Opcode's result takes the call's; substitution
+  copies). After reading, a node with `.` holds its parent's span, so an inlined argument
+  can show its call site's span (see `spans.normal.oymo`).
 
 #### Words
 
@@ -770,6 +802,133 @@ Supersedes `{meta, code}` above (user: "i am redesigning module shape").
 - Visibility explained (Answer 67): ELF `STV_DEFAULT`/`HIDDEN`/`PROTECTED`, about the
   shared-library boundary at load time, not about object files at link time. Cranelift
   folds it into `Linkage` (`Hidden`, `Preemptible`), so one field covers both.
+
+### Debug info rides on `Term.location` (Answers 3–6; design in progress)
+
+- User: `module-shape` is not ready until debug info storage is designed ("how debug info
+  should be stored there"). LLVM is the main target; Cranelift must be considered too.
+- How the backends do it (Answer 4): LLVM keeps DWARF nodes in a module-level metadata
+  table, `!dbg` on functions/globals, a `DebugLoc` on every instruction and terminator
+  (never on constants; folding drops it; inlining adds `inlinedAt`), variable records
+  `#dbg_declare`/`#dbg_value` (LLVM 19+, not instructions). Cranelift IR has no DWARF at
+  all: an opaque `SourceLoc(u32)` per instruction (`@0005` in CLIF) and `ValueLabel`s on
+  values; the driver (wasmtime, rustc_codegen_cranelift) keeps the table and writes DWARF
+  with `gimli` from Cranelift's code-offset ranges.
+- Decided (user, Answer 5): every oymomo term already has a `location` field
+  (`compare=False`); a frontend such as Alcor sets its own location when lowering, and
+  debug info is read from it. Rejected: debug fields inside module bodies (Answer 3
+  options A–C) and the old `!n = …` table plus `e !dbg !4` attachment plan.
+- Decided (user, Answer 5): the printer prints a location and the parser reads it; when
+  the source writes no location, the parser sets the term's own position in the `.oymo`
+  file.
+- Decided (user, Answer 6 on 5.2c2): the printer prints only explicit/foreign locations
+  (written in the source or set by a frontend), never the ones the parser filled in.
+- User's correction (Answer 7 on 6.3b): every source file is `.oymo`, Alcor and Mizar
+  too (`language alcor` header), never `.alcor`. No compilation unit exists before
+  translation: a file's content is a term, usable as a term in another file (`oymo run
+  a.oymo b.oymo c.oymo` is the application `a b c`). Only a term fully in SSA-shaped ANF
+  is one compilation unit, translated to LLVM or Cranelift.
+- User's proposal (Answer 7, under discussion): `Term.location` is a single index into a
+  location table the parser manages. Open: what happens to the table when several files
+  are merged into a new `.oymo` file.
+- User's proposal (Answer 8, under discussion; refines the one above): oymomo is the
+  lowering target of every oymo language, so an oymomo file has two sections, the
+  lowered code and an info table. Each term holds a span `(position << 8) + length` into
+  the table. Table columns: position start of the range, filename, language, the start
+  position of each line in that file. Line and column are computed only when needed.
+- Decided (user, Answer 9):
+  - Spans and line starts are UTF-8 byte positions; line and column are computed only
+    when shown.
+  - A span is written as one bitmasked number, `start << 16 | length` (not `@37+18`).
+  - Start 0 means null (no location); real positions start at 1.
+  - The info table has a header, so its format can evolve.
+  - The `info` section is not a term and is never reduced; the file's term is the code
+    section only (user: "i hope there will not be any problem").
+  - The printer writes a span only when it is outside the row of the file being printed
+    (Answer 8, 3c1).
+- Decided (user, Answer 10):
+  - Columns are byte columns everywhere (errors and DWARF), 1-based.
+  - The info table has a hash column (content hash of each source file), to detect a
+    stale source on disk when a source line is shown.
+  - A span is printed in hex with no `0x` prefix and no leading zeros: `@260012` is
+    `0x26 << 16 | 0x12`.
+  - Length `ffff` means the term is `ffff` bytes or longer (lengths saturate).
+  - The code section ends at a line `---`; then the `info` section.
+  - The info table uses its own small line syntax (columns), not oymomo struct syntax.
+  - Why the parser needs no "hand-written" flag (Answer 9, 2): it always adds a row for
+    the file it reads (line starts from the text); a term with a written span keeps it,
+    any other term gets its own position in that row; that row is never written out.
+- Decided (user, Answer 11):
+  - Hash column: MD5 in hex; the translator copies it into `!DIFile(…, checksumkind:
+    CSK_MD5, checksum: "…")` (DWARF 5 keeps only MD5, `DW_LNCT_MD5`).
+  - `DW_AT_language` is `DW_LANG_C11` for every language for now (as Zig uses
+    `DW_LANG_C99`), so gdb/lldb print and evaluate as C. Rejected for now: vendor codes.
+  - Spans are always printed (goldens and `oymo normal` too), so goldens check that spans
+    survive reduction. Rejected: `--spans=none`, spans only on translated terms.
+  - Roadmap: a new leaf `spans` under `foundations`. The user reviews the whole design
+    once more before any roadmap edit.
+- Decided (user, Answer 12):
+  - Info table `start`, `length`, `lines` in hex without `0x`, like spans; `file` is the
+    path as given on the command line (the translator splits it for `DIFile`).
+  - No `inlined_at` for now: inlined helper code keeps the helper's lines, scoped under
+    the current function (`DILexicalBlockFile` for another file).
+  - Producer is always `"oymo <version>"`; no module field.
+  - No reserved `debug` field on the module or symbol entries; full debug info gets its
+    own design in `debug-info`.
+  - Roadmap: remove `meta-table`, `meta-attach`, `meta-keep`, `meta-emit`; `line-tables`
+    becomes "`-g`: a `DICompileUnit` per row, `DISubprogram`, `!DILocation` from spans".
+  - Field spans must be writable: Alcor code that generates a struct field keeps its
+    location (user rejected "parser sets, printer never prints").
+  - `!` instead of `@` for spans (user: "@ feels noisy"), grammar `!N expression`;
+    superseded by Answer 14 (no marks in the code).
+- User (Answer 13): spans need no parentheses at all, if possible: "span is not for human
+  to read. it is for just to keep them to pass to llvm or cranelift backend". Postfix
+  like LLVM is fine if it needs no parens.
+- Decided (user, Answer 14; supersedes `@`/`!` spans in the code):
+  - No span marks in the code section at all. Why: application has no token, so any mark
+    in the code needs parentheses or marks on every nearby node; JS source maps keep
+    positions beside the code too.
+  - The `info` section has a `spans` list: one entry per kernel node, in pre-order (the
+    node, then its `children()`; a struct visits each `Field`, then its value; sugar is
+    read as its kernel term).
+  - Entries: hex span, `0` null, `.` same as parent (inheritance), `.N` a run of N dots
+    (N in hex), included now (user).
+  - Inheritance only shortens the text: in memory every term holds its full span.
+  - The info header carries the MD5 of the code section; on mismatch (hand edit) the
+    parser drops the spans with a warning and gives every node its own position.
+- Decided (user, Answer 16): a `DISubprogram` takes `line:` from the symbol's `Field`
+  span and `scopeLine:` from the `body` lambda's span (inherits the field's if unset), as
+  clang has a declaration line and a body line (gdb uses `scopeLine` for the prologue).
+- Decided (user, Answer 17; was the Answer 16 proposal): the printer never writes a span
+  whose row's language is `oymomo`; oymomo code is assumed to be always generated. Such a
+  span is written as `.` (inherit the nearest enclosing frontend span), so an inlined
+  oymomo helper steps as part of the calling Alcor line, like a C macro. In memory the
+  span stays (errors and `-g` still point into the `.oymo` file within one run). No `-`
+  entry; `oymo fmt` is not special; hand-written goldens print no spans.
+- Decided (user, Answer 17): exactly one golden file with an `info` section and spans
+  into a fake `language alcor` row, written by hand until `alcor-core`, to check that
+  spans survive reduction.
+- Decided (user, Answer 18): the field is named `span`, not `location` (it is a start
+  plus a length into the table, as rustc's `Span`). The whole design (Answer 17) was
+  approved; roadmap: new leaf `spans` under `foundations`, `metadata` node and its
+  `meta-table`/`meta-attach`/`meta-keep` leaves removed, `meta-emit` removed,
+  `line-tables` rewritten for spans.
+- Implemented (`spans` leaf done; leaf removed from the roadmap): `core/spans.py`,
+  `oymomo/source.py`, `location` renamed `span` everywhere (`ReductionError.span`,
+  `ModuleError.span`, `LlvmTranslationError.span`, `AnfError.span`). Agent's choices, not
+  discussed: a gap of one position between rows (so a file's end position stays in its
+  row); rows deduplicated by (length, file, language, hash, lines); a null span under a
+  spanned parent is written `0`; a span in no row is written as `.`; the `spans` list
+  wraps at 80 columns; the code MD5 covers everything before the `---` line, including
+  the header and the last newline.
+- `line-tables` moved from `rewrite-tools` → `debugging` to `foundations`, after `deps`, and
+  unblocked (user, Answer 24): its design is settled and spans exist. Its "Done when" no
+  longer needs Alcor: `gdb` breaks on a line of a `.oymo` file and steps by its lines
+  (was: a breakpoint on an Alcor line, which needs `alcor-core`). `-g` on `emit-llvm` and
+  `run`; `oymo build` takes it when it exists.
+- `meta-c-import` still says "origins as metadata (`!origin`)"; left as is until that leaf
+  is designed (user, Answer 19). Idea to bring up then: a C declaration's origin as a
+  span into a `language c` row for its header.
 
 ### Retired notes.md (before the refactor)
 
