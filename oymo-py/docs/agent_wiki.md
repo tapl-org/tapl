@@ -11,10 +11,10 @@ The user's orders, kept as given. Follow them in every task.
 
 - `docs/agent_wiki.md` is for the agent only.
 - Never point to it from anywhere (docs, `README.md`, source code, tests, comments),
-  except `oymo/AGENTS.md`: a 5-line file that only says to read this wiki's Rules first.
+  except `oymo-py/AGENTS.md`: a 5-line file that only says to read this wiki's Rules first.
   `AGENTS.md` is the only file that links here.
 - When `notes.md` or `implemented/` are deleted, remove links to them and keep the
-  comment text (in source, tests, and `semantics.tex`).
+  comment text (in source, tests, and `oymomo-calculus.tex`).
 - Keep every "why" here, and any knowledge collected along the way, for the whole oymo
   project, not only the roadmap.
 - Keep every agent-related thing here, including what the agent may and may not do.
@@ -24,10 +24,28 @@ The user's orders, kept as given. Follow them in every task.
 - After every change to this wiki, stage it: `git add docs/agent_wiki.md`. Stage only
   this file this way; don't commit.
 
+### Repository layout (Oct 27)
+
+- User: "for now i keep all the work in oymo-py until bootstrap. when the bootstrap start is
+  read, then i will start to move or copy the file. for now i just want o prepare initial
+  setup of the oymo directory". The Python compiler and all its work (code, tests,
+  goldens, proofs, docs, this wiki) live in `oymo-py/` (renamed from `oymo/` with
+  `git mv`). Older notes saying `oymo/…` mean `oymo-py/…`.
+- The language document moved to `doc/oymomo-calculus.tex` (user chose the name over
+  `oymomo-semantics`: it pairs with `doc/theta-calculus.tex`; title "The Oymomo
+  Calculus"); `/doc` is its home (user: "yes"). Built by `doc/Makefile` (now two
+  `pdflatex` passes with `-halt-on-error`); `oymo-py/docs/Makefile` removed. Every
+  older `semantics.tex` in this wiki means `doc/oymomo-calculus.tex`.
+- New `oymo/` is a skeleton only: `README.md`, `LICENSE` (copy of the repo's), empty
+  `lib/` and `tests/goldens/` (`.gitkeep`). Self-contained: nothing in it refers outside
+  it. Don't put work there before the bootstrap starts.
+- The hatch environment is per project path, so the rename made a new one (first
+  `hatch test` needs BypassSandbox to build it).
+
 ### Code never references the doc
 
-- User (Oct 27): "do not reference semantics.tex from code". Code is `src/`, `tests/` and
-  `proofs/`: no mention of `semantics.tex`, and no section or point numbers (`7.8a`,
+- User (Oct 27): "do not reference semantics.tex from code" (now `oymomo-calculus.tex`). Code is `src/`, `tests/` and
+  `proofs/`: no mention of `oymomo-calculus.tex`, and no section or point numbers (`7.8a`,
   `row 7.3c`, `Section 8`, `table 6.2`, `D92`) in comments, docstrings or error
   messages. Say what is meant instead (a rule name such as E-Beta is fine). The doc may
   still name Lean theorems (the other direction).
@@ -37,9 +55,9 @@ The user's orders, kept as given. Follow them in every task.
 - `docs/todo.md` is the user's scratch list; only the user manages it. Read it, never
   edit it. Its items are also merged into the roadmap tree.
 - Keep `docs/story.md` and `README.md` as they are.
-- `docs/semantics.tex` (`review-rules`): the agent edits it as the user directs.
+- `doc/oymomo-calculus.tex` (`review-rules`): the agent edits it as the user directs.
   Markdown can't render LaTeX, so the rules moved from `reduction_rules.md` (deleted on
-  the user's order) to `.tex`. `make -C oymo/docs` builds the PDF (git-ignored).
+  the user's order) to `.tex`. `make -C doc` builds the PDF (git-ignored).
   - **Current state (after D96; supersedes the history in the sub-bullets below where they
     differ):** sections 1 Goal, 2 Kernel Syntax, 3 Sugar Syntax, 4 Computation, 5 Reduction
     Anywhere, 6 Strategy, 7 ANF, 8 Modules, 9 LLVM Translation. Call-by-value E-Beta (values
@@ -50,11 +68,11 @@ The user's orders, kept as given. Follow them in every task.
     takes its type from its use (9.2, D96). Lean theorem names are the only code references.
     Numbering, review marks and answer rules are as stated below and in this section.
   Layout (user's choice): `mathpartir` rules with the name above (`lab=`), a judgment
-  line over each group, `array` grammars; no boxes. Named `semantics.tex` (user's choice).
+  line over each group, `array` grammars; no boxes. Named `doc/oymomo-calculus.tex` (user, Oct 27; was `semantics.tex`, user's earlier choice).
   - It is an abstract document: no θ-calculus or layering, no references to code
     (files, functions, classes, `convert`, BANF names), no de Bruijn indices.
   - Write "Oymomo" in it (user, latest: "this doc only belongs to oymomo language";
-    earlier it was "Oymo"). The title is "Oymomo Semantics". No intro line
+    earlier it was "Oymo"). The title is "The Oymomo Calculus" (user, Oct 27; was "Oymomo Semantics"). No intro line
     under the title.
   - Section order: Syntax, Computation, Congruence, All Combinations, Evaluation
     Strategy, Syntax Sugar, Under Binders (`shape`).
@@ -109,7 +127,7 @@ The user's orders, kept as given. Follow them in every task.
     only if a rule uses it. D22/D42: lambda is written `λx. t` (D42 replaced the arrow
     `x → t`; the dot right after the binder ends it, every other dot is projection) and
     called "lambda" (not "function": function = Section 5 definition/declaration); the
-    step relation is `⟶` (TAPL's arrow, D49), many steps `⟶*`; terms are reducible, normal or stuck; the target shape is called ANF in semantics.tex (user, D60: "replace BANF with ANF, and do not mention block a-normal form"); BANF stays a code name. The doc opens by calling Oymomo an extension of the untyped
+    step relation is `⟶` (TAPL's arrow, D49), many steps `⟶*`; terms are reducible, normal or stuck; the target shape is called ANF in oymomo-calculus.tex (user, D60: "replace BANF with ANF, and do not mention block a-normal form"); BANF stays a code name. The doc opens by calling Oymomo an extension of the untyped
     λ-calculus.
     D4 (agreed): term classes, progress and determinism describe `⟶w`; full β is
     needed eventually (confluence, then its own normal forms).
@@ -127,7 +145,7 @@ The user's orders, kept as given. Follow them in every task.
     substitution lemma), E-Opcode, E-Proj, E-Index/E-Default, reduction anywhere; no
     strict application; lazy `fix` since D98 (`Term.fix`, E-FixProj, E-FixApp, E-Fix1; rows
     b, f, p of 6.2). Axioms unchanged.
-    Code references allowed in semantics.tex: `proofs/` and the Lean theorem names
+    Code references allowed in oymomo-calculus.tex: `proofs/` and the Lean theorem names
     (`Oymomo.confluence`, `anf_normal`, `sstep_step`, `sstep_complete`, `sstep_det`, `guarantee`).
     D93: `Measure.lean` (`ParM`, Takahashi's measure with `occ`) and `Guarantee.lean`
     (`WF`: every struct tail is a struct; `IPar`: internal parallel step, one constructor
@@ -178,7 +196,7 @@ The user's orders, kept as given. Follow them in every task.
     (clad, in discussion): a naked `t` is read as `t~t`; E-Split moves each
     construct with a clad child into both halves (`(t~F) (s~G) ⟶ (t s)~(F G)`),
     E-Reclad `p~q ⟶ term(p)~term(q)`, E-Collapse removed (not needed); halves are deep (`term(t~F) = term(t)`, `form(t~F) = term(F)`, part by part elsewhere); linearity is checked on each half.
-    `semantics.tex` was rewritten from scratch with steps 1–4 (accepted;
+    `oymomo-calculus.tex` was rewritten from scratch with steps 1–4 (accepted;
     no review marks left); the previous draft is in git. The evaluation strategy
     (`⟶w`) is dropped for now, until the full syntax and full β are settled.
     Names now **solo / duet** (letters `t` term, `s` solo, `d` duet; formless/formed and
@@ -228,7 +246,7 @@ The user's orders, kept as given. Follow them in every task.
     alternate by depth: `1.`, then `- a.`, then `1.`, then `- a.`, and so on (write
     lettered sub-bullets as `- a.`, `- b.` because CommonMark collapses bare `a.` into the
     parent line); never an unlabeled `-` bullet inside an answer (user's order).
-  - Order of work (user, D18): semantics.tex first, then the Lean 4 proof; all code
+  - Order of work (user, D18): oymomo-calculus.tex first, then the Lean 4 proof; all code
     implementations come after the Lean 4 proof. Don't propose code changes before that.
   - Review marks (user's order): every change is colored until the user accepts it:
     `\new{...}` blue for new or changed text, `\old{...}` red struck for removed
@@ -248,7 +266,7 @@ The user's orders, kept as given. Follow them in every task.
     one bullet (a short sentence, then the display) whose rows are its lettered
     sub-points, `a.`, `b.` (`\pt` steps the `spt` counter, reset by each bullet); a lone
     formula row keeps its own number (`\ptone`). User: "lets put all formulas into
-    sub-bullet if they are more than 1". Everything in semantics.tex is in a bullet, the opening paragraph included (user, D74: "everything inside doc must be in the bullet"). The user refers to points
+    sub-bullet if they are more than 1". Everything in oymomo-calculus.tex is in a bullet, the opening paragraph included (user, D74: "everything inside doc must be in the bullet"). The user refers to points
     as "docN.M".
     Subsections are 4a, 4b, ... so they never look like a point number (user's order).
   - Term classes are named reducible (takes a `⟶w` step), value, neutral, stuck
@@ -275,7 +293,7 @@ The user's orders, kept as given. Follow them in every task.
 - `docs/notes.md`, `docs/glossary.md`, `docs/implemented/`, the plans and the old roadmap
   were moved here verbatim and deleted (done).
 - `docs/` now holds: `roadmap.md`, `agent_wiki.md`, `todo.md`, `story.md`,
-  `semantics.tex`, `Makefile`.
+  `oymomo-calculus.tex`, `Makefile`.
 - `docs/semantics_discussion.md` was the semantics review discussion (D1–D96). The user
   had it folded into this wiki (section 4, "Semantics decisions (D1–D96)") and deleted.
   Record new semantics decisions there, as D97, D98, …, newest first.
@@ -309,7 +327,7 @@ The user's orders, kept as given. Follow them in every task.
   build structs, so they can be combined by hand.
 - Before 1.0, anything may be redesigned freely: oymomo syntax, Alcor and Mizar syntax,
   public API, CLI.
-- Code refactor to semantics.tex (after D93; plan in 8 stages: terms/grammar, values and
+- Code refactor to oymomo-calculus.tex (after D93; plan in 8 stages: terms/grammar, values and
   rules, strategy table, stuck/ANF checks, ANF IR, modules, LLVM, goldens/CLI). Stage 1
   done: no forms (`~`, `⇒`), no builtins (`$name`); lambda is `λx. t` or ASCII `\x. t`
   (user's choice); text byte arrays are any printable UTF-8; `''` is index 0; duplicate
@@ -371,7 +389,7 @@ One line per section, to grep and jump.
 ### Current reference
 
 How the code is today (after the refactor and D98). The language itself is defined in
-[semantics.tex](semantics.tex); this is the map from it to the code. The old `notes.md`
+[oymomo-calculus.tex](oymomo-calculus.tex); this is the map from it to the code. The old `notes.md`
 and `glossary.md` describe the language before the refactor (arrow lambdas, forms,
 `$fix`, BANF); they are kept, retired, under
 [4. Decisions and whys](#4-decisions-and-whys).
@@ -386,7 +404,7 @@ file --source.read (grammar.parse, spans)--> terms --reduction.resolve--> indice
 
 All in `src/oymo/oymomo/`; each module has a test of the same name in `tests/oymomo/`.
 
-| File | Role (semantics.tex) |
+| File | Role (oymomo-calculus.tex) |
 |---|---|
 | `terms.py` | `Variable`, `BruijnIndex`, `Lambda`, `Apply`, `Struct`/`Field`, `Project`, `ByteArray`, `Fix` (Section 2) |
 | `source.py` | a source file: header, code, `---`, `info` section; `read`, `write`, `nodes` (pre-order) |

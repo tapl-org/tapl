@@ -40,15 +40,11 @@ __pycache__/
 
 # Generated PDFs
 doc/*.pdf
-oymo/docs/*.pdf
 
 # LaTeX auxiliary files
 doc/*.aux
 doc/*.log
 doc/*.out
-oymo/docs/*.aux
-oymo/docs/*.log
-oymo/docs/*.out
 
 # Generated golden test files
 *.received

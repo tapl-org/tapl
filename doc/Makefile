@@ -1,4 +1,4 @@
-TEX_PAPERS = theta-calculus
+TEX_PAPERS = theta-calculus oymomo-calculus
 PDF_ENGINE = pdflatex
 
 # macOS basictex installs here; add to PATH if present
@@ -9,7 +9,8 @@ export PATH := /Library/TeX/texbin:$(PATH)
 all: $(addsuffix .pdf,$(TEX_PAPERS))
 
 %.pdf: %.tex
-	$(PDF_ENGINE) $<
+	$(PDF_ENGINE) -interaction=nonstopmode -halt-on-error $< >/dev/null
+	$(PDF_ENGINE) -interaction=nonstopmode -halt-on-error $<
 
 clean:
 	rm -f $(addsuffix .pdf,$(TEX_PAPERS))

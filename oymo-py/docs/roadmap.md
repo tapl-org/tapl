@@ -139,13 +139,13 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
 
-- semantics.tex E-Opcode: `op(b)(dᵢ) = d'`, any data; Lean: `op`'s result type
+- oymomo-calculus.tex E-Opcode: `op(b)(dᵢ) = d'`, any data; Lean: `op`'s result type
 - `'module.…'` ops take and return closed normal forms (data grows to closed normal
   forms); they may compare and rewrite bodies
-- semantics.tex and Lean: a grammar of normal forms, so the op's premise is syntactic, as
+- oymomo-calculus.tex and Lean: a grammar of normal forms, so the op's premise is syntactic, as
   data is today; the strategy normalizes op operands first
 - Revisit: user decided "foundationally, there is no strategy": merging and instantiating
-  are user code (semantics.tex 8.5, 8.6), so `'module.link'` and `'module.instantiate'`
+  are user code (oymomo-calculus.tex 8.5, 8.6), so `'module.link'` and `'module.instantiate'`
   may not be needed; generic merge code needs struct tools (concat, labels) on structs
   holding `λ`s
 - Compile-time only: a call that doesn't fold is rejected by translation
@@ -159,7 +159,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - A type shape `{'struct', l}`, `l` a label of `types`, is LLVM's `%l`; `'opaque'` only as a
   `types` entry
 - `let` naming in the source stays the compile-time way to name a type
-- semantics.tex 9.1, Lean if needed, code, a golden
+- oymomo-calculus.tex 9.1, Lean if needed, code, a golden
 - Decide: named types in the ingot at all, or literal types only until a need appears
 - Decide: spelling: `types`, `{'struct', l}`, `'opaque'`
 - Decide: `'module.link'` on one type name: equal bodies merge, opaque takes the body,
@@ -194,7 +194,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `let _ = v in e`: a `let` kept only for its effect
 - `blocks g = {l₁ = b₁, …} in t` ≝ `m [] (λg. {t, l₁ = b₁, …})` (a region); always the struct form
 - Typed lambdas `λ(i: 'i32'). e` for block parameters, if inference needs help
-- semantics.tex Section 3, grammar, printer; reserved words
+- oymomo-calculus.tex Section 3, grammar, printer; reserved words
 - Decide: a better name than `blocks`
 
 ### `typed-consts` Folding keeps constants' types
@@ -391,13 +391,13 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   Alcor's checked and optimized modes on it
 - Folding: today E-Opcode gives no result where LLVM is undefined (`udiv`/`sdiv`/`urem`/`srem`
   by 0, `sdiv` of the minimum by −1, a shift by the width or more); the call stays as
-  run-time code (semantics.tex 4.4e, 5.6)
+  run-time code (oymomo-calculus.tex 4.4e, 5.6)
 - `'unreachable' {}` as a block end: LLVM's `unreachable`; uses: after a call that never
   returns (`exit`, `abort`), a `switch` default that can't happen, facts a frontend proved,
   the optimized mode of `alcor-ub`; never folds
 - Poison and undef: LLVM's `poison` value, flags that make results poison (`nsw`, `nuw`,
   `exact`), `freeze`
-- semantics.tex 4, 5, 7–9; Lean (`anf_normal`, `op` partiality); code; goldens: a function
+- oymomo-calculus.tex 4, 5, 7–9; Lean (`anf_normal`, `op` partiality); code; goldens: a function
   ending in `exit`, a division by a literal 0
 - Decide: an undefined call found at compile time: keep it as run-time code (today), reject
   it as stuck with an error, or fold it to `poison`
@@ -478,9 +478,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `folder-split` `oymo/` → `oymo-py/`; new self-contained `oymo/`
 
-- Rename `oymo/` (Python compiler) to `oymo-py/`
-- New `oymo/` with `README.md`, `LICENSE`, `lib/`, `tests/goldens/` (moved from
-  `oymo-py`)
+- Move `tests/goldens/` from `oymo-py/` to `oymo/tests/goldens/` when the bootstrap starts
 - Nothing in `oymo/` refers to a path outside it; `oymo-py/` reads `oymo/` only
 - CI builds and tests a copy of `oymo/` alone
 - New tests are goldens or `oymo test` files
