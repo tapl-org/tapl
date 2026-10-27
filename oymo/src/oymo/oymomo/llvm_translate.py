@@ -217,7 +217,8 @@ class _Function:
         for block in self.definition.blocks:
             if block.label in self.reachable:
                 self.llvm_blocks[block.label] = self.llvm_function.append_basic_block(block.label)
-        for label in self.reachable:
+        # In source order, not set order: the phis' names (`d.1`, `d.2`) follow creation order.
+        for label in (block.label for block in self.definition.blocks if block.label in self.reachable):
             if self.predecessors[label] > 1:
                 builder = ir.IRBuilder(self.llvm_blocks[label])
                 self.params[label] = {

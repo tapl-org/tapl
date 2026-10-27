@@ -15,8 +15,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
-      - `module-shape` Modules `{symbols, target, …}`; bodies in SSA-shaped ANF
+      - `module-shape` Ingot: a module `{symbols, target, …}`; bodies in ANF
       - `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
+      - 🚫 `named-types` LLVM named and opaque struct types in a module's `types`
       - 🚫 `deps-cli` Many files: `--unit=each|merge|apply`, `-e` glue
       - 🚫 `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
       - 🚫 `typed-consts` Folding keeps constants' types
@@ -42,6 +43,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `obj-link` `.o` via `clang -c`, link with `cc`
       - 🚫 `driver` `oymo build a.oymo -o a`, `oymo run`, `-c`
       - 🚫 `e2e-libc` End-to-end tests calling libc and a small C library
+    - 🚫 `undefined` Undefined behaviour in oymomo: folding, `'unreachable'`, poison
     - 🚫 `tagged-unions` Enums and tagged unions; `switch` binds the payload
   - `types-files` Types and multiple files
     - `layer1` Layer 1: basic types and generics
@@ -136,65 +138,100 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ## Leaf details
 
-### `module-shape` Modules `{symbols, target, …}`; bodies in SSA-shaped ANF
+### `module-shape` Ingot: a module `{symbols, target, …}`; bodies in ANF
 
 - semantics.tex Sections 7–9, then Lean (`Anf.lean`), then code (`module.py`, `anf.py`,
   `llvm_translate.py`); goldens and `strategy_test.py` rewritten; old shape removed
 
   ```
   {
+    version = '0',
+    depends = {puts = {'function', {s = 'ptr'}, 'i32'}},
     symbols = {
-      puts    = {type = {'function', {s = 'ptr'}, 'i32'}, linkage = 'import'},
-      gcd     = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'}, linkage = 'export',
-                 body = λm. λp. m [] (λg. {
+      gcd     = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
+                 body = λd. λs. λp. s [] (λg. {
                    entry = g.loop p.a p.b,
                    loop  = λa. λb.
                      let z = 'icmp' {'eq', 'i32', b, [00000000]} in
-                     m [] (λh. {
+                     s [] (λh. {
                        if z then g.done a else h.step,
                        step = let r = 'urem' {'i32', a, b} in g.loop b r,
                      }),
                    done  = λr. r,
                  })},
-      counter = {type = 'i32', linkage = 'local', init = [00000000]},
-      msg     = {type = {'array', [03], 'i8'}, linkage = 'local', value = [686900]},
+      counter = {type = 'i32', init = [00000000]},
+      msg     = {type = {'array', [03], 'i8'}, value = [686900]},
     },
     target = {triple = 'x86_64-unknown-linux-gnu'},
   }
   ```
 
-- A module is a struct value: `symbols`, plus meta fields beside it (`target`; later
-  debug tables, hints, LLVM metadata)
+- A module is a struct value: `version`, `depends`, `symbols`, plus meta fields beside them
+  (`target`; later debug tables, hints, LLVM metadata)
+- `depends`: name → type of everything used from other modules (LLVM `declare` /
+  `external global`)
 - A frontend lowers each source item to one closed `symbols` entry
-- Entry kind from its fields: `body` definition, `init` global, `value` constant, only
-  `type` declaration; `{'function', params, result}` or a type
-- `linkage` on every entry, Cranelift's words: `'import'` (no definition), `'export'`,
-  `'local'`; later `'preemptible'`, `'hidden'`. LLVM: import → `declare` / `external
-  global`; export → external; local → `internal`. The label is the symbol's name
+- Entry kind from its fields: `body` definition, `init` global, `value` constant (exactly
+  one); `{'function', params, result}` or a type
+- No `linkage` for now; decided when needed. A definition, global or constant is LLVM's
+  default `external`. The label is the symbol's name; a name in both `depends` and
+  `symbols` is an error
 - In a `'ptr'` slot of `init`/`value`: a byte array names a symbol (`''` null);
   `{'arr', [08]}` is symbol plus byte offset
-- `body = λm. λp. e`, closed; the binder is always named `m`; `m` is free in `e` when
-  compiling; `m []` (field 0) marks a group; any other `m b` is rejected
+- `body = λd. λs. λp. G`, closed: `d` dependencies, `s` own symbols, `p` arguments; a group is
+  `s [] (λg. {…})`; `d` and `s` are free when compiling; any other `x b` is rejected
 - R1, one-to-one: every LLVM/Cranelift block, label, instruction is in the source; the
   translator adds none; groups flattened in source order
-- R2, runnable by reduction: `M` holds the runner `λG. (fix G) [00]` in field 0 (no
-  label) and the symbols; every body gets the same `M`; `M.f {…}` on data reduces to the
-  result
-- Form of `e`:
+- R2, runnable by reduction: a module's instance is `fix (λs. {λG. (fix G) [00], fᵢ = Bᵢ u s})`,
+  `u` the instances it depends on (by name; diamonds share); field 0 is the group runner,
+  so the module runs its own groups
+- Merging is user code (no op, no translator name resolution): run by reduction with
+  views; compile one ingot per module, joined by the system linker by name
+- Form (semantics.tex 7.2; every variable is `x`, the verifier checks kinds):
 
   ```
-  e ::= q | let x = v in e | if q then j else j | {j, …, j} q | j
-      | m [] (λg. {l₀ = e, l₁ = b, …})
-  b ::= e | λx₁. … λxₙ. e
-  j ::= g.l | g.l q₁ … qₙ
-  v ::= b' {q, …} | m.l q
-  q ::= x | x.l… | m.l | b' | {l = q, …}
+  P ::= x | P.l                                  path
+  O ::= P | b                                    operator
+  Q ::= P | D                                    operand
+  J ::= P Q₁ ⋯ Qₙ                                jump
+  T ::= Q | J | {Jᵢ} P | G                       terminal
+  E ::= let x = O {lᵢ = Qᵢ} in E | T             expression
+  K ::= E | λx₁. ⋯ λxₙ. E                        block
+  G ::= x [] (λx. {lᵢ = Kᵢ})                     group
   ```
 
+- Kinds (verifier): dependencies `d.l`, self `s.l`, arguments `p.l`, group `g.l` (jump
+  head, operand count), value `x` (no fields)
+
+- A struct operand only when it is data (an LLVM constant); `x.l` only as `p.l`
+- Opcodes `'extractvalue' {aggtype, agg, i₁, …}`, `'insertvalue' {aggtype, agg, value, i₁, …}`
+  (LLVM's order; indices are positions); a built struct starts from a constant struct
+- `p` is never used whole
+- Code: `ingot.py` (`ingot_of`) replaces `module.py`'s `read_module`; errors "Not an ingot: …"
+- Goldens move to the ingot shape; `floyd.oymo` becomes nested groups (k, i, j, store),
+  so its blocks stop passing every live value (its `.ll` loses most phis)
 - Top group: field 0 labeled, the entry block; nested group: field 0 unlabeled,
   continues the current block; nested groups give dominance
-- Arms only jump; return only at a block's end; `if` condition an `i1`; `switch` on
-  positions, default last
+- Arms only jump; return only at a block's end; two arms on an `i1`: `br`; any other
+  branch: `switch` on positions, default last
+- Two arms of one branch to one block with different arguments: error (no added block)
+- A body is always a group: its field 0 is the labeled entry block
+- A call's argument is a struct with the callee's parameter labels, in order
+- A tail call is `let r = s.f {…} in r` (call, then `ret`)
+- `s.f` / `d.f` not called is the function's address (`@f` as a `ptr`); indirect calls wait for
+  `fn-address`
+- `target` is accepted and ignored until the `target` leaf; any other unknown module field
+  is an error
+- One byte array may initialize an `i8` array (LLVM's `c"…"`); other arrays list elements
+- A required module field `version`, UTF-8 text naming the ingot format; compared only
+  for equality (a category, not an order); an unknown one is an error
+- The translator checks operand types against inferred types and reports them with the
+  source span (no transformation, only errors)
+- `version = '0'` for this format; versions are short backend-agnostic texts (`'0'`, `'1'`, `'1a'`)
+- `init = {}` / `value = {}` is LLVM's `zeroinitializer`, for any type (for now)
+- Until the bootstrap, names always, no flag: binder names in a definition are made
+  distinct by renaming (α); arguments are `%p.a`, blocks `%g.loop` (group binder plus
+  label), values `%z`; unique in the flattened function by construction; symbol names stay
 - No nested operands, no nested `let`, no `if` as a value
 - Block parameter types inferred from arguments and uses; untyped: error "give 'x' a
   typed argument or a typed use"; single-entry `phi`s kept
@@ -208,19 +245,26 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   forms); they may compare and rewrite bodies
 - semantics.tex and Lean: a grammar of normal forms, so the op's premise is syntactic, as
   data is today; the strategy normalizes op operands first
-- `'module.link' {A, B, …}` (name until a better one):
-  - an `'import'` matches an `'export'` with the same label, then is dropped
-  - unmatched imports united; equal types merge; different: no step
-  - two `'export'` entries with one label: no step (multiple definition)
-  - `'local'` entries with one name: one renamed (`helper.1`), and `m.helper` rewritten to
-    `m."helper.1"` in its module's bodies, as Wasm renumbers indices
-  - `target`s equal
-- `'module.instantiate' {A}` (name until a better one):
-  `fix (λm. {λG. (fix G) [00], f = A.symbols.f.body m, …})`, so `M.f {…}` runs by
-  reduction (R2)
+- Revisit: user decided "foundationally, there is no strategy": merging and instantiating
+  are user code (semantics.tex 8.5, 8.6), so `'module.link'` and `'module.instantiate'`
+  may not be needed; generic merge code needs struct tools (concat, labels) on structs
+  holding `λ`s
 - Compile-time only: a call that doesn't fold is rejected by translation
-- Tests: link, conflicts, renamed internals, instantiate and run `gcd`, non-module
+- Tests: link, conflicts, instantiate and run `gcd`, non-module
   operand stays
+
+### `named-types` LLVM named and opaque struct types in a module's `types`
+
+- A module field `types` beside `symbols`: `pair = {'i8', 'i32'}` is
+  `%pair = type { i8, i32 }`; `FILE = 'opaque'` is `%FILE = type opaque`
+- A type shape `{'struct', l}`, `l` a label of `types`, is LLVM's `%l`; `'opaque'` only as a
+  `types` entry
+- `let` naming in the source stays the compile-time way to name a type
+- semantics.tex 9.1, Lean if needed, code, a golden
+- Decide: named types in the ingot at all, or literal types only until a need appears
+- Decide: spelling: `types`, `{'struct', l}`, `'opaque'`
+- Decide: `'module.link'` on one type name: equal bodies merge, opaque takes the body,
+  different bodies rename one (`pair.1`)
 
 ### `deps-cli` Many files: `--unit=each|merge|apply`, `-e` glue
 
@@ -249,25 +293,23 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `letrec x = t₁ in t₂` ≝ `let x = fix (λx. t₁) in t₂`
 - `let _ = v in e`: a `let` kept only for its effect
-- `blocks g = {l₁ = b₁, …} in t` ≝ `m [] (λg. {t, l₁ = b₁, …})`; always the struct form
+- `blocks g = {l₁ = b₁, …} in t` ≝ `s [] (λg. {t, l₁ = b₁, …})`; always the struct form
 - Typed lambdas `λ(i: 'i32'). e` for block parameters, if inference needs help
 - semantics.tex Section 3, grammar, printer; reserved words
 - Decide: a better name than `blocks`
 
 ### `typed-consts` Folding keeps constants' types
 
-- Constants that reach SSA-shaped ANF untyped (literal-only block parameters)
+- Constants that reach an ingot untyped (literal-only block parameters)
 - Decide: how reduction folds at compile time and still keeps a constant's type; e.g.
   `{'const', t, b}` accepted and returned by opcodes; branches on it are stuck (5.5)
 - Decide: `'select' {type, c, a, b}` opcode (LLVM `select`) for value choices
 
 ### `deps-goldens` Golden tests: diamond, template pattern, merged declarations
 
-- Golden: diamond: `a`, `b`, `c`, `d` linked once each; `d` exports, `b` and `c` import
-  (`linkage`)
+- Golden: diamond: `a`, `b`, `c`, `d` linked once each; `d` defines, `b` and `c` declare
 - Golden: template pattern: a generic instantiated once in a file's `code`
 - Golden: `puts` imported by two files, merged by `'module.link'`
-- Golden: two `'local'` symbols with one name in two files, renamed
 - Test: mutual recursion between blocks of one group
 
 ### `line-tables` `-g` line tables from spans
@@ -443,6 +485,27 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `zeroext`/`signext` on `i1`, `i8`, `i16` where needed
 - End-to-end tests calling libc and a small C test library, built and run
 - Done when: `oymo build hello.oymo util.c -o hello` runs; a program reverses a file
+
+### `undefined` Undefined behaviour in oymomo: folding, `'unreachable'`, poison
+
+- One place for every case LLVM leaves undefined, at the oymomo level; `alcor-ub` builds
+  Alcor's checked and optimized modes on it
+- Folding: today E-Opcode gives no result where LLVM is undefined (`udiv`/`sdiv`/`urem`/`srem`
+  by 0, `sdiv` of the minimum by −1, a shift by the width or more); the call stays as
+  run-time code (semantics.tex 4.4e, 5.6)
+- `'unreachable' {}` as a block end: LLVM's `unreachable`; uses: after a call that never
+  returns (`exit`, `abort`), a `switch` default that can't happen, facts a frontend proved,
+  the optimized mode of `alcor-ub`; never folds
+- Poison and undef: LLVM's `poison` value, flags that make results poison (`nsw`, `nuw`,
+  `exact`), `freeze`
+- semantics.tex 4, 5, 7–9; Lean (`anf_normal`, `op` partiality); code; goldens: a function
+  ending in `exit`, a division by a literal 0
+- Decide: an undefined call found at compile time: keep it as run-time code (today), reject
+  it as stuck with an error, or fold it to `poison`
+- Decide: `'unreachable'`: spelling, opcode call or own form, only at a block's end or also
+  bound by a `let`
+- Decide: `llvm.trap` for checked builds here or in `alcor-ub`
+- Decide: which poison-making flags and `freeze`, and when
 
 ### `tagged-unions` Enums and tagged unions; `switch` binds the payload
 

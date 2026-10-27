@@ -194,6 +194,28 @@ The user's orders, kept as given. Follow them in every task.
   - No exceptions (user's correction): every answer, including one that reports file
     edits, has its "Answer N" number, numbered bullets and lettered sub-bullets; each
     question sits in a bullet or sub-bullet.
+  - **Latest, supersedes every answer-format rule in this section (user, module-shape
+    session, after Answer 26):** "forget all what i said. just answer as you want or as
+    your default". No "Answer N" headers, no forced numbering or bullet scheme; answer in
+    the agent's default style. The older rules below are kept as history only.
+  - **One item per problem (user, Answer 22):** don't put every sentence in its own item;
+    the sentences about one problem go together in one item.
+  - **Indent (user, Answer 21):** `&emsp;` was not enough to tell levels apart; indent each
+    level by four `&emsp;` (`&emsp;&emsp;&emsp;&emsp;**N)**`), eight for the third level.
+  - **Bullet marks, latest (user, Answer 20):** `N)` with a closing paren, no bullet dot.
+    Never `N\)`: in chat `\)` is a KaTeX math delimiter and showed as math. Write each item
+    as its own paragraph starting `**N)**` (bold, so Markdown doesn't make it a list and
+    renumber), nested items indented with `&emsp;`. One continuous counter; all text in
+    leaf items.
+  - **Bullet marks (user, Answer 19; superseded):** no bullet dot,
+    and `)` after the number: write each item as its own line `N\)` (escaped, so Markdown
+    doesn't renumber), nested items indented with `&emsp;`; still one continuous counter
+    and all text in leaf items.
+  - **Current numbering (user, module-shape session Answer 16; supersedes the
+    alternating labels below):** number all bullets and sub-bullets with one continuous
+    counter across the whole answer (1, 2, 3, … at every depth), and every text or
+    question sits in a leaf bullet; a parent bullet is only a short title. Write them as
+    `- 1\.` (escaped dot) so Markdown doesn't renumber nested ordered lists.
   - Every bullet at every depth has a label, so the user can refer to it; labels
     alternate by depth: `1.`, then `- a.`, then `1.`, then `- a.`, and so on (write
     lettered sub-bullets as `- a.`, `- b.` because CommonMark collapses bare `a.` into the
@@ -455,7 +477,7 @@ result; to add one, add it to `opcodes._generate` and to `llvm_opcodes`, with te
 - Goldens (`tests/golden_test.py`, approvaltests): each `tests/goldens/NAME.oymo` has
   `NAME.normal.oymo` and `NAME.ll`; a new output appears as `.received`, approve it by
   renaming. Goldens: simplest, effects, pointer, memory, aggregate, globals, fact, gcd,
-  helpers, spans. `spans.oymo` is `helpers.oymo` with spans into a fake `language alcor`
+  floyd, helpers, spans. `spans.oymo` is `helpers.oymo` with spans into a fake `language alcor`
   file (`alcor/helpers.oymo`), the only golden with an `info` section.
 - Errors and warnings print `file:line:column`, the column in UTF-8 bytes from 1, from
   the error's span (`SpanTable.resolve`); the file is the row's, so it can be a frontend
@@ -803,6 +825,295 @@ Supersedes `{meta, code}` above (user: "i am redesigning module shape").
   shared-library boundary at load time, not about object files at link time. Cranelift
   folds it into `Linkage` (`Hidden`, `Preemptible`), so one field covers both.
 
+### Ingot names the translated module (Answers 4–12 of the module-shape session)
+
+- Supersedes the name "SSA-shaped ANF" (user: "i dont like ssa-shaped anf name").
+- **Ingot**: a normal form that is a module `{symbols, target, …}` in exactly the shape the
+  backend wants (R1), so translation only reads it. Only an ingot is translated; one ingot
+  is one LLVM/Cranelift module. Errors read "Not an ingot: block 'loop' is not in ANF: …".
+- **ANF** stays the name for a function body (`λm. λp. e`) only (user: "anf only means
+  function body. i want a something different name which is means {symbols, meta...}").
+- User's idea behind it: "lambda calculus in shape that can mirror machine". An ingot file
+  is an ordinary `language oymomo` file; same syntax and reduction, only its normal form's
+  shape is constrained.
+- Why ingot (user: "forget about relatability", wanted a single word; "i liked the
+  ingot"): metal cast into its final block, ready for the next stage; the λ-term cast into
+  the machine's exact shape.
+- Name history: MNF (machine normal form) was accepted first (Answer 8), then replaced.
+  Rejected or passed over: unit, translation unit, object, linkable, image, blueprint;
+  IR/explicit/exact/mirror/ready/final/lowered module; IRNF (ambiguous: oymomo itself is an
+  IR), BNF (Backus–Naur clash), TNF (`target` clash); Dipper star names (Megrez, Alioth, …),
+  cast, blank, die, mirror, replica, lammo, machina.
+- Code names (accepted, Answer 12): `ingot.py` replaces `module.py`'s `read_module`, with
+  `ingot_of`; `anf.py` stays for bodies; errors "Not an ingot: …".
+- Struct values (Answer 13–14): user chose option B, strict R1 ("I want minimum
+  translator to llvm. so if ingot maps to llvm 1:1, that will be great"): explicit
+  `'extractvalue'` / `'insertvalue'` opcodes; `x.l` only as `p.x`; a struct operand only
+  when it is data (an LLVM constant). Rejected: A (`x.l` and struct operands as notation,
+  LLVM adds `extractvalue`/`insertvalue`, Cranelift adds nothing), C (no struct values until
+  `by-value-structs`). `p` is never used whole (user).
+- Accepted (Answer 15, user: "copy LLVM exactly"): `'extractvalue' {aggtype, agg, i₁, …}`,
+  `'insertvalue' {aggtype, agg, value, i₁, …}`, LLVM's field order; indices are positions
+  (byte arrays), several for nested structs; a built struct starts from a constant struct
+  (`{[00], [00000000]}`), no `poison` value for now; paths are `x | p.l` only.
+  `'insertvalue'` folds only after `struct-tools` (E-Opcode returning any data).
+- Why B costs Cranelift (Answer 14, 3d): CLIF has only scalar values, no aggregates; a struct
+  is several values; the Cranelift translator will drop these lets and track the scalars,
+  removing instructions, never adding. Neither option is 1:1 with both backends; B makes the
+  ingot equal to LLVM IR, the main target.
+- Answer 16–17 decisions (user):
+  - `linkage` dropped for now ("lets ignore linkage for now. we will decide when we need
+    them. use default which ever works when translating"): definitions, globals,
+    constants are LLVM's default `external`; declarations are `declare`/`external
+    global`. `'module.link'` in `struct-tools` now matches declarations to definitions;
+    renaming internals waits for linkage. The earlier `linkage` section stays as history.
+  - Two arms of one branch to one block with different arguments: error (user: "we want
+    1:1 mapping to llvm, and do not want to introduce any transformation during
+    translation").
+  - Two arms on a non-`i1`: `switch` (user: "yes"; agent's reading, confirm asked in
+    Answer 17).
+  - Nested group block labels become paths from the block they continue: `loop.step`
+    (user: "maybe we merge nested labels like a path format").
+  - A body with no group: one unlabeled entry block (`%0`) (user: "i guess so").
+  - Call arguments must be a struct (user); with the callee's labels in order, as today.
+  - Tail call is `let r = m.f {…} in r` (user: ok).
+  - Later-fields table: user said ok to drafting it.
+- Answer 18 decisions (user):
+  - A body with no group is rejected (user: "no" to the unlabeled `%0` entry): a body is
+    always a group with a labeled entry block (agent's reading; confirm asked in Answer 18).
+  - Two arms on a non-`i1`: `switch` with case 0 and the default (user: "right").
+  - `m.f` not called is the function's address, allowed now; indirect calls wait for
+    `fn-address` (user: ok).
+  - `target`: accepted and ignored until the `target` leaf (user).
+  - Unknown module field: error; user: "i guess we should add a version to the ingot"
+    (field name/value not decided).
+  - One byte array may initialize an `i8` array, as LLVM's `c"…"` (user: yes).
+- Answer 19 decisions (user):
+  - `version`: UTF-8 text, "so we can write any text there. we dont interest in order, we
+    interest in category so we don't messed up with different version with another one";
+    compared for equality only. Field name `version` accepted (user: ok).
+  - `'unreachable' {}` terminal accepted. User asked whether `m []` is needed, since some
+    opcodes can't run at compile time, and how to unfold code by hand (answered in
+    Answer 19).
+  - Zero initializer: user "lgtm"; spelling asked again (`{}` vs `'zeroinitializer'`,
+    which clashes with a byte array filling an `i8` array).
+  - User's idea: drop all variable names, name values by de Bruijn index (discussed in
+    Answer 19: indices are relative, not unique; LLVM's own `%0, %1` numbering instead).
+  - Translator type check with source spans: accepted.
+- Answer 20 decisions (user):
+  - `version` values are short and backend-agnostic: `'0'`, `'1'`, `'1a'` (user: "version
+    should not use backend name"); this format is `'0'` (agent's proposal).
+  - Branch condition `c ::= x | p.l` in the grammar (user: okay).
+  - `init = {}` / `value = {}` is `zeroinitializer` (user: "okay for now").
+  - Value names: user wants to design dropping let/block-parameter names (Answer 20).
+- Answer 21 decisions (user):
+  - Names in LLVM (Answer 20, 7–12): symbol labels name functions/globals, block labels
+    name blocks, function-type parameter labels name arguments; let/block-parameter names:
+    user wants to keep the original name, "like prefix bruijn number index"; agent showed
+    indices are relative and levels clash across sibling blocks, proposed `%z.N`, N the
+    binder's ordinal in the function (Answer 21).
+  - Arguments, blocks and values share one LLVM namespace: checked with clang:
+    `define i32 @f(i32 %loop)` with a block `loop` gives "'%loop' is not a basic block";
+    llvmlite silently renames the block to `loop.1`. Proposed: a clash is an error.
+  - `.oymo` normal-form output keeps source names (user: "keep name").
+  - `.ll` readability: option A now (labels only), `#dbg_value` names in `debug-info`
+    (user: okay). Rejected: comments (text post-processing), LLVM-numbered duplicates.
+- Answer 22: user's idea: "remove all label and parameter names, and only use by index.
+  and keep parameter and block label names as a comment in ingot and in .ll". Agent's
+  analysis: all locals unnamed in LLVM (`%0`, `%1`, blocks numbered too) removes every
+  clash rule; symbol names stay (linker names). LLVM's in-memory IR has no comments, so
+  `.ll` comments need text post-processing; `-g` names (`DILocalVariable`, `DILabel`) are
+  the backend-supported way. In the ingot, labels can stay (reduction needs them for
+  E-Proj) or move to the info section like a JS source map's `names`.
+- Answer 23 decision (user: "i liked 8). maybe we will have a flag to include naming or
+  not, like debug or release"): locals unnamed in LLVM, labels stay in the ingot (option
+  A), no `.ll` comments; names via `-g` debug info later. A naming flag is open: clang's
+  precedent is `-fdiscard-value-names` (on by default in release clang builds). Note:
+  Answer 22 numbered two items 8 and 9 by mistake; keep one counter.
+- Answer 24 decision (user: "until bootstap lets work on debug versiononly, no flag"):
+  until the bootstrap, the translator always emits names (parameter labels, block label
+  paths, `%z.N` values); no `--names` flag; the unnamed (release) output waits for the
+  bootstrap compiler. Open: clash rule, `%z.N` spelling.
+- Answer 25 (user): "we will rename shadowing variables, then for the blocks we can use
+  var.label syntax. which is unique for the whole flatten blocks"; "does renaming
+  shadowing variables are not enough?" Agent: yes, if every binder name in a definition
+  is distinct (siblings too, not only shadowing, since blocks flatten into one function);
+  then `%p.a`, `%g.loop`, `%h.step`, `%z` never clash; `%z.N` and the clash rule are
+  dropped; nested label paths (`loop.step`, Answer 17) replaced by `h.step`. Renaming is
+  α (free); done in the normal form so `oymo normal` shows it. User asked for examples in
+  the format `\m.\run.\p. run (\g. …)` (the older `run` binder; asked whether `m []` is
+  dropped).
+- Answer 26 (user: "what if rename all variables, so all variables are unique"): agent
+  compared per-ingot uniqueness (Barendregt convention over the whole module) with
+  per-definition: per-ingot gives `%p1.a`, `%g3.loop` in later functions, renames shift
+  when a function is added (noisy golden diffs), and must be redone after `'module.link'`;
+  per-entry is the Barendregt convention on each closed entry. Recommended per definition.
+- Decided (user, after Answer 26): names unique per function (not per ingot); `m []` stays
+  (the `\run` binder in the user's examples was shorthand); every body is a group, even a
+  one-block function; the later-fields table stays in the wiki only (Answer 19 table).
+  With this the `module-shape` design is complete; next step is semantics.tex 7–9.
+- semantics.tex 7–9 drafted in blue (Oct 25). User then asked for the use cases of
+  `unreachable` (noreturn calls, impossible switch defaults, proved facts, infinite-loop
+  exits, optimized builds), and ordered: "remove unreachable from anf. also all undefined
+  behaviour things. instead add a leaf roadmap for unreachable behaviours. we will work on
+  in its dedicated leaf node". Done: removed from semantics.tex 7–9 and from
+  `module-shape`; new roadmap leaf 🚫 `unreachable` under `alcor-l0`, after `build`.
+  Sections 4.4e and 5.6 (E-Opcode doesn't fold on undefined behaviour such as x/0) are
+  older accepted text, left as is pending the user's word.
+- User: "create one leaf node which covers all undefined behaviours including
+  unreachable": the leaf is now 🚫 `undefined` (same place, under `alcor-l0` after
+  `build`): folding of undefined calls (4.4e, 5.6), `'unreachable'`, poison/undef/`freeze`
+  and flags. Sections 4.4e and 5.6 stay as they are until that leaf decides.
+  User confirmed: an undefined call found at compile time stays run-time code for now;
+  the other options (stuck, poison) are decided in `undefined`.
+- semantics.tex restructured (user: "just define anf there without blocks ... define
+  context/environment, then anf becomes list of lets and ends with terminal ... one
+  Function section after ANF and before Ingot"): 7 ANF = context Γ (let variables,
+  arguments `p.l`, symbols `m.l`, blocks `g.l` with parameter counts), then
+  `e ::= let x = o in e | τ`, `τ ::= q | j | {jᵢ} c`; 8 Functions = body `λm. λp. r`, group
+  `r`, block `k`, and `τ ::= … | r` (a group extends the terminals), contexts per part,
+  top group, calls, struct values, gcd body; 9 Ingots = shape, entries, init, running by
+  reduction, gcd ingot; 10 LLVM. Still in blue, under review.
+- Sections 7 and 8 merged (user, Oct 26: "anf and functions section ... depend each
+  other. lets merge them"): one section 7 "ANF and Functions" (label `sec:banf`;
+  `sec:functions` gone, its references point to `sec:banf`): body; one grammar with
+  `k`, `r` and `τ ::= … | r`; classes; free names `m`, `p`, `m []`; context Γ; how each
+  part sets the context; top group; calls; struct values; what ANF rules out; normal
+  form (old `p:group-normal` folded into `p:anf-normal`); gcd body. Now 8 Ingots, 9 LLVM.
+- 7.2 rows (user): `o ::= b | m.l` *operator* (was operation `b {…} | m.l {…}`), and
+  `e ::= let x = o {lᵢ = qᵢ} in e | τ`. `o {lᵢ = qᵢ}` is called an *instruction* in the
+  text (7.3d, 7.6b, 7.10a "No nested instruction", 7.11a).
+- Named types (Answer 15–16): proposal `types = {pair = {'i8', 'i32'}, FILE = 'opaque'}`
+  beside `symbols`, reference `{'struct', 'pair'}` (LLVM identified structs are nominal:
+  `%pair` ≠ `{i8, i32}`; only structs can be named; Cranelift has no types). User: its own
+  leaf, not in `module-shape`: roadmap leaf `named-types` under `deps`, after
+  `struct-tools`, with the three Decide items (at all / spelling / link rule).
+- Open problems listed in Answer 3 of this session (R1 vs `extractvalue`/`insertvalue`,
+  two arms to one block, two-arm branch on non-`i1`, label clashes in nested groups,
+  unlabeled entry of a group-less body, call argument shape, tail calls, module fields,
+  array byte-array initializers, literal-only parameters, later-fields check).
+
+### Groups stay `m [] (λg. {e, l = k, …})` (option B; Oct 26 session)
+
+- Example asked for: Floyd–Warshall (k/i/j loops) as one body: three loop groups plus a
+  fourth for the conditional store (arms only jump; no `'select'` yet); `kn`, `ni` hoisted
+  as `let`s before the nested groups; hoisting the load `d[i][k]` would need one more level.
+- User proposed taking field 0 out: `let g = m [] (λg. {l = k, …}) in e` (option A,
+  kernel `(λg. e) (m [] (λg. {…}))`, runner `λG. fix G`, every field labeled). Compared
+  with B (today's form, one binder) and C (`m [] (λg. {e, {l = k, …}})`, runner applies
+  `G` twice). A and B rewrite into each other with the same scopes and the same IR (each A
+  `let` is one B nesting level; helpers in B take the continuation, CPS), so A adds no
+  expressive power; its gains are flat sibling groups (shared `ret` blocks) and
+  direct-style helpers; its costs: two binders (naming-rule exception), the translator
+  must check the outer `g` is used only in jumps, unlabeled entry (reverses Answer 18).
+- `fix` instead of `m []` doesn't give a normal form: `fix (λg. …)` is a value, E-Beta
+  inlines blocks, loops on run-time values unroll forever (same as Answer 37).
+- Inner functions (Python-style) discussed: LLVM has none, entries stay closed and flat;
+  frontend lowers by (1) compile-time `λ` inlined by E-Beta, which must be CPS
+  (`gt v (λb. e)`) since there is no let-floating rule, arguments must be values;
+  (2) lambda lifting to a symbol; (3) closures after `fn-address`; (4) a block (join
+  point): fine for one call site or tail calls; several call sites need a return index
+  and a `switch` (literal-only parameter hole); return blocks inside a caller's group
+  can't be seen by the block, so the caller's values travel as parameters. Neither A nor
+  B avoids this (scopes are a tree; it is SSA dominance).
+- **Decided (user): option B**, after seeing A doesn't help with return blocks. Nothing
+  changes in semantics.tex 8–9; the `blocks` sugar in `ssa-sugar` (roadmap) stays
+  `m [] (λg. {t, l₁ = b₁, …})`.
+- Floyd–Warshall golden (user: "golden test", not semantics.tex): `tests/goldens/floyd.oymo`
+  in today's implemented shape (`takes` blocks, every live value passed, so the `.ll` has a
+  phi per value per loop header); `main` runs it on a 3-node graph, `cli_test` expects 7.
+  Roadmap `module-shape` lists converting it to nested groups. Adding it exposed a
+  translator bug: phis were created in `set` order of reachable labels, so their names
+  (`d.1`, `d.2`) changed between runs; now created in source order (`llvm_translate.py`).
+- CPS helper sugar (`let b = gt v in e` ⇒ `gt v (λb. e)`): user: "not now".
+
+### Modules over dependencies, group runner `rebi` (Oct 26 session; mostly open)
+
+- User dislikes `m []`. Why a marker is needed: compile time must not unfold a group, run
+  time must act as `(fix G) [00]`, same rules, so a variable bound only at run time (or a
+  runner rewrite) must make the difference. Options shown: bare `λg. {…}` + runner rewrite;
+  `'blocks' {…}`; `run` binder; `m.fix` (keyword `fix`, symbol clash).
+- User: per-function `context = {fix = …, puts = 'puts'}`, body `λc. λp. …`; then, wider:
+  a module is functions over a dependent module, `newModule = {dependent_signature = {…},
+  functions = {f = λfs. λd. λp. d.fix (λg. {…})}}`. Agent's reading: bodies `λd. λs. λp.`
+  (`d` dependencies, `s` own functions); dependencies by flat names so diamonds share; a
+  root module `R` with the single runner symbol. Not confirmed: binder order, signature
+  field name, data symbols in the module.
+- User: "foundationally, there is no strategy. if someone wants to merge modules, they
+  should write merging code" (no merge op, no translator name resolution). Merging by user
+  code needs renaming views `{g = s.g}`; agent proposed paths `x.l…` as values; **user:
+  "path is not a value"** (rejected). Agent's recommendation (not confirmed): merge only
+  when running by reduction (views reduce once `d`, `s` are bound); compile each module as
+  its own ingot, joined by the system linker by name.
+- Y/Z combinators can't replace kernel `fix`: Y loops under by-value E-Beta; Z works only
+  for applied recursion (a group is projected: `(λv. …).l` is stuck); turning off reduction
+  under `λ` would stop all compile-time work inside bodies; strong reduction makes both
+  diverge. `fix` unfolds lazily on projection and application.
+- **Decided (user): the runner is named `rebi`** ("recursive bindings"; user liked that
+  meaning of `rec`). Chosen over `fix0`, `Fix`, `mu`, `rec`, `knot`, `recbind`, `recb`.
+  Checked against glibc `libc.so.6`/`libm.so.6` exports: no clash. Groups read
+  `d.rebi (λg. {…})`; `R = {symbols = {rebi = {type = {'group'}, body = λd. λs. λG. (fix G) [00]}}}`
+  (shape of `R` not confirmed). The translator rejects a symbol named `rebi`.
+- Decided (user, after `rebi`): bodies `λd. λs. λp.` (depends, self, arguments); the
+  signature field is `depends`; globals and constants sit in `symbols` with functions
+  (`s.counter` own, `d.counter` imported); `R` as above; merging is user code run by
+  reduction only, compiling is one ingot per module joined by the system linker by name.
+- 7.2 redesign (user: "should not distinguish variables. all variables are x ... verifier
+  can catch errors"), not yet written into semantics.tex: rows in the user's order
+  `p ::= x | x.l` path, `o ::= p | b` operator, `q ::= p | d` operand, then jump
+  `p q₁ ⋯ qₙ`, terminal, expression `let x = o {lᵢ = qᵢ} in e | τ`, block, group
+  `p (λx. {lᵢ = kᵢ})`; no atom row. Paths: grammar allows `x.l₁⋯lₙ`, the verifier says
+  where one label or several are allowed (user). 7.4 and 7.5 merge into one item: the
+  context Γ gives each variable a kind (value, arguments, self, depends, group) from its
+  binder, with a table of allowed uses; 7.6 only says which kind each binder adds.
+  Ambiguities left to the verifier: `x.l` alone is a jump (group) or a return; `p (λx. …)`
+  is a group only for a `{'group'}` dependency.
+- Metavariable letters clash with binder names (`d` data/depends, `p` path/arguments):
+  user liked keeping `λd. λs. λp.` in examples and renaming metavariables (`δ`, `π`), and
+  asked why not Greek capitals for all syntax classes (being discussed).
+- Greek capitals: only 10 differ from Latin (Γ Δ Θ Λ Ξ Π Σ Φ Ψ Ω), Γ and Ω are taken, so 8
+  for 9 classes. Lowercase Greek proposed (π φ ω γ τ ε κ ρ δ); then user asked for Latin
+  capitals: agent's table `D` data, `P` path, `O` operator, `Q` operand, `J` jump, `T`
+  terminal, `E` expression, `K` block, `G` group (not `R`: root module; matches the
+  runner's `λG`); kernel `t v b l x` stay lowercase. User did not object; confirm when
+  writing.
+- Decided (user): drop the letter `Γ` (used once, no judgments); the context stays as an
+  idea, written in prose: each variable gets a kind from its binder, the verifier checks
+  each use; formal `Γ ⊢ E ok` rules only if wanted later.
+- **Written into semantics.tex (user: "yes", Oct 27), all in blue:** 7 rewritten: 7.1 body
+  `λd. λs. λp. G`; 7.2 Latin-capital grammar `P O Q J T E K G` (data is `D`); 7.3 classes;
+  7.4 kinds table (`p:kinds`) with verifier rules; 7.5 where binders are seen; 7.6 top
+  group; 7.7 calls `s.l`/`d.l`; 7.8 struct values; 7.9 ANF rules; 7.10 normal form (group
+  applies `d.rebi`; Lean `anf_normal` covers expressions without groups only, said so);
+  7.11 gcd body with `d.rebi`. 8: 8.1 module `{version, depends, symbols, target}`; 8.2
+  entries (exactly one of body/init/value; declaration row gone, now `depends`); 8.3 init;
+  8.4 root module `R` (`p:root`); 8.5 instance `fix (λs. {fᵢ = Bᵢ u s})` (`p:run-module`);
+  8.6 merging by user code (`p:merge`); 8.7 gcd ingot. 9: calls `s.l`/`d.l`, `d.rebi`
+  emits nothing, `depends` entries become `declare`/`external global`. Accepted sections
+  2–4 marked with `\old`/`\new`: data `d` → `D` (2.1i, E-Opcode, strategy row), `m.print`
+  → `d.print`, 4.x `p:call` "never binds a module's dependencies d", `m` → `s`/`d` in 4.x
+  fix items and the merge item of 5. Roadmap `module-shape`, `struct-tools` (module ops
+  marked "revisit"), `ssa-sugar` (`blocks` → `d.rebi`) updated.
+- **Supersedes `d.rebi` and the root module `R` (user: "use s []"):** a group is
+  `s [] (λg. {…})`, field 0 of the module's own instance. Compared `d []` (runner imported:
+  needs `R`, field 0 in every user-built `u`) with `s []` (the module runs its own groups;
+  no `R`; field 0 only in the instance formula). User asked to state the instance in the
+  doc: 8.4 `fix (λs. {λG. (fix G) [00], fᵢ = Bᵢ u s})`. Done in semantics.tex: 7.2
+  `G ::= x [] (λx. {…})`, 7.3h, 7.4 (self row `s []: runner`; any other `x b` rejected),
+  7.10d (`s` stays free since nothing applies the body), gcd examples, 8.1/8.2 (no `rebi`
+  in `depends`, no reserved name), `p:root` removed, 8.4 (instance, field 0 runner,
+  `u = {}` for gcd), 9 (`s []` becomes nothing). Roadmap updated. The name `rebi` is no
+  longer in the kernel (could name the `blocks` sugar later).
+- Field name confirmed (user: "ok"): `depends` with binder `d`. Compared `base` (one base,
+  inheritance; `b` is the byte-array metavariable), `parent` (one parent, no diamonds;
+  `p` is the arguments), `super` (OOP dispatch; `s` is self), `import` (exact as in Wasm,
+  but user's earlier rule against import/export; LLVM says `declare`/`external`); `extern`
+  was the alternative.
+- **Accepted (user: "accept doc", Oct 27):** all review marks removed from semantics.tex:
+  `\new{}` unwrapped, `\old{}`/`\mold{}` deleted with their text, the `\color{blue}` before
+  Section 7 and the legend line removed. Sections 7 (ANF and Functions), 8 (Ingots) and 9
+  (LLVM) as written above are now accepted text. The macros stay in the preamble.
+
 ### Debug info rides on `Term.location` (Answers 3–6; design in progress)
 
 - User: `module-shape` is not ready until debug info storage is designed ("how debug info
@@ -826,7 +1137,7 @@ Supersedes `{meta, code}` above (user: "i am redesigning module shape").
 - User's correction (Answer 7 on 6.3b): every source file is `.oymo`, Alcor and Mizar
   too (`language alcor` header), never `.alcor`. No compilation unit exists before
   translation: a file's content is a term, usable as a term in another file (`oymo run
-  a.oymo b.oymo c.oymo` is the application `a b c`). Only a term fully in SSA-shaped ANF
+  a.oymo b.oymo c.oymo` is the application `a b c`). Only an ingot (was "SSA-shaped ANF")
   is one compilation unit, translated to LLVM or Cranelift.
 - User's proposal (Answer 7, under discussion): `Term.location` is a single index into a
   location table the parser manages. Open: what happens to the table when several files

@@ -103,7 +103,7 @@ def run_golden_test(test_name: str) -> None:
     verify(ir_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.ll')))
 
 
-GOLDENS = ['simplest', 'effects', 'pointer', 'memory', 'aggregate', 'globals', 'fact', 'gcd', 'helpers', 'spans']
+GOLDENS = ['simplest', 'effects', 'pointer', 'memory', 'aggregate', 'globals', 'fact', 'gcd', 'floyd', 'helpers', 'spans']
 
 
 @pytest.mark.parametrize('name', GOLDENS)

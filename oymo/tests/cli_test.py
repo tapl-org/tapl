@@ -122,7 +122,7 @@ def test_run_prints_the_exit_status(tmp_path, monkeypatch, capfd) -> None:
 @pytest.mark.skipif(shutil.which('clang') is None, reason='needs clang')
 @pytest.mark.parametrize(
     ('golden', 'result'),
-    [('simplest', 0), ('fact', 120), ('gcd', 6), ('globals', 83), ('helpers', 3)],
+    [('simplest', 0), ('fact', 120), ('gcd', 6), ('floyd', 7), ('globals', 83), ('helpers', 3)],
 )
 def test_run_golden(capfd, golden: str, result: int) -> None:
     # The goldens that have a `main`; run with no arguments, so `argc` is 1.
