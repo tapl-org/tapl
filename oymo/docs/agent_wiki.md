@@ -1113,6 +1113,112 @@ Supersedes `{meta, code}` above (user: "i am redesigning module shape").
   `\new{}` unwrapped, `\old{}`/`\mold{}` deleted with their text, the `\color{blue}` before
   Section 7 and the legend line removed. Sections 7 (ANF and Functions), 8 (Ingots) and 9
   (LLVM) as written above are now accepted text. The macros stay in the preamble.
+- **`d` and `s` merged into `m` (user: "merge d and s variable into m", then "yes"):**
+  why: 8.2c already rejects a name in both `depends` and `symbols`, so one namespace loses
+  nothing and the verifier finds `l` in either list. Body `λm. λp. G`, group `m [] (λg. …)`,
+  instance `fix (λm. {λG. (fix G) [00], fᵢ = Bᵢ m, nⱼ = u.nⱼ})` (dependencies copied in).
+  Gain: merging modules whose names match into one ingot works at compile time
+  (`λm. A.symbols.f.body m` reduces since `m` is a value); only renaming needs views.
+  semantics.tex edited with review marks (legend back under the title): 2–5 `d`/`s` → `m`,
+  7.1, 7.3a/c/e/h, 7.4 one *module* row replaces *dependencies*/*self* (arguments now the
+  body's 2nd λ), 7.4a, 7.5a, 7.7, 7.10d, 8.1f, 8.4 (instance; new point b on copying
+  dependencies), 8.5c (compile-time merge by user code), 9. Listings 7.11 and 8.6 are
+  shown whole in blue (`formatcom=\color{blue}`): `@old<…>`/`@new<…>` inside `Verbatim`
+  didn't work (`<` was not a group character there; `\old` took one token). Roadmap updated.
+- **Accepted (user: "accept", Oct 27):** marks removed again (struck table rows and the old
+  instance display deleted, `formatcom=\color{blue}` dropped from the listings, legend
+  removed). The `m` design (body `λm. λp. G`, group `m [] (λg. …)`) is accepted text.
+- **"group" renamed "region" (user: "G is a group does not give an information", chose
+  `region`):** MLIR precedent (an operation holds regions, a region holds blocks, entry
+  first, regions nest). Compared block binding, recursive block binding/`rebi`, joinrec
+  (GHC), tagbody (Common Lisp), scope. Metavariable `G` → `R`; the runner's binder `λG` →
+  `λR`. semantics.tex with review marks: 4.x two mentions, 7.1 rewritten ("R is a region:
+  labeled blocks that may jump to each other and to themselves, entered by its field 0, as
+  a region in MLIR"), 7.2 row h and terminal, 7.3, kinds row *region*, 7.4–7.6 ("top
+  region"), 7.10, 7.11, 8.4, 9. Labels `p:groups`, `p:top-group` and the binder name `g`
+  kept. "group" in Section 6 (groups of strategy rows) is a different meaning, unchanged.
+  Roadmap `module-shape` updated.
+- User: "do not mention MLIR in the doc. this may cause confusions": removed from 7.1. MLIR
+  stays only as background here (why the name was picked).
+- User: "use r instead of g": the region binder is `r` (7.3a/h, kinds row, 7.4b, 7.5c,
+  8.4, 9). Nested region in the gcd example is `q` (agent's choice; names unique per
+  function); the gcd values that were `r` became `c` (`let c = 'urem' …`, `done = λc. c`,
+  so 9's renaming example is now `c`, `c1`), and `main`'s result `y`. Listings 7.11 and
+  8.6 blue again. Roadmap example updated.
+- **Accepted (user: "accept"):** region rename, no MLIR, binder `r` (nested `q`) are now
+  accepted text; marks, legend and listing colour removed.
+- Readability rewrite of Sections 7 and 8 (user: "not easy to read"), whole sections in
+  blue with a legend ("rewritten for readability; the old text is in git"), same content,
+  all labels kept. 7: 7.1 three layers (body, region, block); 7.2 gcd body first, with a
+  walk-through; 7.3 grammar; 7.4 classes, one line each; 7.5 field 0 (`p:top-group`); 7.6
+  kinds table and checks; 7.7 where a variable is seen (`p:groups`); 7.8 calls; 7.9 struct
+  values; 7.10 ANF rules; 7.11 normal form. 8: 8.1 shape; 8.2 gcd ingot moved up; 8.3
+  fields; 8.4 entries; 8.5 init; 8.6 instance with one point per field of the formula; 8.7
+  combining modules. Overfull lines in 7–8 fixed (one in Section 9 remains, older).
+- **Accepted (user: "accept"):** the readability rewrite of 7–8 is accepted text; blue and
+  legend removed.
+- Review round (user, Oct 27), with marks: 7.4b reworded (the struct only lists operands,
+  as LLVM's operand list; no struct built at run time); 7.5 field 0 label is free (any
+  label or none; `m []` runs only field 0; a jump to it still rejected; reverses the
+  "labeled entry" rule of Answer 18); 7.10c elaborated (struct operand is an LLVM
+  constant; run-time parts go in with `insertvalue` from a constant); new 7.10d: no
+  lifting rule, a convenience not a requirement, oymomo kept small (user's words); 8.6d
+  "user code instantiates…" (was stated as a rule); 8.7b "A" → "a definition f of a
+  module a"; 9 flattening: field 0 of the body's region is the entry block, an unlabeled
+  entry block has no LLVM name. Open: merge `depends` into `symbols` (user asked); user's
+  plan "bind non-symbol regex", `m []` → `m.fix`, `m.mem` (asked to clarify); 8.6 gap:
+  the instance has no fields for globals/constants, so `m.counter` gets stuck.
+- **`depends` merged into `symbols` (user: "merge them"):** `symbols` holds every symbol the
+  module defines or uses; an entry with only `type` is a declaration again (8.4 table row,
+  "at most one of body/init/value"); "a name in both" rule gone; 7.6a, 8.1, 8.3, 8.6
+  (`nⱼ` are declarations), 8.7a, 9 (declared function → `declare`) edited with marks; 8.2
+  listing blue (drops `depends = {}`). Roadmap updated.
+- User: "7.5c jump to field 0 is allowed" — not applied: conflicts with R1 (LLVM's entry
+  block can have no predecessors; a nested region's field 0 continues a block, so a jump
+  into it needs a split block and an added `br`). Asked the user.
+- User asked what "an unlabeled entry block has no LLVM name" means (9.4a); explained.
+- User's plan: two built-in names for `fix` and `mem` in `m` that the translator drops
+  (never reach the linker) but reduction uses; asked what the symbol regex is. Facts: ELF
+  and LLVM accept any bytes but NUL as a symbol name (`@"…"`), so no name is impossible
+  for a linker; oymomo's unquoted identifiers are C identifiers (`[A-Za-z_][A-Za-z0-9_]*`,
+  `core/terminals.py`); C reserves `__x` and `_X` for the implementation (C11 7.1.3);
+  glibc exports 762 `__` and 134 `_X` names, none of `__fix`, `__mem`, `_Fix`, `_Mem`.
+- **R1 softened (user: "one-to-one is preferable, but not required"):** 9.4 now "one to one
+  where it can be; preferred, not required … except where the ingot asks for what LLVM
+  can't write directly"; 8.1 "mostly only reads it". **Jump to field 0 allowed** (user):
+  7.5 drops "no jump goes to it"; a labeled field 0 may be jumped to with no operands; new
+  9.4 point: in the body's region the translation adds a new entry block that only jumps
+  to field 0 (LLVM's entry has no predecessors); in a nested region field 0 starts its
+  own block and the continued block gets an added `br`. **Unlabeled entry block is named
+  after its region binder** (`%r`) (user: "yes"); then user: name it `r.0` (binder and
+  position), so 9.4a reads "as r.0". Roadmap R1 bullet updated.
+- **Accepted (user: "accept"):** this round (7.4b, 7.5 free field-0 label and jumps to it,
+  7.10c/d, 8.6d, 8.7b, `depends` merged into `symbols`, softened R1, `r.0`) is accepted
+  text; marks removed (the empty `\item` left by the removed `depends` point deleted).
+- **LLVM moved out of Sections 1–8 (user: "make oymomo and ingot pure abstraction and not
+  depend on llvm"):** with marks. New Goal point: oymomo and ingots don't depend on LLVM;
+  examples use the translation's opcodes/types, read only as byte arrays. "translation
+  to LLVM" → "a translation" in 4.x (store order, uncomputed opcodes), "Recursion in LLVM"
+  → "at run time", 5.x "translated to LLVM" → "translated", 7.4b/7.9/7.10c drop LLVM
+  comparisons (struct operand is data, row Q), 8.1 "a module in a fixed shape, made to be
+  translated: one ingot is one compilation unit", 8.4 "a type, read by the translation",
+  8.5 initializer rules (ptr, i8 array, `{}`) moved to new 9 `p:init-llvm`. New 9 points:
+  `p:llvm-module` (one ingot = one LLVM module, mostly only read), `p:llvm-ops` (operand
+  struct = LLVM operand list; struct operand = constant; insertvalue; effects in `let`
+  order), `p:example` at the end: `main` calls `puts` when `argc > 1`, one nested region
+  `q`, with its `.ll` (checked: llvmlite verifies it; clang builds it; prints `hi` with an
+  argument). The `.ll` listing uses a plain `Verbatim` (no commandchars: `@` is the escape
+  char in the λ listings and broke `@msg`).
+- User: "use SSA instead of LLVM if SSA works": Goal point "an ingot can be translated to
+  any SSA form, and Section 9 translates it to LLVM's"; 4.x "a translation to SSA" (store
+  order, uncomputed opcodes); 8.1 "a module in a fixed shape that can be translated to
+  SSA"; 9.1 starts "LLVM IR is one SSA form". With marks.
+- **Accepted (user: "accept"):** LLVM moved to Section 9, SSA wording, the `puts` example
+  are accepted text; marks removed (three emptied `\item`s and the emptied subpoints list
+  of 8.5 deleted).
+- User: "forget these" about `m.__fix`/`m.__mem` names, the `m.__mem` design and the 8.6
+  globals gap: dropped; don't bring them up again unless the user does. The runner stays
+  `m []`.
 
 ### Debug info rides on `Term.location` (Answers 3–6; design in progress)
 

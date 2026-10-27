@@ -14,7 +14,7 @@
 \newcommand{\vto}{\mbox{$\to$}}  % → inside a code listing
 \newcommand{\vlam}{\mbox{$\lambda$}}  % \lambda inside a code listing
 \newcommand{\vlamm}{\vlam m}\newcommand{\vlamf}{\vlam f}\newcommand{\vlamp}{\vlam p}
-\newcommand{\vlamg}{\vlam g}\newcommand{\vlamh}{\vlam h}\newcommand{\vlama}{\vlam a}\newcommand{\vlamb}{\vlam b}\newcommand{\vlamr}{\vlam r}\newcommand{\vlamd}{\vlam d}\newcommand{\vlams}{\vlam s}
+\newcommand{\vlamg}{\vlam g}\newcommand{\vlamh}{\vlam h}\newcommand{\vlama}{\vlam a}\newcommand{\vlamb}{\vlam b}\newcommand{\vlamr}{\vlam r}\newcommand{\vlamd}{\vlam d}\newcommand{\vlamq}{\vlam q}\newcommand{\vlamc}{\vlam c}\newcommand{\vlams}{\vlam s}
 \usepackage[hidelinks]{hyperref}
 
 %% ── Macros (each notation is introduced in the text where it is first used) ──
@@ -103,6 +103,9 @@
   opcodes, and a fixed point for recursion; its $\beta$ rule is call-by-value: a function is applied only to a value, so a term that still has to run is never copied or dropped.
 \item Section~\ref{sec:goal} states the goal, Section~\ref{sec:syntax} gives the syntax, Section~\ref{sec:sugar} the sugar,
   Sections~\ref{sec:computation} and~\ref{sec:congruence} the reduction, Section~\ref{sec:strategy} how to reach a normal form, Section~\ref{sec:banf} ANF (A-normal form) and functions, Section~\ref{sec:modules} ingots, and Section~\ref{sec:llvm} the translation to LLVM.
+\item Oymomo and ingots don't depend on LLVM: an ingot can be translated to any SSA form, and
+  Section~\ref{sec:llvm} translates it to LLVM's. The examples use the opcodes and
+  types of that translation, such as $\str{add}$ and $\str{i32}$; oymomo reads them only as byte arrays.
 \item\label{p:goal-anywhere} Reduction happens anywhere: a rule may fire in any position, under a
   $\lambda$, in a struct field and in an argument.
 \item\label{p:goal-banf} A term in ANF (Section~\ref{sec:banf}) is a normal form: it
@@ -204,11 +207,11 @@
   substitutes.
 \item\label{p:values} A value is a variable, $\lam{x}{t}$, a byte array, a struct of values or a fixed point $\kw{fix}\ (\lam{x}{t})$ (Section~\ref{sec:syntax}).
   \rn{E-Beta} substitutes only a value, so it never copies or drops a term that still has to
-  run: in $(\lam{x}{\{x, x\}})\ (d.\mathit{print}\ \{r\})$ the call is not a value, so it stays as
+  run: in $(\lam{x}{\{x, x\}})\ (m.\mathit{print}\ \{r\})$ the call is not a value, so it stays as
   written, a $\kw{let}$ (\pref{p:let}), and runs once. A variable is a value because it stands for one.
   \begin{subpoints}
-  \item\label{p:call} A call to a function, such as $d.\mathit{print}\ \{r\}$ (Section~\ref{sec:modules}),
-    is an effect too. Reduction never binds a module's dependencies $d$: the linker connects them, so the call never
+  \item\label{p:call} A call to a function, such as $m.\mathit{print}\ \{r\}$ (Section~\ref{sec:modules}),
+    is an effect too. Reduction never binds $m$: the linker connects it, so the call never
     reduces. It is not a value, so \rn{E-Beta} never copies or drops it: a $\kw{let}$ (\pref{p:let}) keeps it where it is written.
   \item A fixed point is a value: it has no effect, so copying it runs nothing twice, and it
     unfolds only when it is used (\pref{p:fix}).
@@ -226,12 +229,12 @@
     \[\begin{array}{l}\kw{let}\ u = \str{store}\ \{\str{i32}, \hex{05000000}, p\}\ \kw{in} \\
     \kw{let}\ x = \str{load}\ \{\str{i32}, p\}\ \kw{in} \\
     t\end{array}\]
-    the $\str{store}$ stays outside the $\str{load}$, and the translation to LLVM emits the $\str{store}$
+    the $\str{store}$ stays outside the $\str{load}$, and a translation to SSA emits the $\str{store}$
     first, so the $\str{load}$ reads $\hex{05000000}$. Using one's result in the next orders them too.
   \item All operands are data: byte arrays, or structs of data (row \pref{p:data}), never
     a lambda, so they never step and the result is the same in every reduction order.
   \item Otherwise the call does not reduce: an effect, undefined behavior, an unknown opcode, or an
-    operand that is not data, such as a parameter $p.a$. With normal operands it is normal. The translation to LLVM emits it as an instruction.
+    operand that is not data, such as a parameter $p.a$. With normal operands it is normal. A translation to SSA emits it as an instruction.
     \end{subpoints}
 \item \rn{E-Proj} takes the field labeled $l$ (labels are unique): $\{x = a, b, y = c\}.x \step a$.
   \begin{subpoints}
@@ -271,8 +274,8 @@
     \[\begin{array}{l}F = \kw{fix}\ (\lam{f}{\lam{n}{\kw{if}\ \str{icmp}\ \{\str{eq}, \str{i32}, n, 0\}\ \kw{then}\ 1}} \\
 \qquad \kw{else}\ \str{mul}\ \{\str{i32}, n, f\ (\str{sub}\ \{\str{i32}, n, 1\})\})\end{array}\]
     every path of $F\ 3$ that ends gives $6$. $F\ p.n$ has no normal form: recursion on an
-    unknown never stops. Recursion in LLVM goes through $s$ and groups (Section~\ref{sec:banf}).
-  \item For example, $\kw{fix}$ binds $s$ and groups to run an ingot by reduction (\pref{p:run-module}).
+    unknown never stops. Recursion at run time goes through $m$ and regions (Section~\ref{sec:banf}).
+  \item For example, $\kw{fix}$ binds $m$ and regions to run an ingot by reduction (\pref{p:run-module}).
   \end{subpoints}
 \end{points}
 
@@ -308,7 +311,7 @@
   \item Confluence is what lets programs be combined. For two programs $A$ and $B$ merged as
     $A\ B$: reducing $A$ and $B$ first, $A \steps A'$ and $B \steps B'$, and then $A\ B$ is one of the orders of $A\ B$
     (\rn{E-App1}, \rn{E-App2}: $A\ B \steps A'\ B'$), so it reaches the same normal form as applying first. Merging never binds a
-    module's $d$ (\pref{p:call}), so a call between $A$ and $B$ is never inlined.
+    module's $m$ (\pref{p:call}), so a call between $A$ and $B$ is never inlined.
     \end{subpoints}
 \end{points}
 \begin{points}
@@ -317,7 +320,7 @@
   reduce, such as $\{\}\ t$, a byte array applied to a lambda, or $t.l$ where $t$ is a lambda, or $\kw{fix}\ t$ where $t$ is a byte array or a struct. A
   program $t$ with $t \steps t'$ for a stuck $t'$ is rejected.
 \item\label{p:forms} A normal form that is not stuck is valid. An unknown opcode or undefined behavior is not stuck: the call is normal (\pref{p:opcode}). A normal form is in ANF (Section~\ref{sec:banf}) or
-  not; only one in ANF is translated to LLVM. $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$
+  not; only one in ANF is translated. $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$
   is normal but not in ANF; written with a  $\kw{let}$ for the $\str{mul}$, it is.
 \end{points}
 
@@ -392,85 +395,107 @@
 \section{ANF and Functions}\label{sec:banf}
 
 \begin{points}
-\item\label{p:definition} A function's body is $\lam{d}{\lam{s}{\lam{p}{G}}}$: $d$ holds the module's dependencies,
-  $s$ its own symbols and $p$ the arguments, and $G$ is a group: nested groups of blocks, each block's body
-  an expression in ANF.
-\item\label{p:anf} An expression in ANF is a list of $\kw{let}$s, one per instruction, ending in a terminal;
-  a terminal may be a group, which nests more blocks. Every variable is written $x$: the grammar does not
-  tell variables apart, and the verifier does (\pref{p:kinds}).
+\item\label{p:definition} A function's body has three layers:
+  \begin{subpoints}
+  \item The body is $\lam{m}{\lam{p}{R}}$: $m$ is the module, its symbols and its dependencies (Section~\ref{sec:modules}),
+    and $p$ holds the arguments.
+  \item $R$ is a region: labeled blocks that may jump to each other and to themselves, entered by the code in
+    its field $0$.
+  \item A block is a list of $\kw{let}$s, one per instruction, ending in a terminal: a return, a jump, a branch, or a
+    nested region. This is ANF.
+  \end{subpoints}
+\item\label{p:gcd-body} For example, the body of Euclid's $\gcd$, with the sugar of \pref{p:if}:
+  \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
+@vlamm. @vlamp. m [] (@vlamr. {
+  entry = r.loop p.a p.b,
+  loop = @vlama. @vlamb.
+    let z = 'icmp' {'eq', 'i32', b, [00000000]} in
+    m [] (@vlamq. {
+      if z then r.done a else q.step,
+      step = let c = 'urem' {'i32', a, b} in r.loop b c
+    }),
+  done = @vlamc. c
+})
+\end{Verbatim}
+  \begin{subpoints}
+  \item The body's region $r$ has the blocks $\mathit{entry}$, $\mathit{loop}$ and $\mathit{done}$; $\mathit{entry}$ runs first.
+  \item $r.\mathit{loop}\ p.a\ p.b$ jumps to $\mathit{loop}$, passing $p.a$ and $p.b$ for its parameters $a$ and $b$.
+  \item $\mathit{loop}$ ends in a nested region $q$. Its field $0$ continues $\mathit{loop}$ after the $\kw{let}$ and branches; $\mathit{step}$ is a
+    new block.
+  \item $\mathit{step}$ uses $a$ and $b$ without being passed them: a block sees the variables bound before its region.
+  \end{subpoints}
+\item\label{p:anf} The grammar. Every variable is written $x$: the grammar does not tell variables apart; the
+  verifier does, by their kinds (\pref{p:kinds}).
 \[
 \begin{array}{l@{\quad}rcll}
 \pt\plabel{p:path} & P & ::= & x \mid P.l & \textit{path} \\
 \pt & O & ::= & P \mid b & \textit{operator} \\
 \pt & Q & ::= & P \mid D & \textit{operand} \\
 \pt & J & ::= & P\ Q_1 \cdots Q_n & \textit{jump} \\
-\pt & T & ::= & Q \mid J \mid \{J_i\}_{i<k}\ P \mid G & \textit{terminal} \\
+\pt & T & ::= & Q \mid J \mid \{J_i\}_{i<k}\ P \mid R & \textit{terminal} \\
 \pt & E & ::= & \kw{let}\ x = O\ \{l_i = Q_i\}_{i<k}\ \kw{in}\ E \mid T & \textit{expression} \\
 \pt & K & ::= & E \mid \lam{x_1}{\cdots \lam{x_n}{E}},\ 0 < n & \textit{block} \\
-\pt & G & ::= & x\ \hex{}\ (\lam{x}{\{l_i = K_i\}_{i<k}}),\ 0 < k & \textit{group}
+\pt & R & ::= & x\ \hex{}\ (\lam{x}{\{l_i = K_i\}_{i<k}}),\ 0 < k & \textit{region}
 \end{array}
 \]
 \item What each class is:
   \begin{subpoints}
-  \item $P$: a path is a variable or a path and a label: $p.a$, $s.\mathit{gcd}$, $d.\mathit{puts}$, $g.\mathit{loop}$. The
-    verifier says where a path may have more than one label (\pref{p:kinds}). A field of a struct value is
-    read with the opcode $\str{extractvalue}$ (\pref{p:struct-values}), never with a projection.
-  \item $O$: an operator is a path to a function or an opcode $b$. Applied to the struct of its operands,
-    $O\ \{l_i = Q_i\}_{i<k}$, it is an instruction: a call (\pref{p:calls}), or an opcode call that \rn{E-Opcode} does
-    not compute (\pref{p:opcode}). The struct holds the operands; it is not a struct value.
-  \item $Q$: an operand is a path or data (row \pref{p:data}). A path to a symbol stands for its address:
-    $\str{load}\ \{\str{i32}, s.\mathit{counter}\}$ reads a global variable. A struct operand is a constant, such as
-    the type $\{\str{i8}, \str{i32}\}$ in $\str{load}\ \{\{\str{i8}, \str{i32}\}, x\}$.
-  \item $J$: a jump $P\ Q_1 \cdots Q_n$ goes to the block $P$, passing one operand for each of its $n$
-    parameters; a block with no parameters is jumped to by $P$ alone.
-  \item $T$: a terminal is a return $Q$, a jump $J$, a branch $\{J_i\}_{i<k}\ P$ whose arms all jump, or a
-    group $G$. A call that ends a function is bound and returned: $\kw{let}\ y = s.f\ \{\dots\}\ \kw{in}\ y$.
+  \item $P$: a path is a variable followed by labels: $p.a$, $m.\mathit{gcd}$, $r.\mathit{loop}$.
+  \item $O$: an operator is a path to a function, or an opcode $b$. Applied to the struct of its operands,
+    $O\ \{l_i = Q_i\}_{i<k}$ is an instruction: a call (\pref{p:calls}), or an opcode call that \rn{E-Opcode} does not
+    compute (\pref{p:opcode}). The struct only lists the operands: no struct is built at run time, and a struct value is never an operator's argument as a whole.
+  \item $Q$: an operand is a path or data (row \pref{p:data}). A struct operand is a constant, such as a type.
+    A path to a symbol is its address, so $\str{load}\ \{\str{i32}, m.\mathit{counter}\}$ reads a global variable.
+  \item $J$: a jump $P\ Q_1 \cdots Q_n$ goes to the block $P$ with one operand for each of its parameters.
+  \item $T$: a terminal is a return $Q$, a jump $J$, a branch $\{J_i\}_{i<k}\ P$ whose arms only jump, or a region $R$.
   \item $E$: an expression is the $\kw{let}$s of one block, up to its terminal.
-  \item $K$: a block is an expression, or a $\lambda$ taking the block's parameters one by one.
-  \item $G$: a group $s\ \hex{}\ (\lam{g}{\{l_i = K_i\}_{i<k}})$ names blocks: $g.l_i$ is the block $K_i$. $s\ \hex{}$,
-    field $0$ of the module's instance, is the runner of groups (\pref{p:run-module}). Field $0$ of the group
-    is an expression, never a $\lambda$.
+  \item $K$: a block is an expression, or $\lambda$s taking its parameters one by one.
+  \item $R$: a region $m\ \hex{}\ (\lam{r}{\{l_i = K_i\}_{i<k}})$ names its blocks: $r.l_i$ is $K_i$. $m\ \hex{}$ is the module's
+    runner of regions (\pref{p:run-module}).
   \end{subpoints}
-\item\label{p:kinds} Each variable has a kind, given by its binder; the verifier checks every use of a
-  variable against its kind and rejects the others:
+\item\label{p:top-group} Field $0$ of a region is an expression, never a $\lambda$; $m\ \hex{}$ runs only field $0$:
+  \begin{subpoints}
+  \item In the body's region it is the entry block, as $\mathit{entry}$ in \pref{p:gcd-body}.
+  \item In a nested region it continues the block the region ends; the region's other fields
+    are new blocks.
+  \item Its label is free: it may have any label or none. With a label, a jump may go to it, with no
+    operands, since field $0$ has no parameters; the translation then adds a block (\pref{p:one-to-one}).
+  \end{subpoints}
+\item\label{p:kinds} Each variable has a kind, given by its binder. The verifier checks every use against the
+  kind and rejects the others:
 \[
 \begin{array}{l@{\quad}lll}
  & \textit{kind} & \textit{bound by} & \textit{used as} \\ \hline
-\pt & \textit{dependencies} & \text{the body's 1st } \lambda,\ d & d.l,\ l \text{ in } \mathit{depends}\text{: operator, operand} \\
-\pt & \textit{self} & \text{the body's 2nd } \lambda,\ s & s.l,\ l \text{ in } \mathit{symbols}\text{: operator, operand};\ s\ \hex{}\text{: runner} \\
-\pt & \textit{arguments} & \text{the body's 3rd } \lambda,\ p & p.l,\ l \text{ a parameter: operand, condition} \\
-\pt & \textit{group} & \text{a group's } \lambda,\ g & g.l,\ l \text{ a labeled field: head of a jump} \\
+\pt & \textit{module} & \text{the body's 1st } \lambda,\ m & m.l\text{: operator, operand};\ m\ \hex{}\text{: runner} \\
+\pt & \textit{arguments} & \text{the body's 2nd } \lambda,\ p & p.l,\ l \text{ a parameter: operand, condition} \\
+\pt & \textit{region} & \text{a region's } \lambda,\ r & r.l,\ l \text{ a block: head of a jump} \\
 \pt & \textit{value} & \kw{let},\ \text{a block's } \lambda & x\text{: operand, condition}
 \end{array}
 \]
   \begin{subpoints}
-  \item $d.l$ and $s.l$ are operators when $l$ is a function, and otherwise operands, the address of $l$.
-    $s\ \hex{}$ is only the head of a group; any other $x\ b$ is rejected.
-  \item A jump $g.l\ Q_1 \cdots Q_n$ passes exactly as many operands as the block $l$ has parameters.
-  \item A value has no fields: $x.l$ with $x$ a value is rejected.
-  \item What the grammar leaves open, the kind decides: a path alone as a terminal is a jump when its head is
-    a group, and a return otherwise.
+  \item $m.l$: $l$ is a name in the module's $\mathit{symbols}$ (\pref{p:module}); $m.l$ is an operator when
+    $l$ is a function, and otherwise an operand, the address of $l$. $m\ \hex{}$ only heads a region; any other
+    $x\ b$ is rejected.
+  \item $r.l$: a jump to the block $l$ passes exactly as many operands as $l$ has parameters.
+  \item $x$: a value has no fields, so $x.l$ is rejected; a field of a struct value is read with an
+    opcode (\pref{p:struct-values}).
+  \item A path alone as a terminal is a jump when its head is a region, and a return otherwise.
   \end{subpoints}
-\item\label{p:groups} Where each binder's variables are seen:
+\item\label{p:groups} Where a variable is seen:
   \begin{subpoints}
-  \item The body's $d$, $s$ and $p$ are seen in all of its group.
-  \item $\kw{let}\ x = O\ \{l_i = Q_i\}_{i<k}\ \kw{in}\ E$ adds the value $x$ to $E$.
-  \item A group adds its $g$ to all its fields, so its blocks may jump to each other and to themselves.
-  \item A block $\lam{x_1}{\cdots \lam{x_n}{E}}$ adds the values $x_1, \dots, x_n$ to $E$.
-  \item So a block sees the let variables bound around it: a block of a group runs only after the code
-    before the group, and nested groups give dominance.
+  \item $m$ and $p$: in the whole body.
+  \item A region's $r$: in all of its fields, so its blocks may jump to each other and to themselves.
+  \item A $\kw{let}$'s $x$: in the rest of its block. A block's parameters: in the block.
+  \item So a block sees the variables bound before its region: the block runs only after that code, and
+    nested regions give dominance.
   \end{subpoints}
-\item\label{p:top-group} Where each block starts:
+\item\label{p:calls} A call is $m.l\ \{x_i = Q_i\}_{i<k}$, with $x_i$ the parameters' labels of the function $l$, in order.
   \begin{subpoints}
-  \item The body's group is the top group: its field $0$ is the entry block, and is labeled.
-  \item Any other group continues the block it ends: its field $0$ is unlabeled and runs on after the
-    $\kw{let}$s before the group; its other fields are new blocks.
-  \item No jump goes to a field $0$: no path names it.
+  \item A call that ends a function is bound and returned: $\kw{let}\ y = m.f\ \{\dots\}\ \kw{in}\ y$.
+  \item A path to a function that is not called is the function's address.
   \end{subpoints}
-\item\label{p:calls} A call is $P\ \{x_i = Q_i\}_{i<k}$, with $P$ a path $s.l$ or $d.l$ to a function and $x_i$ its
-  parameters' labels, in order. A path to a function that is not called is the function's address.
 \item\label{p:struct-values} A struct value, such as a $\str{load}$ of a struct type, is read and built
-  with opcodes, as in LLVM, with positions for indices:
+  with opcodes, with positions for indices:
   \[\begin{array}{l}\kw{let}\ s_1 = \str{insertvalue}\ \{\{\str{i8}, \str{i32}\}, \{\hex{00}, \hex{00000000}\}, p.a, \hex{00}\}\ \kw{in} \\
     \kw{let}\ s_2 = \str{insertvalue}\ \{\{\str{i8}, \str{i32}\}, s_1, w, \hex{01}\}\ \kw{in} \\
     \kw{let}\ y = \str{extractvalue}\ \{\{\str{i8}, \str{i32}\}, s_2, \hex{01}\}\ \kw{in}\ \dots\end{array}\]
@@ -479,34 +504,23 @@
   \item No nested instruction: $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$ is normal (\pref{p:forms}) but not in
     ANF. The fix is the program's: bind the $\str{mul}$ with a $\kw{let}$. No rule lifts it.
   \item No nested $\kw{let}$ and no branch as a value: the arms of a branch only jump.
-  \item No struct value built from parts that are not constants: it is built with the opcode
-    $\str{insertvalue}$ (\pref{p:struct-values}).
+  \item No struct value built from parts that are not constants: a struct operand is data (row $Q$), so $\{p.a, \hex{01}\}$ as an operand is rejected. A struct value is built from run-time parts one
+    field at a time, starting from data, with $\str{insertvalue}$ (\pref{p:struct-values}):
+    $\{p.a, \hex{01}\}$ is $\str{insertvalue}$ of $p.a$ into $\{\hex{00000000}, \hex{01}\}$ at position $\hex{00}$.
+  \item Oymomo has no lifting rule, no rule that moves a nested instruction or a nested $\kw{let}$ out into
+    a $\kw{let}$ of its own. Lifting is a convenience, not a requirement: a frontend or a sugar can write ANF
+    directly, and the translation never needs it. Oymomo is kept as small as possible.
   \end{subpoints}
 \item\label{p:anf-normal} A body is a normal form (\pref{p:normal}), as Goal \pref{p:goal-banf} asks:
   \begin{subpoints}
-  \item An instruction $O\ \{l_i = Q_i\}_{i<k}$ is not a value, so \rn{E-Beta} never fires on its $\kw{let}$.
+  \item An instruction is not a value, so \rn{E-Beta} never fires on its $\kw{let}$.
   \item A path or a jump has a variable at its head, and an operand is never applied or projected, so no
     other rule fires at them.
   \item A branch applies a struct to a path, never to a byte array, so \rn{E-Index} and \rn{E-Default} don't fire.
-  \item A group applies $s\ \hex{}$, and nothing applies the body, so $s$ stays free and the group doesn't reduce.
+  \item A region applies $m\ \hex{}$, and nothing applies the body, so $m$ stays free and the region doesn't reduce.
   \item The proof is in Lean 4, in \texttt{proofs/} (theorem \texttt{Oymomo.anf\_normal}), for expressions
-    without groups; groups are not in it yet.
+    without regions; regions are not in it yet.
   \end{subpoints}
-\item\label{p:gcd-body} For example, the body of Euclid's $\gcd$, with the sugar of \pref{p:if}. The block
-  $\mathit{loop}$ holds a nested group: its field $0$ goes on after the $\kw{let}$ and branches, and $\mathit{step}$ is a
-  new block that uses $a$ and $b$ without being passed them:
-  \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
-@vlamd. @vlams. @vlamp. s [] (@vlamg. {
-  entry = g.loop p.a p.b,
-  loop = @vlama. @vlamb.
-    let z = 'icmp' {'eq', 'i32', b, [00000000]} in
-    s [] (@vlamh. {
-      if z then g.done a else h.step,
-      step = let r = 'urem' {'i32', a, b} in g.loop b r
-    }),
-  done = @vlamr. r
-})
-\end{Verbatim}
 \end{points}
 
 %% ── Ingots ───────────────────────────────────────────────────────────
@@ -514,87 +528,81 @@
 \section{Ingots}\label{sec:modules}
 
 \begin{points}
-\item\label{p:module} An ingot is a module in the shape LLVM wants, so that its translation
-  (Section~\ref{sec:llvm}) only reads it: $\{\mathit{version} = b,\ \mathit{depends} = \{l_i = t_i\}_{i<n},\ \mathit{symbols} = \{l_i = e_i\}_{i<k},\ \mathit{target} = t\}$.
+\item\label{p:module} An ingot is a module in a fixed shape that can be translated to SSA: one ingot is one
+  compilation unit. A program reduces to an ingot; only an ingot is translated.
+  \[\{\mathit{version} = b,\ \mathit{symbols} = \{l_i = e_i\}_{i<k},\ \mathit{target} = t\}\]
+\item\label{p:gcd} For example, an ingot with $\gcd$ (its body is \pref{p:gcd-body}) and $\mathit{main}$:
+  \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
+{
+  version = '0',
+  symbols = {
+    gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
+           body = @vlamm. @vlamp. m [] (@vlamr. { @ldots })},
+    main = {type = {'function', {}, 'i32'},
+            body = @vlamm. @vlamp. m [] (@vlamr. {
+              entry = let y = m.gcd {a = [30000000], b = [12000000]} in y
+            })}
+  }
+}
+\end{Verbatim}
+\item The fields:
   \begin{subpoints}
-  \item A program reduces to an ingot; only an ingot is translated, and one ingot is one LLVM module.
   \item $\mathit{version}$ names the shape of this section, as text: $\str{0}$. Versions are compared only for
     equality; an unknown version is rejected.
-  \item $\mathit{depends}$ lists what the module uses from other modules: each label is a symbol's name and
-    each value its type (\pref{p:types}, \pref{p:entry-kind}), such as
-    $\mathit{puts} = \{\str{function}, \{s = \str{ptr}\}, \str{i32}\}$.
-  \item $\mathit{symbols}$ holds the module's own symbols, each an entry $e_i$ labeled by the symbol's name.
-  \item $\mathit{target}$ may be left out; it is read later, with the target's details. Any other field is
-    rejected.
-  \item Each entry is closed: its body names other symbols only through $d$ and $s$ (\pref{p:kinds}), so a
-    source language lowers each of its items to one entry on its own.
+  \item $\mathit{symbols}$ holds every symbol the module defines or uses, each an entry $e_i$ labeled by the symbol's name; a symbol
+    defined in another module is a declaration (\pref{p:entry-kind}).
+  \item $\mathit{target}$ may be left out; it is read later, with the target's details.
+  \item Any other field is rejected.
+  \item Each entry is closed: its body names other symbols only through $m$ (\pref{p:kinds}), so a source
+    language lowers each of its items to one entry on its own.
   \end{subpoints}
-\item\label{p:entry-kind} An entry is a struct with a $\mathit{type}$ and exactly one of
+\item\label{p:entry-kind} An entry is a struct with a $\mathit{type}$ and at most one of
   $\mathit{body}$, $\mathit{init}$, $\mathit{value}$; that field gives its kind:
 \[
 \begin{array}{l@{\quad}l@{\quad}l@{\quad}l}
  & \textit{fields} & \textit{kind} & \textit{type} \\ \hline
 \pt & \mathit{type}, \mathit{body} & \textit{definition} & \{\str{function}, \{x_i = t_i\}_{i<k}, t\} \\
-\pt & \mathit{type}, \mathit{init} & \textit{global variable} & \text{a type (\pref{p:types})} \\
-\pt & \mathit{type}, \mathit{value} & \textit{constant} & \text{a type}
+\pt & \mathit{type}, \mathit{init} & \textit{global variable} & \text{a type, read by the translation (\pref{p:types})} \\
+\pt & \mathit{type}, \mathit{value} & \textit{constant} & \text{a type} \\
+\pt & \mathit{type} & \textit{declaration} & \text{either}
 \end{array}
 \]
   \begin{subpoints}
   \item A definition's $\mathit{body}$ is a function's body (Section~\ref{sec:banf}).
   \item A function's type holds its parameters' types, in order, and its result type:
-    $\mathit{puts}$ is $\{\str{function}, \{s = \str{ptr}\}, \str{i32}\}$.
-  \item A name in both $\mathit{depends}$ and $\mathit{symbols}$ is rejected.
+    $\mathit{puts} = \{\mathit{type} = \{\str{function}, \{s = \str{ptr}\}, \str{i32}\}\}$ declares $\mathit{puts}$.
+  \item A declaration is a function, global variable or constant that another module defines.
   \end{subpoints}
 \item\label{p:init} An $\mathit{init}$ or a $\mathit{value}$ is data (row \pref{p:data}) of the entry's type:
   $\{\mathit{type} = \str{i32},\ \mathit{init} = \hex{29000000}\}$.
+How data initializes each type belongs to the translation (\pref{p:init-llvm}).
+\item\label{p:run-module} A module also runs by reduction, as a test does, once $m$ is bound to an instance. For a
+  module with definitions $f_i$ of bodies $B_i$ and declarations $n_j$, and a struct $u$ that holds
+  those names, the instance is
+  \[\kw{fix}\ (\lam{m}{\{\lam{R}{(\kw{fix}\ R)\ \hex{00}},\ f_i = B_i\ m,\ n_j = u.n_j\}_{i<k,\ j<n}})\]
   \begin{subpoints}
-  \item Where the type is $\str{ptr}$, a byte array names a symbol and stands for its address, and
-    $\str{}$ is the null pointer; $\{b_1, b_2\}$ is the symbol $b_1$ plus $b_2$ bytes.
-  \item An array of $\str{i8}$ may be one byte array, its bytes in order:
-    $\{\mathit{type} = \{\str{array}, \hex{03}, \str{i8}\},\ \mathit{value} = \hex{686900}\}$.
-  \item $\{\}$ is all zeros, for any type.
-  \end{subpoints}
-\item\label{p:run-module} A module runs by reduction too, as a test does, when $d$ and $s$ are bound. For a
-  module with definitions $f_i$ of bodies $B_i$, and a struct $u$ with a field for each name in its
-  $\mathit{depends}$, the instance is
-  \[\kw{fix}\ (\lam{s}{\{\lam{G}{(\kw{fix}\ G)\ \hex{00}},\ f_i = B_i\ u\ s\}_{i<k}})\]
-  \begin{subpoints}
-  \item Projecting $f_i$ unfolds the instance (\rn{E-FixProj}) and takes $B_i\ u\ s$ with $s$ the instance, so a
-    call of $f_i$ runs its body; a call $s.f_j\ \{\dots\}$ inside it reaches the instance again.
-  \item Field $0$, unlabeled, is the runner of groups: the module runs its own groups, and no dependency
-    supplies the runner. $s\ \hex{}$ unfolds the instance (\rn{E-FixApp}) and takes field $0$ (\rn{E-Index}), so a
-    group $s\ \hex{}\ (\lam{g}{t})$ becomes $(\kw{fix}\ (\lam{g}{t}))\ \hex{00}$, which runs field $0$ of $t$ with $g$
-    bound to its own blocks; a jump $g.l\ Q_1 \cdots Q_n$ takes the block $l$ and applies it.
-  \item Dependencies are matched by name, so instantiating modules in dependency order gives each module
-    one instance of each module below it; in a diamond, both sides share the same instance.
-  \item With the module of \pref{p:gcd} and $u = \{\}$, a call of the instance's $\mathit{gcd}$ on
+  \item Field $0$ is the runner of regions, so a module runs its own regions. $m\ \hex{}\ (\lam{r}{t})$ takes it
+    (\rn{E-FixApp}, \rn{E-Index}) and becomes $(\kw{fix}\ (\lam{r}{t}))\ \hex{00}$: it runs field $0$ of $t$ with $r$ bound to
+    its own blocks, and a jump $r.l\ Q_1 \cdots Q_n$ takes the block $l$ and applies it.
+  \item $f_i = B_i\ m$: projecting $f_i$ unfolds the instance (\rn{E-FixProj}), so a call runs the body, and a call
+    $m.f_j\ \{\dots\}$ inside it reaches the instance again.
+  \item $n_j = u.n_j$ copies each dependency in, so a body reaches $m.n_j$ as it reaches its own symbols.
+  \item User code instantiates modules in dependency order and passes them by name (\pref{p:merge}),
+    so each gets one instance of each module below it; in a diamond, both sides share one instance.
+  \item With the ingot of \pref{p:gcd} and $u = \{\}$, a call of the instance's $\mathit{gcd}$ on
     $\{a = \hex{30000000}, b = \hex{12000000}\}$ reduces to $\hex{06000000}$.
-  \item An opcode that \rn{E-Opcode} does not compute, such as $\str{load}$, stays in the
-    result, waiting for run time.
+  \item An opcode that \rn{E-Opcode} does not compute, such as $\str{load}$, stays in the result, waiting for
+    run time.
   \end{subpoints}
 \item\label{p:merge} Modules are combined by user code; this document gives no rule for it:
   \begin{subpoints}
-  \item To run by reduction, a program instantiates its modules (\pref{p:run-module}) and passes each the
-    instances it depends on. A renaming is a struct of paths, such as $\{g = s.h\}$; it reduces once $s$ is
-    bound.
-  \item To compile, each module is its own ingot and its own LLVM module, and the system linker joins them
-    by name: a name in $\mathit{depends}$ to the symbol of that name in another module.
+  \item To compile, each module is its own ingot, and the system linker joins them by name: a declaration to the symbol of that name in another module.
+  \item User code may also merge modules whose names match into one ingot: for a definition $f$ of a module
+    $a$, the merged body
+    $\lam{m}{a.\mathit{symbols}.f.\mathit{body}\ m}$ reduces to the body of $f$, with the merged $m$, since $m$ is a variable, so a value.
+  \item A renaming is a struct of paths, such as $\{g = m.h\}$. It reduces only once $m$ is bound, so only
+    when running (\pref{p:run-module}).
   \end{subpoints}
-\item\label{p:gcd} For example, an ingot with $\gcd$ (its body is \pref{p:gcd-body}) and $\mathit{main}$:
-  \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
-{
-  version = '0',
-  depends = {},
-  symbols = {
-    gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
-           body = @vlamd. @vlams. @vlamp. s [] (@vlamg. { @ldots })},
-    main = {type = {'function', {}, 'i32'},
-            body = @vlamd. @vlams. @vlamp. s [] (@vlamg. {
-              entry = let r = s.gcd {a = [30000000], b = [12000000]} in r
-            })}
-  }
-}
-\end{Verbatim}
 \end{points}
 
 %% ── LLVM ─────────────────────────────────────────────────────────────
@@ -602,6 +610,8 @@
 \section{LLVM Translation}\label{sec:llvm}
 
 \begin{points}
+\item\label{p:llvm-module} LLVM IR is one SSA form. One ingot becomes one LLVM module. The translation mostly only reads the ingot (\pref{p:one-to-one}):
+  an ingot is written in the shape LLVM wants.
 \item\label{p:types}
   Oymomo has no types and no type checking: it is an untyped $\lambda$-calculus. An LLVM type is an
   ordinary term that only an opcode or an entry reads, as an operand: $\str{add}\ \{\str{i32}, a, b\}$ is LLVM's
@@ -631,13 +641,22 @@
     typed use''.
   \item An operand whose type differs from the type its use needs is rejected, at the operand.
   \end{subpoints}
-\item\label{p:one-to-one} The translation is one to one: every LLVM block, label and instruction is
-  written in the ingot, and the translation adds none and changes none.
+\item\label{p:llvm-ops} An instruction's struct of operands (\pref{p:anf}) is LLVM's operand list. A struct operand is data,
+  so an LLVM constant, and LLVM builds a struct value from run-time values with $\kw{insertvalue}$, as the
+  ingot does (\pref{p:struct-values}). Effects are emitted in the order of their $\kw{let}$s (\pref{p:opcode}).
+\item\label{p:one-to-one} The translation is one to one where it can be; this is preferred, not required: every LLVM block, label and instruction is
+  written in the ingot, and the translation adds none and changes none, except where the ingot asks for
+  what LLVM can't write directly.
   \begin{subpoints}
-  \item Groups are flattened, in source order: each labeled field is a block. The runner $s\ \hex{}$ itself becomes nothing.
+  \item Regions are flattened, in source order: field $0$ of the body's region is the entry block, field $0$ of a
+    nested region goes on in the block it continues, and every other field is a block. An unlabeled entry block is
+    named after its region's binder and its position, as $r.0$. The runner $m\ \hex{}$ itself becomes nothing.
   \item Each $\kw{let}$ becomes one instruction: an opcode call becomes the opcode's instruction, and a
-    call $s.l\ \{\dots\}$ or $d.l\ \{\dots\}$ becomes $\kw{call}$ of the function $l$.
+    call $m.l\ \{\dots\}$ becomes $\kw{call}$ of the function $l$.
   \item A return becomes $\kw{ret}$, and a jump $\kw{br}$.
+  \item A jump to field $0$ (\pref{p:top-group}) adds a block. LLVM's entry block has no predecessors, so in the
+    body's region the translation adds a new entry block that only jumps to field $0$. In a nested region, field
+    $0$ starts a block of its own, and the block it continued ends with an added $\kw{br}$ to it.
   \item A branch of two arms on an $\str{i1}$ becomes $\kw{br\ i1}$, to arm $1$ when true and arm $0$ when false;
     any other branch becomes $\kw{switch}$, arm $i$ the case $i$ and the last arm the default.
   \item A block's parameters become its $\kw{phi}$ instructions, one incoming value per jump to it, even
@@ -646,22 +665,75 @@
   \end{subpoints}
 \item\label{p:names} Names: terms are equal up to renaming bound variables, so the translation reads
   each definition with all its bound variables named apart, a repeated name taking the smallest free
-  number ($r$, $r1$).
+  number ($c$, $c1$).
   \begin{subpoints}
-  \item An argument is named $p.x_i$, a block $g.l$ by its group and label, and a let variable by its name.
+  \item An argument is named $p.x_i$, a block $r.l$ by its region and label, and a let variable by its name.
     No two can be equal.
-  \item For \pref{p:gcd}, $\mathit{done}$'s parameter is named $r1$, and the blocks are $g.\mathit{entry}$,
-    $g.\mathit{loop}$, $h.\mathit{step}$ and $g.\mathit{done}$.
+  \item For \pref{p:gcd}, $\mathit{done}$'s parameter is named $c1$, and the blocks are $r.\mathit{entry}$,
+    $r.\mathit{loop}$, $q.\mathit{step}$ and $r.\mathit{done}$.
   \end{subpoints}
-\item\label{p:symbols-llvm} Each symbol and each name in $\mathit{depends}$ becomes an LLVM global named by its label, as
+\item\label{p:symbols-llvm} Each symbol becomes an LLVM global named by its label, as
   $\kw{@gcd}$ or $\kw{@puts}$, with LLVM's default linkage:
   \begin{subpoints}
   \item A definition becomes LLVM's $\kw{define}$; its parameters and result come from its type.
-  \item A function in $\mathit{depends}$ becomes $\kw{declare}$: $\mathit{puts} = \{\str{function}, \{s = \str{ptr}\}, \str{i32}\}$ is
-    $\kw{declare\ i32\ @puts(ptr)}$; a variable in $\mathit{depends}$ becomes $\kw{external\ global}$.
+  \item A declared function becomes $\kw{declare}$: $\mathit{puts}$ is
+    $\kw{declare\ i32\ @puts(ptr)}$; a declared variable becomes $\kw{external\ global}$.
   \item A constant becomes $\kw{@answer\ =\ constant\ i32\ 42}$, and a global variable
     $\kw{@counter\ =\ global\ i32\ 41}$; $\{\}$ becomes $\kw{zeroinitializer}$, and a byte array for an
     $\str{i8}$ array becomes $\kw{c"\dots"}$.
+  \end{subpoints}
+\item\label{p:init-llvm} How data initializes a type (\pref{p:init}):
+  \begin{subpoints}
+  \item Where the type is $\str{ptr}$, a byte array names a symbol and stands for its address, and
+    $\str{}$ is the null pointer; $\{b_1, b_2\}$ is the symbol $b_1$ plus $b_2$ bytes.
+  \item An array of $\str{i8}$ may be one byte array, its bytes in order:
+    \[\{\mathit{type} = \{\str{array}, \hex{03}, \str{i8}\},\ \mathit{value} = \hex{686900}\}\]
+  \item $\{\}$ is all zeros, for any type.
+  \end{subpoints}
+\item\label{p:example} For example, a $\mathit{main}$ that calls $\mathit{puts}$ when it is given an argument. The branch
+  sits in a nested region $q$, whose field $0$ continues the entry block:
+  \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
+{
+  version = '0',
+  symbols = {
+    puts = {type = {'function', {s = 'ptr'}, 'i32'}},
+    msg  = {type = {'array', [03], 'i8'}, value = [686900]},
+    main = {type = {'function', {argc = 'i32'}, 'i32'},
+            body = @vlamm. @vlamp. m [] (@vlamr. {
+              entry =
+                let c = 'icmp' {'sgt', 'i32', p.argc, [01000000]} in
+                m [] (@vlamq. {
+                  if c then q.say else r.done,
+                  say = let u = m.puts {s = m.msg} in r.done
+                }),
+              done = [00000000]
+            })}
+  }
+}
+\end{Verbatim}
+  Its translation:
+  \begin{Verbatim}[xleftmargin=2em]
+@msg = constant [3 x i8] c"hi\00"
+
+declare i32 @puts(ptr)
+
+define i32 @main(i32 %p.argc) {
+r.entry:
+  %c = icmp sgt i32 %p.argc, 1
+  br i1 %c, label %q.say, label %r.done
+q.say:
+  %u = call i32 @puts(ptr @msg)
+  br label %r.done
+r.done:
+  ret i32 0
+}
+\end{Verbatim}
+  \begin{subpoints}
+  \item $\mathit{puts}$ is a declaration, so it becomes $\kw{declare}$; $\mathit{msg}$ is a constant.
+  \item The nested region adds no block for its field $0$: $\kw{icmp}$ and $\kw{br\ i1}$ stay in $r.\mathit{entry}$, and $\mathit{say}$
+    becomes the block $q.\mathit{say}$.
+  \item $\kw{if}\ c\ \kw{then}\ q.\mathit{say}\ \kw{else}\ r.\mathit{done}$ is the branch $\{r.\mathit{done}, q.\mathit{say}\}\ c$, so arm $1$, $q.\mathit{say}$, is
+    taken when $c$ is true.
   \end{subpoints}
 \end{points}
 

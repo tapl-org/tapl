@@ -146,18 +146,18 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   ```
   {
     version = '0',
-    depends = {puts = {'function', {s = 'ptr'}, 'i32'}},
     symbols = {
+      puts    = {type = {'function', {s = 'ptr'}, 'i32'}},
       gcd     = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
-                 body = λd. λs. λp. s [] (λg. {
-                   entry = g.loop p.a p.b,
+                 body = λm. λp. m [] (λr. {
+                   entry = r.loop p.a p.b,
                    loop  = λa. λb.
                      let z = 'icmp' {'eq', 'i32', b, [00000000]} in
-                     s [] (λh. {
-                       if z then g.done a else h.step,
-                       step = let r = 'urem' {'i32', a, b} in g.loop b r,
+                     m [] (λq. {
+                       if z then r.done a else q.step,
+                       step = let c = 'urem' {'i32', a, b} in r.loop b c,
                      }),
-                   done  = λr. r,
+                   done  = λc. c,
                  })},
       counter = {type = 'i32', init = [00000000]},
       msg     = {type = {'array', [03], 'i8'}, value = [686900]},
@@ -166,27 +166,33 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   }
   ```
 
-- A module is a struct value: `version`, `depends`, `symbols`, plus meta fields beside them
+- A module is a struct value: `version`, `symbols`, plus meta fields beside them
   (`target`; later debug tables, hints, LLVM metadata)
-- `depends`: name → type of everything used from other modules (LLVM `declare` /
-  `external global`)
+- `symbols` holds every symbol the module defines or uses; an entry with only `type` is a
+  declaration (LLVM `declare` / `external global`)
 - A frontend lowers each source item to one closed `symbols` entry
-- Entry kind from its fields: `body` definition, `init` global, `value` constant (exactly
-  one); `{'function', params, result}` or a type
+- Entry kind from its fields: `body` definition, `init` global, `value` constant, only
+  `type` declaration; `{'function', params, result}` or a type
 - No `linkage` for now; decided when needed. A definition, global or constant is LLVM's
-  default `external`. The label is the symbol's name; a name in both `depends` and
-  `symbols` is an error
+  default `external`. The label is the symbol's name
 - In a `'ptr'` slot of `init`/`value`: a byte array names a symbol (`''` null);
   `{'arr', [08]}` is symbol plus byte offset
-- `body = λd. λs. λp. G`, closed: `d` dependencies, `s` own symbols, `p` arguments; a group is
-  `s [] (λg. {…})`; `d` and `s` are free when compiling; any other `x b` is rejected
-- R1, one-to-one: every LLVM/Cranelift block, label, instruction is in the source; the
-  translator adds none; groups flattened in source order
-- R2, runnable by reduction: a module's instance is `fix (λs. {λG. (fix G) [00], fᵢ = Bᵢ u s})`,
-  `u` the instances it depends on (by name; diamonds share); field 0 is the group runner,
-  so the module runs its own groups
-- Merging is user code (no op, no translator name resolution): run by reduction with
-  views; compile one ingot per module, joined by the system linker by name
+- `body = λm. λp. R`, closed: `m` the module's symbols (one namespace by
+  name), `p` arguments; a region is `m [] (λr. {…})`; `m` is free when compiling; any other
+  `x b` is rejected
+- R1, one-to-one where it can be (preferred, not required; user, Oct 27): every
+  LLVM/Cranelift block, label, instruction is in the source; the translator adds one only
+  where the ingot asks for what LLVM can't write directly (a jump to field 0: new entry
+  block, or split block plus `br`); regions flattened in source order
+- Field 0 of a region: any label or none; `m []` runs it; a labeled field 0 may be jumped
+  to; an unlabeled entry block is named after the region binder and position (`%r.0`)
+- R2, runnable by reduction: a module's instance is
+  `fix (λm. {λG. (fix G) [00], fᵢ = Bᵢ m, nⱼ = u.nⱼ})`, `nⱼ` its declarations, `u` the
+  instances it depends on (by name; diamonds share); field 0 is the region runner, so the
+  module runs its own regions
+- Merging is user code (no op): compile one ingot per module joined by the system linker,
+  or merge modules whose names match into one ingot (`λm. A.symbols.f.body m` reduces);
+  renaming needs a view, which reduces only when running
 - Form (semantics.tex 7.2; every variable is `x`, the verifier checks kinds):
 
   ```
@@ -194,31 +200,31 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   O ::= P | b                                    operator
   Q ::= P | D                                    operand
   J ::= P Q₁ ⋯ Qₙ                                jump
-  T ::= Q | J | {Jᵢ} P | G                       terminal
+  T ::= Q | J | {Jᵢ} P | R                       terminal
   E ::= let x = O {lᵢ = Qᵢ} in E | T             expression
   K ::= E | λx₁. ⋯ λxₙ. E                        block
-  G ::= x [] (λx. {lᵢ = Kᵢ})                     group
+  R ::= x [] (λx. {lᵢ = Kᵢ})                     region
   ```
 
-- Kinds (verifier): dependencies `d.l`, self `s.l`, arguments `p.l`, group `g.l` (jump
-  head, operand count), value `x` (no fields)
+- Kinds (verifier): module `m.l` (`l` in `symbols`; `m []` runner),
+  arguments `p.l`, region `r.l` (jump head, operand count), value `x` (no fields)
 
 - A struct operand only when it is data (an LLVM constant); `x.l` only as `p.l`
 - Opcodes `'extractvalue' {aggtype, agg, i₁, …}`, `'insertvalue' {aggtype, agg, value, i₁, …}`
   (LLVM's order; indices are positions); a built struct starts from a constant struct
 - `p` is never used whole
 - Code: `ingot.py` (`ingot_of`) replaces `module.py`'s `read_module`; errors "Not an ingot: …"
-- Goldens move to the ingot shape; `floyd.oymo` becomes nested groups (k, i, j, store),
+- Goldens move to the ingot shape; `floyd.oymo` becomes nested regions (k, i, j, store),
   so its blocks stop passing every live value (its `.ll` loses most phis)
-- Top group: field 0 labeled, the entry block; nested group: field 0 unlabeled,
-  continues the current block; nested groups give dominance
+- Top region: field 0 labeled, the entry block; nested region: field 0 unlabeled,
+  continues the current block; nested regions give dominance
 - Arms only jump; return only at a block's end; two arms on an `i1`: `br`; any other
   branch: `switch` on positions, default last
 - Two arms of one branch to one block with different arguments: error (no added block)
-- A body is always a group: its field 0 is the labeled entry block
+- A body is always a region: its field 0 is the labeled entry block
 - A call's argument is a struct with the callee's parameter labels, in order
-- A tail call is `let r = s.f {…} in r` (call, then `ret`)
-- `s.f` / `d.f` not called is the function's address (`@f` as a `ptr`); indirect calls wait for
+- A tail call is `let r = m.f {…} in r` (call, then `ret`)
+- `m.f` not called is the function's address (`@f` as a `ptr`); indirect calls wait for
   `fn-address`
 - `target` is accepted and ignored until the `target` leaf; any other unknown module field
   is an error
@@ -230,7 +236,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `version = '0'` for this format; versions are short backend-agnostic texts (`'0'`, `'1'`, `'1a'`)
 - `init = {}` / `value = {}` is LLVM's `zeroinitializer`, for any type (for now)
 - Until the bootstrap, names always, no flag: binder names in a definition are made
-  distinct by renaming (α); arguments are `%p.a`, blocks `%g.loop` (group binder plus
+  distinct by renaming (α); arguments are `%p.a`, blocks `%r.loop` (region binder plus
   label), values `%z`; unique in the flattened function by construction; symbol names stay
 - No nested operands, no nested `let`, no `if` as a value
 - Block parameter types inferred from arguments and uses; untyped: error "give 'x' a
@@ -293,7 +299,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `letrec x = t₁ in t₂` ≝ `let x = fix (λx. t₁) in t₂`
 - `let _ = v in e`: a `let` kept only for its effect
-- `blocks g = {l₁ = b₁, …} in t` ≝ `s [] (λg. {t, l₁ = b₁, …})`; always the struct form
+- `blocks g = {l₁ = b₁, …} in t` ≝ `m [] (λg. {t, l₁ = b₁, …})` (a region); always the struct form
 - Typed lambdas `λ(i: 'i32'). e` for block parameters, if inference needs help
 - semantics.tex Section 3, grammar, printer; reserved words
 - Decide: a better name than `blocks`
