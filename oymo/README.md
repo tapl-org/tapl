@@ -10,6 +10,4 @@ the bootstrap starts, files move or are copied here.
 oymo/
   LICENSE
   README.md
-  lib/              the standard library
-  tests/goldens/    `.oymo` programs and their expected output
 ```

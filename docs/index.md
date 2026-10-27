@@ -310,6 +310,7 @@ Explore TAPL further:
 - Browse [more examples, like easy.tapl](https://github.com/tapl-org/tapl/blob/main/python/tapl-lang/src/examples/easy.tapl) to see TAPL in action.
 - Read the [TAPL Concepts](concept) page for a deeper look at the design and architecture.
 - Read the [θ-Calculus paper](theta-calculus.pdf) (draft) for the formal theory behind TAPL's type system.
+- Read the [Oymomo Calculus](oymomo-calculus.pdf) (draft) for the definition of oymomo, the calculus that Oymo compiles through.
 - View [compilation process diagrams](https://docs.google.com/presentation/d/1I4Fu7Tp_QzyHC84u0REsFZcYi2i3ZvZPXiuHzasHywg/edit?usp=sharing) to understand how TAPL translates code.
 - Join the [Official Discord Server](https://discord.gg/7N5Gp85hAy) to connect with other developers and the TAPL community.
 - Participate in [GitHub Discussions](https://github.com/tapl-org/tapl/discussions) to ask questions and share ideas.
