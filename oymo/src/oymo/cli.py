@@ -10,8 +10,8 @@ import sys
 import tempfile
 
 from oymo.core import spans, syntax
+from oymo.oymomo import ingot as ingots
 from oymo.oymomo import llvm_opcodes, llvm_translate, reduction, source, strategy
-from oymo.oymomo import module as modules
 
 # The host is assumed to be x86-64 Linux until the `target` leaf reads the host's triple.
 TARGET = llvm_translate.Target(triple='x86_64-unknown-linux-gnu', data_layout='', opcodes=llvm_opcodes.DEFAULT_OPCODES)
@@ -47,12 +47,12 @@ class _Program:
         return loaded.term
 
 
-def _module(program: _Program) -> modules.Module:
-    """The program's module: resolved, normalized (semantics.tex, Section 6), not stuck, read
-    as Section 8 says."""
+def _ingot(program: _Program) -> ingots.Ingot:
+    """The program's ingot: resolved, normalized, not stuck, read
+    as an ingot."""
     try:
-        return modules.module_of(program.term())
-    except (reduction.ReductionError, modules.ModuleError) as error:
+        return ingots.ingot_of(program.term())
+    except (reduction.ReductionError, ingots.IngotError) as error:
         raise CliError(error.message, error.span) from error
 
 
@@ -61,15 +61,15 @@ def _check(program: _Program) -> None:
 
 
 def _emit_llvm(program: _Program) -> str:
-    module = _module(program)
+    ingot = _ingot(program)
     try:
-        return str(llvm_translate.translate(module, TARGET))
+        return str(llvm_translate.translate(ingot, TARGET))
     except llvm_translate.LlvmTranslationError as error:
         raise CliError(error.message, error.span) from error
 
 
 def _normal(program: _Program) -> str:
-    """The program's normal form, pretty-printed: a program that gives the same module."""
+    """The program's normal form, pretty-printed: a program that gives the same ingot."""
     try:
         normal = strategy.normalize(reduction.resolve(program.term()))
     except reduction.ReductionError as error:

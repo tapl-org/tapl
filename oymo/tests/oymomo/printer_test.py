@@ -139,8 +139,9 @@ def test_pretty_breaks_let_chain_one_per_line():
     assert pretty('{x= let a = f in let b = g in b}') == textwrap.dedent(
         """\
         {
-          x= let a = f in
-          let b = g in b,
+          x=
+            let a = f in
+            let b = g in b,
         }"""
     )
 
@@ -199,7 +200,7 @@ def test_width_and_indent_flags():
         "'tag'",
         'if c then if d then a else b else f a',
         'let x = let y = e in y in f (let z = x in z)',
-        "f 'Hello world' [48656c6c6f] '' [00]",
+        "f 'Hello world' [48656c6c6f] [] [00]",
         "{'1', '2'}",
         "{'1', b = '2'}",
         '{a}',
@@ -229,7 +230,7 @@ def test_unlabeled_fields_print_only_their_value():
 
 
 def test_pretty_breaks_a_long_fixed_point():
-    # `fix t` breaks inside `t`, and the result parses back to the same term (4.8).
+    # `fix t` breaks inside `t`, and the result parses back to the same term.
     source = '(fix (λs. {aaaaaaaaaaaaaaaa = λq. s.aaaaaaaaaaaaaaaa q, bbbbbbbbbbbbbbbb = λq. s.bbbbbbbbbbbbbbbb q})).aaaaaaaaaaaaaaaa'
     text = pretty(source)
     assert text.startswith('(fix (λs. {\n')

@@ -460,6 +460,7 @@
     are new blocks.
   \item Its label is free: it may have any label or none. With a label, a jump may go to it, with no
     operands, since field $0$ has no parameters; the translation then adds a block (\pref{p:one-to-one}).
+  \item The other fields are labeled, so that a jump can name them.
   \end{subpoints}
 \item\label{p:kinds} Each variable has a kind, given by its binder. The verifier checks every use against the
   kind and rejects the others:
@@ -518,8 +519,7 @@
     other rule fires at them.
   \item A branch applies a struct to a path, never to a byte array, so \rn{E-Index} and \rn{E-Default} don't fire.
   \item A region applies $m\ \hex{}$, and nothing applies the body, so $m$ stays free and the region doesn't reduce.
-  \item The proof is in Lean 4, in \texttt{proofs/} (theorem \texttt{Oymomo.anf\_normal}), for expressions
-    without regions; regions are not in it yet.
+  \item The proof is in Lean 4, in \texttt{proofs/} (theorem \texttt{Oymomo.anf\_normal}), regions included.
   \end{subpoints}
 \end{points}
 
@@ -638,7 +638,7 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
   jumped to it and of its uses, repeated until nothing changes.
   \begin{subpoints}
   \item A used parameter with no type found, or with two, is rejected: ``give $x$ a typed argument or a
-    typed use''.
+    typed use''. An unused parameter with no type found gets no $\kw{phi}$.
   \item An operand whose type differs from the type its use needs is rejected, at the operand.
   \end{subpoints}
 \item\label{p:llvm-ops} An instruction's struct of operands (\pref{p:anf}) is LLVM's operand list. A struct operand is data,
@@ -655,7 +655,7 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
     call $m.l\ \{\dots\}$ becomes $\kw{call}$ of the function $l$.
   \item A return becomes $\kw{ret}$, and a jump $\kw{br}$.
   \item A jump to field $0$ (\pref{p:top-group}) adds a block. LLVM's entry block has no predecessors, so in the
-    body's region the translation adds a new entry block that only jumps to field $0$. In a nested region, field
+    body's region the translation adds a new entry block that only jumps to field $0$, named after the region's binder, as $r$. In a nested region, field
     $0$ starts a block of its own, and the block it continued ends with an added $\kw{br}$ to it.
   \item A branch of two arms on an $\str{i1}$ becomes $\kw{br\ i1}$, to arm $1$ when true and arm $0$ when false;
     any other branch becomes $\kw{switch}$, arm $i$ the case $i$ and the last arm the default.
@@ -678,9 +678,9 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
   \item A definition becomes LLVM's $\kw{define}$; its parameters and result come from its type.
   \item A declared function becomes $\kw{declare}$: $\mathit{puts}$ is
     $\kw{declare\ i32\ @puts(ptr)}$; a declared variable becomes $\kw{external\ global}$.
-  \item A constant becomes $\kw{@answer\ =\ constant\ i32\ 42}$, and a global variable
-    $\kw{@counter\ =\ global\ i32\ 41}$; $\{\}$ becomes $\kw{zeroinitializer}$, and a byte array for an
-    $\str{i8}$ array becomes $\kw{c"\dots"}$.
+  \item A constant becomes $\kw{@answer\ =\ constant\ i32\ 42}$.
+  \item A global variable becomes $\kw{@counter\ =\ global\ i32\ 41}$.
+  \item $\{\}$ becomes $\kw{zeroinitializer}$, and a byte array for an $\str{i8}$ array becomes $\kw{c"\dots"}$.
   \end{subpoints}
 \item\label{p:init-llvm} How data initializes a type (\pref{p:init}):
   \begin{subpoints}

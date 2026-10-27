@@ -3,7 +3,7 @@
 import Oymomo.Confluence
 
 /-!
-# Parallel reduction with a measure (for the guarantee, 6.4)
+# Parallel reduction with a measure (for the guarantee)
 
 `ParM op t t' m` is `Par op t t'` together with a measure `m` (Takahashi): each redex the
 parallel step contracts counts once, and a redex inside the argument of an `E-Beta` counts

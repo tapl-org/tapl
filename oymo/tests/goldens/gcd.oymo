@@ -1,29 +1,25 @@
 language oymomo
-λm. {
-  gcd= {
-    gives= 'i32',
-    body= λf. {
-      entry= {
-        takes= {a= 'i32', b= 'i32'},
-        body= λp. f.loop.body {a= p.a, b= p.b},
-      },
-      loop= {
-        takes= {a= 'i32', b= 'i32'},
-        body= λp.
-          let z = 'icmp' {'eq', 'i32', p.b, [00000000]} in
-          if z then f.done.body {a= p.a} else f.step.body {a= p.a, b= p.b},
-      },
-      step= {
-        takes= {a= 'i32', b= 'i32'},
-        body= λp. let r = 'urem' {'i32', p.a, p.b} in f.loop.body {a= p.b, b= r},
-      },
-      done= {takes= {a= 'i32'}, body= λp. p.a},
+{
+  version= '0',
+  symbols= {
+    gcd= {
+      type= {'function', {a= 'i32', b= 'i32'}, 'i32'},
+      body= λm. λp. m [] (λr. {
+        entry= r.loop p.a p.b,
+        loop= λa. λb.
+          let z = 'icmp' {'eq', 'i32', b, [00000000]} in
+          m [] (λq. {
+            if z then r.done a else q.step,
+            step= let c = 'urem' {'i32', a, b} in r.loop b c,
+          }),
+        done= λc. c,
+      }),
     },
-  },
-  main= {
-    gives= 'i32',
-    body= λf. {
-      entry= {takes= {}, body= λp. m.gcd {a= [30000000], b= [12000000]}},
+    main= {
+      type= {'function', {}, 'i32'},
+      body= λm. λp. m [] (λr. {
+        entry= let y = m.gcd {a= [30000000], b= [12000000]} in y,
+      }),
     },
   },
 }

@@ -4,9 +4,9 @@ import Oymomo.Measure
 import Oymomo.Strategy
 
 /-!
-# The guarantee of the strategy (semantics.tex, 6.4)
+# The guarantee of the strategy
 
-`guarantee`: when `t ⟶* n` and `n` is a normal form, the order of table 6.2 reaches `n`.
+`guarantee`: when `t ⟶* n` and `n` is a normal form, the order of the strategy reaches `n`.
 
 The proof follows Takahashi's factorization:
 
@@ -159,7 +159,7 @@ theorem RootRed.red {t : Term} (h : RootRed op t) : Red op t := by
   | proj s l => obtain ⟨_, hl⟩ := h; exact ⟨_, .proj hl⟩
   | _ => exact h.elim
 
-/-- A normal form has no parallel step but itself (6.4d, step D). -/
+/-- A normal form has no parallel step but itself (step D). -/
 theorem Par.normal_eq {t u : Term} (h : Par op t u) (hn : ¬ Red op t) : u = t := by
   induction h with
   | var => rfl
@@ -272,7 +272,7 @@ theorem RootRed.par {a a' b b' : Term} (hr : RootRed op (app a b)) (ha : Par op 
 
 variable (op) in
 /-- A parallel step that leaves alone the redex the order chooses and the path to it. Each
-constructor is a row of table 6.2: the chosen part takes an internal step, the other parts
+constructor is a row of the strategy's table: the chosen part takes an internal step, the other parts
 any parallel step. -/
 inductive IPar : Term → Term → Prop
   /-- A normal form. -/
@@ -361,7 +361,7 @@ theorem IPar.isStruct_eq {t u : Term} (h : IPar op t u) : Oymomo.isStruct u = Oy
 theorem IPar.bytes_eq {t : Term} {d : Bytes} (h : IPar op t (bytes d)) : t = bytes d := by
   cases h; rfl
 
-/-- Persistence: an internal step keeps a step (6.4d, step C). -/
+/-- Persistence: an internal step keeps a step (step C). -/
 theorem IPar.red {t u : Term} (h : IPar op t u) (ht : Red op t) : Red op u := by
   induction h with
   | normal hn => exact absurd ht hn
@@ -583,7 +583,7 @@ theorem ParM.split1 {t u : Term} {m : Nat} (h : ParM op t u m) :
   | indexR hs hu _ => exact .inr ⟨_, _, .index hs, hu, by omega⟩
   | opcodeR h1 h2 h3 => exact .inr ⟨_, _, .opcode h1 h2 h3, .bytes _, by omega⟩
 
-/-- Split (6.4d, step A): a parallel step is some steps of the order, then an internal
+/-- Split (step A): a parallel step is some steps of the order, then an internal
 step. -/
 theorem Par.split {t u : Term} (h : Par op t u) : ∃ t', Star (SStep op) t t' ∧ IPar op t' u := by
   obtain ⟨m, hm⟩ := h.parM
@@ -621,7 +621,7 @@ theorem rootApp_merge {a a' b b' u₁ : Term} (hr : RootRed op (app a b)) (ha : 
       exact ⟨_, .index hw, hp⟩
     | _ => exact hr.elim
 
-/-- Merge (6.4d, step B). -/
+/-- Merge (step B). -/
 theorem IPar.merge {t u : Term} (h : IPar op t u) :
     WF t → ∀ {u₁}, SStep op u u₁ → ∃ t₂, SStep op t t₂ ∧ Par op t₂ u₁ := by
   induction h with
@@ -860,7 +860,7 @@ theorem par_sstar {n : Term} (hn : ¬ Red op n) {u : Term} (hu : Star (SStep op)
     obtain ⟨t₂, hs₂, hp₂⟩ := hip.merge (hst.sstep_wf hw) hs
     exact hst.trans (Star.head hs₂ (ih ((hs₂.wf (hst.sstep_wf hw))) hp₂))
 
-/-- The guarantee (6.4d): when a well-formed term reaches a normal form, the order reaches
+/-- The guarantee: when a well-formed term reaches a normal form, the order reaches
 it. -/
 theorem guarantee {t n : Term} (hw : WF t) (h : Star (Step op) t n) (hn : ¬ Red op n) :
     Star (SStep op) t n := by

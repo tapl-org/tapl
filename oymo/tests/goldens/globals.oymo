@@ -1,19 +1,24 @@
 language oymomo
-λm. {
-  answer= {type= 'i32', value= [2a000000]},
-  counter= {type= 'i32', init= [29000000]},
-  main= {
-    gives= 'i32',
-    body= λf. {
-      entry= {
-        takes= {},
-        body= λp.
+{
+  version= '0',
+  symbols= {
+    answer= {type= 'i32', value= [2a000000]},
+    counter= {type= 'i32', init= [29000000]},
+    msg= {type= {'array', [03], 'i8'}, value= [686900]},
+    first= {type= 'ptr', value= 'counter'},
+    second= {type= 'ptr', value= {'msg', [01]}},
+    nothing= {type= 'ptr', init= ''},
+    zeros= {type= {x= 'i32', y= {'array', [02], 'i64'}}, init= {}},
+    main= {
+      type= {'function', {}, 'i32'},
+      body= λm. λp. m [] (λr. {
+        entry=
           let a = 'load' {'i32', m.answer} in
           let c = 'load' {'i32', m.counter} in
           let d = 'add' {'i32', c, a} in
           let s = 'store' {'i32', d, m.counter} in
           let e = 'load' {'i32', m.counter} in e,
-      },
+      }),
     },
   },
 }

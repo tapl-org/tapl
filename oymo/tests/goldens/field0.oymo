@@ -1,0 +1,34 @@
+language oymomo
+{
+  version= '0',
+  symbols= {
+    next= {type= {'function', {}, 'i32'}},
+    spin= {
+      type= {'function', {}, 'i32'},
+      body= λm. λp. m [] (λr. {
+        entry=
+          let x = m.next {} in
+          let c = 'icmp' {'eq', 'i32', x, [00000000]} in
+          if c then r.entry else r.done,
+        done= [00000000],
+      }),
+    },
+    three= {
+      type= {'function', {}, 'i32'},
+      body= λm. λp. m [] (λr. {
+        entry=
+          let a = 'alloca' {'i32'} in
+          let z = 'store' {'i32', [00000000], a} in
+          m [] (λq. {
+            again=
+              let v = 'load' {'i32', a} in
+              let w = 'add' {'i32', v, [01000000]} in
+              let s = 'store' {'i32', w, a} in
+              let c = 'icmp' {'ult', 'i32', w, [03000000]} in
+              if c then q.again else q.out,
+            out= let v = 'load' {'i32', a} in v,
+          }),
+      }),
+    },
+  },
+}

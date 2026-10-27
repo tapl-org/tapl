@@ -2,75 +2,56 @@
 target triple = "x86_64-unknown-linux-gnu"
 target datalayout = ""
 
-define i32 @"floyd"(ptr %"d", i32 %"n")
+define i32 @"floyd"(ptr %"p.d", i32 %"p.n")
 {
-entry:
-  br label %"kloop"
-kloop:
-  %"d.1" = phi  ptr [%"d", %"entry"], [%"d.2", %"knext"]
-  %"n.1" = phi  i32 [%"n", %"entry"], [%"n.2", %"knext"]
-  %"k" = phi  i32 [0, %"entry"], [%"k1", %"knext"]
-  %"kc" = icmp slt i32 %"k", %"n.1"
-  %"kn.3" = mul i32 %"k", %"n.1"
-  br i1 %"kc", label %"iloop", label %"done"
-iloop:
-  %"d.2" = phi  ptr [%"d.1", %"kloop"], [%"d.3", %"inext"]
-  %"n.2" = phi  i32 [%"n.1", %"kloop"], [%"n.3", %"inext"]
-  %"k.1" = phi  i32 [%"k", %"kloop"], [%"k.2", %"inext"]
-  %"kn" = phi  i32 [%"kn.3", %"kloop"], [%"kn.1", %"inext"]
-  %"i" = phi  i32 [0, %"kloop"], [%"i1", %"inext"]
-  %"ic" = icmp slt i32 %"i", %"n.2"
-  %"ni.2" = mul i32 %"i", %"n.2"
-  br i1 %"ic", label %"jloop", label %"knext"
-jloop:
-  %"d.3" = phi  ptr [%"d.2", %"iloop"], [%"d.4", %"jnext"]
-  %"n.3" = phi  i32 [%"n.2", %"iloop"], [%"n.4", %"jnext"]
-  %"k.2" = phi  i32 [%"k.1", %"iloop"], [%"k.3", %"jnext"]
-  %"kn.1" = phi  i32 [%"kn", %"iloop"], [%"kn.2", %"jnext"]
-  %"i.1" = phi  i32 [%"i", %"iloop"], [%"i.2", %"jnext"]
-  %"ni" = phi  i32 [%"ni.2", %"iloop"], [%"ni.1", %"jnext"]
-  %"j" = phi  i32 [0, %"iloop"], [%"j1", %"jnext"]
-  %"jc" = icmp slt i32 %"j", %"n.3"
-  br i1 %"jc", label %"relax", label %"inext"
-relax:
-  %"ik" = add i32 %"ni", %"k.2"
-  %"kj" = add i32 %"kn.1", %"j"
+r.entry:
+  br label %"r.k"
+r.k:
+  %"k" = phi  i32 [0, %"r.entry"], [%"k1", %"rk.knext"]
+  %"kc" = icmp slt i32 %"k", %"p.n"
+  %"kn" = mul i32 %"k", %"p.n"
+  br i1 %"kc", label %"rk.i", label %"r.done"
+rk.i:
+  %"i" = phi  i32 [0, %"r.k"], [%"i1", %"ri.inext"]
+  %"ic" = icmp slt i32 %"i", %"p.n"
+  %"ni" = mul i32 %"i", %"p.n"
+  br i1 %"ic", label %"ri.j", label %"rk.knext"
+ri.j:
+  %"j" = phi  i32 [0, %"rk.i"], [%"j1", %"rj.jnext"]
+  %"jc" = icmp slt i32 %"j", %"p.n"
+  br i1 %"jc", label %"rj.relax", label %"ri.inext"
+rj.relax:
+  %"ik" = add i32 %"ni", %"k"
+  %"kj" = add i32 %"kn", %"j"
   %"ij" = add i32 %"ni", %"j"
-  %"pik" = getelementptr i32, ptr %"d.3", i32 %"ik"
-  %"pkj" = getelementptr i32, ptr %"d.3", i32 %"kj"
-  %"pij" = getelementptr i32, ptr %"d.3", i32 %"ij"
+  %"pik" = getelementptr i32, ptr %"p.d", i32 %"ik"
+  %"pkj" = getelementptr i32, ptr %"p.d", i32 %"kj"
+  %"pij" = getelementptr i32, ptr %"p.d", i32 %"ij"
   %"dik" = load i32, ptr %"pik"
   %"dkj" = load i32, ptr %"pkj"
   %"dij" = load i32, ptr %"pij"
   %"s" = add i32 %"dik", %"dkj"
   %"lt" = icmp slt i32 %"s", %"dij"
-  br i1 %"lt", label %"update", label %"jnext"
-update:
+  br i1 %"lt", label %"rs.store", label %"rj.jnext"
+rs.store:
   store i32 %"s", ptr %"pij"
-  br label %"jnext"
-jnext:
-  %"d.4" = phi  ptr [%"d.3", %"relax"], [%"d.3", %"update"]
-  %"n.4" = phi  i32 [%"n.3", %"relax"], [%"n.3", %"update"]
-  %"k.3" = phi  i32 [%"k.2", %"relax"], [%"k.2", %"update"]
-  %"kn.2" = phi  i32 [%"kn.1", %"relax"], [%"kn.1", %"update"]
-  %"i.2" = phi  i32 [%"i.1", %"relax"], [%"i.1", %"update"]
-  %"ni.1" = phi  i32 [%"ni", %"relax"], [%"ni", %"update"]
-  %"j.1" = phi  i32 [%"j", %"relax"], [%"j", %"update"]
-  %"j1" = add i32 %"j.1", 1
-  br label %"jloop"
-inext:
-  %"i1" = add i32 %"i.1", 1
-  br label %"iloop"
-knext:
-  %"k1" = add i32 %"k.1", 1
-  br label %"kloop"
-done:
+  br label %"rj.jnext"
+rj.jnext:
+  %"j1" = add i32 %"j", 1
+  br label %"ri.j"
+ri.inext:
+  %"i1" = add i32 %"i", 1
+  br label %"rk.i"
+rk.knext:
+  %"k1" = add i32 %"k", 1
+  br label %"r.k"
+r.done:
   ret i32 0
 }
 
 define i32 @"main"()
 {
-entry:
+r.entry:
   %"a" = alloca [9 x i32]
   %"q0" = getelementptr i32, ptr %"a", i32 0
   %"q1" = getelementptr i32, ptr %"a", i32 1
@@ -91,6 +72,6 @@ entry:
   store i32 1000, ptr %"q7"
   store i32 0, ptr %"q8"
   %"z" = call i32 @"floyd"(ptr %"a", i32 3)
-  %"r" = load i32, ptr %"q2"
-  ret i32 %"r"
+  %"v" = load i32, ptr %"q2"
+  ret i32 %"v"
 }

@@ -12,6 +12,12 @@ GOLDENS = pathlib.Path(__file__).parent / 'goldens'
 FACT = str(GOLDENS / 'fact.oymo')
 
 
+# An ingot with one function `main`, whose entry block is `{}`.
+INGOT = (
+    "{{version = '0', symbols = {{main = {{type = {{'function', {{}}, 'i32'}}, body = λm. λp. m [] (λr. {{{}}})}}}}}}"
+)
+
+
 def write(tmp_path: pathlib.Path, text: str) -> str:
     path = tmp_path / 'a.oymo'
     path.write_text(text, encoding='utf-8')
@@ -30,24 +36,24 @@ def test_check_ok(capsys) -> None:
 
 def test_check_error_is_located(tmp_path, capsys) -> None:
     # Columns count UTF-8 bytes: `λ` is two columns.
-    line = "λm. {main = {gives = 'i32', body = λf. {entry = {takes = {}, body = λp. nope}}}}"
+    line = INGOT.format('nope')
     path = write(tmp_path, f'language oymomo\n// a comment\n{line}\n')
     assert cli.main(['check', path]) == 1
     column = len(line[: line.index('nope')].encode('utf-8')) + 1
     assert capsys.readouterr().err == f"{path}:3:{column}: error: Unknown name 'nope'.\n"
 
 
-def test_check_reports_a_module_error(tmp_path, capsys) -> None:
-    line = "λm. {main = {gives = 'i32', body = λf. {entry = {takes = {}, body = λp. p.z}}}}"
+def test_check_reports_an_ingot_error(tmp_path, capsys) -> None:
+    line = INGOT.format('p.z')
     path = write(tmp_path, f'language oymomo\n{line}\n')
     assert cli.main(['check', path]) == 1
     assert capsys.readouterr().err == (
-        f"{path}:2:{_column(line, 'p.z')}: error: Block 'entry' reads its parameters as p.x, x one of [].\n"
+        f"{path}:2:{_column(line, 'p.z')}: error: 'main' has no parameter 'z'; it has [].\n"
     )
 
 
 def test_check_reports_an_llvm_error(tmp_path, capsys) -> None:
-    line = "λm. {main = {gives = 'i32', body = λf. {entry = {takes = {}, body = λp. [01]}}}}"
+    line = INGOT.format('[01]')
     path = write(tmp_path, f'language oymomo\n{line}\n')
     assert cli.main(['check', path]) == 1
     assert capsys.readouterr().err == (
@@ -74,10 +80,10 @@ def test_missing_file(tmp_path, capsys) -> None:
 
 
 def test_fmt_prints_the_pretty_form(tmp_path, capsys) -> None:
-    path = write(tmp_path, "language oymomo\nλm.{main={gives='i32',body=λf.{entry={takes={},body=λp.[00000000]}}}}\n")
+    path = write(tmp_path, "language oymomo\n{version='0',symbols={main={type='i32',init=[00000000]}}}\n")
     assert cli.main(['fmt', path]) == 0
     assert capsys.readouterr().out == (
-        "language oymomo\nλm. {main= {gives= 'i32', body= λf. {entry= {takes= {}, body= λp. [00000000]}}}}\n"
+        "language oymomo\n{version= '0', symbols= {main= {type= 'i32', init= [00000000]}}}\n"
     )
 
 
@@ -122,7 +128,16 @@ def test_run_prints_the_exit_status(tmp_path, monkeypatch, capfd) -> None:
 @pytest.mark.skipif(shutil.which('clang') is None, reason='needs clang')
 @pytest.mark.parametrize(
     ('golden', 'result'),
-    [('simplest', 0), ('fact', 120), ('gcd', 6), ('floyd', 7), ('globals', 83), ('helpers', 3)],
+    [
+        ('simplest', 0),
+        ('structs', 7),
+        ('fact', 120),
+        ('gcd', 6),
+        ('floyd', 7),
+        ('globals', 83),
+        ('puts', 0),
+        ('helpers', 3),
+    ],
 )
 def test_run_golden(capfd, golden: str, result: int) -> None:
     # The goldens that have a `main`; run with no arguments, so `argc` is 1.

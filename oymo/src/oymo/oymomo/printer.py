@@ -6,9 +6,10 @@ The default rendering is compact: one line, with parentheses only where the gram
 needs them. With `pretty=True` the result is oymomo source that parses back to the same
 term: parentheses only where needed, and quoted names where needed. A term that doesn't
 fit in `width` columns breaks: a struct puts one field per line, a lambda puts its body on
-the next line (unless the body is a struct or another lambda, so `λm. {main = λf. {`
-stays on one line), an apply puts its argument on the next line, and an `if` puts `then`
-and `else` on their own lines.
+the next line (unless the body is a struct, another lambda, or a short function applied to
+a lambda, so `λm. λp. m [] (λr. {` stays on one line), an apply puts its argument on the
+next line (unless the argument is a lambda and the function short), and an `if` puts
+`then` and `else` on their own lines. An empty byte array as an argument prints `[]`.
 
 A struct with two unlabeled fields applied to anything, `{e, t} c`, prints as
 `if c then t else e`, which parses back to it (`reduction.branch`).
@@ -108,6 +109,9 @@ def _flat(term, level, names, *, grouped=True):
         case terms.Apply() if (branch := reduction.branch(term)) is not None:
             c, t, e = branch
             text = f'if {sub(c, _EXPRESSION)} then {sub(t, _EXPRESSION)} else {sub(e, _EXPRESSION)}'
+        case terms.Apply(function=function, argument=terms.ByteArray(value=b'')):
+            # An index (E-Index): the empty byte array is the number 0, as in `m []`.
+            text = f'{sub(function, _APPLY)} []'
         case terms.Apply(function=function, argument=argument):
             text = f'{sub(function, _APPLY)} {sub(argument, _PROJECT)}'
         case terms.Struct(fields=fields):
@@ -142,7 +146,7 @@ def _pretty(term, level, depth, column, width, indent, names):
         case terms.Lambda(param_name=name, body=body):
             header = f'λ{_name(name)}.'
             body_names = _bind(names, name)
-            if isinstance(body, terms.Lambda) or (isinstance(body, terms.Struct) and body.fields):
+            if _hugs(body, names=body_names):
                 text = f'{header} {sub(body, _EXPRESSION, depth, column + len(header) + 1, body_names)}'
             else:
                 text = f'{header}\n{inner}{sub(body, _EXPRESSION, depth + 1, len(inner), body_names)}'
@@ -157,6 +161,12 @@ def _pretty(term, level, depth, column, width, indent, names):
                 f'{pad}then {sub(t, _EXPRESSION, depth, len(pad) + 5)}\n'
                 f'{pad}else {sub(e, _EXPRESSION, depth, len(pad) + 5)}'
             )
+        case terms.Apply(function=function, argument=terms.Lambda() as argument) if _fits_flat(
+            function, column, width, names
+        ):
+            # `m [] (λr. {`: a short function stays on the line of its lambda argument.
+            head = _flat(function, _APPLY, names)
+            text = f'{head} {sub(argument, _PROJECT, depth, column + len(head) + 1)}'
         case terms.Apply(function=function, argument=argument):
             argument_text = sub(argument, _PROJECT, depth + 1, len(inner))
             text = f'{sub(function, _APPLY, depth, column)}\n{inner}{argument_text}'
@@ -164,6 +174,16 @@ def _pretty(term, level, depth, column, width, indent, names):
             lines = []
             for f in fields:
                 head = f'{inner}{_label(f.label, "= ")}'
+                value_flat = _flat(f.value, _EXPRESSION, names)
+                if (
+                    f.label
+                    and _is_let(f.value)
+                    and (len(head) + len(value_flat) + 1 > width or _has_let_chain(f.value))
+                ):
+                    # A broken let goes on its own lines, below its label: `relax=` then the lets.
+                    deeper = ' ' * (indent * (depth + 2))
+                    lines.append(f'{head.rstrip()}\n{deeper}{sub(f.value, _EXPRESSION, depth + 2, len(deeper))},')
+                    continue
                 lines.append(f'{head}{sub(f.value, _EXPRESSION, depth + 1, len(head))},')
             text = '{\n' + '\n'.join(lines) + '\n' + pad + '}'
         case terms.Project(struct=struct, label=label):
@@ -173,6 +193,25 @@ def _pretty(term, level, depth, column, width, indent, names):
         case _:
             return flat
     return f'({text})' if grouped else text
+
+
+def _fits_flat(term, column, width, names):
+    return column + len(_flat(term, _APPLY, names)) <= width // 2
+
+
+def _hugs(body, *, names):
+    """Whether a lambda's body starts on the lambda's line: another lambda, a struct, or a
+    short function applied to a lambda (`λp. m [] (λr. {`)."""
+    match body:
+        case terms.Lambda():
+            return True
+        case terms.Struct(fields=fields):
+            return bool(fields)
+        case terms.Apply(function=terms.Lambda()):
+            return False
+        case terms.Apply(function=function, argument=terms.Lambda()):
+            return _fits_flat(function, 0, 80, names)
+    return False
 
 
 def _is_let(term):

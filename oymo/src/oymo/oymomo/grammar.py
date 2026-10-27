@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Surface syntax of oymomo (semantics.tex, Sections 2 and 3).
+"""Surface syntax of oymomo.
 
     expression ::= λx. expression | let x = expression in expression
                  | if expression then expression else expression | apply
@@ -8,10 +8,8 @@
     project    ::= project.name | primary
     primary    ::= b | {fields} | (expression) | $i | name
 
-A lambda is written `λx. t` or, in ASCII, `\\x. t`; it extends as far right as possible
-(2.2), so as an operand it needs parentheses. `fix t` parses as an application does
-(2.3): `fix g.l a` is `(fix (g.l)) a`. A struct's labels are unique, except the empty
-label of an unlabeled field (2.5b).
+A lambda is written `λx. t` or, in ASCII, `\\x. t`; it extends as far right as possible, so as an operand it needs parentheses. `fix t` parses as an application does: `fix g.l a` is `(fix (g.l)) a`. A struct's labels are unique, except the empty
+label of an unlabeled field.
 
 `parse` gives each term and field a span (`oymo.core.spans`) of its characters in `text`:
 start and length count characters from 0. `source.read` turns them into spans of the
@@ -110,7 +108,7 @@ def is_text_char(char: str) -> bool:
 
 
 class _TextBytes(String):
-    """`'text'` as the UTF-8 bytes of its characters (2.4c)."""
+    """`'text'` as the UTF-8 bytes of its characters."""
 
     def __init__(self, *, skip):
         super().__init__(
@@ -239,7 +237,7 @@ RULES: dict[str, Clause] = {
 
 def duplicate_label(term: syntax.Term) -> terms.Field | None:
     """The first field, in source order, whose label an earlier field of the same struct
-    already has. Empty labels never clash (2.5b)."""
+    already has. Empty labels never clash."""
     if isinstance(term, terms.Struct):
         seen = set()
         for f in term.fields:

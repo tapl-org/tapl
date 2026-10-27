@@ -220,13 +220,13 @@ def _convert(name: str, compute: _Compute, *, widening: bool) -> Opcode:
 PTR = terms.ByteArray.from_str('ptr')
 
 # What a `store` gives: LLVM's `store` gives no value. A `let` binds it to a name that
-# nothing reads; the `let` only orders the store (4.4c).
+# nothing reads; the `let` only orders the store.
 STORE_RESULT = terms.Struct([])
 
 # `getelementptr` takes a type, a pointer and at least one index.
 GEP_MIN_FIELDS = 3
 
-# `load` takes `{type, ptr}`, `store` takes `{type, value, ptr}` (4.4c).
+# `load` takes `{type, ptr}`, `store` takes `{type, value, ptr}`.
 LOAD_FIELDS = 2
 STORE_FIELDS = 3
 
@@ -255,7 +255,7 @@ def tagged_type(typ: terms.Term) -> tuple[str, list[terms.Field]] | None:
 
 def tag_count(term: terms.Term) -> int | None:
     """The `count` of an array or a vector: a byte array read as an unsigned,
-    little-endian number (`[03]` is 3, 2.4a), or None."""
+    little-endian number (`[03]` is 3), or None."""
     if isinstance(term, terms.ByteArray):
         return int.from_bytes(term.value, 'little')
     return None
@@ -304,6 +304,48 @@ def _store_form_of(fields: Fields) -> terms.Term | None:
     return STORE_RESULT if fields and is_literal_type(fields[0]) else None
 
 
+# `extractvalue` takes `{aggtype, agg, i₁, …}`, `insertvalue` `{aggtype, agg, value, i₁, …}`
+#: LLVM's order, at least one index, each a byte array read as a position.
+EXTRACT_MIN_FIELDS = 3
+INSERT_MIN_FIELDS = 4
+
+
+def element_type(typ: terms.Term, indices: Fields) -> terms.Term | None:
+    """The type at `indices` (positions) inside the aggregate type `typ`, or None if an
+    index is not a byte array or goes past the type's parts."""
+    for index in indices:
+        position = tag_count(index)
+        tagged = tagged_type(typ)
+        if position is None:
+            return None
+        if tagged is not None and tagged[0] in SEQUENCE_TAGS:
+            parts = tagged[1]
+            count = tag_count(parts[0].value) if len(parts) == SEQUENCE_PARTS else None
+            if count is None or position >= count:
+                return None
+            typ = parts[1].value
+            continue
+        fields = tagged[1] if tagged is not None else typ.fields if isinstance(typ, terms.Struct) else None
+        if fields is None or position >= len(fields):
+            return None
+        typ = fields[position].value
+    return typ
+
+
+def _extractvalue_form_of(fields: Fields) -> terms.Term | None:
+    """`{aggtype, agg, i₁, …}`: the part of `agg` at the positions `iⱼ`."""
+    if len(fields) < EXTRACT_MIN_FIELDS or not is_literal_type(fields[0]):
+        return None
+    return element_type(fields[0], fields[2:])
+
+
+def _insertvalue_form_of(fields: Fields) -> terms.Term | None:
+    """`{aggtype, agg, value, i₁, …}`: `agg` with `value` at the positions `iⱼ`."""
+    if len(fields) < INSERT_MIN_FIELDS or not is_literal_type(fields[0]):
+        return None
+    return fields[0] if element_type(fields[0], fields[3:]) is not None else None
+
+
 def _generate():
     yield _binary('add', lambda _bits, a, b: a + b)
     yield _binary('sub', lambda _bits, minuend, subtrahend: minuend - subtrahend)
@@ -329,6 +371,9 @@ def _generate():
     yield Opcode('getelementptr', _getelementptr_form_of, _never, pure=False)
     yield Opcode('load', _load_form_of, _never, pure=False)
     yield Opcode('store', _store_form_of, _never, pure=False)
+    # Struct values. E-Opcode gives only byte arrays, so they never fold.
+    yield Opcode('extractvalue', _extractvalue_form_of, _never)
+    yield Opcode('insertvalue', _insertvalue_form_of, _never)
 
 
 OPCODES: dict[str, Opcode] = {opcode.name: opcode for opcode in _generate()}

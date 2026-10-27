@@ -1,7 +1,0 @@
-language oymomo
-λm. {
-  main= {
-    gives= 'i32',
-    body= λf. {entry= {takes= {a= 'i32'}, body= λp. [00000000]}},
-  },
-}

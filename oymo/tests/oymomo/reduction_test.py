@@ -82,14 +82,14 @@ def test_beta_avoids_capture():
         ('if [00] then a else b', 'b'),
         # Any nonzero index is true: past the last field is the last field.
         ('if [02] then a else b', 'a'),
-        # The empty byte array is 0 (2.4a).
+        # The empty byte array is 0.
         ("if '' then a else b", 'b'),
         ('{e, a = b}.a', 'b'),
         # A tagged struct is a struct: β builds one as any other.
         ("(λe. {'array', [03000000], e}) 'i8'", "{'array', [03000000], 'i8'}"),
         # A fixed point is a value: E-Beta copies it.
         ('(λx. {x, x}) (fix (λs. s))', '{fix (λs. s), fix (λs. s)}'),
-        # E-FixProj and E-FixApp (4.8): the fixed point unfolds once where it is used.
+        # E-FixProj and E-FixApp: the fixed point unfolds once where it is used.
         ('(fix (λs. {a = e, b = s})).b', '{a = e, b = fix (λs. {a = e, b = s})}.b'),
         ('(fix (λs. λn. s n)) e', '(λn. fix (λs. λn. s n) n) e'),
         ('(fix (λs. λn. s n)) ((λy. y) e)', '(λn. fix (λs. λn. s n) n) ((λy. y) e)'),
@@ -116,14 +116,14 @@ def test_reduce_one_step(source, expected):
         'if ((λx. x) [01]) then a else b',
         'λx. (λy. y) x',
         '{e}.a',
-        # E-Beta is call-by-value (4.3): the argument must be a value. A projection is not one.
+        # E-Beta is call-by-value: the argument must be a value. A projection is not one.
         '(λx. x) ((λy. y) z)',
         '(λx. y) ((λw. w w) (λw. w w))',
         '(λx. {x, x}) p.n',
         "(λx. {x, x}) ('add' {'i32', e, e})",
         '(λx. x) {a = (λy. y) z}',
         '(λx. x) {a = {b = p.n}}',
-        # E-Opcode needs data operands (4.4d): never a variable, a lambda or a projection.
+        # E-Opcode needs data operands: never a variable, a lambda or a projection.
         "'add' {'i32', {[01]}, [02]}",
         "'icmp' {'eq', 'i8', λx. x, [01]}",
         "'icmp' {'eq', 'i8', p.n, [01]}",
@@ -161,7 +161,7 @@ def test_reduce_one_step(source, expected):
         "'load' {'i32', e}",
         # Unknown opcode names never fold.
         "'add_i32' {[01000000], [02000000]}",
-        # A fixed point on its own never steps at the root (4.8a); nor one of a non-lambda.
+        # A fixed point on its own never steps at the root; nor one of a non-lambda.
         'fix (λs. s)',
         '(fix e).a',
         '(fix ((λs. s) (λs. s))).a',
@@ -175,7 +175,7 @@ def test_reduce_returns_the_term_itself(source):
 @pytest.mark.parametrize(
     ('source', 'expected'),
     [
-        # E-Opcode gives a bare byte array (4.4).
+        # E-Opcode gives a bare byte array.
         ("'add' {'i32', [01000000], [02000000]}", '[03000000]'),
         # Arithmetic wraps.
         ("'add' {'i8', [ff], [01]}", '[00]'),
@@ -298,7 +298,7 @@ def test_index_value(source, expected):
         ('{}', True, True),
         ("{a = [01], b = {'i32'}}", True, True),
         ('{a = x, b = λy. y}', True, False),
-        # A projection is never a value (D92), nor a struct holding one.
+        # A projection is never a value, nor a struct holding one.
         ('x.l', False, False),
         ('{a = x.l}', False, False),
         ('{l = [01]}.l', False, False),
@@ -327,6 +327,6 @@ def test_is_value_and_is_data(source, value, data):
     ],
 )
 def test_stuck_fix(source, stuck):
-    # 5.5: `fix b` and `fix {…}` never become a fixed point of a lambda.
+    # `fix b` and `fix {…}` never become a fixed point of a lambda.
     found = reduction.stuck_part(resolved(source, ('x',)))
     assert (None if found is None else show(found)) == stuck

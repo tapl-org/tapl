@@ -3,22 +3,23 @@
 import Oymomo.Reduction
 
 /-!
-# ANF terms are normal forms (semantics.tex, 7.1 and 7.3)
+# ANF terms are normal forms
 
-ANF (7.1) with de Bruijn indices. A let variable and a free variable are both variables
-here, so a free path `g` and a path from a let variable are both a `Path`; the proof does
-not need to tell them apart.
+ANF with de Bruijn indices. Every variable is a `var`: the grammar does not tell
+the module, the arguments, a region and a value apart (the verifier does), and the
+proof does not need to.
 
-* `Path`: `x | p.l` (a let variable, a free path, or a field of one).
-* `Atom`: a path or a byte array (row 7.1b).
-* `Operand`: an atom or a struct of operands (row 7.1c, D94); `Operands`: a struct of them.
-* `Call`: `g {lᵢ = qᵢ}` (row 7.1d).
-* `Op`: an opcode call `b {lᵢ = qᵢ}` that E-Opcode does not compute, or a call (row 7.1e).
-* `Ret`: an operand or a call (row 7.1f).
-* `Terminal`: a return or jump, or a branch of them on a path (row 7.1g).
-* `Expr`: `let x = o in e`, that is `(λx. e) o`, or a terminal (row 7.1h).
+* `Path` `P ::= x | P.l`.
+* `Operand` `Q ::= P | D`, `D` data; `Operands`: a struct of them.
+* `Op`: an instruction `O {lᵢ = Qᵢ}`, `O ::= P | b`: a call, or an opcode call
+  that E-Opcode does not compute.
+* `Jump` `J ::= P Q₁ ⋯ Qₙ`; `Jumps`: a struct of them, the arms of a branch.
+* `Terminal` `T ::= Q | J | {Jᵢ} P | R`.
+* `Expr` `E ::= let x = O {lᵢ = Qᵢ} in E | T`, the `let` being `(λx. E) (O {…})`.
+* `Block` `K ::= E | λx₁. ⋯ λxₙ. E`; `Blocks`: a struct of them.
+* `Region` `R ::= x [] (λx. {lᵢ = Kᵢ})`, `0 < k`, field 0 an expression.
 
-`anf_normal`: a term in ANF has no step (7.3, Goal 1.4).
+`anf_normal`: a term in ANF has no step, regions included.
 -/
 
 namespace Oymomo
@@ -30,52 +31,66 @@ inductive Path : Term → Prop
   | var (n : Nat) : Path (var n)
   | proj {p : Term} (l : String) : Path p → Path (proj p l)
 
-inductive Atom : Term → Prop
-  | path {p : Term} : Path p → Atom p
-  | bytes (b : Bytes) : Atom (bytes b)
+inductive Operand : Term → Prop
+  | path {p : Term} : Path p → Operand p
+  | data {d : Term} : isData d = true → Operand d
 
-mutual
-  /-- An atom or a struct of operands. -/
-  inductive Operand : Term → Prop
-    | atom {a : Term} : Atom a → Operand a
-    | struct {s : Term} : Operands s → Operand s
-
-  /-- A struct of operands. -/
-  inductive Operands : Term → Prop
-    | snil : Operands snil
-    | scons {l : String} {q r : Term} : Operand q → Operands r → Operands (scons l q r)
-end
-
-inductive Call : Term → Prop
-  | mk {g s : Term} : Path g → Operands s → Call (app g s)
+/-- A struct of operands. -/
+inductive Operands : Term → Prop
+  | snil : Operands snil
+  | scons {l : String} {q r : Term} : Operand q → Operands r → Operands (scons l q r)
 
 variable (op) in
+/-- An instruction: an opcode call that E-Opcode does not compute, or a call. -/
 inductive Op : Term → Prop
   | opcode {b : Bytes} {s : Term} :
       Operands s → (∀ b', isData s = true → op b s ≠ some b') → Op (app (bytes b) s)
-  | call {u : Term} : Call u → Op u
+  | call {g s : Term} : Path g → Operands s → Op (app g s)
 
-inductive Ret : Term → Prop
-  | operand {q : Term} : Operand q → Ret q
-  | call {u : Term} : Call u → Ret u
+/-- A path applied to operands, one by one. -/
+inductive Jump : Term → Prop
+  | head {p : Term} : Path p → Jump p
+  | arg {j q : Term} : Jump j → Operand q → Jump (app j q)
 
-/-- A struct of returns and jumps: the arms of a branch. -/
-inductive Rets : Term → Prop
-  | snil : Rets snil
-  | scons {l : String} {r s : Term} : Ret r → Rets s → Rets (scons l r s)
-
-inductive Terminal : Term → Prop
-  | ret {r : Term} : Ret r → Terminal r
-  | branch {s c : Term} : Rets s → Path c → Terminal (app s c)
+/-- A struct of jumps: the arms of a branch. -/
+inductive Jumps : Term → Prop
+  | snil : Jumps snil
+  | scons {l : String} {j s : Term} : Jump j → Jumps s → Jumps (scons l j s)
 
 variable (op) in
-inductive Expr : Term → Prop
-  | let_ {e o : Term} : Op op o → Expr e → Expr (app (lam e) o)
-  | term {t : Term} : Terminal t → Expr t
+mutual
+  inductive Terminal : Term → Prop
+    | ret {q : Term} : Operand q → Terminal q
+    | jump {j : Term} : Jump j → Terminal j
+    | branch {s c : Term} : Jumps s → Path c → Terminal (app s c)
+    | region {r : Term} : Region r → Terminal r
+
+  inductive Expr : Term → Prop
+    | let_ {e o : Term} : Op op o → Expr e → Expr (app (lam e) o)
+    | term {t : Term} : Terminal t → Expr t
+
+  /-- An expression, or `λ`s taking the block's parameters. -/
+  inductive Block : Term → Prop
+    | expr {e : Term} : Expr e → Block e
+    | lam {k : Term} : Block k → Block (lam k)
+
+  /-- A struct of blocks. -/
+  inductive Blocks : Term → Prop
+    | snil : Blocks snil
+    | scons {l : String} {k s : Term} : Block k → Blocks s → Blocks (scons l k s)
+
+  /-- `x [] (λr. {l₀ = e, lᵢ = Kᵢ})`: field 0 is an expression. -/
+  inductive Region : Term → Prop
+    | mk {l : String} {e s : Term} (n : Nat) :
+        Expr e → Blocks s → Region (app (app (var n) (bytes [])) (lam (scons l e s)))
+end
 
 /-! ## No step -/
 
 theorem Path.lookup_none {p : Term} (hp : Path p) (l : String) : lookup p l = none := by
+  cases hp <;> rfl
+
+theorem Path.select_none {p : Term} (hp : Path p) (n : Nat) : select p n = none := by
   cases hp <;> rfl
 
 theorem Path.normal {p t' : Term} (hp : Path p) : ¬ Step op p t' := by
@@ -88,38 +103,34 @@ theorem Path.normal {p t' : Term} (hp : Path p) : ¬ Step op p t' := by
     | proj1 h => exact ih h
     | fixProj => cases hp
 
-theorem Atom.normal {a t' : Term} (ha : Atom a) : ¬ Step op a t' := by
-  cases ha with
-  | path hp => exact hp.normal
+/-- Data has no step. -/
+theorem data_normal {d t' : Term} (hd : isData d = true) : ¬ Step op d t' := by
+  induction d generalizing t' with
+  | snil => intro h; cases h
   | bytes b => intro h; cases h
+  | scons l t r iht ihr =>
+    simp only [isData, Bool.and_eq_true] at hd
+    intro h
+    cases h with
+    | scons1 h => exact iht hd.1 h
+    | scons2 h => exact ihr hd.2 h
+  | _ => simp [isData] at hd
 
-mutual
-  theorem Operand.normal {q t' : Term} : Operand q → ¬ Step op q t'
-    | .atom ha => ha.normal
-    | .struct hs => hs.normal
+theorem Operand.normal {q t' : Term} : Operand q → ¬ Step op q t'
+  | .path hp => hp.normal
+  | .data hd => data_normal hd
 
-  theorem Operands.normal {s t' : Term} : Operands s → ¬ Step op s t'
-    | .snil => fun h => by cases h
-    | .scons hq hr => fun h => by
-      cases h with
-      | scons1 h => exact hq.normal h
-      | scons2 h => exact hr.normal h
-end
+theorem Operands.normal {s t' : Term} (hs : Operands s) : ¬ Step op s t' := by
+  induction hs generalizing t' with
+  | snil => intro h; cases h
+  | scons hq _ ih =>
+    intro h
+    cases h with
+    | scons1 h => exact hq.normal h
+    | scons2 h => exact ih h
 
 theorem Operands.not_bytes {s : Term} {b : Bytes} (hs : Operands s) : s ≠ bytes b := by
   cases hs <;> simp
-
-theorem Call.normal {u t' : Term} (hu : Call u) : ¬ Step op u t' := by
-  cases hu with
-  | mk hg hs =>
-    intro h
-    cases h with
-    | beta _ => cases hg
-    | index _ => exact absurd rfl hs.not_bytes
-    | opcode _ _ _ => cases hg
-    | app1 h => exact hg.normal h
-    | app2 h => exact hs.normal h
-    | fixApp => cases hg
 
 theorem Op.normal {o t' : Term} (ho : Op op o) : ¬ Step op o t' := by
   cases ho with
@@ -130,52 +141,103 @@ theorem Op.normal {o t' : Term} (ho : Op op o) : ¬ Step op o t' := by
     | opcode _ hd ho => exact hn _ hd ho
     | app1 h => cases h
     | app2 h => exact hs.normal h
-  | call hu => exact hu.normal
-
-theorem Ret.normal {r t' : Term} (hr : Ret r) : ¬ Step op r t' := by
-  cases hr with
-  | operand hq => exact hq.normal
-  | call hu => exact hu.normal
-
-theorem Rets.normal {s t' : Term} (hs : Rets s) : ¬ Step op s t' := by
-  induction hs generalizing t' with
-  | snil => intro h; cases h
-  | scons hr _ ih =>
+  | call hg hs =>
     intro h
     cases h with
-    | scons1 h => exact hr.normal h
-    | scons2 h => exact ih h
-
-theorem Terminal.normal {t t' : Term} (ht : Terminal t) : ¬ Step op t t' := by
-  cases ht with
-  | ret hr => exact hr.normal
-  | branch hs hc =>
-    intro h
-    cases h with
-    | beta _ => cases hs
-    | index _ => cases hc
-    | opcode _ _ _ => cases hs
-    | app1 h => exact hs.normal h
-    | app2 h => exact hc.normal h
-    | fixApp => cases hs
+    | beta _ => cases hg
+    | index _ => exact absurd rfl hs.not_bytes
+    | opcode _ _ _ => cases hg
+    | app1 h => exact hg.normal h
+    | app2 h => exact hs.normal h
+    | fixApp => cases hg
 
 theorem Op.not_value {o : Term} (ho : Op op o) : isValue o = false := by
-  cases ho with
-  | opcode _ _ => rfl
-  | call hu => cases hu; rfl
+  cases ho <;> rfl
 
-/-- A term in ANF has no step: it is a normal form (7.3, Goal 1.4). -/
-theorem anf_normal {e t' : Term} (he : Expr op e) : ¬ Step op e t' := by
-  induction he generalizing t' with
-  | let_ ho _ ih =>
+theorem Jump.select_none {j : Term} (hj : Jump j) (n : Nat) : select j n = none := by
+  cases hj with
+  | head hp => exact hp.select_none n
+  | arg _ _ => rfl
+
+theorem Jump.normal {j t' : Term} (hj : Jump j) : ¬ Step op j t' := by
+  induction hj generalizing t' with
+  | head hp => exact hp.normal
+  | arg hj hq ih =>
     intro h
     cases h with
-    | beta hv => rw [ho.not_value] at hv; cases hv
-    | index _ => cases ho with | call hu => cases hu
-    | app1 h =>
+    | beta _ => cases hj with | head hp => cases hp
+    | index hs => rw [hj.select_none] at hs; cases hs
+    | opcode _ _ _ => cases hj with | head hp => cases hp
+    | app1 h => exact ih h
+    | app2 h => exact hq.normal h
+    | fixApp => cases hj with | head hp => cases hp
+
+theorem Jumps.normal {s t' : Term} (hs : Jumps s) : ¬ Step op s t' := by
+  induction hs generalizing t' with
+  | snil => intro h; cases h
+  | scons hj _ ih =>
+    intro h
+    cases h with
+    | scons1 h => exact hj.normal h
+    | scons2 h => exact ih h
+
+/-- The runner `x []` has no step. -/
+theorem runner_normal {n : Nat} {t' : Term} : ¬ Step op (app (var n) (bytes [])) t' := by
+  intro h
+  cases h with
+  | index hs => cases hs
+  | app1 h => cases h
+  | app2 h => cases h
+
+mutual
+  theorem Terminal.normal {t t' : Term} : Terminal op t → ¬ Step op t t'
+    | .ret hq => hq.normal
+    | .jump hj => hj.normal
+    | .region hr => hr.normal
+    | .branch hs hc => fun h => by
       cases h with
-      | lam h => exact ih h
-    | app2 h => exact ho.normal h
-  | term ht => exact ht.normal
+      | beta _ => cases hs
+      | index _ => cases hc
+      | opcode _ _ _ => cases hs
+      | app1 h => exact hs.normal h
+      | app2 h => exact hc.normal h
+      | fixApp => cases hs
+
+  /-- A term in ANF has no step: it is a normal form. -/
+  theorem anf_normal {e t' : Term} : Expr op e → ¬ Step op e t'
+    | .term ht => ht.normal
+    | .let_ ho he => fun h => by
+      cases h with
+      | beta hv => rw [ho.not_value] at hv; cases hv
+      | index _ => cases ho
+      | app1 h =>
+        cases h with
+        | lam h => exact anf_normal he h
+      | app2 h => exact ho.normal h
+
+  theorem Block.normal {k t' : Term} : Block op k → ¬ Step op k t'
+    | .expr he => anf_normal he
+    | .lam hk => fun h => by
+      cases h with
+      | lam h => exact hk.normal h
+
+  theorem Blocks.normal {s t' : Term} : Blocks op s → ¬ Step op s t'
+    | .snil => fun h => by cases h
+    | .scons hk hs => fun h => by
+      cases h with
+      | scons1 h => exact hk.normal h
+      | scons2 h => exact hs.normal h
+
+  theorem Region.normal {r t' : Term} : Region op r → ¬ Step op r t'
+    | .mk _ he hs => fun h => by
+      cases h with
+      | app1 h => exact runner_normal h
+      | app2 h =>
+        cases h with
+        | lam h =>
+          cases h with
+          | scons1 h => exact anf_normal he h
+          | scons2 h => exact hs.normal h
+end
 
 end Oymomo

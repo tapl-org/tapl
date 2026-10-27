@@ -3,13 +3,13 @@
 import Oymomo.Substitution
 
 /-!
-# Reduction (semantics.tex, Sections 4 and 5)
+# Reduction
 
-`Step op t t'` is `t ⟶ t'`: a rule of Section 4 anywhere in `t` (reduction anywhere,
-Section 5). `op` is the opcode table, left abstract: `op b s = some b'` when `op(b)` is
-defined on the operands `s`. E-Opcode reads it only when `s` is data (row 2.1i), which
-never steps. E-Beta substitutes only a value (row 2.1h). E-FixProj and E-FixApp unfold a
-fixed point `fix (λx. t)` once, where it is projected or applied (4.8).
+`Step op t t'` is `t ⟶ t'`: a computation rule anywhere in `t` (reduction
+anywhere). `op` is the opcode table, left abstract: `op b s = some b'` when `op(b)` is
+defined on the operands `s`. E-Opcode reads it only when `s` is data, which
+never steps. E-Beta substitutes only a value. E-FixProj and E-FixApp unfold a
+fixed point `fix (λx. t)` once, where it is projected or applied.
 
 `Par op t t'` is parallel reduction: any set of redexes of `t` at once. It is the tool for
 confluence (Tait and Martin-Löf).

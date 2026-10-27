@@ -3,15 +3,15 @@
 import Oymomo.Reduction
 
 /-!
-# The strategy (semantics.tex, Section 6)
+# The strategy
 
-`SStep op t t'` is the order of table 6.2: each constructor is one row, and its premises
-say that the row's shape matches, that the chosen part has a step, and that no earlier row
-of the same group applies. A chosen part takes its own `SStep`, carried by the rule of
-Section 5 named in the table.
+`SStep op t t'` is the order of the strategy's table: each constructor is one row, and its
+premises say that the row's shape matches, that the chosen part has a step, and that no
+earlier row of the same group applies. A chosen part takes its own `SStep`, carried by the
+congruence rule named in the table.
 
 * `sstep_step`: every step of the order is a `⟶` step (it defines no rule of its own).
-* `sstep_complete`: a term with a `⟶` step has a step of the order (completeness, 6.4).
+* `sstep_complete`: a term with a `⟶` step has a step of the order (completeness).
 * `sstep_det`: the order chooses at most one step (the first row that applies).
 -/
 
@@ -25,7 +25,7 @@ variable (op) in
 def Red (t : Term) : Prop := ∃ t', Step op t t'
 
 variable (op) in
-/-- A rule of Section 4 fires at the root of `t`. -/
+/-- A computation rule fires at the root of `t`. -/
 def RootRed : Term → Prop
   | app (lam _) u => isValue u = true
   | app (bytes b) s => isStruct s = true ∧ isData s = true ∧ ∃ b', op b s = some b'
@@ -38,13 +38,13 @@ def isLam : Term → Bool
   | _ => false
 
 variable (op) in
-/-- Some field of the struct is not a value and has a step (row 6.2m applies). -/
+/-- Some field of the struct is not a value and has a step (row m applies). -/
 def NVRed : Term → Prop
   | scons _ t r => (isValue t = false ∧ Red op t) ∨ NVRed r
   | _ => False
 
 variable (op) in
-/-- One step of the order of table 6.2. -/
+/-- One step of the order of the strategy. -/
 inductive SStep : Term → Term → Prop
   /-- Row a, E-Proj. -/
   | proj {s u : Term} {l : String} : lookup s l = some u → SStep (proj s l) u
@@ -161,7 +161,7 @@ theorem RootRed.sstep {a b : Term} (h : RootRed op (app a b)) : ∃ t', SStep op
       exact ⟨_, .index hu⟩
     | _ => exact h.elim
 
-/-- Completeness (6.4): when a term has a step, the order chooses one. -/
+/-- Completeness: when a term has a step, the order chooses one. -/
 theorem sstep_complete : ∀ {t : Term}, Red op t → ∃ t', SStep op t t'
   | var _, ⟨_, h⟩ => by cases h
   | bytes _, ⟨_, h⟩ => by cases h

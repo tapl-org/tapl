@@ -1,11 +1,11 @@
 language oymomo
-λm. {
-  sum= {
-    gives= 'i32',
-    body= λf. {
-      entry= {
-        takes= {},
-        body= λp.
+{
+  version= '0',
+  symbols= {
+    sum= {
+      type= {'function', {}, 'i32'},
+      body= λm. λp. m [] (λr. {
+        entry=
           let a = 'alloca' {{'array', [03], 'i32'}} in
           let p0 = 'getelementptr'
             {
@@ -31,22 +31,19 @@ language oymomo
           let s0 = 'store' {'i32', [0a000000], p0} in
           let s1 = 'store' {'i32', [14000000], p1} in
           let s2 = 'store' {'i32', [0c000000], p2} in
-          f.loop.body {a= a, i= [00000000 00000000], total= [00000000]},
-      },
-      loop= {
-        takes= {a= 'ptr', i= 'i64', total= 'i32'},
-        body= λp.
-          let q = 'getelementptr'
-            {{'array', [03], 'i32'}, p.a, [00000000 00000000], p.i} in
-          let x = 'load' {'i32', q} in
-          let s = 'add' {'i32', p.total, x} in
-          let j = 'add' {'i64', p.i, [01000000 00000000]} in
-          let done = 'icmp' {'eq', 'i64', j, [03000000 00000000]} in
-          if done
-          then f.exit.body {total= s}
-          else f.loop.body {a= p.a, i= j, total= s},
-      },
-      exit= {takes= {total= 'i32'}, body= λp. p.total},
+          m [] (λq. {
+            q.loop [00000000 00000000] [00000000],
+            loop= λi. λtotal.
+              let e = 'getelementptr'
+                {{'array', [03], 'i32'}, a, [00000000 00000000], i} in
+              let x = 'load' {'i32', e} in
+              let s = 'add' {'i32', total, x} in
+              let j = 'add' {'i64', i, [01000000 00000000]} in
+              let done = 'icmp' {'eq', 'i64', j, [03000000 00000000]} in
+              if done then r.exit s else q.loop j s,
+          }),
+        exit= λtotal. total,
+      }),
     },
   },
 }

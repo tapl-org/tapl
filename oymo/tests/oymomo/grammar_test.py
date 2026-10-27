@@ -49,7 +49,7 @@ def test_lambda_extends_right():
 
 
 def test_dot_after_the_binder_ends_it():
-    # 2.2: every other dot is projection.
+    # Every other dot is projection.
     assert parse('λp. p.a') == terms.Lambda('p', terms.Project(terms.Variable('p'), 'a'))
     assert parse('λp.p.a.b') == parse('λp. ((p.a).b)')
 
@@ -88,7 +88,7 @@ def test_duplicate_labels_are_rejected():
     assert term.message == "Duplicate label 'x'."
     assert term.span == spans.make(15, 5)
     assert isinstance(parse('λp. {a = {l = p, l = p}}'), syntax.ErrorTerm)
-    # Empty labels never clash (2.5b).
+    # Empty labels never clash.
     assert show(parse('{a, b, c}')) == '{a, b, c}'
     # Equal labels in different structs are fine.
     assert show(parse('{l = {l = a}}')) == '{l = {l = a}}'
@@ -125,7 +125,7 @@ def test_if():
 def test_fix():
     g, a = terms.Variable('g'), terms.Variable('a')
     assert parse('fix g') == terms.Fix(g)
-    # 2.3: `fix t` parses as an application does.
+    # `fix t` parses as an application does.
     assert parse('fix g.l a') == terms.Apply(terms.Fix(terms.Project(g, 'l')), a)
     assert parse('f (fix g)') == terms.Apply(terms.Variable('f'), terms.Fix(g))
     assert show(parse('fix (λx. x)')) == 'fix (λx. x)'
@@ -168,7 +168,7 @@ def test_text_byte_array():
 
 
 def test_text_byte_array_is_utf8():
-    # 2.4c: any valid UTF-8 text may be written as text.
+    # Any valid UTF-8 text may be written as text.
     assert parse("'λ'") == terms.ByteArray('λ'.encode())
     assert show(parse("'λ'")) == "'λ'"
 
@@ -283,7 +283,7 @@ def test_locations_skip_leading_trivia():
 
 
 def test_gcd_module_parses():
-    """The module of 8.9 in the new syntax."""
+    """A module in the new syntax."""
     source = """
     λm. {
       gcd = {

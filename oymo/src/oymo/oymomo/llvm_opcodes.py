@@ -5,9 +5,13 @@
 Each implementation reads its call's fields by position, as `opcodes` does: `{type, a, b}`
 for an arithmetic or logic opcode, `{predicate, type, a, b}` for `icmp`, `{type, value, to}`
 for a conversion, `{type}` or `{type, count}` for `alloca`, `{type, ptr, i₀, …}` for
-`getelementptr`, `{type, ptr}` for `load`, `{type, value, ptr}` for `store`. A type field is
-a type term (9.1); an operand takes the type the opcode reads it at, so a bare byte array
-there is a constant of that type.
+`getelementptr`, `{type, ptr}` for `load`, `{type, value, ptr}` for `store`,
+`{aggtype, agg, i₁, …}` for `extractvalue` and `{aggtype, agg, value, i₁, …}` for
+`insertvalue`. A type field is a type term; an operand takes the type the
+opcode reads it at, so a bare byte array there is a constant of that type.
+
+Each opcode also tells, by `uses`, the type each field is read at (None for a type field,
+or where it doesn't say), so a block's parameter can take its type from its uses.
 """
 
 from collections.abc import Sequence
@@ -15,7 +19,7 @@ from collections.abc import Sequence
 from llvmlite import ir
 
 from oymo.core import syntax
-from oymo.oymomo import opcodes, terms
+from oymo.oymomo import opcodes, printer, terms
 from oymo.oymomo.llvm_translate import LlvmTranslationError, OpcodeImpl, Operand, llvm_type
 
 _I32 = terms.ByteArray(b'i32')
@@ -185,17 +189,96 @@ def _store(builder, fields, operand: Operand):
     return builder.store(operand(fields[1], typ), operand(fields[2], _PTR))
 
 
+def _positions(name: str, fields: Sequence[syntax.Term]) -> list[int]:
+    """The indices of `extractvalue` or `insertvalue`: byte arrays read as positions."""
+    positions = [opcodes.tag_count(field) for field in fields]
+    if any(position is None for position in positions):
+        raise LlvmTranslationError(f'{name!r}: an index is a position, a byte array such as [01].')
+    return [position for position in positions if position is not None]
+
+
+def _aggregate_type(name: str, fields: Sequence[syntax.Term], indices: Sequence[syntax.Term]) -> syntax.Term:
+    typ = _type(name, fields, 0)
+    if opcodes.element_type(typ, indices) is None:
+        raise LlvmTranslationError(f'{name!r}: the indices go past the parts of {printer.show(typ)}.')
+    return typ
+
+
+def _extractvalue(builder, fields, operand: Operand):
+    if len(fields) < opcodes.EXTRACT_MIN_FIELDS:
+        raise LlvmTranslationError(
+            f"'extractvalue' takes a type, a value and at least one index, got {len(fields)} fields."
+        )
+    typ = _aggregate_type('extractvalue', fields, fields[2:])
+    return builder.extract_value(operand(fields[1], typ), _positions('extractvalue', fields[2:]))
+
+
+def _insertvalue(builder, fields, operand: Operand):
+    if len(fields) < opcodes.INSERT_MIN_FIELDS:
+        raise LlvmTranslationError(
+            f"'insertvalue' takes a type, a value, a part and at least one index, got {len(fields)} fields."
+        )
+    typ = _aggregate_type('insertvalue', fields, fields[3:])
+    part = opcodes.element_type(typ, fields[3:])
+    return builder.insert_value(
+        operand(fields[1], typ), operand(fields[2], part), _positions('insertvalue', fields[3:])
+    )
+
+
 _MEMORY = {'alloca': _alloca, 'getelementptr': _getelementptr, 'load': _load, 'store': _store}
+_STRUCT = {'extractvalue': _extractvalue, 'insertvalue': _insertvalue}
 
 
-def _impl(name: str) -> OpcodeImpl:
+# `uses`: the type term each field is read at, or None.
+
+
+def _int_or_none(field):
+    return field if opcodes.find_bit_width(field) is not None else None
+
+
+def _type_or_none(field):
+    return field if opcodes.is_literal_type(field) else None
+
+
+def _pad(types, fields):
+    return (list(types) + [None] * len(fields))[: len(fields)]
+
+
+def _uses(name: str):
+    def uses(fields: Sequence[syntax.Term]) -> list[syntax.Term | None]:
+        first = fields[0] if fields else None
+        if name in _BINARY:
+            return _pad([None, _int_or_none(first), _int_or_none(first)], fields)
+        if name == 'icmp':
+            typ = _type_or_none(fields[1]) if len(fields) > 1 else None
+            return _pad([None, None, typ, typ], fields)
+        if name in _CONVERT:
+            return _pad([None, _int_or_none(first)], fields)
+        if name in ('getelementptr', 'load'):
+            return _pad([None, _PTR], fields)
+        if name == 'store':
+            return _pad([None, _type_or_none(first), _PTR], fields)
+        if name == 'extractvalue':
+            return _pad([None, _type_or_none(first)], fields)
+        if name == 'insertvalue':
+            typ = _type_or_none(first)
+            part = opcodes.element_type(typ, fields[3:]) if typ is not None else None
+            return _pad([None, typ, part], fields)
+        return _pad([], fields)
+
+    return uses
+
+
+def _emit(name: str):
     if name in _BINARY:
         return _binary(name, _BINARY[name])
     if name == 'icmp':
         return _icmp
     if name in _MEMORY:
         return _MEMORY[name]
+    if name in _STRUCT:
+        return _STRUCT[name]
     return _convert(name, _CONVERT[name])
 
 
-DEFAULT_OPCODES: dict[str, OpcodeImpl] = {name: _impl(name) for name in opcodes.OPCODES}
+DEFAULT_OPCODES: dict[str, OpcodeImpl] = {name: OpcodeImpl(_emit(name), _uses(name)) for name in opcodes.OPCODES}

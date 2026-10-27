@@ -1,43 +1,47 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""LLVM translation (semantics.tex, Section 9): a module (Section 8) becomes LLVM IR.
+"""LLVM translation: an ingot becomes one LLVM module.
 
-Oymomo is untyped (9.1). Every LLVM type comes from where a value is used: an opcode's
-type operand, the `takes` of a block or function being called, a function's `gives` for
-a return, a constant's or global variable's `type`. A byte array takes the type its use
-needs; a path `x.l₁⋯lⱼ` becomes `extractvalue`s, each index the label's position in the
-struct type the value has.
+Oymomo is untyped. Every LLVM type comes from where a value is used: an opcode's
+type operand, a function's type, an entry's `type`. A byte array takes the type its use
+needs; a block's parameter takes the type of the operands jumped to it and of its
+uses.
 
-- A definition becomes `define`; its first block is the entry block. When a block jumps
-  to the first block, a new entry block, `start`, jumps to it (9.2b).
-- A declaration becomes `declare`, a constant `constant`, a global variable `global`.
-- A block's `takes` becomes `phi`s where it has more than one predecessor; otherwise its
-  parameters are the values passed.
-- A `let` becomes one instruction; a return `ret`; a jump through `f` `br`; a jump
-  through `m` `call` then `ret`; a conditional jump `br i1` or `switch`, and an arm that
-  is not a jump to a block of its own becomes a small block.
+The translation is one to one where it can be: regions are flattened in source
+order; field 0 of the body's region is the entry block, field 0 of a nested region goes
+on in the block it continues; a `let` becomes one instruction, a return `ret`, a jump
+`br`, a branch `br i1` or `switch`, a block's parameters its `phi`s. A jump to field 0 adds
+a block: a new entry block named after the region's binder, or a split block plus `br`.
 
 Everything target-specific (the opcodes' instructions) comes in through `Target`.
 """
 
 import re
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from llvmlite import ir
 
 from oymo.core import syntax
-from oymo.oymomo import anf, opcodes, printer, reduction, terms
-from oymo.oymomo import module as modules
+from oymo.oymomo import ingot as ingots
+from oymo.oymomo import opcodes, printer, terms
 
 _INT_TYPE = re.compile(r'i([1-9][0-9]*)')
 
 # An operand of an opcode as an LLVM value: the field, and the type term it is read at
 # (None where the opcode doesn't say; a byte array then has no type and is an error).
-type Operand = Callable[[syntax.Term, syntax.Term | None], ir.Value]
+# A field is a data term (a type, a predicate, a constant) or an `ingot.Operand`.
+type Operand = Callable[[Any, syntax.Term | None], ir.Value]
 
-# By opcode name: gets the builder, the call's fields (by position) and `Operand`.
-type OpcodeImpl = Callable[[ir.IRBuilder, Sequence[syntax.Term], Operand], ir.Value]
+
+@dataclass(frozen=True)
+class OpcodeImpl:
+    """An opcode's LLVM instruction. `emit` gets the builder, the call's fields (by
+    position) and `Operand`; `uses` gives the type each field is read at, or None."""
+
+    emit: Callable[[ir.IRBuilder, Sequence[Any], Operand], ir.Value]
+    uses: Callable[[Sequence[Any]], list[syntax.Term | None]]
 
 
 class LlvmTranslationError(Exception):
@@ -59,7 +63,7 @@ def show_type(term: syntax.Term) -> str:
 
 
 def llvm_type(term: syntax.Term) -> ir.Type:
-    """The LLVM type a type term names (9.1, D95): `'iN'`, `'ptr'`, a struct of types, or a
+    """The LLVM type a type term names: `'iN'`, `'ptr'`, a struct of types, or a
     tagged struct (`{'array', n, t}`, `{'vector', n, t}`, `{'packed', ...}`)."""
     if (tagged := opcodes.tagged_type(term)) is not None:
         return _tagged_type(term, *tagged)
@@ -85,11 +89,20 @@ def _tagged_type(term, tag, parts):
     return ir.ArrayType(element, count) if tag == 'array' else ir.VectorType(element, count)
 
 
-def constant(type_term: syntax.Term, value: syntax.Term) -> ir.Constant:
+def constant(
+    type_term: syntax.Term, value: syntax.Term, symbols: Mapping[str, ir.GlobalValue] | None = None
+) -> ir.Constant:
     """`value`, data, as an LLVM constant of the type `type_term` names: a byte array of an
-    integer type's size, or a struct (or array) of constants."""
+    integer type's size, or a struct (or array) of constants. `{}` is all zeros, for any
+    type. Given `symbols` (an entry's `init` or `value`), a byte array in a `'ptr'`
+    names a symbol (`''` is null) and `{b₁, b₂}` is the symbol `b₁` plus `b₂` bytes; one
+    byte array may hold an `i8` array, its bytes in order."""
     span = getattr(value, 'span', 0)
     typ = llvm_type(type_term)
+    if isinstance(value, terms.Struct) and not value.fields:
+        return ir.Constant(typ, None)
+    if isinstance(typ, ir.PointerType) and symbols is not None:
+        return _pointer(value, symbols, span)
     if isinstance(typ, ir.IntType):
         size = (typ.width + 7) // 8
         if not isinstance(value, terms.ByteArray) or len(value.value) != size:
@@ -100,10 +113,40 @@ def constant(type_term: syntax.Term, value: syntax.Term) -> ir.Constant:
         if number >= 1 << typ.width:
             raise LlvmTranslationError(f'The constant does not fit in {typ}.', span)
         return ir.Constant(typ, number)
+    if (
+        symbols is not None
+        and isinstance(value, terms.ByteArray)
+        and isinstance(typ, ir.ArrayType)
+        and typ.element == ir.IntType(8)
+    ):
+        if len(value.value) != typ.count:
+            raise LlvmTranslationError(f'{typ} is a byte array of {typ.count} bytes here.', span)
+        return ir.Constant(typ, bytearray(value.value))
     parts = _type_parts(type_term)
     if parts is not None and isinstance(value, terms.Struct) and len(value.fields) == len(parts):
-        return ir.Constant(typ, [constant(part, f.value) for part, f in zip(parts, value.fields, strict=True)])
+        return ir.Constant(typ, [constant(part, f.value, symbols) for part, f in zip(parts, value.fields, strict=True)])
     raise LlvmTranslationError(f'No constant of type {typ} is written {printer.show(value)}.', span)
+
+
+def _pointer(value, symbols, span):
+    """A `'ptr'` in an entry's data: a symbol's address, plus a byte offset, or null."""
+    offset = None
+    if isinstance(value, terms.Struct) and len(value.fields) == 2:  # noqa: PLR2004
+        value, offset = value.fields[0].value, value.fields[1].value
+        if not isinstance(offset, terms.ByteArray):
+            raise LlvmTranslationError('A symbol plus an offset is {symbol, bytes}, the offset a byte array.', span)
+    name = value.as_str if isinstance(value, terms.ByteArray) else None
+    if name is None:
+        raise LlvmTranslationError("A 'ptr' here names a symbol, '' for null, or {symbol, offset}.", span)
+    if not name and offset is None:
+        return ir.Constant(ir.PointerType(), None)
+    if name not in symbols:
+        raise LlvmTranslationError(f'{name!r} names no symbol of the ingot.', span)
+    symbol = symbols[name]
+    if offset is None:
+        return symbol
+    count = int.from_bytes(offset.value, 'little')
+    return ir.FormattedConstant(ir.PointerType(), f'getelementptr (i8, ptr {symbol.get_reference()}, i64 {count})')
 
 
 def _type_parts(type_term):
@@ -119,331 +162,293 @@ def _type_parts(type_term):
     return None
 
 
-def _field_type(type_term, label, span):
-    """`(position, type term)` of the field labeled `label` in a struct type."""
-    if isinstance(type_term, terms.Struct) and opcodes.tagged_type(type_term) is None:
-        position = reduction.field_position(type_term, label)
-        if position is not None:
-            return position, type_term.fields[position].value
-    shown = 'an unknown type' if type_term is None else show_type(type_term)
-    raise LlvmTranslationError(f'.{label} reads a field of {shown}, which has no field {label!r}.', span)
+def _blocks(region: ingots.Region) -> Iterator[ingots.Block]:
+    """Every block of `region`, nested ones included, in source order."""
+    for block in region.blocks:
+        yield block
+        if isinstance(block.terminal, ingots.Region):
+            yield from _blocks(block.terminal)
 
 
-@dataclass
-class _Value:
-    """An LLVM value and the type term it has (None for a `store`'s result)."""
-
-    value: ir.Value | None
-    type: syntax.Term | None
-
-
-def _path(term):
-    labels = []
-    while isinstance(term, terms.Project):
-        labels.append(term)
-        term = term.struct
-    return term.index, labels[::-1]
+def _jumps(block: ingots.Block) -> list[ingots.Jump]:
+    match block.terminal:
+        case ingots.Jump() as jump:
+            return [jump]
+        case ingots.Branch(arms=arms):
+            return arms
+    return []
 
 
-def _jump_target(term):
-    """The block label of a jump `f.l.body {…}` (checked by `module.read_module`)."""
-    return term.function.struct.label
+def _same(a, b) -> bool:
+    """Two operands that are the same value."""
+    match a, b:
+        case ingots.Use(), ingots.Use():
+            return a.var is b.var
+        case ingots.Arg(), ingots.Arg():
+            return a.label == b.label
+        case ingots.Address(), ingots.Address():
+            return a.name == b.name
+        case ((ingots.Use() | ingots.Arg() | ingots.Address()), _):
+            return False
+        case _, (ingots.Use() | ingots.Arg() | ingots.Address()):
+            return False
+    return a == b
+
+
+def _is_data(operand) -> bool:
+    return not isinstance(operand, ingots.Use | ingots.Arg | ingots.Address)
 
 
 class _Function:
-    """One definition's blocks."""
+    """One definition: its blocks flattened, its parameters typed, its code."""
 
-    def __init__(self, translator, definition, llvm_function):
+    def __init__(self, translator: '_Translator', definition: ingots.Definition, llvm_function: ir.Function) -> None:
         self.translator = translator
         self.definition = definition
         self.llvm_function = llvm_function
-        self.blocks = {block.label: block for block in definition.blocks}
-        self.first = definition.blocks[0].label
-        self.reachable = self._reachable()
-        self.predecessors = dict.fromkeys(self.reachable, 0)
-        for label in self.reachable:
-            for target in self._jumps(self.blocks[label]):
-                self.predecessors[target] += 1
-        # 9.2b: LLVM's entry block has no predecessors, so `start` jumps to the first block.
-        self.has_start = self.predecessors[self.first] > 0
-        if self.has_start:
-            self.predecessors[self.first] += 1
-        self.llvm_blocks = {}
-        self.params = {}
+        self.blocks = list(_blocks(definition.region))
+        self.args = {label: arg for (label, _), arg in zip(definition.type.params, llvm_function.args, strict=True)}
+        self.arg_types = dict(definition.type.params)
+        self.types: dict[ingots.Var, syntax.Term] = {}
+        self.values: dict[ingots.Var, ir.Value] = {}
+        self.llvm_blocks: dict[ingots.Block, ir.Block] = {}
 
-    def _terminal(self, block):
-        term = block.body
-        while isinstance(term, terms.Apply) and isinstance(term.function, terms.Lambda):
-            term = term.function.body
-        return term
+    # Types
 
-    def _arms(self, block):
-        terminal = self._terminal(block)
-        if isinstance(terminal, terms.Apply) and isinstance(terminal.function, terms.Struct):
-            return [f.value for f in terminal.function.fields]
-        return [terminal]
+    def _type_of(self, operand) -> syntax.Term | None:
+        match operand:
+            case ingots.Use(var=var):
+                return self.types.get(var)
+            case ingots.Arg(label=label):
+                return self.arg_types[label]
+            case ingots.Address():
+                return self.translator.address_type
+        return None
 
-    def _is_jump(self, term, lets):
-        if not isinstance(term, terms.Apply) or isinstance(term.function, terms.ByteArray | terms.Struct):
+    def _let_type(self, let):
+        if let.callee is not None:
+            return ingots.function_type(self.translator.ingot.lookup(let.callee)).result
+        opcode = opcodes.OPCODES.get(let.opcode)
+        type_term = opcode.result_type([q for _, q in let.fields]) if opcode is not None else None
+        return None if type_term == opcodes.STORE_RESULT else type_term
+
+    def _uses(self, block):
+        """`(operand, type)` for each operand of `block` read at a known type."""
+        for let in block.lets:
+            fields = [q for _, q in let.fields]
+            if let.callee is not None:
+                params = ingots.function_type(self.translator.ingot.lookup(let.callee)).params
+                types = [t for _, t in params]
+            elif (impl := self.translator.target.opcodes.get(let.opcode)) is not None:
+                types = impl.uses(fields)
+            else:
+                types = [None] * len(fields)
+            yield from zip(fields, types, strict=True)
+        match block.terminal:
+            case ingots.Return(value=value):
+                yield value, self.definition.type.result
+        for jump in _jumps(block):
+            for var, operand in zip(jump.target.params, jump.operands, strict=True):
+                yield operand, self.types.get(var)
+
+    def _add(self, var, type_term, span):
+        if type_term is None:
             return False
-        index, _ = _path(term.function)
-        return index == lets + 1
+        if var not in self.types:
+            self.types[var] = type_term
+            return True
+        if llvm_type(self.types[var]) != llvm_type(type_term):
+            raise LlvmTranslationError(
+                f'{var.name!r} gets two types, {llvm_type(self.types[var])} and {llvm_type(type_term)}: '
+                f'give {var.name!r} one typed argument or typed use.',
+                span,
+            )
+        return False
 
-    def _jumps(self, block):
-        """The blocks `block` jumps to, once per jump."""
-        lets = self._let_count(block)
-        return [_jump_target(arm) for arm in self._arms(block) if self._is_jump(arm, lets)]
+    def infer(self):
+        for block in self.blocks:
+            for let in block.lets:
+                if (type_term := self._let_type(let)) is not None:
+                    self.types[let.result] = type_term
+        params = {var for block in self.blocks for var in block.params}
+        changed = True
+        while changed:
+            changed = False
+            for block in self.blocks:
+                for jump in _jumps(block):
+                    for var, operand in zip(jump.target.params, jump.operands, strict=True):
+                        changed |= self._add(var, self._type_of(operand), getattr(operand, 'span', 0))
+                for operand, type_term in list(self._uses(block)):
+                    if isinstance(operand, ingots.Use) and operand.var in params:
+                        changed |= self._add(operand.var, type_term, operand.span)
+        used = {
+            operand.var for block in self.blocks for operand, _ in self._uses(block) if isinstance(operand, ingots.Use)
+        } | {
+            block.terminal.condition.var
+            for block in self.blocks
+            if isinstance(block.terminal, ingots.Branch) and isinstance(block.terminal.condition, ingots.Use)
+        }
+        for var in sorted(params - self.types.keys(), key=lambda v: v.name):
+            if var in used:
+                raise LlvmTranslationError(f'give {var.name!r} a typed argument or a typed use.', var.span)
 
-    def _let_count(self, block):
-        count, term = 0, block.body
-        while isinstance(term, terms.Apply) and isinstance(term.function, terms.Lambda):
-            count, term = count + 1, term.function.body
-        return count
+    # Blocks
 
-    def _reachable(self):
-        seen, stack = set(), [self.first]
-        while stack:
-            label = stack.pop()
-            if label not in seen:
-                seen.add(label)
-                stack.extend(self._jumps(self.blocks[label]))
-        return seen
+    def _layout(self, region, *, top):
+        for i, block in enumerate(region.blocks):
+            if i == 0 and top and block.jumped:
+                # LLVM's entry block has no predecessors.
+                self.start = self.llvm_function.append_basic_block(region.binder)
+            if i > 0 or top or block.jumped:
+                self.llvm_blocks[block] = self.llvm_function.append_basic_block(block.name)
+            if isinstance(block.terminal, ingots.Region):
+                self._layout(block.terminal, top=False)
 
     def translate(self):
-        args = self.llvm_function.args
-        for (name, _), arg in zip(self.definition.takes, args, strict=True):
-            arg.name = name
-        start = self.llvm_function.append_basic_block('start') if self.has_start else None
-        for block in self.definition.blocks:
-            if block.label in self.reachable:
-                self.llvm_blocks[block.label] = self.llvm_function.append_basic_block(block.label)
-        # In source order, not set order: the phis' names (`d.1`, `d.2`) follow creation order.
-        for label in (block.label for block in self.definition.blocks if block.label in self.reachable):
-            if self.predecessors[label] > 1:
-                builder = ir.IRBuilder(self.llvm_blocks[label])
-                self.params[label] = {
-                    name: _Value(builder.phi(llvm_type(t), name=name), t) for name, t in self.blocks[label].takes
-                }
-        first_values = [_Value(arg, t) for arg, (_, t) in zip(args, self.definition.takes, strict=True)]
-        if start is None:
-            self.params[self.first] = {
-                name: value for (name, _), value in zip(self.definition.takes, first_values, strict=True)
-            }
-        else:
-            builder = ir.IRBuilder(start)
-            self._pass(self.first, first_values, start)
-            builder.branch(self.llvm_blocks[self.first])
-        order, done = [self.first], set()
-        while order:
-            label = order.pop(0)
-            if label in done:
+        for label, arg in self.args.items():
+            arg.name = f'{self.definition.args}.{label}'
+        self.infer()
+        self.start = None
+        self._layout(self.definition.region, top=True)
+        for block in self.blocks:
+            if block in self.llvm_blocks:
+                builder = ir.IRBuilder(self.llvm_blocks[block])
+                for var in block.params:
+                    if var in self.types:
+                        self.values[var] = builder.phi(llvm_type(self.types[var]), name=var.name)
+        if self.start is not None:
+            ir.IRBuilder(self.start).branch(self.llvm_blocks[self.definition.region.blocks[0]])
+        self._region(self.definition.region, None)
+
+    def _region(self, region, builder):
+        for i, block in enumerate(region.blocks):
+            if i == 0 and builder is not None and not block.jumped:
+                self._block(block, builder)
                 continue
-            done.add(label)
-            self._block(self.blocks[label])
-            order.extend(t for t in self._jumps(self.blocks[label]) if t not in done)
+            if i == 0 and builder is not None:
+                builder.branch(self.llvm_blocks[block])
+            self._block(block, ir.IRBuilder(self.llvm_blocks[block]))
 
-    def _pass(self, target, values, from_block):
-        """Gives `target`'s parameters `values`, coming from `from_block`."""
-        names = [name for name, _ in self.blocks[target].takes]
-        if self.predecessors[target] > 1:
-            for name, value in zip(names, values, strict=True):
-                self.params[target][name].value.add_incoming(value.value, from_block)
-        else:
-            self.params[target] = dict(zip(names, values, strict=True))
+    def _block(self, block, builder):
+        for let in block.lets:
+            value = self._instruction(builder, let)
+            if value is not None and not isinstance(value.type, ir.VoidType):
+                if not isinstance(value, ir.Constant):
+                    value.name = let.result.name
+                self.values[let.result] = value
+        match block.terminal:
+            case ingots.Return(value=value):
+                result = self.definition.type.result
+                builder.ret(self.operand(value, result, f'the result of {self.definition.name!r}'))
+            case ingots.Jump() as jump:
+                self._edge(builder, jump)
+                builder.branch(self.llvm_blocks[jump.target])
+            case ingots.Branch() as branch:
+                self._branch(builder, branch)
+            case ingots.Region() as region:
+                self._region(region, builder)
 
-    def _block(self, block):
-        builder = ir.IRBuilder(self.llvm_blocks[block.label])
-        lets = []
-        term = block.body
-        while isinstance(term, terms.Apply) and isinstance(term.function, terms.Lambda):
-            name = term.function.param_name
-            value = self._operation(builder, block, lets, term.argument)
-            if value.value is not None and not isinstance(value.value.type, ir.VoidType):
-                value.value.name = name
-            lets.append(value)
-            term = term.function.body
-        self._terminal_code(builder, block, lets, term)
+    def _edge(self, builder, jump):
+        """Gives the target's `phi`s the jump's operands, coming from the current block."""
+        for var, operand in zip(jump.target.params, jump.operands, strict=True):
+            if var in self.values:
+                value = self.operand(operand, self.types[var], f'parameter {var.name!r} of {jump.target.name}')
+                self.values[var].add_incoming(value, builder.block)
 
-    # Atoms
-
-    def atom(self, block, lets, term, expected, what):
-        """An operand (an atom or a struct of operands) as an LLVM value. `expected` is the
-        type term its use needs, or None."""
-        if isinstance(term, terms.Struct):
-            return self._struct(block, lets, term, expected, what)
-        if isinstance(term, terms.ByteArray):
-            if expected is None:
-                raise LlvmTranslationError(
-                    f'The byte array {printer.show(term)} needs a type here; {what} does not give one.',
-                    term.span,
-                )
-            return _Value(constant(expected, term), expected)
-        value = self._path_value(block, lets, term)
-        if expected is not None and value.value is not None and value.value.type != llvm_type(expected):
-            raise LlvmTranslationError(
-                f'This value has LLVM type {value.value.type}, but {what} needs {llvm_type(expected)}.',
-                getattr(term, 'span', 0),
-            )
-        if value.value is None:
-            raise LlvmTranslationError("A store's result has no value.", getattr(term, 'span', 0))
-        return value
-
-    def _struct(self, block, lets, term, expected, what):
-        """A struct operand (D94): a constant when it is data, else `insertvalue`s into
-        `undef`, one per field, in the struct type its use needs."""
-        if expected is None:
-            raise LlvmTranslationError(
-                f'The struct {printer.show(term)} needs a type here; {what} does not give one.', term.span
-            )
-        if reduction.is_data(term):
-            return _Value(constant(expected, term), expected)
-        parts = _type_parts(expected)
-        if parts is None or len(parts) != len(term.fields):
-            raise LlvmTranslationError(
-                f'{what} needs {llvm_type(expected)}, which is not a struct of {len(term.fields)} fields.',
-                term.span,
-            )
-        value = ir.Constant(llvm_type(expected), ir.Undefined)
-        for i, (part, f) in enumerate(zip(parts, term.fields, strict=True)):
-            field = self.atom(block, lets, f.value, part, what)
-            value = self._builder.insert_value(value, field.value, i)
-        return _Value(value, expected)
-
-    def _path_value(self, block, lets, term):
-        index, projections = _path(term)
-        builder_value = None
-        if index < len(lets):
-            builder_value = lets[-1 - index]
-        elif index == len(lets):
-            first, projections = projections[0], projections[1:]
-            builder_value = self.params[block.label][first.label]
-        else:
-            # `m.l`: the address of a symbol, or the function itself (checked by `module`).
-            first, projections = projections[0], projections[1:]
-            builder_value = _Value(self.translator.globals[first.label], self.translator.address_type)
-        for projection in projections:
-            position, field_type = _field_type(builder_value.type, projection.label, projection.span)
-            value = self._builder.extract_value(builder_value.value, position)
-            builder_value = _Value(value, field_type)
-        return builder_value
-
-    # Lets and terminals
-
-    def _operation(self, builder, block, lets, term):
-        self._builder = builder
-        if isinstance(term.function, terms.ByteArray):
-            return self._opcode(builder, block, lets, term)
-        return self._call(builder, block, lets, term)
-
-    def _opcode(self, builder, block, lets, term):
-        name = term.function.as_str
-        if name not in self.translator.target.opcodes:
-            raise LlvmTranslationError(f'The target has no opcode {printer.show(term.function)}.', term.span)
-        fields = [f.value for f in term.argument.fields]
-
-        def operand(field, expected):
-            return self.atom(block, lets, field, expected, f'opcode {name!r}').value
-
-        try:
-            value = self.translator.target.opcodes[name](builder, fields, operand)
-        except LlvmTranslationError as error:
-            error.span = error.span or term.span
-            raise
-        opcode = opcodes.OPCODES.get(name)
-        result_type = opcode.result_type(fields) if opcode is not None else None
-        if name == 'store':
-            return _Value(None, None)
-        return _Value(value, result_type)
-
-    def _call(self, builder, block, lets, term):
-        _, projections = _path(term.function)
-        callee = self.translator.module.lookup(projections[0].label)
-        args = self._arguments(block, lets, term, callee.takes, f'{callee.name!r}')
-        return _Value(builder.call(self.translator.globals[callee.name], args), callee.gives)
-
-    def _arguments(self, block, lets, term, takes, what):
-        return [
-            self.atom(block, lets, f.value, t, f'parameter {name!r} of {what}').value
-            for f, (name, t) in zip(term.argument.fields, takes, strict=True)
-        ]
-
-    def _terminal_code(self, builder, block, lets, term):
-        self._builder = builder
-        if isinstance(term, terms.Apply) and isinstance(term.function, terms.Struct):
-            self._branch(builder, block, lets, term)
-        else:
-            self._end(builder, block, lets, term)
-
-    def _end(self, builder, block, lets, term):
-        """A return, a jump through `f`, or a jump through `m` (`call` then `ret`)."""
-        self._builder = builder
-        gives = self.definition.gives
-        if anf.is_operand(term):
-            builder.ret(self.atom(block, lets, term, gives, f'the result of {self.definition.name!r}').value)
-        elif self._is_jump(term, len(lets)):
-            target, values = self._jump(block, lets, term)
-            self._pass(target, values, builder.block)
-            builder.branch(self.llvm_blocks[target])
-        else:
-            result = self._call(builder, block, lets, term)
-            if llvm_type(result.type) != llvm_type(gives):
-                raise LlvmTranslationError(
-                    f'The call gives {llvm_type(result.type)}, but {self.definition.name!r} gives {llvm_type(gives)}.',
-                    term.span,
-                )
-            builder.ret(result.value)
-
-    def _jump(self, block, lets, term):
-        """`(target, values)` of a jump `f.l.body {xᵢ = aᵢ}`."""
-        target = _jump_target(term)
-        takes = self.blocks[target].takes
-        values = self._arguments(block, lets, term, takes, f'block {target!r}')
-        return target, [_Value(value, t) for value, (_, t) in zip(values, takes, strict=True)]
-
-    def _branch(self, builder, block, lets, term):
-        arms = [f.value for f in term.function.fields]
-        condition = self.atom(block, lets, term.argument, None, 'a branch condition').value
+    def _branch(self, builder, branch):
+        condition = self.operand(branch.condition, None, 'a branch condition')
         if not isinstance(condition.type, ir.IntType):
             raise LlvmTranslationError(
-                f'A branch condition must be an integer, got {condition.type}.', term.argument.span
+                f'A branch condition must be an integer, got {condition.type}.', branch.condition.span
             )
-        targets = [_jump_target(arm) for arm in arms if self._is_jump(arm, len(lets))]
-        llvm_arms = []
-        for i, arm in enumerate(arms):
-            if self._is_jump(arm, len(lets)) and targets.count(_jump_target(arm)) == 1:
-                # A jump to a block of its own: a direct edge.
-                target, values = self._jump(block, lets, arm)
-                self._pass(target, values, builder.block)
-                llvm_arms.append(self.llvm_blocks[target])
-            else:
-                # 9.3c: an arm that returns, calls through m, or shares its block gets a small block.
-                small = self.llvm_function.append_basic_block(f'{block.label}.{i}')
-                self._end(ir.IRBuilder(small), block, lets, arm)
-                self._builder = builder
-                llvm_arms.append(small)
-        if len(llvm_arms) == 1:
-            builder.branch(llvm_arms[0])
-        elif len(llvm_arms) == 2:  # noqa: PLR2004
-            if condition.type.width != 1:
-                condition = builder.icmp_unsigned('!=', condition, ir.Constant(condition.type, 0))
-            builder.cbranch(condition, llvm_arms[1], llvm_arms[0])
+        for i, arm in enumerate(branch.arms):
+            for other in branch.arms[:i]:
+                if other.target is arm.target and not all(
+                    _same(a, b) for a, b in zip(other.operands, arm.operands, strict=True)
+                ):
+                    raise LlvmTranslationError(
+                        f'Two arms jump to {arm.target.name} with different operands; '
+                        'they must pass the same operands.',
+                        arm.span,
+                    )
+            self._edge(builder, arm)
+        targets = [self.llvm_blocks[arm.target] for arm in branch.arms]
+        if len(targets) == 1:
+            builder.branch(targets[0])
+        elif len(targets) == 2 and condition.type.width == 1:  # noqa: PLR2004
+            builder.cbranch(condition, targets[1], targets[0])
         else:
             # E-Index and E-Default: arm i for i < n - 1, the last arm otherwise.
             holds = (1 << condition.type.width) + 1
-            if len(llvm_arms) > holds:
+            if len(targets) > holds:
                 raise LlvmTranslationError(
-                    f'A branch on {condition.type} has {len(llvm_arms)} arms; it holds {holds}.',
-                    term.span,
+                    f'A branch on {condition.type} has {len(targets)} arms; it holds {holds}.', branch.span
                 )
-            *cases, default = llvm_arms
+            *cases, default = targets
             switch = builder.switch(condition, default)
             for value, target in enumerate(cases):
                 switch.add_case(ir.Constant(condition.type, value), target)
 
+    # Operands and instructions
+
+    def operand(self, operand, expected, what):
+        """An operand as an LLVM value; `expected` is the type term its use needs, or None."""
+        span = getattr(operand, 'span', 0)
+        if _is_data(operand):
+            if expected is None:
+                raise LlvmTranslationError(
+                    f'{printer.show(operand)} needs a type here; {what} does not give one.', span
+                )
+            return constant(expected, operand)
+        match operand:
+            case ingots.Use(var=var):
+                if var not in self.values:
+                    if var in self.types:
+                        raise LlvmTranslationError(f'{var.name!r} has no value here.', span)
+                    raise LlvmTranslationError(f"{var.name!r} has no value: a store's result has none.", span)
+                value = self.values[var]
+            case ingots.Arg(label=label):
+                value = self.args[label]
+            case _:
+                value = self.translator.globals[operand.name]
+                if expected is not None and not isinstance(llvm_type(expected), ir.PointerType):
+                    raise LlvmTranslationError(
+                        f'm.{operand.name} is an address, a ptr, but {what} needs {llvm_type(expected)}.', span
+                    )
+                return value
+        if expected is not None and value.type != llvm_type(expected):
+            raise LlvmTranslationError(
+                f'This value has LLVM type {value.type}, but {what} needs {llvm_type(expected)}.', span
+            )
+        return value
+
+    def _instruction(self, builder, let):
+        if let.callee is not None:
+            fn = ingots.function_type(self.translator.ingot.lookup(let.callee))
+            args = [
+                self.operand(q, t, f'parameter {label!r} of {let.callee!r}')
+                for (_, q), (label, t) in zip(let.fields, fn.params, strict=True)
+            ]
+            return builder.call(self.translator.globals[let.callee], args)
+        name = let.opcode
+        impl = self.translator.target.opcodes.get(name)
+        if impl is None:
+            raise LlvmTranslationError(f'The target has no opcode {name!r}.', let.span)
+
+        def operand(field, expected):
+            return self.operand(field, expected, f'opcode {name!r}')
+
+        try:
+            value = impl.emit(builder, [q for _, q in let.fields], operand)
+        except LlvmTranslationError as error:
+            error.span = error.span or let.span
+            raise
+        return None if name == 'store' else value
+
 
 class _Translator:
-    def __init__(self, module, target):
-        self.module = module
+    def __init__(self, ingot: ingots.Ingot, target: Target) -> None:
+        self.ingot = ingot
         self.target = target
         self.globals: dict[str, ir.GlobalValue] = {}
         self.address_type = terms.ByteArray(b'ptr')
@@ -452,44 +457,41 @@ class _Translator:
         llvm_module = ir.Module()
         llvm_module.triple = self.target.triple
         llvm_module.data_layout = self.target.data_layout
-        for symbol in self.module.symbols:
-            try:
-                self._symbol(llvm_module, symbol)
-            except LlvmTranslationError as error:
-                error.span = error.span or symbol.span
-                raise
-        for symbol in self.module.symbols:
-            if isinstance(symbol, modules.Definition):
+        for step in (self._symbol, self._data):
+            for symbol in self.ingot.symbols:
+                try:
+                    step(llvm_module, symbol)
+                except LlvmTranslationError as error:
+                    error.span = error.span or symbol.span
+                    raise
+        for symbol in self.ingot.symbols:
+            if isinstance(symbol, ingots.Definition):
                 _Function(self, symbol, self.globals[symbol.name]).translate()
         return llvm_module
 
     def _symbol(self, llvm_module, symbol):
+        """Each symbol becomes an LLVM global named by its label."""
+        fn = ingots.function_type(symbol)
+        if fn is not None:
+            function_type = ir.FunctionType(llvm_type(fn.result), [llvm_type(t) for _, t in fn.params])
+            function = ir.Function(llvm_module, function_type, symbol.name)
+            if isinstance(symbol, ingots.Declaration):
+                for (name, _), arg in zip(fn.params, function.args, strict=True):
+                    arg.name = name
+            self.globals[symbol.name] = function
+            return
+        variable = ir.GlobalVariable(llvm_module, llvm_type(symbol.type), symbol.name)
+        # LLVM's opaque `ptr`, as every pointer here is: llvmlite would type it by what it points to.
+        variable.type = ir.PointerType()
+        variable.global_constant = isinstance(symbol, ingots.Constant)
+        self.globals[symbol.name] = variable
+
+    def _data(self, _llvm_module, symbol):
+        """An initializer may name any symbol, so it is read once every symbol exists."""
         match symbol:
-            case modules.Constant(name=name, type=type_term, value=value):
-                variable = _global(llvm_module, llvm_type(type_term), name)
-                variable.global_constant = True
-                variable.initializer = constant(type_term, value)
-                self.globals[name] = variable
-            case modules.Global(name=name, type=type_term, init=init):
-                variable = _global(llvm_module, llvm_type(type_term), name)
-                variable.initializer = constant(type_term, init)
-                self.globals[name] = variable
-            case modules.Definition() | modules.Declaration():
-                function_type = ir.FunctionType(llvm_type(symbol.gives), [llvm_type(t) for _, t in symbol.takes])
-                function = ir.Function(llvm_module, function_type, symbol.name)
-                if isinstance(symbol, modules.Declaration):
-                    for (name, _), arg in zip(symbol.takes, function.args, strict=True):
-                        arg.name = name
-                self.globals[symbol.name] = function
+            case ingots.Constant(type=type_term, value=value) | ingots.Global(type=type_term, init=value):
+                self.globals[symbol.name].initializer = constant(type_term, value, self.globals)
 
 
-def _global(llvm_module, typ, name):
-    """A global variable whose address is LLVM's opaque `ptr`, as every pointer here is:
-    llvmlite would type it by what it points to."""
-    variable = ir.GlobalVariable(llvm_module, typ, name)
-    variable.type = ir.PointerType()
-    return variable
-
-
-def translate(module: modules.Module, target: Target) -> ir.Module:
-    return _Translator(module, target).translate()
+def translate(ingot: ingots.Ingot, target: Target) -> ir.Module:
+    return _Translator(ingot, target).translate()

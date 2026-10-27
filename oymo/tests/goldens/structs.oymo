@@ -1,0 +1,22 @@
+language oymomo
+let pair = {'i8', 'i32'} in
+{
+  version= '0',
+  symbols= {
+    second= {
+      type= {'function', {a= 'i32', b= 'i8'}, 'i32'},
+      body= λm. λp. m [] (λr. {
+        entry=
+          let s1 = 'insertvalue' {pair, {[00], [00000000]}, p.b, [00]} in
+          let s2 = 'insertvalue' {pair, s1, p.a, [01]} in
+          let y = 'extractvalue' {pair, s2, [01]} in y,
+      }),
+    },
+    main= {
+      type= {'function', {}, 'i32'},
+      body= λm. λp. m [] (λr. {
+        entry= let y = m.second {a= [07000000], b= [01]} in y,
+      }),
+    },
+  },
+}

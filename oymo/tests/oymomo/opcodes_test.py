@@ -31,7 +31,23 @@ def test_one_opcode_per_llvm_instruction():
         'icmp',
         *('zext', 'sext', 'trunc'),
         *('alloca', 'getelementptr', 'load', 'store'),
+        *('extractvalue', 'insertvalue'),
     }
+
+
+def test_struct_opcodes():
+    """`extractvalue` gives the part at the positions, `insertvalue` the aggregate; neither folds."""
+    x = terms.Variable('x')
+    pair = terms.Struct([terms.Field('', terms.ByteArray(b'i8')), terms.Field('', I32)])
+    nested = terms.Struct([terms.Field('', I32), terms.Field('', pair)])
+    one, zero, five = terms.ByteArray(bytes([1])), terms.ByteArray(bytes([0])), terms.ByteArray(bytes([5]))
+    assert OPCODES['extractvalue'].result_type([pair, x, one]) == I32
+    assert OPCODES['extractvalue'].result_type([nested, x, one, zero]) == terms.ByteArray(b'i8')
+    assert OPCODES['extractvalue'].result_type([pair, x, five]) is None
+    assert OPCODES['extractvalue'].result_type([pair, x]) is None
+    assert OPCODES['insertvalue'].result_type([pair, x, x, one]) == pair
+    assert OPCODES['insertvalue'].result_type([pair, x, x, five]) is None
+    assert OPCODES['insertvalue'].evaluate([pair, x, x, one]) is None
 
 
 def test_form_of():

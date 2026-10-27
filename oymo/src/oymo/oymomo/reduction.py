@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """Reduction of oymomo terms: name resolution to De Bruijn indices, substitution, and the
-rules of Section 4 at the root (`reduce`).
+computation rules at the root (`reduce`).
 
 A `BruijnIndex(i)` refers to the binder `i` lambdas out: `λx. λy. x` is `λx. λy. $1`.
 Binder names stay on `Lambda.param_name`; references don't carry them.
@@ -122,7 +122,7 @@ def beta(lambda_: terms.Lambda, argument: syntax.Term) -> syntax.Term:
 
 
 def is_value(term: syntax.Term) -> bool:
-    """A value (2.1h): a variable, a lambda, a byte array, a struct of values, or a fixed
+    """A value: a variable, a lambda, a byte array, a struct of values, or a fixed
     point `fix (λx. t)`. A projection is never one."""
     match term:
         case terms.Variable() | terms.BruijnIndex() | terms.Lambda() | terms.ByteArray():
@@ -135,7 +135,7 @@ def is_value(term: syntax.Term) -> bool:
 
 
 def is_data(term: syntax.Term) -> bool:
-    """Data (2.1i): a byte array, or a struct of data. It never steps."""
+    """Data: a byte array, or a struct of data. It never steps."""
     match term:
         case terms.ByteArray():
             return True
@@ -152,7 +152,7 @@ def field_position(struct: terms.Struct, label: str) -> int | None:
 def fold_opcode(call: terms.Apply) -> syntax.Term:
     """E-Opcode: `'name' {d}` with data operands gives the result, the bytes LLVM would
     compute (`opcode.evaluate`). Returns `call` itself where it doesn't fold: an unknown
-    name, an impure opcode, an operand that is not data (4.4d), or operands the opcode
+    name, an impure opcode, an operand that is not data, or operands the opcode
     can't evaluate (no defined result in LLVM).
 
     Root-only: it reduces nothing. Fields are positional and labels are ignored.
@@ -183,7 +183,7 @@ def unfold(fixed: terms.Fix) -> syntax.Term:
 
 
 def index_value(term: syntax.Term) -> int | None:
-    """The index a byte array spells, unsigned little-endian; `''` is 0 (2.4a).
+    """The index a byte array spells, unsigned little-endian; `''` is 0.
     None for anything that is not a byte array."""
     if isinstance(term, terms.ByteArray):
         return int.from_bytes(term.value, 'little')
@@ -211,12 +211,12 @@ def reduce(term: syntax.Term) -> syntax.Term:
     """
     match term:
         case terms.Apply(function=terms.Lambda() as lambda_, argument=argument) if is_value(argument):
-            # E-Beta is call-by-value (4.3): a term that still has to run is never copied or dropped.
+            # E-Beta is call-by-value: a term that still has to run is never copied or dropped.
             return beta(lambda_, argument)
         case terms.Apply(function=terms.ByteArray()):
             return fold_opcode(term)
         case terms.Project(struct=terms.Fix(body=terms.Lambda()) as fixed):
-            # E-FixProj: the fixed point unfolds once where it is used (4.8).
+            # E-FixProj: the fixed point unfolds once where it is used.
             return replace(term, struct=unfold(fixed))
         case terms.Apply(function=terms.Fix(body=terms.Lambda()) as fixed):
             # E-FixApp.
@@ -234,7 +234,7 @@ def reduce(term: syntax.Term) -> syntax.Term:
 
 
 def stuck_part(term: syntax.Term) -> syntax.Term | None:
-    """A part of the normal form `term` that no substitution can make reduce (5.5), or None.
+    """A part of the normal form `term` that no substitution can make reduce, or None.
 
     A stuck part is one of: the empty struct applied (no field to select); a struct
     applied to a lambda or a struct (never a byte array); a byte array applied to a lambda

@@ -3,7 +3,7 @@
 import Oymomo.Reduction
 
 /-!
-# Confluence (semantics.tex, 5.3)
+# Confluence
 
 Takahashi's proof: `cd t`, the complete development of `t`, contracts every redex of `t`
 at once. Every parallel step from `t` can be completed to `cd t` in one more parallel step

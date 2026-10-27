@@ -1,0 +1,20 @@
+language oymomo
+{
+  version= '0',
+  symbols= {
+    puts= {type= {'function', {s= 'ptr'}, 'i32'}},
+    msg= {type= {'array', [03], 'i8'}, value= [686900]},
+    main= {
+      type= {'function', {argc= 'i32'}, 'i32'},
+      body= λm. λp. m [] (λr. {
+        entry=
+          let c = 'icmp' {'sgt', 'i32', p.argc, [01000000]} in
+          m [] (λq. {
+            if c then q.say else r.done,
+            say= let u = m.puts {s= m.msg} in r.done,
+          }),
+        done= [00000000],
+      }),
+    },
+  },
+}

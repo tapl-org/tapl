@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""The strategy (semantics.tex, Section 6): one order of the steps of `⟶`.
+"""The strategy: one order of the steps of `⟶`.
 
-`sstep(t)` takes the step that table 6.2 chooses, or returns None when `t` is a normal
+`sstep(t)` takes the step the strategy chooses, or returns None when `t` is a normal
 form. Rows are tried top to bottom within a term's group (projection, application,
 struct, lambda, fixed point), and a part is chosen only when it has a step. It follows Lean's
 `Oymomo.SStep`, one branch per row, so the theorems carry over:
@@ -25,7 +25,7 @@ MAX_STEPS = 100_000
 
 
 def sstep(term: syntax.Term) -> syntax.Term | None:
-    """The step of table 6.2 from `term`, or None if `term` is a normal form."""
+    """The step the strategy takes from `term`, or None if `term` is a normal form."""
     match term:
         case terms.Project():
             return _project(term)
@@ -100,7 +100,7 @@ def _struct(term: terms.Struct) -> syntax.Term | None:
 
 
 def normalize(term: syntax.Term, max_steps: int = MAX_STEPS) -> syntax.Term:
-    """The normal form of `term`, by the order of table 6.2. Raises `ReductionError` when
+    """The normal form of `term`, by the order of the strategy. Raises `ReductionError` when
     `max_steps` steps don't reach one (the term may have none), or when the term grows too
     deep to step."""
     for _ in range(max_steps):

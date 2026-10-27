@@ -1,14 +1,14 @@
 language oymomo
-λm. {
-  main= {
-    gives= 'i32',
-    body= λf. {
-      entry= {
-        takes= {n= 'i32'},
-        body= λp.
+{
+  version= '0',
+  symbols= {
+    main= {
+      type= {'function', {n= 'i32'}, 'i32'},
+      body= λm. λp. m [] (λr. {
+        entry=
           let x = 'mul' {'i32', p.n, [02000000]} in
           let y = 'add' {'i32', x, [01000000]} in y,
-      },
+      }),
     },
   },
 }

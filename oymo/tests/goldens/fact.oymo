@@ -1,20 +1,18 @@
 language oymomo
-λm. {
-  main= {
-    gives= 'i32',
-    body= λf. {
-      entry= {takes= {}, body= λp. f.loop.body {acc= [01000000], n= [05000000]}},
-      loop= {
-        takes= {acc= 'i32', n= 'i32'},
-        body= λp.
-          let next = 'mul' {'i32', p.acc, p.n} in
-          let k = 'sub' {'i32', p.n, [01000000]} in
+{
+  version= '0',
+  symbols= {
+    main= {
+      type= {'function', {}, 'i32'},
+      body= λm. λp. m [] (λr. {
+        entry= r.loop [01000000] [05000000],
+        loop= λacc. λn.
+          let next = 'mul' {'i32', acc, n} in
+          let k = 'sub' {'i32', n, [01000000]} in
           let done = 'icmp' {'eq', 'i32', k, [00000000]} in
-          if done
-          then f.exit.body {acc= next}
-          else f.loop.body {acc= next, n= k},
-      },
-      exit= {takes= {acc= 'i32'}, body= λp. p.acc},
+          if done then r.exit next else r.loop next k,
+        exit= λacc. acc,
+      }),
     },
   },
 }

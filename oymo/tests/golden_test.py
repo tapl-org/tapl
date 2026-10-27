@@ -12,7 +12,7 @@ from approvaltests.approvals import verify
 from approvaltests.core.namer import Namer
 
 from oymo.core import spans
-from oymo.oymomo import llvm_opcodes, llvm_translate, module, reduction, source, strategy
+from oymo.oymomo import ingot, llvm_opcodes, llvm_translate, reduction, source, strategy
 
 
 def run_command(command):
@@ -77,10 +77,10 @@ def parse(text: str, table: spans.SpanTable):
 
 
 def compile_oymo(text: str) -> tuple[str, str]:
-    """The normal form (semantics.tex, Section 6), pretty-printed with its spans, and the LLVM IR text."""
+    """The normal form, pretty-printed with its spans, and the LLVM IR text."""
     table = spans.SpanTable()
     normal = strategy.normalize(reduction.resolve(parse(text, table)))
-    ir_text = str(llvm_translate.translate(module.module_of(parse(text, table)), TARGET))
+    ir_text = str(llvm_translate.translate(ingot.ingot_of(parse(text, table)), TARGET))
     llvm.parse_assembly(ir_text).verify()
     return source.write(normal, table), ir_text
 
@@ -97,13 +97,33 @@ def run_golden_test(test_name: str) -> None:
         source_path.write_text(pretty_text)
         text = pretty_text
     normal_text, ir_text = compile_oymo(text)
-    verify(normal_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.normal.oymo')))
+    normal_path = pathlib.Path(base_directory, f'{test_name}.normal.oymo')
+    if normal_text == text:
+        # The source is already normal: no `.normal.oymo` is kept for it.
+        normal_path.unlink(missing_ok=True)
+    else:
+        verify(normal_text, namer=ApprovalNamer(str(normal_path)))
     # The normal form is itself a program, already normal, that gives the same LLVM IR.
     assert compile_oymo(normal_text) == (normal_text, ir_text)
     verify(ir_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.ll')))
 
 
-GOLDENS = ['simplest', 'effects', 'pointer', 'memory', 'aggregate', 'globals', 'fact', 'gcd', 'floyd', 'helpers', 'spans']
+GOLDENS = [
+    'simplest',
+    'effects',
+    'pointer',
+    'memory',
+    'aggregate',
+    'structs',
+    'globals',
+    'fact',
+    'gcd',
+    'floyd',
+    'field0',
+    'puts',
+    'helpers',
+    'spans',
+]
 
 
 @pytest.mark.parametrize('name', GOLDENS)

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""The strategy of table 6.2 (semantics.tex, Section 6): one test per row, and the cases
+"""The strategy: one test per row of its table, and the cases
 of open item 11 in `docs/agent_wiki.md` (section 4, "Semantics decisions")."""
 
 import functools
@@ -106,7 +106,7 @@ def test_row_j_before_row_k():
 
 
 def test_row_m_before_row_n():
-    # 6.3d: a field that is not a value comes first.
+    # A field that is not a value comes first.
     assert step('{λu. (λy. y) u, (λy. y) a}') == same('{λu. (λy. y) u, a}')
 
 
@@ -118,7 +118,7 @@ def test_order_goes_under_lambda_last():
 
 
 def test_11a_projection_is_not_a_value():
-    # D92: every order ends in the same stuck term; neither gives [01].
+    # Every order ends in the same stuck term; neither gives [01].
     assert normal('(λy. (λx. [01]) y.l) {m = [00]}') == same('(λx. [01]) {m = [00]}.l')
 
 
@@ -136,7 +136,7 @@ def test_11d_projection_first_then_beta():
 
 
 def test_11f_fix_recursion():
-    # The factorial of 4.8d on an unknown never stops: the term grows until a limit stops it.
+    # The factorial on an unknown never stops: the term grows until a limit stops it.
     with pytest.raises(reduction.ReductionError, match=r'No normal form|too deep'):
         normal(f'{FACT} p.n', max_steps=300)
     # Y never works under call-by-value.
@@ -169,33 +169,24 @@ def test_normalize_gives_up():
         normal(OMEGA, max_steps=50)
 
 
-# Euclid on blocks that jump to each other: the gcd of 8.10, run by reduction. Reduction never
-# binds `m` or `f` (8.8), so the program binds them itself with `fix` (8.8b).
-GCD_MODULE_PROGRAM = """
-let module = λm. {
-  gcd = {gives = 'i32', body = λf. {
-      entry = {takes = {a = 'i32', b = 'i32'}, body = λp.
-        f.loop.body {a = p.a, b = p.b}
-      },
-      loop = {takes = {a = 'i32', b = 'i32'}, body = λp.
-        let t0 = 'icmp' {'eq', 'i32', p.b, [00000000]} in
-        if t0 then f.done.body {a = p.a} else f.step.body {a = p.a, b = p.b}
-      },
-      step = {takes = {a = 'i32', b = 'i32'}, body = λp.
-        let t1 = 'urem' {'i32', p.a, p.b} in
-        f.loop.body {a = p.b, b = t1}
-      },
-      done = {takes = {a = 'i32'}, body = λp.
-        p.a
-      }
-    }
-  }
-} in
-let gcd = (fix (fix module).gcd.body).entry.body in
-  gcd {a = [30000000], b = [12000000]}
+# Euclid in ingot shape, run by reduction: the instance binds `m` with `fix`; its
+# field 0 runs regions, so `m [] (λr. {…})` becomes `(fix (λr. {…})) [00]`.
+GCD_INGOT_PROGRAM = """
+let gcd = λm. λp. m [] (λr. {
+  entry = r.loop p.a p.b,
+  loop = λa. λb.
+    let z = 'icmp' {'eq', 'i32', b, [00000000]} in
+    m [] (λq. {
+      if z then r.done a else q.step,
+      step = let c = 'urem' {'i32', a, b} in r.loop b c
+    }),
+  done = λc. c
+}) in
+let instance = fix (λm. {λR. (fix R) [00], gcd = gcd m}) in
+instance.gcd {a = [30000000], b = [12000000]}
 """
 
-# The factorial of 4.8d.
+# The factorial.
 FACT = """
 fix (λf. λn.
   if 'icmp' {'eq', 'i32', n, [00000000]} then [01000000]
@@ -229,8 +220,8 @@ fix (λcollatz. λn.
         (f'{FACT} [03000000]', '[06000000]'),
         (FIB_PROGRAM, '[08000000]'),
         (COLLATZ_PROGRAM, '[10000000]'),
-        # gcd 48 18 = 6, in module shape (Section 8).
-        (GCD_MODULE_PROGRAM, '[06000000]'),
+        # gcd 48 18 = 6, in ingot shape.
+        (GCD_INGOT_PROGRAM, '[06000000]'),
     ],
 )
 def test_whole_programs(source, expected):
@@ -238,7 +229,7 @@ def test_whole_programs(source, expected):
 
 
 def test_fix_stays_where_it_is_not_used():
-    # 4.8c: a normal form holds a fixed point only where it is not used.
+    # A normal form holds a fixed point only where it is not used.
     source = 'fix (λs. {l = λq. s.l q})'
     assert normal(source) == same(source)
     # Used, it unfolds; here the copy is dropped, so the normal form has none.
@@ -246,7 +237,7 @@ def test_fix_stays_where_it_is_not_used():
 
 
 def all_steps(term):
-    """Every `⟶` step from `term` (Sections 4 and 5): the root rule, if any, and a step
+    """Every `⟶` step from `term`: the root rule, if any, and a step
     inside each part."""
     found = []
     if (reduced := reduction.reduce(term)) is not term:

@@ -2,8 +2,8 @@
 target triple = "x86_64-unknown-linux-gnu"
 target datalayout = ""
 
-define i32 @"main"(i32 %"a")
+define i32 @"main"(i32 %"p.a")
 {
-entry:
+r.entry:
   ret i32 0
 }

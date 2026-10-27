@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Oymomo terms (semantics.tex, Section 2): `x | λx. t | t t | b | {lᵢ = tᵢ} | t.l | fix t`.
+"""Oymomo terms: `x | λx. t | t t | b | {lᵢ = tᵢ} | t.l | fix t`.
 
 A `Variable` is a name as written; `reduction.resolve` turns each one into the
 `BruijnIndex` of its binder.
@@ -87,7 +87,7 @@ class Project(Term):
 
 @dataclass
 class Fix(Term):
-    """`fix body`, a fixed point (4.8). `fix (λx. t)` is a value; it unfolds, once, where it
+    """`fix body`, a fixed point. `fix (λx. t)` is a value; it unfolds, once, where it
     is projected (E-FixProj) or applied (E-FixApp)."""
 
     body: Term

@@ -24,6 +24,14 @@ The user's orders, kept as given. Follow them in every task.
 - After every change to this wiki, stage it: `git add docs/agent_wiki.md`. Stage only
   this file this way; don't commit.
 
+### Code never references the doc
+
+- User (Oct 27): "do not reference semantics.tex from code". Code is `src/`, `tests/` and
+  `proofs/`: no mention of `semantics.tex`, and no section or point numbers (`7.8a`,
+  `row 7.3c`, `Section 8`, `table 6.2`, `D92`) in comments, docstrings or error
+  messages. Say what is meant instead (a rule name such as E-Beta is fine). The doc may
+  still name Lean theorems (the other direction).
+
 ### Files the agent must not edit
 
 - `docs/todo.md` is the user's scratch list; only the user manages it. Read it, never
@@ -373,7 +381,7 @@ and `glossary.md` describe the language before the refactor (arrow lambdas, form
 ```
 file --source.read (grammar.parse, spans)--> terms --reduction.resolve--> indices
      --strategy.normalize--> normal form --source.write--> file
-     --module.read_module (ANF check: anf.anf_error)--> Module --llvm_translate--> LLVM IR
+     --ingot.read_ingot (grammar: anf.region_error; kinds)--> Ingot --llvm_translate--> LLVM IR
 ```
 
 All in `src/oymo/oymomo/`; each module has a test of the same name in `tests/oymomo/`.
@@ -387,8 +395,8 @@ All in `src/oymo/oymomo/`; each module has a test of the same name in `tests/oym
 | `reduction.py` | `resolve`, `shift`/`substitute`/`beta`, `is_value`, `is_data`, `unfold`, `reduce` (root rules, Section 4), `stuck_part` (5.5) |
 | `strategy.py` | `sstep` (table 6.2, one branch per row), `normalize` (`MAX_STEPS`) |
 | `opcodes.py` | opcode table: `result_type`, `evaluate` for E-Opcode (4.4) |
-| `anf.py` | `anf_error`: the first part not in ANF (Section 7) |
-| `module.py` | `module_of`, `read_module`: Section 8 checks, `Module`/`Definition`/`Block` |
+| `anf.py` | the grammar 7.3: `anf_error`, `region_error` (the first part not in ANF) |
+| `ingot.py` | `ingot_of`, `read_ingot`: Section 8 entries, 7.6 kinds; `Ingot`, `Definition`, `Region`, `Block`, `Instruction`, `Jump`, `Branch`, `Return`, `Use`/`Var`, `Arg`, `Address` |
 | `llvm_translate.py`, `llvm_opcodes.py` | Section 9, with llvmlite (kept until the bootstrap; the Alcor compiler uses the LLVM C API) |
 | `../cli.py` | `oymo check / emit-llvm / fmt / normal / run`; one `SpanTable` per run |
 | `../core/spans.py` | spans `start << 16 \| length`; `Row`, `SpanTable` (`add_file`, `add_row`, `row_of`, `resolve`) |
@@ -432,20 +440,21 @@ $0                       a BruijnIndex, as the printer writes it
   E-FixApp (`unfold`), E-Proj, E-Index/E-Default.
 - `strategy.sstep` follows table 6.2 rows a–p; `normalize` raises `ReductionError`
   ("No normal form within N steps", "Term too deep to reduce").
-- Recursion: `fix (λf. …)`. In a module, recursion goes through `m` and `f`, which
-  reduction never binds; a test binds them with `fix` to run a module by reduction:
-  `let gcd = (fix (fix module).gcd.body).entry.body in gcd {…}` (8.8b).
+- Recursion: `fix (λf. …)`. In an ingot, recursion goes through `m` and region binders;
+  a test binds `m` to the instance of 8.6 to run a body by reduction:
+  `fix (λm. {λR. (fix R) [00], gcd = gcd m})`, then `instance.gcd {…}`.
 
-#### Modules and LLVM
+#### Ingots and LLVM
 
-- A module is `λm. {symbols}`: a definition `{gives, body = λf. {blocks}}`, a block
-  `{takes = {x = t, …}, body = λp. e}`, a declaration `{takes, gives}`, a constant
-  `{type, value}`, a global `{type, init}` (Section 8). Example:
-  `tests/goldens/gcd.oymo`.
-- A block body is in ANF (7.1): lets of opcode or function calls, ending in a return
-  (an operand), a jump `f.l.body {…}`, or a branch on a path.
-- Types are data (9.1): `'iN'`, `'ptr'`, structs, `{'array', n, t}`,
-  `{'vector', n, t}`, `{'packed', …}`; a byte array takes its type from its use (9.2).
+- An ingot is `{version = '0', symbols = {…}, target = …}`; an entry is `{type, body}`
+  (definition), `{type, init}` (global), `{type, value}` (constant) or `{type}`
+  (declaration) (Section 8). Example: `tests/goldens/gcd.oymo`.
+- A body is `λm. λp. m [] (λr. {blocks})` in ANF (7.3): blocks are `λ`s over lets ending
+  in a return, a jump `r.l Q…`, a branch `{Jᵢ} P` or a nested region; field 0 is an
+  expression; `m.l` symbols, `p.l` arguments, values have no fields (7.6).
+- Types are data (9.2): `'iN'`, `'ptr'`, structs, `{'array', n, t}`,
+  `{'vector', n, t}`, `{'packed', …}`; a byte array takes its type from its use (9.3);
+  block parameters are inferred (9.4).
 - `oymo run` builds with `clang` and prints `main`'s result (the exit status).
 
 #### Opcodes
@@ -453,7 +462,8 @@ $0                       a BruijnIndex, as the printer writes it
 Called as `'name' {fields}`, positional, in LLVM's order: `add sub mul sdiv udiv srem
 urem shl lshr ashr and or xor` (`{type, a, b}`), `icmp` (`{pred, type, a, b}`, `pred`
 one of `eq ne slt sle sgt sge ult ule ugt uge`), `zext sext trunc` (`{type, value, to}`),
-and the impure `alloca getelementptr load store` (`store` is `{type, value, ptr}`).
+the impure `alloca getelementptr load store` (`store` is `{type, value, ptr}`), and
+`extractvalue {aggtype, agg, i…}`, `insertvalue {aggtype, agg, value, i…}` (positions).
 Integer types: `i1 i8 i16 i32 i64`. Pure opcodes fold on data where LLVM defines the
 result; to add one, add it to `opcodes._generate` and to `llvm_opcodes`, with tests.
 
@@ -465,8 +475,8 @@ result; to add one, add it to `opcodes._generate` and to `llvm_opcodes`, with te
 | `source.py` | "Expected the first line to be 'language oymomo'.", "The info section must start with 'info 1'.", "The spans list has N entries; the code has M nodes.", "The span … is in no row of the info section."; warning "The code changed since its spans were written; the spans are dropped." |
 | `grammar.py` | "Syntax error.", "Duplicate label 'x'." |
 | `reduction.py`, `strategy.py` | "Unknown name 'x'.", "No normal form within N steps.", "Term too deep to reduce." |
-| `module.py` | "The program is stuck here…" (5.5), "A module must be λm. {symbols}…", "Block 'b' is not in ANF: …", "f names the blocks; it is only for jumps…" |
-| `anf.py` | "… must be an atom or a struct of operands: bind it with a let.", "A return must be an operand, and a jump a function call.", "A branch condition must be a variable or a path." |
+| `ingot.py` | "The program is stuck here…" (5.5), "Not an ingot: …", "Unknown ingot version …", "'f' is not in ANF: …", "p is never used whole…", "r.l is a block: it only heads a jump (7.6c).", "A value has no fields…" |
+| `anf.py` | "… must be a path or data: bind it with a let.", "An arm of a branch only jumps…", "A call that ends a function is bound and returned…", "Field 0 of a region is an expression, never a λ (7.5)." |
 | `llvm_translate.py`, `llvm_opcodes.py` | "… is not an LLVM type.", "The constant does not fit in i8.", "'add' takes 3 fields, got 2." |
 
 #### Tests and how to
@@ -476,8 +486,10 @@ result; to add one, add it to `opcodes._generate` and to `llvm_opcodes`, with te
   `fmt`, `run`).
 - Goldens (`tests/golden_test.py`, approvaltests): each `tests/goldens/NAME.oymo` has
   `NAME.normal.oymo` and `NAME.ll`; a new output appears as `.received`, approve it by
-  renaming. Goldens: simplest, effects, pointer, memory, aggregate, globals, fact, gcd,
-  floyd, helpers, spans. `spans.oymo` is `helpers.oymo` with spans into a fake `language alcor`
+  renaming. A source that is already its normal form keeps no `.normal.oymo` (user, Oct
+  27: "do not track .normal.oymo if original oymo file is same"); the test deletes one
+  that equals the source. Today only aggregate, helpers, spans, structs have one. Goldens: simplest, effects, pointer, memory, aggregate, structs, globals, fact,
+  gcd, floyd, field0, puts, helpers, spans. `spans.oymo` is `helpers.oymo` with spans into a fake `language alcor`
   file (`alcor/helpers.oymo`), the only golden with an `info` section.
 - Errors and warnings print `file:line:column`, the column in UTF-8 bytes from 1, from
   the error's span (`SpanTable.resolve`); the file is the row's, so it can be a frontend
@@ -516,11 +528,12 @@ result; to add one, add it to `opcodes._generate` and to `llvm_opcodes`, with te
 
 | Word | Meaning |
 |---|---|
-| ANF | the block-body form of Section 7; replaces BANF |
-| atom, operand | `x`, a path `x.l…`, a free path `g`, a byte array; an operand is an atom or a struct of operands (D94) |
+| ANF | the body form of Section 7 (grammar 7.3); replaces BANF |
+| operand | `Q ::= P \| D`: a path or data (7.3c); a struct operand is data |
+| ingot | a module in the fixed shape of Section 8; one compilation unit |
+| region | `m [] (λr. {blocks})`; field 0 runs first; nested regions give dominance |
 | data | a byte array or a struct of data; the only opcode operands that compute |
 | fixed point | `fix (λx. t)`: a value that unfolds once where it is projected or applied (D98) |
-| free path | `y` or `g.l`, a path from a variable reduction never binds, such as `m.l` or `f.l.body` |
 | stuck | a normal form with a part no substitution can make reduce (5.5); rejected |
 | value | `x`, `λx. t`, `b`, a struct of values, `fix (λx. t)` |
 
@@ -1219,6 +1232,196 @@ Supersedes `{meta, code}` above (user: "i am redesigning module shape").
 - User: "forget these" about `m.__fix`/`m.__mem` names, the `m.__mem` design and the 8.6
   globals gap: dropped; don't bring them up again unless the user does. The runner stays
   `m []`.
+
+### `module-shape` implemented (Oct 27 session)
+
+User: "implement: Fix the overfull line. Add regions to proofs/Oymomo/Anf.lean. Implement
+the ingot shape in code. also implement what is needed for this module-shape leaf
+roadmap". Done in the order of work (semantics.tex, Lean, code).
+
+- **semantics.tex** (with marks, waiting for "accept"): 9.8c split into three bullets
+  (the overfull `@answer`/`@counter` line; after accept no overfull box is left); 7.11e
+  "regions included" (the Lean proof covers them now); new 7.5d "the other fields are
+  labeled, so that a jump can name them"; 9.4a "an unused parameter with no type found
+  gets no phi"; 9.6d the added entry block is "named after the region's binder, as `r`"
+  (binders are distinct, so it can't clash with `r.l` blocks or values).
+- **Lean** (`proofs/Oymomo/Anf.lean`, rewritten for grammar 7.3): `Path`, `Operand`
+  (`P | D`, data by `isData`), `Operands`, `Op` (opcode not computed, or call through a
+  path), `Jump` (`P Q₁ ⋯ Qₙ`), `Jumps`; mutual `Terminal`/`Expr`/`Block`/`Blocks`/`Region`
+  (`Region.mk`: `var n` applied to `bytes []` and `lam (scons l e s)`, field 0 an `Expr`).
+  `anf_normal` and `Region.normal` proved by mutual structural recursion; axioms:
+  `propext` only. elan was not on this machine: installed with
+  `elan-init.sh -y --default-toolchain leanprover/lean4:v4.35.0` (needs BypassSandbox:
+  network and `~/.elan`); later `lake build` runs sandboxed.
+- **Code:**
+  - `ingot.py` replaces `module.py` (deleted; `module_test.py` → `ingot_test.py`).
+    `ingot_of` = resolve, normalize, stuck check, `read_ingot`. Errors "Not an ingot: …",
+    "Unknown ingot version …". Entries by fields (`type` + at most one of
+    `body`/`init`/`value`); `FunctionType` from `{'function', params, result}`. A body is
+    checked by `anf.region_error` (grammar) then read with a binder stack of kinds
+    (module, arguments, region, value) into `Region`/`Block`/`Instruction`/`Jump`/
+    `Return`/`Branch`, operands resolved to `Use(Var)`, `Arg`, `Address` or the data term
+    itself (so opcode impls still read type fields as terms). Names made distinct in
+    source pre-order (`c`, `c1`), so gcd's `done` parameter is `c1` as 9.6b says.
+    Unlabeled blocks after field 0 are rejected (new 7.5d). A path applied to one non-data
+    struct at a block's end gets the tail-call message (7.8a).
+  - `anf.py` is the 7.3 grammar only (no kinds, no `local`): `is_path`, `is_operand`,
+    `region_parts`, `jump_parts`, `anf_error`, `region_error`, `TAIL_CALL`.
+  - `llvm_translate.py`: `translate(Ingot, Target)`. Blocks flattened in pre-order;
+    nested field 0 continues the current LLVM block unless jumped to (then its own block
+    plus `br`); top field 0 jumped to adds entry block `r`. Every block parameter with a
+    type is a `phi`, one incoming per jump (two arms to one block: two entries, LLVM's
+    verifier wants one per edge); different operands to one block from one branch:
+    error. Two arms on `i1` → `br i1`, else `switch` (wide 2-arm conditions no longer
+    `icmp ne 0`). Parameter types inferred to a fixed point from jump operands and uses
+    (`OpcodeImpl.uses`); used-and-untyped or two types: error. `constant(type, value,
+    symbols)`: `{}` zeroinitializer, `'ptr'` names a symbol / `''` null / `{name, offset}`
+    a `getelementptr (i8, …)` constant expression, one byte array for an `i8` array.
+    Declared variables are `external global`. `x.l` on values and `insertvalue`-into-undef
+    for struct operands are gone.
+  - `llvm_opcodes.py`: `OpcodeImpl(emit, uses)` (was a bare callable); new
+    `extractvalue`/`insertvalue` (indices are positions). `opcodes.py`: the two opcodes
+    (never fold: E-Opcode gives only byte arrays), `element_type`.
+  - `printer.py`: an empty byte array as an argument prints `[]` (so `m []`, not `m ''`);
+    `λp. m [] (λr. {` stays on one line (a short function applied to a lambda hugs it);
+    a labeled struct field whose value is a broken `let` goes below its label.
+  - `cli.py` on `ingot.ingot_of`.
+- **Tests:** goldens rewritten to ingots (simplest, effects, pointer, memory, aggregate,
+  globals, fact, gcd, floyd, helpers, spans) plus new `structs` (insert/extractvalue,
+  runs to 7), `field0` (jumps to field 0, top and nested), `puts` (the 9.10 example; runs,
+  exit 0). Goldens are kept pretty, so they hold no `//` comments (the printer drops
+  them). `floyd` uses nested regions `rk`, `ri`, `rj`, `rs`; its `.ll` has 3 phis (was one
+  per live value per block). `spans.oymo` regenerated by script (same alcor row and span
+  tokens, attached to the matching nodes of the new `helpers`). `strategy_test`'s gcd now
+  runs the 8.6 instance `fix (λm. {λR. (fix R) [00], gcd = gcd m})` → `[06000000]`.
+  631 tests pass; `hatch check --fix` clean (ruff, pyrefly).
+- **Sandbox notes:** `hatch check` writes into `~/.local/share/hatch/env`, so it needs
+  BypassSandbox (the first run took ~10 min building the check envs); `hatch test` works
+  sandboxed. `git rm`/`git add` fail sandboxed (`.git/index.lock` read-only): use `rm`,
+  and BypassSandbox for `git add docs/agent_wiki.md`.
+- **Dataclasses in `ingot.py` kept (user: "lets keep it as it is now"):** the user asked
+  why `ingot.py` builds dataclasses instead of a check plus getters on the term. Agent's
+  answer: they resolve each de Bruijn variable's kind once, give values an identity
+  (`Var`) for phis and types, and hold the α-renamed names; the term-only alternative
+  (`check_ingot`, getters, a shared binder `Scope`, values keyed by binder level) was
+  offered and not taken. Note: this departs from the stage-5 note "the block body stays a
+  term (no separate IR)".
+- **Roadmap:** the leaf keeps only "Check the design against later fields …"; its
+  details at completion, verbatim:
+
+  > ### `module-shape` Ingot: a module `{symbols, target, …}`; bodies in ANF
+  >
+  > - semantics.tex Sections 7–9, then Lean (`Anf.lean`), then code (`module.py`, `anf.py`,
+  >   `llvm_translate.py`); goldens and `strategy_test.py` rewritten; old shape removed
+  >
+  >   ```
+  >   {
+  >     version = '0',
+  >     symbols = {
+  >       puts    = {type = {'function', {s = 'ptr'}, 'i32'}},
+  >       gcd     = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
+  >                  body = λm. λp. m [] (λr. {
+  >                    entry = r.loop p.a p.b,
+  >                    loop  = λa. λb.
+  >                      let z = 'icmp' {'eq', 'i32', b, [00000000]} in
+  >                      m [] (λq. {
+  >                        if z then r.done a else q.step,
+  >                        step = let c = 'urem' {'i32', a, b} in r.loop b c,
+  >                      }),
+  >                    done  = λc. c,
+  >                  })},
+  >       counter = {type = 'i32', init = [00000000]},
+  >       msg     = {type = {'array', [03], 'i8'}, value = [686900]},
+  >     },
+  >     target = {triple = 'x86_64-unknown-linux-gnu'},
+  >   }
+  >   ```
+  >
+  > - A module is a struct value: `version`, `symbols`, plus meta fields beside them
+  >   (`target`; later debug tables, hints, LLVM metadata)
+  > - `symbols` holds every symbol the module defines or uses; an entry with only `type` is a
+  >   declaration (LLVM `declare` / `external global`)
+  > - A frontend lowers each source item to one closed `symbols` entry
+  > - Entry kind from its fields: `body` definition, `init` global, `value` constant, only
+  >   `type` declaration; `{'function', params, result}` or a type
+  > - No `linkage` for now; decided when needed. A definition, global or constant is LLVM's
+  >   default `external`. The label is the symbol's name
+  > - In a `'ptr'` slot of `init`/`value`: a byte array names a symbol (`''` null);
+  >   `{'arr', [08]}` is symbol plus byte offset
+  > - `body = λm. λp. R`, closed: `m` the module's symbols (one namespace by
+  >   name), `p` arguments; a region is `m [] (λr. {…})`; `m` is free when compiling; any other
+  >   `x b` is rejected
+  > - R1, one-to-one where it can be (preferred, not required; user, Oct 27): every
+  >   LLVM/Cranelift block, label, instruction is in the source; the translator adds one only
+  >   where the ingot asks for what LLVM can't write directly (a jump to field 0: new entry
+  >   block, or split block plus `br`); regions flattened in source order
+  > - Field 0 of a region: any label or none; `m []` runs it; a labeled field 0 may be jumped
+  >   to; an unlabeled entry block is named after the region binder and position (`%r.0`)
+  > - R2, runnable by reduction: a module's instance is
+  >   `fix (λm. {λG. (fix G) [00], fᵢ = Bᵢ m, nⱼ = u.nⱼ})`, `nⱼ` its declarations, `u` the
+  >   instances it depends on (by name; diamonds share); field 0 is the region runner, so the
+  >   module runs its own regions
+  > - Merging is user code (no op): compile one ingot per module joined by the system linker,
+  >   or merge modules whose names match into one ingot (`λm. A.symbols.f.body m` reduces);
+  >   renaming needs a view, which reduces only when running
+  > - Form (semantics.tex 7.2; every variable is `x`, the verifier checks kinds):
+  >
+  >   ```
+  >   P ::= x | P.l                                  path
+  >   O ::= P | b                                    operator
+  >   Q ::= P | D                                    operand
+  >   J ::= P Q₁ ⋯ Qₙ                                jump
+  >   T ::= Q | J | {Jᵢ} P | R                       terminal
+  >   E ::= let x = O {lᵢ = Qᵢ} in E | T             expression
+  >   K ::= E | λx₁. ⋯ λxₙ. E                        block
+  >   R ::= x [] (λx. {lᵢ = Kᵢ})                     region
+  >   ```
+  >
+  > - Kinds (verifier): module `m.l` (`l` in `symbols`; `m []` runner),
+  >   arguments `p.l`, region `r.l` (jump head, operand count), value `x` (no fields)
+  >
+  > - A struct operand only when it is data (an LLVM constant); `x.l` only as `p.l`
+  > - Opcodes `'extractvalue' {aggtype, agg, i₁, …}`, `'insertvalue' {aggtype, agg, value, i₁, …}`
+  >   (LLVM's order; indices are positions); a built struct starts from a constant struct
+  > - `p` is never used whole
+  > - Code: `ingot.py` (`ingot_of`) replaces `module.py`'s `read_module`; errors "Not an ingot: …"
+  > - Goldens move to the ingot shape; `floyd.oymo` becomes nested regions (k, i, j, store),
+  >   so its blocks stop passing every live value (its `.ll` loses most phis)
+  > - Top region: field 0 labeled, the entry block; nested region: field 0 unlabeled,
+  >   continues the current block; nested regions give dominance
+  > - Arms only jump; return only at a block's end; two arms on an `i1`: `br`; any other
+  >   branch: `switch` on positions, default last
+  > - Two arms of one branch to one block with different arguments: error (no added block)
+  > - A body is always a region: its field 0 is the labeled entry block
+  > - A call's argument is a struct with the callee's parameter labels, in order
+  > - A tail call is `let r = m.f {…} in r` (call, then `ret`)
+  > - `m.f` not called is the function's address (`@f` as a `ptr`); indirect calls wait for
+  >   `fn-address`
+  > - `target` is accepted and ignored until the `target` leaf; any other unknown module field
+  >   is an error
+  > - One byte array may initialize an `i8` array (LLVM's `c"…"`); other arrays list elements
+  > - A required module field `version`, UTF-8 text naming the ingot format; compared only
+  >   for equality (a category, not an order); an unknown one is an error
+  > - The translator checks operand types against inferred types and reports them with the
+  >   source span (no transformation, only errors)
+  > - `version = '0'` for this format; versions are short backend-agnostic texts (`'0'`, `'1'`, `'1a'`)
+  > - `init = {}` / `value = {}` is LLVM's `zeroinitializer`, for any type (for now)
+  > - Until the bootstrap, names always, no flag: binder names in a definition are made
+  >   distinct by renaming (α); arguments are `%p.a`, blocks `%r.loop` (region binder plus
+  >   label), values `%z`; unique in the flattened function by construction; symbol names stay
+  > - No nested operands, no nested `let`, no `if` as a value
+  > - Block parameter types inferred from arguments and uses; untyped: error "give 'x' a
+  >   typed argument or a typed use"; single-entry `phi`s kept
+  > - Check the design against later fields: linkage, `constant`, `unnamed_addr`, calling
+  >   conventions, attributes, varargs, section, alignment, `thread_local`, aliases, comdat
+
+- User: "do not reference semantics.tex from code": every doc reference removed from
+  `src/`, `tests/`, `proofs/` (rule added to section 1). The accept script had also
+  emptied the `\mold` macro definition (it stripped `\old{…}` inside `\newcommand`);
+  restored.
+- **Accepted (user: "accept semtantix doc"):** the module-shape round (9.8c split, 7.11e
+  regions included, 7.5d labeled fields, 9.4a unused untyped parameter, 9.6d entry block
+  `r`) is accepted text; marks and legend removed; no overfull box left.
 
 ### Debug info rides on `Term.location` (Answers 3–6; design in progress)
 
