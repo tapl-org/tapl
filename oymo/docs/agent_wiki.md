@@ -1423,6 +1423,29 @@ roadmap". Done in the order of work (semantics.tex, Lean, code).
   regions included, 7.5d labeled fields, 9.4a unused untyped parameter, 9.6d entry block
   `r`) is accepted text; marks and legend removed; no overfull box left.
 
+### `module-shape` closed: design check against later fields (Oct 27)
+
+User: "lets go with 1 module-shape", then "yes" to the check and the proposal. The leaf
+is removed from the roadmap (tree and details); its details are kept verbatim above.
+Check (agent's, accepted): every later field fits the ingot shape as one more entry field
+or kind; nothing implemented changes.
+
+- linkage: entry field `linkage` (absent: LLVM's default `external`).
+- `constant`: already `value` vs `init`.
+- `unnamed_addr`, function `attributes`, `section`, `align`, `thread_local`: entry fields.
+- Calling convention: entry field `cc`, read from the callee's entry at a call; indirect
+  calls (`fn-address`) would need it in the function type (a 4th field).
+- Parameter and result attributes: tagged types inside the function type, as the
+  `noalias` leaf plans (`{'function', {dst = {'noalias', 'ptr'}}, …}`).
+- Aliases: a new kind `{type, alias = 'target'}`, one more of "at most one of".
+- Comdat: entry field `comdat`; a `comdats` field beside `symbols` if needed.
+- Varargs: open. The type can say it, but calls give exactly the callee's labels, and an
+  extra byte-array argument has no use to type it. Added as a Decide item to `varargs`.
+- Stale leaves updated to the ingot shape: `align` (global/constant `align = [08]` entry
+  field, was positional `{type, init, align}`), `noalias` (on a function type's parameter
+  or result, was `=>`/imports/"entry block's param"); its "Decide: allowed on a
+  non-entry block param?" removed (block parameters have no written types now).
+
 ### Debug info rides on `Term.location` (Answers 3–6; design in progress)
 
 - User: `module-shape` is not ready until debug info storage is designed ("how debug info

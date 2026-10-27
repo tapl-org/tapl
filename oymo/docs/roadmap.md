@@ -15,7 +15,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
-      - `module-shape` Ingot: a module `{symbols, target, …}`; bodies in ANF
       - `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
       - 🚫 `named-types` LLVM named and opaque struct types in a module's `types`
       - 🚫 `deps-cli` Many files: `--unit=each|merge|apply`, `-e` glue
@@ -137,11 +136,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `more-layers` Back to more than two layers, if real use cases appear
 
 ## Leaf details
-
-### `module-shape` Ingot: a module `{symbols, target, …}`; bodies in ANF
-
-- Check the design against later fields: linkage, `constant`, `unnamed_addr`, calling
-  conventions, attributes, varargs, section, alignment, `thread_local`, aliases, comdat
 
 ### `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
 
@@ -830,6 +824,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Register rules: `%al` on x86-64
 - Mizar syntax for variadic functions
 - Done when: `printf("%d %f %s\n", ...)` from Mizar; a Mizar `...` function called from C
+- Decide: how the function type says varargs (e.g. a 4th field `'varargs'`), how a call
+  passes extra arguments (calls give exactly the callee's parameter labels today), and
+  how each extra argument gets its type (a byte array has no use to take it from)
 
 ### `volatile-asm` `volatile` and inline asm
 
@@ -914,7 +911,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   | `'store'` | `{type, value, ptr}`, `{type, value, ptr, align}` |
   | `'alloca'` | `{type}`, `{type, count}`, `{type, count, align}` |
 
-- A global variable (semantics.tex 8.6): `{type, init}` or `{type, init, align}`
+- A global variable or constant: an entry field `align = [08]` beside `type` and
+  `init`/`value`
 - `'alloca'`: `count` must be written to give `align`
 - Too large `align` is undefined behaviour, unchecked
 - Test: unaligned `'i32'` read from a packed struct, `align 1`
@@ -922,13 +920,13 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `noalias` `{'noalias', 'ptr'}` on params and results
 
 - Tagged type `{'noalias', 'ptr'}`; `'noalias'` becomes a reserved tag (9.1)
-- Allowed on: an entry block's param, an import's param, an import's or definition's
-  result (`malloc = {size = 'i64'} => {'noalias', 'ptr'}`); elsewhere an error
-- Everywhere else it counts as `'ptr'` (a jump may pass it to a `'ptr'` param)
+- Allowed on: a parameter or the result in a function's type
+  (`malloc = {type = {'function', {size = 'i64'}, {'noalias', 'ptr'}}}`); elsewhere an
+  error
+- Everywhere else it counts as `'ptr'` (a jump may pass it to a block parameter)
 - LLVM: `ptr noalias %dst`, `noalias ptr @malloc(...)`
 - Breaking the promise is undefined behaviour, unchecked
 - Test: `dst[i] = src[i] * 2` over two `'ptr'` params; `-O2` leaves no `vector.memcheck`
-- Decide: allowed on a non-entry block param? Leaning: no
 
 ### `bswap` `'bswap'` for byte order per access
 
