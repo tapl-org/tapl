@@ -36,8 +36,8 @@ The user's orders, kept as given. Follow them in every task.
   Calculus"); `/doc` is its home (user: "yes"). Built by `doc/Makefile` (now two
   `pdflatex` passes with `-halt-on-error`); `oymo-py/docs/Makefile` removed. Every
   older `semantics.tex` in this wiki means `doc/oymomo-calculus.tex`.
-- New `oymo/` is a skeleton only: `README.md`, `LICENSE` (copy of the repo's), empty
-  `lib/` and `tests/goldens/` (`.gitkeep`). Self-contained: nothing in it refers outside
+- New `oymo/` holds only `README.md` (it lists only what exists); the `LICENSE` copy and
+  the empty `lib/`, `tests/goldens/` were removed (user). Self-contained: nothing in it refers outside
   it. Don't put work there before the bootstrap starts.
 - The hatch environment is per project path, so the rename made a new one (first
   `hatch test` needs BypassSandbox to build it).

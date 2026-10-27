@@ -8,6 +8,5 @@ the bootstrap starts, files move or are copied here.
 
 ```
 oymo/
-  LICENSE
   README.md
 ```
