@@ -293,6 +293,8 @@ The user's orders, kept as given. Follow them in every task.
 - `docs/notes.md`, `docs/glossary.md`, `docs/implemented/`, the plans and the old roadmap
   were moved here verbatim and deleted (done).
 - `docs/` now holds: `roadmap.md`, `agent_wiki.md`, `todo.md`, `story.md`,
+  `alcor_survey.md` (the Alcor syntax survey; user, Oct 28), `alcor_syntax.md` (only
+  chosen and decided Alcor syntax; user, Oct 28),
   `oymomo-calculus.tex`, `Makefile`.
 - `docs/semantics_discussion.md` was the semantics review discussion (D1–D96). The user
   had it folded into this wiki (section 4, "Semantics decisions (D1–D96)") and deleted.
@@ -1463,6 +1465,127 @@ or kind; nothing implemented changes.
   field, was positional `{type, init, align}`), `noalias` (on a function type's parameter
   or result, was `=>`/imports/"entry block's param"); its "Decide: allowed on a
   non-entry block param?" removed (block parameters have no written types now).
+
+### `named-types` deferred until a need appears (Oct 27)
+
+User asked to start `named-types`; its first Decide ("at all?") was put to the user with
+three options (no: drop the leaf / yes: `types` field / keep the leaf, blocked until a
+need appears). User chose "Keep the leaf, but later: mark it blocked until a need
+appears". The leaf stays 🚫; its first Decide now reads "the need that justifies named
+types; literal types only until one appears". Ingots use literal types only.
+
+- Why no need today (agent's facts, given with the question): LLVM has opaque pointers,
+  so `%FILE = type opaque` and recursive structs are not needed (a list node is
+  `{'i32', 'ptr'}`); LLVM literal structs are structural, so a name mostly makes the
+  `.ll` readable; Cranelift has no struct types; `let` in the source already names a type
+  at compile time.
+- Possible needs to watch for: a type that must be nominal (two equal layouts kept
+  apart), readable `.ll` for big structs, interop with IR from clang via `llvm-link`.
+- The spelling and `'module.link'` Decide items stay as they were; the link rule also
+  waits on `struct-tools`.
+
+### `alcor-survey` started (Oct 27)
+
+- User asked whether to add layering to oymomo-calculus first ("because alcor has
+  types"). Agent advised against it before layer 0: `alcor-core` has no type checker;
+  the plan splits layers in the frontend (`l1-two-layer`, `l1-subprocess`); D12 removed
+  forms because a kept `let` lost its form after the split; Lean proofs would be redone;
+  the doc rule says "no θ-calculus or layering". Alternative offered: a shared
+  separation step above oymomo (multi-layer term → single-layer oymomo terms before
+  shaping), decided next to `alcor-layer1`. User: "lets start with alcor-survey then".
+  No `layering-decide` leaf added (not asked).
+- Survey file (user): `oymo-py/docs/alcor_syntax.md`. "we first put survey into this
+  doc, then once syntax completed, we put non-syntax related things to agent_wiki.md".
+  So `alcor_syntax.md` is a human doc beside `roadmap.md`; the old plan's name
+  `alcor_syntax_survey.md` is not used.
+- Goose (user: yes): six languages plus C. Goose is Wouter van Oortmerssen's
+  experimental systems language (github.com/aardappel/goose): no heap, GC, refcounting
+  or lifetime annotations; growable data in data stacks; inferred ownership roots. The
+  tree line already listed it; the leaf details now do too.
+- Method: one research agent per language (Zig, C3, Odin, Hare, Jai, Goose, C), each
+  covering the 13 topics with real syntax and sources; the agent then writes one table
+  per topic.
+- Survey written (Oct 28) in `docs/alcor_syntax.md` › Survey (now `alcor_survey.md`): topic 0 (status) plus the
+  12 roadmap topics, each a table of the six plus C, pros and cons, and an "Agree:" line
+  counting which languages share a choice (for the rule "when two agree, take that").
+  No decisions in it. Caveat (in the doc as a note): the research agents could not open
+  official pages (network policy); facts come from search summaries, weak ones marked
+  "(unverified)". Points to check before a decision rests on them: Zig 0.17 (`@cImport`
+  removed), C3 generics form and `usz`/`sz`, Hare `@symbol` and digit separators, Jai
+  dereference `p.*` vs `<<p` and overflow checks, Goose details (young, no release).
+  Raw per-language notes are outside the repo (conversation scratch, not kept).
+- Leaf stays in the roadmap until the user accepts the survey.
+- User: "add two more languages: carbon and swift". Same research brief; every table now
+  has eight languages plus C, "Agree:" counts redone, roadmap tree and details list
+  eight. Findings that changed earlier lines: Carbon and Swift import C headers in the
+  language through an embedded Clang (`import Cpp library "x.h"`; modulemap +
+  `import CLib`), so "no language imports headers in the language" was dropped; Swift's
+  `~Copyable`, `borrowing`/`consuming` and strict-memory-safety `unsafe` are prior art for
+  `alcor-safety-syntax`; Carbon's three build modes (development, hardened, performance)
+  add a "hardened: trap or defined, never UB" option for `alcor-ub`; Carbon's
+  `fn name(a: T) -> R` is Alcor's decided form exactly, and its `Stack(i32)`,
+  `array(T, N)`, `:!` match "a type is a layer-1 expression". Unverified points to check:
+  Carbon's slice type, labels, overload and default-argument status; Swift 6.4 details.
+- User: "also add rust language" (Oct 28): same brief; Rust rows in all 13 tables (nine
+  plus C), bullets and "Agree:" counts redone, roadmap lists nine. Rust adds: Alcor's
+  exact `fn name(a: T) -> R` and `name: Type`; postfix `?`; `unsafe { }` blocks and "safe
+  code has no UB" as the clearest UB boundary; no `defer` (RAII, like Carbon);
+  `bindgen` instead of header import; const generics limited, as the cost of types not
+  being build-time values. Version 1.99 (Oct 2026) is from search only.
+- User asked which systems languages are missing. Agent's list (from knowledge, not
+  checked): most relevant C++, D (`-betterC`, CTFE, `static if`), Cpp2/cppfront
+  (`name: Type = value` over C++), Terra (Lua-computed types: closest to the layer
+  split), Nim, Cyclone (safe C), Mojo; lower value Go, V, Beef, Nelua, Ada/SPARK,
+  Checked C, Pascal/Modula/Oberon (Austral, Vale, Hylo, ATS are safety prior art).
+  Agent recommended C++, D, Cpp2 and Terra; waiting for the user's choice.
+- User: "add these" (C++, D, Cpp2, Terra), Oct 28. Same brief; rows in all 13 tables
+  (thirteen plus C); every topic's bullets rewritten with new counts; roadmap lists
+  thirteen. What they add: header import in the language now has six (Carbon, Swift,
+  Terra and D's ImportC, plus C++/Cpp2 `#include`); Terra is the strongest proof of
+  types as build-time values but uses a second language (Lua) for layer 1; D's CTFE runs
+  ordinary functions at build time with no keyword but computes types in a separate
+  template language; Cpp2 has `name: kind = value` with no keyword, `==` constants and
+  metafunctions (`@enum`, `@union`) as build-time library code; C++26 "erroneous
+  behaviour" and Carbon's hardened mode are a "defined but diagnosable" UB category; D's
+  `@safe`/`@trusted`/`@system` (default `@system`) is a function-level unsafe marker.
+  Weak points: C++26 ISO ballot status, Cpp2 status after 0.8.1, Terra 1.2.1 date.
+- File split (user, Oct 28): "lets keep survey in alcor_survey.md, and we will use
+  alcor_syntax.md for chosen and decided syntax". The survey moved to
+  `docs/alcor_survey.md` (title "Alcor syntax survey", topics as `##`, makes no
+  decisions, links to `alcor_syntax.md`). `docs/alcor_syntax.md` is new: rules, then
+  numbered decisions; today only 1 Declarations (`name: Type`) and 2 Functions (`fn`,
+  `->`), both decided before the survey. Open questions stay as Decide items in the
+  roadmap, not in `alcor_syntax.md`. This replaces the earlier plan (survey first in
+  `alcor_syntax.md`, then non-syntax parts to the wiki).
+- User: "for each section write your decision in alcor_syntax" (Oct 28). Agent wrote a
+  proposal for all 12 survey topics in `alcor_syntax.md`, each marked **Proposed**
+  (only `name: Type` and `fn … -> T` are **Decided**). Agent's main choices and whys:
+  - Types are layer-1 calls (`Ptr(T)`, `Array(T, ^N)`, `Slice(T)`), not `*T`/`[]T`:
+    follows "a type is a layer-1 expression" and the Alcor plan (0.6), which already
+    writes `Ptr(T)`, `Array(u8, ^16)`, `Own(T, A)`. No pointer arithmetic on `Ptr(T)`;
+    index through arrays or slices (plan 0.6.1 `buf: Ptr(Array(u8, n))`).
+  - `:=` inference; `const` for build-time constants (C's word; `::` is C++'s scope
+    operator); zero init with `= undefined` opt-out; no `let`/`var` (C's mutability).
+  - Named results as a struct; named args `f(b: 3)` (`f(b = 3)` is a C assignment).
+  - `union` tagged, `extern union` untagged; UFCS instead of methods; `.` through
+    pointers; designated literals `Point{ .x = 1 }`.
+  - C's `if`/`while`/`for` with parentheses, braces required; `for (x in xs)`;
+    `switch` with implicit break, `fallthrough;`, payload binding `case .circle(r):`;
+    `defer`; labelled loops as C2y; `i++` statement only.
+  - Errors as tagged unions, `Result(T, E)`, prefix `try` (postfix `?` looks like
+    `?:`); `unreachable;`.
+  - No preprocessor or macros; `^` lifting; `if` on a `const` folds (no `#if`);
+    `embed()`, `c_import()` and `import()` as build-time functions.
+  - Generics as `T: Type` parameters, explicit type arguments first (inference stays a
+    Decide in `alcor-generics`), one copy per type.
+  - `pub` (private by default), `extern fn`, `export fn`, `c_import("stdio.h")` via
+    libclang with a `c.` prefix (answers the roadmap's header-import Decide, if accepted).
+  - Explicit allocator (plan 0.4, decided), `defer free`, `unsafe { }` for unchecked
+    conversions (plan 0.6.6 asked the survey for this syntax).
+  - Two build modes (checked, optimized) with `+%` `-%` `*%`; no hardened mode yet.
+  - `;` required, nesting `/* */`, `0x 0o 0b`, `_`, leading `0` an error, backtick raw
+    strings, `'a'` is `u8`, `&& || !`.
+  Roadmap Decide items are untouched until the user accepts.
 
 ### Debug info rides on `Term.location` (Answers 3–6; design in progress)
 

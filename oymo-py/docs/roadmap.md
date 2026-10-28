@@ -24,7 +24,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - `line-tables` `-g` line tables from spans
   - `alcor-l0` Alcor layer 0
     - `alcor-decide` Alcor decisions
-      - `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai, Goose
+      - `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai, Goose, Carbon, Swift, Rust, C++, D, Cpp2, Terra
       - 🚫 `alcor-syntax` Syntax, decided per topic, checked with samples and a grammar sketch
       - `alcor-layer1` What layer 1 means
       - `alcor-ub` Undefined behaviour: checked and optimized build modes
@@ -160,7 +160,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   `types` entry
 - `let` naming in the source stays the compile-time way to name a type
 - oymomo-calculus.tex 9.1, Lean if needed, code, a golden
-- Decide: named types in the ingot at all, or literal types only until a need appears
+- Decide: the need that justifies named types; literal types only until one appears
 - Decide: spelling: `types`, `{'struct', l}`, `'opaque'`
 - Decide: `'module.link'` on one type name: equal bodies merge, opaque takes the body,
   different bodies rename one (`pair.1`)
@@ -227,12 +227,14 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Breakpoints, line stepping, backtraces in `gdb`/`lldb`
 - Done when: `gdb` breaks on a line of a `.oymo` file and steps by its lines
 
-### `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai
+### `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai, Goose, Carbon, Swift, Rust, C++, D, Cpp2, Terra
 
-- Write the survey before any syntax decision
+- Write the survey before any syntax decision, in `docs/alcor_survey.md`
 - Status and aim of each (Oct 2026: Zig 0.16 pre-1.0; C3 0.8, 1.0 planned 2028; Odin
-  stable, no 1.0 label; Hare 0.26 pre-1.0; Jai closed beta)
-- Per topic, a table of the five plus C, with pros and cons:
+  stable, no 1.0 label; Hare 0.26 pre-1.0; Jai closed beta; Goose experimental;
+  Carbon experimental; Swift 6; Rust 1.99; C++23, C++26 coming; D 2.x; Cpp2
+  experimental; Terra)
+- Per topic, a table of the thirteen plus C, with pros and cons:
   - Declarations: `name: Type`, `:=`, `const`/`var`/`let`, `::` constants
   - Functions: keyword or none (`fn`, `proc`, `name :: (...)`), params, multiple results
   - Types: `*T`, `[*]T`, `[]T`, `[N]T`, slices, optionals, int names
@@ -250,6 +252,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `alcor-syntax` Syntax, decided per topic, checked with samples and a grammar sketch
 
+- Write each decision in `docs/alcor_syntax.md`
 - Keep decided: `name: Type` declarations:
   `count: i32 = 0;` · `fn add(a: i32, b: i32) -> i32 { return a + b; }`
 - Decide per survey topic, one numbered decision each: what Alcor takes, from whom,
