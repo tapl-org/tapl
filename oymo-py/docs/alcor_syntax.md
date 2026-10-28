@@ -22,6 +22,43 @@ borrowed from.
 
 ## Decisions
 
+### 0. Aim
+
+**Decided:** a small systems language whose types are ordinary code, so checking is
+written as programs, not built into the compiler.
+
+1. **C, but with modern common-sense syntax.** A C programmer reads it at once: someone
+   who knows C can read Alcor code without studying its syntax first.
+2. **Two layers in one file.** Layer 0 is the program; layer 1 is code that computes and
+   checks layer 0's types, including dependent and substructural types for memory safety
+   where the code asks for it. The compiler has no type checker: checking is layer-1 code
+   plus hand-written assertions, and raw pointers and C stay unchecked. Alcor writes one
+   oymomo program per layer, and a closed program's layer 1 reduces to constants.
+3. **Small.** Only what the compiler needs; the compiler itself will be written in Alcor.
+4. **Mixes with C with no glue.** It calls C directly, can be called from C, and lowers
+   through oymomo to LLVM and `clang`.
+
+Common-sense syntax means the fixes most modern C successors share (counts are out of
+the thirteen surveyed languages). The examples show the idea; the exact forms are
+decided in their own sections below.
+
+| Fix | C | Alcor |
+|---|---|---|
+| Declarations read left to right (10) | `char *(*f)(int);` | `f: Ptr(fn(i32) -> Ptr(u8));` |
+| No fallthrough in `switch` (12) | `case 1: a(); break;` | `case 1: a();` (`fallthrough;` when wanted) |
+| `.` works through pointers (9) | `p->x = 1; s.x = 1;` | `p.x = 1; s.x = 1;` |
+| `defer` for cleanup (9; C's TS 25755) | `if (!f) goto fail; … fail: fclose(f);` | `defer fclose(f);` |
+| Modules instead of headers (12) | `#include "list.h"` | `const list = import("list.oymo");` |
+| Sized integer names (7) | `unsigned long n; int32_t x;` | `n: u64; x: i32;` |
+| Braces always required ("goto fail") | `if (ok) a(); b();` | `if (ok) { a(); } b();` |
+| Labelled break (8; C2y) | `goto done;` out of nested loops | `outer: for (…) { … break outer; }` |
+| Number literals without traps (`_` 8, `0o` 6) | `0755`, `1000000` | `0o755`, `1_000_000` |
+| Nesting block comments (7) | `/* a /* b */` ends at the first `*/` | `/* a /* b */ c */` is one comment |
+| Tagged unions with a checked `switch` (7) | `struct { int kind; union { … } u; }` | `union Shape { circle: i32; rect: Point; }` |
+
+What stays exactly as in C: `;`, braces, `if`/`while`/`for`/`return`, `&&`, `||`, `!`,
+`&x`, `*p`, `?:`, `+=`, `//` comments, string escapes.
+
 ### 1. Declarations
 
 **Decided:** `name: Type`, the name first and the type after a colon, with no keyword:

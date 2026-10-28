@@ -22,7 +22,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `typed-consts` Folding keeps constants' types
       - 🚫 `deps-goldens` Golden tests: diamond, template pattern, merged declarations
     - `line-tables` `-g` line tables from spans
-  - `alcor-l0` Alcor layer 0
+  - `alcor` Alcor: a typed language, two oymomo programs per file
     - `alcor-decide` Alcor decisions
       - `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai, Goose, Carbon, Swift, Rust, C++, D, Cpp2, Terra
       - 🚫 `alcor-syntax` Syntax, decided per topic, checked with samples and a grammar sketch
@@ -30,7 +30,11 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - `alcor-ub` Undefined behaviour: checked and optimized build modes
       - `alcor-generics` Generics: syntax, type-argument inference, lowering
       - `alcor-safety-syntax` Syntax for dependent and substructural types
-    - 🚫 `alcor-core` Functions, integers, locals, `if`, loops, `switch`, with `oymo run`
+    - `alcor-layers` Two layers: split a file, run layer 1, type values
+      - 🚫 `l1-two-layer` `<expr:Type>` two-layer expressions, split into two oymomo programs
+      - 🚫 `l1-subprocess` Layer 1 → oymomo → `.ll` → `clang` → run as a subprocess
+      - 🚫 `l1-runtime` Type values, equality, located errors
+    - 🚫 `alcor-core` Functions, integers, locals, `if`, loops, `switch`, both layers, with `oymo run`
     - `alcor-memory` Pointers, structs, arrays, strings, `void`, casts; `extern` to libc
       - 🚫 `ptr-compare` Pointer comparison and `'null' {}`
       - 🚫 `ptr-casts` `'ptrtoint'`, `'inttoptr'`
@@ -44,13 +48,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `e2e-libc` End-to-end tests calling libc and a small C library
     - 🚫 `undefined` Undefined behaviour in oymomo: folding, `'unreachable'`, poison
     - 🚫 `tagged-unions` Enums and tagged unions; `switch` binds the payload
-  - `types-files` Types and multiple files
-    - `layer1` Layer 1: basic types and generics
-      - 🚫 `l1-subprocess` Layer 1 → oymomo → `.ll` → `clang` → run as a subprocess
-      - 🚫 `l1-runtime` Type values, equality, located errors
-      - 🚫 `l1-two-layer` `<expr:Type>` two-layer expressions
-      - 🚫 `l1-basic-types` Integers, `Ptr(T)`, structs, enums, tagged unions, function types
-      - 🚫 `l1-generics` System F generics: `List(T)`, `Map(K, V)`
+    - 🚫 `l1-generics` System F generics: `List(T)`, `Map(K, V)`
+  - `types-files` Multiple files and function pointers
     - `imports` Module interfaces and imports between files
       - 🚫 `l1-interfaces` Module interfaces: each export as `<form:type>`
     - `fn-pointers` Function pointers and callbacks
@@ -271,8 +270,12 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - Write it down: a type is a layer-1 value; each function's layer-1 version checks its
   arguments' types; an error stops the build
+- Write it down: Alcor is a typed language that writes two oymomo programs, one per
+  layer; the compiler has no type checker of its own; a closed program's layer 1 reduces
+  to constants
 - Decide: does layer 1 lower exactly like layer 0, or may it use features layer 0
   can't (closures, a GC)?
+- Decide: how layer-1 code calls layer-0 code (link or merge the oymomo programs)
 
 ### `alcor-ub` Undefined behaviour: checked and optimized build modes
 
@@ -302,16 +305,36 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - annotations on C functions that return or consume owned values
 - Decide: affine types too, or linear plus explicit `drop`?
 
-### `alcor-core` Functions, integers, locals, `if`, loops, `switch`, with `oymo run`
+### `l1-two-layer` `<expr:Type>` two-layer expressions, split into two oymomo programs
+
+- `<expr:Type>` two-layer expressions in the Alcor tree
+- Split each file into two oymomo programs, one per layer
+- Decide: which syntax goes to which layer
+
+### `l1-subprocess` Layer 1 → oymomo → `.ll` → `clang` → run as a subprocess
+
+- Lower layer 1 to a second oymomo program
+- Write it as `.ll`, build with `clang`, run as a subprocess at build time
+- Errors come back with locations; no error means layer 0 type-checks
+- Keep locations through reduction
+
+### `l1-runtime` Type values, equality, located errors
+
+- Small layer-1 runtime: type values (`Int32`, `Ptr(T)`, struct types), equality,
+  located errors
+
+### `alcor-core` Functions, integers, locals, `if`, loops, `switch`, both layers, with `oymo run`
 
 - Grammar on the PEG engine; tree classes with `separate()`
-- Lower layer 0 to an oymomo program (`module -> {...}`): functions → structs of
-  blocks, `if`/`while` → blocks and jumps, locals → `alloca`, `switch`
+- Lower layer 0 to an ingot: functions → regions of blocks, `if`/`while` → blocks and
+  jumps, locals → `alloca`, `switch`
+- Layer-1 types: integers, function types
 - Register `language alcor` as built in
 - Alcor API: public tree classes and constructors, locations from any file
 - Code in `src/oymo/alcor/`
-- No type checker; release notes say so
-- Done when: `fact`, `fib`, `gcd` in Alcor run with `oymo run`
+- No type checker in the compiler: layer-1 code checks types; release notes say so
+- Done when: `fact`, `fib`, `gcd` in Alcor run with `oymo run`; a call with a wrong
+  integer type is a located layer-1 error
 
 ### `ptr-compare` Pointer comparison and `'null' {}`
 
@@ -358,11 +381,13 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `alcor-memory-frontend` Alcor syntax and lowering for memory
 
 - Alcor syntax and lowering for pointers, structs, arrays, strings
+- Layer-1 types: raw `Ptr(T)`, structs, arrays
 - `void` functions, null, pointer comparison, casts, `memcpy`/`memset`
 - Hand-written `extern` declarations to call C; first-order calls, Alcor → C only
 - `oymo run` links libc
 - Memory via `malloc`/`free` through `extern`
-- Done when: hello world with `puts`; linked list with `malloc`/`free`
+- Done when: hello world with `puts`; linked list with `malloc`/`free`;
+  `puts(42)` → `app.oymo:3:6: expected Ptr(c_char), got Int32`
 
 ### `target` Host triple and data layout in the `.ll`
 
@@ -412,33 +437,13 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `tagged-unions` Enums and tagged unions; `switch` binds the payload
 
 - Alcor enums and tagged unions
+- Layer-1 types: enums, tagged unions
 - Lower tagged unions to oymomo structs and `switch`
 - `switch` binds the payload
 - Decide: unions: a form of their own, or a byte array with size and alignment
   (as far as tagged unions need)
-- Done when: expression evaluator: tagged-union tree, recursive `eval`
-
-### `l1-subprocess` Layer 1 → oymomo → `.ll` → `clang` → run as a subprocess
-
-- Lower layer 1 to a second oymomo program
-- Write it as `.ll`, build with `clang`, run as a subprocess at build time
-- Errors come back with locations; no error means layer 0 type-checks
-- Keep locations through reduction
-
-### `l1-runtime` Type values, equality, located errors
-
-- Small layer-1 runtime: type values (`Int32`, `Ptr(T)`, struct types), equality,
-  located errors
-
-### `l1-two-layer` `<expr:Type>` two-layer expressions
-
-- `<expr:Type>` two-layer expressions in the Alcor tree; split each layer out
-
-### `l1-basic-types` Integers, `Ptr(T)`, structs, enums, tagged unions, function types
-
-- Layer-1 types: integers, raw `Ptr(T)`, structs, enums, tagged unions, function types
-- Done when: `puts(42)` → `app.oymo:3:6: expected Ptr(c_char), got Int32`; the
-  evaluator type-checks
+- Done when: expression evaluator: tagged-union tree, recursive `eval`; the evaluator
+  type-checks
 
 ### `l1-generics` System F generics: `List(T)`, `Map(K, V)`
 
@@ -1157,11 +1162,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `/* */` block comment syntax
 - Show stuck-term error messages in a block comment
-
-### `fields-strict` `$fields_to_struct` argument allows only its own labels
-
-- `$fields_to_struct` argument must be
-  `A = {more=[01], label=utf8, value=term, rest=A} | {more=[00]}`; no other labels
 
 ### `more-layers` Back to more than two layers, if real use cases appear
 

@@ -52,8 +52,8 @@ The user's orders, kept as given. Follow them in every task.
 
 ### Files the agent must not edit
 
-- `docs/todo.md` is the user's scratch list; only the user manages it. Read it, never
-  edit it. Its items are also merged into the roadmap tree.
+- `docs/todo.md` was the user's scratch list (agent: read only). Deleted on the user's
+  order (Oct 28: "just delete todo.md").
 - Keep `docs/story.md` and `README.md` as they are.
 - `doc/oymomo-calculus.tex` (`review-rules`): the agent edits it as the user directs.
   Markdown can't render LaTeX, so the rules moved from `reduction_rules.md` (deleted on
@@ -292,7 +292,7 @@ The user's orders, kept as given. Follow them in every task.
 - Every "why" goes into this wiki, not the roadmap.
 - `docs/notes.md`, `docs/glossary.md`, `docs/implemented/`, the plans and the old roadmap
   were moved here verbatim and deleted (done).
-- `docs/` now holds: `roadmap.md`, `agent_wiki.md`, `todo.md`, `story.md`,
+- `docs/` now holds: `roadmap.md`, `agent_wiki.md`, `story.md`,
   `alcor_survey.md` (the Alcor syntax survey; user, Oct 28), `alcor_syntax.md` (only
   chosen and decided Alcor syntax; user, Oct 28),
   `oymomo-calculus.tex`, `Makefile`.
@@ -1586,6 +1586,93 @@ types; literal types only until one appears". Ingots use literal types only.
   - `;` required, nesting `/* */`, `0x 0o 0b`, `_`, leading `0` an error, backtick raw
     strings, `'a'` is `u8`, `&& || !`.
   Roadmap Decide items are untouched until the user accepts.
+
+### Roadmap rethink: a base language under Alcor (Oct 28; settled: no)
+
+- User: "i need untyped general purpose language (basically … single typed … i64). Then
+  i will extend that language with alcor, which is only for system programming … after
+  that mizar extends alcor for general programming language".
+- Agent: i64 fine (BCPL/B → C precedent; any pointer fits); B's lessons: byte loads and
+  stores, unsigned ops, offsets for structs, C signatures, no floats. User corrections:
+  ingot values keep their own types (the single type is a source view only); needs
+  pointers, integer arithmetic, strings, memory, structs, calls to C; bootstrap still in
+  Alcor; name later.
+- User: the language is the Lua of Terra, standalone; Alcor's layer 1 is one use case
+  ("dont mention layer1"). User's idea: "basically Alcor layer 0 where its layer collapsed
+  to static data, no function" — type expressions limited to constant data.
+- User: "the compiler does not have any type-check feature. So I need a language which
+  does not need a type-checker. the written code will have many hand written assertion."
+  "there may be generics in the future. final goal is user can use Alcor layer 0 code in
+  their alcor layer 1 logic".
+- Agent's reading (offered, not yet confirmed): static types exist only for lowering
+  (sizes, offsets, signedness, C ABI), never checked by the compiler; safety comes from
+  hand-written assertions; checking layer 0 is user or library code in layer 1 (the
+  plan's "type checker as code"). The ingot translation still rejects some mismatches
+  (an operand of the wrong LLVM type), as a side effect. So the base language may just be
+  Alcor layer 0 with constant types (the roadmap's `alcor-core` already said "No type
+  checker"). Generics later need phases: generic layer-0 code called at build time must
+  be instantiated first, with no cycles (as Racket's phase levels, Zig's memoized
+  comptime).
+- User corrections: "final closed program's layer 1 should be constant" (layer-0 code
+  used by layer 1 needs no constant types); "alcor generates two oymomo code for each
+  layer. and oymomo can link or merge with other oymomo files. so some layer1 oymomo code
+  can use some other layer0 oymomo code". So no build phases: linking oymomo programs and
+  reduction do it; the only rule is that a closed program's layer 1 reduces to constants.
+  The agent's phases/staging remark is withdrawn.
+- User: one language, not two ("i don't think i need a separate langauge"); asked how to
+  merge untyped and typed syntax in one language, "c code along with lua code in the same
+  file". Agent's proposal (not yet accepted): `:` and `->` are the layering operator
+  (TAPL's `<expr:Type>`, θ-calculus `t:t`): left side layer 0, right side layer 1, so
+  `name: Type` already is "C : Lua". `const` declarations are wholly layer 1; `^e` puts a
+  layer-1 value in a layer-0 position; a `fn` gives layer 0 (types erased) and a layer-1
+  shadow derived from its annotations (TAPL: each function's layer-1 version checks its
+  arguments) plus the user's assertions; layer-1 code calling a layer-0 function links
+  that function's layer-0 oymomo into the layer-1 program (runs untyped). Like Zig
+  (type positions are build time) rather than Terra (a `terra` keyword marks low-level
+  code).
+- **Settled (user, Oct 28):** "forget about mizar right now. I guess I should continue
+  Alcor as a typed programming language which generates two oymomo file for now. later on
+  I will think how to call layer 0 oymomo code from layer1 oymomo code". No separate base
+  language, no single type, no roadmap restructure. Roadmap `alcor-layer1` gets a
+  "write it down" bullet (two oymomo programs, no type checker in the compiler, closed
+  layer 1 reduces to constants) and a Decide item (how layer-1 code calls layer-0 code).
+  Mizar leaves untouched; don't bring Mizar up until the user does. The `:`-as-layering
+  proposal and its open questions stay unanswered, not applied to `alcor_syntax.md`.
+
+### Alcor's aim (decision 0, Oct 28)
+
+- Going through the survey with the user, section by section, starting at 0 (aim).
+- Agent's first draft had six points; user: types run "not only at build time" (removed
+  "at build time"); 1 → "C, but with modern common sense syntax"; merge 2 (two layers),
+  3 (no type checker) and 5 (safe where it says so); 4 concise; 6 kept. Final text in
+  `alcor_syntax.md` › 0. Aim, **Decided** (user: "yes").
+- "A C programmer reads it at once" (user asked what it means): C code shape stays
+  (braces, `;`, operators, `if`/`while`/`for`/`return`, `&`, `*`), and what differs is
+  few and guessable from context, so no syntax study is needed before reading.
+
+### Roadmap: Alcor's two layers merged (Oct 28)
+
+- User: "i guess we merged layer 0 and layer 1 roadmap tasks … if not merged, lets
+  merge them" (prompted by the agent's "read-only data can come later as a layer-1
+  type"). They were not merged: `alcor-l0` held layer 0, `types-files › layer1` held
+  layer 1.
+- Done: `alcor-l0` → `alcor` ("Alcor: a typed language, two oymomo programs per file").
+  New node `alcor-layers` before `alcor-core` with `l1-two-layer` (now also "split into
+  two oymomo programs"; Decide: which syntax goes to which layer), `l1-subprocess`,
+  `l1-runtime`. `l1-basic-types` removed, its types spread: integers and function types
+  → `alcor-core`; `Ptr(T)`, structs, arrays and the `puts(42)` done-when →
+  `alcor-memory-frontend`; enums, tagged unions and "the evaluator type-checks" →
+  `tagged-unions`. `l1-generics` moved under `alcor` after `tagged-unions`. Node
+  `layer1` removed; `types-files` now "Multiple files and function pointers".
+  `alcor-core`: lowers to an ingot (was `module -> {...}`), "No type checker in the
+  compiler: layer-1 code checks types", done-when adds a wrong integer type error.
+- Found while checking: details section `fields-strict` had no tree leaf (from
+  `todo.md` "Someday"). User: "no needed, just delete todo.md": `docs/todo.md` deleted
+  and the `fields-strict` details section removed. Its last content, kept here: Now:
+  (empty); Someday: "`/* */` block comment syntax" (roadmap `block-comments`);
+  "`$fields_to_struct` argument must be `A = {more=[01], label=utf8, value=term, rest=A}
+  | {more=[00]}`; no other labels allowed"; "defer in TS 25755 - Show stuck-term error
+  messages in a block comment".
 
 ### Debug info rides on `Term.location` (Answers 3–6; design in progress)
 
