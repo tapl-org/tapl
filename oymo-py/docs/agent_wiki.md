@@ -293,8 +293,9 @@ The user's orders, kept as given. Follow them in every task.
 - `docs/notes.md`, `docs/glossary.md`, `docs/implemented/`, the plans and the old roadmap
   were moved here verbatim and deleted (done).
 - `docs/` now holds: `roadmap.md`, `agent_wiki.md`, `story.md`,
-  `alcor_survey.md` (the Alcor syntax survey; user, Oct 28), `alcor_syntax.md` (only
-  chosen and decided Alcor syntax; user, Oct 28),
+  `alcor_survey.md` (the Alcor syntax survey; user, Oct 28), `alcor_kernel_syntax.md`
+  (chosen kernel syntax) and `alcor_sugar_syntax.md` (sugar, on hold; both user, Oct 28;
+  they replace `alcor_syntax.md`),
   `oymomo-calculus.tex`, `Makefile`.
 - `docs/semantics_discussion.md` was the semantics review discussion (D1–D96). The user
   had it folded into this wiki (section 4, "Semantics decisions (D1–D96)") and deleted.
@@ -1673,6 +1674,199 @@ types; literal types only until one appears". Ingots use literal types only.
   "`$fields_to_struct` argument must be `A = {more=[01], label=utf8, value=term, rest=A}
   | {more=[00]}`; no other labels allowed"; "defer in TS 25755 - Show stuck-term error
   messages in a block comment".
+
+### Alcor declarations (decision 1, Oct 28)
+
+- Agent gave four questions with options (inference, constants, mutability, no value),
+  then answered the user's follow-ups: why keywords exist (declaration vs expression,
+  declare vs assign, mutability, search; the colon covers all but mutability); one
+  `const` covers build-time and run-time read-only data (folded, or stored once as an
+  ingot `value` entry when layer 0 needs memory; Zig does this); why Zig requires a value
+  with explicit `undefined` (zero hides bugs; Zig fills `undefined` with `0xAA` in debug;
+  no hidden work); assigned-before-use is flow analysis, a layer-1 pass like the
+  substructural one (plan 0.6.4); labels: Swift, Go, Java, JS, C2y use `name:`, Rust
+  `'name:`, Kotlin `name@`, Zig `name:` with `break :name`.
+- User chose: immutable by default with `let`/`var` on every declaration (this changes
+  the earlier decided keyword-free `count: i32 = 0;` into `var count: i32 = 0;`; `:=`
+  dropped); `const` for constants (user: "lgtm"), no separate run-time read-only
+  keyword; "always needs a value for now. later we will add assigned-before-use"
+  (`= undefined` allowed).
+- Applied: `alcor_syntax.md` › 1 rewritten as **Decided**; examples in 0 and in the
+  Proposed sections 2–11 updated to `let`/`var`; survey's "already decided" line and
+  roadmap `alcor-syntax` example updated; new roadmap leaf 🚫 `assigned-before-use`
+  under `single-thread › safety`, before `dependent-types`.
+- User then asked why `const` is needed at all. Agent: only for "known at build time"
+  (usable in a type); Rust needs it because its `let` can never appear in a type, but
+  Alcor's `^` already marks build time at the use; Zig has one keyword and infers
+  build-time from use. Options A (drop `const`) / B (keep as an explicit promise). User:
+  "option a". Applied: no `const`; a value used under `^` or in a type position is
+  computed by layer 1 (layer 0 gets the constant), a value used both ways exists in both
+  layers, a run-time value there is a layer-1 error, a top-level `let` is read-only data.
+  Examples in 0, 4, 7, 9 changed from `const x =` to `let x =`; `const` added to the
+  rejected list.
+
+### Alcor functions (decision 2, Oct 28)
+
+- Agent gave seven questions (no result, several results, named/default args,
+  overloading, parameter mutability, passing, returning). User chose: no result = leave
+  out `->` (1A); no named or default arguments, the C options-struct idiom (3C; user
+  "liked this idea"); no overloading (4A); parameters immutable (5A); by value only (6A).
+  Applied in `alcor_syntax.md` › 2 as **Decided**. Still open: several results (2) and
+  `return` vs last expression (7).
+- User on Mizar (the user brought it up): Alcor takes 5A and 6A, but "mizar can
+  implement option b" (`var` parameters) and "mizar might have option b" (passing modes
+  such as `inout`). Kept here only; not in the roadmap.
+- User asked how several results translate to LLVM and why Swift uses `f(x: 1)`; agent's
+  answers are in the next reply (LLVM: a literal struct return; Swift: Objective-C's
+  selector syntax).
+- Several results (user): "i return declared or literal undeclared struct. and also add
+  syntax sugar for extracting variables in one let". **Decided** in `alcor_syntax.md` ›
+  2; tuples and named result lists rejected. Agent's spelling, **Proposed**: result type
+  `-> struct { q: i32; r: i32; }`, value `.{ .q = …, .r = … }` (Zig's inferred literal),
+  `let q, r = divmod(7, 2);` by field order.
+- User: "sticking to c reader is not good for alcor. i'm leaning to expression like
+  language, example scala. so last expression is a return … not a c reader, but any
+  general software programmar can easily read the code". Under discussion; this would
+  change Aim point 1 and section 5's `?:`/statement proposals. Not applied yet.
+- Agent agreed (fewer rules, no `?:`, fits `let`, oymomo is a λ-calculus, mainstream
+  readers know it) and named Rust's `;` trap; options A (`;` only separates; last
+  expression is the value either way; Scala, Kotlin) and B (Rust). User: "yes" to A with
+  the new Aim wording. Applied (**Decided** where marked): intro and Aim point 1 ("any
+  programmer who knows a mainstream language (C, Java, Go, Swift, Kotlin, Rust, Scala,
+  …) reads it at once"; expression language); rules: "keep the form mainstream languages
+  share (C's first)", "everything is an expression"; section 2: last expression is the
+  result, `return` leaves early, `;` only separates, wrong-typed last expression is a
+  layer-1 error; `fn add(…) -> i32 { a + b }`. Proposed sections updated: 5 (`if`,
+  `switch`, blocks are expressions; `?:` rejected; `let area = switch (s) {…};`; `i++`
+  gives no value), 6 (postfix `?` reason changed), 8 (examples without `return`), 12 (`;`
+  separates). Roadmap `alcor-syntax` rules and example, and the survey's rules line,
+  updated the same way.
+- User: add the missing languages of the new Aim list (C, Java, Go, Swift, Kotlin, Rust,
+  Scala): Java, Go, Kotlin, Scala researched with the same brief (updated for the new aim
+  and decisions; GC languages asked what a systems language can borrow). Rows in all 13
+  tables (seventeen plus C), all bullets rewritten with new counts, roadmap lists
+  seventeen. `alcor_syntax.md` counts updated (section 0 table: 12, 16, 10, 10, 16, 7, 11,
+  `_` 12 / `0o` 7, 9, 8; "ten of seventeen" for `.` and `defer`, "twelve of seventeen" for
+  one copy per type and `_`). Notable: code generators (Java annotation processors,
+  Kotlin KSP, Go `go:generate`) as the mainstream case for layer 1; Scala `inline if`
+  like Alcor's folded build-time `if`; Go's cgo joins in-language header import (seven);
+  scoped arenas (Java FFM `Arena`, Kotlin `memScoped`, Scala `Zone`); Scala's `using
+  Zone` as an allocator explicit in the signature and implicit at the call; the four GC
+  languages wrap overflow silently. Weak points: Go 1.27, Kotlin 2.4/2.5 and Scala 3.9/3.10
+  dates, JDK 27 JEPs.
+
+### Alcor types (decision 3, Oct 28)
+
+- User chose: `i32`/`u8`/`usize` (2A); `&x`, `*p` (3A, asked for downsides); a separate
+  many-item pointer type (4B, "appealing"); never-null pointers plus an optional (5B);
+  `x as T` (6A); function type `T -> R` with no `fn` prefix, "T can be tuple (sugar of
+  struct). all functions takes just one argument" (matches ingot function types, whose
+  parameters are a struct); strings are a byte slice, not NUL-terminated (9B). Applied in
+  `alcor_syntax.md` › 3 as **Decided**; section 2 gains "a function takes one argument …
+  `add(1, 2)` passes the tuple `(1, 2)`" and no longer rejects tuples (`-> (i32, i32)` is
+  a struct type written in place, fitting the user's "literal undeclared struct").
+- Still open (Proposed in 3): type spelling (user asked how Rust and Swift do it), implicit
+  widening (user asked why Zig chose it), what `as` does on overflow, `?T` vs `T?`, C
+  string conversion (`c"…"`).
+- User: "lets separate alcor syntax into two: kernel and sugar. all kernels are calls
+  only." New rule in `alcor_syntax.md` › Rules (as oymomo's kernel and sugar). Section 3
+  table: `Ptr(T)`/`*T`, `Many(T)`/`[*]T`, `Slice(T)`/`[]T`, `Array(T, ^N)`/`[N]T`,
+  `Option(T)`/`T?`, `Fn(T, R)`/`T -> R` (agent made the function type's kernel a call,
+  `Fn(T, R)`, to follow "all kernels are calls only"; the sugar spellings follow Zig).
+  Widening: "kernel=none, sugar=lossless widening only" (note: this sugar needs types, so
+  layer 1 rewrites layer 0 there). `as` on a value that doesn't fit: "undefined
+  behaviour" (checked build traps; truncate on purpose by masking first). Optional:
+  "option[t] kernel, t? sugar". C strings: `c"hi"` (a `[*]u8`, NUL-terminated). Agent's
+  Proposed precedence: `*u8?` = `Option(Ptr(u8))`. Sections 1, 2 and 4–12 not yet split
+  into kernel and sugar.
+- User follow-ups: `c""` is sugar; a C string is written by hand in the kernel
+  (`"hi\0".ptr`). On the widening sugar's cost (it needs types, so layer 1 would rewrite
+  layer 0), user: "then ignore": read as dropping the widening sugar, so no implicit
+  conversions at all (stated to the user, to confirm). `*u8?` precedence: "lets think
+  later, it is a sugar" (the Proposed rule removed; open). User asked why the sugar
+  symbols follow Zig, and whether to make two languages, alcor-kernel and alcor, and for
+  a better name (agent's answer in the reply: one language with a kernel subset).
+- **Decided (user: "lets stick to this then", on "one language"):** no separate kernel
+  language or header; the kernel is a subset of `language alcor`, called the "Alcor
+  kernel" in docs. Not adopted (offered): a `language alcor kernel` mode rejecting sugar;
+  the names "Alcor B" (Alcor's real red-dwarf companion) and "Alcor Core". Agent also
+  explained why the sugar symbols follow Zig (the set most surveyed languages share:
+  `*T`, `[]T`, `[N]T` with Go, Odin, Hare, Jai; `[*]T` with Hare; all prefix).
+
+### Alcor structs (decision 4, Oct 28; in progress)
+
+- Agent's ten questions; user: kernel struct form "why not just without . as we did in
+  oymomo" (agent: braces clash with blocks in an expression language; offered `(x = 1,
+  y = 2)` or `.{ }`); "no need a struct keyword" (types bound with `let`); asked about
+  nominal types ("do we need to support it, if yes how?"); liked extension-style calls
+  and asked how virtual methods work; chose C layout, `t.0`, `let (q, r) = f()`.
+  Applied in `alcor_syntax.md` › 4 (**Decided**: no `struct` keyword, C layout, `t.0`,
+  `let (q, r)`, UFCS `p.add(q)` = `add(p, q)`); section 2's example now `let (q, r)`.
+  Open: struct literal, nominal types, virtual methods, field defaults, `.` through
+  pointers, enums, tagged unions (agent now leans to `enum` with payloads for
+  mainstream readers, reversing its C-reader proposal).
+- Next round (user): destructuring "no parenthesis" → `let q, r = f();` (sections 2, 4);
+  struct literal "we will figure out later. i was looking for something mix of two
+  layers"; on `let Point = {x = i32, y = i32}`: "maybe we should use type keyword here";
+  nominal: "probably i will go with" `Named("app.Meters", f64)`; virtual methods: yes to
+  a roadmap leaf, "lets see how option B works there". Added roadmap leaf 🚫
+  `interfaces` under `types-files › fn-pointers` (fat pointers, tables built by layer
+  1, explicit `as` conversion, Decide: syntax, receiver namespace such as `fn File.write`
+  since there is no overloading, implicit vs written `impl`).
+- Agent found a conflict to raise: extension-style calls plus "no overloading" means two
+  types can't both have a `write`; interfaces need per-type functions of one name, so a
+  receiver namespace (Kotlin `fun File.write`, C3 `fn File.write`, Go receivers) is
+  needed.
+- Agent proposed `type Name = T` as sugar for `let Name = Named("module.Name", T)` (and
+  `let` as a plain alias). User: "i dont need a sugar now, drop it right now": no `type`
+  keyword; nominal types written in the kernel as `Named(…)`. Asked whether this means all
+  sugar is dropped for now (`*T`, `T?`, `c"…"`, `T -> R` in section 3).
+- User: "all" (all sugar dropped for now), and "devide alcor-syntax doc into two doc:
+  alcor-sugar-syntax and alcor-kernel-syntax … once kernel syntax is completed, then we
+  can see sugars". Done: `docs/alcor_syntax.md` deleted; `alcor_kernel_syntax.md` keeps
+  intro, rules, all decisions with sugar taken out (type table kernel-only; function
+  type in examples `Fn(…)`; C string by hand `"hi\0".ptr`; options-struct literal and
+  `let q, r` example removed; section 8 example no longer uses `struct {…}`);
+  `alcor_sugar_syntax.md` collects the sugar on hold (type short forms, `(A, B)`,
+  `c"…"`, `let q, r = f()`, UFCS with receiver namespaces), the open `*u8?` question and
+  the dropped ideas (`type`, widening). Survey and roadmap links updated (roadmap
+  `alcor-syntax`: kernel decisions in the kernel doc, sugar after). Older wiki entries
+  saying `alcor_syntax.md` mean the kernel doc now.
+- User on the kernel doc's rules: "Every kernel type is a call" and "types are written as
+  ordinary calls (`Ptr(T)`, `Array(u8, ^16)`)": "not decided yet" (rule now says only "a
+  type is a layer-1 expression"; section 3's table is the working spelling, not
+  decided). "Lowers simply to oymomo" → "two oymomo one for evaluate another for
+  typecheck" (rule rewritten). "No indentation syntax" → "this can be sugar" (kernel has
+  none; indentation added to the sugar doc's Open list).
+- New rule (user): "whatever can be implemented in sugar, also can be implemented with
+  kernel (just maybe verbose)"; added to the kernel doc's Rules and echoed in the sugar
+  doc's Rules.
+- User (on "types are ordinary code"): "that's why i need a typeless syntax too. so i can
+  write in type layer … when user omits type, i will use that primitive type
+  automatically. actually this should not be a primitive type. it can be hand made type
+  like dynamic programming languages (python, lua) did". Under discussion. Agent's view:
+  this is gradual typing (Siek and Taha; Julia's `Any`, TypeScript `any`, C# `dynamic`;
+  Terra uses Lua for the same job); a hand-made tagged union `Value` (Lua-like kinds: int,
+  bool, bytes, table, function, type) needs one language hook (operators, calls, fields
+  on `Value` go to library functions, like Lua metatables); layer-1 memory can be an
+  arena freed after the build; conflicts with decision 1 (`let total = 0;` infers today);
+  risk of hidden boxing in layer-0 systems code; fits roadmap `l1-runtime` and answers
+  `alcor-layer1`'s Decide on extra features.
+- User: a left-out type in `let`/`var` "comes from literal types"; a `Value` literal is
+  marked, "0v like 0f" (just an example); "function param or struct field types are left
+  out then they are value". On hidden boxing: "maybe kernel does not have any hidden
+  things like zig. so we can add sugar later"; asked how type expressions are written in
+  the type layer then. Applied to the kernel doc (Decided): rules "the kernel hides
+  nothing" and "a left-out type means `Value` for parameters and fields"; section 1
+  (left-out type = the value's type, literal types, `0v` spelling open); section 2
+  (untyped parameter is a `Value`, `-> Value` still written); section 4 (untyped field is
+  a `Value`); section 3 Proposed: `Value` as a library tagged union with Lua-like kinds,
+  explicit calls such as `value_add(a, b)`, type expressions as ordinary calls on
+  `Value`s, one arena per build.
+- Agent's answer on type expressions (in the reply): names like `i32` are `Value`s of
+  kind type; type functions are ordinary functions on `Value`s (`fn Ptr(T) -> Value`);
+  arithmetic in types needs explicit calls in the kernel (`value_add(n, 1v)`); `^n` and
+  `16v` overlap (both make a `Value`), so `^` could become the general "to Value".
 
 ### Debug info rides on `Term.location` (Answers 3–6; design in progress)
 

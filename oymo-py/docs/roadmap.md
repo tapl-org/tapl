@@ -24,7 +24,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - `line-tables` `-g` line tables from spans
   - `alcor` Alcor: a typed language, two oymomo programs per file
     - `alcor-decide` Alcor decisions
-      - `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai, Goose, Carbon, Swift, Rust, C++, D, Cpp2, Terra
+      - `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai, Goose, Carbon, Swift, Rust, C++, D, Cpp2, Terra, Java, Go, Kotlin, Scala
       - 🚫 `alcor-syntax` Syntax, decided per topic, checked with samples and a grammar sketch
       - `alcor-layer1` What layer 1 means
       - `alcor-ub` Undefined behaviour: checked and optimized build modes
@@ -55,6 +55,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - `fn-pointers` Function pointers and callbacks
       - 🚫 `fn-address` `module.f` as an address; indirect call through `'ptr'`
       - 🚫 `alcor-fn-values` Alcor function values → function pointers; closures as code + `void *`
+      - 🚫 `interfaces` Interfaces: fat pointers (data, table); tables built by layer 1
   - `rewrite-tools` Tools for the rewrite
     - `bootstrap-stdlib` Bootstrap standard library, `oymo test`, new `oymo/` folder
       - 🚫 `stdlib-core` Strings, slices, I/O, allocator interface, first allocators
@@ -77,6 +78,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - 🚫 `own-repo` `oymo/` exported to its own repository
 - `single-thread` Single-threaded, in the Alcor-written compiler
   - `safety` Memory safety
+    - 🚫 `assigned-before-use` Layer-1 check: a variable is assigned before it is read
     - 🚫 `dependent-types` `Array(u8, ^16)`, `Index(n)`; unproven index is a build error
     - 🚫 `substructural-types` `Own(T, A)`, second-class borrows; stdlib moves
   - `api` Exports and APIs
@@ -226,14 +228,14 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Breakpoints, line stepping, backtraces in `gdb`/`lldb`
 - Done when: `gdb` breaks on a line of a `.oymo` file and steps by its lines
 
-### `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai, Goose, Carbon, Swift, Rust, C++, D, Cpp2, Terra
+### `alcor-survey` Syntax survey: Zig, C3, Odin, Hare, Jai, Goose, Carbon, Swift, Rust, C++, D, Cpp2, Terra, Java, Go, Kotlin, Scala
 
 - Write the survey before any syntax decision, in `docs/alcor_survey.md`
 - Status and aim of each (Oct 2026: Zig 0.16 pre-1.0; C3 0.8, 1.0 planned 2028; Odin
   stable, no 1.0 label; Hare 0.26 pre-1.0; Jai closed beta; Goose experimental;
   Carbon experimental; Swift 6; Rust 1.99; C++23, C++26 coming; D 2.x; Cpp2
-  experimental; Terra)
-- Per topic, a table of the thirteen plus C, with pros and cons:
+  experimental; Terra; Java 25–27; Go 1.26; Kotlin 2.4; Scala 3.10)
+- Per topic, a table of the seventeen plus C, with pros and cons:
   - Declarations: `name: Type`, `:=`, `const`/`var`/`let`, `::` constants
   - Functions: keyword or none (`fn`, `proc`, `name :: (...)`), params, multiple results
   - Types: `*T`, `[*]T`, `[]T`, `[N]T`, slices, optionals, int names
@@ -251,13 +253,15 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `alcor-syntax` Syntax, decided per topic, checked with samples and a grammar sketch
 
-- Write each decision in `docs/alcor_syntax.md`
+- Write each kernel decision in `docs/alcor_kernel_syntax.md`; sugar in
+  `docs/alcor_sugar_syntax.md`, after the kernel
 - Keep decided: `name: Type` declarations:
-  `count: i32 = 0;` · `fn add(a: i32, b: i32) -> i32 { return a + b; }`
+  `var count: i32 = 0;` · `fn add(a: i32, b: i32) -> i32 { a + b }`
 - Decide per survey topic, one numbered decision each: what Alcor takes, from whom,
   what it rejects, one example
-- Rules: keep C's form unless fixing a known C problem; a type is a layer-1
-  expression; lowers simply to oymomo; when two of the five agree, take that
+- Rules: keep the form mainstream languages share (C's first) unless fixing a known
+  problem; everything is an expression; a type is a layer-1 expression; lowers simply
+  to oymomo; when two surveyed languages agree, take that
 - Check with sample programs: hello world, a struct with a function on it, a function
   as an argument, `Matrix(^2, ^3)`, a C header import
 - Write a grammar sketch and precedence table
@@ -470,6 +474,19 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide: does the compiler need closures?
 - Done when: an Alcor function passed to `qsort` and `qsort_r`
 
+### `interfaces` Interfaces: fat pointers (data, table); tables built by layer 1
+
+- An interface is a struct type of function types; `Dyn(I)` is `{data, table}`, the
+  table a pointer to `I`'s functions for one concrete type
+- Layer 1 builds each (type, interface) table once, as read-only data, from the
+  type's functions of the same names; conversion to `Dyn(I)` is explicit (`as`)
+- A call `w.write(msg)` on a `Dyn(I)` lowers to `w.table.write(w.data, msg)`; objects
+  keep C layout (no hidden table pointer)
+- Decide: syntax for interfaces, `Dyn(I)` and its sugar, and functions per type (with
+  no overloading, two types' `write` need a receiver namespace such as `fn File.write`)
+- Decide: implicit satisfaction (Go) or a written `impl` (Rust)
+- Done when: one function takes a writer and is called with a file and a buffer
+
 ### `stdlib-core` Strings, slices, I/O, allocator interface, first allocators
 
 - Generic growable arrays and hash map
@@ -632,6 +649,12 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Delete `oymo-py/`; tag `oymo-py-final`
 - Decide: when is the public launch? Recommended: soft launch at `substructural-types`
   (site, tutorial, posts), main launch at `mizar-headers`
+
+### `assigned-before-use` Layer-1 check: a variable is assigned before it is read
+
+- Layer-1 code checks that each variable is assigned on every path before it is read
+- Then `var x: i32;` with no value is allowed
+- Same pass as the substructural checks (a state per name; branches must agree)
 
 ### `dependent-types` `Array(u8, ^16)`, `Index(n)`; unproven index is a build error
 
