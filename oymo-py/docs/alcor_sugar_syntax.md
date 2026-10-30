@@ -20,7 +20,7 @@ decisions and ideas collected so far, to pick up then.
   | `*T` | `Ptr(T)` |
   | `[*]T` | `Many(T)` |
   | `[]T` | `Slice(T)` |
-  | `[N]T` | `Array(T, ^N)` |
+  | `[N]T` | `Array(T, N)` |
   | `T?` | `Option(T)` |
   | `T -> R` | `Fn(T, R)` |
   | `(A, B)` | a struct type with positional fields |

@@ -95,21 +95,21 @@ an expression.
   ```
 
 - No `const` keyword (as Zig: one keyword for every immutable binding). Whether a value
-  must be known at build time comes from its use: under `^` or in a type position, layer
+  must be known at build time comes from its use: in a type position, layer
   1 computes it and layer 0 gets the constant; a value used both ways exists in both
   layers. Using a run-time value there is a layer-1 error. A top-level `let` is
   read-only data; the translation folds it or stores it once.
 
   ```
   let N = 16;
-  let buf: Array(u8, ^N) = undefined;   // N is known at build time
+  let buf: Array(u8, N) = undefined;    // N is known at build time
   let k = read_input();
-  let bad: Array(u8, ^k) = undefined;   // layer-1 error: k is known only at run time
+  let bad: Array(u8, k) = undefined;    // layer-1 error: k is known only at run time
   let TABLE = "0123456789abcdef";       // top level: read-only data
   ```
 
 - Every `let` and `var` needs a value (from Zig). `= undefined` says "no value yet" on
-  purpose: `var buf: Array(u8, ^64) = undefined;`. Later, a layer-1 check that a
+  purpose: `var buf: Array(u8, 64) = undefined;`. Later, a layer-1 check that a
   variable is assigned on every path before it is read will allow `var x: i32;` with no
   value (roadmap `assigned-before-use`).
 - Immutability is checked by layer-1 code: each assignment's layer-1 version checks that
@@ -117,7 +117,7 @@ an expression.
 - Rejected: no keyword with `:=` (Odin, Jai, Cpp2), mutable by default (C), zero by
   default (Odin, Jai, D: a zero that should have been set looks valid, and no tool can
   catch it), C's indeterminate default, a `const` keyword for build-time values (Rust,
-  C23 `constexpr`; `^` already marks build time where it matters), `::` constants (C++'s
+  C23 `constexpr`; a type position already marks build time), `::` constants (C++'s
   scope operator), `==` constants (Cpp2; a comparison to C readers).
 
 ### 2. Functions
@@ -168,7 +168,7 @@ an expression.
   | `Ptr(T)` | pointer to one `T`, never null, no arithmetic |
   | `Many(T)` | many-item pointer: `p[i]`, `p + 1` (from Zig, Odin, Hare) |
   | `Slice(T)` | pointer and length, bounds checked |
-  | `Array(T, ^N)` | `N` values of `T`, a value that never decays |
+  | `Array(T, N)` | `N` values of `T`, a value that never decays |
   | `Option(T)` | maybe none (from Kotlin, Swift; Rust `Option<T>`) |
   | `Fn(T, R)` | function from `T` to `R` |
 
@@ -190,8 +190,15 @@ an expression.
 - `Value` is a hand-made type, not a primitive: a tagged union in a library, with
   Lua-like kinds (integer, bool, bytes, table, function, type). In the kernel, working on
   a `Value` is explicit calls (`value_add(a, b)`); types are `Value`s too, so a type
-  expression is an ordinary call on `Value`s (`Ptr(i32)`). (Proposed: the kinds, the
-  names, and one arena per build for layer-1 memory.)
+  expression is an ordinary call on `Value`s (`Ptr(i32)`). (Proposed: the kinds and the
+  names.)
+- (Proposed) `Value` memory: an arena until the bootstrap, a pointer that moves forward
+  and never frees (the layer-1 process exits and the operating system frees it). After
+  the bootstrap a Lua-style incremental mark-and-sweep collector replaces it with the
+  same interface (roadmap `value-gc`). `Value`s may be mutable; there is no reference
+  counting. All allocation goes through the `Value` library and no program frees a
+  `Value`, so the switch changes no program. Until then, a `Value` used at run time in
+  long-running layer-0 code leaks.
 
 ### 4. Structs, enums, unions
 
@@ -262,8 +269,8 @@ an expression.
 
 - One build-time language: layer 1. There is no preprocessor, no macros, no `$if` or
   `#if` sublanguage.
-- `^e` lifts a build-time value into a type (as the Alcor plan writes it):
-  `Array(u8, ^16)`, `Matrix(^2, ^3)`.
+- How a layer-0 value enters a type (the plan's `^`, as in `Array(u8, ^16)`) is decided
+  later, with dependent types.
 - Values needed at build time are computed by ordinary functions (as Zig, D, Jai).
 - Conditional compilation is an ordinary `if` on a build-time condition, folded at build
   time: `if (TARGET.os == .linux) { … }`.

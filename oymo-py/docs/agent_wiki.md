@@ -1867,6 +1867,200 @@ types; literal types only until one appears". Ingots use literal types only.
   kind type; type functions are ordinary functions on `Value`s (`fn Ptr(T) -> Value`);
   arithmetic in types needs explicit calls in the kernel (`value_add(n, 1v)`); `^n` and
   `16v` overlap (both make a `Value`), so `^` could become the general "to Value".
+- User: "forget ^ operator for now, we will discuss it later when we are working on
+  dependent types". Kernel doc: `^` removed from rules and examples (`Array(u8, N)`), and
+  section 7 says how a layer-0 value enters a type is decided later with dependent types.
+  Sugar doc's `[N]T` row now `Array(T, N)`. Plan 0.6.1's `^` stays as background here.
+- User asked: Scala's operator design for `Value` (operators are methods: `a + b` is
+  `a.+(b)`); a self-guarding data structure that holds any data; reference counting so a
+  `Value` frees itself ("guarded by itself, and managed by itself too"). Agent's answers
+  in the reply: Scala's rule is type-directed (which `+` depends on `a`'s type), the same
+  way lowering already picks `'add' {'i32', …}`, and needs receiver namespaces; a
+  `Value` layout (tag plus payload, small integers inline, a header with a count for
+  heap kinds; Lua, Python, OCaml, JS engines); reference counting frees at the last
+  reference (Python, Swift ARC, Rust `Rc`), but cycles leak, and automatic
+  increments/decrements are hidden calls, against "the kernel hides nothing"; immutable
+  `Value`s can't form cycles, so counting is then exact.
+- Follow-ups (agent's answers): arena may run out in long layer-1 loops (user's concern);
+  operators resolved by layer-1 constants filling holes in layer 0 (`plus(T)(a, b)` folds
+  to `'add' {'i32', …}` or `Value.+`), as typed lowering already needs; reference
+  counting's other problems (counting cost, long free chains, per-object count, threads,
+  finalizers, C interop) and its in-place reuse benefit (Koka Perceus, Lean 4); how Swift
+  ARC works (compiler-inserted retain/release in SIL, OSSA, borrowed parameters since
+  4.2, owned results, `weak`/`unowned`, copy-on-write via `isKnownUniquelyReferenced`,
+  `~Copyable`).
+- User: "reference counting makes the work so complicated, maybe we should visit GC like
+  lua did". Agent agreed: Lua-style incremental mark-and-sweep in the `Value` library;
+  cycles fine, mutable tables, no retain/release; roots in compiled code: conservative
+  stack scanning first (Boehm-like; no compiler support), shadow stack or LLVM stack maps
+  later; fits plan 0.4's "GC allocator as a user choice"; pin `Value`s passed to C.
+- User: "do you think arena idea easier then GC. may be until bootstrap, i can use arena
+  method". Agent: yes, much easier (a bump allocator that never frees; before the
+  bootstrap layer 1 runs as a short subprocess, so the OS frees everything at exit);
+  keep the `Value` API collector-ready (allocation only through the library, no explicit
+  free) so a Lua-style GC can replace the arena after the bootstrap without changing
+  programs; until then, `Value` in long-running layer-0 code would leak. Waiting for the
+  user to confirm before writing it down.
+- User: "yes". Kernel doc section 3: `Value` memory (Proposed) is an arena until the
+  bootstrap, then a Lua-style incremental collector with the same interface; mutable
+  `Value`s, no reference counting; the leak limit stated. Roadmap: new leaf 🚫 `value-gc`
+  under `single-thread › completion`, after `full-stdlib`.
+- User asked about Goose's no-heap model for `Value`; agent described regions with
+  copy-out (a region per call; the result copied to the caller's region; safe only with
+  immutable `Value`s; bounded memory in loops; copying cost) and compared arena, regions
+  and GC. User: "arena looks good to me" (the kernel doc's plan stays: arena until the
+  bootstrap, then `value-gc`). Then asked how Lua's GC is triggered; agent: by allocation
+  only (allocation "debt": every allocation adds to it; when positive, `luaC_checkGC`
+  at allocation points runs one step; incremental mode starts a cycle when memory reaches
+  `pause` (default 200%) of what was live after the last cycle and does work in
+  proportion to allocation (`stepmul`); 5.4 generational mode runs minor collections at
+  `minormul` growth; `collectgarbage()` for manual control; an emergency full collection
+  when an allocation fails; no timer or thread). For Alcor: the arena's allocate
+  function is the one hook a later GC needs.
+- Struct literals (agent's proposal, not yet answered): a field is written like a
+  declaration, `name: Type = value`, either part optional (`:` part to layer 1, `=` part
+  to layer 0); a struct of types is a struct type; block rule (a struct has a top-level
+  comma or starts with `name:`; one-field struct takes a trailing comma; `{}` is unit);
+  `f(a, b)` as `f({a, b})` would bring named arguments back; defaults as the layer-0 part
+  of a type literal, filled by `make(T, …)`. User then asked about `List[Int]`,
+  `Dict[Str, Float]`; agent offered A calls, B brackets for types only, C brackets for
+  layer-1 arguments and parentheses for layer-0 ones (`fn get[T](…)`, `get[i32](…)`;
+  answers `l1-two-layer`'s Decide; `Array[u8, 16]` could replace `^`; costs the
+  indexing ambiguity, solved by name lookup), leaning C. Not answered.
+- User: "i guess i lost my way a lot. lets start from ground. i want oymomo as a
+  foundation. since alcor kernel lowers to oymomo, can we see alcor kernel as a sugar of
+  oymomo?" Agent's answer in the reply: yes, if "sugar" means a compositional rewrite
+  whose target is a pair of oymomo terms (layer 0 and layer 1); the layer-0 term refers
+  to layer-1 results symbolically, so no types are needed to rewrite; a tower oymomo ←
+  Alcor kernel ← Alcor sugar; a mapping table per oymomo construct; method: every kernel
+  construct is defined by its rewrite into oymomo.
+- User: "no, i think alcor start from brand new grammar. since it is two layer. lets
+  don't touch oymomo for now." So: Alcor's grammar is designed on its own, as a two-layer
+  language, not as sugar of oymomo; the kernel doc was not restructured; leave oymomo
+  (calculus, code, docs) alone and don't argue from oymomo's constructs until the user
+  brings it back.
+
+### Alcor module system: survey section 13 (Oct 30)
+
+- User: "lets design how alcor modular system works. first lets see how those languages
+  implemented their modular systems. if survey does not have, add it". Section 9 only
+  had syntax (import form, visibility, `extern`, header import), so a new section
+  `alcor_survey.md` › 13 Module systems was added (survey intro, section 9's last bullet,
+  Sources and roadmap `alcor-survey` topics updated). No decision written; kernel
+  decision 9 stays Proposed.
+- Method: one research agent per language (17 plus C), 12 questions each (unit,
+  resolution, import forms, visibility, order and cycles, init, separate compilation,
+  generics across modules, symbols, packages, platform code, lessons). Raw notes are in
+  conversation scratch, not kept. Same caveat as the rest of the survey: search
+  summaries, weak facts marked "(unverified)" (Goose, C3, Jai most).
+- Section 13 has four tables (structure, rules, compilation, packages and platforms).
+  Findings that matter for Alcor's design:
+  - Cycles are forbidden exactly where a dependency's interface is compiled first or
+    init is ordered (Odin, Hare, Carbon, Swift, C++, Go, Rust crates, Java modules);
+    allowed where the unit is analysed whole (Zig, C3, Jai, Rust inside a crate).
+  - Every one-copy-per-type language ships bodies in its interface (Rust MIR, Go IR,
+    C++ BMI AST, Scala TASTy, Swift `@inlinable`); Alcor's layer 1 running imported
+    layer-1 code has the same need.
+  - Module as a build-time value: Zig (struct type) and Terra (Lua table), matching
+    kernel decision 9's `let io = import("io.oymo");`.
+  - No init code: Zig, Jai, Rust (globals are build-time constants), fits "the kernel
+    hides nothing".
+  - Symbol names with the module path and dots: Zig, Hare, Odin, Go, Carbon.
+  - Platform code by a build-time `switch` picking an `@import` (Zig) fits kernel
+    decision 7.
+- Next: design the Alcor module system with the user, from section 13.
+- User asked which languages are missing. Agent's list (from knowledge): Racket (phase
+  levels), OCaml/SML (functors, `.mli`), Modula-2/Oberon (definition modules, symbol
+  files), Ada (spec/body, explicit generic instantiation), Nim, Lua, Austral, Mojo. User
+  chose: Racket, OCaml, Modula-2, Oberon (two rows), Ada, Python, JavaScript,
+  TypeScript, Nelua, plus the TIOBE top 10 of Oct 2026 (Python, C, C++, Java, C#,
+  JavaScript, Visual Basic, R, SQL, Rust): C#, Visual Basic, R added, SQL skipped (a
+  query language). In all topics 0–13, "Agree" counts redone: now twenty-nine plus C.
+- Method: one research agent per language returning one row per table (checked for
+  column counts), then one agent per section inserting the rows before `| C |` and
+  recounting the bullets; a script checked every old row survived. New rows order:
+  Nelua, Ada, Modula-2, Oberon, OCaml, Racket, Python, JavaScript, TypeScript, C#,
+  Visual Basic, R, then C. Intro, note, Sources and roadmap `alcor-survey` updated.
+- Not updated: `alcor_kernel_syntax.md` still cites counts "of seventeen" (decision 0's
+  table and the "from N of seventeen" reasons); left for the user to decide.
+
+### Two-layer oymomo, Alcor as its sugar (Oct 30; idea, not decided)
+
+- User brought oymomo back (it had said "don't touch oymomo for now" earlier the same
+  day): "what if make it two layers. and it generates two .ll file. basically oymomo holds
+  two ingots file in two layers", and "alcor is a syntax sugar for the oymomo".
+- Fits the earlier agent answer (Alcor as sugar needs a *pair* of oymomo terms as its
+  target): with layers inside oymomo the target is one oymomo file, so the rewrite can be
+  local. Also answers `alcor-layer1`'s Decide (how layer 1 calls layer 0): both layers are
+  in one file, so the layer-1 ingot takes the layer-0 definitions it uses.
+- Agent laid out two ways: A, a container only (the file's term is `{0 = P₀, 1 = P₁}`,
+  each an ordinary program reducing to an ingot; calculus unchanged; but Alcor must split
+  each `fn` into two places, a whole-program split rather than local sugar); B, layered
+  terms (θ-calculus `t : t`, separated into two programs), so Alcor's `name: Type` maps
+  one to one. Agent suggested B's syntax defined as oymomo sugar over A (the separation is
+  a rewrite; the kernel calculus, Lean proofs and the doc's "no layering" rule stay for the
+  kernel).
+- Open questions put to the user: does layer 0 read layer-1 results (sizes, the opcode for
+  `a + b`, `^e`)? If so, layer 1 finishes before layer 0 becomes an ingot, and a
+  layer-1 `.ll` run as a subprocess must hand back oymomo data. If a closed layer 1 reduces
+  to constants by reduction, what is the layer-1 `.ll` for? Exactly two layers, or N
+  (`more-layers`)? Confirm that "Alcor is sugar" replaces this morning's "brand new
+  grammar".
+- User answers: layer 0 does not read layer-1 results "in the same file. but other files
+  can import layer 1 into their layer 0, or vice verse". More than two layers: "do you
+  think there will be any use cases. I don't think so." Agent agreed: no real use case
+  (layer-1 code is gradually typed `Value` code, so it needs no checker of its own; Racket
+  phases above 1 and Template Haskell nesting are rare, and cross-file imports between
+  layers cover the rest). Consequences told to the user: within a file the layers are
+  independent, so layer 0 takes its LLVM types as plain data (`'i32'`) from the Alcor
+  rewrite, not from layer 1; the import graph's nodes are (file, layer) pairs, and only
+  that graph needs to be acyclic. Asked: remove `more-layers` from the roadmap?
+- User: "remove it". Leaf `more-layers` (under `someday`; "Go back to multiple layers
+  instead of two (term, type), if real use cases appear") removed from the tree and the
+  details. Exactly two layers is settled.
+
+### `ll-coverage` leaf added (Oct 30)
+
+- User: "lets add roadmap leaf to the foundation to the oymomo missing features for
+  generating full capable of .ll file". Added `ll-coverage` under `foundations`, after
+  `line-tables`; blocked by its Decide items.
+- Why one leaf: it holds only the LLVM IR that no other leaf owns, and names the leaves
+  that own the rest (`void`, floats, `undefined`, `atomics`, …), so nothing is planned
+  twice. Its first item is a coverage table in oymomo-calculus.tex Section 9 (LangRef
+  construct → spelling, owning leaf, or "not planned").
+- Built from the module-shape design check (later fields fit as entry fields or kinds:
+  `linkage`, `unnamed_addr`, `section`, `cc`, attributes as tagged types, aliases
+  `{type, alias}`, `comdat`) and the earlier missing-`.ll` list (linkage, `constant`,
+  `unnamed_addr`, calling conventions, attributes, varargs, section, alignment,
+  `thread_local`, aliases, comdat, metadata).
+- Linkage words reopened as a Decide item: Cranelift's words were decided, then linkage
+  was dropped until needed.
+- Today oymomo has `i1`–`i64` only, integer opcodes, `icmp`, `zext`/`sext`/`trunc`,
+  `alloca`/`getelementptr`/`load`/`store`, `extractvalue`/`insertvalue`, calls, `br`,
+  `switch`, `phi`s; every symbol is LLVM's default `external`.
+- If the leaf grows too big, split it into a node with children (e.g. by group:
+  symbols, functions, instructions, intrinsics, exceptions, metadata).
+- **Then (same day), user: "put all rest of llvm related works under ll-coverage".**
+  `ll-coverage` is now a node under `foundations` (after `deps`), with children
+  `ll-table`, `ll-types`, `ll-memory`, `ll-symbols`, `ll-code`, `ll-metadata`, `ll-check`.
+  - Moved whole under it: `void`, `named-types`, `floats` (its five oymomo leaves),
+    `ptr-compare`, `ptr-casts`, `bulk-memory`, `align`, `noalias`, `target`,
+    `fn-address`, `undefined`, `bswap`, `line-tables`, `alias-scopes`.
+  - Split (oymomo part moved as a new `ll-*` leaf; Mizar/C part kept under the old id and
+    place): `varargs` → `ll-varargs` (with its Decide), `volatile-asm` →
+    `ll-volatile-asm` (with its Decide), `atomics` → `ll-atomics`, `tls` → `ll-tls`,
+    `debug-info` → `ll-debug-info` (metadata helpers and the `#dbg_declare` Decide).
+  - The old leaf's lists became leaves: `wide-ints`, `ll-vectors`, `ll-other-types`,
+    `ll-symbol-fields`, `ll-function-attrs` (`zeroext`/`signext`, `byval`/`sret`
+    spellings too), `ll-module-level`, `ll-instructions`, `ll-intrinsics`,
+    `ll-exceptions`, `ll-instr-metadata`; the table is `ll-table` (a deciding leaf, not
+    blocked), the clang `-O2` goal is `ll-check`.
+  - Left outside (not LLVM IR work): `mizar-floats` (now a direct child of `c-abi`),
+    `by-value-structs` (ABI lowering), `e2e-libc`, `lto`, `typed-consts`, `stage0`,
+    `meta-c-import`, `vm-*`. Nodes left with one child (`alcor-memory`, `optimization`)
+    keep their text.
+  - Done with a script that re-emits details in tree order and checks every leaf has
+    exactly one section (111 leaves).
 
 ### Debug info rides on `Term.location` (Answers 3–6; design in progress)
 
