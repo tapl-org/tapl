@@ -9,10 +9,19 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   LLVM C API after) and runs `clang`; no JIT before 1.0.
 - Before 1.0, oymomo, Alcor and Mizar syntax, public API and CLI may break.
 - 🚫 marks a blocked leaf. Each node has a fixed id.
+- Paused: everything outside `oymomo-redesign`, until it is done
+  ([oymomo_design.md](oymomo_design.md)).
 
 ## Tree
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
+  - `oymomo-redesign` Redesign oymomo and the `.oymo` file
+    - `redesign-layers` One or two layers: what a layer is
+    - `redesign-file` The `.oymo` file as (term, meta); meta as a database
+    - `redesign-meta-rules` Meta through reduction: the result's meta, rule by rule
+    - `redesign-ingot` Flat, platform-neutral ingot
+    - `redesign-modules` Module system: reduce-time and link-time dependencies
+    - `redesign-links` Ingots of both layers linked across files
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
       - `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
@@ -160,6 +169,54 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `block-comments` `/* */` block comments; stuck-term errors shown in them
 
 ## Leaf details
+
+### `redesign-layers` One or two layers: what a layer is
+
+- A file has one layer or two; inside a file the layers don't read each other
+- Decide: a container (`{low, high}`, two ordinary programs) or layered terms (`t : T`)
+- Decide: the high layer runs on the host at build time, the low layer on the target?
+- oymomo_design.md, then oymomo-calculus.tex
+
+### `redesign-file` The `.oymo` file as (term, meta); meta as a database
+
+- A file is (term, meta); the term is plain λ-calculus
+- Meta mirrors the term's nodes; built by the parser, written by a frontend, read only by
+  the translation
+- Today's `info` section and `spans` become part of meta
+- Decide: row kinds (span, value range, aliasing, loop hints, module flags, …)
+- Decide: how rows attach to nodes (spans use pre-order positions)
+- Decide: module-level rows on the root node, or a section of their own
+- Decide: how the meta of several files merge
+
+### `redesign-meta-rules` Meta through reduction: the result's meta, rule by rule
+
+- Meta never changes what a term means; it need not be confluent (`⟶w` fixes it)
+- Decide: the result's meta for E-Beta, E-Opcode, E-Proj, E-Index, E-Default,
+  E-FixProj, E-FixApp
+- Decide: inlined code keeps the helper's lines, or records where it was inlined
+
+### `redesign-ingot` Flat, platform-neutral ingot
+
+- An ingot is one compilation unit and one `.ll`
+- Flat: only symbol entries; no `version`, no `target`
+- Each symbol has a linkage (internal, exported, imported), not all `external`
+- Literal types only
+- Decide: how platform-dependent sizes (`usize`, C layouts) stay out until translation
+- Then: oymomo-calculus.tex Sections 8–9, `ingot.py`, tests and goldens
+
+### `redesign-modules` Module system: reduce-time and link-time dependencies
+
+- Reduce-time: another file's term substituted and reduced (today's glue)
+- Link-time: declarations joined by the linker by name
+- Decide: what oymomo needs beyond the glue and the linker
+- Decide: how a file names its dependencies, and in which layer
+- Decide: the words for linkage, and where they are written (entry field or meta)
+
+### `redesign-links` Ingots of both layers linked across files
+
+- Each ingot becomes its own `.ll`; the `.ll` files link with each other
+- The import graph has a node per (file, layer); only that graph must be acyclic
+- Decide: how the driver builds a low ingot for the host when a high layer needs it
 
 ### `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
 
