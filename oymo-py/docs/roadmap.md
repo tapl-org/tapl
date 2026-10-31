@@ -228,8 +228,10 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - An ingot is one compilation unit and one `.ll`
 - Flat: only symbol entries; no `version`, no `target`
 - Each symbol has a linkage (internal, exported, imported), not all `external`
+- Entry: `type`, one of `body`/`init`/`value`, `export = 'name'` or `import = 'name'`;
+  neither is internal (the default); linkage is in the term, not meta
 - Literal types only
-- Decide: how platform-dependent sizes (`usize`, C layouts) stay out until translation
+- Later, when needed: platform-dependent sizes (`usize`, C layouts) until translation
 - Then: oymomo-calculus.tex Sections 8–9, `ingot.py`, tests and goldens
 
 ### `redesign-modules` Module system: reduce-time and link-time dependencies
@@ -246,7 +248,15 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Output names: one layer `a.oymo` → `a.ll`; with two layers, layer 0 keeps `a.ll`,
   layer 1 writes `a.guard.ll`
 - The import graph has a node per (file, layer); only that graph must be acyclic
-- Decide: how the driver builds a low ingot for the host when a high layer needs it
+- An oymo file imports only oymo files (a layer of one), never a `.ll`
+- No rule on which `.ll` files link together (up to the user); a bridge file may lift
+  or lower code between layers
+- Relabeling is optional, no rule: as they are, or either side relabeled
+- That file is an ordinary oymo file importing another file's layer into a different
+  layer of its own (a "bridge file", lifting or lowering code); no special kind
+- The driver computes host and target builds from the (file, layer) import graph: what
+  a guard reaches is built for the host, what a worker reaches for the target; one
+  `.ll`, one `clang --target` run per platform, separate output directories
 
 ### `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
 

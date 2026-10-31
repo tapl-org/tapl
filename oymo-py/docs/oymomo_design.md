@@ -76,6 +76,14 @@ high ingot ─► high.ll ─► clang -c ─► high.o ┤  (high is optional)
 - Ingots are platform-neutral.
 - Each symbol has a linkage: internal, exported or imported. Not every symbol is
   external, so private helpers of two files don't clash.
+- Shape: `{name = entry, …}`; an entry has a `type`, at most one of `body`, `init`,
+  `value`, and linkage fields:
+  - `export = 'name'`: visible to the linker under that name;
+  - `import = 'name'`: defined elsewhere (every declaration);
+  - neither: internal (the default).
+  The linker name is separate from the label.
+- Linkage is in the term, not in meta: it changes what a program means (whether two
+  files link or clash), and meta never does.
 - Types are literal only. Named and opaque struct types are not needed: types don't
   reach the `.o`, and with opaque `ptr` nothing needs a recursive or opaque type.
 
@@ -240,11 +248,27 @@ Open:
 
 ### 4. Platform-neutral ingots
 
-- Decide: how a size that depends on the platform (`usize`, a C struct's layout) stays
-  out of the ingot until translation.
+- Decide later, when needed: how a size that depends on the platform (`usize`, a C
+  struct's layout) stays out of the ingot until translation. Idea: symbolic types
+  (`'usize'`, `'c_long'`) and opcodes reduction never folds (`'sizeof'`, `'alignof'`,
+  `'offsetof'`), resolved by the translation from the data layout.
 
 ### 5. Linking across layers
 
+- Decided: an oymo file imports only other oymo files (a layer of one), never a `.ll`.
+  `.ll` files are only outputs; the driver and the platform link them.
+- Decided: no rule on which `.ll` files are linked together; it is up to the user. A
+  user may link both layers' `.ll` files into one program, or cross between layers with a
+  bridge file (below), which lifts code (low to high) or lowers it (high to low),
+  possibly relabeling symbols.
+- Decided: relabeling is optional, with no rule: such a file may use the symbols as they
+  are, or relabel either side (the code it carries across, or the other layer's).
+  Avoiding a clash is the user's job.
+- Decided: such a file is an ordinary oymo file that imports another file's layer into
+  a different layer of its own. What it does with the symbols (keep, rename, pick some)
+  is its own code, using the struct tools. No new calculus feature and no special file
+  kind. In docs it is called a bridge file, which lifts (low to high) or lowers (high to
+  low) code.
 - If a high layer depends on a low layer, that low ingot is also compiled for the host.
 - Decided: output names. One layer: `a.oymo` → `a.ll`. Two layers: layer 0 keeps
   `a.ll`, so adding the first `:` never renames an existing output; layer 1 writes
@@ -254,4 +278,14 @@ Open:
 - Decided: the calculus keeps `low` and `high` (where a part goes); guard and guarded
   (what it does) are a convention above the calculus. High is the guard, low the
   guarded layer.
-- Decide: how the driver builds an ingot for both host and target.
+- Decided: the driver computes which builds a (file, layer) needs from the import graph.
+  Everything a guard reaches is built for the host (where the guard runs at build time);
+  everything a worker reaches is built for the target; a layer reached by both is built
+  for both. The ingot is platform-neutral, so there is one `.ll` and one
+  `clang --target` run per platform, into separate output directories (e.g.
+  `build/host/c.o`, `build/target/c.o`). This is the driver's job, not oymomo's, so
+  "nothing automatic in oymomo" still holds. Example: `a.oymo` is
+  `'add' {…} : c.check_add {…}`; built on x86_64 for arm64, `a.ll` goes to arm64,
+  `a.guard.ll` and `c.ll` to x86_64.
+- Caveat: once platform-dependent sizes exist (deferred), the host and target `.ll` of
+  one layer may differ.

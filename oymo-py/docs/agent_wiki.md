@@ -2293,9 +2293,56 @@ executable binary). we should mark some place as a platform". The steps that fol
   rules, the origin/value split (each `meta.proto` field states its kind, origin by
   default), no `inlined_at` for now, rules live in the design doc and `meta.proto`, not in
   the calculus.
-- Agent proposals not yet answered: high layer runs on the host, low on the target;
-  E-Beta records `inlined_at` on the result (conflicts with Answer 12 of the spans design,
-  "no `inlined_at` for now"; kept as a Decide item).
+
+### `redesign-ingot` (Oct 31)
+
+- Agent proposed: flat shape `{name = entry}`; linkage as entry fields, brought back from
+  the module-shape session (`export = 'name'`, `import = 'name'`, neither = internal;
+  internal by default; the linker name apart from the label), in the term because it
+  changes meaning; platform sizes symbolic (`'usize'`, `'c_long'`, `'sizeof'` …) until
+  translation; noted `c_import` may still need per-target ingots. Also suggested
+  `export = ('inc' : 'inc_guard')` for distinct names per layer.
+- User: "agree. for the bullet 3. lets revise later when will be needed" (shape and
+  linkage decided; platform sizes deferred).
+- User on the per-layer export name: "maybe there should be special file which lifts
+  lower layer to higher one, or down the higher one to lower. This process may relabel
+  the symbols. such that we never merge two layer .ll files with each other. whenever we
+  need to connect some of them, those should be go through this jumping between layer
+  process." Recorded as a proposal in `redesign-links`.
+- Agent: the crossing must be reduce-time (a link-time wrapper still links the original
+  `.ll` and clashes); sketched `a.oymo` → `lower_a.oymo` (relabels `inc` → `inc_guard`)
+  → `run.oymo`, but wrote that `run` imports `a.ll` and `lower_a.ll`. User: "oymo should
+  not be aware of any .ll file. oymo can import another oymo only" (decided: imports are
+  between oymo files and their layers; `.ll` files are outputs, linked by the driver and
+  the platform).
+- On "relabels": user: "or just use it as it is. there is no rule. maybe user wants to
+  relabel lower layer" (decided: relabeling optional, either side or none; clashes are
+  the user's job, as "nothing automatic in oymomo").
+- Agent: with no rules of its own, the crossing file is an ordinary oymo file importing
+  another file's layer into a different layer of its own; selection and renaming are
+  its own code (struct tools); "bridge file" (lift/lower) is only a doc word. User: "ok"
+  (decided).
+- Agent's summary said "layers' `.ll` files never link with each other directly". User:
+  "there is no rule, and it is up to the user" (revised: no rule on which `.ll` files
+  are linked together; bridge files are one way, not required).
+- Host builds: agent explained with `c.oymo` (library with `check_add`) and `a.oymo` =
+  `'add' {…} : c.check_add {…}`, built on x86_64 for arm64: the guard runs at build time
+  on x86_64, so `c` is built for x86_64 too; one platform-neutral `c.ll`, two clang runs.
+  Options: driver computes it from the import graph, or the user lists host builds.
+  User: "driver computes it" (decided: what a guard reaches is built for the host, what
+  a worker reaches for the target, both if both; a driver job, so "nothing automatic in
+  oymomo" holds).
+- Linkage re-checked: user "lets go through one more time", then "give examples". Agent
+  showed: internal default (two files' private `gcd` link fine; external default gives
+  `duplicate symbol: gcd`); linker name apart from label (`say = {import = 'puts'}`, a
+  bridge file renames labels without changing what the linker finds, `add` exported as
+  `mylib_add`); linkage in the term (in meta, a bootstrap compiler skipping meta would
+  emit `internal @gcd` and the real one an export: one file, two meanings). User: "yes"
+  (all three kept).
+- Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
+  with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
+  ("High layer runs on the host, low on the target" is superseded: where a layer is
+  built follows from what reaches it, decided above.)
 
 ### Debug info rides on `Term.location` (Answers 3–6; design in progress)
 
