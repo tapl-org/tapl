@@ -4,10 +4,44 @@ Oymomo is the main target. Alcor, Mizar and the rest wait until this design is d
 This document holds what is decided and what is still open. When a part is settled, it
 moves into `doc/oymomo-calculus.tex`.
 
+## Philosophy: the tower
+
+An analogy: a CEO (L3), a VP (L2), a manager (L1) and a worker (L0). Each one may only do
+what the one above allows.
+
+```text
+a.oymo   L3        one layer; guards itself at run time (Value-style)
+b.oymo   L2 : L3   b's L3 part uses a, and guards b's L2 part
+c.oymo   L1 : L2   c's L2 part uses b's L2 part, and guards c's L1 part
+d.oymo   L0 : L1   d's L1 part uses c's L1 part, and guards d's L0 part
+```
+
+- A file has at most two layers; a tower of any height is a chain of files.
+- Low and high are roles inside one file. One file's low layer can be the material
+  another file's high layer is written with.
+- The top of a tower is a one-layer file that guards itself.
+- The guard runs first. It returns data: if the data is not an error, the lower layer is
+  safe to run; if it is an error, the lower layer doesn't run. This is how the manager
+  stops the worker.
+- Usually the guard runs at build time, on the host, and its result decides whether the
+  lower layer may run at its own run time.
+- If the guard depends on a run-time value, it runs inside the program, just before the
+  worker starts. This is usually done by a third file that imports the guard and the
+  lower code into its own low layer and calls them one after the other.
+- By convention an error is a tagged struct, such as `{'error', message, span}`.
+- The guard knows what the worker will do by its shape: separation gives both layers the
+  same structure and binders, so the guard runs the worker's program on the high
+  layer's values (`'add' {…} : m.check_add {…}`).
+- A guard is trusted because it only calls the API it imports from above, which that
+  layer's own guard already cleared. The chain ends at the top, which guards itself.
+  This is a best practice, not enforced by oymomo or the driver.
+- So the (file, layer) graph must be acyclic, and the low ingot a guard imports is built
+  for the host, where the guard runs.
+
 ## Bird view
 
 ```text
-a.oymo = (term, meta)
+a.oymo = (layered-term, meta)
    │  reduce
    ▼
 low ingot ─► low.ll ─► clang -c ─► low.o ─┐
@@ -47,8 +81,9 @@ high ingot ─► high.ll ─► clang -c ─► high.o ┤  (high is optional)
 
 ### The `.oymo` file
 
-- A file is a pair (term, meta).
-- The term is plain λ-calculus: the calculus has no annotations.
+- A file is a pair (layered-term, meta). A layered-term has at most two layers; with
+  no layering it is a plain term.
+- The calculus has no annotations: meta stays outside it.
 - Meta is a database outside the calculus. It mirrors the term's nodes, so any node can
   be annotated.
 - The parser builds meta; a frontend writes it. Only the translation reads it.
@@ -64,7 +99,7 @@ high ingot ─► high.ll ─► clang -c ─► high.o ┤  (high is optional)
 
 ### 1. What is a layer?
 
-- Decided: layered terms. A node may be written `t : T`; `t` is low, `T` is high.
+- Decided: layered-terms. A node may be written `t : T`; `t` is low, `T` is high.
 - Decided: separate first. A syntactic step splits the file's term into a low term and a
   high term before any reduction; each reduces on its own. Reduction rules don't change.
 - Decided: separation as in θ-calculus (`doc/theta-calculus.tex`, Section 5):
@@ -83,6 +118,8 @@ high ingot ─► high.ll ─► clang -c ─► high.o ┤  (high is optional)
 - Decided: a cloned node keeps its meta row in both layers.
 - Decided: for now, the low and high ingots may define the same symbols (cloning gives
   the high ingot low's symbols). Linking both into one program would clash; left for later.
+  Known limit: the run-time guard pattern (a file that imports a guard and its lower
+  code and calls them in turn) links both ingots into one program, so it hits this clash.
 - Decided: the two layers are equal in oymomo; the driver picks where each runs (build
   time on the host, the target binary, or both).
 - Decide: precedence of `:` (θ's: tightest); see the operators leaf below.
@@ -142,4 +179,12 @@ Open:
 ### 5. Linking across layers
 
 - If a high layer depends on a low layer, that low ingot is also compiled for the host.
+- Decided: output names. One layer: `a.oymo` → `a.ll`. Two layers: layer 0 keeps
+  `a.ll`, so adding the first `:` never renames an existing output; layer 1 writes
+  `a.guard.ll`. The names live only in file names, never inside the `.ll`.
+- Decided: in prose, layer 1 is the guard and layer 0 the guarded layer; a guarded layer
+  is safe to run when its guard returns non-error.
+- Decided: the calculus keeps `low` and `high` (where a part goes); guard and guarded
+  (what it does) are a convention above the calculus. High is the guard, low the
+  guarded layer.
 - Decide: how the driver builds an ingot for both host and target.

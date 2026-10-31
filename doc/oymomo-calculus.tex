@@ -81,14 +81,13 @@
 \newcommand{\rulerow}[3]{\ruleline{#1}{$\inferrule{#2}{#3}$}\vspace{12pt}}
 \newcommand{\oldrow}[2]{\par\noindent\begin{tabular*}{\linewidth}{@{}l@{\extracolsep{\fill}}c@{\extracolsep{\fill}}r@{}}\makebox[\rulenamewidth][l]{} & \sout{#2} & \makebox[\rulenamewidth][r]{\sout{\rn{#1}}}\end{tabular*}\par\vspace{8pt}}  % a removed rule, not numbered
 
-\title{\old{Oymomo Semantics}\new{The Oymomo Calculus}\\[8pt]\normalsize\textsc{Draft --- under review}}
+\title{The Oymomo Calculus\\[8pt]\normalsize\textsc{Draft --- under review}}
 \author{Orti Bazar\\ \texttt{orti.bazar@gmail.com}}
 \date{October 2026}
 
 \begin{document}
 
 \maketitle
-\begin{center}\small Legend: {\color{blue}blue} is new or changed text, {\color{red}\sout{red}} is removed text.\end{center}
 
 
 
@@ -102,7 +101,10 @@
 \item Oymomo is an extension of the untyped $\lambda$-calculus: to variables, abstraction and
   application it adds structs, projection and byte arrays, which name
   opcodes, and a fixed point for recursion; its $\beta$ rule is call-by-value: a function is applied only to a value, so a term that still has to run is never copied or dropped.
+\item A term may have two layers, low and high. They are separated before any
+  reduction, and each layer then reduces on its own (Section~\ref{sec:layers}).
 \item Section~\ref{sec:goal} states the goal, Section~\ref{sec:syntax} gives the syntax, Section~\ref{sec:sugar} the sugar,
+  Section~\ref{sec:layers} the layers,
   Sections~\ref{sec:computation} and~\ref{sec:congruence} the reduction, Section~\ref{sec:strategy} how to reach a normal form, Section~\ref{sec:banf} ANF (A-normal form) and functions, Section~\ref{sec:modules} ingots, and Section~\ref{sec:llvm} the translation to LLVM.
 \item Oymomo and ingots don't depend on LLVM: an ingot can be translated to any SSA form, and
   Section~\ref{sec:llvm} translates it to LLVM's. The examples use the opcodes and
@@ -160,6 +162,19 @@
     $k = 0$ it is the empty struct $\{\}$.
   \item A label may be empty (no label); the other labels are unique.
   \end{subpoints}
+\item\label{p:layered}A layered-term $u$ is written as a term is, except that some of its parts may be layerings $t_1 : t_2$, with
+  $t_1$ in the low layer and $t_2$ in the high layer.
+\[
+\begin{array}{l@{\quad}rcll}
+ & u & ::= & & \textit{layered-term} \\
+\pt &   & \mid & x \mid b & \textit{variable, byte array} \\
+\pt &   & \mid & \lam{x}{u} \mid u\ u \mid \{l_i = u_i\}_{i<k} \mid u.l \mid \kw{fix}\ u & \textit{as for } t \\
+\pt &   & \mid & t : t & \textit{layering}
+\end{array}
+\]
+\item Every term $t$ is a layered-term with no layering. Both sides of a layering are terms $t$, so a
+  layering holds no layering: a layered-term has at most two layers.
+\item Until the precedence of $:$ is chosen, a layering is written in parentheses: $(t_1 : t_2)$.
 \end{points}
 
 %% ── Sugar ────────────────────────────────────────────────────────────
@@ -175,6 +190,61 @@
 \pt\plabel{p:if} & \kw{if}\ t_1\ \kw{then}\ t_2\ \kw{else}\ t_3 & \{t_3, t_2\}\ t_1
 \end{array}
 \]
+\end{points}
+
+%% ── Layers ───────────────────────────────────────────────────────────
+
+\section{Layers}\label{sec:layers}
+
+\begin{points}
+\item\label{p:separate}Separation splits a layered-term $u$ into its low layer $\fn{low}(u)$ and its high layer
+  $\fn{high}(u)$, part by part:
+\[
+\begin{array}{l@{\qquad}l@{\qquad}l@{\qquad}l}
+ & u & \fn{low}(u) & \fn{high}(u) \\ \hline
+\pt & t_1 : t_2 & t_1 & t_2 \\
+\pt & x & x & x \\
+\pt & b & b & b \\
+\pt & \lam{x}{u} & \lam{x}{\fn{low}(u)} & \lam{x}{\fn{high}(u)} \\
+\pt & u_1\ u_2 & \fn{low}(u_1)\ \fn{low}(u_2) & \fn{high}(u_1)\ \fn{high}(u_2) \\
+\pt & \{l_i = u_i\}_{i<k} & \{l_i = \fn{low}(u_i)\}_{i<k} & \{l_i = \fn{high}(u_i)\}_{i<k} \\
+\pt & u.l & \fn{low}(u).l & \fn{high}(u).l \\
+\pt & \kw{fix}\ u & \kw{fix}\ \fn{low}(u) & \kw{fix}\ \fn{high}(u)
+\end{array}
+\]
+\item What separation keeps and changes:
+  \begin{subpoints}
+  \item A part with no layering is copied into both layers: $\fn{low}(t) = \fn{high}(t) = t$. Only a
+    layering makes the layers differ.
+  \item Both layers keep every binder, so in the high layer a variable stands for the high layer of
+    the value passed for it: $(\lam{s}{s})\ (t_1 : t_2)$ has the low layer $(\lam{s}{s})\ t_1$ and the high
+    layer $(\lam{s}{s})\ t_2$.
+  \item Separation reads only the written layered-term, once, before any reduction. Reduction
+    (Sections~\ref{sec:computation} to~\ref{sec:strategy}) never meets a layering.
+  \end{subpoints}
+\item\label{p:one-or-two}A program is a layered-term $u$:
+  \begin{subpoints}
+  \item If $u$ has no layering, the program has one layer, $u$ itself.
+  \item Otherwise it has two, $\fn{low}(u)$ and $\fn{high}(u)$. Each is a term, and each reduces on its
+    own; no rule reads one layer from the other.
+  \item The two layers are equal: oymomo gives neither a meaning of its own. Each layer reduces to
+    its own ingot (Section~\ref{sec:modules}).
+  \end{subpoints}
+\item\label{p:layer-example}For example, an entry whose body adds one in the low layer and calls a check
+  in the high layer:
+  \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
+inc = {type = {'function', {a = 'i32'}, 'i32'},
+       body = @vlamm. @vlamp. m [] (@vlamr. {
+         let y = ('add' {'i32', p.a, [01000000]} : m.check {a = p.a}) in y
+       })}
+\end{Verbatim}
+  \begin{subpoints}
+  \item Its low layer has $\kw{let}\ y = \str{add}\ \{\str{i32}, p.a, \hex{01000000}\}\ \kw{in}\ y$; its high
+    layer has $\kw{let}\ y = m.\mathit{check}\ \{a = p.a\}\ \kw{in}\ y$, where $p.a$ is the high layer of the
+    argument.
+  \item The $\mathit{type}$ field has no layering, so both layers get it: each layer's ingot has a
+    symbol $\mathit{inc}$ of that type. Only the high ingot uses $\mathit{check}$.
+  \end{subpoints}
 \end{points}
 %% ── Computation ────────────────────────────────────────────────────────
 
@@ -530,7 +600,7 @@
 
 \begin{points}
 \item\label{p:module} An ingot is a module in a fixed shape that can be translated to SSA: one ingot is one
-  compilation unit. A program reduces to an ingot; only an ingot is translated.
+  compilation unit. Each layer of a program (\pref{p:one-or-two}) reduces to an ingot; only an ingot is translated.
   \[\{\mathit{version} = b,\ \mathit{symbols} = \{l_i = e_i\}_{i<k},\ \mathit{target} = t\}\]
 \item\label{p:gcd} For example, an ingot with $\gcd$ (its body is \pref{p:gcd-body}) and $\mathit{main}$:
   \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]

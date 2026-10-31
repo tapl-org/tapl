@@ -18,7 +18,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `oymomo-redesign` Redesign oymomo and the `.oymo` file
     - `redesign-layers` One or two layers: what a layer is
     - `redesign-operators` Operator precedence and associativity, as in Scala
-    - `redesign-file` The `.oymo` file as (term, meta); meta as a database
+    - `redesign-file` The `.oymo` file as (layered-term, meta); meta as a database
     - `redesign-meta-rules` Meta through reduction: the result's meta, rule by rule
     - `redesign-ingot` Flat, platform-neutral ingot
     - `redesign-modules` Module system: reduce-time and link-time dependencies
@@ -174,11 +174,12 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `redesign-layers` One or two layers: what a layer is
 
 - A file has one layer or two; inside a file the layers don't read each other
-- Layered terms `t : T`, separated into a low and a high term before reduction
+- Layered-terms `t : T`, separated into a low and a high term before reduction
 - Separation as in θ-calculus (single-layer terms untouched, cloned only next to a
   multi-layer term; `λ`, application pushed through `:`), plus structs, projection, `fix`
 - Both sides of `t : T` single-layer; no unlayering; a cloned node keeps its meta row
-- Low and high ingots may define the same symbols, for now
+- Low and high ingots may define the same symbols, for now (known limit: the run-time
+  guard pattern links both into one program and clashes)
 - Layers equal in oymomo; the driver picks where each runs
 - Decide: precedence of `:` (see `redesign-operators`)
 - oymomo_design.md, then oymomo-calculus.tex (syntax, separation), Lean if needed
@@ -191,9 +192,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   later sugar)
 - Decide: where `:` falls (θ-calculus: tightest)
 
-### `redesign-file` The `.oymo` file as (term, meta); meta as a database
+### `redesign-file` The `.oymo` file as (layered-term, meta); meta as a database
 
-- A file is (term, meta); the term is plain λ-calculus
+- A file is (layered-term, meta); a layered-term has at most two layers
 - Meta mirrors the term's nodes; built by the parser, written by a frontend, read only by
   the translation
 - Today's `info` section and `spans` become part of meta
@@ -229,6 +230,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `redesign-links` Ingots of both layers linked across files
 
 - Each ingot becomes its own `.ll`; the `.ll` files link with each other
+- Output names: one layer `a.oymo` → `a.ll`; with two layers, layer 0 keeps `a.ll`,
+  layer 1 writes `a.guard.ll`
 - The import graph has a node per (file, layer); only that graph must be acyclic
 - Decide: how the driver builds a low ingot for the host when a high layer needs it
 

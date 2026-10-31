@@ -71,6 +71,9 @@ The user's orders, kept as given. Follow them in every task.
   line over each group, `array` grammars; no boxes. Named `doc/oymomo-calculus.tex` (user, Oct 27; was `semantics.tex`, user's earlier choice).
   - It is an abstract document: no θ-calculus or layering, no references to code
     (files, functions, classes, `convert`, BANF names), no de Bruijn indices.
+    **Changed (user, Oct 31, `oymomo-redesign`):** layering is now in the doc (Section 4,
+    Layers: layered terms `t : t`, separation `low`/`high`); θ-calculus is still not
+    named.
   - Write "Oymomo" in it (user, latest: "this doc only belongs to oymomo language";
     earlier it was "Oymo"). The title is "The Oymomo Calculus" (user, Oct 27; was "Oymomo Semantics"). No intro line
     under the title.
@@ -2140,6 +2143,94 @@ executable binary). we should mark some place as a platform". The steps that fol
   `redesign-operators`; design doc 1b); and cloned symbols in both ingots → "lets keep low
   and high ingot have same symbol for now" (the link clash is left for later). The rest
   was recorded as decided.
+- Calculus started (user: "can we start oymomo_calculus.tex"), all in `\new{}`:
+  - 1: a Goal bullet on layers; the section list names Section 4.
+  - 2: layered terms `u ::= x | b | λx. u | u u | {lᵢ = uᵢ} | u.l | fix u | t : t`; both
+    sides of `:` are plain terms (at most two layers); `(t₁ : t₂)` written in parentheses
+    until `redesign-operators` picks a precedence.
+  - New Section 4, Layers (after Sugar; later sections shift by one, Ingots is now 9):
+    separation as `low(u)`/`high(u)` defined part by part (a table).
+    This is θ's S-Clone/S-Zip/S-Split result written as two projections; a part with no
+    layering is copied into both layers, which equals θ's cloning, and a term with no
+    layering is one layer (4.3a), as θ's single-layer `g`. Example: an `inc` entry with
+    `('add' {…} : m.check {a = p.a})`.
+  - 9.1: "Each layer of a program reduces to an ingot".
+  - Not yet: flat ingot (no `version`/`target`), linkage, meta. Lean: separation is a
+    function on syntax; reduction proofs are untouched.
+  - The duplicate `spt.N.M` hyperref destination warnings were already there (the
+    `spt` anchor ignores the section); they only grow with more rows.
+  - User asked why layering is not in 2.1. Agent: 2.1's `t` is what reduction, values,
+    data, strategy, ANF, ingots and Lean's `Term` use; with `t : t` there, each would need
+    a case, against "reduction never meets a layering". Alternative offered: θ's way (one
+    grammar with `t : t`, a "plain term" class for reduction). User: "keep u separate as
+    now" (decided).
+- Layer names: agent listed low/high, layer 0/1, left/right, first/second, lower/upper,
+  term/type, run/check, base/meta (clashes with the file's meta); recommended layer 0/1.
+  User: "this is not the right time" (not decided).
+- Output names (user asked what `a.oymo` writes): agent proposed that adding the first
+  `:` must not rename an existing output. User accepted: one layer → `a.ll`; two layers →
+  layer 0 keeps `a.ll`. User proposed `a.type.ll` for layer 1, "so developers know what
+  is the file content". Agent: fine as a driver convention while the calculus stays
+  neutral, since every known use of layer 1 is types/checks; warned it may read like
+  TypeScript's `.d.ts` (declarations only), while it holds runnable checker code.
+  Recorded as a Decide item in `redesign-links`.
+- Philosophy (user): "lets say there are multiple layers: L0:L1:L2:L3. L3 is a CEO ...
+  L2 is a VP, L1 is a Manager, L0 is a worker. L3 code is written using a guarded by
+  self code (like Value) a.oymomo. L2 is a lower part of dual layer code L2:L3. So L2 can
+  only do what comply with L3 check. b.oymomo ..." (and so on down to L0). Agent read it
+  as a tower built across files, two layers per file; suggested `a.guard.ll` (θ's guard
+  combinator) as a role-neutral name; asked who checks a guard. User: "whenever guard
+  returns data, and that data is not an error by convention, then lower layer is safe to
+  run. otherwise do not run lower layer. This is how manager can stop worker", "if you
+  dont understand ask me as a quiz". Quiz answers:
+  - Q1 who lets c's L2 part (a guard) run: "c's L2 part may only call b's L2 API, which
+    b's L3 already cleared; that is enough".
+  - Q2 when: "we first run guard to check wheter lower layer is safe to run or not in the
+    runtime" (the guard runs first and decides whether the low layer may run).
+  - Q3 how the guard knows the worker: by its shape (separation gives the same structure
+    and binders; the guard runs the worker's program on the high twins).
+  - Q4 error convention: a tagged struct, e.g. `{'error', message, span}`.
+  Added "Philosophy: the tower" to oymomo_design.md.
+- Follow-ups (user): the guard runs before the lower layer, normally at build time on the
+  host ("right"). "if guard depends on runtime value, then guard can also run inside the
+  program at run time, just before the worker starts. this usually is implemented using
+  another oymo file which imports guard and lower code into lower code and call them
+  sequentially". Guards calling only cleared API from above: "no enforcing, this is a
+  best practice rule" (no driver or import-graph check).
+- Agent pointed out that the run-time guard pattern links `a.ll` and the guard's `.ll`
+  into one program, so the "same symbols for now" decision clashes there. User: "i know,
+  we will solve it later"; agreed to record it as a known limit (design doc, roadmap
+  `redesign-layers`).
+- Layer 1's file name: user asked "which one is better a.guard.ll or a.check.ll or
+  a.type.ll, also their according pair name for the lower. i just need a name, and we
+  will not add that name into their .ll file". Agent: `a.guard.ll` (role-neutral, fits
+  every tower level and run-time guards; `check` sounds like tests, `type` fits only the
+  bottom). User asked "guard/safe?": agent advised against `safe` (true only after the
+  guard passes, not enforced, reads as Rust memory safety, adjective vs noun) and kept
+  "safe" as the status word for a passing guard. Synonyms listed (governed, gated, ward,
+  supervised, …). User: "ok" to guarded. Decided: `a.ll` + `a.guard.ll`; prose "guard" /
+  "guarded". The calculus still writes `low`/`high` (layer naming in the calculus was put
+  off: "this is not the right time").
+- Then user asked whether to rename `low`/`high` in the calculus. Agent: keep them; they
+  are positional (sides of `:`), the calculus keeps the layers equal, guard/guarded is a
+  convention above it, and the user's own tower wording is "lower layer". User: "yes"
+  (decided: calculus `low`/`high`; prose and tools guard/guarded).
+- Name for `u`: user: doc 2.7 "a term has at most two layers" is ambiguous (2.1's term
+  has no layering); "find a single word for layered-term". Agent offered duet (rejected
+  by the user: `u` may have one layer, so the word must mean "at most two"), then source,
+  score, program, surface; then track, cake, board, disc, sheet, code, script, draft.
+  User: "find something not confusing one". Agent: no single word is both inclusive and
+  clear; offered "layered term" with a fixed sentence, "two-level term" (Nielson &
+  Nielson), or renaming `t` to "plain term". User: "lets use with dash then.
+  layered-term" (decided). Rule: write `layered-term` (hyphenated) for `u`, never a bare
+  "term". Calculus 2.6, 2.7 ("a layered-term has at most two layers"), 4.1, 4.3, the
+  grammar label, the design doc and the roadmap use it; a file is (layered-term, meta).
+- User: "accept the doc" (Oct 31). All review marks in oymomo-calculus.tex unwrapped
+  (`\new{}` kept, `\old{}` deleted, including the old title "Oymomo Semantics"); legend
+  line removed; the `\new`/`\old`/`\mold` macros stay for the next review. Sections now:
+  1 Goal, 2 Kernel Syntax, 3 Sugar Syntax, 4 Layers, 5 Computation, 6 Reduction Anywhere,
+  7 Strategy, 8 ANF and Functions, 9 Ingots, 10 LLVM Translation.
+  Lesson: unwrapping `\item\new{Text` gives `\itemText`; add a space after `\item`.
 - Agent proposals not yet answered: high layer runs on the host, low on the target;
   E-Beta records `inlined_at` on the result (conflicts with Answer 12 of the spans design,
   "no `inlined_at` for now"; kept as a Decide item).
