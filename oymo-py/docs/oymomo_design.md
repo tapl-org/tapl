@@ -88,6 +88,55 @@ high ingot ─► high.ll ─► clang -c ─► high.o ┤  (high is optional)
   be annotated.
 - The parser builds meta; a frontend writes it. Only the translation reads it.
 - Today's `info` section with `spans` is the first part of meta.
+- Meta is a list of data structures (tables) that may reference each other by id.
+  New kinds are added over time.
+- Meta is a protobuf message, written as text format (textproto) after the `---` line.
+  Later, meta may also live in a separate file, as textproto or binary.
+- No version: protobuf readers skip fields they don't know, and an existing field never
+  changes meaning. Skipping is safe because meta never changes what the term means.
+- The bootstrap compilers ignore meta: they read the term and skip everything after
+  `---`. They lose only debug info and located errors.
+- No proposed target in meta: the platform comes only from the driver.
+- Meta mirrors the term as a flat list, `nodes`: one entry per node of the layered-term,
+  in pre-order (a node, then its children; the layering node counts). Entry k holds all
+  meta of node k: its span, a value range, and any field added later. No node numbers
+  are written; position says which node.
+- `skip: N` stands for the next N entries with no meta (as today's `.N`).
+- Meta about the whole file (module flags, the source files) sits outside `nodes`.
+- Not a nested tree: oymomo nests as deep as its `let` chains (a 1,000-instruction body is
+  about 2,000 levels), past protobuf's default recursion limit of 100. The list holds the
+  same entries; the term gives the shape.
+- The schema is proto3, kept in the repository as `meta.proto`. Values are `bytes`.
+- `code_md5` guards `nodes`: if the code changed, `nodes` is dropped with a warning.
+
+First sketch of the schema:
+
+```proto
+syntax = "proto3";
+package oymo.meta;
+
+message Meta {
+  bytes code_md5 = 1;
+  repeated File files = 2;        // source files that spans point into
+  repeated Node nodes = 3;        // one per term node, in pre-order
+  repeated ModuleFlag flags = 4;  // the whole module
+}
+message File {
+  uint64 id = 1; uint64 start = 2; uint64 length = 3;
+  string path = 4; string language = 5; bytes md5 = 6; repeated uint64 lines = 7;
+}
+message Node {
+  uint64 span = 1;                // start << 16 | length; 0: the parent's
+  Range range = 2;
+  uint64 skip = 15;               // this and the next N-1 entries have no meta
+}
+message Range { bytes lo = 1; bytes hi = 2; }
+message ModuleFlag {
+  enum Behavior { ERROR = 0; WARNING = 1; REQUIRE = 2; OVERRIDE = 3;
+                  APPEND = 4; APPEND_UNIQUE = 5; MAX = 6; MIN = 7; }
+  Behavior behavior = 1; string name = 2; bytes value = 3;
+}
+```
 
 ### Meta and reduction
 
@@ -161,15 +210,33 @@ Open:
 
 ### 3. Meta
 
-- Decide: the row kinds (span, value range, aliasing, loop hints, module flags, …).
-- Decide: how rows attach to nodes. Spans already use pre-order positions with `.`
-  for "same as parent".
-- Decide: where module-level rows go (on the root node, or a section of their own).
-- Decide: the meta of a reduction's result, rule by rule (E-Beta, E-Opcode, E-Proj,
-  E-Index, E-Default, E-FixProj, E-FixApp).
-- Decide: inlined code: keep the helper's lines (decided for spans, no `inlined_at`), or
-  record where it was inlined.
-- Decide: how the meta of several files merge when their terms are combined.
+- Decided: ids and references between messages come when a message first needs one
+  (none does yet; a span finds its file by its range of positions).
+- Decided: merging files. `nodes` need no merge: each file's entries stay with its own
+  term parts, which carry their meta through reduction. `files` are concatenated with
+  positions shifted. `flags` follow LLVM's rules. Every other whole-file message states its
+  merge rule in `meta.proto`.
+- Decided: after separation, each part in either layer keeps the entry of the part it
+  came from; a layering node's own entry is dropped.
+- Decided: the meta of a reduction's result. Every part carries its entry; four rules
+  cover every reduction rule (E-Beta, E-Opcode, E-Proj, E-Index, E-Default, E-FixProj,
+  E-FixApp) and separation:
+  1. Keep: a part that survives a step keeps its entry
+     (`((λx. (f x)⟨B⟩) [03]⟨N⟩)⟨R⟩ ⟶ (f [03]⟨N⟩)⟨B⟩`).
+  2. Copy: a copy made by substitution, unfolding or cloning carries the entry of what it
+     copies (`((λx. {x, x}⟨S⟩) [07]⟨N⟩) ⟶ {[07]⟨N⟩, [07]⟨N⟩}⟨S⟩`).
+  3. New: a part a rule creates (E-Opcode's result) takes the redex's entry
+     (`('add' {'i32', [02], [03]})⟨C⟩ ⟶ [05]⟨C⟩`).
+  4. Drop: entries of removed parts are dropped: the redex's application or projection,
+     the `λ`, the replaced variable, discarded fields, a layering node
+     (`({a = [01]⟨A⟩, b = [02]⟨B⟩}⟨S⟩ .b)⟨P⟩ ⟶ [02]⟨B⟩`).
+- Decided: origin meta (span, …) follows the part by rules 1–4. Value meta (range,
+  non-null, …) describes the value, which reduction keeps, so it moves from the redex to
+  the result; if the result has one already, both hold (for ranges, the intersection).
+  Each field of `meta.proto` states its kind; origin is the default.
+- Decided: no `inlined_at` for now: inlined code keeps the helper's lines. An
+  `inlined_at` field pointing at the call site's entry may come later.
+- Decided: these rules live in this document and in `meta.proto`, not in the calculus.
 
 ### 4. Platform-neutral ingots
 

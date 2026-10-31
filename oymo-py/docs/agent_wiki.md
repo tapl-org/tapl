@@ -2231,6 +2231,68 @@ executable binary). we should mark some place as a platform". The steps that fol
   1 Goal, 2 Kernel Syntax, 3 Sugar Syntax, 4 Layers, 5 Computation, 6 Reduction Anywhere,
   7 Strategy, 8 ANF and Functions, 9 Ingots, 10 LLVM Translation.
   Lesson: unwrapping `\item\new{Text` gives `\itemText`; add a space after `\item`.
+
+### `redesign-file`: meta as protobuf (Oct 31)
+
+- Agent's first proposal: generalize the `info` section: node = pre-order index;
+  dense `spans` column plus a sparse `nodes` table; values as oymomo data literals; a
+  `module` section; rename `info` → `meta`; hash mismatch drops node meta.
+- User: "lets remove version. and we can try versionless structure if possible"; "we can
+  put proposed/default platform target into the meta part"; "meta section is a list of
+  different kind of data structures they can reference each other (maybe with id). over
+  time we can add any datastruture there". Agent: versionless works because meta never
+  changes meaning, so skipping unknown tables is safe; target as a default `--target`;
+  flat tables, global ids with `#id`, a `node` column decides node vs module level.
+- User: "why not just use sqllite?" Agent: relational fit, but binary (sidecar drift or
+  term as a blob), goldens/diffs, reproducible builds, bootstrap needs a big C library,
+  4 KB minimum; suggested text canonical, mapping one-to-one onto SQLite.
+- User asked sidecar pros/cons, "why not use google protobuf. it has text and binary
+  version", and "what if we ignore meta info in bootstrap process". Agent: sidecar suits
+  debug info (split DWARF, `.pdb`, `.map`), less so build-wide meta such as a target;
+  protobuf gives one schema, text and binary, versionless growth by field numbers;
+  ignoring meta in the bootstrap is safe (meta never changes meaning), so the dependency
+  only arrives with the full self-hosted compiler. Recommended textproto inline.
+- User: "lets ignore propsed target then" (no target in meta); "protobuf textproto
+  inline ... and still there is a possiblity separate file (text or binary) in the
+  future". Decided: meta is a protobuf message, textproto after `---`; no version; no
+  proposed target; bootstrap compilers skip meta; a separate file may come later.
+- Still open: the `.proto` schema, node references, node vs module level, ids, dense
+  `spans` encoding, how values are written, merging.
+- Schema sketch (Meta: code_md5, files, spans, ranges with `node`, flags; values `bytes`;
+  proto3): user "yes". User didn't get "node" (pre-order index): agent showed a 10-node
+  walk of `(λx. x) ('load' {'i32', p})`. User: "difference between node and spans";
+  agent: node = which part (key), span = where it came from (a value). User: "i didnt
+  get at all. why we could not merge them into one". Agent: merge into one list
+  mirroring the term (the user's original "mirror"): entry k = all meta of node k, span
+  included; no node numbers; whole-file meta outside. User: "why not just use tree,
+  instead of node list?" Agent: a tree fails on depth (each `let` nests a lambda, so a
+  1,000-instruction body is ~2,000 levels; protobuf parsers stop at 100 by default); the
+  pre-order list is the same tree with the term giving the shape; offered `skip: N` /
+  `skip_subtree`. User: "that works for me". Decided: `repeated Node nodes` in pre-order
+  (layering node counts), each holding span, range, …; skip shortcut (form open);
+  whole-file meta outside; proto3 `meta.proto`; `bytes` values; `code_md5` guards
+  `nodes`. Design doc has the updated sketch.
+- Skip shortcut: agent recommended `skip: N` only (one mechanism, as today's `.N`; an
+  entry with no span already inherits its parent's). User: "ok" (decided).
+- Remaining `redesign-file` items, agent's proposals, user "agree": ids only when a
+  message first needs one; merging (`nodes` stay with their parts, `files` concatenated
+  and shifted, `flags` by LLVM's rules, other whole-file messages state a rule);
+  separation keeps each part's entry in both layers, a layering's own entry dropped.
+  The leaf keeps only implementation items (meta.proto, parser/printer, goldens).
+
+### `redesign-meta-rules` (Oct 31)
+
+- Today's code (`reduction.py`): E-Beta keeps body spans, copies of the argument keep
+  theirs, the application/λ/variable spans are lost; E-Opcode's result takes the call's
+  span; E-Proj/E-Index/E-Default keep the selected field's; E-FixProj/FixApp keep the
+  outer node (`replace`).
+- Agent generalized it: keep, copy, new (redex's entry), drop; plus origin vs value meta
+  (a range on a redex still holds for its result, since reduction keeps the value; a
+  span follows the part). User asked "example for each rule"; agent gave one per rule
+  with `t⟨A⟩` notation (design doc has them). User: "yes". Recorded as decided: the four
+  rules, the origin/value split (each `meta.proto` field states its kind, origin by
+  default), no `inlined_at` for now, rules live in the design doc and `meta.proto`, not in
+  the calculus.
 - Agent proposals not yet answered: high layer runs on the host, low on the target;
   E-Beta records `inlined_at` on the result (conflicts with Answer 12 of the spans design,
   "no `inlined_at` for now"; kept as a Decide item).

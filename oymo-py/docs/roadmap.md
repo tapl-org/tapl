@@ -198,17 +198,30 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Meta mirrors the term's nodes; built by the parser, written by a frontend, read only by
   the translation
 - Today's `info` section and `spans` become part of meta
-- Decide: row kinds (span, value range, aliasing, loop hints, module flags, …)
-- Decide: how rows attach to nodes (spans use pre-order positions)
-- Decide: module-level rows on the root node, or a section of their own
-- Decide: how the meta of several files merge
+- Meta: tables referencing each other by id; a protobuf message as textproto after
+  `---`; a separate file (textproto or binary) possible later
+- No version (unknown fields skipped); no proposed target; bootstrap compilers skip meta
+- `nodes`: a flat list mirroring the term, one entry per node in pre-order (layering
+  node included), holding all its meta (span, range, …); whole-file meta outside it
+- proto3 schema in `meta.proto`; values as `bytes`; `code_md5` guards `nodes`
+- `skip: N` for N entries with no meta
+- Ids between messages only when a message first needs one
+- Merging files: `nodes` stay with their term parts; `files` concatenated, positions
+  shifted; `flags` by LLVM's rules; each other whole-file message states its rule
+- Separation: each part keeps its entry in both layers; a layering's own entry is dropped
+- Write `meta.proto`; the parser and printer read and write meta as textproto in place of
+  the `info` section; goldens
 
 ### `redesign-meta-rules` Meta through reduction: the result's meta, rule by rule
 
 - Meta never changes what a term means; it need not be confluent (`⟶w` fixes it)
-- Decide: the result's meta for E-Beta, E-Opcode, E-Proj, E-Index, E-Default,
-  E-FixProj, E-FixApp
-- Decide: inlined code keeps the helper's lines, or records where it was inlined
+- Four rules for every reduction rule and separation: keep, copy, new (redex's entry),
+  drop
+- Origin meta (span) follows the part; value meta (range) moves from the redex to the
+  result (both hold if the result has one); each `meta.proto` field states its kind
+- No `inlined_at` for now
+- Write the rules into `meta.proto` comments; make reduction carry whole entries (today
+  only spans); tests for each rule
 
 ### `redesign-ingot` Flat, platform-neutral ingot
 
