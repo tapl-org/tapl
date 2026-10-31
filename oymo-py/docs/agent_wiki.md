@@ -2118,6 +2118,28 @@ executable binary). we should mark some place as a platform". The steps that fol
   every symbol will not be external". Recorded as decided in oymomo_design.md (Ingot) and
   `redesign-ingot`: each symbol has a linkage (internal, exported, imported); words and
   place (entry field or meta) stay a Decide item in `redesign-modules`.
+- `redesign-layers` started (user: "lets start with redesign-layers"). Agent recommended
+  A (container `{low, high}`) with B as sugar, and "always a pair" for telling one layer
+  from two. User: "option B" (layered terms `t : T`), and "separate first then you can
+  guess from the normal form": the split is syntactic and comes before reduction (which
+  also avoids D12's problem), and one layer vs two is read from the normal forms of the
+  separated terms (no `{low, high}` wrapper, so no clash with a symbol named `low`).
+  The agent withdrew "high runs on the host": point 5 lets a low layer link to a high
+  layer, so high code can reach the target binary; proposed instead that the layers are
+  equal in oymomo and the driver picks where each runs. User: "yes" (decided).
+- High part of an unannotated node: agent offered copy / skeleton / prune and
+  recommended prune. User: "get idea from theta-calculus". θ's answer
+  (doc/theta-calculus.tex Sections 3, 5): no default per node; a term with no `:` is
+  single-layer (`g`) and is never separated; a single-layer term is cloned (`g:g`) only
+  where it meets a multi-layer term (S-Clone1/2); S-Abs/S-Split push `λ` through `:`,
+  S-App1/2 and S-Zip push application through. Layering binds tightest in θ.
+- Agent proposed θ's separation extended to structs, projection and `fix`; both sides of
+  `t : T` single-layer; no `θ.`; cloned nodes share a meta row; θ's precedence. User
+  objected to none of it except: precedence → "put a leaf note in oymomo-redesign about
+  left, right associative precedense operator like scala" (new leaf
+  `redesign-operators`; design doc 1b); and cloned symbols in both ingots → "lets keep low
+  and high ingot have same symbol for now" (the link clash is left for later). The rest
+  was recorded as decided.
 - Agent proposals not yet answered: high layer runs on the host, low on the target;
   E-Beta records `inlined_at` on the result (conflicts with Answer 12 of the spans design,
   "no `inlined_at` for now"; kept as a Decide item).

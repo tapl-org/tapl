@@ -64,13 +64,35 @@ high ingot ─► high.ll ─► clang -c ─► high.o ┤  (high is optional)
 
 ### 1. What is a layer?
 
-- A. Container: the file's term reduces to `{low, high}`, two ordinary programs. The
-  calculus and the Lean proofs don't change.
-- B. Layered terms: every node is `t : T`, split into two programs before shaping. The
-  `t~F` forms were dropped (D12) because a kept `let` lost its type after the split.
-- Proposed: A in the kernel; B, if wanted, as a sugar that rewrites to A.
-- Proposed: the high layer runs on the host at build time; the low layer runs on the
-  target.
+- Decided: layered terms. A node may be written `t : T`; `t` is low, `T` is high.
+- Decided: separate first. A syntactic step splits the file's term into a low term and a
+  high term before any reduction; each reduces on its own. Reduction rules don't change.
+- Decided: separation as in θ-calculus (`doc/theta-calculus.tex`, Section 5):
+  - A term with no `:` is single-layer and is never separated. A file with no `:` is
+    one layer.
+  - A single-layer term is cloned into both layers only where it meets a multi-layer
+    term (S-Clone1/2).
+  - `λ` and application are pushed through `:` (S-Abs, S-Split, S-App1/2, S-Zip):
+    `λx. (t₁:t₂)` → `(λx. t₁) : (λx. t₂)`; `(t₁:t₂) (t₃:t₄)` → `(t₁ t₃) : (t₂ t₄)`.
+  - Added for oymomo: a struct clones its single-layer fields, then zips
+    (`{a = t₁:t₂, b = t₃:t₄}` → `{a = t₁, b = t₃} : {a = t₂, b = t₄}`);
+    `(t₁:t₂).l` → `t₁.l : t₂.l`; `fix (t₁:t₂)` → `fix t₁ : fix t₂`.
+  - Separation ends at a single-layer term (one layer) or `t₁ : t₂` (low, high).
+- Decided: in `t : T`, both sides are single-layer (no third layer).
+- Decided: no unlayering (`θ.`): inside a file, a layer never reads the other.
+- Decided: a cloned node keeps its meta row in both layers.
+- Decided: for now, the low and high ingots may define the same symbols (cloning gives
+  the high ingot low's symbols). Linking both into one program would clash; left for later.
+- Decided: the two layers are equal in oymomo; the driver picks where each runs (build
+  time on the host, the target binary, or both).
+- Decide: precedence of `:` (θ's: tightest); see the operators leaf below.
+
+### 1b. Operators: precedence and associativity
+
+- Idea: as in Scala, an operator's precedence comes from its first character, and its
+  associativity from its last (an operator ending in `:` is right-associative).
+- Decide: whether oymomo takes this rule, and for which operators (`:`, `.`,
+  application, later sugar).
 
 ### 2. Module system
 

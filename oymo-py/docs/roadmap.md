@@ -17,6 +17,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `oymomo-redesign` Redesign oymomo and the `.oymo` file
     - `redesign-layers` One or two layers: what a layer is
+    - `redesign-operators` Operator precedence and associativity, as in Scala
     - `redesign-file` The `.oymo` file as (term, meta); meta as a database
     - `redesign-meta-rules` Meta through reduction: the result's meta, rule by rule
     - `redesign-ingot` Flat, platform-neutral ingot
@@ -173,9 +174,22 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `redesign-layers` One or two layers: what a layer is
 
 - A file has one layer or two; inside a file the layers don't read each other
-- Decide: a container (`{low, high}`, two ordinary programs) or layered terms (`t : T`)
-- Decide: the high layer runs on the host at build time, the low layer on the target?
-- oymomo_design.md, then oymomo-calculus.tex
+- Layered terms `t : T`, separated into a low and a high term before reduction
+- Separation as in θ-calculus (single-layer terms untouched, cloned only next to a
+  multi-layer term; `λ`, application pushed through `:`), plus structs, projection, `fix`
+- Both sides of `t : T` single-layer; no unlayering; a cloned node keeps its meta row
+- Low and high ingots may define the same symbols, for now
+- Layers equal in oymomo; the driver picks where each runs
+- Decide: precedence of `:` (see `redesign-operators`)
+- oymomo_design.md, then oymomo-calculus.tex (syntax, separation), Lean if needed
+
+### `redesign-operators` Operator precedence and associativity, as in Scala
+
+- Scala's rule: precedence from an operator's first character, associativity from its
+  last (ending in `:` means right-associative)
+- Decide: take this rule for oymomo, and for which operators (`:`, `.`, application,
+  later sugar)
+- Decide: where `:` falls (θ-calculus: tightest)
 
 ### `redesign-file` The `.oymo` file as (term, meta); meta as a database
 
