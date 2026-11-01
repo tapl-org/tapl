@@ -214,7 +214,7 @@ Open:
 
 - Decide: what oymomo itself needs, beyond the glue and the linker.
 - Decide: how a file names what it depends on, and in which layer.
-- Decide: the words for linkage, and where they are written (entry field or meta).
+- Decided (in Ingot): linkage is `export`/`import` entry fields, internal by default.
 
 ### 3. Meta
 

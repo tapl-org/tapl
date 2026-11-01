@@ -2364,6 +2364,14 @@ executable binary). we should mark some place as a platform". The steps that fol
   a type, ours doesn't (it comes from the function type); same as `let u = 'store'`.
   Alternatives (drop any operand; a `'void'` marker) rejected. User: "yes, if there is no
   other option" (kept `{}`).
+- `named-types` leaf: user: "yes" to removing it (types don't reach the `.o`; opaque
+  `ptr` removed the need). Removed from the roadmap. Same pass: the `void` leaf now says
+  `'void'`; float leaves use LLVM's names (`'float'`, `'double'`, …), not `'f32'`/`'f64'`;
+  the linkage-words Decide dropped from `redesign-modules` (decided in the ingot).
+
+### `redesign-modules` (Nov 1)
+
+- User picked this leaf next: "lets work on this".
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

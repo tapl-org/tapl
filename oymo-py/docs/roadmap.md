@@ -32,12 +32,11 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `deps-goldens` Golden tests: diamond, template pattern, merged declarations
     - `ll-coverage` oymomo writes any `.ll`
       - `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
-      - `ll-types` Types: `void`, named, wide integers, floats, vectors
-        - 🚫 `void` Result type `{}`, a call as a statement
-        - 🚫 `named-types` LLVM named and opaque struct types in a module's `types`
+      - `ll-types` Types: `void`, wide integers, floats, vectors
+        - 🚫 `void` Result type `'void'`, a call as a statement
         - 🚫 `wide-ints` Every `'iN'` LLVM takes, `'i128'` first
-        - `floats` `'f32'`, `'f64'`
-          - 🚫 `float-forms` `'f32'`, `'f64'`: literals, params, results, imports
+        - `floats` `'float'`, `'double'`
+          - 🚫 `float-forms` `'float'`, `'double'`: literals, params, results, imports
           - 🚫 `float-arith` `'fadd'`, `'fsub'`, `'fmul'`, `'fdiv'`, `'frem'`, `'fneg'`
           - 🚫 `float-compare` Comparisons, one symbol per predicate
           - 🚫 `float-convert` `'fpext'`, `'fptrunc'`, `'fptosi'`, ... conversions
@@ -240,7 +239,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Link-time: declarations joined by the linker by name
 - Decide: what oymomo needs beyond the glue and the linker
 - Decide: how a file names its dependencies, and in which layer
-- Decide: the words for linkage, and where they are written (entry field or meta)
 
 ### `redesign-links` Ingots of both layers linked across files
 
@@ -328,22 +326,10 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `void` Result type `{}`, a call as a statement
 
-- `{'function', params, {}}` for functions returning nothing
-- A call as a statement
+- `{'function', params, 'void'}` for functions returning nothing; the body returns `{}`
+  (oymomo-calculus.tex 10, "void")
+- A call as a statement: its `let` variable can't be used
 - LLVM `void` declarations, definitions, calls, `ret void`
-
-### `named-types` LLVM named and opaque struct types in a module's `types`
-
-- A module field `types` beside `symbols`: `pair = {'i8', 'i32'}` is
-  `%pair = type { i8, i32 }`; `FILE = 'opaque'` is `%FILE = type opaque`
-- A type shape `{'struct', l}`, `l` a label of `types`, is LLVM's `%l`; `'opaque'` only as a
-  `types` entry
-- `let` naming in the source stays the compile-time way to name a type
-- oymomo-calculus.tex 9.1, Lean if needed, code, a golden
-- Decide: the need that justifies named types; literal types only until one appears
-- Decide: spelling: `types`, `{'struct', l}`, `'opaque'`
-- Decide: `'module.link'` on one type name: equal bodies merge, opaque takes the body,
-  different bodies rename one (`pair.1`)
 
 ### `wide-ints` Every `'iN'` LLVM takes, `'i128'` first
 
@@ -351,21 +337,22 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Folding at any width
 - Tests: `'i128'` arithmetic folds as LLVM computes it; a golden
 
-### `float-forms` `'f32'`, `'f64'`: literals, params, results, imports
+### `float-forms` `'float'`, `'double'`: literals, params, results, imports
 
-- Add forms `'f32'` (LLVM `float`) and `'f64'` (`double`)
+- Add LLVM's floating-point types by their LLVM names (oymomo-calculus.tex 10): `'half'`,
+  `'bfloat'`, `'float'`, `'double'`, `'fp128'`, `'x86_fp80'`, `'ppc_fp128'`; `'float'` and
+  `'double'` first
 - A float is a value like an integer: param, result, struct field, let, import
-- Literal is its IEEE 754 bits, little-endian: `[0000803f]~'f32'`,
-  `[000000000000f03f]~'f64'` are 1.0
+- Literal is its IEEE 754 bits, little-endian: `[0000803f]~'float'`,
+  `[000000000000f03f]~'double'` are 1.0
 - Every bit pattern is a value, NaN payloads included
-- Wrong size: `A f32 constant needs 4 bytes.`
+- Wrong size: `A float constant needs 4 bytes.`
 - No implicit change of bits or form
 - `.ll`: float constant from its bits; NaN with payload as bits bitcast from an integer
   constant
-- Tests: return an `'f64'` param; `float 1.0`; NaN payload kept; float struct field;
-  `sqrt` import; 3-byte `'f32'` error; golden `float.oymo`
-- Decide: other float forms (`'f16'`, `'bf16'`, `'f128'`, `x86_fp80`): which, and when?
-- Decide: decimal literals (`1.5~'f64'` as sugar for bytes)? Hex float or decimal?
+- Tests: return an `'double'` param; `float 1.0`; NaN payload kept; float struct field;
+  `sqrt` import; 3-byte `'float'` error; golden `float.oymo`
+- Decide: decimal literals (`1.5~'double'` as sugar for bytes)? Hex float or decimal?
 - Decide: float vectors: every symbol accepts them where LLVM does; reduction folds only
   scalars?
 
@@ -375,14 +362,14 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   `'fneg'` `{form, value}`
 - LLVM's default FP environment only: round to nearest even, no traps, no fast-math, no
   constrained intrinsics
-- `'f32'` computed in binary64, then rounded to binary32
+- `'float'` computed in binary64, then rounded to binary32
 - Never fold a NaN result; a NaN operand folds if the result isn't NaN
 - `'fneg'` flips only the sign bit; folds even on a NaN
 - `fdiv` by zero gives ∞ or NaN
 - Printed as LLVM: `fadd f64 a, b`
 - Tests: edge operands (`±0`, `±1`, smallest subnormal, largest finite, `±∞`, NaN, both
   forms) vs LLVM; `1.0 + 2.0` folds to `[0000000000000840]`; `0.0 / 0.0` stays;
-  `'f32'` `0.1 + 0.2` folds to the `f32` bits
+  `'float'` `0.1 + 0.2` folds to the `float` bits
 
 ### `float-compare` Comparisons, one symbol per predicate
 
@@ -398,7 +385,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `float-convert` `'fpext'`, `'fptrunc'`, `'fptosi'`, ... conversions
 
-- Fields `{form, value, to}`, like `'zext'`: `'fpext' {'f32', x, 'f64'}`
+- Fields `{form, value, to}`, like `'zext'`: `'fpext' {'float', x, 'double'}`
 - `'fpext'` f32 → f64; `'fptrunc'` f64 → f32, rounded
 - `'fptosi'`, `'fptoui'`: toward zero; NaN, ∞, out of range: not folded
 - `'sitofp'`, `'uitofp'`: rounded to nearest
@@ -406,7 +393,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Error: `'fpext': to must be wider than f64, got f32.`
 - Tests: `fptrunc` rounds to nearest even; `fptosi -1.5` is `-1`; `sitofp` of `2^53 + 1`
   rounds; `fptoui` of `-1.0`, NaN, `2^32` to `'i32'` not folded; `'bitcast'` of
-  `1.0~'f32'` to `'i32'` is `[0000803f]`; narrowing and size errors
+  `1.0~'float'` to `'i32'` is `[0000803f]`; narrowing and size errors
 - Decide: add saturating `'fptosi_sat'`/`'fptoui_sat'`?
 
 ### `float-intrinsics` `'sqrt'`, `'fabs'`, `'floor'`, ... exact intrinsics
@@ -417,7 +404,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `{form, magnitude, sign}`: `'copysign'`
   - `{form, a, b}`: `'minnum'`, `'maxnum'`, `'minimum'`, `'maximum'`
   - `{form, a, b, c}`: `'fma'`, rounded once
-- Transcendentals are libm imports: `sin = {x = 'f64'} => 'f64'`
+- Transcendentals are libm imports: `sin = {x = 'double'} => 'double'`
 - Tests: edge operands vs LLVM; `fma` where twice-rounded differs; `minnum(NaN, 1.0)` is
   `1.0`, `minimum` is NaN; `minimum(-0.0, +0.0)` is `-0.0`; `'sqrt'` is
   `call double @llvm.sqrt.f64`
