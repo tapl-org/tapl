@@ -2345,7 +2345,25 @@ executable binary). we should mark some place as a platform". The steps that fol
 - Types (open): user asked about `'fn'` for `'function'` and LLVM coverage. Agent:
   keep `'function'` (tags and opcodes use LLVM's own words); missing `void`, varargs,
   floats (add now); address spaces, scalable vectors, `token`/`metadata`, `target(…)`
-  later. No answer yet.
+  later. User: "agree" (decided). Calculus pass written in review marks: float tags
+  (bits as bytes, least significant first), `'void'` only as a result (return `{}` →
+  `ret void`; a call's variable can't be used), `'varargs'` as the function type's last
+  field, declarations only for now; extra byte-array arguments are `iN`, N = 8·bytes.
+- Varargs: user asked why declarations only; agent: a varargs definition needs a
+  platform-dependent `va_list` and has no name for "the rest" in `p`. User: "i may just
+  need a variable size of payload". Agent: LLVM can't pass a variable-sized value; it is a
+  pointer and a length (`{data = 'ptr', len = 'i64'}`), no new feature. User: "lets drop
+  varargs fully. we don't support them. we dont call printf too" (decided: no varargs).
+- Float tags match LLVM's floating-point types one to one (same spelling); the
+  translation converts bytes to LLVM's hex forms (`float`/`double` as double hex, `0xH`,
+  `0xR`, `0xK`, `0xL`, `0xM`); `x86_fp80`/`ppc_fp128` work only on their platforms.
+- `'void'`: user asked where LLVM uses void (result type, `ret void`, unnamed `call void`,
+  result-less intrinsics and instructions; never a parameter, field or value) and "why
+  ingot returns different than llvm". Agent: every oymomo term ends in a value and the
+  ingot also runs by reduction, so a void body returns the unit `{}`; LLVM's `ret` names
+  a type, ours doesn't (it comes from the function type); same as `let u = 'store'`.
+  Alternatives (drop any operand; a `'void'` marker) rejected. User: "yes, if there is no
+  other option" (kept `{}`).
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

@@ -636,6 +636,8 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
   \item A definition's $\mathit{body}$ is a function's body (Section~\ref{sec:banf}).
   \item A function's type holds its parameters' types, in order, and its result type:
     $\mathit{puts} = \{\mathit{type} = \{\str{function}, \{s = \str{ptr}\}, \str{i32}\},\ \mathit{import} = \str{puts}\}$ declares $\mathit{puts}$.
+  \item A function takes exactly its parameters; there are no variable arguments (C's $\kw{...}$). Data of
+    variable size is passed as a pointer and a length: $\{\mathit{data} = \str{ptr},\ \mathit{len} = \str{i64}\}$.
   \item A declaration is a function, global variable or constant that another ingot defines.
   \end{subpoints}
 \item\label{p:linkage} Each entry has a linkage, given by at most one of two fields, each a byte array that names the
@@ -698,6 +700,9 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
   \begin{subpoints}
   \item $\str{i}N$, such as $\str{i1}$, $\str{i8}$ or $\str{i32}$: LLVM's integer type $\kw{i}N$.
   \item $\str{ptr}$: LLVM's opaque pointer.
+  \item $\str{half}$, $\str{bfloat}$, $\str{float}$, $\str{double}$, $\str{fp128}$, $\str{x86\_fp80}$, $\str{ppc\_fp128}$: LLVM's
+    floating-point types of the same names.
+  \item $\str{void}$: LLVM's $\kw{void}$, only as a function's result type; anywhere else it is rejected.
   \item $\{l_i = t_i\}_{i<k}$: LLVM's struct $\{t_0, \dots, t_{k-1}\}$. The labels only name the fields.
   \item $\{\str{array}, n, t\}$ and $\{\str{vector}, n, t\}$: LLVM's $[n \times t]$ and $\langle n \times t\rangle$.
   \item $\{\str{packed}, t_0, \dots, t_{k-1}\}$: LLVM's packed struct $\langle\{t_0, \dots, t_{k-1}\}\rangle$.
@@ -711,6 +716,14 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
   \begin{subpoints}
   \item A count or index of $\str{alloca}$ or $\str{getelementptr}$ has no type operand: a byte array of $8$ bytes there is an
     $\str{i64}$, any other an $\str{i32}$.
+  \item As a floating-point type it has the type's size in bytes ($2$ for $\str{half}$, $4$ for $\str{float}$, $8$ for
+    $\str{double}$, $10$ for $\str{x86\_fp80}$, $16$ for $\str{fp128}$ and $\str{ppc\_fp128}$), holding its bits, least significant byte
+    first, as numbers are: $1.0$ as a $\str{float}$ is $\hex{0000803F}$.
+  \end{subpoints}
+\item\label{p:void} A function whose result type is $\str{void}$ returns no value:
+  \begin{subpoints}
+  \item Its body returns $\{\}$, which becomes $\kw{ret\ void}$; any other returned operand is rejected.
+  \item A call of it, $\kw{let}\ u = m.f\ \{\dots\}\ \kw{in}\ \dots$, becomes $\kw{call\ void\ @f(\dots)}$ with no result; a use of $u$ is rejected.
   \end{subpoints}
 \item\label{p:infer} A block's parameters have no written type: each takes the type of the operands
   jumped to it and of its uses, repeated until nothing changes.
@@ -731,7 +744,7 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
     named after its region's binder and its position, as $r.0$. The runner $m\ \hex{}$ itself becomes nothing.
   \item Each $\kw{let}$ becomes one instruction: an opcode call becomes the opcode's instruction, and a
     call $m.l\ \{\dots\}$ becomes $\kw{call}$ of the function $l$.
-  \item A return becomes $\kw{ret}$, and a jump $\kw{br}$.
+  \item A return becomes $\kw{ret}$ (or $\kw{ret\ void}$, \pref{p:void}), and a jump $\kw{br}$.
   \item A jump to field $0$ (\pref{p:top-group}) adds a block. LLVM's entry block has no predecessors, so in the
     body's region the translation adds a new entry block that only jumps to field $0$, named after the region's binder, as $r$. In a nested region, field
     $0$ starts a block of its own, and the block it continued ends with an added $\kw{br}$ to it.
