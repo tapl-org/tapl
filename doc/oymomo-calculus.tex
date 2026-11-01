@@ -545,7 +545,7 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \end{array}
 \]
   \begin{subpoints}
-  \item $m.l$: $l$ is a name in the module's $\mathit{symbols}$ (\pref{p:module}); $m.l$ is an operator when
+  \item $m.l$: $l$ is a label of the ingot (\pref{p:module}); $m.l$ is an operator when
     $l$ is a function, and otherwise an operand, the address of $l$. $m\ \hex{}$ only heads a region; any other
     $x\ b$ is rejected.
   \item $r.l$: a jump to the block $l$ passes exactly as many operands as $l$ has parameters.
@@ -601,29 +601,23 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \begin{points}
 \item\label{p:module} An ingot is a module in a fixed shape that can be translated to SSA: one ingot is one
   compilation unit. Each layer of a program (\pref{p:one-or-two}) reduces to an ingot; only an ingot is translated.
-  \[\{\mathit{version} = b,\ \mathit{symbols} = \{l_i = e_i\}_{i<k},\ \mathit{target} = t\}\]
+  \[\{l_i = e_i\}_{i<k}\]
 \item\label{p:gcd} For example, an ingot with $\gcd$ (its body is \pref{p:gcd-body}) and $\mathit{main}$:
   \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
-{
-  version = '0',
-  symbols = {
-    gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
-           body = @vlamm. @vlamp. m [] (@vlamr. { @ldots })},
-    main = {type = {'function', {}, 'i32'},
-            body = @vlamm. @vlamp. m [] (@vlamr. {
-              entry = let y = m.gcd {a = [30000000], b = [12000000]} in y
-            })}
-  }
-}
+{ gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
+         body = @vlamm. @vlamp. m [] (@vlamr. { @ldots })},
+  main = {type = {'function', {}, 'i32'},
+          body = @vlamm. @vlamp. m [] (@vlamr. {
+            entry = let y = m.gcd {a = [30000000], b = [12000000]} in y
+          }),
+          export = 'main'} }
 \end{Verbatim}
 \item The fields:
   \begin{subpoints}
-  \item $\mathit{version}$ names the shape of this section, as text: $\str{0}$. Versions are compared only for
-    equality; an unknown version is rejected.
-  \item $\mathit{symbols}$ holds every symbol the module defines or uses, each an entry $e_i$ labeled by the symbol's name; a symbol
-    defined in another module is a declaration (\pref{p:entry-kind}).
-  \item $\mathit{target}$ may be left out; it is read later, with the target's details.
-  \item Any other field is rejected.
+  \item Every field is a symbol the ingot defines or uses: an entry $e_i$ labeled $l_i$. A symbol
+    defined in another ingot is a declaration (\pref{p:entry-kind}).
+  \item An ingot has no version and no target: it is made and translated by the same compiler, and
+    the platform reaches the translation from outside. An ingot is the same for every platform.
   \item Each entry is closed: its body names other symbols only through $m$ (\pref{p:kinds}), so a source
     language lowers each of its items to one entry on its own.
   \end{subpoints}
@@ -635,14 +629,27 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \pt & \mathit{type}, \mathit{body} & \textit{definition} & \{\str{function}, \{x_i = t_i\}_{i<k}, t\} \\
 \pt & \mathit{type}, \mathit{init} & \textit{global variable} & \text{a type, read by the translation (\pref{p:types})} \\
 \pt & \mathit{type}, \mathit{value} & \textit{constant} & \text{a type} \\
-\pt & \mathit{type} & \textit{declaration} & \text{either}
+\pt & \mathit{type}, \mathit{import} & \textit{declaration} & \text{either}
 \end{array}
 \]
   \begin{subpoints}
   \item A definition's $\mathit{body}$ is a function's body (Section~\ref{sec:banf}).
   \item A function's type holds its parameters' types, in order, and its result type:
-    $\mathit{puts} = \{\mathit{type} = \{\str{function}, \{s = \str{ptr}\}, \str{i32}\}\}$ declares $\mathit{puts}$.
-  \item A declaration is a function, global variable or constant that another module defines.
+    $\mathit{puts} = \{\mathit{type} = \{\str{function}, \{s = \str{ptr}\}, \str{i32}\},\ \mathit{import} = \str{puts}\}$ declares $\mathit{puts}$.
+  \item A declaration is a function, global variable or constant that another ingot defines.
+  \end{subpoints}
+\item\label{p:linkage} Each entry has a linkage, given by at most one of two fields, each a byte array that names the
+  symbol for the linker:
+  \begin{subpoints}
+  \item $\mathit{export} = b$: a definition, global variable or constant that other ingots may use, under the
+    name $b$.
+  \item $\mathit{import} = b$: a declaration, of the symbol named $b$ in another ingot. Every declaration has it.
+  \item Neither: the symbol is internal, seen only inside its ingot. This is the default, so the helpers of two
+    ingots, such as two $\gcd$s, never clash.
+  \item The linker's name is apart from the label: $\{\mathit{say} = \{\mathit{type} = \dots,\ \mathit{import} = \str{puts}\}\}$ is
+    reached as $m.\mathit{say}$ and linked to $\mathit{puts}$; so a label can be renamed without changing what is linked.
+  \item Linkage is part of the term, as it changes what a program means: whether two ingots link or clash.
+  \item Reduction ignores both fields (\pref{p:run-module}); only the translation reads them (\pref{p:symbols-llvm}).
   \end{subpoints}
 \item\label{p:init} An $\mathit{init}$ or a $\mathit{value}$ is data (row \pref{p:data}) of the entry's type:
   $\{\mathit{type} = \str{i32},\ \mathit{init} = \hex{29000000}\}$.
@@ -667,10 +674,10 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
   \end{subpoints}
 \item\label{p:merge} Modules are combined by user code; this document gives no rule for it:
   \begin{subpoints}
-  \item To compile, each module is its own ingot, and the system linker joins them by name: a declaration to the symbol of that name in another module.
+  \item To compile, each module is its own ingot, and the system linker joins them by name: an $\mathit{import}$ to the $\mathit{export}$ of the same name in another ingot.
   \item User code may also merge modules whose names match into one ingot: for a definition $f$ of a module
     $a$, the merged body
-    $\lam{m}{a.\mathit{symbols}.f.\mathit{body}\ m}$ reduces to the body of $f$, with the merged $m$, since $m$ is a variable, so a value.
+    $\lam{m}{a.f.\mathit{body}\ m}$ reduces to the body of $f$, with the merged $m$, since $m$ is a variable, so a value.
   \item A renaming is a struct of paths, such as $\{g = m.h\}$. It reduces only once $m$ is bound, so only
     when running (\pref{p:run-module}).
   \end{subpoints}
@@ -743,15 +750,18 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
   \item For \pref{p:gcd}, $\mathit{done}$'s parameter is named $c1$, and the blocks are $r.\mathit{entry}$,
     $r.\mathit{loop}$, $q.\mathit{step}$ and $r.\mathit{done}$.
   \end{subpoints}
-\item\label{p:symbols-llvm} Each symbol becomes an LLVM global named by its label, as
-  $\kw{@gcd}$ or $\kw{@puts}$, with LLVM's default linkage:
+\item\label{p:symbols-llvm} Each symbol becomes an LLVM global. An exported or imported symbol is named by its
+  linker name (\pref{p:linkage}), as $\kw{@main}$ or $\kw{@puts}$; an internal one by its label, with LLVM's
+  $\kw{internal}$ linkage, as $\kw{@gcd}$:
   \begin{subpoints}
-  \item A definition becomes LLVM's $\kw{define}$; its parameters and result come from its type.
+  \item A definition becomes LLVM's $\kw{define}$; its parameters and result come from its type:
+    $\kw{define\ internal\ i32\ @gcd(\dots)}$, $\kw{define\ i32\ @main()}$.
   \item A declared function becomes $\kw{declare}$: $\mathit{puts}$ is
     $\kw{declare\ i32\ @puts(ptr)}$; a declared variable becomes $\kw{external\ global}$.
-  \item A constant becomes $\kw{@answer\ =\ constant\ i32\ 42}$.
-  \item A global variable becomes $\kw{@counter\ =\ global\ i32\ 41}$.
+  \item A constant becomes $\kw{@answer\ =\ internal\ constant\ i32\ 42}$, or without $\kw{internal}$ when exported.
+  \item A global variable becomes $\kw{@counter\ =\ global\ i32\ 41}$ when exported as $\str{counter}$.
   \item $\{\}$ becomes $\kw{zeroinitializer}$, and a byte array for an $\str{i8}$ array becomes $\kw{c"\dots"}$.
+  \item Two symbols of one ingot that get the same LLVM name are rejected; the translation renames nothing.
   \end{subpoints}
 \item\label{p:init-llvm} How data initializes a type (\pref{p:init}):
   \begin{subpoints}
@@ -764,27 +774,23 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
 \item\label{p:example} For example, a $\mathit{main}$ that calls $\mathit{puts}$ when it is given an argument. The branch
   sits in a nested region $q$, whose field $0$ continues the entry block:
   \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
-{
-  version = '0',
-  symbols = {
-    puts = {type = {'function', {s = 'ptr'}, 'i32'}},
-    msg  = {type = {'array', [03], 'i8'}, value = [686900]},
-    main = {type = {'function', {argc = 'i32'}, 'i32'},
-            body = @vlamm. @vlamp. m [] (@vlamr. {
-              entry =
-                let c = 'icmp' {'sgt', 'i32', p.argc, [01000000]} in
-                m [] (@vlamq. {
-                  if c then q.say else r.done,
-                  say = let u = m.puts {s = m.msg} in r.done
-                }),
-              done = [00000000]
-            })}
-  }
-}
+{ puts = {type = {'function', {s = 'ptr'}, 'i32'}, import = 'puts'},
+  msg  = {type = {'array', [03], 'i8'}, value = [686900]},
+  main = {type = {'function', {argc = 'i32'}, 'i32'},
+          export = 'main',
+          body = @vlamm. @vlamp. m [] (@vlamr. {
+            entry =
+              let c = 'icmp' {'sgt', 'i32', p.argc, [01000000]} in
+              m [] (@vlamq. {
+                if c then q.say else r.done,
+                say = let u = m.puts {s = m.msg} in r.done
+              }),
+            done = [00000000]
+          })} }
 \end{Verbatim}
   Its translation:
   \begin{Verbatim}[xleftmargin=2em]
-@msg = constant [3 x i8] c"hi\00"
+@msg = internal constant [3 x i8] c"hi\00"
 
 declare i32 @puts(ptr)
 
@@ -800,7 +806,8 @@ r.done:
 }
 \end{Verbatim}
   \begin{subpoints}
-  \item $\mathit{puts}$ is a declaration, so it becomes $\kw{declare}$; $\mathit{msg}$ is a constant.
+  \item $\mathit{puts}$ is a declaration, so it becomes $\kw{declare}$; $\mathit{msg}$ is an internal constant, so
+    $\kw{internal}$; $\mathit{main}$ is exported as $\str{main}$.
   \item The nested region adds no block for its field $0$: $\kw{icmp}$ and $\kw{br\ i1}$ stay in $r.\mathit{entry}$, and $\mathit{say}$
     becomes the block $q.\mathit{say}$.
   \item $\kw{if}\ c\ \kw{then}\ q.\mathit{say}\ \kw{else}\ r.\mathit{done}$ is the branch $\{r.\mathit{done}, q.\mathit{say}\}\ c$, so arm $1$, $q.\mathit{say}$, is

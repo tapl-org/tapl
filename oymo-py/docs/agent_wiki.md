@@ -2339,6 +2339,13 @@ executable binary). we should mark some place as a platform". The steps that fol
   `mylib_add`); linkage in the term (in meta, a bootstrap compiler skipping meta would
   emit `internal @gcd` and the real one an export: one file, two meanings). User: "yes"
   (all three kept).
+- Calculus pass for the ingot (§9, §10): flat `{lᵢ = eᵢ}`, new point "Linkage"
+  (`export`/`import`/internal), `define internal`, same-LLVM-name symbols rejected (the
+  translation renames nothing). User: "yes" (accepted, marks removed).
+- Types (open): user asked about `'fn'` for `'function'` and LLVM coverage. Agent:
+  keep `'function'` (tags and opcodes use LLVM's own words); missing `void`, varargs,
+  floats (add now); address spaces, scalable vectors, `token`/`metadata`, `target(…)`
+  later. No answer yet.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
