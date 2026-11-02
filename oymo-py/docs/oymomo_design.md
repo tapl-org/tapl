@@ -69,18 +69,20 @@ high ingot ─► high.ll ─► clang -c ─► high.o ┤  (high is optional)
 ### Ingot
 
 - An ingot is one compilation unit, and becomes one `.ll`.
-- It is flat: only the symbol entries, `{gcd = {…}, main = {…}}`.
+- It holds symbol entries, nested in namespaces (see Module system; this revised "flat"):
+  `{lexer = {'namespace', next_token = {…}}, main = {…}}`.
 - No `version`: an ingot is made and translated by the same compiler. If stored text
   ever needs a version, it goes in the file header.
 - No `target`: the platform reaches `clang` as `--target`, not through the ingot.
 - Ingots are platform-neutral.
-- Each symbol has a linkage: internal, exported or imported. Not every symbol is
+- Each symbol has a linkage: internal, or linked (defined here or elsewhere). Not every symbol is
   external, so private helpers of two files don't clash.
-- Shape: `{name = entry, …}`; an entry has a `type`, at most one of `body`, `init`,
-  `value`, and linkage fields:
-  - `export = 'name'`: visible to the linker under that name;
-  - `import = 'name'`: defined elsewhere (every declaration);
-  - neither: internal (the default).
+- An entry has a `type`, at most one of `body`, `init`, `value`, and an optional
+  `link = 'name'` (this replaced `export`/`import`):
+  - a definition with `link`: visible to the linker under that name;
+  - a declaration (no body, `init` or `value`): `link` names a symbol defined elsewhere,
+    and is required;
+  - no `link`: internal (the default).
   The linker name is separate from the label.
 - Linkage is in the term, not in meta: it changes what a program means (whether two
   files link or clash), and meta never does.
@@ -212,13 +214,14 @@ Two kinds of dependency:
 
 Open:
 
-- Decided (in Ingot): linkage is `export`/`import` entry fields, internal by default.
+- Decided (in Ingot): linkage is the `link` entry field, internal by default.
 - Decided: the reasons that count are code that isn't oymomo (the only one that forces
-  modules; already solved by `import` and the platform linker), reuse, and people.
+  modules; already solved by declarations with `link` and the platform linker), reuse,
+  and people.
 - Decided: reuse is per symbol, by the fields shipped. `body` makes the source reusable,
-  `export` makes a compiled symbol, and `{type, import}` alone is a header. The user
+  `link` on a definition makes a compiled symbol, and `{type, link}` alone is a header. The user
   picks per use: `{type = math.gcd.type, body = math.gcd.body}` (source, internal) or
-  `{type = math.gcd.type, import = math.gcd.export}` (compiled). Withholding source is
+  `{type = math.gcd.type, link = math.gcd.link}` (compiled). Withholding source is
   done by shipping only the header and the `.o`.
 - Decided: people split a program as in Go and Rust. A unit is several files joined into
   one term (one namespace, cycles allowed), reduced to the unit's ingot(s); units form a
@@ -243,7 +246,7 @@ Open:
 - Closed: how a copied body's dependencies come along. Code is copied only inside a unit,
   where every path is valid; between units, headers hold declarations only.
 - Decided: building a unit also writes a header, `lexer.h.oymo`: a one-layer oymo file
-  with `{type, import}` for each exported symbol, keeping the unit's groups. Other units
+  with `{type, link}` for each linked definition, keeping the unit's namespaces. Other units
   read it like any file; a handwritten header (`libc.h.oymo`) has the same shape. An
   unchanged header means units that read only it need no rebuild.
 - Decided: a header has declarations only, never a `body`. So reuse between units is
@@ -254,20 +257,93 @@ Open:
 - Decide: header names with two layers; meta spans pointing back to the source.
 - Decided: a namespace is just a struct, reached by paths through a variable
   (`m.lexer.next_token`). The calculus gets nothing new.
-- Decided: the ingot nests groups, `{lexer = {'group', …}, parser = {'group', …}}`,
-  tagged `'group'` in field 0 as types are. Internal LLVM names are paths
+- Decided: the ingot nests namespaces, `{lexer = {'namespace', …}, parser = {'namespace', …}}`,
+  tagged `'namespace'` in field 0 as types are. Internal LLVM names are paths
   (`@"lexer.next_token"`). Inside a unit, files refer to each other only by path; between
-  units only through `export`/`import`. (Revises the flat ingot.)
-- Decided, as in C++: each file declares its own group label (`lexer.oymo` is
-  `{lexer = {'group', …}}`), and groups are open: the root deep-merges files with
-  `'struct.concat'`. Same-labeled groups combine (so the `'group'` tag is required: it
+  units only through `link` names. (Revises the flat ingot.)
+- Decided, taken from C++ namespaces: each file declares its own namespace label (`lexer.oymo` is
+  `{lexer = {'namespace', …}}`), and namespaces are open: the root deep-merges files with
+  `'struct.concat'`. Same-labeled namespaces combine (so the `'namespace'` tag is required: it
   says where to recurse); equal λ-free entries merge (two identical `puts` declarations);
   a λ entry defined twice gets no step and the translation rejects it.
+- Why C++'s model and not another:
+  - Rust: the parent declares the module tree (`mod lexer;`), a file never names itself,
+    and a module is closed (one file defines it). Ours: the file names itself, and
+    namespaces are open.
+  - Swift: no namespaces inside a module; all files of a module share one flat namespace
+    (as a Go package). Ours nests.
+  - Carbon: a file declares its package and library at the top (`package Foo library
+    "bar";`), and `namespace N;` plus qualified declarations (`fn N.F()`) add names.
+    Closest to ours; but no ADL or `using namespace` either, which we also leave out
+    (short names are the frontend's).
+  - From C++ we keep: the file declares its namespace, namespaces are open and nest, and
+    compiled names are fully qualified. We leave out ADL and `using`.
 - Decided: the kernel uses absolute paths only, from the unit's top (`m.lexer.helper`,
   as C++'s compiled names are fully qualified). Short and relative names are resolved by
   the frontend.
-- Decide: opcode collections (LLVM, driver, struct tools); opcodes are byte arrays, not
-  paths (idea: qualified names such as `'llvm.add'`).
+- Decided: `link = 'name'` replaces `export`/`import`. The entry's kind gives the
+  direction: a definition with `link` is visible to the linker; a declaration's `link`
+  names a symbol defined elsewhere; no `link` means internal. A declaration without
+  `link` is rejected when the ingot is verified or translated. A header entry is
+  `{type, link}`. (Revises the Ingot section's `export`/`import`.)
+- Open (quiz: "Keep open"): a unit has no name of its own; the importer picks the label
+  when mounting a header (`{math = 'read_low' 'math.h.oymo'}`). Namespaces never cross units; only link
+  names do. (Carbon needs packages because C++-style open namespaces collide across
+  libraries.)
+- Two namings: labels (inside a unit, nested paths, deep-merged) and link names (across
+  units, flat strings, joined by the linker).
+- Decided: in one ingot, all entries with the same link name are one symbol: same type
+  (else rejected), at most one definition (else "duplicate symbol"), one `define` or
+  `declare`. So `puts` declared under two labels, or declared and defined in one unit,
+  works as in C. A path spelled like a link name stays an error (nothing renamed).
+- Mangled linker names may come from a frontend, never the kernel: the frontend computes
+  `link` strings (needing unique unit names, a frontend convention); symbols for C keep
+  plain names; headers carry the final strings.
+- Decided: four kinds of oymo file:
+  - source part: `{lexer = {'namespace', …}}` (or `λdeps. …`), merged, becomes the ingot;
+  - header: declarations only, merged (or mounted, per the decision above);
+  - reduce-time library: any term (usually a struct of λs), applied or `let`-bound,
+    never in the ingot; recursion by `fix (λself. …)`, mutual recursion across libraries
+    tied by the root with `fix (λl. {a = A l, b = B l})`;
+  - opcode provider (idea for later): a compiled unit built for the host, loaded by the
+    driver, its functions become opcodes (as Rust procedural macros); λs reach it as
+    opaque handles, so opacity holds by construction; determinism and closed results
+    are its contract; the driver orders builds by it.
+- Decided: after reduction, an ingot holds only namespaces and entries; anything else is
+  rejected ("reduce-time value left in the ingot").
+- Decided: the four kinds are complete. Also needed:
+  - the root as a named role: the one file the driver starts from for a unit; it is
+    reduce-time code that is run (not applied), and its result is the unit;
+  - a driver opcode for raw data files, `'read_bytes' 'logo.png'` returning a byte array
+    (as C23 `#embed`, Rust `include_bytes!`);
+  - a driver opcode for driver inputs (build flags, later platform facts),
+    `'driver.config'` returning a struct (as Rust `cfg!`, Zig `builtin`).
+- Moved out of this redesign: opcode collections and namespaces (roadmap leaf
+  `opcode-namespaces`).
+- Decided: two operations, at the user's choice: merge (source parts, by their own
+  labels) and mount (headers, under any label). An optional `'struct.check_data' X`
+  returns `X` if it holds no λ, else has no step, so mounting a source file by mistake is
+  reported at the mount. Asking whether something is a λ doesn't look inside it, so
+  opacity holds. Frontends may detect mistakes earlier.
+- Decided: paths stay non-values. A path is harmless only while its variable is free;
+  after substitution it may be a failing projection: `(λx. (λy. b) x.l) {}` gives `b`
+  inner-first but is stuck outer-first. So views that wrap bodies are dropped.
+- Decided (quiz): the kernel keeps `m` = the whole unit (absolute paths). A namespace's
+  label may be declared by the file or picked by the root (both allowed); a body-carrying
+  file must sit where its absolute paths expect it, so a root-picked label suits headers
+  and files without such paths. Merge and mount stay as tools at the user's choice.
+- Proposal (functor style, kept for later): a library is `λu. {'namespace', …}`, bodies
+  `λn. λp.` use only their own namespace `n`, foreign symbols are fields filled from `u`
+  (`report_error = u.report_error`), and the root wires them by application inside
+  `fix (λm. {lexer = lib {report_error = m.parser.report_error}, …})`. The root must pass
+  paths, not entries (a copied body would rebind `n`). As OCaml functors and recursive
+  modules.
+- Proposal: aliases: an entry that is a path (`report_error = m.parser.report_error`)
+  is read by the translation as that symbol; chains followed, cycles and dangling paths
+  rejected.
+- Clashes: a header is relocatable (mount it under another label); a source is not (its
+  bodies hold paths), so a clash between sources is fixed by editing a label, with merge
+  reporting both spans; link-name clashes are the platform linker's.
 
 ### 3. Meta
 

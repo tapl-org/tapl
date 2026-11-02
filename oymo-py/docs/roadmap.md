@@ -23,6 +23,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - `redesign-ingot` Flat, platform-neutral ingot
     - `redesign-modules` Module system: reduce-time and link-time dependencies
     - `redesign-links` Ingots of both layers linked across files
+  - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
       - `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
@@ -225,10 +226,11 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `redesign-ingot` Flat, platform-neutral ingot
 
 - An ingot is one compilation unit and one `.ll`
-- Flat: only symbol entries; no `version`, no `target`
-- Each symbol has a linkage (internal, exported, imported), not all `external`
-- Entry: `type`, one of `body`/`init`/`value`, `export = 'name'` or `import = 'name'`;
-  neither is internal (the default); linkage is in the term, not meta
+- Symbol entries, nested in namespaces (revised from flat, see `redesign-modules`); no
+  `version`, no `target`
+- Each symbol has a linkage (internal or linked), not all `external`
+- Entry: `type`, one of `body`/`init`/`value`, `link = 'name'` (replaced `export`/`import`);
+  no `link` is internal (the default); linkage is in the term, not meta
 - Literal types only
 - Later, when needed: platform-dependent sizes (`usize`, C layouts) until translation
 - Then: oymomo-calculus.tex Sections 8–9, `ingot.py`, tests and goldens
@@ -237,10 +239,10 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - Reduce-time: another file's term substituted and reduced (today's glue)
 - Link-time: declarations joined by the linker by name
-- Why modules: code that isn't oymomo (the hard reason, already solved by `import`),
+- Why modules: code that isn't oymomo (the hard reason, already solved by declarations with `link`),
   reuse, people
-- Reuse is per symbol, by the fields shipped: `body` (source), `export` (compiled),
-  `{type, import}` alone (a header); the user picks per use
+- Reuse is per symbol, by the fields shipped: `body` (source), `link` on a definition (compiled),
+  `{type, link}` alone (a header); the user picks per use
 - People: Go/Rust model: a unit is several files joined into one term (one namespace,
   cycles allowed), reduced to the unit's ingot(s); units form a DAG
 - The root of a unit is oymo code; the driver supplies opcodes `'read_low' {path}` and
@@ -249,20 +251,52 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   records the paths read
 - oymomo-calculus.tex: E-Opcode fires on `b A` (byte array, struct of operands, closed
   `λ`, opaque to the op); its result is any closed term
-- A unit's build also writes a header `lexer.h.oymo` (`{type, import}` per exported
-  symbol, groups kept); handwritten headers have the same shape
+- A unit's build also writes a header `lexer.h.oymo` (`{type, link}` per linked
+  symbol, namespaces kept); handwritten headers have the same shape
 - Headers are declarations only: reuse between units is compiled only; source sharing
   is merging the files into one's unit; inlining across units by LTO
 - Decide: header names with two layers; meta spans back to the source
 - A namespace is just a struct reached by paths; nothing new in the calculus
-- Nested ingot with `'group'`-tagged groups; internal LLVM names are paths; inside a unit
-  only paths, between units only `export`/`import`
-- Each file declares its own group label; the root deep-merges files with
-  `'struct.concat'` (groups combine, equal λ-free entries merge, a λ entry twice is
+- Nested ingot with `'namespace'`-tagged namespaces; internal LLVM names are paths; inside a unit
+  only paths, between units only `link` names
+- Each file declares its own namespace label; the root deep-merges files with
+  `'struct.concat'` (namespaces combine, equal λ-free entries merge, a λ entry twice is
   rejected)
 - The kernel uses absolute paths only; short names are the frontend's job
-- Then: oymomo-calculus.tex Section 9 (nested ingot, `'group'`, path names), Section 10
-- Decide: opcode collections (LLVM, driver, struct tools)
+- `link = 'name'` replaces `export`/`import`; kind gives direction; a declaration without
+  `link` rejected at verification or translation
+- Decide (kept open): whether a unit has a name; for now the importer picks the mount label
+- Same link name in one ingot = one symbol (same type, at most one definition)
+- Two operations at the user's choice: merge (sources, by their own labels) and mount
+  (headers, under any label); optional `'struct.check_data' X` (X if it holds no λ, else
+  no step) guards a mount; clashes: headers re-mounted, sources edited (merge reports
+  both spans), link names by the platform linker
+- Paths stay non-values (not confluent: `(λx. (λy. b) x.l) {}`); views by wrapping bodies
+  dropped
+- Kernel keeps `m` = whole unit (absolute paths); labels declared by the file or picked by
+  the root (both allowed); merge and mount kept as tools
+- Proposal: functor-style libraries (`λu. {'namespace', …}`, bodies `λn. λp.`, root wires
+  in `fix (λm. …)`, passing paths); proposal: path entries as aliases resolved by the
+  translation
+- Four kinds of file: source part, header, reduce-time library (applied; `fix` for
+  recursion), opcode provider (later: compiled unit loaded by the driver)
+- After reduction an ingot holds only namespaces and entries
+- The root is a named role; driver opcodes `'read_bytes'` (raw data) and `'driver.config'`
+  (build flags, later platform facts)
+- Mangling only in a frontend; the kernel takes explicit `link` strings
+- Then: oymomo-calculus.tex Sections 9–10 (`link`, nested namespaces, path names)
+
+### `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
+
+- Moved out of `oymomo-redesign` (user: "move the opcode namespace outside of
+  oymomo-redesign")
+- Decide: an opcode's collection as a prefix of its name (`'llvm.add'`,
+  `'driver.read_low'`, `'struct.concat'`), as MLIR dialect ops; whether LLVM opcodes get
+  `'llvm.'`; the frontend may hide prefixes
+- Decide: prefix = the providing collection (LLVM translation, driver, struct tools, an
+  opcode provider unit)
+- Decide: final name of `'struct.check_data'`
+- Later: opcode providers (compiled units loaded by the driver; λs as opaque handles)
 
 ### `redesign-links` Ingots of both layers linked across files
 

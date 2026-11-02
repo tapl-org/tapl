@@ -2545,6 +2545,104 @@ executable binary). we should mark some place as a platform". The steps that fol
   its name; `'struct.concat'` already has one). User asked "is group a good name here?"
   about the `'group'` tag (open). `alcor_survey.md` was changed by another agent; user:
   "when you commit, add this file too".
+- Committed `a0c10e8`. Agent recommended `'namespace'` over `'group'` (`'module'`
+  overloaded, `'package'` is a unit in Go/Java, `'ns'` cryptic). User: "yes. also
+  mention somewhere that we took this from c++. how this differes from carbon, rust, and
+  swift?" (decided: tag `'namespace'`; comparison written in the design doc: Rust's parent
+  declares closed modules, Swift has one flat namespace per module, Carbon declares
+  package/library and `namespace N;` with qualified declarations, closest to ours; we keep
+  C++'s self-declared, open, nested namespaces and fully qualified compiled names, and
+  leave out ADL and `using`).
+- On `'llvm.'` opcode prefixes, user: "this llvm. prefix feels like mlir llvm dialect,
+  right?"
+- Agent: yes (MLIR `dialect.op`: `llvm.add`, `arith.addi`). User: "lets talk this after
+  namespace concept resolved" (deferred). User asked why Swift has no nested namespaces
+  and what Carbon's package gives; agent: Swift chose module = one namespace (replaced
+  ObjC prefixes, types nest, access control tied to file/module; submodule pitches never
+  adopted, https://forums.swift.org/t/pitch-lets-talk-about-submodules/3475); a Carbon
+  package is a namespace with an owner (closed, unique name, unit of import and build).
+- User: "in ingot, can we use linkname instead of export and import?" Agent: one field
+  `link = 'name'`; the entry's kind gives the direction (definition: visible to the linker;
+  declaration: defined elsewhere; no `link`: internal). User: "yes" (decided, revises
+  `redesign-ingot`); on the name `link`: "okay". A declaration without `link` is rejected:
+  user: "when verifying ingot or translating to llvm".
+- Carbon package, user: "stil does not get what carbon solves with package name". Agent:
+  two libraries both opening `namespace util` collide; a package gives a namespace an
+  owner. For oymomo, namespaces never cross units (only link names do), so no package
+  needed: (b) a unit has no name; the importer picks the mount label. User: "yes, but not
+  sure ... label which is inside a unit, and link names across units ... will there be any
+  problem?" Agent: three cases (same link under two labels, declaration plus definition
+  with one link, a path spelled like a link name) and one rule: in one ingot all entries
+  with the same link name are one symbol (same type, at most one definition, one
+  `define`/`declare`); a path equal to a link name stays an error.
+- User: "we may use mangled linker names. if yes, what is the problem?" Agent: fine if the
+  kernel never mangles; a frontend may compute `link` strings (needs unique unit names,
+  Carbon's package as a frontend convention); C needs plain names (explicit `link`, as
+  `extern "C"`); renaming breaks binaries; headers carry final strings, hiding the scheme.
+- Same-link rule: user: "yes" (decided). Namespace resolved? User: "not yet. user can use
+  two type oymo files: one for nested merge (labels), and another for mounting. if user
+  mount the oymo which has body, then there will be error. how can we prevent this. or is
+  there a way to unify this?" Agent: Option 1 unify (headers declare their own top label,
+  the unit's name, so merge is the only operation; reverses (b) to (a), Carbon-like);
+  Option 2 guarded `'struct.mount'` (no step if an entry has `body`/`init`/`value`).
+  Recommended 1. (open)
+- User: "what about reduction related lambdas ... doing something during reduction".
+  Agent: reduce-time libraries are applied, not merged (`λgen. {…}`, root passes `gen`);
+  never in the ingot; rule: after reduction the ingot holds only namespaces and entries
+  ("reduce-time value left in the ingot"). User: "but it can be recursive, or mutual
+  recursive" (agent: `fix (λself. {…})` inside a library; the root ties mutual libraries
+  with `fix (λl. {a = A l, b = B l})`); "some ingots can be a glue style too. for example
+  introducing new 'struct2.concat' op-code" (agent: opcode provider: a compiled unit built
+  for the host, loaded by the driver, its functions become opcodes; like Rust proc macros;
+  λs passed as opaque handles, so opacity holds by construction; determinism and closed
+  results are the provider's contract).
+- Four kinds (source part, header, reduce-time library, opcode provider): user: "yes"
+  (decided). Opcode providers recorded as an idea for later; "for the prefix rule we will
+  discuss it later". User: "does these four-kind covers everything, or are we missing
+  something else too?"
+- Agent: covered: `.o`/`.a` (header), C (header; later `c_import` producing one),
+  generics, build-time generated code (opcode provider), layers, tests. Missing: the root
+  as a role; raw data files (`'read_bytes'`); driver inputs (`'driver.config'`). User:
+  "yes" to recording them (decided); asked to explain the root role "intuitively with
+  examples".
+- Root explained (the file the driver starts from; its result is the unit). User: "not
+  only root reads its files, but its files also can read other files" (agreed: reads form
+  a tree/DAG). Path base (reader-relative or root-relative): "ask me later".
+- Unify merge and mount: agent: two reasons (position dependence from `m` paths;
+  multiplicity), sketched position-independent bodies with link names inside a unit and a
+  visibility field. User: "link should not be needed inside a unit. unit should see link
+  as opaque ... link names are for platform links only" (decided; the same-link rule is
+  only an emission rule for the `.ll`). User: "may be introduce alias, or some function
+  which transform m"; agent: views wrapping bodies, needing paths as values. User: "i know
+  it is safe, but not confluent" (agent agreed: `(λx. (λy. b) x.l) {}` is `b` or stuck);
+  "my direction is nested merge. which is faster computation, than reduction. I'm just
+  looking for some opportunity of resolving naming clash"; "its user's choice whether to
+  merge or mount or create a view ... we can introduce extra opcode to verify whether it
+  contains lambda" (decided: merge and mount; optional `'struct.check_data'`; views
+  dropped). Name: "use struct.check_data for now, and ask again later when we work on
+  opcode namespace. actually move the opcode namespace outside of oymomo-redesign" (new
+  roadmap node `opcode-namespaces` under `pre-bootstrap`). User asked "how" clashes are
+  resolved.
+- Agent admitted source-label clashes were only detected; proposed a second variable `n`
+  (own namespace). User: "no"; then "lets say that every namespace body lambda can reach
+  to its own namespace entries. and there will be alias entries inside namespace too.
+  who ever wants to mount, they can replace those alias easily ... each namespace is
+  fixed by its namespace". Agent read it as alias data plus `'struct.override'`. User:
+  "you did not undestand me" and gave `\u. {'namespace', helper = …, report_error =
+  u.report_error, next_token = {body = \n. \p. … n.helper … n.report_error}}` with root
+  `let lib = 'read_low' 'lib.oymo' in …`. Agent: ML functor style; the root wires in
+  `fix (λm. …)`, passing paths not entries (a copied body would rebind `n`).
+- User: "we have had a lot of desitions so far lets mark some of them decided first. ask
+  me, i will tell you in quiz format". Quiz answers: functor style: "Keep as a proposal
+  for now"; body variable: "m = the whole unit (absolute paths, as decided before)"; who
+  picks a namespace's label: "Both are allowed"; aliases as path entries: "Keep as a
+  proposal"; nested ingot with `'namespace'`: "Decided"; merge and mount with
+  `'struct.check_data'`: "Keep both as tools at the user's choice".
+- Second quiz: unit name: "Keep open" (reverted from decided); generated declaration-only
+  headers, `link` replacing `export`/`import` with link names opaque to the unit, the four
+  kinds of file plus "an ingot holds only namespaces and entries", driver opcodes
+  (`read_low`, `read_high`, `read_bytes`, `driver.config`) and the root role, and units in
+  the Go/Rust model: all "Decided".
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
