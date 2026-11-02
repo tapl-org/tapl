@@ -2372,6 +2372,113 @@ executable binary). we should mark some place as a platform". The steps that fol
 ### `redesign-modules` (Nov 1)
 
 - User picked this leaf next: "lets work on this".
+- Agent proposed a build file for (file, layer) wiring (option A), no calculus change,
+  the file's code picking reduce- or link-time. User: "lets start how to design modules.
+  first lets start with existentials of modules. why user needs modules? lets make a
+  dialog" (A not decided; starting from why).
+- Q1 (a world with no modules: what hurts first?). Candidates: size/time, code that isn't
+  oymomo, reuse, people, hiding, the tower. Agent: only "code that isn't oymomo" forces
+  modules (libc exists only as `.o`). User: "yes, I agree"; "People and Reuse matter to
+  me too" (size/time, hiding, the tower not named).
+- Agent: the hard reason is already solved by the ingot (`import` + platform linker).
+- Q2 (source reuse: the term reduced into each user's ingot, vs compiled reuse: one
+  `math.o` linked). User: "both, the user of math can choose per use. math.oymo's author
+  decide which one user can use or both".
+- Agent: entry fields already express it: `body` = source reusable, `export` = compiled
+  symbol in `math.o`, `{type, import}` alone = a header. The user builds its own entry
+  per use: `{type = math.gcd.type, body = math.gcd.body}` (source, internal) or
+  `{type = math.gcd.type, import = math.gcd.export}` (compiled). A module is a term the
+  user reduces against. Q3: per symbol by fields shipped / per file / a stronger marker.
+  User: "this works. what do you think?" Agent agreed (no new feature; per symbol is the
+  right grain; internal default keeps source copies from clashing; withholding is by
+  shipping, as in C). Decided: per symbol, by the fields shipped.
+- Open from it: a copied body is closed through `m`, so its dependencies (`m.mod_step`)
+  must exist in the user's ingot under the same labels; labels may clash.
+- Q4 (how a copied body's dependencies come along): agent offered A copy whole module,
+  B author-shipped groups, C prefix with body rewriting, D import per dependency. User:
+  "how do othem mainstream langauges do this? All options feel not good to me." Agent
+  surveyed C, C++, Rust, Go, Swift, Zig: identity is (defining module, name), qualified by
+  the compiler (mangling or paths); a copied body's helpers are pulled on demand
+  (Rust, Zig) or linked back to the defining module's compiled symbol (Go implicitly,
+  Swift `@usableFromInline`). Our options assumed one flat `m`; the mainstream keeps the
+  body attached to the defining module's namespace. Reframed Q4: Rust/Zig, Go/Swift, or
+  both. User: "lets put this on pause, and move to People" (paused, open).
+- Q5 (People: parts of one program refer to each other both ways; C model, Go/Rust
+  model, other). User: "we need splitting one program among several authors and files.
+  so there should be a way to join multiple files and create big oymo file, and that oymo
+  file will be reduced to ingot(s) ... i liked Go/Rust model, i guess Java's package is
+  also in this model ... package/crate is a one compilation unit. and those units can
+  depend on each other but not copying logic between them. only copying happens within
+  package/create between files. right?" (decided: Go/Rust model; files joined into one
+  term per unit, reduced to the unit's ingot(s)).
+- Agent's corrections: Java's compilation unit is the file, a package is a namespace and
+  visibility level, and packages may be cyclic. Go and Rust do copy between units:
+  generics instantiated in the user's unit, small or `#[inline]` functions inlined from
+  export data / crate metadata. So the rule is: inside a unit everything is shared;
+  between units the default is linking, with author-allowed exceptions (the paused Reuse
+  question).
+- Q6 (how a unit's files are joined). User: "lets assume driver can introduce global
+  variables into the oymo file. and one of those variable can be an abstraction to read
+  file content ... So there will be root oymo code, and drive will reduce it into big
+  oymo which may contain multiple files inside itself." Agent: like Zig `@import` / Nix
+  `import`; one mechanism for units, directories and wiring; the driver records read paths
+  (dependency graph); file names only in the root. Raised: `read` deterministic (cached),
+  result a term not data, and layers (separation before reduction vs `read` during it).
+- User: "why returning data is not enough. i think data can contain closed abstraction".
+  Agent: agreed for results: data excludes λ only for operands (an op inspecting a λ
+  could tell convertible terms apart); a result only has to be closed. So `'read' {path}`
+  is an ordinary opcode; E-Opcode's result goes from data to a closed term. (proposal)
+- User: "is it possible to put separation into reduction. i dont think it distrupt the
+  confluence. so we can choose our strategy where separate or where just reduce". Agent:
+  yes: separation rows become rewrite rules moving a layering outward, plus
+  `(u₁ : u₂) → low(u₁) : high(u₂)` for a layering substituted into a layering (agrees
+  with separating first; keeps "a layer never reads the other"). Needed lemma: `low`/`high`
+  commute with substitution and reduction. Gains: shared parts reduced once, `read`
+  mid-reduction, bridges in code. Costs: op/branch operands must be pushed out first, an
+  ingot needs full separation, §4 rewritten, Lean grows. theta-calculus.tex has the
+  S-rules but no confluence proof. (proposal)
+- Agent then claimed a bridge is root code "as in `(c : c)` patterns". User: "i didnt get
+  this". Agent corrected itself: `(c : c)` with `c = (cl : ch)` gives `cl : ch` again;
+  root code can't move a low layer into its high side. A bridge needs `read` to take a
+  layer: `'read' {path, 'low'}` returns `low(file)`, a plain term usable on either side;
+  the projection is done by `read` on the file, outside the calculus.
+- User: "can read becomes just an opcode instead of variable?" Agent: yes, simpler:
+  `'read' {path}` / `'read' {path, layer}` is an opcode call (E-Opcode); the driver adds
+  `op('read')`; no binding needed; reduce-time only (left over: rejected by the
+  translation, like `'struct.concat'`). (proposal)
+- User: "or driver can supply 3 opcodes: 'read', 'read_low', 'read_high'" (decided:
+  three opcodes, not a layer operand). "not here, but later on lets think about opcodes
+  collections and namespaces. for example: llvm, driver, and etc" (recorded as a Decide
+  item in the roadmap). On the open three (read as opcode; E-Opcode results any closed
+  term, operands data; separation inside reduction, lemma and cases first, then §4):
+  "yes to all" (decided).
+- Agent drafted the lemma and cases for separation inside reduction. User: "lets drop
+  this. our current rule was first separate then reduce. correct me if iam wrong."
+  Agent: correct (calculus 4.2: separation reads only the written layered-term, once,
+  before any reduction). Dropped. Consequence: `'read' {path}` returns the file's
+  projection for the layer being reduced (the driver gives each layer's reduction its own
+  `read`); `'read_low'`/`'read_high'` one fixed layer; all plain terms. E-Opcode results
+  as closed terms stays decided.
+- User: "lets drop the read for now. we use like this \"let c = ('read_low' 'c.oymo') :
+  ('read_high' 'c.oymo')\"" (decided: only `'read_low'`/`'read_high'`; separation hands
+  each side to its layer). Agent noted E-Opcode fires only on `b {lᵢ = Dᵢ}`, so the
+  operand is a struct: `('read_low' {'c.oymo'} : 'read_high' {'c.oymo'})`.
+- User: "lets make e-opcode fires on data" (decided: `b D ⟶ t` with `op(b)(D) = t`, any
+  data operand, a byte array too; `b b'` had no rule before, E-Index has a struct head, so
+  nothing clashes). Calculus pass in review marks, together with the closed-term result.
+  Example back to `('read_low' 'c.oymo' : 'read_high' 'c.oymo')`.
+- User: "doc 2.1i: i dont see D includes closed lambda". Agent: right, only the result
+  had changed; and the root `'struct.concat_disjoint' {read…}` couldn't fire (file entries
+  hold λs). Proposed closed λs in operands with an opacity condition; user: "what is
+  opacity condition?" Agent: an op may move, copy or drop a λ but its result must not
+  depend on its contents (`'is_identity'` would tell `λx. (λy. y) x` from `λx. x`). User:
+  "yes". Done as a new row `O ::= b | {lᵢ = Oᵢ} | λx. t (closed)` "opcode operand"
+  rather than changing `D`, since `D` is also ANF operands, `init`/`value` and types,
+  where a λ must not appear.
+- User: "use different letter" (`O` is already ANF's operator; renamed `A`). "If D is only
+  used in ANF and below, then move the D to 8.3, right?" Agent: right (decided): 2.1 now
+  has values `v` and opcode operands `A`; `D` is a row of the ANF grammar (8.3), with a
+  bullet; §9 init and §10 types still reference it.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

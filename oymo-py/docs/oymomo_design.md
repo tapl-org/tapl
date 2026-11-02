@@ -212,9 +212,40 @@ Two kinds of dependency:
 
 Open:
 
-- Decide: what oymomo itself needs, beyond the glue and the linker.
-- Decide: how a file names what it depends on, and in which layer.
 - Decided (in Ingot): linkage is `export`/`import` entry fields, internal by default.
+- Decided: the reasons that count are code that isn't oymomo (the only one that forces
+  modules; already solved by `import` and the platform linker), reuse, and people.
+- Decided: reuse is per symbol, by the fields shipped. `body` makes the source reusable,
+  `export` makes a compiled symbol, and `{type, import}` alone is a header. The user
+  picks per use: `{type = math.gcd.type, body = math.gcd.body}` (source, internal) or
+  `{type = math.gcd.type, import = math.gcd.export}` (compiled). Withholding source is
+  done by shipping only the header and the `.o`.
+- Decided: people split a program as in Go and Rust. A unit is several files joined into
+  one term (one namespace, cycles allowed), reduced to the unit's ingot(s); units form a
+  DAG. Inside a unit everything is shared; between units the default is linking, with
+  copying only where the defining author allows it.
+- Decided: a unit's root is oymo code. The driver supplies two reduce-time opcodes,
+  `'read_low' {path}` and `'read_high' {path}`, each returning one layer of the file as a
+  plain term, usable on either side (this is how a bridge takes another file's layer).
+  The projection is done by the opcode, outside the calculus. Both layers of a file:
+  `let c = ('read_low' 'c.oymo' : 'read_high' 'c.oymo') in …`. No plain `'read'`:
+  this layering does its job. The driver records the paths read, which gives it the
+  dependency graph.
+- Decided: E-Opcode fires on `b A`, `A` an opcode operand: a byte array (so
+  `'read_low' 'c.oymo'`), a struct of operands, or a closed `λ` (so struct tools work on
+  module entries). Its result may be any closed term. Opacity: an opcode may move, copy
+  or drop a `λ`, but its result must not depend on what the `λ` contains (else it could
+  tell `λx. (λy. y) x` from `λx. x`). Data `D` (`λ`-free) moves to
+  the ANF grammar (8.3): it is used only there and below (ANF operands, `init`/`value`,
+  types).
+- Decided: separation stays before reduction (calculus 4.2). Moving it into reduction was
+  considered and dropped; so the read opcodes return plain terms.
+- Paused: how a copied body's dependencies come along. Mainstream languages give a symbol
+  a qualified identity (defining module, name), and pull dependencies on demand (Rust,
+  Zig) or link back to the defining module's compiled symbol (Go, Swift).
+- Decide: how a unit's files are joined (field concatenation; a duplicate label an
+  error?).
+- Decide (later): opcode collections and namespaces (LLVM, driver, …).
 
 ### 3. Meta
 

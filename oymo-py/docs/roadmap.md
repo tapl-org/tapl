@@ -237,8 +237,23 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - Reduce-time: another file's term substituted and reduced (today's glue)
 - Link-time: declarations joined by the linker by name
-- Decide: what oymomo needs beyond the glue and the linker
-- Decide: how a file names its dependencies, and in which layer
+- Why modules: code that isn't oymomo (the hard reason, already solved by `import`),
+  reuse, people
+- Reuse is per symbol, by the fields shipped: `body` (source), `export` (compiled),
+  `{type, import}` alone (a header); the user picks per use
+- People: Go/Rust model: a unit is several files joined into one term (one namespace,
+  cycles allowed), reduced to the unit's ingot(s); units form a DAG
+- The root of a unit is oymo code; the driver supplies opcodes `'read_low' {path}` and
+  `'read_high' {path}` (one layer of the file, a plain term); both layers:
+  `('read_low' 'c.oymo' : 'read_high' 'c.oymo')`; reduce-time only; the driver
+  records the paths read
+- oymomo-calculus.tex: E-Opcode fires on `b A` (byte array, struct of operands, closed
+  `λ`, opaque to the op); its result is any closed term
+- Decide (paused): how a copied body's dependencies come along (qualified identity;
+  pulled on demand as Rust/Zig, or linked back as Go/Swift, or both)
+- Decide: how a unit's files are joined (field concatenation, a duplicate label an
+  error?)
+- Decide (later): opcode collections and namespaces (LLVM, driver, …)
 
 ### `redesign-links` Ingots of both layers linked across files
 

@@ -126,7 +126,7 @@
 \section{Kernel Syntax}\label{sec:syntax}
 
 \begin{points}
-\item The terms $t$ and two classes of them: values $v$ and data $D$.
+\item The terms $t$ and two classes of them: values $v$ and opcode operands $A$.
 \[
 \begin{array}{l@{\quad}rcll}
  & t & ::= & & \textit{term} \\
@@ -139,8 +139,8 @@
 \pt &   & \mid & \kw{fix}\ t & \textit{fixed point} \\[6pt]
 \pt & v & ::= & x \mid \lam{x}{t} \mid b \mid \{l_i = v_i\}_{i<k} \mid \kw{fix}\ (\lam{x}{t})  &
   \textit{value} \\
-\pt\plabel{p:data} & D & ::= & b \mid \{l_i = D_i\}_{i<k} &
-  \textit{data}
+\pt\plabel{p:opdata} & A & ::= & b \mid \{l_i = A_i\}_{i<k} \mid \lam{x}{t}\ \text{(closed)} &
+  \textit{opcode operand}
 \end{array}
 \]
 \item A lambda $\lam{x}{t}$ extends as far right as possible:
@@ -256,8 +256,8 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \axiomrow{E-Beta}
   {(\lam{x}{t_1})\ v \;\step\; \subst{x}{v}{t_1}}
 \rulerow{E-Opcode}
-  {\fn{op}(b)(D_i)_{i<k} = b'}
-  {b\ \{l_i = D_i\}_{i<k} \;\step\; b'}
+  {\fn{op}(b)(A) = t}
+  {b\ A \;\step\; t}
 \rulerow{E-Proj}
   {l_j = l}
   {\{l_i = t_i\}_{i<k}.l \;\step\; t_j}
@@ -287,12 +287,14 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
   \item A fixed point is a value: it has no effect, so copying it runs nothing twice, and it
     unfolds only when it is used (\pref{p:fix}).
   \end{subpoints}
-\item\label{p:opcode} A byte array applied to a struct, $b\ \{l_i = t_i\}_{i<k}$, is an
-  opcode call: $b$ names the opcode and the struct holds its operands, as in
+\item\label{p:opcode} A byte array applied to a term, $b\ t$, is an
+  opcode call: $b$ names the opcode and $t$ is its operand, mostly a struct of operands, as in
   $\str{add}\ \{\str{i32}, a, b\}$. \rn{E-Opcode} computes the call when $\fn{op}(b)$ is
   defined: \[\str{add}\ \{\str{i32}, \hex{02000000}, \hex{03000000}\} \step \hex{05000000}\]
   \begin{subpoints}
-  \item $\fn{op}(b)$ is a partial function from operand values to a byte array.
+  \item $\fn{op}(b)$ is a partial function from opcode operands (row \pref{p:opdata}) to a closed term: a byte
+    array, as for $\str{add}$, or any closed term, as for an opcode that returns code.
+  \item The operand may be a byte array too: $\str{read\_low}\ \str{c.oymo}$.
   \item Effects include memory opcodes, such as $\str{alloca}$, $\str{load}$ and $\str{store}$.
   \item Reduction has no memory: it never computes an address or the contents of
     one, and it never runs a memory opcode. It never moves a term that is not a value either
@@ -302,10 +304,16 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
     t\end{array}\]
     the $\str{store}$ stays outside the $\str{load}$, and a translation to SSA emits the $\str{store}$
     first, so the $\str{load}$ reads $\hex{05000000}$. Using one's result in the next orders them too.
-  \item All operands are data: byte arrays, or structs of data (row \pref{p:data}), never
-    a lambda, so they never step and the result is the same in every reduction order.
+  \item The operand may hold closed lambdas, such as a module's entries. An opcode may move, copy
+    or drop a lambda, never look inside it:
+    $\str{struct.concat}\ \{\{f = \lam{x}{x}\}, \{g = \lam{y}{y}\}\} \step \{f = \lam{x}{x},\ g = \lam{y}{y}\}$ is allowed;
+    $\str{is\_identity}\ (\lam{x}{x}) \step \hex{01}$ and $\str{is\_identity}\ (\lam{x}{(\lam{y}{y})\ x}) \step \hex{00}$ is not,
+    since the second lambda reduces to the first, so the result would depend on whether the opcode fires
+    before or after that step.
+  \item The result may hold lambdas but is closed, so substituting it captures no variable; it may
+    reduce further.
   \item Otherwise the call does not reduce: an effect, undefined behavior, an unknown opcode, or an
-    operand that is not data, such as a parameter $p.a$. With normal operands it is normal. A translation to SSA emits it as an instruction.
+    operand that is not in $A$, such as a parameter $p.a$. With normal operands it is normal. A translation to SSA emits it as an instruction.
     \end{subpoints}
 \item \rn{E-Proj} takes the field labeled $l$ (labels are unique): $\{x = a, b, y = c\}.x \step a$.
   \begin{subpoints}
@@ -417,7 +425,7 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \pt & (\lam{x}{t_1})\ v & \rn{E-Beta} \\
 \pt\plabel{p:order-arg} & (\lam{x}{t_1})\ t_2 & \rn{E-App2}\text{ on }t_2 \\
 \pt & (\kw{fix}\ (\lam{x}{t_1}))\ t_2 & \rn{E-FixApp} \\
-\pt & b\ \{l_i = D_i\}_{i<k} \quad \fn{op}(b)(D_i)_{i<k} = b' & \rn{E-Opcode} \\
+\pt & b\ A \quad \fn{op}(b)(A) = t & \rn{E-Opcode} \\
 \pt & \{l_i = t_i\}_{i<k}\ b \quad b < k & \rn{E-Index} \\
 \pt & \{l_i = t_i\}_{i<k}\ b \quad 0 < k \le b & \rn{E-Default} \\
 \pt\plabel{p:order-cond} & \{l_i = t_i\}_{i<k}\ t & \rn{E-App2}\text{ on }t \\
@@ -501,6 +509,7 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \begin{array}{l@{\quad}rcll}
 \pt\plabel{p:path} & P & ::= & x \mid P.l & \textit{path} \\
 \pt & O & ::= & P \mid b & \textit{operator} \\
+\pt\plabel{p:data} & D & ::= & b \mid \{l_i = D_i\}_{i<k} & \textit{data} \\
 \pt & Q & ::= & P \mid D & \textit{operand} \\
 \pt & J & ::= & P\ Q_1 \cdots Q_n & \textit{jump} \\
 \pt & T & ::= & Q \mid J \mid \{J_i\}_{i<k}\ P \mid R & \textit{terminal} \\
@@ -515,6 +524,7 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
   \item $O$: an operator is a path to a function, or an opcode $b$. Applied to the struct of its operands,
     $O\ \{l_i = Q_i\}_{i<k}$ is an instruction: a call (\pref{p:calls}), or an opcode call that \rn{E-Opcode} does not
     compute (\pref{p:opcode}). The struct only lists the operands: no struct is built at run time, and a struct value is never an operator's argument as a whole.
+  \item $D$: data is a byte array or a struct of data, with no lambda: a constant, as LLVM sees it.
   \item $Q$: an operand is a path or data (row \pref{p:data}). A struct operand is a constant, such as a type.
     A path to a symbol is its address, so $\str{load}\ \{\str{i32}, m.\mathit{counter}\}$ reads a global variable.
   \item $J$: a jump $P\ Q_1 \cdots Q_n$ goes to the block $P$ with one operand for each of its parameters.
