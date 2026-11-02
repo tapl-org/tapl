@@ -1552,6 +1552,29 @@ initialization, generics, symbol names, packages). Four tables, then the bullets
   build script in the language: Zig, Jai, Rust `build.rs`, Swift, Terra, Kotlin, Scala,
   Python (`setup.py`), OCaml (dune-configurator); declarative: Go, D, Ada GPR, Racket
   `info.rkt`, Python `pyproject.toml`.
+- Cargo and crates.io, the package system users praise most (Go's modules next): one
+  tool for build, test, docs, benchmarks and publish since 1.0; `Cargo.lock`; several
+  majors in one build (the crate hash in each symbol keeps them apart); per-project
+  state and a pinned compiler (`rust-toolchain.toml`); docs.rs builds docs for every
+  crate. A published version is yanked, not deleted, and a yanked version still builds
+  from a lock file; since RFC 3660 an owner may delete a whole crate within 72 hours of
+  publishing, or later if it has one owner, no reverse dependencies and fewer than 500
+  downloads a month. Weak points: one flat name space (RFC 3243, packages as optional
+  namespaces, `foo::bar`, is accepted, but Cargo has it only behind the unstable
+  `-Z open-namespaces` and crates.io does not take such names yet); `build.rs` and proc
+  macros run any code at build time; source only, with no shared binary cache; Rust
+  only, so C libraries come from `-sys` crates and the system.
+- Pixi (prefix.dev; a tool, not a language, added for comparison with Cargo) comes from
+  the conda side: it installs prebuilt binary packages of any language from conda
+  channels (conda-forge first), compilers, CUDA and C libraries included. A name is
+  unique per channel; channels are searched in the order listed. One `pixi.lock` (YAML)
+  covers every platform the manifest (`pixi.toml` or `pyproject.toml`) lists; conda
+  packages are solved by resolvo (a SAT solver), so an environment holds one version of
+  each; PyPI dependencies go to `uv`, solved against the pinned Python. Building from
+  source, `pixi build`, is still a preview (`preview = ["pixi-build"]`), with backends
+  for CMake, Python, Rust, R, ROS, Mojo and `rattler-build` recipes. Pixi has what Cargo
+  lacks (native libraries, one lock for all platforms); Cargo has what Pixi lacks (one
+  language's build and test loop, several versions side by side).
 - Per-platform code: file or directory names (Odin, Hare, Go, R `R/unix/` and
   `R/windows/`); a build-time `if` in the source (Zig, Jai, D, Swift, C3, Terra's Lua
   `if`, Nelua `## if`, C# `#if`, Visual Basic `#If`); the build system (C++, Carbon,
@@ -1660,6 +1683,10 @@ Section 13 (module systems) added these:
 - Scala: Scala 3 reference (export, imports, safe initialization), TASTy overview,
   binary compatibility guide
 - C: N3220 §6.2.2 and §6.10.2, clang.llvm.org/docs/Modules.html
+- Cargo (Nov 2): RFC 3243 and its tracking issues (rust-lang/rust#122349,
+  rust-lang/cargo#13576), RFC 3660 and the crates.io usage policy (deletion)
+- Pixi (Nov 2): pixi.sh and prefix.dev docs (lock file, PyPI through `uv`, channels,
+  `pixi build` and its backends)
 
 The twelve languages added on Oct 30 (all topics):
 

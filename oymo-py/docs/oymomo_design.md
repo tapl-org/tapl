@@ -240,12 +240,34 @@ Open:
   types).
 - Decided: separation stays before reduction (calculus 4.2). Moving it into reduction was
   considered and dropped; so the read opcodes return plain terms.
-- Paused: how a copied body's dependencies come along. Mainstream languages give a symbol
-  a qualified identity (defining module, name), and pull dependencies on demand (Rust,
-  Zig) or link back to the defining module's compiled symbol (Go, Swift).
-- Decide: how a unit's files are joined (field concatenation; a duplicate label an
-  error?).
-- Decide (later): opcode collections and namespaces (LLVM, driver, …).
+- Closed: how a copied body's dependencies come along. Code is copied only inside a unit,
+  where every path is valid; between units, headers hold declarations only.
+- Decided: building a unit also writes a header, `lexer.h.oymo`: a one-layer oymo file
+  with `{type, import}` for each exported symbol, keeping the unit's groups. Other units
+  read it like any file; a handwritten header (`libc.h.oymo`) has the same shape. An
+  unchanged header means units that read only it need no rebuild.
+- Decided: a header has declarations only, never a `body`. So reuse between units is
+  compiled only, and nothing is copied between units: a declaration has no `λ` and no
+  `m`, so it can be mounted under any label. Inlining across units comes back by LTO
+  (`clang -flto` on the `.ll` files); generic code is shared by merging the author's
+  source files into one's own unit.
+- Decide: header names with two layers; meta spans pointing back to the source.
+- Decided: a namespace is just a struct, reached by paths through a variable
+  (`m.lexer.next_token`). The calculus gets nothing new.
+- Decided: the ingot nests groups, `{lexer = {'group', …}, parser = {'group', …}}`,
+  tagged `'group'` in field 0 as types are. Internal LLVM names are paths
+  (`@"lexer.next_token"`). Inside a unit, files refer to each other only by path; between
+  units only through `export`/`import`. (Revises the flat ingot.)
+- Decided, as in C++: each file declares its own group label (`lexer.oymo` is
+  `{lexer = {'group', …}}`), and groups are open: the root deep-merges files with
+  `'struct.concat'`. Same-labeled groups combine (so the `'group'` tag is required: it
+  says where to recurse); equal λ-free entries merge (two identical `puts` declarations);
+  a λ entry defined twice gets no step and the translation rejects it.
+- Decided: the kernel uses absolute paths only, from the unit's top (`m.lexer.helper`,
+  as C++'s compiled names are fully qualified). Short and relative names are resolved by
+  the frontend.
+- Decide: opcode collections (LLVM, driver, struct tools); opcodes are byte arrays, not
+  paths (idea: qualified names such as `'llvm.add'`).
 
 ### 3. Meta
 

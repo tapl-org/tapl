@@ -249,11 +249,20 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   records the paths read
 - oymomo-calculus.tex: E-Opcode fires on `b A` (byte array, struct of operands, closed
   `λ`, opaque to the op); its result is any closed term
-- Decide (paused): how a copied body's dependencies come along (qualified identity;
-  pulled on demand as Rust/Zig, or linked back as Go/Swift, or both)
-- Decide: how a unit's files are joined (field concatenation, a duplicate label an
-  error?)
-- Decide (later): opcode collections and namespaces (LLVM, driver, …)
+- A unit's build also writes a header `lexer.h.oymo` (`{type, import}` per exported
+  symbol, groups kept); handwritten headers have the same shape
+- Headers are declarations only: reuse between units is compiled only; source sharing
+  is merging the files into one's unit; inlining across units by LTO
+- Decide: header names with two layers; meta spans back to the source
+- A namespace is just a struct reached by paths; nothing new in the calculus
+- Nested ingot with `'group'`-tagged groups; internal LLVM names are paths; inside a unit
+  only paths, between units only `export`/`import`
+- Each file declares its own group label; the root deep-merges files with
+  `'struct.concat'` (groups combine, equal λ-free entries merge, a λ entry twice is
+  rejected)
+- The kernel uses absolute paths only; short names are the frontend's job
+- Then: oymomo-calculus.tex Section 9 (nested ingot, `'group'`, path names), Section 10
+- Decide: opcode collections (LLVM, driver, struct tools)
 
 ### `redesign-links` Ingots of both layers linked across files
 

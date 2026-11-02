@@ -1987,6 +1987,18 @@ types; literal types only until one appears". Ingots use literal types only.
   Visual Basic, R, then C. Intro, note, Sources and roadmap `alcor-survey` updated.
 - Not updated: `alcor_kernel_syntax.md` still cites counts "of seventeen" (decision 0's
   table and the "from N of seventeen" reasons); left for the user to decide.
+- Cargo and Pixi bullets (Nov 2). User asked why Cargo/crates.io is called the best and
+  how Pixi compares, then "check them and add to the survey". Two bullets added to
+  section 13 after the Packages bullet, plus Sources lines; no table rows (Pixi is a
+  tool, not a language). Checked by web search: RFC 3243 (optional namespaces,
+  `foo::bar`) accepted, only behind Cargo `-Z open-namespaces`, not on crates.io yet;
+  RFC 3660 lets an owner delete a crate within 72 h, or later with one owner, no reverse
+  deps and < 500 downloads/month (so "crates.io never deletes" is no longer exact);
+  `pixi build` is a preview (`preview = ["pixi-build"]`; backends CMake, Python, Rust,
+  R, ROS, Mojo, rattler-build); `pixi.lock` covers all listed platforms; conda solve by
+  resolvo, PyPI by `uv`; channel order is priority. Agent's view given in chat (not in
+  the survey, which makes no decisions): Cargo-style identity and locks for Alcor's own
+  modules, conda/Pixi-style binaries for the C libraries it links.
 
 ### Two-layer oymomo, Alcor as its sugar (Oct 30; idea, not decided)
 
@@ -2479,6 +2491,60 @@ executable binary). we should mark some place as a platform". The steps that fol
   used in ANF and below, then move the D to 8.3, right?" Agent: right (decided): 2.1 now
   has values `v` and opcode operands `A`; `D` is a row of the ANF grammar (8.3), with a
   bullet; §9 init and §10 types still reference it.
+- Accepted the pass (5.4f shortened with `struct.concat` and `is_identity` examples);
+  committed `e355355`.
+- Joining a unit's files: agent proposed no rule; a file is a struct of entries (or
+  `λdeps. {…}`); root `'struct.concat' {…}`; λ-free equal duplicates merge, others stuck
+  (opacity forbids comparing λs). User: "how about make ingot nested of group modules.
+  also we need to separate logics between merging multiple oymo files into one unit, and
+  and platform linker". Agent: nested ingot `{lexer = {…}, parser = {…}, puts = {…}}`,
+  root just builds the struct (no concat), paths `m.lexer.next_token`, internal LLVM names
+  are paths, revises "flat"; table unit merge (reduce time, paths, all visible, copying)
+  vs platform link (after `.o`, `export`/`import` strings, exported only, no copying);
+  rule: inside a unit only paths, between units only `export`/`import`. Open: (a) entry vs
+  group, (b) absolute vs relative paths.
+- (a): user: "what is your suggestion? maybe we should revisit namespace concept?" Agent:
+  tag groups in field 0, `{'group', …}`, as types do; and yes: groups, paused Reuse
+  (qualified identity) and opcode collections are one namespace question. User: "yes"
+  (the `'group'` tag recorded as a proposal only) and "yes" (open the namespace topic).
+- User: "what about when generating .ll files, we also generate one .oymo header only
+  files. so other units can import it to use. So user can use in their code other units
+  generated header file or their own handwritten oymo files".
+- Agent: a unit's build writes `lexer.ll` and `lexer.h.oymo`, a one-layer oymo file with
+  `{type, import}` per exported symbol, keeping the groups; read like any file; a
+  handwritten header (`libc.h.oymo`) looks the same. As OCaml `.cmi`, Swift
+  `.swiftinterface`, Go export data, Rust metadata; unchanged header means no rebuild of
+  header-only users. User: "yes" (decided). Open: bodies for source reuse in the header;
+  names with two layers; meta spans back to the source.
+- Namespaces Q1 (what is a namespace: just a struct reached by paths, or a calculus
+  concept with relative names). User: "this one" on "just a struct" (decided: the
+  calculus gets nothing new; groups, headers and units are structs).
+- Namespaces Q2 (what `m` is bound to: A absolute, the whole unit; B relative, the
+  entry's group). Agent recommended A and offered to unpause Reuse by relocation
+  (`body = λm. math.gcd.body m.math`, needing paths as values). User: "what if reuse
+  header file (math.h.oymo) does not have body, just declerations". Agent: then nothing is
+  copied between units; declarations have no λ and no `m`, so they mount under any label;
+  inlining comes back by LTO (`clang -flto` on our `.ll`), cross-unit generics by merging
+  the author's source files into one's unit. User: "yes" (decided: headers are
+  declarations only; reuse between units is compiled only; source sharing is a unit
+  merge; the paused Reuse question is closed; relocation and paths as values dropped).
+- User on A: "what is this?" Agent explained absolute paths (`m.parser.report_error`
+  from the unit's top, like `/parser/report_error`; files must know the root's labels).
+  User: "how does c++ namespace work and solve this?" Agent: in C++ the file declares its
+  own namespace (open, many files add to one); short names are front-end lookup
+  (current scope outward, `using`, ADL); compiled names are fully qualified (mangled). So:
+  the kernel uses absolute paths only (A); each file declares its own group label
+  (`lexer.oymo` is `{lexer = {'group', …}}`); the root deep-merges files
+  (`'struct.concat'`: same-labeled groups combine, equal λ-free entries merge, a λ entry
+  twice gets no step); short names are the frontend's job. User: "sounds good" (decided).
+  This settles joining a unit's files, makes the `'group'` tag required (deep merge must
+  know where to recurse), and settles (b). Still open: opcode collections, header names
+  with two layers, meta spans back to source, same exported symbol in both layers.
+- On opcode collections, user quoting "qualified opcode names such as 'llvm.add' and
+  'driver.read_low'": "i meant this" (direction: an opcode's collection is a prefix of
+  its name; `'struct.concat'` already has one). User asked "is group a good name here?"
+  about the `'group'` tag (open). `alcor_survey.md` was changed by another agent; user:
+  "when you commit, add this file too".
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
