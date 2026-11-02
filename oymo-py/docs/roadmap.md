@@ -255,7 +255,15 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   symbol, namespaces kept); handwritten headers have the same shape
 - Headers are declarations only: reuse between units is compiled only; source sharing
   is merging the files into one's unit; inlining across units by LTO
-- Decide: header names with two layers; meta spans back to the source
+- A two-layer unit has one header with a layering; header meta keeps spans into the source
+- Three independent name realms: file names (read operands), labels/paths (inside a
+  unit), link names (across units); they meet only in the `.ll` symbol table
+- Driver-provided virtual directory (nested, user-built, project folder by default); read
+  paths relative to its top; libraries mounted into it; its description left to the driver
+- Internal LLVM names chosen by the translation (path by default); link names exact
+- Holes `{type}` filled by merging a body or a `link`; unfilled holes rejected at
+  verification; delegates wire dependencies inside a unit
+- A label clash: build one library as its own unit, mount its header elsewhere
 - A namespace is just a struct reached by paths; nothing new in the calculus
 - Nested ingot with `'namespace'`-tagged namespaces; internal LLVM names are paths; inside a unit
   only paths, between units only `link` names
@@ -265,7 +273,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - The kernel uses absolute paths only; short names are the frontend's job
 - `link = 'name'` replaces `export`/`import`; kind gives direction; a declaration without
   `link` rejected at verification or translation
-- Decide (kept open): whether a unit has a name; for now the importer picks the mount label
+- A unit has no name in oymomo; the importer picks the mount label; the driver names outputs
 - Same link name in one ingot = one symbol (same type, at most one definition)
 - Two operations at the user's choice: merge (sources, by their own labels) and mount
   (headers, under any label); optional `'struct.check_data' X` (X if it holds no λ, else

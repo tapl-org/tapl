@@ -2643,6 +2643,30 @@ executable binary). we should mark some place as a platform". The steps that fol
   kinds of file plus "an ingot holds only namespaces and entries", driver opcodes
   (`read_low`, `read_high`, `read_bytes`, `driver.config`) and the root role, and units in
   the Go/Rust model: all "Decided".
+- Unit name: user: "reuse does not use unit name, right? if yes, why unit should have a
+  name". Agent: right; only output files (driver), mangling (frontend), errors (paths).
+  User: "great, so lets make clear: we have 3 name realms. file names, labels/path with in
+  unit, and link names for reuse across units. they are independent, and mutually
+  exclusive, right?" (decided: no unit name; three realms; agent noted they meet only in
+  the `.ll` symbol table).
+- Read path base: agent surveyed C/C++, Rust, Zig, Nix (file-relative), Go, Python, Bazel
+  (root or search paths); file-relative would make meaning depend on meta (where a term
+  came from); recommended root-relative plus search paths. User: "what if driver provides
+  virtual directory. it can be nested. so user can build virtual directory, and chose one
+  of the file as a root to build a unit. by default project folder can be virtual
+  directory. I'm trying to decouple from hard coded environment" (proposal).
+- Headers with two layers: one file with a layering: "lgtm" (decided). Header meta spans
+  into the source: "yes" (decided).
+- User: "this process is opaque to user. so translation can choose any internal link name
+  to prevent internal link name collision, right?" Agent: yes (decided: internal names are
+  not meaning; link names exact). Virtual directory: "yes" (decided).
+- User proposed delegates: lexer declares `error = {type ...}` ("a dependency, filled by
+  the caller"); the root merges `{lexer = {'namespace', error = {body = \m.\p.
+  m.parser.report_error p}}}`; "when there is a name clash. user should have work
+  around". Agent: holes filled by merge (type compared as λ-free data, body moved), LLVM
+  inlines the delegate; label clashes worked around by a separate unit plus header. User:
+  "record this. holes ({type}) can be filled either with providing body or link"
+  (decided); asked what the separate-unit workaround means.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

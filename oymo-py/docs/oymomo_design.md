@@ -254,7 +254,34 @@ Open:
   `m`, so it can be mounted under any label. Inlining across units comes back by LTO
   (`clang -flto` on the `.ll` files); generic code is shared by merging the author's
   source files into one's own unit.
-- Decide: header names with two layers; meta spans pointing back to the source.
+- Decided: a two-layer unit has one header file with a layering,
+  `(low declarations : high declarations)`; `'read_low'`/`'read_high'` pick a side.
+- Decided: a generated header's meta keeps spans into the original source (its `files`
+  table lists the source files), so errors point at the definition, not the header.
+- Decided: three name realms, independent: file names (only as operands of the read
+  opcodes, resolved by the driver), labels and paths (inside a unit), link names (only in
+  `link` fields, across units). They meet only in the `.ll`, where internal path names and
+  link names share LLVM's symbol table (a clash there is rejected).
+- Decided: the driver provides a virtual directory (nested); the user builds it and
+  picks one file as the root of a unit; by default the project folder. Read paths are
+  relative to the virtual directory's top; libraries are mounted into it, so no search
+  paths. Decouples oymomo from the host file system. How the user describes it is left
+  to the driver design.
+- Decided: internal LLVM names are not meaning: by default an internal symbol is named by
+  its path, and the translation may choose another (deterministically) to avoid a clash.
+  Link names are emitted exactly.
+- Decided: a hole is an entry with a `type` and no `body`, `init`, `value` or `link`. Merge
+  fills it with an entry of the same type that brings a body (a definition) or a `link`
+  (a declaration of a symbol elsewhere). A hole still unfilled at verification is
+  rejected. Comparing types compares λ-free data, and a body is only moved, so opacity
+  holds.
+- Decided: dependencies inside a unit are wired by delegates: a library declares a hole
+  (`error = {type …}`), and the root fills it, e.g. with
+  `{type …, body = λm. λp. m.parser.report_error p}` (LLVM inlines it), or with
+  `{type …, link = 'report_error'}`.
+- Decided: a label clash between two body-carrying libraries is worked around by building
+  one of them as its own unit and mounting its header under another label; inlining across
+  the boundary comes back by LTO.
 - Decided: a namespace is just a struct, reached by paths through a variable
   (`m.lexer.next_token`). The calculus gets nothing new.
 - Decided: the ingot nests namespaces, `{lexer = {'namespace', …}, parser = {'namespace', …}}`,
@@ -286,8 +313,8 @@ Open:
   names a symbol defined elsewhere; no `link` means internal. A declaration without
   `link` is rejected when the ingot is verified or translated. A header entry is
   `{type, link}`. (Revises the Ingot section's `export`/`import`.)
-- Open (quiz: "Keep open"): a unit has no name of its own; the importer picks the label
-  when mounting a header (`{math = 'read_low' 'math.h.oymo'}`). Namespaces never cross units; only link
+- Decided: a unit has no name in oymomo; the importer picks the label when mounting a
+  header, and the driver names output files (after the root file, or a flag) (`{math = 'read_low' 'math.h.oymo'}`). Namespaces never cross units; only link
   names do. (Carbon needs packages because C++-style open namespaces collide across
   libraries.)
 - Two namings: labels (inside a unit, nested paths, deep-merged) and link names (across
