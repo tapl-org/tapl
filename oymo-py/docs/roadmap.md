@@ -25,6 +25,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - `redesign-links` Ingots of both layers linked across files
     - `unit-var-name` A better name for the unit variable `m`
     - `label-bytes` A label can be any bytes, not only UTF-8 text
+    - `region-marker` Regions without `m []`; an opcode builds the runnable instance
   - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
@@ -328,6 +329,25 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide: how a non-text label is written in the source (as a byte array literal, like
   `[ff00]`), printed, and kept in meta
 - Then: oymomo-calculus.tex Section 2 (labels), parser, printer, tests
+
+### `region-marker` Regions without `m []`; an opcode builds the runnable instance
+
+- Idea (user): remove `m []` from regions; since an opcode may read normal-form code and
+  return a closed term, an opcode can insert what running by reduction needs, so written
+  code is just the program
+- An instantiate opcode reads a normal-form ingot and returns its instance: the namespace
+  fixed point `fix (λm. {…})` and each region as `(fix R) [00]`; no runner in field 0
+  (and so no clash with the `'namespace'` tag)
+- Without `m []`, `λr. {…}` is ambiguous with a block with a parameter returning a struct
+  constant (`done = λc. {[00], [01]}`), so regions need a marker
+- Options: A `'region' (λr. {…})`, an opcode call with no step (its λ is not closed),
+  recommended; B keep `m []`; C a tag in the region struct (still ambiguous, breaks
+  "field 0 is the entry block"); D no struct constant as a terminal (arbitrary rule);
+  E write `(fix R) []` (not normal: loops unroll); F one flat region per function (loses
+  nested regions); G source sugar only (still needs a kernel form)
+- Postponed (user: "lets postpone this and add a roadmap leaf into oymomo-redesign")
+- Then: oymomo-calculus.tex 8 (regions, `m` kinds) and 9 (instance), Lean `anf_normal`,
+  code, goldens
 
 ### `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
 

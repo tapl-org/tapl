@@ -2732,6 +2732,15 @@ executable binary). we should mark some place as a platform". The steps that fol
 - Calculus pass: user: "yes" (accepted, marks removed). User: "create a roadmap leaf:
   label can be any bytes. right now it can only be utf8. the reason we need is to enable
   convertion between label and bytearray" (leaf `label-bytes` under `oymomo-redesign`).
+- Committed `47f1fec`. User: "i'm thinking to remove 'm [] {}' from blocks. now opcode can
+  look into normal form code, how about return new normal form code too ... we can provide
+  an opcode which insert 'm []' to the function body ... also fix namespace can be done
+  with this opcode, right?" Agent: yes, an instantiate opcode builds the instance
+  (namespace fixed point, regions as `(fix R) [00]`); but without `m []`, `λr. {…}` is
+  ambiguous with a block returning a struct constant, so a marker is needed;
+  recommended `'region' (λr. {…})`. User: "lgtm. can you show othe options too before
+  decision" (options A–G), "explain more" on D (no struct-constant terminals). User: "lets
+  postpone this and add a roadmap leaf into oymomo-redesign" (leaf `region-marker`).
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
