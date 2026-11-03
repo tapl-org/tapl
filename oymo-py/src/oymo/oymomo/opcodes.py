@@ -2,11 +2,14 @@
 
 """The opcodes: one entry per LLVM instruction, polymorphic in `type`.
 
-An opcode is called as a byte array applied to a struct, `'add' {'i32', a, b}`, which is
-LLVM's `add i32 a, b`. Fields are positional, in LLVM's operand order; labels are
-ignored. An opcode has no declared params: it reads its fields itself, by position, and
-tells what it can from them. `result_type` gives the result's type, `evaluate` the result's
-bytes when every field it needs is a literal.
+An opcode is called as a byte array applied to its operand. An LLVM opcode's operand is a
+struct, `'add' {'i32', a, b}`, which is LLVM's `add i32 a, b`. Fields are positional, in
+LLVM's operand order; labels are ignored. An opcode has no declared params: it reads its
+fields itself, by position, and tells what it can from them. `result_type` gives the
+result's type, `evaluate` the result's bytes when every field it needs is a literal.
+
+An opcode that is not LLVM's may take any operand (a byte array, a struct, a closed lambda
+or fixed point in normal form) through `apply`, and give any closed term.
 
 Shared by `reduction`, ANF and LLVM, so it holds neither and imports only `terms`.
 """
@@ -33,12 +36,16 @@ class Opcode:
     `evaluate`: the result's value as LLVM computes it, or None if the needed fields
     aren't literals or LLVM leaves the result undefined.
     `pure`: has no side effects, so reduction may fold it.
+    `apply`: for an opcode that reads its whole operand, not a struct of literals: the
+    result, a closed term, or None where it gives none. It may move, copy, drop or read the
+    operand's parts, and must not depend on the names of bound variables.
     """
 
     name: str
     result_type: Callable[[Fields], terms.Term | None]
     evaluate: Callable[[Fields], terms.ByteArray | None]
     pure: bool = True
+    apply: Callable[[terms.Term], terms.Term | None] | None = None
 
 
 def find_bit_width(typ: terms.Term) -> int | None:

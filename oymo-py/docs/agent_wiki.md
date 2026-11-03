@@ -2844,6 +2844,14 @@ executable binary). we should mark some place as a platform". The steps that fol
 - Calculus pass (2.1 row A adds `fix (λx. t)`; 5.4 bullet: an operand is a value, so no
   pending effect reaches an opcode) in review marks; Lean `isOperand` gets the
   `fix (lam t)` case (`isOperand_isNF`, `isOperand_closed` extended); builds, no sorry.
+- Accepted; committed `e3d2cdd`. Python E-Opcode step (agent, after "yes"):
+  `reduction.is_normal` (root `reduce(t) is t` and every child normal, cached on the term),
+  `reduction.is_operand` (byte array, struct of operands, closed normal λ or `fix (λ…)`);
+  `fold_opcode` fires on any operand; `Opcode.apply` (optional) for opcodes reading their
+  whole operand, result checked closed, a result without a tag takes the redex's;
+  LLVM opcodes keep `evaluate` on a struct of data; `stuck_part` no longer calls a byte
+  array applied to a λ or byte array stuck (moved to valid normal forms in anf_test). New
+  tests with a monkeypatched `'wrap'` opcode. `hatch test` 686 passed; ruff, pyrefly clean.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

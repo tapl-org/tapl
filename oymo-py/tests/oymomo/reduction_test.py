@@ -2,7 +2,7 @@
 
 import pytest
 
-from oymo.oymomo import meta, reduction, terms
+from oymo.oymomo import meta, opcodes, reduction, terms
 from oymo.oymomo.grammar import RESERVED, parse
 from oymo.oymomo.printer import show
 
@@ -393,3 +393,103 @@ def test_e_fix_proj_keeps_the_projection_and_copies_share_the_fixed_point_tag():
     assert unfolded.tag is fixed.body.body.tag
     assert unfolded.fields[0].tag is fixed.body.body.fields[0].tag
     assert unfolded.fields[0].value is fixed
+
+
+# E-Opcode on opcode operands: a byte array, a struct of operands, or a closed lambda or
+# fixed point of a lambda in normal form.
+
+
+@pytest.fixture
+def whole_operand_opcode(monkeypatch):
+    """A test opcode `'wrap' A` that reads its whole operand: `{A, A}`."""
+
+    def apply(operand):
+        return terms.Struct([terms.Field('', operand), terms.Field('', operand)])
+
+    opcode = opcodes.Opcode('wrap', lambda _fields: None, lambda _fields: None, apply=apply)
+    monkeypatch.setitem(opcodes.OPCODES, 'wrap', opcode)
+    return opcode
+
+
+@pytest.mark.parametrize(
+    ('source', 'expected'),
+    [
+        ("'wrap' [01]", '{[01], [01]}'),
+        ("'wrap' {a = [01]}", '{{a = [01]}, {a = [01]}}'),
+        ("'wrap' (λx. x)", '{λx. $0, λx. $0}'),
+        ("'wrap' (fix (λf. λx. f x))", '{fix (λf. λx. $1 $0), fix (λf. λx. $1 $0)}'),
+    ],
+)
+def test_opcode_reads_its_whole_operand(whole_operand_opcode, source, expected):
+    del whole_operand_opcode
+    assert show(reduction.reduce(resolved(source))) == expected
+
+
+@pytest.mark.parametrize(
+    'source',
+    [
+        # A lambda that is not normal yet is not an operand yet.
+        "'wrap' (λx. (λy. y) x)",
+        # An open lambda never is.
+        "'wrap' (λx. p)",
+        # A call still to run is not a value: an opcode never gets it.
+        "'wrap' {'load' {'i32', [00]}}",
+        # Nor a projection or an application.
+        "'wrap' (p.a)",
+    ],
+)
+def test_opcode_waits_for_an_operand(whole_operand_opcode, source):
+    del whole_operand_opcode
+    term = resolved(source, free=('p',))
+    assert reduction.reduce(term) is term
+
+
+def test_opcode_result_takes_the_redex_tag_unless_it_has_one(whole_operand_opcode):
+    del whole_operand_opcode
+    term = resolved("'wrap' [01]")
+    term.tag = meta.Tag(start=3, length=4)
+    result = reduction.reduce(term)
+    assert result.tag is term.tag
+    assert result.fields[0].value is term.argument
+
+
+def test_opcode_gives_a_closed_term(monkeypatch):
+    monkeypatch.setitem(
+        opcodes.OPCODES,
+        'open',
+        opcodes.Opcode('open', lambda _f: None, lambda _f: None, apply=lambda _a: terms.BruijnIndex(0)),
+    )
+    with pytest.raises(TypeError, match='not closed'):
+        reduction.reduce(resolved("'open' [01]"))
+
+
+@pytest.mark.parametrize(
+    ('source', 'operand'),
+    [
+        ('[01]', True),
+        ('{[01], a = {}}', True),
+        ('λx. x', True),
+        ('fix (λf. f)', True),
+        ('λx. (λy. y) x', False),
+        ('λx. p', False),
+        ("{'load' {'i32', [00]}}", False),
+        ("'add' {'i32', [01000000], [01000000]}", False),
+        ('p', False),
+    ],
+)
+def test_is_operand(source, operand):
+    assert reduction.is_operand(resolved(source, free=('p',))) is operand
+
+
+@pytest.mark.parametrize(
+    ('source', 'normal'),
+    [
+        ('λx. x', True),
+        ('λx. (λy. y) x', False),
+        ("λx. 'add' {'i32', [01000000], [01000000]}", False),
+        ("λx. 'add' {'i32', x, [01000000]}", True),
+        ("'load' {'i32', [00]}", True),
+    ],
+)
+def test_is_normal(source, normal):
+    assert reduction.is_normal(resolved(source)) is normal

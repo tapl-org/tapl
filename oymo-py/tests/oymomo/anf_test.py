@@ -152,14 +152,11 @@ def test_anf_error_has_the_part_location():
         '{} p',
         '{a, b} (λx. x)',
         '{a, b} {c}',
-        '[01] (λx. x)',
-        '[01] [01]',
         '(λx. x).l',
         '[01].l',
         '{a = p}.b',
         # Inside a normal form: under a lambda, in a field, in an argument.
         'λx. {} x',
-        '{a = [01] [02]}',
         'm.f ((λx. x).l)',
     ],
 )
@@ -181,6 +178,10 @@ def test_stuck(source):
         'm.f {x = λy. y}',
         'p (λx. x)',
         'λx. x.l',
+        # A byte array applied to anything is an opcode call; an unknown one is normal.
+        '[01] (λx. x)',
+        '[01] [01]',
+        '{a = [01] [02]}',
     ],
 )
 def test_valid_normal_forms_are_not_stuck(source):

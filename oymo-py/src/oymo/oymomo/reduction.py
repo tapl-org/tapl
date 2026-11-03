@@ -13,10 +13,11 @@ projection, the lambda, the replaced variable, discarded fields) are dropped.
 """
 
 from dataclasses import replace
+from typing import Any, cast
 
 from oymo.core import syntax
 from oymo.oymomo import opcodes, terms
-from oymo.oymomo.meta import Tag
+from oymo.oymomo.meta import NO_TAG, Tag
 
 
 class ReductionError(Exception):
@@ -150,28 +151,68 @@ def is_data(term: syntax.Term) -> bool:
     return False
 
 
+def is_normal(term: syntax.Term) -> bool:
+    """A normal form: no rule fires anywhere in `term`, under lambdas too. It depends on the
+    opcodes: a call an opcode computes is not normal.
+
+    Cached on the term: terms are never changed after they are built.
+    """
+    cached = term.__dict__.get('_normal')
+    if cached is not None:
+        return cached
+    normal = reduce(term) is term and all(is_normal(child) for child in term.children())
+    term.__dict__['_normal'] = normal
+    return normal
+
+
+def is_operand(term: syntax.Term) -> bool:
+    """An opcode operand: a byte array, a struct of operands, or a closed lambda or fixed
+    point of a lambda in normal form. Each is a value, so copying or dropping it runs nothing,
+    and it never steps."""
+    match term:
+        case terms.ByteArray():
+            return True
+        case terms.Struct(fields=fields):
+            return all(is_operand(f.value) for f in fields)
+        case terms.Lambda() | terms.Fix(body=terms.Lambda()):
+            return free_bound(term) == 0 and is_normal(term)
+    return False
+
+
 def field_position(struct: terms.Struct, label: str) -> int | None:
     """The position of the first field labeled `label`, or None."""
     return next((i for i, field in enumerate(struct.fields) if field.label == label), None)
 
 
 def fold_opcode(call: terms.Apply) -> syntax.Term:
-    """E-Opcode: `'name' {d}` with data operands gives the result, the bytes LLVM would
-    compute (`opcode.evaluate`). Returns `call` itself where it doesn't fold: an unknown
-    name, an impure opcode, an operand that is not data, or operands the opcode
-    can't evaluate (no defined result in LLVM).
+    """E-Opcode: `'name' A`, with `A` an opcode operand (`is_operand`), gives the opcode's
+    result: through `opcode.apply` for an opcode that reads its whole operand, or the bytes
+    LLVM would compute (`opcode.evaluate`) for a struct of data. Returns `call` itself where it
+    doesn't fold: an unknown name, an impure opcode, an operand that is not an operand yet
+    (a lambda not normal, a free variable, a call still to run), or no result.
 
-    Root-only: it reduces nothing. Fields are positional and labels are ignored.
+    Root-only: it reduces nothing. An LLVM opcode's fields are positional; labels are ignored.
     """
     opcode = opcodes.lookup(call.function)
     argument = call.argument
-    if opcode is None or not opcode.pure or not isinstance(argument, terms.Struct) or not is_data(argument):
+    if opcode is None or not opcode.pure or not is_operand(argument):
+        return call
+    if opcode.apply is not None:
+        result = opcode.apply(argument)
+        if result is None:
+            return call
+        if free_bound(result) != 0:
+            raise TypeError(f'The opcode {opcode.name!r} gave a term that is not closed.')
+        # A part the opcode creates takes the redex's tag; parts it moves keep their own.
+        # Every term class is a dataclass; `syntax.Term` itself is not one.
+        return replace(cast('Any', result), tag=call.tag) if result.tag is NO_TAG else result
+    if not isinstance(argument, terms.Struct) or not is_data(argument):
         return call
     fields = [field.value for field in argument.fields]
-    if (result := opcode.evaluate(fields)) is None:
+    if (evaluated := opcode.evaluate(fields)) is None:
         return call
     # The result is a new part: it takes the redex's tag.
-    return terms.ByteArray(result.value, call.tag)
+    return terms.ByteArray(evaluated.value, call.tag)
 
 
 def project(struct: syntax.Term, label: str) -> syntax.Term | None:
@@ -244,17 +285,15 @@ def stuck_part(term: syntax.Term) -> syntax.Term | None:
     """A part of the normal form `term` that no substitution can make reduce, or None.
 
     A stuck part is one of: the empty struct applied (no field to select); a struct
-    applied to a lambda or a struct (never a byte array); a byte array applied to a lambda
-    or a byte array (no rule); a projection of a lambda or a byte array, or of a struct
-    without the label; `fix b` or `fix {…}` (never a lambda). Parts are searched outermost
-    first, left to right.
+    applied to a lambda or a struct (never a byte array); a projection of a lambda or a
+    byte array, or of a struct without the label; `fix b` or `fix {…}` (never a lambda).
+    A byte array applied to anything is an opcode call: computed, or normal as an unknown
+    opcode is. Parts are searched outermost first, left to right.
     """
     match term:
         case terms.Apply(function=terms.Struct(fields=[])):
             return term
         case terms.Apply(function=terms.Struct(), argument=terms.Lambda() | terms.Struct()):
-            return term
-        case terms.Apply(function=terms.ByteArray(), argument=terms.Lambda() | terms.ByteArray()):
             return term
         case terms.Project(struct=terms.Lambda() | terms.ByteArray()):
             return term
