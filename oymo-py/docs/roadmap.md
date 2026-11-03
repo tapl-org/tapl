@@ -23,6 +23,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - `redesign-ingot` Flat, platform-neutral ingot
     - `redesign-modules` Module system: reduce-time and link-time dependencies
     - `redesign-links` Ingots of both layers linked across files
+    - `unit-var-name` A better name for the unit variable `m`
   - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
@@ -244,7 +245,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Reuse is per symbol, by the fields shipped: `body` (source), `link` on a definition (compiled),
   `{type, link}` alone (a header); the user picks per use
 - People: Go/Rust model: a unit is several files joined into one term (one namespace,
-  cycles allowed), reduced to the unit's ingot(s); units form a DAG
+  cycles allowed), reduced to the unit's ingot(s); link-time cycles between units allowed; only
+  reading generated headers orders builds (a handwritten header breaks a cycle)
 - The root of a unit is oymo code; the driver supplies opcodes `'read_low' {path}` and
   `'read_high' {path}` (one layer of the file, a plain term); both layers:
   `('read_low' 'c.oymo' : 'read_high' 'c.oymo')`; reduce-time only; the driver
@@ -304,6 +306,16 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   (build flags, later platform facts)
 - Mangling only in a frontend; the kernel takes explicit `link` strings
 - Then: oymomo-calculus.tex Sections 9–10 (`link`, nested namespaces, path names)
+
+### `unit-var-name` A better name for the unit variable `m`
+
+- `m` (bodies `λm. λp. …`) is the unit, but reads as "module", a word now avoided
+- Only a bound variable: the verifier tells variables apart by position, so it changes no
+  meaning; the cost is examples, code and goldens
+- `u` is taken (calculus 9 run by reduction: the struct of dependencies; the functor
+  proposal's `λu.`)
+- Keep `m` for now (user: "keep for now, create a leaf roadmap for finding a better name")
+- Decide: the name; if renamed, rename in the calculus, code and goldens together
 
 ### `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
 

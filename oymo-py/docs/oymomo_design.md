@@ -224,8 +224,10 @@ Open:
   `{type = math.gcd.type, link = math.gcd.link}` (compiled). Withholding source is
   done by shipping only the header and the `.o`.
 - Decided: people split a program as in Go and Rust. A unit is several files joined into
-  one term (one namespace, cycles allowed), reduced to the unit's ingot(s); units form a
-  DAG. Inside a unit everything is shared; between units the default is linking, with
+  one term (one namespace, cycles allowed), reduced to the unit's ingot(s). Between units,
+  link-time references may form cycles (as C object files do); only the build order must
+  be acyclic: a unit that reads another's *generated* header needs that unit built first.
+  A cycle there is broken with a handwritten header, as in C. Inside a unit everything is shared; between units the default is linking, with
   copying only where the defining author allows it.
 - Decided: a unit's root is oymo code. The driver supplies two reduce-time opcodes,
   `'read_low' {path}` and `'read_high' {path}`, each returning one layer of the file as a

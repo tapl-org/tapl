@@ -2704,6 +2704,15 @@ executable binary). we should mark some place as a platform". The steps that fol
   linker-shaped. User: "okay for now" (decided: rebase replaces the boundary, its premise,
   refined opacity, the convention, mounting = rebase of λ-free, "mixin composition, as a
   linker does", later speed-ups).
+- Recap written (artifact `modules_recap.md`); committed `f58abe4`. On "Units form a
+  DAG", user: "why? i guess c objects does not form a dag, right?" Agent: right; link-time
+  references between units may be cyclic (as `a.o`/`b.o`); only the build order is
+  acyclic, when a unit reads another's generated header; a handwritten header breaks such
+  a cycle (corrected in the design doc and roadmap).
+- User: "should it be u or m. which one is better?" Agent: only a bound variable; keep `m`
+  (`u` is taken in calculus 9 and the functor proposal; renaming is churn). User: "keep
+  for now, create a leaf roadmap for finding a better name" (leaf `unit-var-name` under
+  `oymomo-redesign`).
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
