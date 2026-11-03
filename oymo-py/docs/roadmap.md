@@ -189,11 +189,14 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `redesign-operators` Operator precedence and associativity, as in Scala
 
-- Scala's rule: precedence from an operator's first character, associativity from its
-  last (ending in `:` means right-associative)
-- Decide: take this rule for oymomo, and for which operators (`:`, `.`, application,
-  later sugar)
-- Decide: where `:` falls (θ-calculus: tightest)
+- Scala's rule (precedence from the first character, associativity from the last) is not
+  taken for oymomo: the kernel has no user operators; it would be a frontend's
+- `:` binds more loosely than application and projection, more tightly than λ, `let`,
+  `if` (which extend right): `f a : g b` is `(f a) : (g b)`; λ/let/if on a side need
+  parentheses
+- `:` is non-associative: `a : b : c` is a parse error (a layering holds no layering)
+- Then: oymomo-calculus.tex 2 (done), `grammar.py` (`LAYER ::= APPLY | APPLY ':' APPLY`),
+  printer, tests
 
 ### `redesign-file` The `.oymo` file as (layered-term, meta); meta as a database
 

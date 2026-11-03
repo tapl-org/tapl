@@ -2749,6 +2749,14 @@ executable binary). we should mark some place as a platform". The steps that fol
   (decided: no tags; a struct with a `type` field is an entry, any other struct a
   namespace; no symbol named `type`; an entry's other fields among `body`, `init`,
   `value`, `link`). Calculus pass on §9 in review marks; design doc and roadmap updated.
+- Accepted; committed `a0180dd`.
+
+### `redesign-operators` (Nov 3)
+
+- Agent: oymomo has no infix operators (projection, application, then λ/let/if); asked:
+  no general Scala rule (frontend's), `:` between application and λ/let/if, `:`
+  non-associative. User: "yes", "this one", "yes" (all decided). Calculus §2 pass in
+  review marks (the parenthesis rule replaced).
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

@@ -174,7 +174,15 @@
 \]
 \item Every term $t$ is a layered-term with no layering. Both sides of a layering are terms $t$, so a
   layering holds no layering: a layered-term has at most two layers.
-\item Until the precedence of $:$ is chosen, a layering is written in parentheses: $(t_1 : t_2)$.
+\item A layering binds more loosely than application and projection, and more tightly than a lambda,
+  $\kw{let}$ or $\kw{if}$, which extend as far right as possible:
+  \begin{subpoints}
+  \item $f\ a : g\ b$ is $(f\ a) : (g\ b)$, and $\lam{x}{t_1 : t_2}$ is $\lam{x}{(t_1 : t_2)}$. A lambda, $\kw{let}$ or $\kw{if}$ on
+    either side is written in parentheses: $t_1 : (\lam{x}{t_2})$.
+  \item The two differ in meaning, not only in reading: $\lam{x}{(t_1 : t_2)}$ has the high layer $\lam{x}{t_2}$, while
+    $(\lam{x}{t_1}) : t_2$ has the high layer $t_2$ (\pref{p:separate}).
+  \item $:$ is not associative: $t_1 : t_2 : t_3$ is rejected, since a layering holds no layering.
+  \end{subpoints}
 \end{points}
 
 %% ── Sugar ────────────────────────────────────────────────────────────

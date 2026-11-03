@@ -181,14 +181,18 @@ message ModuleFlag {
   code and calls them in turn) links both ingots into one program, so it hits this clash.
 - Decided: the two layers are equal in oymomo; the driver picks where each runs (build
   time on the host, the target binary, or both).
-- Decide: precedence of `:` (θ's: tightest); see the operators leaf below.
+- Decided: precedence of `:`; see the operators section below.
 
 ### 1b. Operators: precedence and associativity
 
 - Idea: as in Scala, an operator's precedence comes from its first character, and its
   associativity from its last (an operator ending in `:` is right-associative).
-- Decide: whether oymomo takes this rule, and for which operators (`:`, `.`,
-  application, later sugar).
+- Decided: oymomo does not take this rule: the kernel has no user operators (a frontend
+  may take it).
+- Decided: `:` binds more loosely than application and projection and more tightly than
+  λ, `let`, `if`: `f a : g b` is `(f a) : (g b)`, `λx. t₁ : t₂` is `λx. (t₁ : t₂)`. The
+  choice changes meaning (`λx. (t₁ : t₂)` vs `(λx. t₁) : t₂` separate differently).
+- Decided: `:` is non-associative; `a : b : c` is a parse error.
 
 ### 2. Module system
 
