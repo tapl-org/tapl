@@ -70,7 +70,7 @@ high ingot ─► high.ll ─► clang -c ─► high.o ┤  (high is optional)
 
 - An ingot is one compilation unit, and becomes one `.ll`.
 - It holds symbol entries, nested in namespaces (see Module system; this revised "flat"):
-  `{'namespace', lexer = {'namespace', next_token = {…}}, main = {…}}`.
+  `{lexer = {next_token = {…}}, main = {…}}`.
 - No `version`: an ingot is made and translated by the same compiler. If stored text
   ever needs a version, it goes in the file header.
 - No `target`: the platform reaches `clang` as `--target`, not through the ingot.
@@ -230,10 +230,12 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 
 #### The ingot (revises the flat ingot and `export`/`import`)
 
-- An ingot is itself a namespace, and nests namespaces:
-  `{'namespace', lexer = {'namespace', …}, parser = {'namespace', …}}`, each tagged
-  `'namespace'` in field 0 as types are. One shape for the ingot and every namespace in it. A namespace is just a struct reached by
-  paths; the calculus gets nothing new.
+- An ingot is itself a namespace, and nests namespaces: `{lexer = {…}, parser = {…}}`.
+  One shape for the ingot and every namespace in it. No tags: a struct with a `type`
+  field is an entry, any other struct is a namespace, so no symbol may be named `type`
+  (every entry has a `type`); an entry's other fields are among `body`, `init`, `value`,
+  `link`. (The `'namespace'` tag was dropped; tagging entries was considered.)
+- A namespace is just a struct reached by paths; the calculus gets nothing new.
 - An entry has a `type`, at most one of `body`, `init`, `value`, and an optional
   `link = 'name'`:
   - a definition without `link` is internal (the default);
@@ -273,8 +275,8 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 - A namespace's label is declared by the file (taken from C++ namespaces: open, nested) or
   picked by the root.
 - Tools, at the user's choice:
-  - merge, `'struct.concat'`, deep: same-labeled namespaces combine (the `'namespace'` tag
-    says where to recurse), equal λ-free entries merge, a λ entry defined twice gets no
+  - merge, `'struct.concat'`, deep: same-labeled namespaces combine (merge recurses into
+    structs without `type`), equal λ-free entries merge, a λ entry defined twice gets no
     step and is rejected with both spans;
   - rebase, `'struct.rebase' {prefix, X}`: prefixes every `m.…` path in X's bodies and
     places X under the prefix (`m.lib.step` becomes `m.dbl.lib.step`), so two libraries with
@@ -312,7 +314,7 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 
 #### Kinds of file
 
-- Source part: a namespace (`{'namespace', lexer = {'namespace', …}}`), merged or rebased.
+- Source part: a namespace (`{lexer = {…}}`), merged or rebased.
 - Header: declarations only, generated (`lexer.h.oymo`, one per unit, with a layering
   `(low : high)` for a two-layer unit) or handwritten (`libc.h.oymo`). Its meta keeps spans
   into the original source. An unchanged header means its readers need no rebuild.
@@ -333,7 +335,7 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 
 #### Proposals and open items
 
-- Proposal: functor-style libraries: `λu. {'namespace', …}`, bodies `λn. λp.` using their
+- Proposal: functor-style libraries: `λu. {…}`, bodies `λn. λp.` using their
   own namespace `n`, foreign symbols filled from `u`, wired by the root in `fix (λm. …)`
   with paths (not entries). As OCaml functors and recursive modules.
 - Proposal: aliases: an entry that is a path (`log = m.util.log`) is that symbol for the

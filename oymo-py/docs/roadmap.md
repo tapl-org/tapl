@@ -280,7 +280,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - oymomo-calculus.tex 5.4: opacity refined (look inside only closed normal λs; Mitschke);
   Lean: confluence with such opcodes
 - A namespace is just a struct reached by paths; nothing new in the calculus
-- Nested ingot with `'namespace'`-tagged namespaces; internal LLVM names are paths; inside a unit
+- Nested ingot (namespaces are plain structs; a struct with `type` is an entry, so no
+  symbol is named `type`); internal LLVM names are paths; inside a unit
   only paths, between units only `link` names
 - Each file declares its own namespace label; the root deep-merges files with
   `'struct.concat'` (namespaces combine, equal λ-free entries merge, a λ entry twice is
@@ -298,7 +299,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   dropped
 - Kernel keeps `m` = whole unit (absolute paths); labels declared by the file or picked by
   the root (both allowed); merge and mount kept as tools
-- Proposal: functor-style libraries (`λu. {'namespace', …}`, bodies `λn. λp.`, root wires
+- Proposal: functor-style libraries (`λu. {…}`, bodies `λn. λp.`, root wires
   in `fix (λm. …)`, passing paths); proposal: path entries as aliases resolved by the
   translation
 - Four kinds of file: source part, header, reduce-time library (applied; `fix` for
@@ -337,7 +338,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   code is just the program
 - An instantiate opcode reads a normal-form ingot and returns its instance: the namespace
   fixed point `fix (λm. {…})` and each region as `(fix R) [00]`; no runner in field 0
-  (and so no clash with the `'namespace'` tag)
 - Without `m []`, `λr. {…}` is ambiguous with a block with a parameter returning a struct
   constant (`done = λc. {[00], [01]}`), so regions need a marker
 - Options: A `'region' (λr. {…})`, an opcode call with no step (its λ is not closed),

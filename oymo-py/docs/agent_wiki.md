@@ -2741,6 +2741,14 @@ executable binary). we should mark some place as a platform". The steps that fol
   recommended `'region' (λr. {…})`. User: "lgtm. can you show othe options too before
   decision" (options A–G), "explain more" on D (no struct-constant terminals). User: "lets
   postpone this and add a roadmap leaf into oymomo-redesign" (leaf `region-marker`).
+- User: "i'm thinking to remove 'namespace' marker. and add a marker to the entities
+  instead" Agent agreed (entries travel alone; `'symbol'` tag). User: "any other
+  suggestion to remove 'namespace' tag?" Agent: shape-only, reserved field names
+  (`type`, `body`, `init`, `value`, `link`), split fields, label sigils. User: "what about
+  reserving only type" Agent: enough, since every entry has a `type`. User: "yes"
+  (decided: no tags; a struct with a `type` field is an entry, any other struct a
+  namespace; no symbol named `type`; an entry's other fields among `body`, `init`,
+  `value`, `link`). Calculus pass on §9 in review marks; design doc and roadmap updated.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

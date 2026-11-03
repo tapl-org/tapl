@@ -614,13 +614,11 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \begin{points}
 \item\label{p:module} An ingot is a module in a fixed shape that can be translated to SSA: one ingot is one
   compilation unit. Each layer of a program (\pref{p:one-or-two}) reduces to an ingot; only an ingot is translated.
-  \[N ::= \{\str{namespace},\ l_i = E_i\}_{i<k} \qquad E ::= e \mid N\]
+  \[N ::= \{l_i = E_i\}_{i<k},\ l_i \ne \mathit{type} \qquad E ::= e \mid N\]
 \item\label{p:gcd} For example, an ingot with $\gcd$ (its body is \pref{p:gcd-body}) and $\mathit{main}$:
   \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
-{ 'namespace',
-  math = {'namespace',
-          gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
-                 body = @vlamm. @vlamp. m [] (@vlamr. { @ldots })}},
+{ math = { gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
+                  body = @vlamm. @vlamp. m [] (@vlamr. { @ldots })}},
   main = {type = {'function', {}, 'i32'},
           body = @vlamm. @vlamp. m [] (@vlamr. {
             entry = let y = m.math.gcd {a = [30000000], b = [12000000]} in y
@@ -629,9 +627,12 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \end{Verbatim}
 \item The fields:
   \begin{subpoints}
-  \item An ingot is a namespace $N$: a struct whose field $0$ is $\str{namespace}$. Every other field is an
+  \item An ingot is a namespace $N$: a struct each of whose fields is an
     entry $e$ (a symbol the ingot defines or uses) or a namespace again, so an ingot and the namespaces in
-    it have one shape. A symbol
+    it have one shape.
+  \item A struct with a $\mathit{type}$ field is an entry; any other struct is a namespace. Every entry has a
+    $\mathit{type}$ (\pref{p:entry-kind}), so no symbol may be labeled $\mathit{type}$; an entry's other fields are
+    among $\mathit{body}$, $\mathit{init}$, $\mathit{value}$ and $\mathit{link}$, and any other field is rejected. A symbol
     defined in another ingot is a declaration (\pref{p:entry-kind}).
   \item After reduction an ingot holds only namespaces and entries; anything else, such as a lambda left
     by reduce-time code, is rejected.
@@ -691,7 +692,7 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
   definition or declaration at a path takes its place there)
   \[\kw{fix}\ (\lam{m}{\{\lam{R}{(\kw{fix}\ R)\ \hex{00}},\ f_i = B_i\ m,\ n_j = u.n_j\}_{i<k,\ j<n}})\]
   \begin{subpoints}
-  \item Field $0$ is the runner of regions, in place of the ingot's $\str{namespace}$ tag, so a module runs its own regions. $m\ \hex{}\ (\lam{r}{t})$ takes it
+  \item Field $0$ is the runner of regions, so a module runs its own regions. $m\ \hex{}\ (\lam{r}{t})$ takes it
     (\rn{E-FixApp}, \rn{E-Index}) and becomes $(\kw{fix}\ (\lam{r}{t}))\ \hex{00}$: it runs field $0$ of $t$ with $r$ bound to
     its own blocks, and a jump $r.l\ Q_1 \cdots Q_n$ takes the block $l$ and applies it.
   \item $f_i = B_i\ m$: projecting $f_i$ unfolds the instance (\rn{E-FixProj}), so a call runs the body, and a call
@@ -820,8 +821,7 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
 \item\label{p:example} For example, a $\mathit{main}$ that calls $\mathit{puts}$ when it is given an argument. The branch
   sits in a nested region $q$, whose field $0$ continues the entry block:
   \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
-{ 'namespace',
-  puts = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'},
+{ puts = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'},
   msg  = {type = {'array', [03], 'i8'}, value = [686900]},
   main = {type = {'function', {argc = 'i32'}, 'i32'},
           link = 'main',
