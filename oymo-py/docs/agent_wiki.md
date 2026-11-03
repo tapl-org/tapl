@@ -2828,6 +2828,22 @@ executable binary). we should mark some place as a platform". The steps that fol
   `SpanTable` deleted; errors and ingot objects carry `tag`; `grammar.parse(text, file,
   offset)` gives tags in UTF-8 bytes; the writer numbers files by first use; goldens
   converted with identical places; `hatch test` 662 passed; ruff, pyrefly clean.
+- Committed `ffbca63`. User: "maybe E-Opcode can take any closed normal term and return any
+  closed normal term. think deeply". Agent: confluence holds (Mitschke), but an operand
+  holding an unevaluated effect (`'store' {…}`) lets an opcode copy or drop it, breaking
+  "each effect runs once, in order"; so operands are closed normal values (adds
+  `fix (λx. t)`); results stay any closed term (a normal-result rule would force
+  `read_low` to reduce the file itself). User: "i agree. before change lets discuss how to
+  make effects opcodes deterministic ... timestamp tick variable ... mem = dict[tick,
+  list[byte]] ... tick offset operator like t, t+1, t+10 ... add t to the lambda, or wrap
+  the lambda with tick". Agent: state threading (Haskell `State#`, Clean `*World`, MemorySSA);
+  recommended a tick as a value naming a memory state, returned by `store`; counters with a
+  hidden dictionary break determinism and fail on branches, loops, calls; ticks as ordinary
+  parameters; linearity checked only for translation. User chose to record it as a leaf
+  (`effect-ticks`, under `pre-bootstrap`) and first finish the `fix` operand change.
+- Calculus pass (2.1 row A adds `fix (λx. t)`; 5.4 bullet: an operand is a value, so no
+  pending effect reaches an opcode) in review marks; Lean `isOperand` gets the
+  `fix (lam t)` case (`isOperand_isNF`, `isOperand_closed` extended); builds, no sorry.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

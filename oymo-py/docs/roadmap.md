@@ -25,6 +25,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `label-bytes` A label can be any bytes, not only UTF-8 text
   - `region-marker` Regions without `m []`; an opcode builds the runnable instance
   - `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
+  - `effect-ticks` Deterministic effects: a tick threaded through effect opcodes
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
       - `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
@@ -313,6 +314,30 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   (`usize`, C layouts) kept symbolic until translation (e.g. `'usize'`, `'c_long'` types;
   `'sizeof'`, `'alignof'`, `'offsetof'` opcodes resolved by the translation)
 - Decide: the types and opcodes, and how the translation resolves them
+
+### `effect-ticks` Deterministic effects: a tick threaded through effect opcodes
+
+- Idea (user): effects take a tick and effect opcodes become deterministic; reduction may
+  then compute memory (`load tick, ptr`, `store tick, ptr, value`)
+- Known as state threading: Haskell `State# RealWorld`, Clean's `*World` (uniqueness),
+  LLVM MemorySSA / MLIR memory versions (memory phi at loop heads)
+- Gains: effect opcodes are pure functions of their operands (Mitschke's condition); a
+  duplicated store computes the same tick, an unused tick is a dead store; memory folds
+  during reduction when it is known
+- Agent's recommendation: a tick is a value naming a memory state, returned by `store`
+  (`let t1 = 'store' {t0, p, v} in 'load' {t1, p}`); in reduction it can be a memory value,
+  at run time it is erased. Counters (`t`, `t+1`) with a hidden `mem[tick]` dictionary
+  were judged to break determinism (state outside the term) and to fail on branches,
+  loops and calls
+- Ticks as ordinary values: an effectful function takes a tick parameter and returns its
+  new tick; `main` gets the first tick from outside; loops carry it as a block parameter;
+  no new binder (user asked: add `t` to the λ, or wrap the λ)
+- Linearity only for the translation: each tick used at most once by a store, never read
+  older than the latest; checked by the verifier
+- Effects on the outside world still wait (the first tick is a free variable)
+- If adopted, unevaluated effects may become opcode operands (copying them is then safe)
+- Decide: what a tick is; how functions and calls carry it; the linearity check; how the
+  translation erases ticks; then oymomo-calculus.tex, Lean, code
 
 ### `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
 

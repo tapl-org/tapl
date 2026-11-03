@@ -139,7 +139,7 @@
 \pt &   & \mid & \kw{fix}\ t & \textit{fixed point} \\[6pt]
 \pt & v & ::= & x \mid \lam{x}{t} \mid b \mid \{l_i = v_i\}_{i<k} \mid \kw{fix}\ (\lam{x}{t})  &
   \textit{value} \\
-\pt\plabel{p:opdata} & A & ::= & b \mid \{l_i = A_i\}_{i<k} \mid \lam{x}{t}\ \text{(closed, normal)} &
+\pt\plabel{p:opdata} & A & ::= & b \mid \{l_i = A_i\}_{i<k} \mid \lam{x}{t} \mid \kw{fix}\ (\lam{x}{t})\ \text{(closed, normal)} &
   \textit{opcode operand}
 \end{array}
 \]
@@ -312,7 +312,9 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
     t\end{array}\]
     the $\str{store}$ stays outside the $\str{load}$, and a translation to SSA emits the $\str{store}$
     first, so the $\str{load}$ reads $\hex{05000000}$. Using one's result in the next orders them too.
-  \item The operand may hold closed lambdas in normal form, such as a module's entries. An opcode may move, copy,
+  \item An operand is a value: copying or dropping it runs nothing. So an opcode never receives an
+    effect that has still to run, such as a $\str{store}$ call, which it could otherwise copy or drop.
+  \item The operand may hold closed lambdas and fixed points in normal form, such as a module's entries. An opcode may move, copy,
     drop or read a lambda:
     $\str{struct.concat}\ \{\{f = \lam{x}{x}\}, \{g = \lam{y}{y}\}\} \step \{f = \lam{x}{x},\ g = \lam{y}{y}\}$, and $\str{is\_identity}\ (\lam{x}{x}) \step \hex{01}$.
   \item A lambda that is not yet normal is not yet an operand: $\str{is\_identity}\ (\lam{x}{(\lam{y}{y})\ x})$ waits

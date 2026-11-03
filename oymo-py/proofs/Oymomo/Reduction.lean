@@ -8,8 +8,8 @@ import Oymomo.Substitution
 `Step op t t'` is `t ⟶ t'`: a computation rule anywhere in `t` (reduction
 anywhere). `op` is the opcode table, left abstract: `op b s = some t` when `op(b)` is
 defined on the operand `s`. E-Opcode reads it only when `s` is an opcode operand
-(`isOperand`): a byte array, a struct of operands, or a closed lambda in normal form. An
-operand never steps (`isNF_sound`), so an opcode may move, copy, drop or read its lambdas.
+(`isOperand`): a byte array, a struct of operands, or a closed lambda or fixed point of a
+lambda in normal form, each a value. An operand never steps (`isNF_sound`), so an opcode may move, copy, drop or read its lambdas.
 The result is any closed term (`OpOK`); it may hold lambdas and reduce further. Normal
 forms are a syntactic test here (`isNF`, exactly the terms with no step: `isNF_iff`),
 since a rule cannot ask for the absence of steps. E-Beta substitutes only a value. E-FixProj and E-FixApp unfold a
@@ -74,10 +74,11 @@ mutual
     | bytes _ => true
     | fix t => isNF t
 
-  /-- Opcode operands `A`: a byte array, a struct of operands, or a closed lambda in normal
-  form. -/
+  /-- Opcode operands `A`: a byte array, a struct of operands, or a closed lambda or fixed
+  point of a lambda in normal form. Each is a value, so copying or dropping it runs nothing. -/
   def isOperand : Term → Bool
     | lam t => isNF t && closedAt 1 t
+    | fix (lam t) => isNF t && closedAt 1 t
     | snil => true
     | scons _ t r => isOperand t && isOperand r
     | bytes _ => true
@@ -371,6 +372,10 @@ theorem isNF_app {a u : Term} :
 theorem isOperand_isNF {s : Term} (h : isOperand op s = true) : isNF op s = true := by
   induction s with
   | lam t _ => simp only [isOperand, Bool.and_eq_true] at h; simp [isNF, h.1]
+  | fix t _ =>
+    cases t with
+    | lam u => simp only [isOperand, Bool.and_eq_true] at h; simp [isNF, h.1]
+    | _ => simp [isOperand] at h
   | scons l t r iht ihr =>
     simp only [isOperand, Bool.and_eq_true] at h
     simp [isNF, iht h.1, ihr h.2]
@@ -382,6 +387,12 @@ theorem isOperand_isNF {s : Term} (h : isOperand op s = true) : isNF op s = true
 theorem isOperand_closed {s : Term} (h : isOperand op s = true) : closed s := by
   induction s with
   | lam t _ => simp only [isOperand, Bool.and_eq_true] at h; exact h.2
+  | fix t _ =>
+    cases t with
+    | lam u =>
+      simp only [isOperand, Bool.and_eq_true] at h
+      simp only [closed, closedAt]; exact h.2
+    | _ => simp [isOperand] at h
   | scons l t r iht ihr =>
     simp only [isOperand, Bool.and_eq_true] at h
     have h1 := iht h.1
