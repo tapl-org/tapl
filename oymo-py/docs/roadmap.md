@@ -24,6 +24,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - `redesign-modules` Module system: reduce-time and link-time dependencies
     - `redesign-links` Ingots of both layers linked across files
     - `unit-var-name` A better name for the unit variable `m`
+    - `label-bytes` A label can be any bytes, not only UTF-8 text
   - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
@@ -316,6 +317,17 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   proposal's `λu.`)
 - Keep `m` for now (user: "keep for now, create a leaf roadmap for finding a better name")
 - Decide: the name; if renamed, rename in the calculus, code and goldens together
+
+### `label-bytes` A label can be any bytes, not only UTF-8 text
+
+- Today a label can only be UTF-8 text (an identifier); a struct field's label should be
+  any byte array
+- Why: to convert between a label and a byte array (user: "the reason we need is to
+  enable convertion between label and bytearray"), e.g. opcodes that build or read
+  labels, rebase prefixes, paths as data
+- Decide: how a non-text label is written in the source (as a byte array literal, like
+  `[ff00]`), printed, and kept in meta
+- Then: oymomo-calculus.tex Section 2 (labels), parser, printer, tests
 
 ### `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
 

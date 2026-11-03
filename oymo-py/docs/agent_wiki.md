@@ -2717,6 +2717,21 @@ executable binary). we should mark some place as a platform". The steps that fol
   building a unit, opcodes and confluence, kinds of file, reuse, proposals); superseded
   bullets dropped (source clashes fixed by editing, the merge/mount split as separate
   concepts).
+- Calculus pass (review marks) for the module design: 5.4 opacity refined (read a normal
+  λ, α-invariantly; Mitschke); 8 kinds: `m.l₁…lₙ` paths through namespaces; 9: ingot
+  grammar `I ::= {lᵢ = Nᵢ}`, `N ::= e | {'namespace', lᵢ = Nᵢ}`, only namespaces and
+  entries after reduction, `link` replaces `export`/`import` (opaque to the ingot), hole
+  row and new point, gcd example nested under `math`, instance with namespaces, merge and
+  move-under-a-label described as user code; 10: `link` or path names (`@math.gcd`, valid
+  LLVM without quotes), same-link emission rule, internal names may change, symbol
+  addresses in data left out.
+- User: "doc 9.1. we can just accept N as an Ingot. no need to separate I. so any ingot is
+  a struct and its first field is 'namespace'" (decided: `N ::= {'namespace', lᵢ = Eᵢ}`,
+  `E ::= e | N`; examples tagged at the top; in the run-by-reduction instance the runner
+  takes field 0 in place of the tag).
+- Calculus pass: user: "yes" (accepted, marks removed). User: "create a roadmap leaf:
+  label can be any bytes. right now it can only be utf8. the reason we need is to enable
+  convertion between label and bytearray" (leaf `label-bytes` under `oymomo-redesign`).
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

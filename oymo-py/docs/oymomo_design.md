@@ -70,7 +70,7 @@ high ingot ─► high.ll ─► clang -c ─► high.o ┤  (high is optional)
 
 - An ingot is one compilation unit, and becomes one `.ll`.
 - It holds symbol entries, nested in namespaces (see Module system; this revised "flat"):
-  `{lexer = {'namespace', next_token = {…}}, main = {…}}`.
+  `{'namespace', lexer = {'namespace', next_token = {…}}, main = {…}}`.
 - No `version`: an ingot is made and translated by the same compiler. If stored text
   ever needs a version, it goes in the file header.
 - No `target`: the platform reaches `clang` as `--target`, not through the ingot.
@@ -230,8 +230,9 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 
 #### The ingot (revises the flat ingot and `export`/`import`)
 
-- The ingot nests namespaces: `{lexer = {'namespace', …}, parser = {'namespace', …}}`,
-  tagged `'namespace'` in field 0 as types are. A namespace is just a struct reached by
+- An ingot is itself a namespace, and nests namespaces:
+  `{'namespace', lexer = {'namespace', …}, parser = {'namespace', …}}`, each tagged
+  `'namespace'` in field 0 as types are. One shape for the ingot and every namespace in it. A namespace is just a struct reached by
   paths; the calculus gets nothing new.
 - An entry has a `type`, at most one of `body`, `init`, `value`, and an optional
   `link = 'name'`:
@@ -311,7 +312,7 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 
 #### Kinds of file
 
-- Source part: a namespace of entries (`{lexer = {'namespace', …}}`), merged or rebased.
+- Source part: a namespace (`{'namespace', lexer = {'namespace', …}}`), merged or rebased.
 - Header: declarations only, generated (`lexer.h.oymo`, one per unit, with a layering
   `(low : high)` for a two-layer unit) or handwritten (`libc.h.oymo`). Its meta keeps spans
   into the original source. An unchanged header means its readers need no rebuild.

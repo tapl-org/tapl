@@ -305,11 +305,14 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
     the $\str{store}$ stays outside the $\str{load}$, and a translation to SSA emits the $\str{store}$
     first, so the $\str{load}$ reads $\hex{05000000}$. Using one's result in the next orders them too.
   \item The operand may hold closed lambdas, such as a module's entries. An opcode may move, copy
-    or drop a lambda, never look inside it:
+    or drop a lambda, and look inside it only if it is in normal form:
     $\str{struct.concat}\ \{\{f = \lam{x}{x}\}, \{g = \lam{y}{y}\}\} \step \{f = \lam{x}{x},\ g = \lam{y}{y}\}$ is allowed;
     $\str{is\_identity}\ (\lam{x}{x}) \step \hex{01}$ and $\str{is\_identity}\ (\lam{x}{(\lam{y}{y})\ x}) \step \hex{00}$ is not,
     since the second lambda reduces to the first, so the result would depend on whether the opcode fires
     before or after that step.
+  \item A lambda in normal form never steps, so an opcode may read it, as long as its result does not
+    depend on the names of bound variables ($\lam{x}{x}$ and $\lam{y}{y}$ are one term). Built-in functions
+    on closed normal operands keep a confluent calculus confluent (Mitschke's $\delta$-rules).
   \item The result may hold lambdas but is closed, so substituting it captures no variable; it may
     reduce further.
   \item Otherwise the call does not reduce: an effect, undefined behavior, an unknown opcode, or an
@@ -548,15 +551,15 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \[
 \begin{array}{l@{\quad}lll}
  & \textit{kind} & \textit{bound by} & \textit{used as} \\ \hline
-\pt & \textit{module} & \text{the body's 1st } \lambda,\ m & m.l\text{: operator, operand};\ m\ \hex{}\text{: runner} \\
+\pt & \textit{module} & \text{the body's 1st } \lambda,\ m & m.l_1 \cdots l_n\text{: operator, operand};\ m\ \hex{}\text{: runner} \\
 \pt & \textit{arguments} & \text{the body's 2nd } \lambda,\ p & p.l,\ l \text{ a parameter: operand, condition} \\
 \pt & \textit{region} & \text{a region's } \lambda,\ r & r.l,\ l \text{ a block: head of a jump} \\
 \pt & \textit{value} & \kw{let},\ \text{a block's } \lambda & x\text{: operand, condition}
 \end{array}
 \]
   \begin{subpoints}
-  \item $m.l$: $l$ is a label of the ingot (\pref{p:module}); $m.l$ is an operator when
-    $l$ is a function, and otherwise an operand, the address of $l$. $m\ \hex{}$ only heads a region; any other
+  \item $m.l_1 \cdots l_n$: a path from the ingot's top, through its namespaces, to an entry
+    (\pref{p:module}); it is an operator when the entry is a function, and otherwise an operand, its address. $m\ \hex{}$ only heads a region; any other
     $x\ b$ is rejected.
   \item $r.l$: a jump to the block $l$ passes exactly as many operands as $l$ has parameters.
   \item $x$: a value has no fields, so $x.l$ is rejected; a field of a struct value is read with an
@@ -611,24 +614,30 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \begin{points}
 \item\label{p:module} An ingot is a module in a fixed shape that can be translated to SSA: one ingot is one
   compilation unit. Each layer of a program (\pref{p:one-or-two}) reduces to an ingot; only an ingot is translated.
-  \[\{l_i = e_i\}_{i<k}\]
+  \[N ::= \{\str{namespace},\ l_i = E_i\}_{i<k} \qquad E ::= e \mid N\]
 \item\label{p:gcd} For example, an ingot with $\gcd$ (its body is \pref{p:gcd-body}) and $\mathit{main}$:
   \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
-{ gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
-         body = @vlamm. @vlamp. m [] (@vlamr. { @ldots })},
+{ 'namespace',
+  math = {'namespace',
+          gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
+                 body = @vlamm. @vlamp. m [] (@vlamr. { @ldots })}},
   main = {type = {'function', {}, 'i32'},
           body = @vlamm. @vlamp. m [] (@vlamr. {
-            entry = let y = m.gcd {a = [30000000], b = [12000000]} in y
+            entry = let y = m.math.gcd {a = [30000000], b = [12000000]} in y
           }),
-          export = 'main'} }
+          link = 'main'} }
 \end{Verbatim}
 \item The fields:
   \begin{subpoints}
-  \item Every field is a symbol the ingot defines or uses: an entry $e_i$ labeled $l_i$. A symbol
+  \item An ingot is a namespace $N$: a struct whose field $0$ is $\str{namespace}$. Every other field is an
+    entry $e$ (a symbol the ingot defines or uses) or a namespace again, so an ingot and the namespaces in
+    it have one shape. A symbol
     defined in another ingot is a declaration (\pref{p:entry-kind}).
+  \item After reduction an ingot holds only namespaces and entries; anything else, such as a lambda left
+    by reduce-time code, is rejected.
   \item An ingot has no version and no target: it is made and translated by the same compiler, and
     the platform reaches the translation from outside. An ingot is the same for every platform.
-  \item Each entry is closed: its body names other symbols only through $m$ (\pref{p:kinds}), so a source
+  \item Each entry is closed: its body names other symbols only through paths from $m$ (\pref{p:kinds}), so a source
     language lowers each of its items to one entry on its own.
   \end{subpoints}
 \item\label{p:entry-kind} An entry is a struct with a $\mathit{type}$ and at most one of
@@ -639,39 +648,50 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \pt & \mathit{type}, \mathit{body} & \textit{definition} & \{\str{function}, \{x_i = t_i\}_{i<k}, t\} \\
 \pt & \mathit{type}, \mathit{init} & \textit{global variable} & \text{a type, read by the translation (\pref{p:types})} \\
 \pt & \mathit{type}, \mathit{value} & \textit{constant} & \text{a type} \\
-\pt & \mathit{type}, \mathit{import} & \textit{declaration} & \text{either}
+\pt & \mathit{type}, \mathit{link} & \textit{declaration} & \text{either} \\
+\pt & \mathit{type} & \textit{hole} & \text{either}
 \end{array}
 \]
   \begin{subpoints}
   \item A definition's $\mathit{body}$ is a function's body (Section~\ref{sec:banf}).
   \item A function's type holds its parameters' types, in order, and its result type:
-    $\mathit{puts} = \{\mathit{type} = \{\str{function}, \{s = \str{ptr}\}, \str{i32}\},\ \mathit{import} = \str{puts}\}$ declares $\mathit{puts}$.
+    $\mathit{puts} = \{\mathit{type} = \{\str{function}, \{s = \str{ptr}\}, \str{i32}\},\ \mathit{link} = \str{puts}\}$ declares $\mathit{puts}$.
   \item A function takes exactly its parameters; there are no variable arguments (C's $\kw{...}$). Data of
     variable size is passed as a pointer and a length: $\{\mathit{data} = \str{ptr},\ \mathit{len} = \str{i64}\}$.
   \item A declaration is a function, global variable or constant that another ingot defines.
   \end{subpoints}
-\item\label{p:linkage} Each entry has a linkage, given by at most one of two fields, each a byte array that names the
-  symbol for the linker:
+\item\label{p:linkage} Each entry has a linkage, given by an optional field $\mathit{link} = b$, a byte array that names the symbol for the linker; the
+  entry's kind gives the direction:
   \begin{subpoints}
-  \item $\mathit{export} = b$: a definition, global variable or constant that other ingots may use, under the
-    name $b$.
-  \item $\mathit{import} = b$: a declaration, of the symbol named $b$ in another ingot. Every declaration has it.
-  \item Neither: the symbol is internal, seen only inside its ingot. This is the default, so the helpers of two
+  \item A definition, global variable or constant with $\mathit{link} = b$: other ingots may use it, under the name $b$.
+  \item A declaration with $\mathit{link} = b$: the symbol named $b$ in another ingot. Every declaration has
+    it; one without is rejected.
+  \item No $\mathit{link}$: the symbol is internal, seen only inside its ingot. This is the default, so the helpers of two
     ingots, such as two $\gcd$s, never clash.
-  \item The linker's name is apart from the label: $\{\mathit{say} = \{\mathit{type} = \dots,\ \mathit{import} = \str{puts}\}\}$ is
+  \item The linker's name is apart from the label: $\{\mathit{say} = \{\mathit{type} = \dots,\ \mathit{link} = \str{puts}\}\}$ is
     reached as $m.\mathit{say}$ and linked to $\mathit{puts}$; so a label can be renamed without changing what is linked.
+  \item Link names are opaque to the ingot: nothing inside it reads them, so changing them changes no
+    reduction; they are for the system linker only.
   \item Linkage is part of the term, as it changes what a program means: whether two ingots link or clash.
-  \item Reduction ignores both fields (\pref{p:run-module}); only the translation reads them (\pref{p:symbols-llvm}).
+  \item Reduction ignores $\mathit{link}$ (\pref{p:run-module}); only the translation reads it (\pref{p:symbols-llvm}).
+  \end{subpoints}
+\item\label{p:hole} A hole is an entry with only a $\mathit{type}$: a symbol the ingot needs and does not yet have.
+  \begin{subpoints}
+  \item Code that builds the ingot fills it with an entry of the same type that brings a $\mathit{body}$ (a
+    definition) or a $\mathit{link}$ (a declaration), for example a definition that forwards a call:
+    $\{\mathit{type} = \dots,\ \mathit{body} = \lam{m}{\lam{p}{m.\mathit{parser}.\mathit{report}\ p}}\}$.
+  \item A hole left in the ingot is rejected.
   \end{subpoints}
 \item\label{p:init} An $\mathit{init}$ or a $\mathit{value}$ is data (row \pref{p:data}) of the entry's type:
   $\{\mathit{type} = \str{i32},\ \mathit{init} = \hex{29000000}\}$.
 How data initializes each type belongs to the translation (\pref{p:init-llvm}).
 \item\label{p:run-module} A module also runs by reduction, as a test does, once $m$ is bound to an instance. For a
   module with definitions $f_i$ of bodies $B_i$ and declarations $n_j$, and a struct $u$ that holds
-  those names, the instance is
+  those names, the instance is (with namespaces, each namespace becomes a struct of the same shape, and a
+  definition or declaration at a path takes its place there)
   \[\kw{fix}\ (\lam{m}{\{\lam{R}{(\kw{fix}\ R)\ \hex{00}},\ f_i = B_i\ m,\ n_j = u.n_j\}_{i<k,\ j<n}})\]
   \begin{subpoints}
-  \item Field $0$ is the runner of regions, so a module runs its own regions. $m\ \hex{}\ (\lam{r}{t})$ takes it
+  \item Field $0$ is the runner of regions, in place of the ingot's $\str{namespace}$ tag, so a module runs its own regions. $m\ \hex{}\ (\lam{r}{t})$ takes it
     (\rn{E-FixApp}, \rn{E-Index}) and becomes $(\kw{fix}\ (\lam{r}{t}))\ \hex{00}$: it runs field $0$ of $t$ with $r$ bound to
     its own blocks, and a jump $r.l\ Q_1 \cdots Q_n$ takes the block $l$ and applies it.
   \item $f_i = B_i\ m$: projecting $f_i$ unfolds the instance (\rn{E-FixProj}), so a call runs the body, and a call
@@ -679,19 +699,18 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
   \item $n_j = u.n_j$ copies each dependency in, so a body reaches $m.n_j$ as it reaches its own symbols.
   \item User code instantiates modules in dependency order and passes them by name (\pref{p:merge}),
     so each gets one instance of each module below it; in a diamond, both sides share one instance.
-  \item With the ingot of \pref{p:gcd} and $u = \{\}$, a call of the instance's $\mathit{gcd}$ on
+  \item With the ingot of \pref{p:gcd} and $u = \{\}$, a call of the instance's $\mathit{math}.\mathit{gcd}$ on
     $\{a = \hex{30000000}, b = \hex{12000000}\}$ reduces to $\hex{06000000}$.
   \item An opcode that \rn{E-Opcode} does not compute, such as $\str{load}$, stays in the result, waiting for
     run time.
   \end{subpoints}
 \item\label{p:merge} Modules are combined by user code; this document gives no rule for it:
   \begin{subpoints}
-  \item To compile, each module is its own ingot, and the system linker joins them by name: an $\mathit{import}$ to the $\mathit{export}$ of the same name in another ingot.
-  \item User code may also merge modules whose names match into one ingot: for a definition $f$ of a module
-    $a$, the merged body
-    $\lam{m}{a.f.\mathit{body}\ m}$ reduces to the body of $f$, with the merged $m$, since $m$ is a variable, so a value.
-  \item A renaming is a struct of paths, such as $\{g = m.h\}$. It reduces only once $m$ is bound, so only
-    when running (\pref{p:run-module}).
+  \item To compile, each module is its own ingot, and the system linker joins them by name: a declaration's
+    $\mathit{link}$ to a definition's $\mathit{link}$ of the same name in another ingot.
+  \item User code may also build one ingot from several files with opcodes (E-Opcode): it may merge them,
+    so that namespaces with the same label combine, and it may move one under a new label, adding the label
+    to every path from $m$ in its bodies, which are in normal form (\pref{p:opcode}).
   \end{subpoints}
 \end{points}
 
@@ -773,23 +792,27 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
   \item For \pref{p:gcd}, $\mathit{done}$'s parameter is named $c1$, and the blocks are $r.\mathit{entry}$,
     $r.\mathit{loop}$, $q.\mathit{step}$ and $r.\mathit{done}$.
   \end{subpoints}
-\item\label{p:symbols-llvm} Each symbol becomes an LLVM global. An exported or imported symbol is named by its
-  linker name (\pref{p:linkage}), as $\kw{@main}$ or $\kw{@puts}$; an internal one by its label, with LLVM's
-  $\kw{internal}$ linkage, as $\kw{@gcd}$:
+\item\label{p:symbols-llvm} Each symbol becomes an LLVM global. A symbol with a $\mathit{link}$ is named by its
+  linker name (\pref{p:linkage}), as $\kw{@main}$ or $\kw{@puts}$; an internal one by its path, with LLVM's
+  $\kw{internal}$ linkage, as $\kw{@math.gcd}$:
   \begin{subpoints}
   \item A definition becomes LLVM's $\kw{define}$; its parameters and result come from its type:
-    $\kw{define\ internal\ i32\ @gcd(\dots)}$, $\kw{define\ i32\ @main()}$.
+    $\kw{define\ internal\ i32\ @math.gcd(\dots)}$, $\kw{define\ i32\ @main()}$.
   \item A declared function becomes $\kw{declare}$: $\mathit{puts}$ is
     $\kw{declare\ i32\ @puts(ptr)}$; a declared variable becomes $\kw{external\ global}$.
-  \item A constant becomes $\kw{@answer\ =\ internal\ constant\ i32\ 42}$, or without $\kw{internal}$ when exported.
-  \item A global variable becomes $\kw{@counter\ =\ global\ i32\ 41}$ when exported as $\str{counter}$.
+  \item A constant becomes $\kw{@answer\ =\ internal\ constant\ i32\ 42}$, or without $\kw{internal}$ when it has a $\mathit{link}$.
+  \item A global variable becomes $\kw{@counter\ =\ global\ i32\ 41}$ when its $\mathit{link}$ is $\str{counter}$.
   \item $\{\}$ becomes $\kw{zeroinitializer}$, and a byte array for an $\str{i8}$ array becomes $\kw{c"\dots"}$.
-  \item Two symbols of one ingot that get the same LLVM name are rejected; the translation renames nothing.
+  \item Entries with the same $\mathit{link}$ are one LLVM symbol, as the linker would make them: one
+    $\kw{define}$ if one of them is a definition, else one $\kw{declare}$; their types must be equal, and two
+    definitions are rejected.
+  \item An internal name carries no meaning: the translation names it by its path, and may choose another
+    name to keep it apart from the linker names.
   \end{subpoints}
 \item\label{p:init-llvm} How data initializes a type (\pref{p:init}):
   \begin{subpoints}
-  \item Where the type is $\str{ptr}$, a byte array names a symbol and stands for its address, and
-    $\str{}$ is the null pointer; $\{b_1, b_2\}$ is the symbol $b_1$ plus $b_2$ bytes.
+  \item Where the type is $\str{ptr}$, $\str{}$ is the null pointer. The address of a symbol in data is left out for
+    now: a label written as bytes would mix names into data.
   \item An array of $\str{i8}$ may be one byte array, its bytes in order:
     \[\{\mathit{type} = \{\str{array}, \hex{03}, \str{i8}\},\ \mathit{value} = \hex{686900}\}\]
   \item $\{\}$ is all zeros, for any type.
@@ -797,10 +820,11 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
 \item\label{p:example} For example, a $\mathit{main}$ that calls $\mathit{puts}$ when it is given an argument. The branch
   sits in a nested region $q$, whose field $0$ continues the entry block:
   \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
-{ puts = {type = {'function', {s = 'ptr'}, 'i32'}, import = 'puts'},
+{ 'namespace',
+  puts = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'},
   msg  = {type = {'array', [03], 'i8'}, value = [686900]},
   main = {type = {'function', {argc = 'i32'}, 'i32'},
-          export = 'main',
+          link = 'main',
           body = @vlamm. @vlamp. m [] (@vlamr. {
             entry =
               let c = 'icmp' {'sgt', 'i32', p.argc, [01000000]} in
@@ -830,7 +854,7 @@ r.done:
 \end{Verbatim}
   \begin{subpoints}
   \item $\mathit{puts}$ is a declaration, so it becomes $\kw{declare}$; $\mathit{msg}$ is an internal constant, so
-    $\kw{internal}$; $\mathit{main}$ is exported as $\str{main}$.
+    $\kw{internal}$; $\mathit{main}$ has the $\mathit{link}$ $\str{main}$.
   \item The nested region adds no block for its field $0$: $\kw{icmp}$ and $\kw{br\ i1}$ stay in $r.\mathit{entry}$, and $\mathit{say}$
     becomes the block $q.\mathit{say}$.
   \item $\kw{if}\ c\ \kw{then}\ q.\mathit{say}\ \kw{else}\ r.\mathit{done}$ is the branch $\{r.\mathit{done}, q.\mathit{say}\}\ c$, so arm $1$, $q.\mathit{say}$, is
