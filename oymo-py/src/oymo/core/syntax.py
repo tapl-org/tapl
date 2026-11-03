@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
+
+from oymo.oymomo.meta import NO_TAG
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -22,10 +24,10 @@ class Term:
         raise NotImplementedError(f'{self.__class__.__name__} must override Term.children() to yield its child terms.')
 
     def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
-        """Separates this term into two layers, one for evaluation and one for type checking.
+        """Separates this term into its two layers, `(low, high)`.
 
-        The LayerSeparator is used to create the two layers. The `lower` layer is evaluated;
-        the `upper` layer is used for type checking.
+        The LayerSeparator is used to create the two layers. A term with no layering in it
+        returns itself as both layers.
         """
         del ls
         raise NotImplementedError(
@@ -49,12 +51,15 @@ class Term:
 
 @dataclass
 class Layers(Term):
-    """Two-layer term `lower : upper`.
+    """A layering `low : high`: `low` (layers[0]) in the low layer, `high` (layers[1]) in the
+    high layer.
 
-    `lower` (layers[0]) is evaluated; `upper` (layers[1]) is used for type checking.
+    The two layers are equal: neither has a meaning of its own, and the driver picks where
+    each runs. Separation drops the layering's own tag.
     """
 
     layers: tuple[Term, Term]
+    tag: Tag = field(default=NO_TAG, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield from self.layers
@@ -86,6 +91,23 @@ class LayerSeparator:
 
         upper = factory(upper_layer)
         return (lower, upper)
+
+    def rebuild(self, term: Term, factory: Callable[[Callable[[Term], Term]], Term]) -> tuple[Term, Term]:
+        """`build` for `term`, whose parts the factory reads. If no part has a layering, each
+        part separates into itself twice, and `term` itself is both layers."""
+        parts: list[Term] = []
+
+        def same(part: Term) -> Term:
+            parts.append(part)
+            return part
+
+        factory(same)
+        separated = [part.separate(self) for part in parts]
+        if all(low is part and high is part for part, (low, high) in zip(parts, separated, strict=True)):
+            return (term, term)
+        lows = iter(low for low, _ in separated)
+        highs = iter(high for _, high in separated)
+        return (factory(lambda _: next(lows)), factory(lambda _: next(highs)))
 
 
 @dataclass

@@ -2852,6 +2852,23 @@ executable binary). we should mark some place as a platform". The steps that fol
   LLVM opcodes keep `evaluate` on a struct of data; `stuck_part` no longer calls a byte
   array applied to a λ or byte array stuck (moved to valid normal forms in anf_test). New
   tests with a monkeypatched `'wrap'` opcode. `hatch test` 686 passed; ruff, pyrefly clean.
+- Committed `aa64af0`. Layers code plan (artifact `layers_code_plan.md`): user comments:
+  "why not use syntax.Layers" (reuse the existing core `Layers` node and
+  `Term.separate`/`LayerSeparator`); "maybe add a de-layer feature for pretty printing",
+  clarified "(a b):(c d) becomes (a:c) (b:d) or (\\x.t1):(\\x.t2) --> \\x. (t1:t2)" (merge, the
+  inverse of separation, used by `normal` and `fmt --merge`); emit-llvm: "with flags, flag
+  says which one goes to stdout, and which one goes to file, or both goes to file"
+  (`--low`/`--high`, a path or `-`); on `(N_low : N_high)`: "why parens" (none needed at the
+  top); run: "high layer first, if it was successfull exit, then run low layer"; nested
+  layerings a syntax error: "yes"; leftovers in core/syntax.py: "keep them for now". Plan
+  approved. Done (subagent): `Layers.tag`, `LayerSeparator.rebuild` (shares parts without
+  a layering), `separate` on every term class, `oymomo/layers.py` (`has_layering`,
+  `separate`, `merge`; λs merge only with equal binder names), grammar `LAYER ::= APPLY
+  (':' APPLY)*` with chain and nested errors, printer level `_LAYER`, `resolve` rejects a
+  layering (internal error), `ingot.ingots_of`, CLI per layer; golden `layers` (`.ll`,
+  `.guard.ll`, merged `.normal.oymo`: `('add' : 'sub') {'i32', p.a, [05000000] : p.a}`).
+  `hatch test` 766 passed; ruff, pyrefly clean. `redesign-layers` and
+  `redesign-operators` finished and removed; their driver items moved to `redesign-links`.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

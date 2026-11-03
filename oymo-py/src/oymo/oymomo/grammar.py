@@ -3,13 +3,20 @@
 """Surface syntax of oymomo.
 
     expression ::= λx. expression | let x = expression in expression
-                 | if expression then expression else expression | apply
+                 | if expression then expression else expression | layer
+    layer      ::= apply | apply : apply
     apply      ::= apply project | fix project | project
     project    ::= project.name | primary
     primary    ::= b | {fields} | (expression) | $i | name
 
 A lambda is written `λx. t` or, in ASCII, `\\x. t`; it extends as far right as possible, so as an operand it needs parentheses. `fix t` parses as an application does: `fix g.l a` is `(fix (g.l)) a`. A struct's labels are unique, except the empty
 label of an unlabeled field.
+
+A layering `low : high` binds more loosely than application and projection, and more
+tightly than a lambda, `let` or `if`: `f a : g b` is `(f a) : (g b)`, and `λx. t₁ : t₂` is
+`λx. (t₁ : t₂)`; a lambda, `let` or `if` on either side needs parentheses. A layering holds
+no layering: `a : b : c` and a layering anywhere inside either side, parentheses or not,
+are syntax errors. Elsewhere (a field, a `let` body, an argument) a layering is fine.
 
 `parse` gives each term and field a tag (`meta.Tag`) whose place is its bytes in the file
 being read: start and length count UTF-8 bytes, start from the file's first byte. Sugar
@@ -159,6 +166,16 @@ def _let(c):
     return terms.Apply(function=function, argument=value, tag=tag)
 
 
+def _layer(c):
+    """`apply`, or `low : high`; a longer chain `a : b : c` is an error."""
+    first, rest = c.values
+    if not rest:
+        return first
+    if len(rest) > 1:
+        return syntax.ErrorTerm(message='A layering holds no layering: write one `:`.', tag=_tag(c))
+    return syntax.Layers(layers=(first, rest[0][0]), tag=_tag(c))
+
+
 def _field(c):
     (label, _), value = c.values
     return terms.Field(label=label, value=value, tag=_tag(c))
@@ -171,7 +188,7 @@ def _unlabeled_field(c):
 
 RULES: dict[str, Clause] = {
     rn.START: Seq(Ref(rn.EXPRESSION), Eof(skip=TRIVIA), action=lambda c: c.values[0]),
-    rn.EXPRESSION: First(Ref(rn.LAMBDA), Ref(rn.IF), Ref(rn.LET), Ref(rn.APPLY)),
+    rn.EXPRESSION: First(Ref(rn.LAMBDA), Ref(rn.IF), Ref(rn.LET), Ref(rn.LAYER)),
     # `λ` and `\` are not word characters, so `λx` needs no space.
     rn.LAMBDA: Seq(_punct('λ', '\\', word_chars=''), NAME, _punct('.'), Ref(rn.EXPRESSION), action=_lambda),
     rn.IF: Seq(
@@ -192,6 +209,7 @@ RULES: dict[str, Clause] = {
         Ref(rn.EXPRESSION),
         action=_let,
     ),
+    rn.LAYER: Seq(Ref(rn.APPLY), ZeroOrMore(Seq(_punct(':'), Ref(rn.APPLY))), action=_layer),
     rn.APPLY: First(
         Seq(
             Ref(rn.APPLY),
@@ -256,6 +274,18 @@ def duplicate_label(term: syntax.Term) -> terms.Field | None:
     return None
 
 
+def nested_layering(term: syntax.Term, *, inside: bool = False) -> syntax.Layers | None:
+    """The first layering, in source order, that is inside a side of another layering."""
+    if isinstance(term, syntax.Layers):
+        if inside:
+            return term
+        inside = True
+    for child in term.children():
+        if (found := nested_layering(child, inside=inside)) is not None:
+            return found
+    return None
+
+
 def parse(text: str, file: meta.File | None = None, offset: int = 0) -> syntax.Term:
     """The term of `text`, which starts at byte `offset` of `file`. With no file, `text` is
     its own file, with an empty path."""
@@ -267,8 +297,15 @@ def parse(text: str, file: meta.File | None = None, offset: int = 0) -> syntax.T
     term = result[1]
     if isinstance(term, syntax.Term):
         _to_file(term, text, file, offset)
+        whole = Tag(file, offset, len(text.encode('utf-8')))
+        if errors := syntax.gather_errors(term):
+            return syntax.ErrorTerm(message=errors[0].message, tag=meta.placed(errors[0].tag, whole))
+        if (nested := nested_layering(term)) is not None:
+            return syntax.ErrorTerm(
+                message='Both sides of a layering are terms without a layering.', tag=meta.placed(nested.tag, whole)
+            )
         if (duplicate := duplicate_label(term)) is not None:
-            tag = meta.placed(duplicate.tag, Tag(file, offset, len(text.encode('utf-8'))))
+            tag = meta.placed(duplicate.tag, whole)
             return syntax.ErrorTerm(message=f'Duplicate label {duplicate.label!r}.', tag=tag)
         return term
     raise RuntimeError(f'Unexpected parse result type: {type(term)}')

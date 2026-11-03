@@ -16,8 +16,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `oymomo-redesign` Redesign oymomo and the `.oymo` file
-    - `redesign-layers` One or two layers: what a layer is
-    - `redesign-operators` Operator precedence and associativity, as in Scala
     - `redesign-modules` Module system: reduce-time and link-time dependencies
     - `redesign-links` Ingots of both layers linked across files
   - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
@@ -172,30 +170,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `block-comments` `/* */` block comments; stuck-term errors shown in them
 
 ## Leaf details
-
-### `redesign-layers` One or two layers: what a layer is
-
-- A file has one layer or two; inside a file the layers don't read each other
-- Layered-terms `t : T`, separated into a low and a high term before reduction
-- Separation as in θ-calculus (single-layer terms untouched, cloned only next to a
-  multi-layer term; `λ`, application pushed through `:`), plus structs, projection, `fix`
-- Both sides of `t : T` single-layer; no unlayering; a cloned node keeps its meta row
-- Low and high ingots may define the same symbols, for now (known limit: the run-time
-  guard pattern links both into one program and clashes)
-- Layers equal in oymomo; the driver picks where each runs
-- Precedence of `:` decided in `redesign-operators`
-- oymomo_design.md, then oymomo-calculus.tex (syntax, separation), Lean if needed
-
-### `redesign-operators` Operator precedence and associativity, as in Scala
-
-- Scala's rule (precedence from the first character, associativity from the last) is not
-  taken for oymomo: the kernel has no user operators; it would be a frontend's
-- `:` binds more loosely than application and projection, more tightly than λ, `let`,
-  `if` (which extend right): `f a : g b` is `(f a) : (g b)`; λ/let/if on a side need
-  parentheses
-- `:` is non-associative: `a : b : c` is a parse error (a layering holds no layering)
-- Then: oymomo-calculus.tex 2 (done), `grammar.py` (`LAYER ::= APPLY | APPLY ':' APPLY`),
-  printer, tests
 
 ### `redesign-modules` Module system: reduce-time and link-time dependencies
 
@@ -353,6 +327,10 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `redesign-links` Ingots of both layers linked across files
 
+- Layers are equal in oymomo; the driver picks where each runs (today `oymo run` runs
+  the high layer, the guard, first and the low layer only if it exits 0)
+- Known limit: the low and high ingots may define the same symbols; linking both into
+  one program (the run-time guard pattern) clashes
 - Each ingot becomes its own `.ll`; the `.ll` files link with each other
 - Output names: one layer `a.oymo` → `a.ll`; with two layers, layer 0 keeps `a.ll`,
   layer 1 writes `a.guard.ll`

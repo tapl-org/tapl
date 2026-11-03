@@ -4,15 +4,21 @@
 
 A `Variable` is a name as written; `reduction.resolve` turns each one into the
 `BruijnIndex` of its binder.
+
+A written term may also hold layerings `low : high` (`syntax.Layers`). Each term's
+`separate` splits it into its low and high layers, part by part: a layering gives its two
+sides, every other term is rebuilt from its parts' layers, keeping its binder name and tag.
+A part with no layering is the same object in both layers.
 """
 
 from collections.abc import Generator, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from oymo.core import syntax
 from oymo.oymomo.meta import NO_TAG, Tag
 
 Term = syntax.Term
+LayerSeparator = syntax.LayerSeparator
 
 
 # Every `tag` (`meta.Tag`: where the term comes from, and more; `NO_TAG` for none) is left
@@ -25,6 +31,10 @@ class Variable(Term):
     def children(self) -> Generator[Term, None, None]:
         yield from ()
 
+    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
+        del ls
+        return (self, self)
+
 
 @dataclass
 class BruijnIndex(Term):
@@ -33,6 +43,10 @@ class BruijnIndex(Term):
 
     def children(self) -> Generator[Term, None, None]:
         yield from ()
+
+    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
+        del ls
+        return (self, self)
 
 
 @dataclass
@@ -46,6 +60,9 @@ class Lambda(Term):
     def children(self) -> Generator[Term, None, None]:
         yield self.body
 
+    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
+        return ls.rebuild(self, lambda layer: replace(self, body=layer(self.body)))
+
 
 @dataclass
 class Apply(Term):
@@ -56,6 +73,11 @@ class Apply(Term):
     def children(self) -> Generator[Term, None, None]:
         yield self.function
         yield self.argument
+
+    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
+        return ls.rebuild(
+            self, lambda layer: replace(self, function=layer(self.function), argument=layer(self.argument))
+        )
 
 
 @dataclass
@@ -75,6 +97,12 @@ class Struct(Term):
     def children(self) -> Generator[Term, None, None]:
         yield from (f.value for f in self.fields)
 
+    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
+        # A field's tag is kept in both layers, as its struct's is.
+        return ls.rebuild(
+            self, lambda layer: replace(self, fields=[replace(f, value=layer(f.value)) for f in self.fields])
+        )
+
 
 @dataclass
 class Project(Term):
@@ -84,6 +112,9 @@ class Project(Term):
 
     def children(self) -> Generator[Term, None, None]:
         yield self.struct
+
+    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
+        return ls.rebuild(self, lambda layer: replace(self, struct=layer(self.struct)))
 
 
 @dataclass
@@ -96,6 +127,9 @@ class Fix(Term):
 
     def children(self) -> Generator[Term, None, None]:
         yield self.body
+
+    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
+        return ls.rebuild(self, lambda layer: replace(self, body=layer(self.body)))
 
 
 # A type such as `'i32'` is the byte array of its name.
@@ -119,6 +153,10 @@ class ByteArray(Term):
 
     def children(self) -> Generator[Term, None, None]:
         yield from ()
+
+    def separate(self, ls: LayerSeparator) -> tuple[Term, Term]:
+        del ls
+        return (self, self)
 
 
 # A node of a term: a term, or a struct's field. Each node has a tag.

@@ -314,3 +314,69 @@ def test_gcd_module_parses():
     assert not isinstance(term, syntax.ErrorTerm)
     assert isinstance(term, terms.Lambda)
     assert term.param_name == 'm'
+
+
+def layering(low, high):
+    return syntax.Layers(layers=(low, high))
+
+
+def test_layering():
+    term = parse('a : b')
+    assert term == layering(a, b)
+    assert place(term) == (0, 5)
+    assert show(term) == 'a : b'
+
+
+@pytest.mark.parametrize(
+    ('source', 'grouped'),
+    [
+        # Looser than application and projection.
+        ('f a : f b', '(f a) : (f b)'),
+        ('a.x : f b.y', '(a.x) : (f (b.y))'),
+        ('fix f : fix g', '(fix f) : (fix g)'),
+        # Tighter than a lambda, `let` or `if`.
+        ('λx. a : b', 'λx. (a : b)'),
+        ('let x = a : b in f x : g x', 'let x = (a : b) in ((f x) : (g x))'),
+        ('if c then a : b else f : g', 'if c then (a : b) else (f : g)'),
+        # Fine in a field, a `let` body and an argument in parentheses.
+        ('{l = a : b, m = f, x : y}', '{l = (a : b), m = f, (x : y)}'),
+        ('f (a : b) (x : y)', '(f (a : b)) (x : y)'),
+        ('(λx. a) : (λy. b)', '(λx. a) : (λy. b)'),
+        ('(let x = a in x) : (if c then a else b)', '(let x = a in x) : (if c then a else b)'),
+    ],
+)
+def test_layering_precedence(source, grouped):
+    assert parse(source) == parse(grouped)
+    assert not isinstance(parse(source), syntax.ErrorTerm)
+
+
+@pytest.mark.parametrize('source', ['a : λx. x', 'a : let x = b in x', 'a : if c then a else b', 'a :', ': a'])
+def test_a_lambda_let_or_if_side_needs_parentheses(source):
+    assert show(parse(source)) == 'error'
+
+
+def test_a_layering_holds_no_layering():
+    term = parse('f (a : b : c)')
+    assert isinstance(term, syntax.ErrorTerm)
+    assert term.message == 'A layering holds no layering: write one `:`.'
+    assert place(term) == (3, 9)
+
+
+@pytest.mark.parametrize(
+    ('source', 'inner'),
+    [
+        ('(a : b) : c', '(a : b)'),
+        ('a : (b : c)', '(b : c)'),
+        ('a : {x = (b : c)}', 'b : c'),
+        ('f (a : g (b : c))', 'b : c'),
+        ('a : f (λx. (x : c))', 'x : c'),
+    ],
+)
+def test_a_nested_layering_is_rejected(source, inner):
+    term = parse(source)
+    assert isinstance(term, syntax.ErrorTerm)
+    assert term.message == 'Both sides of a layering are terms without a layering.'
+    # Places count UTF-8 bytes; a layering's place leaves out its parentheses.
+    start = len(source[: source.index(inner)].encode('utf-8')) + (inner[0] == '(')
+    length = len(inner) - 2 * (inner[0] == '(')
+    assert place(term) == (start, length)

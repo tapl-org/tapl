@@ -20,13 +20,14 @@ It gives the body as regions and blocks, every variable resolved (`Use` of a `Va
 smallest free number (`c`, `c1`).
 
 `ingot_of` runs the whole way from a parsed program: resolve, normalize,
-reject a stuck normal form, and read the ingot.
+reject a stuck normal form, and read the ingot. `ingots_of` first separates a program with
+two layers, and gives each layer's ingot.
 """
 
 from dataclasses import dataclass, field
 
 from oymo.core import syntax
-from oymo.oymomo import anf, meta, printer, reduction, strategy, terms
+from oymo.oymomo import anf, layers, meta, printer, reduction, strategy, terms
 from oymo.oymomo.meta import NO_TAG, Tag
 
 
@@ -223,6 +224,13 @@ def ingot_of(term: syntax.Term, max_steps: int = strategy.MAX_STEPS) -> Ingot:
     if (stuck := reduction.stuck_part(normal)) is not None:
         raise IngotError('The program is stuck here: no rule can ever reduce this part.', _tag(stuck))
     return read_ingot(normal)
+
+
+def ingots_of(written: syntax.Term, max_steps: int = strategy.MAX_STEPS) -> list[Ingot]:
+    """The ingots of a written program: `[low, high]` for two layers, each reduced on its own;
+    `[ingot]` for one. Raises `ReductionError` or `IngotError`."""
+    separated = layers.separate(written)
+    return [ingot_of(layer, max_steps) for layer in (separated or (written,))]
 
 
 def _tag(term):

@@ -17,6 +17,9 @@ A struct with two unlabeled fields applied to anything, `{e, t} c`, prints as
 An apply of a lambda, `(λx. body) e`, prints as `let x = e in body`; a broken let puts
 its body on the next line, so a chain of lets reads one let per line. In pretty mode a
 chain of two or more lets (and so any term containing one) always breaks, even if it fits.
+A layering prints as `low : high`, with parentheses around it where it is an argument,
+an applied function or a projected term, and around a side that is a lambda, `let` or
+`if`; a broken layering puts `: high` on the next line, one level deeper.
 A BruijnIndex prints as `$i` in both modes. With `name_indices=True` a BruijnIndex prints
 as the name of its binder instead, except where an inner binder shadows that name or no
 binder is in scope; there it stays `$i`, so the output still resolves back to the same term.
@@ -28,7 +31,7 @@ from oymo.oymomo import reduction, terms
 from oymo.oymomo.grammar import RESERVED, is_text_char
 
 # Binding levels, loosest first. A term printed where a tighter level is needed gets parentheses.
-_EXPRESSION, _APPLY, _PROJECT = range(3)
+_EXPRESSION, _LAYER, _APPLY, _PROJECT = range(4)
 
 # A byte array longer than this prints as hex even if its bytes are text.
 _MAX_TEXT_BYTES = 128
@@ -69,6 +72,8 @@ def _loosest(term):
             return _EXPRESSION
         case terms.Apply() if reduction.branch(term) is not None:
             return _EXPRESSION  # printed as `if`
+        case syntax.Layers():
+            return _LAYER
         case terms.Apply() | terms.Fix():
             return _APPLY
     return _PROJECT
@@ -122,6 +127,8 @@ def _flat(term, level, names, *, grouped=True):
             text = f'fix {sub(body, _PROJECT)}'
         case terms.ByteArray(value=value):
             text = _bytes_text(value, grouped=grouped)
+        case syntax.Layers(layers=(low, high)):
+            text = f'{sub(low, _APPLY)} : {sub(high, _APPLY)}'
         case syntax.ErrorTerm():
             text = 'error'
         case _:
@@ -190,6 +197,8 @@ def _pretty(term, level, depth, column, width, indent, names):
             text = f'{sub(struct, _PROJECT, depth, column)}.{_name(label)}'
         case terms.Fix(body=body):
             text = f'fix {sub(body, _PROJECT, depth, column + 4)}'
+        case syntax.Layers(layers=(low, high)):
+            text = f'{sub(low, _APPLY, depth, column)}\n{inner}: {sub(high, _APPLY, depth + 1, len(inner) + 2)}'
         case _:
             return flat
     return f'({text})' if grouped else text
@@ -231,6 +240,8 @@ def _has_let_chain(term):
             return any(_has_let_chain(f.value) for f in fields)
         case terms.Project(struct=struct) | terms.Fix(body=struct):
             return _has_let_chain(struct)
+        case syntax.Layers(layers=layers):
+            return any(_has_let_chain(side) for side in layers)
     return False
 
 

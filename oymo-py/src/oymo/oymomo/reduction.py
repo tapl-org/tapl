@@ -28,12 +28,17 @@ class ReductionError(Exception):
 
 
 def resolve(term: syntax.Term) -> syntax.Term:
-    """Replaces each `Variable` with the `BruijnIndex` of its binder. An unbound name is an error."""
+    """Replaces each `Variable` with the `BruijnIndex` of its binder. An unbound name is an error.
+
+    `term` has no layering: a written term's layers are separated (`layers.separate`) before
+    any reduction, so a layering here is an internal error."""
     return _resolve(term, [])
 
 
 def _resolve(term, names):
     match term:
+        case syntax.Layers():
+            raise RuntimeError('Internal error: a layering reached reduction; separate the layers first.')
         case terms.Variable(name=name, tag=tag):
             for distance, bound in enumerate(reversed(names)):
                 if bound == name:

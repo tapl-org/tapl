@@ -257,3 +257,18 @@ def test_a_tag_equal_to_its_parent_is_an_empty_entry() -> None:
     struct.fields[0].tag = meta.Tag(ALCOR_FILE, struct.tag.start, struct.tag.length)
     assert struct.fields[0].tag is not struct.tag
     assert source.write(term) == text
+
+
+def test_a_layering_is_one_node_of_the_meta() -> None:
+    # The layering is visited before its sides, so its tag and theirs survive a round trip.
+    term = read("language oymomo\nλa. λb. f ('add' {'i32', a, b} : g a)\n")
+    layering = next(node for node in terms.nodes(term) if isinstance(node, syntax.Layers))
+    assert [type(node).__name__ for node in terms.nodes(layering)][:3] == ['Layers', 'Apply', 'ByteArray']
+    layering.tag = meta.Tag(ALCOR_FILE, ALCOR.index(b'return'), 9)
+    _, high = layering.layers
+    high.tag = meta.Tag(ALCOR_FILE, ALCOR.index(b'5'), 1)
+    again = read(source.write(term))
+    layering_again = next(node for node in terms.nodes(again) if isinstance(node, syntax.Layers))
+    assert where(layering_again.tag) == ('alcor/f.oymo', 2, 10)
+    assert where(layering_again.layers[1].tag) == ('alcor/f.oymo', 2, 17)
+    assert where(layering_again.layers[0].tag) == ('alcor/f.oymo', 2, 10)  # its parent's place

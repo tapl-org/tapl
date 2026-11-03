@@ -44,6 +44,19 @@ def test_compact_is_one_line_with_parens_only_where_needed():
         ('(f a).x', '(f a).x'),
         ('f (if c then a else b)', 'f (if c then a else b)'),
         ('if c then λx. x else (λy. y) z', 'if c then λx. x else let y = z in y'),
+        # A layering: none at the top, in a field or a body; around an argument, an applied
+        # function, a projected term, and a lambda, `let` or `if` side.
+        ('a : b', 'a : b'),
+        ('f a.x : g b', 'f a.x : g b'),
+        ('{l = a : b}', '{l= a : b}'),
+        ('λx. x : f x', 'λx. x : f x'),
+        ('let x = a : b in x : y', 'let x = a : b in x : y'),
+        ('f (a : b)', 'f (a : b)'),
+        ('(f : g) a', '(f : g) a'),
+        ('(s : t).l', '(s : t).l'),
+        ('fix (f : g)', 'fix (f : g)'),
+        ('(λx. x) : (let y = a in y)', '(λx. x) : (let y = a in y)'),
+        ('(if c then a else b) : d', '(if c then a else b) : d'),
     ],
 )
 def test_pretty_parenthesizes_only_where_needed(source, expected):
@@ -233,4 +246,17 @@ def test_pretty_breaks_a_long_fixed_point():
     source = '(fix (λs. {aaaaaaaaaaaaaaaa = λq. s.aaaaaaaaaaaaaaaa q, bbbbbbbbbbbbbbbb = λq. s.bbbbbbbbbbbbbbbb q})).aaaaaaaaaaaaaaaa'
     text = pretty(source)
     assert text.startswith('(fix (λs. {\n')
+    assert parse(text) == parse(source)
+
+
+def test_a_broken_layering_puts_its_high_side_on_the_next_line():
+    source = "{entry= 'add' {'i32', p.a, [01000000]} : m.check {a= p.a, b= p.b}}"
+    text = show(parse(source), pretty=True, width=40)
+    assert text == textwrap.dedent(
+        """\
+        {
+          entry= 'add' {'i32', p.a, [01000000]}
+            : m.check {a= p.a, b= p.b},
+        }"""
+    )
     assert parse(text) == parse(source)

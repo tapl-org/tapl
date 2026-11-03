@@ -11,7 +11,7 @@ import pytest
 from approvaltests.approvals import verify
 from approvaltests.core.namer import Namer
 
-from oymo.oymomo import ingot, llvm_opcodes, llvm_translate, reduction, source, strategy
+from oymo.oymomo import ingot, layers, llvm_opcodes, llvm_translate, reduction, source, strategy
 
 
 def run_command(command):
@@ -75,15 +75,22 @@ def parse(text: str):
     return loaded.term
 
 
-def compile_oymo(text: str) -> tuple[str, str]:
-    """The normal form, pretty-printed with its tags, and the LLVM IR text."""
-    normal = strategy.normalize(reduction.resolve(parse(text)))
-    ir_text = str(llvm_translate.translate(ingot.ingot_of(parse(text)), TARGET))
-    llvm.parse_assembly(ir_text).verify()
-    return source.write(normal), ir_text
+def compile_oymo(text: str) -> tuple[str, list[str]]:
+    """The normal form, pretty-printed with its tags, and the LLVM IR text of each layer (low,
+    then high). With two layers, the normal form is the two layers' normal forms merged."""
+    written = parse(text)
+    separated = layers.separate(written)
+    normals = [strategy.normalize(reduction.resolve(layer)) for layer in (separated or (written,))]
+    ir_texts = [str(llvm_translate.translate(each, TARGET)) for each in ingot.ingots_of(parse(text))]
+    for ir_text in ir_texts:
+        llvm.parse_assembly(ir_text).verify()
+    normal = normals[0] if len(normals) == 1 else layers.merge(*normals)
+    return source.write(normal), ir_texts
 
 
 def run_golden_test(test_name: str) -> None:
+    """Approves `name.ll` and, for two layers, `name.guard.ll` (the high layer), and
+    `name.normal.oymo` unless the source is already normal."""
     base_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'goldens')
     source_path = pathlib.Path(os.path.join(base_directory, f'{test_name}.oymo'))
     text = source_path.read_text()
@@ -93,7 +100,7 @@ def run_golden_test(test_name: str) -> None:
         assert compile_oymo(pretty_text)[1] == compile_oymo(text)[1]
         source_path.write_text(pretty_text)
         text = pretty_text
-    normal_text, ir_text = compile_oymo(text)
+    normal_text, ir_texts = compile_oymo(text)
     normal_path = pathlib.Path(base_directory, f'{test_name}.normal.oymo')
     if normal_text == text:
         # The source is already normal: no `.normal.oymo` is kept for it.
@@ -101,8 +108,13 @@ def run_golden_test(test_name: str) -> None:
     else:
         verify(normal_text, namer=ApprovalNamer(str(normal_path)))
     # The normal form is itself a program, already normal, that gives the same LLVM IR.
-    assert compile_oymo(normal_text) == (normal_text, ir_text)
-    verify(ir_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.ll')))
+    assert compile_oymo(normal_text) == (normal_text, ir_texts)
+    guard_path = pathlib.Path(base_directory, f'{test_name}.guard.ll')
+    if len(ir_texts) == 1:
+        guard_path.unlink(missing_ok=True)
+    else:
+        verify(ir_texts[1], namer=ApprovalNamer(str(guard_path)))
+    verify(ir_texts[0], namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.ll')))
 
 
 GOLDENS = [
@@ -120,6 +132,7 @@ GOLDENS = [
     'puts',
     'helpers',
     'spans',
+    'layers',
 ]
 
 
