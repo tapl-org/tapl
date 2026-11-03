@@ -1,0 +1,26 @@
+language oymomo
+'unit.merge'
+  {
+    'driver.read_low' 'lexer.oymo',
+    'driver.read_low' 'parser.oymo',
+    'driver.read_low' 'inc/lib.oymo',
+    'unit.rebase' {{'dbl'}, 'driver.read_low' 'dbl/lib.oymo'},
+    {
+      lexer= {
+        error= {
+          type= {'function', {c= 'i32'}, 'i32'},
+          body= λm. λp. m [] (λr. {let v = m.lib.apply {n= p.c} in v}),
+        },
+      },
+    },
+    {
+      main= {
+        type= {'function', {}, 'i32'},
+        link= 'main',
+        body= λm. λp. m [] (λr. {
+          let a = m.parser.parse {c= [03000000]} in
+          let b = m.dbl.lib.apply {n= a} in b,
+        }),
+      },
+    },
+  }

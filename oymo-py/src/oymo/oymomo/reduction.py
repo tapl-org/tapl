@@ -162,11 +162,13 @@ def is_normal(term: syntax.Term) -> bool:
 
     Cached on the term: terms are never changed after they are built.
     """
+    # The driver's opcodes compute only inside a build, so the answer is cached per build.
+    build = opcodes.DRIVER.get()
     cached = term.__dict__.get('_normal')
-    if cached is not None:
-        return cached
+    if cached is not None and cached[0] is build:
+        return cached[1]
     normal = reduce(term) is term and all(is_normal(child) for child in term.children())
-    term.__dict__['_normal'] = normal
+    term.__dict__['_normal'] = (build, normal)
     return normal
 
 

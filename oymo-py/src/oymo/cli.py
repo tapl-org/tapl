@@ -6,9 +6,14 @@ A program has one layer or two (a layering `low : high` somewhere in it). With t
 layer is built on its own: `emit-llvm` writes them with `--low` and `--high`, `normal`
 prints the merged normal form, and `run` runs the high layer (the guard) first and the low
 layer only if the guard exits with status 0.
+
+Every command runs inside a driver session (`driver.session`) whose virtual directory's
+top is the file's directory, so a program may read files (`fmt` reduces nothing, so it reads
+none); `--config key=value` fills `'driver.config' {}`.
 """
 
 import argparse
+import os
 import pathlib
 import shutil
 import subprocess
@@ -17,7 +22,7 @@ import tempfile
 
 from oymo.core import syntax
 from oymo.oymomo import ingot as ingots
-from oymo.oymomo import layers, llvm_opcodes, llvm_translate, reduction, source, strategy
+from oymo.oymomo import driver, layers, llvm_opcodes, llvm_translate, reduction, source, strategy
 from oymo.oymomo.meta import NO_TAG, Tag
 
 # The host is assumed to be x86-64 Linux until the `target` leaf reads the host's triple.
@@ -34,11 +39,12 @@ class CliError(Exception):
 
 
 class _Program:
-    """The file named on the command line."""
+    """The file named on the command line, and the build it is the root of."""
 
-    def __init__(self, path: str, text: str) -> None:
+    def __init__(self, path: str, text: str, build: driver.Session) -> None:
         self.path = path
         self.text = text
+        self.build = build
         self._term: syntax.Term | None = None
 
     def term(self) -> syntax.Term:
@@ -65,13 +71,27 @@ class _Program:
         return loaded.term
 
 
-def _ingot(layer: syntax.Term) -> ingots.Ingot:
+def _check_reads(program: _Program) -> None:
+    """Prints the warnings of the files read, and raises the first error of the driver
+    opcodes: a read that failed explains a leftover call better than the ingot's error."""
+    for message, tag in program.build.take_warnings():
+        _print(program.path, 'warning', message, tag)
+    try:
+        program.build.check()
+    except driver.DriverError as error:
+        raise CliError(error.message, error.tag) from error
+
+
+def _ingot(program: _Program, layer: syntax.Term) -> ingots.Ingot:
     """A layer's ingot: resolved, normalized, not stuck, read
     as an ingot."""
     try:
-        return ingots.ingot_of(layer)
+        ingot = ingots.ingot_of(layer)
     except (reduction.ReductionError, ingots.IngotError) as error:
+        _check_reads(program)
         raise CliError(error.message, error.tag) from error
+    _check_reads(program)
+    return ingot
 
 
 def _check(program: _Program) -> None:
@@ -82,7 +102,7 @@ def _compile(program: _Program) -> list[tuple[ingots.Ingot, str]]:
     """Each layer's ingot and LLVM IR: low, then high."""
     compiled = []
     for layer in program.layers():
-        ingot = _ingot(layer)
+        ingot = _ingot(program, layer)
         try:
             compiled.append((ingot, str(llvm_translate.translate(ingot, TARGET))))
         except llvm_translate.LlvmTranslationError as error:
@@ -101,7 +121,9 @@ def _normal(program: _Program) -> str:
     try:
         normals = [strategy.normalize(reduction.resolve(layer)) for layer in program.layers()]
     except reduction.ReductionError as error:
+        _check_reads(program)
         raise CliError(error.message, error.tag) from error
+    _check_reads(program)
     return source.write(normals[0] if len(normals) == 1 else layers.merge(*normals))
 
 
@@ -197,6 +219,29 @@ def _print(path: str, kind: str, message: str, tag: Tag) -> None:
     print(f'{tag.file.path}:{line}:{column}: {kind}: {message}', file=sys.stderr)
 
 
+def _config(pairs: list[str]) -> dict[str, str]:
+    """The build's config from `--config key=value` flags."""
+    config: dict[str, str] = {}
+    for pair in pairs:
+        key, equals, value = pair.partition('=')
+        if not key or not equals:
+            raise CliError(f'--config takes key=value, with a nonempty key; got {pair!r}.')
+        if key in config:
+            raise CliError(f'--config gives {key!r} twice.')
+        config[key] = value
+    return config
+
+
+def _add_config(command: argparse.ArgumentParser) -> None:
+    command.add_argument(
+        '--config',
+        action='append',
+        default=[],
+        metavar='KEY=VALUE',
+        help="a config entry for 'driver.config' {}; may be repeated",
+    )
+
+
 def _argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog='oymo', description='The oymo compiler.')
     commands = parser.add_subparsers(dest='command', required=True)
@@ -205,8 +250,10 @@ def _argument_parser() -> argparse.ArgumentParser:
     emit.add_argument('-o', dest='output', help='output .ll file (default: stdout); for a program with one layer')
     emit.add_argument('--low', help="the low layer's .ll file, or - for stdout; for a program with two layers")
     emit.add_argument('--high', help="the high layer's .ll file, or - for stdout; for a program with two layers")
+    _add_config(emit)
     check = commands.add_parser('check', help='parse, reduce and verify a program; print its errors')
     check.add_argument('file')
+    _add_config(check)
     fmt = commands.add_parser('fmt', help='print a program pretty-printed')
     fmt.add_argument('file')
     fmt.add_argument(
@@ -214,10 +261,12 @@ def _argument_parser() -> argparse.ArgumentParser:
     )
     normal = commands.add_parser('normal', help='print the normal form of a program, pretty-printed')
     normal.add_argument('file')
+    _add_config(normal)
     run = commands.add_parser(
         'run', help="build a program with clang, run it, print main's result; with two layers, the high one guards"
     )
     run.add_argument('file')
+    _add_config(run)
     return parser
 
 
@@ -228,17 +277,19 @@ def main(argv: list[str] | None = None) -> int:
             text = pathlib.Path(args.file).read_text(encoding='utf-8')
         except OSError as error:
             raise CliError(f'Cannot read the file: {error.strerror}.') from error
-        program = _Program(args.file, text)
-        if args.command == 'emit-llvm':
-            _emit_llvm_to(program, args.output, args.low, args.high)
-        elif args.command == 'check':
-            _check(program)
-        elif args.command == 'fmt':
-            sys.stdout.write(_fmt(program, merge=args.merge))
-        elif args.command == 'normal':
-            sys.stdout.write(_normal(program))
-        else:
-            return _run(program)
+        config = _config(getattr(args, 'config', []))
+        with driver.session(os.path.dirname(args.file), config) as build:
+            program = _Program(args.file, text, build)
+            if args.command == 'emit-llvm':
+                _emit_llvm_to(program, args.output, args.low, args.high)
+            elif args.command == 'check':
+                _check(program)
+            elif args.command == 'fmt':
+                sys.stdout.write(_fmt(program, merge=args.merge))
+            elif args.command == 'normal':
+                sys.stdout.write(_normal(program))
+            else:
+                return _run(program)
     except CliError as error:
         _print(args.file, 'error', error.message, error.tag)
         return 1

@@ -182,9 +182,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - People: Go/Rust model: a unit is several files joined into one term (one namespace,
   cycles allowed), reduced to the unit's ingot(s); link-time cycles between units allowed; only
   reading generated headers orders builds (a handwritten header breaks a cycle)
-- The root of a unit is oymo code; the driver supplies opcodes `'read_low' {path}` and
-  `'read_high' {path}` (one layer of the file, a plain term); both layers:
-  `('read_low' 'c.oymo' : 'read_high' 'c.oymo')`; reduce-time only; the driver
+- The root of a unit is oymo code; the driver supplies opcodes `'driver.read_low' {path}` and
+  `'driver.read_high' {path}` (one layer of the file, a plain term); both layers:
+  `('driver.read_low' 'c.oymo' : 'driver.read_high' 'c.oymo')`; reduce-time only; the driver
   records the paths read
 - oymomo-calculus.tex: E-Opcode fires on `b A` (byte array, struct of operands, closed
   `λ`, opaque to the op); its result is any closed term
@@ -204,7 +204,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Symbol addresses in data (`'ptr'` initialized by a label as bytes) dropped for now
 - Decide (later): a redesign of symbol addresses in data that supports reduction and keeps
   name realms apart
-- `'struct.rebase' {prefix, X}` (closed, normal bodies, `m` only as path or region head)
+- `'unit.rebase' {prefix, X}` (closed, normal bodies, `m` only as path or region head)
   resolves label clashes in one unit; mounting a header is a rebase; goal as fast as merge,
   reduction still allowed
 - Convention: a library refers only to its own labels, outside through holes
@@ -216,7 +216,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   symbol is named `type`); internal LLVM names are paths; inside a unit
   only paths, between units only `link` names
 - Each file declares its own namespace label; the root deep-merges files with
-  `'struct.concat'` (namespaces combine, equal λ-free entries merge, a λ entry twice is
+  `'unit.merge'` (namespaces combine, equal λ-free entries merge, a λ entry twice is
   rejected)
 - The kernel uses absolute paths only; short names are the frontend's job
 - `link = 'name'` replaces `export`/`import`; kind gives direction; a declaration without
@@ -224,8 +224,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - A unit has no name in oymomo; the importer picks the mount label; the driver names outputs
 - Same link name in one ingot = one symbol (same type, at most one definition)
 - Two operations at the user's choice: merge (sources, by their own labels) and mount
-  (headers, under any label); optional `'struct.check_data' X` (X if it holds no λ, else
-  no step) guards a mount; clashes: headers re-mounted, sources edited (merge reports
+  (headers, under any label, a rebase of a λ-free struct); clashes: headers re-mounted, sources edited (merge reports
   both spans), link names by the platform linker
 - Paths stay non-values (not confluent: `(λx. (λy. b) x.l) {}`); views by wrapping bodies
   dropped
@@ -237,7 +236,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Four kinds of file: source part, header, reduce-time library (applied; `fix` for
   recursion), opcode provider (later: compiled unit loaded by the driver)
 - After reduction an ingot holds only namespaces and entries
-- The root is a named role; driver opcodes `'read_bytes'` (raw data) and `'driver.config'`
+- The root is a named role; driver opcodes `'driver.read_bytes'` (raw data) and `'driver.config'`
   (build flags, later platform facts)
 - Mangling only in a frontend; the kernel takes explicit `link` strings
 - Then: oymomo-calculus.tex Sections 9–10 (`link`, nested namespaces, path names)
@@ -318,12 +317,18 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Moved out of `oymomo-redesign` (user: "move the opcode namespace outside of
   oymomo-redesign")
 - Decide: an opcode's collection as a prefix of its name (`'llvm.add'`,
-  `'driver.read_low'`, `'struct.concat'`), as MLIR dialect ops; whether LLVM opcodes get
+  `'driver.read_low'`, `'unit.merge'`), as MLIR dialect ops; whether LLVM opcodes get
   `'llvm.'`; the frontend may hide prefixes
-- Decide: prefix = the providing collection (LLVM translation, driver, struct tools, an
+- Decide: prefix = the providing collection (LLVM translation, driver, unit tools, an
   opcode provider unit)
-- Decide: final name of `'struct.check_data'`
 - Later: opcode providers (compiled units loaded by the driver; λs as opaque handles)
+
+- Code done (step 1): `unit_ops.py` (`'unit.merge'`, `'unit.rebase'`), `driver.py`
+  (`'driver.read_low'`, `'driver.read_high'`, `'driver.read_bytes'`, `'driver.config'`,
+  a per-build session with the virtual directory rooted at the root file's directory),
+  `--config key=value`, golden `unit/`
+- Then (step 2): generated headers `x.h.oymo` (declarations only, a layering for two
+  layers, meta places into the source)
 
 ### `redesign-links` Ingots of both layers linked across files
 

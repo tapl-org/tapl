@@ -11,7 +11,7 @@ import pytest
 from approvaltests.approvals import verify
 from approvaltests.core.namer import Namer
 
-from oymo.oymomo import ingot, layers, llvm_opcodes, llvm_translate, reduction, source, strategy
+from oymo.oymomo import driver, ingot, layers, llvm_opcodes, llvm_translate, reduction, source, strategy
 
 
 def run_command(command):
@@ -101,13 +101,19 @@ def run_golden_test(test_name: str) -> None:
         source_path.write_text(pretty_text)
         text = pretty_text
     normal_text, ir_texts = compile_oymo(text)
+    approve(base_directory, test_name, text, normal_text, ir_texts)
+
+
+def approve(base_directory: str, test_name: str, text: str, normal_text: str, ir_texts: list[str]) -> None:
+    """Approves the outputs of the golden `test_name`, whose root source is `text`."""
     normal_path = pathlib.Path(base_directory, f'{test_name}.normal.oymo')
     if normal_text == text:
         # The source is already normal: no `.normal.oymo` is kept for it.
         normal_path.unlink(missing_ok=True)
     else:
         verify(normal_text, namer=ApprovalNamer(str(normal_path)))
-    # The normal form is itself a program, already normal, that gives the same LLVM IR.
+    # The normal form is itself a program, already normal, that gives the same LLVM IR. It
+    # reads no file, so it needs no driver session.
     assert compile_oymo(normal_text) == (normal_text, ir_texts)
     guard_path = pathlib.Path(base_directory, f'{test_name}.guard.ll')
     if len(ir_texts) == 1:
@@ -139,3 +145,37 @@ GOLDENS = [
 @pytest.mark.parametrize('name', GOLDENS)
 def test_golden(name):
     run_golden_test(name)
+
+
+def compile_unit(directory: pathlib.Path) -> tuple[str, list[str]]:
+    """`compile_oymo` of `directory/root.oymo`, in a driver session whose top is `directory`."""
+    with driver.session(str(directory)) as build:
+        compiled = compile_oymo((directory / 'root.oymo').read_text())
+        build.check()
+    return compiled
+
+
+def run_unit_golden(test_name: str) -> None:
+    """A unit of several files: the directory `name/`, whose `root.oymo` reads the others.
+    Every file is kept pretty-printed. Approves `name.ll` (and `name.guard.ll` for two
+    layers) and `name.normal.oymo`, the unit's normal form: a program of one file."""
+    base_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'goldens')
+    directory = pathlib.Path(base_directory, test_name)
+    texts = {path: path.read_text() for path in sorted(directory.rglob('*.oymo'))}
+    pretty_texts = {path: source.write(parse(text)) for path, text in texts.items()}
+    if pretty_texts != texts:
+        # Replace each file by its pretty form; the unit must give the same LLVM IR.
+        ir_texts = compile_unit(directory)[1]
+        for path, text in pretty_texts.items():
+            path.write_text(text)
+        assert compile_unit(directory)[1] == ir_texts
+    normal_text, ir_texts = compile_unit(directory)
+    approve(base_directory, test_name, pretty_texts[directory / 'root.oymo'], normal_text, ir_texts)
+
+
+UNIT_GOLDENS = ['unit']
+
+
+@pytest.mark.parametrize('name', UNIT_GOLDENS)
+def test_unit_golden(name):
+    run_unit_golden(name)

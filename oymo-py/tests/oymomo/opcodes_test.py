@@ -2,7 +2,7 @@
 
 import pytest
 
-from oymo.oymomo import terms
+from oymo.oymomo import llvm_opcodes, terms
 from oymo.oymomo.opcodes import OPCODES, PTR, bit_width, byte_width, decode_uint, lookup
 
 I1, I8, I16, I32, I64 = (terms.ByteArray(name) for name in (b'i1', b'i8', b'i16', b'i32', b'i64'))
@@ -26,13 +26,22 @@ def ev(name, typ, operands, to=None):
 
 
 def test_one_opcode_per_llvm_instruction():
-    assert set(OPCODES) == {
+    assert {name for name, opcode in OPCODES.items() if opcode.apply is None} == {
         *('add', 'sub', 'mul', 'sdiv', 'udiv', 'srem', 'urem', 'shl', 'lshr', 'ashr', 'and', 'or', 'xor'),
         'icmp',
         *('zext', 'sext', 'trunc'),
         *('alloca', 'getelementptr', 'load', 'store'),
         *('extractvalue', 'insertvalue'),
     }
+
+
+def test_reduce_time_opcodes():
+    """The unit tools and the driver's opcodes read their whole operand; LLVM has none of them."""
+    assert {name for name, opcode in OPCODES.items() if opcode.apply is not None} == {
+        *('unit.merge', 'unit.rebase'),
+        *('driver.read_low', 'driver.read_high', 'driver.read_bytes', 'driver.config'),
+    }
+    assert not set(llvm_opcodes.DEFAULT_OPCODES) & {'unit.merge', 'driver.config'}
 
 
 def test_struct_opcodes():

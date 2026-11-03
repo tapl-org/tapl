@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""The default LLVM implementation of each opcode in `opcodes.OPCODES`.
+"""The default LLVM implementation of each LLVM opcode in `opcodes.OPCODES`: each one with
+no `apply`. The others (the unit tools, the driver's) run only at reduce time.
 
 Each implementation reads its call's fields by position, as `opcodes` does: `{type, a, b}`
 for an arithmetic or logic opcode, `{predicate, type, a, b}` for `icmp`, `{type, value, to}`
@@ -281,4 +282,6 @@ def _emit(name: str):
     return _convert(name, _CONVERT[name])
 
 
-DEFAULT_OPCODES: dict[str, OpcodeImpl] = {name: OpcodeImpl(_emit(name), _uses(name)) for name in opcodes.OPCODES}
+DEFAULT_OPCODES: dict[str, OpcodeImpl] = {
+    name: OpcodeImpl(_emit(name), _uses(name)) for name, opcode in opcodes.OPCODES.items() if opcode.apply is None
+}

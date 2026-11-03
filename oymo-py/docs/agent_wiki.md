@@ -2869,6 +2869,21 @@ executable binary). we should mark some place as a platform". The steps that fol
   `.guard.ll`, merged `.normal.oymo`: `('add' : 'sub') {'i32', p.a, [05000000] : p.a}`).
   `hatch test` 766 passed; ruff, pyrefly clean. `redesign-layers` and
   `redesign-operators` finished and removed; their driver items moved to `redesign-links`.
+- Committed `bc1d28e`. Modules step 1 plan (artifact `modules_step1_plan.md`): user: on
+  `'struct.check_data'`: "do we need it. we have struct.rebase now" (dropped: rebasing a
+  source is correct, so mounting one is no mistake); names: `'unit.merge'`/`'unit.rebase'`
+  ("lgtm", over `ns.`, `ingot.`, `mixin.`), driver `'driver.read_low'`,
+  `'driver.read_high'`, `'driver.read_bytes'`, `'driver.config'` ("this one"); two equal
+  definitions: no step ("yes"); virtual directory top = root's directory, no mounts yet;
+  `--config key=value`; rebase operand `{P, X}`. Diamond explained: only the root reads a
+  unit's parts (B and C refer to `m.d…` or holes); between units equal header declarations
+  merge and the linker joins one `d.o`.
+- Done (subagent): `unit_ops.py`, `driver.py` (session via the `opcodes.DRIVER` context
+  variable; failed reads give no result and record an error the CLI reports first),
+  `--config`, golden `unit/` (cycle lexer↔parser, rebase of `dbl/lib`, a hole filled by a
+  delegate; runs, exit 24), unit golden harness. Agent fixed a caveat: `is_normal`'s cache
+  is per build (the driver's opcodes compute only inside one). `hatch test` 831 passed.
+  Design doc and roadmap renamed to the new opcode names.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

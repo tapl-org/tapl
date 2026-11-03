@@ -247,10 +247,10 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 - The root is the file the driver starts from; its result is the unit. Any file may read
   other files; the driver records the paths read.
 - Driver-supplied opcodes:
-  - `'read_low' path`, `'read_high' path`: one layer of an oymo file as a plain term, usable
+  - `'driver.read_low' path`, `'driver.read_high' path`: one layer of an oymo file as a plain term, usable
     on either side (a bridge takes another file's layer this way); both layers:
-    `('read_low' 'c.oymo' : 'read_high' 'c.oymo')`;
-  - `'read_bytes' path`: a raw file as a byte array (as C23 `#embed`);
+    `('driver.read_low' 'c.oymo' : 'driver.read_high' 'c.oymo')`;
+  - `'driver.read_bytes' path`: a raw file as a byte array (as C23 `#embed`);
   - `'driver.config'`: build flags, later platform facts (as Rust `cfg!`, Zig `builtin`).
 - Separation stays before reduction (calculus 4.2), so the read opcodes return plain
   terms.
@@ -263,16 +263,15 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 - A namespace's label is declared by the file (taken from C++ namespaces: open, nested) or
   picked by the root.
 - Tools, at the user's choice:
-  - merge, `'struct.concat'`, deep: same-labeled namespaces combine (merge recurses into
+  - merge, `'unit.merge' {X₁, X₂, …}`, deep: same-labeled namespaces combine (merge recurses into
     structs without `type`), equal λ-free entries merge, a λ entry defined twice gets no
     step and is rejected with both places;
-  - rebase, `'struct.rebase' {prefix, X}`: prefixes every `m.…` path in X's bodies and
+  - rebase, `'unit.rebase' {prefix, X}`: prefixes every `m.…` path in X's bodies and
     places X under the prefix (`m.lib.step` becomes `m.dbl.lib.step`), so two libraries with
     the same labels fit in one unit. It fires only when every body in X is closed, in
     normal form, and uses `m` only as the head of paths or regions. Mounting a header is a
-    rebase of a λ-free struct;
-  - `'struct.check_data' X`: `X` if it holds no λ, else no step; an optional guard when
-    mounting headers.
+    rebase of a λ-free struct. (`'struct.check_data'`, a guard for mounting, was dropped:
+    rebasing a source file is correct, so mounting one is no longer a mistake.)
 - Delegates wire dependencies: a library declares a hole (`error = {type …}`), and the root
   fills it with `{type …, body = λm. λp. m.parser.report_error p}` (LLVM inlines it) or with
   `{type …, link = 'report_error'}`.

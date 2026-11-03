@@ -138,6 +138,8 @@ def test_run_prints_the_exit_status(tmp_path, monkeypatch, capfd) -> None:
         ('puts', 0),
         ('helpers', 3),
         ('layers', 6),
+        # A unit of several files; its root reads the others.
+        ('unit/root', 24),
     ],
 )
 def test_run_golden(capfd, golden: str, result: int) -> None:
@@ -240,3 +242,47 @@ def test_run_the_guard_first(tmp_path, capfd, high: str, out: str, err: str) -> 
     captured = capfd.readouterr()
     assert captured.out == out
     assert captured.err == (f'{path}: error: The guard failed with {err}\n' if err else '')
+
+
+# Driver sessions: a program reads files under its own directory.
+
+
+def test_config_fills_driver_config(tmp_path, capsys) -> None:
+    path = write(tmp_path, "language oymomo\n{c = {type = {'array', [02], 'i8'}, value = ('driver.config' {}).v}}\n")
+    assert cli.main(['normal', path, '--config', 'v=hi', '--config', 'w=']) == 0
+    assert capsys.readouterr().out == "language oymomo\n{c= {type= {'array', [02], 'i8'}, value= 'hi'}}\n"
+
+
+@pytest.mark.parametrize(
+    ('arguments', 'message'),
+    [
+        (['--config', 'v'], "--config takes key=value, with a nonempty key; got 'v'."),
+        (['--config', '=v'], "--config takes key=value, with a nonempty key; got '=v'."),
+        (['--config', 'v=1', '--config', 'v=2'], "--config gives 'v' twice."),
+    ],
+)
+def test_bad_config(tmp_path, capsys, arguments: list[str], message: str) -> None:
+    path = write(tmp_path, 'language oymomo\n{}\n')
+    assert cli.main(['check', path, *arguments]) == 1
+    assert capsys.readouterr().err == f'{path}: error: {message}\n'
+
+
+def test_an_error_inside_a_read_file_names_that_file(tmp_path, capsys) -> None:
+    line = INGOT.format('nope')
+    (tmp_path / 'lib').mkdir()
+    (tmp_path / 'lib' / 'b.oymo').write_text(f'language oymomo\n{line}\n', encoding='utf-8')
+    path = write(tmp_path, "language oymomo\n'driver.read_low' 'lib/b.oymo'\n")
+    assert cli.main(['check', path]) == 1
+    assert (
+        capsys.readouterr().err
+        == f"{tmp_path / 'lib' / 'b.oymo'}:2:{_column(line, 'nope')}: error: Unknown name 'nope'.\n"
+    )
+
+
+def test_a_failed_read_is_reported_at_the_read(tmp_path, capsys) -> None:
+    line = "{a = 'driver.read_low' 'missing.oymo'}"
+    path = write(tmp_path, f'language oymomo\n{line}\n')
+    assert cli.main(['normal', path]) == 1
+    assert capsys.readouterr().err == (
+        f"{path}:2:{_column(line, chr(39) + 'missing')}: error: Cannot read 'missing.oymo': No such file or directory.\n"
+    )

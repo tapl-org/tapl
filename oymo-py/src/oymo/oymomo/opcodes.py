@@ -11,13 +11,15 @@ result's type, `evaluate` the result's bytes when every field it needs is a lite
 An opcode that is not LLVM's may take any operand (a byte array, a struct, a closed lambda
 or fixed point in normal form) through `apply`, and give any closed term.
 
-Shared by `reduction`, ANF and LLVM, so it holds neither and imports only `terms`.
+Shared by `reduction`, ANF and LLVM, so it holds neither and imports only `terms` and the
+unit tools (`unit_ops`). The driver's opcodes reach their build through `DRIVER`.
 """
 
 from collections.abc import Callable, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass
 
-from oymo.oymomo import terms
+from oymo.oymomo import terms, unit_ops
 
 INT_TYPES = ('i1', 'i8', 'i16', 'i32', 'i64')
 
@@ -353,6 +355,28 @@ def _insertvalue_form_of(fields: Fields) -> terms.Term | None:
     return fields[0] if element_type(fields[0], fields[3:]) is not None else None
 
 
+def _no_type(_fields: Fields) -> terms.Term | None:
+    return None
+
+
+# The opcodes a build's driver gives: `'driver.read_low' path`, `'driver.read_high' path`,
+# `'driver.read_bytes' path` and `'driver.config' {}`.
+DRIVER_OPCODES = ('driver.read_low', 'driver.read_high', 'driver.read_bytes', 'driver.config')
+
+# The build the driver opcodes ask: `driver(name, operand)` gives the result of the driver
+# opcode `name`, or None. The driver sets it for the length of a build; outside one it is
+# None, and the driver opcodes give no result.
+DRIVER: ContextVar[Callable[[str, terms.Term], terms.Term | None] | None] = ContextVar('DRIVER', default=None)
+
+
+def _driver_opcode(name: str) -> Callable[[terms.Term], terms.Term | None]:
+    def apply(operand: terms.Term) -> terms.Term | None:
+        driver = DRIVER.get()
+        return None if driver is None else driver(name, operand)
+
+    return apply
+
+
 def _generate():
     yield _binary('add', lambda _bits, a, b: a + b)
     yield _binary('sub', lambda _bits, minuend, subtrahend: minuend - subtrahend)
@@ -381,6 +405,12 @@ def _generate():
     # Struct values. E-Opcode gives only byte arrays, so they never fold.
     yield Opcode('extractvalue', _extractvalue_form_of, _never)
     yield Opcode('insertvalue', _insertvalue_form_of, _never)
+    # The unit tools, always available.
+    yield Opcode('unit.merge', _no_type, _never, apply=unit_ops.merge)
+    yield Opcode('unit.rebase', _no_type, _never, apply=unit_ops.rebase)
+    # The driver's opcodes: they give a result only inside a build (`DRIVER`).
+    for name in DRIVER_OPCODES:
+        yield Opcode(name, _no_type, _never, apply=_driver_opcode(name))
 
 
 OPCODES: dict[str, Opcode] = {opcode.name: opcode for opcode in _generate()}
