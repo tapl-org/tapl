@@ -2713,6 +2713,10 @@ executable binary). we should mark some place as a platform". The steps that fol
   (`u` is taken in calculus 9 and the functor proposal; renaming is churn). User: "keep
   for now, create a leaf roadmap for finding a better name" (leaf `unit-var-name` under
   `oymomo-redesign`).
+- Committed `0806200`. Design doc §2 rewritten by topic (why, units, realms, ingot,
+  building a unit, opcodes and confluence, kinds of file, reuse, proposals); superseded
+  bullets dropped (source clashes fixed by editing, the merge/mount split as separate
+  concepts).
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

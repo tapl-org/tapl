@@ -192,208 +192,154 @@ message ModuleFlag {
 
 ### 2. Module system
 
-Why oymomo needs one at all:
+Written by topic; the discussion and every user quote are in `agent_wiki.md`
+(`redesign-modules`). The calculus (Sections 9 and 10) is not yet updated for this.
 
-- Separate compilation: reduction is slow, so a change to one file should rebuild one
-  ingot, not the whole program.
-- Code not written in oymomo: libc and C libraries are only reachable as declarations
-  joined by the linker.
-- Hiding: a file's private helpers must not clash with another file's; this needs
-  linkage on each symbol (see Ingot).
-- Compiled libraries: a library can ship as `.o` or `.a`, with no source.
-- Sharing build-time code: many files use one high layer (types, generics) without
-  copying it.
-- Collaboration: people work on separate files.
+#### Why modules
 
-Two kinds of dependency:
+- Code that isn't oymomo (libc, C libraries) is the only reason that forces modules; a
+  declaration with a `link` name and the platform linker already handle it.
+- Reuse and people are the other reasons that count.
 
-- Reduce-time: another file's term is substituted and reduced (inlined, instantiated).
-  Today this is the glue: the driver applies files to each other, and a file never names
-  another file.
-- Link-time: only declarations, joined by the linker by name.
+#### Units
 
-Open:
+- People split a program as in Go and Rust: a unit is several files reduced into one
+  ingot and one `.ll`. Inside a unit everything is shared, files may refer to each other in
+  cycles, and code may be copied.
+- Between units there are only headers and the platform linker. Link-time references may
+  form cycles (as C object files do); only the build order must be acyclic: a unit that
+  reads another's generated header needs that unit built first, and a handwritten header
+  breaks such a cycle.
+- A unit has no name in oymomo: the importer picks the label when mounting a header, and
+  the driver names the output files (after the root file, or a flag). Carbon needs
+  package names because C++-style open namespaces collide across libraries; ours never
+  cross units.
+- Two dependency kinds: reduce-time (a term read and reduced into the unit) and link-time
+  (declarations joined by the linker).
 
-- Decided (in Ingot): linkage is the `link` entry field, internal by default.
-- Decided: the reasons that count are code that isn't oymomo (the only one that forces
-  modules; already solved by declarations with `link` and the platform linker), reuse,
-  and people.
-- Decided: reuse is per symbol, by the fields shipped. `body` makes the source reusable,
-  `link` on a definition makes a compiled symbol, and `{type, link}` alone is a header. The user
-  picks per use: `{type = math.gcd.type, body = math.gcd.body}` (source, internal) or
-  `{type = math.gcd.type, link = math.gcd.link}` (compiled). Withholding source is
-  done by shipping only the header and the `.o`.
-- Decided: people split a program as in Go and Rust. A unit is several files joined into
-  one term (one namespace, cycles allowed), reduced to the unit's ingot(s). Between units,
-  link-time references may form cycles (as C object files do); only the build order must
-  be acyclic: a unit that reads another's *generated* header needs that unit built first.
-  A cycle there is broken with a handwritten header, as in C. Inside a unit everything is shared; between units the default is linking, with
-  copying only where the defining author allows it.
-- Decided: a unit's root is oymo code. The driver supplies two reduce-time opcodes,
-  `'read_low' {path}` and `'read_high' {path}`, each returning one layer of the file as a
-  plain term, usable on either side (this is how a bridge takes another file's layer).
-  The projection is done by the opcode, outside the calculus. Both layers of a file:
-  `let c = ('read_low' 'c.oymo' : 'read_high' 'c.oymo') in …`. No plain `'read'`:
-  this layering does its job. The driver records the paths read, which gives it the
-  dependency graph.
-- Decided: E-Opcode fires on `b A`, `A` an opcode operand: a byte array (so
-  `'read_low' 'c.oymo'`), a struct of operands, or a closed `λ` (so struct tools work on
-  module entries). Its result may be any closed term. Opacity: an opcode may move, copy
-  or drop a `λ`, but its result must not depend on what the `λ` contains (else it could
-  tell `λx. (λy. y) x` from `λx. x`). Data `D` (`λ`-free) moves to
-  the ANF grammar (8.3): it is used only there and below (ANF operands, `init`/`value`,
-  types).
-- Decided: separation stays before reduction (calculus 4.2). Moving it into reduction was
-  considered and dropped; so the read opcodes return plain terms.
-- Closed: how a copied body's dependencies come along. Code is copied only inside a unit,
-  where every path is valid; between units, headers hold declarations only.
-- Decided: building a unit also writes a header, `lexer.h.oymo`: a one-layer oymo file
-  with `{type, link}` for each linked definition, keeping the unit's namespaces. Other units
-  read it like any file; a handwritten header (`libc.h.oymo`) has the same shape. An
-  unchanged header means units that read only it need no rebuild.
-- Decided: a header has declarations only, never a `body`. So reuse between units is
-  compiled only, and nothing is copied between units: a declaration has no `λ` and no
-  `m`, so it can be mounted under any label. Inlining across units comes back by LTO
-  (`clang -flto` on the `.ll` files); generic code is shared by merging the author's
-  source files into one's own unit.
-- Decided: a two-layer unit has one header file with a layering,
-  `(low declarations : high declarations)`; `'read_low'`/`'read_high'` pick a side.
-- Decided: a generated header's meta keeps spans into the original source (its `files`
-  table lists the source files), so errors point at the definition, not the header.
-- Decided: three name realms, independent: file names (only as operands of the read
-  opcodes, resolved by the driver), labels and paths (inside a unit), link names (only in
-  `link` fields, across units). They meet only in the `.ll`, where internal path names and
-  link names share LLVM's symbol table (a clash there is rejected).
-- Decided: the driver provides a virtual directory (nested); the user builds it and
-  picks one file as the root of a unit; by default the project folder. Read paths are
-  relative to the virtual directory's top; libraries are mounted into it, so no search
-  paths. Decouples oymomo from the host file system. How the user describes it is left
-  to the driver design.
-- Decided: internal LLVM names are not meaning: by default an internal symbol is named by
-  its path, and the translation may choose another (deterministically) to avoid a clash.
-  Link names are emitted exactly.
-- Decided: a hole is an entry with a `type` and no `body`, `init`, `value` or `link`. Merge
-  fills it with an entry of the same type that brings a body (a definition) or a `link`
-  (a declaration of a symbol elsewhere). A hole still unfilled at verification is
-  rejected. Comparing types compares λ-free data, and a body is only moved, so opacity
-  holds.
-- Decided: dependencies inside a unit are wired by delegates: a library declares a hole
-  (`error = {type …}`), and the root fills it, e.g. with
-  `{type …, body = λm. λp. m.parser.report_error p}` (LLVM inlines it), or with
+#### Three name realms
+
+- File names appear only as operands of the read opcodes (and in meta), resolved by the
+  driver inside a virtual directory.
+- Labels and paths appear only inside a unit (`m.lexer.helper`).
+- Link names appear only in `link` fields, across units.
+- They are independent: renaming in one never changes meaning in another. They meet only
+  in the `.ll` symbol table: internal symbols are named by their path by default, and the
+  translation may choose another name (internal names carry no meaning); link names are
+  emitted exactly.
+
+#### The ingot (revises the flat ingot and `export`/`import`)
+
+- The ingot nests namespaces: `{lexer = {'namespace', …}, parser = {'namespace', …}}`,
+  tagged `'namespace'` in field 0 as types are. A namespace is just a struct reached by
+  paths; the calculus gets nothing new.
+- An entry has a `type`, at most one of `body`, `init`, `value`, and an optional
+  `link = 'name'`:
+  - a definition without `link` is internal (the default);
+  - a definition with `link` is visible to the linker;
+  - `{type, link}` declares a symbol defined elsewhere;
+  - `{type}` is a hole: merge fills it with an entry of the same type that brings a body or
+    a `link`; a hole still unfilled at verification is rejected. A declaration without
+    `link` is rejected when the ingot is verified or translated.
+- After reduction, an ingot holds only namespaces and entries; anything else is rejected
+  ("reduce-time value left in the ingot").
+- Link names are opaque to the unit: no unit logic reads them. The translation emits one
+  `declare` or `define` per link name, as the linker would (same type, at most one
+  definition, else rejected).
+- Symbol addresses in data (`value = 'counter'` for a `'ptr'`, calculus 10) are dropped for
+  now: a label written as bytes mixes the label realm into data and doesn't survive
+  namespaces or reduction. To be redesigned; until then pointer tables are filled at run
+  time.
+
+#### Building a unit
+
+- The root is the file the driver starts from; its result is the unit. Any file may read
+  other files; the driver records the paths read.
+- Driver-supplied opcodes:
+  - `'read_low' path`, `'read_high' path`: one layer of an oymo file as a plain term, usable
+    on either side (a bridge takes another file's layer this way); both layers:
+    `('read_low' 'c.oymo' : 'read_high' 'c.oymo')`;
+  - `'read_bytes' path`: a raw file as a byte array (as C23 `#embed`);
+  - `'driver.config'`: build flags, later platform facts (as Rust `cfg!`, Zig `builtin`).
+- Separation stays before reduction (calculus 4.2), so the read opcodes return plain
+  terms.
+- Read paths are relative to the top of a virtual directory the driver provides (nested,
+  built by the user, the project folder by default); libraries are mounted into it, so
+  there are no search paths. How the user describes it is left to the driver design.
+- `m` in a body is the whole unit, and the kernel uses absolute paths only (as C++'s
+  compiled names are fully qualified); short names are the frontend's job. A better name
+  for `m` is roadmap leaf `unit-var-name`.
+- A namespace's label is declared by the file (taken from C++ namespaces: open, nested) or
+  picked by the root.
+- Tools, at the user's choice:
+  - merge, `'struct.concat'`, deep: same-labeled namespaces combine (the `'namespace'` tag
+    says where to recurse), equal λ-free entries merge, a λ entry defined twice gets no
+    step and is rejected with both spans;
+  - rebase, `'struct.rebase' {prefix, X}`: prefixes every `m.…` path in X's bodies and
+    places X under the prefix (`m.lib.step` becomes `m.dbl.lib.step`), so two libraries with
+    the same labels fit in one unit. It fires only when every body in X is closed, in
+    normal form, and uses `m` only as the head of paths or regions. Mounting a header is a
+    rebase of a λ-free struct;
+  - `'struct.check_data' X`: `X` if it holds no λ, else no step; an optional guard when
+    mounting headers.
+- Delegates wire dependencies: a library declares a hole (`error = {type …}`), and the root
+  fills it with `{type …, body = λm. λp. m.parser.report_error p}` (LLVM inlines it) or with
   `{type …, link = 'report_error'}`.
-- Decided: a label clash between two body-carrying libraries is worked around by building
-  one of them as its own unit and mounting its header under another label; inlining across
-  the boundary comes back by LTO.
+- Convention: a library refers only to its own labels and reaches outside through holes;
+  an outside path breaks under rebase and is reported as a dangling path at verification.
+- Another way out of a clash: build one library as its own unit and mount its header.
+- The pattern is mixin composition, as a linker does (holes are undefined symbols, merge
+  collects, `m` resolves). Related: mixin modules (Ancona and Zucca), the cake pattern
+  (whose problems, init order and one wiring per program, don't apply), Nix fixed points.
 - Goal: building a unit is as fast as merge (struct opcodes and the translation, no
-  β-steps). Reduction must still be allowed, just in case: a unit can always be run by
-  reduction (calculus 9, "run by reduction").
-- Decided: `'struct.rebase' {prefix, X}` resolves label clashes between body-carrying
-  libraries inside one unit: it prefixes every `m.…` path in X's bodies and places X under
-  the prefix (`m.lib.step` becomes `m.dbl.lib.step`). It fires only when every body in X is
-  closed, in normal form, and uses `m` only as the head of paths or regions. Mounting a
-  header is rebasing a λ-free struct. (A mount boundary with a `fill` table was considered
-  and dropped.)
-- Decided: opacity refined: an opcode may look inside a λ only if the λ is closed and in
-  normal form, deterministically and α-invariantly, with a fixed opcode table and a closed
-  result (Mitschke's δ-rule theorem, Barendregt §15.3); otherwise it may only move, copy or
-  drop it. To be covered by the Lean confluence proof.
-- Decided: convention: a library refers only to its own labels and reaches outside through
-  holes; an outside path breaks under rebase and shows up as a dangling path at
-  verification.
-- Decided: the pattern is called mixin composition, as a linker does (holes = undefined
-  symbols, merge = collect, `m` = resolution); related: the cake pattern (whose problems,
-  init order and one wiring per program, don't apply) and Nix fixed points. It is linear,
-  like a linker. Later speed-ups, implementation only: parallel merge, resolving only
-  reachable entries, caching each file's normalized form.
-- Decided: a namespace is just a struct, reached by paths through a variable
-  (`m.lexer.next_token`). The calculus gets nothing new.
-- Decided: the ingot nests namespaces, `{lexer = {'namespace', …}, parser = {'namespace', …}}`,
-  tagged `'namespace'` in field 0 as types are. Internal LLVM names are paths
-  (`@"lexer.next_token"`). Inside a unit, files refer to each other only by path; between
-  units only through `link` names. (Revises the flat ingot.)
-- Decided, taken from C++ namespaces: each file declares its own namespace label (`lexer.oymo` is
-  `{lexer = {'namespace', …}}`), and namespaces are open: the root deep-merges files with
-  `'struct.concat'`. Same-labeled namespaces combine (so the `'namespace'` tag is required: it
-  says where to recurse); equal λ-free entries merge (two identical `puts` declarations);
-  a λ entry defined twice gets no step and the translation rejects it.
-- Why C++'s model and not another:
-  - Rust: the parent declares the module tree (`mod lexer;`), a file never names itself,
-    and a module is closed (one file defines it). Ours: the file names itself, and
-    namespaces are open.
-  - Swift: no namespaces inside a module; all files of a module share one flat namespace
-    (as a Go package). Ours nests.
-  - Carbon: a file declares its package and library at the top (`package Foo library
-    "bar";`), and `namespace N;` plus qualified declarations (`fn N.F()`) add names.
-    Closest to ours; but no ADL or `using namespace` either, which we also leave out
-    (short names are the frontend's).
-  - From C++ we keep: the file declares its namespace, namespaces are open and nest, and
-    compiled names are fully qualified. We leave out ADL and `using`.
-- Decided: the kernel uses absolute paths only, from the unit's top (`m.lexer.helper`,
-  as C++'s compiled names are fully qualified). Short and relative names are resolved by
-  the frontend.
-- Decided: `link = 'name'` replaces `export`/`import`. The entry's kind gives the
-  direction: a definition with `link` is visible to the linker; a declaration's `link`
-  names a symbol defined elsewhere; no `link` means internal. A declaration without
-  `link` is rejected when the ingot is verified or translated. A header entry is
-  `{type, link}`. (Revises the Ingot section's `export`/`import`.)
-- Decided: a unit has no name in oymomo; the importer picks the label when mounting a
-  header, and the driver names output files (after the root file, or a flag) (`{math = 'read_low' 'math.h.oymo'}`). Namespaces never cross units; only link
-  names do. (Carbon needs packages because C++-style open namespaces collide across
-  libraries.)
-- Two namings: labels (inside a unit, nested paths, deep-merged) and link names (across
-  units, flat strings, joined by the linker).
-- Decided: in one ingot, all entries with the same link name are one symbol: same type
-  (else rejected), at most one definition (else "duplicate symbol"), one `define` or
-  `declare`. So `puts` declared under two labels, or declared and defined in one unit,
-  works as in C. A path spelled like a link name stays an error (nothing renamed).
-- Mangled linker names may come from a frontend, never the kernel: the frontend computes
-  `link` strings (needing unique unit names, a frontend convention); symbols for C keep
+  β-steps), and linear like a linker. Reduction stays possible: a unit can always be run
+  by reduction (calculus 9). Later speed-ups, implementation only: parallel merge,
+  resolving only reachable entries, caching each file's normalized form.
+
+#### Opcodes and confluence
+
+- E-Opcode fires on `b A`, `A ::= b | {lᵢ = Aᵢ} | λx. t (closed)`, and its result may be any
+  closed term (calculus 5). Data `D` (λ-free) is in the ANF grammar (8.3).
+- An opcode may move, copy or drop a λ. It may look inside one only if the λ is closed and
+  in normal form, deterministically and α-invariantly, with a fixed opcode table and a
+  closed result (Mitschke's δ-rule theorem, Barendregt §15.3); to be covered by the Lean
+  confluence proof. Asking whether something is a λ doesn't look inside it.
+- Paths stay non-values: after substitution a path may be a failing projection
+  (`(λx. (λy. b) x.l) {}` is `b` inner-first, stuck outer-first).
+- Opcode collections and their names (`'llvm.add'`, …) are roadmap node
+  `opcode-namespaces`.
+
+#### Kinds of file
+
+- Source part: a namespace of entries (`{lexer = {'namespace', …}}`), merged or rebased.
+- Header: declarations only, generated (`lexer.h.oymo`, one per unit, with a layering
+  `(low : high)` for a two-layer unit) or handwritten (`libc.h.oymo`). Its meta keeps spans
+  into the original source. An unchanged header means its readers need no rebuild.
+- Reduce-time library: any term, applied or `let`-bound, never in the ingot; recursion by
+  `fix (λself. …)`, mutual recursion tied by the root with `fix (λl. {a = A l, b = B l})`.
+- Opcode provider (later): a compiled unit built for the host and loaded by the driver;
+  its functions become opcodes (as Rust procedural macros); λs reach it as opaque handles;
+  determinism and closed results are its contract.
+
+#### Reuse between units
+
+- Compiled only: headers hold declarations, never bodies, so nothing is copied between
+  units. Inside a unit, an entry may be reused from source (`{type = …, body = …}`).
+- Source sharing means merging (or rebasing) the author's files into one's own unit.
+- Inlining across units comes back by LTO (`clang -flto` on the `.ll` files).
+- Mangled link names may come from a frontend, never the kernel; symbols meant for C keep
   plain names; headers carry the final strings.
-- Decided: four kinds of oymo file:
-  - source part: `{lexer = {'namespace', …}}` (or `λdeps. …`), merged, becomes the ingot;
-  - header: declarations only, merged (or mounted, per the decision above);
-  - reduce-time library: any term (usually a struct of λs), applied or `let`-bound,
-    never in the ingot; recursion by `fix (λself. …)`, mutual recursion across libraries
-    tied by the root with `fix (λl. {a = A l, b = B l})`;
-  - opcode provider (idea for later): a compiled unit built for the host, loaded by the
-    driver, its functions become opcodes (as Rust procedural macros); λs reach it as
-    opaque handles, so opacity holds by construction; determinism and closed results
-    are its contract; the driver orders builds by it.
-- Decided: after reduction, an ingot holds only namespaces and entries; anything else is
-  rejected ("reduce-time value left in the ingot").
-- Decided: the four kinds are complete. Also needed:
-  - the root as a named role: the one file the driver starts from for a unit; it is
-    reduce-time code that is run (not applied), and its result is the unit;
-  - a driver opcode for raw data files, `'read_bytes' 'logo.png'` returning a byte array
-    (as C23 `#embed`, Rust `include_bytes!`);
-  - a driver opcode for driver inputs (build flags, later platform facts),
-    `'driver.config'` returning a struct (as Rust `cfg!`, Zig `builtin`).
-- Moved out of this redesign: opcode collections and namespaces (roadmap leaf
-  `opcode-namespaces`).
-- Decided: two operations, at the user's choice: merge (source parts, by their own
-  labels) and mount (headers, under any label). An optional `'struct.check_data' X`
-  returns `X` if it holds no λ, else has no step, so mounting a source file by mistake is
-  reported at the mount. Asking whether something is a λ doesn't look inside it, so
-  opacity holds. Frontends may detect mistakes earlier.
-- Decided: paths stay non-values. A path is harmless only while its variable is free;
-  after substitution it may be a failing projection: `(λx. (λy. b) x.l) {}` gives `b`
-  inner-first but is stuck outer-first. So views that wrap bodies are dropped.
-- Decided (quiz): the kernel keeps `m` = the whole unit (absolute paths). A namespace's
-  label may be declared by the file or picked by the root (both allowed); a body-carrying
-  file must sit where its absolute paths expect it, so a root-picked label suits headers
-  and files without such paths. Merge and mount stay as tools at the user's choice.
-- Proposal (functor style, kept for later): a library is `λu. {'namespace', …}`, bodies
-  `λn. λp.` use only their own namespace `n`, foreign symbols are fields filled from `u`
-  (`report_error = u.report_error`), and the root wires them by application inside
-  `fix (λm. {lexer = lib {report_error = m.parser.report_error}, …})`. The root must pass
-  paths, not entries (a copied body would rebind `n`). As OCaml functors and recursive
-  modules.
-- Proposal: aliases: an entry that is a path (`report_error = m.parser.report_error`)
-  is read by the translation as that symbol; chains followed, cycles and dangling paths
-  rejected.
-- Clashes: a header is relocatable (mount it under another label); a source is not (its
-  bodies hold paths), so a clash between sources is fixed by editing a label, with merge
-  reporting both spans; link-name clashes are the platform linker's.
+
+#### Proposals and open items
+
+- Proposal: functor-style libraries: `λu. {'namespace', …}`, bodies `λn. λp.` using their
+  own namespace `n`, foreign symbols filled from `u`, wired by the root in `fix (λm. …)`
+  with paths (not entries). As OCaml functors and recursive modules.
+- Proposal: aliases: an entry that is a path (`log = m.util.log`) is that symbol for the
+  translation; chains followed, cycles and dangling paths rejected.
+- Decide: how the user describes the virtual directory (driver design).
+- Decide: a redesign of symbol addresses in data that supports reduction and keeps the
+  realms apart.
 
 ### 3. Meta
 
