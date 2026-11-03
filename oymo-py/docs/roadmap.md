@@ -20,13 +20,13 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - `redesign-operators` Operator precedence and associativity, as in Scala
     - `redesign-file` The `.oymo` file as (layered-term, meta); meta as a database
     - `redesign-meta-rules` Meta through reduction: the result's meta, rule by rule
-    - `redesign-ingot` Nested, platform-neutral ingot
     - `redesign-modules` Module system: reduce-time and link-time dependencies
     - `redesign-links` Ingots of both layers linked across files
   - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
   - `unit-var-name` A better name for the unit variable `m`
   - `label-bytes` A label can be any bytes, not only UTF-8 text
   - `region-marker` Regions without `m []`; an opcode builds the runnable instance
+  - `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
       - `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
@@ -229,18 +229,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Write the rules into `meta.proto` comments; make reduction carry whole entries (today
   only spans); tests for each rule
 
-### `redesign-ingot` Nested, platform-neutral ingot
-
-- An ingot is one compilation unit and one `.ll`
-- Symbol entries, nested in namespaces (revised from flat, see `redesign-modules`); no
-  `version`, no `target`
-- Each symbol has a linkage (internal or linked), not all `external`
-- Entry: `type`, one of `body`/`init`/`value`, `link = 'name'` (replaced `export`/`import`);
-  no `link` is internal (the default); linkage is in the term, not meta
-- Literal types only
-- Later, when needed: platform-dependent sizes (`usize`, C layouts) until translation
-- Then: oymomo-calculus.tex Sections 8–9, `ingot.py`, tests and goldens
-
 ### `redesign-modules` Module system: reduce-time and link-time dependencies
 
 - Reduce-time: another file's term substituted and reduced (today's glue)
@@ -271,8 +259,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Holes `{type}` filled by merging a body or a `link`; unfilled holes rejected at
   verification; delegates wire dependencies inside a unit
 - A label clash: build one library as its own unit, mount its header elsewhere
-- Symbol addresses in data (`'ptr'` initialized by a label as bytes) dropped for now;
-  then: oymomo-calculus.tex 10 (init), `llvm_translate.py`, `tests/goldens/globals.oymo`
+- Symbol addresses in data (`'ptr'` initialized by a label as bytes) dropped for now
 - Decide (later): a redesign of symbol addresses in data that supports reduction and keeps
   name realms apart
 - `'struct.rebase' {prefix, X}` (closed, normal bodies, `m` only as path or region head)
@@ -352,6 +339,13 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   moved outside `oymomo-redesign`
 - Then: oymomo-calculus.tex 8 (regions, `m` kinds) and 9 (instance), Lean `anf_normal`,
   code, goldens
+
+### `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
+
+- Moved from `redesign-ingot` (finished) when needed: sizes that depend on the platform
+  (`usize`, C layouts) kept symbolic until translation (e.g. `'usize'`, `'c_long'` types;
+  `'sizeof'`, `'alignof'`, `'offsetof'` opcodes resolved by the translation)
+- Decide: the types and opcodes, and how the translation resolves them
 
 ### `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
 

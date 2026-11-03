@@ -2,7 +2,7 @@
 target triple = "x86_64-unknown-linux-gnu"
 target datalayout = ""
 
-define i32 @"gcd"(i32 %"p.a", i32 %"p.b")
+define internal i32 @"gcd"(i32 %"p.a", i32 %"p.b")
 {
 r.entry:
   br label %"r.loop"

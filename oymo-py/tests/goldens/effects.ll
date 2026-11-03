@@ -4,7 +4,7 @@ target datalayout = ""
 
 declare i32 @"putchar"(i32 %"c")
 
-define i32 @"hi"()
+define internal i32 @"hi"()
 {
 r.entry:
   %"x" = call i32 @"putchar"(i32 104)
@@ -12,7 +12,7 @@ r.entry:
   ret i32 %"y"
 }
 
-define i32 @"count"()
+define internal i32 @"count"()
 {
 r.entry:
   br label %"r.loop"

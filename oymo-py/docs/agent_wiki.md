@@ -2769,6 +2769,22 @@ executable binary). we should mark some place as a platform". The steps that fol
   `isNF_iff`, `OpOK` (results closed, WF); all theorems kept, no sorry/axiom. Calculus pass
   (2.1 row A, 5.4 bullets, stuck list without "a byte array applied to a lambda") in review
   marks.
+- Accepted; committed `2f0c9d3`. Ingot code plan (artifact `ingot_code_plan.md`)
+  approved; answers taken: internal linkage changes goldens; single-label `m.l` kept,
+  nested paths added; `redesign-ingot` finished and its "platform sizes" item moved to
+  a new leaf `platform-sizes` outside `oymomo-redesign`.
+- Ingot code done (subagent): `ingot.py` reads the ingot as a namespace (a struct with
+  `type` is an entry, else a namespace; unlabeled fields and reduce-time values
+  rejected); entries `type, body|init|value, link`; `{type}` is a hole, rejected;
+  `Symbol.path` (+ derived dotted `name` for messages), `link`; `m.l₁⋯lₙ` paths;
+  `VERSION`/`target` removed. `llvm_translate.py`: link names exact, unlinked symbols
+  `internal` with dotted path names (a clash with a link name takes the smallest free
+  `.n`); one LLVM symbol per link (LLVM types equal, at most one definition, constants
+  and globals count); a `'ptr'` in entry data must be `''`. Choices: a link is a
+  nonempty UTF-8 byte array; `{}` in a namespace is an empty namespace; a top-level
+  struct with `type` is rejected. 14 goldens rewritten (wrapper dropped, `link` after
+  `type` for `main` and declarations, `globals.oymo` without `first`/`second`); `.ll`
+  regenerated. `hatch test` 644 passed; ruff, pyrefly clean; `oymo run` works.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

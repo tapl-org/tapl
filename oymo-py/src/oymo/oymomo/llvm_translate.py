@@ -13,6 +13,11 @@ on in the block it continues; a `let` becomes one instruction, a return `ret`, a
 `br`, a branch `br i1` or `switch`, a block's parameters its `phi`s. A jump to field 0 adds
 a block: a new entry block named after the region's binder, or a split block plus `br`.
 
+Each symbol becomes an LLVM global: one with a `link` is named by it, with LLVM's default
+(external) linkage; one without is internal, named by its dotted path (`math.gcd`), or
+by the path and a number where that is already a link name. Entries with the same
+`link` are one LLVM symbol.
+
 Everything target-specific (the opcodes' instructions) comes in through `Target`.
 """
 
@@ -89,20 +94,21 @@ def _tagged_type(term, tag, parts):
     return ir.ArrayType(element, count) if tag == 'array' else ir.VectorType(element, count)
 
 
-def constant(
-    type_term: syntax.Term, value: syntax.Term, symbols: Mapping[str, ir.GlobalValue] | None = None
-) -> ir.Constant:
+def constant(type_term: syntax.Term, value: syntax.Term, *, entry: bool = False) -> ir.Constant:
     """`value`, data, as an LLVM constant of the type `type_term` names: a byte array of an
     integer type's size, or a struct (or array) of constants. `{}` is all zeros, for any
-    type. Given `symbols` (an entry's `init` or `value`), a byte array in a `'ptr'`
-    names a symbol (`''` is null) and `{b₁, b₂}` is the symbol `b₁` plus `b₂` bytes; one
+    type. In an `entry`'s `init` or `value`, a `'ptr'` is `''`, the null pointer, and one
     byte array may hold an `i8` array, its bytes in order."""
     span = getattr(value, 'span', 0)
     typ = llvm_type(type_term)
     if isinstance(value, terms.Struct) and not value.fields:
         return ir.Constant(typ, None)
-    if isinstance(typ, ir.PointerType) and symbols is not None:
-        return _pointer(value, symbols, span)
+    if isinstance(typ, ir.PointerType) and entry:
+        if not isinstance(value, terms.ByteArray) or value.value:
+            raise LlvmTranslationError(
+                "A 'ptr' in data is '', the null pointer: the address of a symbol in data is left out for now.", span
+            )
+        return ir.Constant(typ, None)
     if isinstance(typ, ir.IntType):
         size = (typ.width + 7) // 8
         if not isinstance(value, terms.ByteArray) or len(value.value) != size:
@@ -113,40 +119,16 @@ def constant(
         if number >= 1 << typ.width:
             raise LlvmTranslationError(f'The constant does not fit in {typ}.', span)
         return ir.Constant(typ, number)
-    if (
-        symbols is not None
-        and isinstance(value, terms.ByteArray)
-        and isinstance(typ, ir.ArrayType)
-        and typ.element == ir.IntType(8)
-    ):
+    if entry and isinstance(value, terms.ByteArray) and isinstance(typ, ir.ArrayType) and typ.element == ir.IntType(8):
         if len(value.value) != typ.count:
             raise LlvmTranslationError(f'{typ} is a byte array of {typ.count} bytes here.', span)
         return ir.Constant(typ, bytearray(value.value))
     parts = _type_parts(type_term)
     if parts is not None and isinstance(value, terms.Struct) and len(value.fields) == len(parts):
-        return ir.Constant(typ, [constant(part, f.value, symbols) for part, f in zip(parts, value.fields, strict=True)])
+        return ir.Constant(
+            typ, [constant(part, f.value, entry=entry) for part, f in zip(parts, value.fields, strict=True)]
+        )
     raise LlvmTranslationError(f'No constant of type {typ} is written {printer.show(value)}.', span)
-
-
-def _pointer(value, symbols, span):
-    """A `'ptr'` in an entry's data: a symbol's address, plus a byte offset, or null."""
-    offset = None
-    if isinstance(value, terms.Struct) and len(value.fields) == 2:  # noqa: PLR2004
-        value, offset = value.fields[0].value, value.fields[1].value
-        if not isinstance(offset, terms.ByteArray):
-            raise LlvmTranslationError('A symbol plus an offset is {symbol, bytes}, the offset a byte array.', span)
-    name = value.as_str if isinstance(value, terms.ByteArray) else None
-    if name is None:
-        raise LlvmTranslationError("A 'ptr' here names a symbol, '' for null, or {symbol, offset}.", span)
-    if not name and offset is None:
-        return ir.Constant(ir.PointerType(), None)
-    if name not in symbols:
-        raise LlvmTranslationError(f'{name!r} names no symbol of the ingot.', span)
-    symbol = symbols[name]
-    if offset is None:
-        return symbol
-    count = int.from_bytes(offset.value, 'little')
-    return ir.FormattedConstant(ir.PointerType(), f'getelementptr (i8, ptr {symbol.get_reference()}, i64 {count})')
 
 
 def _type_parts(type_term):
@@ -187,7 +169,7 @@ def _same(a, b) -> bool:
         case ingots.Arg(), ingots.Arg():
             return a.label == b.label
         case ingots.Address(), ingots.Address():
-            return a.name == b.name
+            return a.path == b.path
         case ((ingots.Use() | ingots.Arg() | ingots.Address()), _):
             return False
         case _, (ingots.Use() | ingots.Arg() | ingots.Address()):
@@ -410,10 +392,11 @@ class _Function:
             case ingots.Arg(label=label):
                 value = self.args[label]
             case _:
-                value = self.translator.globals[operand.name]
+                value = self.translator.globals[operand.path]
                 if expected is not None and not isinstance(llvm_type(expected), ir.PointerType):
                     raise LlvmTranslationError(
-                        f'm.{operand.name} is an address, a ptr, but {what} needs {llvm_type(expected)}.', span
+                        f'm.{".".join(operand.path)} is an address, a ptr, but {what} needs {llvm_type(expected)}.',
+                        span,
                     )
                 return value
         if expected is not None and value.type != llvm_type(expected):
@@ -425,8 +408,9 @@ class _Function:
     def _instruction(self, builder, let):
         if let.callee is not None:
             fn = ingots.function_type(self.translator.ingot.lookup(let.callee))
+            callee = '.'.join(let.callee)
             args = [
-                self.operand(q, t, f'parameter {label!r} of {let.callee!r}')
+                self.operand(q, t, f'parameter {label!r} of {callee!r}')
                 for (_, q), (label, t) in zip(let.fields, fn.params, strict=True)
             ]
             return builder.call(self.translator.globals[let.callee], args)
@@ -446,51 +430,115 @@ class _Function:
         return None if name == 'store' else value
 
 
+def _symbol_type(symbol: ingots.Symbol) -> ir.Type:
+    """The LLVM type of a symbol: its function type, or the type of its variable."""
+    if isinstance(symbol.type, ingots.FunctionType):
+        return ir.FunctionType(llvm_type(symbol.type.result), [llvm_type(t) for _, t in symbol.type.params])
+    return llvm_type(symbol.type)
+
+
+def _llvm_names(ingot: ingots.Ingot) -> dict[tuple[str, ...], str]:
+    """Each symbol's LLVM name: its link, or else its dotted path, numbered (`.1`, `.2`, …)
+    where the path is already a link name; an internal name carries no meaning."""
+    links = {symbol.link for symbol in ingot.symbols if symbol.link is not None}
+    taken = links | {symbol.name for symbol in ingot.symbols}
+    names = {}
+    for symbol in ingot.symbols:
+        if symbol.link is not None:
+            names[symbol.path] = symbol.link
+        elif symbol.name not in links:
+            names[symbol.path] = symbol.name
+        else:
+            name = next(f'{symbol.name}.{n}' for n in range(1, len(taken) + 2) if f'{symbol.name}.{n}' not in taken)
+            taken.add(name)
+            names[symbol.path] = name
+    return names
+
+
+def _linked(symbols: list[ingots.Symbol]) -> ingots.Symbol:
+    """The one entry that stands for all the entries with one link: the definition among
+    them, or else the first. Their types must be equal, and at most one may be a definition."""
+    first, *others = symbols
+    for other in others:
+        if _symbol_type(other) != _symbol_type(first):
+            raise LlvmTranslationError(
+                f'The entries linked as {first.link!r} have different types: '
+                f'{_symbol_type(first)} for {first.name!r}, {_symbol_type(other)} for {other.name!r}.',
+                other.span,
+            )
+    definitions = [s for s in symbols if not isinstance(s, ingots.Declaration)]
+    if len(definitions) > 1:
+        raise LlvmTranslationError(
+            f'Two definitions are linked as {first.link!r}: {definitions[0].name!r} and {definitions[1].name!r}.',
+            definitions[1].span,
+        )
+    return definitions[0] if definitions else first
+
+
 class _Translator:
     def __init__(self, ingot: ingots.Ingot, target: Target) -> None:
         self.ingot = ingot
         self.target = target
-        self.globals: dict[str, ir.GlobalValue] = {}
+        # Every symbol's LLVM global, by path; entries with one link share it.
+        self.globals: dict[tuple[str, ...], ir.GlobalValue] = {}
         self.address_type = terms.ByteArray(b'ptr')
 
     def translate(self):
         llvm_module = ir.Module()
         llvm_module.triple = self.target.triple
         llvm_module.data_layout = self.target.data_layout
-        for step in (self._symbol, self._data):
-            for symbol in self.ingot.symbols:
-                try:
-                    step(llvm_module, symbol)
-                except LlvmTranslationError as error:
-                    error.span = error.span or symbol.span
-                    raise
+        names = _llvm_names(self.ingot)
+        groups: dict[str, list[ingots.Symbol]] = {}
         for symbol in self.ingot.symbols:
+            groups.setdefault(names[symbol.path], []).append(symbol)
+        # One LLVM symbol per name, where its first entry is, made from the entry that
+        # stands for the group.
+        emitted = []
+        for name, group in groups.items():
+            try:
+                symbol = _linked(group) if len(group) > 1 else group[0]
+                self._symbol(llvm_module, symbol, name)
+            except LlvmTranslationError as error:
+                error.span = error.span or group[0].span
+                raise
+            for member in group:
+                self.globals[member.path] = self.globals[symbol.path]
+            emitted.append(symbol)
+        for symbol in emitted:
+            try:
+                self._data(symbol)
+            except LlvmTranslationError as error:
+                error.span = error.span or symbol.span
+                raise
+        for symbol in emitted:
             if isinstance(symbol, ingots.Definition):
-                _Function(self, symbol, self.globals[symbol.name]).translate()
+                _Function(self, symbol, self.globals[symbol.path]).translate()
         return llvm_module
 
-    def _symbol(self, llvm_module, symbol):
-        """Each symbol becomes an LLVM global named by its label."""
+    def _symbol(self, llvm_module, symbol, name):
+        """The symbol becomes an LLVM global named `name`, internal if it has no link."""
         fn = ingots.function_type(symbol)
         if fn is not None:
-            function_type = ir.FunctionType(llvm_type(fn.result), [llvm_type(t) for _, t in fn.params])
-            function = ir.Function(llvm_module, function_type, symbol.name)
+            function = ir.Function(llvm_module, _symbol_type(symbol), name)
             if isinstance(symbol, ingots.Declaration):
-                for (name, _), arg in zip(fn.params, function.args, strict=True):
-                    arg.name = name
-            self.globals[symbol.name] = function
-            return
-        variable = ir.GlobalVariable(llvm_module, llvm_type(symbol.type), symbol.name)
-        # LLVM's opaque `ptr`, as every pointer here is: llvmlite would type it by what it points to.
-        variable.type = ir.PointerType()
-        variable.global_constant = isinstance(symbol, ingots.Constant)
-        self.globals[symbol.name] = variable
+                for (param, _), arg in zip(fn.params, function.args, strict=True):
+                    arg.name = param
+            value = function
+        else:
+            value = ir.GlobalVariable(llvm_module, _symbol_type(symbol), name)
+            # LLVM's opaque `ptr`, as every pointer here is: llvmlite would type it by what it points to.
+            value.type = ir.PointerType()
+            value.global_constant = isinstance(symbol, ingots.Constant)
+        if symbol.link is None:
+            value.linkage = 'internal'
+        self.globals[symbol.path] = value
 
-    def _data(self, _llvm_module, symbol):
-        """An initializer may name any symbol, so it is read once every symbol exists."""
+    def _data(self, symbol):
+        """An initializer, read once every symbol exists. It names no symbol: the address of
+        a symbol in data is left out for now."""
         match symbol:
             case ingots.Constant(type=type_term, value=value) | ingots.Global(type=type_term, init=value):
-                self.globals[symbol.name].initializer = constant(type_term, value, self.globals)
+                self.globals[symbol.path].initializer = constant(type_term, value, entry=True)
 
 
 def translate(ingot: ingots.Ingot, target: Target) -> ir.Module:

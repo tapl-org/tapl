@@ -2,13 +2,17 @@
 
 """Ingots: the shape a translation to SSA reads.
 
-An ingot is `{version = '0', symbols = {lᵢ = eᵢ}, target = t}`; each entry `eᵢ` is a struct
-with a `type` and at most one of `body` (a definition), `init` (a global variable) or
-`value` (a constant); an entry with only `type` is a declaration.
+An ingot is a namespace: a struct `{lᵢ = Eᵢ}` whose every field is an entry or a
+namespace again. A struct with a `type` field is an entry; any other struct is a
+namespace. An entry has a `type`, at most one of `body` (a definition), `init` (a global
+variable) or `value` (a constant), and an optional `link`, the symbol's name for the
+linker; an entry with only `type` and `link` is a declaration, and one with only `type`
+is a hole, which is rejected. Anything else left in a namespace is rejected too.
 
-A definition's body is `λm. λp. R` in ANF. `read_ingot` checks the grammar
-(`anf.region_error`), then every variable's kind: `m.l` names a symbol and `m []`
-only heads a region; `p.l` names a parameter; `r.l` names a block of the region `r` and
+Each symbol is named by its path, its labels from the top (`('math', 'gcd')`). A
+definition's body is `λm. λp. R` in ANF. `read_ingot` checks the grammar
+(`anf.region_error`), then every variable's kind: `m.l₁ ⋯ lₙ` is a path through the
+namespaces to a symbol and `m []` only heads a region; `p.l` names a parameter; `r.l` names a block of the region `r` and
 only heads a jump, with one operand per parameter; a value has no fields.
 
 It gives the body as regions and blocks, every variable resolved (`Use` of a `Var`, `Arg`,
@@ -23,8 +27,6 @@ from dataclasses import dataclass, field
 
 from oymo.core import syntax
 from oymo.oymomo import anf, printer, reduction, strategy, terms
-
-VERSION = '0'
 
 
 class IngotError(Exception):
@@ -63,9 +65,9 @@ class Arg:
 
 @dataclass
 class Address:
-    """`m.l` as an operand: the address of the symbol `l`."""
+    """`m.l₁ ⋯ lₙ` as an operand: the address of the symbol at the path `l₁ ⋯ lₙ`."""
 
-    name: str
+    path: tuple[str, ...]
     span: int = field(default=0, compare=False)
 
 
@@ -76,11 +78,12 @@ type Operand = Use | Arg | Address | syntax.Term
 
 @dataclass(eq=False)
 class Instruction:
-    """`let result = O {lᵢ = Qᵢ}`: an opcode call (`opcode`) or a call (`callee`)."""
+    """`let result = O {lᵢ = Qᵢ}`: an opcode call (`opcode`) or a call (`callee`, the
+    function's path)."""
 
     result: Var
     opcode: str | None
-    callee: str | None
+    callee: tuple[str, ...] | None
     fields: list[tuple[str, Operand]]
     span: int = 0
 
@@ -141,37 +144,54 @@ class FunctionType:
     result: syntax.Term
 
 
+class _Named:
+    """A symbol's `path` (its labels from the top) and `link` (its linker name, or None
+    for an internal symbol)."""
+
+    path: tuple[str, ...]
+    link: str | None
+
+    @property
+    def name(self) -> str:
+        """The path, dotted: how messages name the symbol."""
+        return '.'.join(self.path)
+
+
 @dataclass(eq=False)
-class Definition:
-    name: str
+class Definition(_Named):
+    path: tuple[str, ...]
     type: FunctionType
     args: str
     region: Region
+    link: str | None = None
     span: int = 0
 
 
 @dataclass(eq=False)
-class Declaration:
-    """An entry with only a `type`: a function, or a variable, of another module."""
+class Declaration(_Named):
+    """An entry with a `type` and a `link`: a function, or a variable, of another ingot."""
 
-    name: str
+    path: tuple[str, ...]
     type: FunctionType | syntax.Term
+    link: str
     span: int = 0
 
 
 @dataclass(eq=False)
-class Constant:
-    name: str
+class Constant(_Named):
+    path: tuple[str, ...]
     type: syntax.Term
     value: syntax.Term
+    link: str | None = None
     span: int = 0
 
 
 @dataclass(eq=False)
-class Global:
-    name: str
+class Global(_Named):
+    path: tuple[str, ...]
     type: syntax.Term
     init: syntax.Term
+    link: str | None = None
     span: int = 0
 
 
@@ -180,12 +200,13 @@ type Symbol = Definition | Declaration | Constant | Global
 
 @dataclass(eq=False)
 class Ingot:
-    version: str
-    symbols: list[Symbol]
-    target: syntax.Term | None = None
+    """Every symbol of the namespaces, flat, in source order (a namespace's entries where
+    the namespace is)."""
 
-    def lookup(self, name: str) -> Symbol | None:
-        return next((s for s in self.symbols if s.name == name), None)
+    symbols: list[Symbol]
+
+    def lookup(self, path: tuple[str, ...]) -> Symbol | None:
+        return next((s for s in self.symbols if s.path == path), None)
 
 
 def function_type(symbol: Symbol | None) -> FunctionType | None:
@@ -211,38 +232,44 @@ def _fields(struct):
     return {f.label: f.value for f in struct.fields}
 
 
-_INGOT_FIELDS = ('version', 'symbols', 'target')
-
-
 def read_ingot(term: syntax.Term) -> Ingot:
     """`term`, a resolved normal form, read as an ingot."""
     if not isinstance(term, terms.Struct):
-        raise IngotError('Not an ingot: an ingot is a struct {version, symbols, target}.', _span(term))
-    for f in term.fields:
-        if f.label not in _INGOT_FIELDS:
-            raise IngotError(f'Not an ingot: unknown field {f.label!r}; an ingot has {list(_INGOT_FIELDS)}.', f.span)
-    parts = _fields(term)
-    for required in ('version', 'symbols'):
-        if required not in parts:
-            raise IngotError(f'Not an ingot: it has no {required!r}.', _span(term))
-    version = parts['version']
-    if not isinstance(version, terms.ByteArray) or version.as_str != VERSION:
-        raise IngotError(f'Unknown ingot version {_show(version)}; this oymo reads {VERSION!r}.', _span(version))
-    symbols_term = parts['symbols']
-    if not isinstance(symbols_term, terms.Struct):
-        raise IngotError('Not an ingot: symbols must be a struct of entries.', _span(symbols_term))
-    ingot = Ingot(VERSION, [], parts.get('target'))
+        raise IngotError('Not an ingot: an ingot is a namespace, a struct of entries and namespaces.', _span(term))
+    if 'type' in _fields(term):
+        raise IngotError(
+            'Not an ingot: a struct with a type is an entry; an ingot is a namespace of entries and namespaces.',
+            _span(term),
+        )
+    ingot = Ingot([])
     bodies = []
-    for f in symbols_term.fields:
-        if not f.label:
-            raise IngotError("An entry needs a label: its symbol's name.", f.span or _span(f.value))
-        symbol, body = _entry(f.label, f.value)
-        ingot.symbols.append(symbol)
-        if body is not None:
-            bodies.append((symbol, body))
+    _namespace(term, (), ingot, bodies)
     for symbol, body in bodies:
         symbol.region, symbol.args = _Body(ingot, symbol).read(body)
     return ingot
+
+
+def _namespace(term, path, ingot, bodies):
+    """Adds the entries of the namespace `term` at `path`, nested ones included, in order."""
+    for f in term.fields:
+        if not f.label:
+            raise IngotError(
+                "A field of a namespace needs a label: its symbol's or namespace's name.", f.span or _span(f.value)
+            )
+        here = (*path, f.label)
+        if not isinstance(f.value, terms.Struct):
+            raise IngotError(
+                f'{".".join(here)!r} is a reduce-time value left in the ingot: '
+                'a namespace holds only entries and namespaces.',
+                f.span or _span(f.value),
+            )
+        if 'type' not in _fields(f.value):
+            _namespace(f.value, here, ingot, bodies)
+            continue
+        symbol, body = _entry(here, f.value)
+        ingot.symbols.append(symbol)
+        if body is not None:
+            bodies.append((symbol, body))
 
 
 def _show(term):
@@ -250,25 +277,24 @@ def _show(term):
 
 
 _KINDS = ('body', 'init', 'value')
+_ENTRY_FIELDS = ('type', *_KINDS, 'link')
 
 
-def _entry(name, term):
-    """The symbol of the entry `name = term`, and the body to read later, if any."""
-    if not isinstance(term, terms.Struct):
-        raise IngotError(f'Entry {name!r} must be a struct {{type, ...}}.', _span(term))
+def _entry(path, term):
+    """The symbol of the entry `term` at `path`, and the body to read later, if any."""
+    name = '.'.join(path)
     parts = _fields(term)
     for label in parts:
-        if label != 'type' and label not in _KINDS:
+        if label not in _ENTRY_FIELDS:
             raise IngotError(
-                f'Entry {name!r} has an unknown field {label!r}; it may have type, body, init, value.', _span(term)
+                f'Entry {name!r} has an unknown field {label!r}; it may have {", ".join(_ENTRY_FIELDS)}.', _span(term)
             )
-    if 'type' not in parts:
-        raise IngotError(f'Entry {name!r} needs a type.', _span(term))
     kinds = [label for label in _KINDS if label in parts]
     if len(kinds) > 1:
         raise IngotError(
             f'Entry {name!r} has {kinds[0]} and {kinds[1]}; it may have at most one of {list(_KINDS)}.', _span(term)
         )
+    link = _link(parts['link']) if 'link' in parts else None
     type_term = _data(parts['type'], 'type')
     fn = _function_type(type_term)
     match kinds:
@@ -278,12 +304,22 @@ def _entry(name, term):
                     f"Entry {name!r} has a body, so its type must be {{'function', {{x = t, ...}}, t}}.",
                     _span(type_term),
                 )
-            return Definition(name, fn, '', Region('', []), _span(term)), parts['body']
+            return Definition(path, fn, '', Region('', []), link, _span(term)), parts['body']
         case ['init']:
-            return Global(name, type_term, _data(parts['init'], 'init'), _span(term)), None
+            return Global(path, type_term, _data(parts['init'], 'init'), link, _span(term)), None
         case ['value']:
-            return Constant(name, type_term, _data(parts['value'], 'value'), _span(term)), None
-    return Declaration(name, fn if fn is not None else type_term, _span(term)), None
+            return Constant(path, type_term, _data(parts['value'], 'value'), link, _span(term)), None
+    if link is None:
+        raise IngotError(f'{name!r} is a hole: give it a body or a link.', _span(term))
+    return Declaration(path, fn if fn is not None else type_term, link, _span(term)), None
+
+
+def _link(term):
+    """A `link`: the symbol's name for the linker, a nonempty text byte array."""
+    text = term.as_str if isinstance(term, terms.ByteArray) else None
+    if not text:
+        raise IngotError("A link is the symbol's name for the linker: a nonempty text byte array.", _span(term))
+    return text
 
 
 def _data(term, what):
@@ -407,11 +443,11 @@ class _Body:
             fields = [(f.label, self.operand(f.value)) for f in struct.fields]
             return Instruction(Var(''), operator.as_str or '', None, fields, _span(term))
         binder, labels = self.binder(operator)
-        symbol = self.ingot.lookup(labels[0]) if binder.kind == 'module' and len(labels) == 1 else None
+        symbol = self.ingot.lookup(tuple(labels)) if binder.kind == 'module' else None
         fn = function_type(symbol)
         if fn is None:
             raise IngotError(
-                'An instruction calls a function, m.l {...} with l a function of the module.', _span(operator)
+                'An instruction calls a function, m.l₁ ⋯ lₙ {...}, a path to a function of the ingot.', _span(operator)
             )
         names = [name for name, _ in fn.params]
         given = [f.label for f in struct.fields]
@@ -420,7 +456,7 @@ class _Body:
                 f'The call to {symbol.name!r} must give {names}, in order; it gives {given}.', _span(struct)
             )
         fields = [(f.label, self.operand(f.value)) for f in struct.fields]
-        return Instruction(Var(''), None, symbol.name, fields, _span(term))
+        return Instruction(Var(''), None, symbol.path, fields, _span(term))
 
     # Operands
 
@@ -431,11 +467,12 @@ class _Body:
         span = _span(term)
         match binder.kind:
             case 'module':
-                if len(labels) != 1 or self.ingot.lookup(labels[0]) is None:
+                if self.ingot.lookup(tuple(labels)) is None:
                     raise IngotError(
-                        'm names the symbols: an operand through m is m.l, l a symbol of the module.', span
+                        'm names the symbols: an operand through m is m.l₁ ⋯ lₙ, a path to a symbol of the ingot.',
+                        span,
                     )
-                return Address(labels[0], span)
+                return Address(tuple(labels), span)
             case 'arguments':
                 names = [name for name, _ in self.definition.type.params]
                 if not labels:

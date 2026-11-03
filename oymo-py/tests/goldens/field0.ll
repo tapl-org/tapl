@@ -4,7 +4,7 @@ target datalayout = ""
 
 declare i32 @"next"()
 
-define i32 @"spin"()
+define internal i32 @"spin"()
 {
 r:
   br label %"r.entry"
@@ -16,7 +16,7 @@ r.done:
   ret i32 0
 }
 
-define i32 @"three"()
+define internal i32 @"three"()
 {
 r.entry:
   %"a" = alloca i32

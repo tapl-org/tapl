@@ -1,34 +1,31 @@
 language oymomo
 let t = {array= {'array', [03], 'i32'}} in
 {
-  version= '0',
-  symbols= {
-    sum= {
-      type= {'function', {}, 'i32'},
-      body= λm. λp. m [] (λr. {
-        entry=
-          let a = 'alloca' {t.array} in
-          let p0 = 'getelementptr'
-            {t.array, a, [00000000 00000000], [00000000 00000000]} in
-          let p1 = 'getelementptr'
-            {t.array, a, [00000000 00000000], [01000000 00000000]} in
-          let p2 = 'getelementptr'
-            {t.array, a, [00000000 00000000], [02000000 00000000]} in
-          let s0 = 'store' {'i32', [0a000000], p0} in
-          let s1 = 'store' {'i32', [14000000], p1} in
-          let s2 = 'store' {'i32', [0c000000], p2} in
-          m [] (λq. {
-            q.loop [00000000 00000000] [00000000],
-            loop= λi. λtotal.
-              let e = 'getelementptr' {t.array, a, [00000000 00000000], i} in
-              let x = 'load' {'i32', e} in
-              let s = 'add' {'i32', total, x} in
-              let j = 'add' {'i64', i, [01000000 00000000]} in
-              let done = 'icmp' {'eq', 'i64', j, [03000000 00000000]} in
-              if done then r.exit s else q.loop j s,
-          }),
-        exit= λtotal. total,
-      }),
-    },
+  sum= {
+    type= {'function', {}, 'i32'},
+    body= λm. λp. m [] (λr. {
+      entry=
+        let a = 'alloca' {t.array} in
+        let p0 = 'getelementptr'
+          {t.array, a, [00000000 00000000], [00000000 00000000]} in
+        let p1 = 'getelementptr'
+          {t.array, a, [00000000 00000000], [01000000 00000000]} in
+        let p2 = 'getelementptr'
+          {t.array, a, [00000000 00000000], [02000000 00000000]} in
+        let s0 = 'store' {'i32', [0a000000], p0} in
+        let s1 = 'store' {'i32', [14000000], p1} in
+        let s2 = 'store' {'i32', [0c000000], p2} in
+        m [] (λq. {
+          q.loop [00000000 00000000] [00000000],
+          loop= λi. λtotal.
+            let e = 'getelementptr' {t.array, a, [00000000 00000000], i} in
+            let x = 'load' {'i32', e} in
+            let s = 'add' {'i32', total, x} in
+            let j = 'add' {'i64', i, [01000000 00000000]} in
+            let done = 'icmp' {'eq', 'i64', j, [03000000 00000000]} in
+            if done then r.exit s else q.loop j s,
+        }),
+      exit= λtotal. total,
+    }),
   },
 }

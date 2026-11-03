@@ -13,7 +13,7 @@ from oymo.oymomo.grammar import parse
 TARGET = llvm_translate.Target('x86_64-unknown-linux-gnu', '', llvm_opcodes.DEFAULT_OPCODES)
 
 GCD = """
-{version = '0', symbols = {
+{
   gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
     body = λm. λp. m [] (λr. {
       entry = r.loop p.a p.b,
@@ -25,9 +25,9 @@ GCD = """
         }),
       done = λc. c
     })},
-  main = {type = {'function', {}, 'i32'},
+  main = {type = {'function', {}, 'i32'}, link = 'main',
     body = λm. λp. m [] (λr. {entry = let y = m.gcd {a = [30000000], b = [12000000]} in y})}
-}}
+}
 """
 
 
@@ -54,17 +54,17 @@ def error(source):
 
 def single(blocks, params='{}', result="'i32'", extra=''):
     """An ingot with one function `main`, whose region holds `blocks`."""
-    return f"""{{version = '0', symbols = {{
+    return f"""{{
       {extra}
-      main = {{type = {{'function', {params}, {result}}}, body = λm. λp. m [] (λr. {{{blocks}}})}},
-    }}}}"""
+      main = {{type = {{'function', {params}, {result}}}, link = 'main', body = λm. λp. m [] (λr. {{{blocks}}})}},
+    }}"""
 
 
 def test_gcd():
     """One block per block, `phi`s for parameters, bound names made distinct."""
     text = llvm(GCD)
     assert function(text, 'gcd') == textwrap.dedent("""\
-        define i32 @"gcd"(i32 %"p.a", i32 %"p.b")
+        define internal i32 @"gcd"(i32 %"p.a", i32 %"p.b")
         {
         r.entry:
           br label %"r.loop"
@@ -94,10 +94,10 @@ def test_gcd():
 def test_example():
     """A nested region's field 0 goes on in the block it continues."""
     source = """
-    {version = '0', symbols = {
-      puts = {type = {'function', {s = 'ptr'}, 'i32'}},
+    {
+      puts = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'},
       msg = {type = {'array', [03], 'i8'}, value = [686900]},
-      main = {type = {'function', {argc = 'i32'}, 'i32'},
+      main = {type = {'function', {argc = 'i32'}, 'i32'}, link = 'main',
         body = λm. λp. m [] (λr. {
           entry =
             let c = 'icmp' {'sgt', 'i32', p.argc, [01000000]} in
@@ -107,10 +107,10 @@ def test_example():
             }),
           done = [00000000]
         })}
-    }}
+    }
     """
     text = llvm(source)
-    assert '@"msg" = constant [3 x i8] c"hi\\00"' in text
+    assert '@"msg" = internal constant [3 x i8] c"hi\\00"' in text
     assert 'declare i32 @"puts"(ptr %"s")' in text
     assert function(text, 'main') == textwrap.dedent("""\
         define i32 @"main"(i32 %"p.argc")
@@ -193,7 +193,7 @@ def test_parameter_types():
     assert error(
         single(
             'r.done [07], done = λx. let y = m.f {a = x} in [00000000]',
-            extra="f = {type = {'function', {a = 'ptr'}, 'i32'}},",
+            extra="f = {type = {'function', {a = 'ptr'}, 'i32'}, link = 'f'},",
         )
     ) == ('No constant of type ptr is written [07].')
     assert error(single("r.done p.a, done = λx. let y = 'add' {'i32', x, x} in y", params="{a = 'i8'}")) == (
@@ -207,26 +207,24 @@ def test_parameter_types():
 def test_symbols():
     """Symbols and their initializers."""
     source = """
-    {version = '0', symbols = {
-      puts = {type = {'function', {s = 'ptr'}, 'i32'}},
-      errno = {type = 'i32'},
+    {
+      puts = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'},
+      errno = {type = 'i32', link = 'errno'},
       answer = {type = 'i32', value = [2a000000]},
-      counter = {type = 'i32', init = [29000000]},
-      pair = {type = {'i8', 'i16'}, value = {[01], [0200]}},
+      counter = {type = 'i32', init = [29000000], link = 'counter'},
+      pair = {type = {'i8', 'i16'}, value = {[01], [0200]}, link = 'pair'},
       table = {type = {'array', [03], 'i8'}, init = {[01], [02], [03]}},
       text = {type = {'array', [03], 'i8'}, value = 'ab' },
-      here = {type = 'ptr', value = 'counter'},
-      later = {type = 'ptr', value = {'table', [02]}},
       none = {type = 'ptr', init = ''},
       zeros = {type = {'i32', 'ptr'}, init = {}},
-      main = {type = {'function', {}, 'i32'}, body = λm. λp. m [] (λr. {
+      main = {type = {'function', {}, 'i32'}, link = 'main', body = λm. λp. m [] (λr. {
         let u = 'store' {'i32', [05000000], m.counter} in
         let x = 'load' {'i32', m.answer} in
         let e = 'load' {'i32', m.errno} in
         let y = m.puts {s = m.answer} in
         x
       })},
-    }}
+    }
     """
     with pytest.raises(llvm_translate.LlvmTranslationError, match=r'\[3 x i8\] is a byte array of 3 bytes here'):
         llvm(source)
@@ -235,22 +233,140 @@ def test_symbols():
     for line in [
         'declare i32 @"puts"(ptr %"s")',
         '@"errno" = external global i32',
-        '@"answer" = constant i32 42',
+        '@"answer" = internal constant i32 42',
         '@"counter" = global i32 41',
         '@"pair" = constant {i8, i16} {i8 1, i16 2}',
-        '@"table" = global [3 x i8] [i8 1, i8 2, i8 3]',
-        '@"text" = constant [3 x i8] c"ab\\00"',
-        '@"here" = constant ptr @"counter"',
-        '@"later" = constant ptr getelementptr (i8, ptr @"table", i64 2)',
-        '@"none" = global ptr null',
-        '@"zeros" = global {i32, ptr} zeroinitializer',
+        '@"table" = internal global [3 x i8] [i8 1, i8 2, i8 3]',
+        '@"text" = internal constant [3 x i8] c"ab\\00"',
+        '@"none" = internal global ptr null',
+        '@"zeros" = internal global {i32, ptr} zeroinitializer',
     ]:
         assert line in text, line
     main = function(text, 'main')
     assert 'store i32 5, ptr @"counter"' in main
     assert '%"x" = load i32, ptr @"answer"' in main
     assert '%"y" = call i32 @"puts"(ptr @"answer")' in main
-    assert error(source.replace("value = 'counter'", "value = 'nobody'")) == "'nobody' names no symbol of the ingot."
+
+
+@pytest.mark.parametrize('value', ["'counter'", "{'counter', [01]}", "{''}"])
+def test_no_symbol_address_in_data(value):
+    """In data, a `'ptr'` is only `''`, the null pointer."""
+    source = single(
+        '[00000000]', extra=f"counter = {{type = 'i32', init = [00000000]}}, here = {{type = 'ptr', value = {value}}},"
+    )
+    assert error(source) == (
+        "A 'ptr' in data is '', the null pointer: the address of a symbol in data is left out for now."
+    )
+
+
+def test_namespaces_and_linkage():
+    """A symbol with a link is named by it; an internal one by its path, with internal linkage."""
+    source = """
+    {
+      math = {
+        gcd = {type = {'function', {a = 'i32'}, 'i32'}, body = λm. λp. m [] (λr. {p.a})},
+        one = {type = 'i32', value = [01000000]},
+        exported = {type = 'i32', init = [02000000], link = 'math_exported'},
+      },
+      main = {type = {'function', {}, 'i32'}, link = 'main', body = λm. λp. m [] (λr. {
+        let x = 'load' {'i32', m.math.one} in
+        let y = m.math.gcd {a = x} in
+        let z = 'load' {'i32', m.math.exported} in y
+      })},
+    }
+    """
+    text = llvm(source)
+    assert 'define internal i32 @"math.gcd"(i32 %"p.a")' in text
+    assert '@"math.one" = internal constant i32 1' in text
+    assert '@"math_exported" = global i32 2' in text
+    main = function(text, 'main')
+    assert main.startswith('define i32 @"main"()')
+    assert '%"x" = load i32, ptr @"math.one"' in main
+    assert '%"y" = call i32 @"math.gcd"(i32 %"x")' in main
+    assert '%"z" = load i32, ptr @"math_exported"' in main
+
+
+def test_one_link_is_one_symbol():
+    """Entries with the same link are one LLVM symbol: one `declare`, or one `define`."""
+    declarations = single(
+        'let x = m.a.puts {s = m.msg} in let y = m.b.write {t = m.msg} in y',
+        extra="""
+        a = {puts = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'}},
+        b = {write = {type = {'function', {t = 'ptr'}, 'i32'}, link = 'puts'}},
+        msg = {type = 'i8', value = [00]},
+        """,
+    )
+    text = llvm(declarations)
+    assert text.count('@"puts"(') == 3
+    assert text.count('declare') == 1
+    assert 'declare i32 @"puts"(ptr %"s")' in text
+    assert '%"y" = call i32 @"puts"(ptr @"msg")' in text
+    definition = single(
+        'let x = m.twice {n = [01000000]} in x',
+        extra="""
+        twice = {type = {'function', {n = 'i32'}, 'i32'}, link = 'twice'},
+        impl = {type = {'function', {k = 'i32'}, 'i32'}, link = 'twice',
+          body = λm. λp. m [] (λr. {let y = 'add' {'i32', p.k, p.k} in y})},
+        """,
+    )
+    text = llvm(definition)
+    assert 'declare' not in text
+    assert 'define i32 @"twice"(i32 %"p.k")' in text
+    assert '%"x" = call i32 @"twice"(i32 1)' in text
+
+
+def test_one_link_errors():
+    function_type = "{'function', {s = 'ptr'}, 'i32'}"
+    assert (
+        error(
+            single(
+                '[00000000]',
+                extra=f"a = {{type = {function_type}, link = 'puts'}}, b = {{type = 'i32', link = 'puts'}},",
+            )
+        )
+        == "The entries linked as 'puts' have different types: i32 (ptr) for 'a', i32 for 'b'."
+    )
+    body = 'body = λm. λp. m [] (λr. {[00000000]})'
+    assert (
+        error(
+            single(
+                '[00000000]',
+                extra=f"a = {{type = {function_type}, link = 'f', {body}}}, b = {{type = {function_type}, link = 'f', {body}}},",
+            )
+        )
+        == "Two definitions are linked as 'f': 'a' and 'b'."
+    )
+    assert (
+        error(
+            single(
+                '[00000000]',
+                extra="a = {type = 'i32', value = [00000000], link = 'x'}, b = {type = 'i32', init = [00000000], link = 'x'},",
+            )
+        )
+        == "Two definitions are linked as 'x': 'a' and 'b'."
+    )
+
+
+def test_internal_name_apart_from_link_names():
+    """An internal symbol whose path is a link name takes the smallest free number."""
+    source = single(
+        'let x = m.say {s = m.puts} in let y = m.ns.say {s = m.ns.puts} in y',
+        extra="""
+        say = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'},
+        puts = {type = 'i8', value = [00]},
+        ns = {
+          say = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'ns.puts'},
+          puts = {type = 'i8', value = [01]},
+        },
+        other = {type = 'i8', init = [02], link = 'puts.1'},
+        """,
+    )
+    text = llvm(source)
+    assert '@"puts.2" = internal constant i8 0' in text
+    assert '@"ns.puts.1" = internal constant i8 1' in text
+    assert '@"puts.1" = global i8 2' in text
+    assert '%"x" = call i32 @"puts"(ptr @"puts.2")' in text
+    assert '%"y" = call i32 @"ns.puts"(ptr @"ns.puts.1")' in text
 
 
 def test_struct_values():
@@ -309,7 +425,7 @@ def test_opcodes():
             single(
                 'let y = m.g {x = p.a} in y',
                 params="{a = 'i8'}",
-                extra="g = {type = {'function', {x = 'i32'}, 'i32'}},",
+                extra="g = {type = {'function', {x = 'i32'}, 'i32'}, link = 'g'},",
             ),
             "This value has LLVM type i8, but parameter 'x' of 'g' needs i32.",
         ),

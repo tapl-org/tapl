@@ -13,9 +13,7 @@ FACT = str(GOLDENS / 'fact.oymo')
 
 
 # An ingot with one function `main`, whose entry block is `{}`.
-INGOT = (
-    "{{version = '0', symbols = {{main = {{type = {{'function', {{}}, 'i32'}}, body = λm. λp. m [] (λr. {{{}}})}}}}}}"
-)
+INGOT = "{{main = {{type = {{'function', {{}}, 'i32'}}, link = 'main', body = λm. λp. m [] (λr. {{{}}})}}}}"
 
 
 def write(tmp_path: pathlib.Path, text: str) -> str:
@@ -80,11 +78,9 @@ def test_missing_file(tmp_path, capsys) -> None:
 
 
 def test_fmt_prints_the_pretty_form(tmp_path, capsys) -> None:
-    path = write(tmp_path, "language oymomo\n{version='0',symbols={main={type='i32',init=[00000000]}}}\n")
+    path = write(tmp_path, "language oymomo\n{main={type='i32',init=[00000000]}}\n")
     assert cli.main(['fmt', path]) == 0
-    assert capsys.readouterr().out == (
-        "language oymomo\n{version= '0', symbols= {main= {type= 'i32', init= [00000000]}}}\n"
-    )
+    assert capsys.readouterr().out == "language oymomo\n{main= {type= 'i32', init= [00000000]}}\n"
 
 
 def test_normal_prints_the_normal_form(capsys) -> None:

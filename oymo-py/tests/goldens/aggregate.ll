@@ -2,7 +2,7 @@
 target triple = "x86_64-unknown-linux-gnu"
 target datalayout = ""
 
-define i32 @"sum"()
+define internal i32 @"sum"()
 {
 r.entry:
   %"a" = alloca [3 x i32]

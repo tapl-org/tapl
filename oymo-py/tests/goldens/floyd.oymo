@@ -1,76 +1,74 @@
 language oymomo
 {
-  version= '0',
-  symbols= {
-    floyd= {
-      type= {'function', {d= 'ptr', n= 'i32'}, 'i32'},
-      body= λm. λp. m [] (λr. {
-        entry= r.k [00000000],
-        k= λk.
-          let kc = 'icmp' {'slt', 'i32', k, p.n} in
-          let kn = 'mul' {'i32', k, p.n} in
-          m [] (λrk. {
-            if kc then rk.i [00000000] else r.done,
-            i= λi.
-              let ic = 'icmp' {'slt', 'i32', i, p.n} in
-              let ni = 'mul' {'i32', i, p.n} in
-              m [] (λri. {
-                if ic then ri.j [00000000] else rk.knext,
-                j= λj.
-                  let jc = 'icmp' {'slt', 'i32', j, p.n} in
-                  m [] (λrj. {
-                    if jc then rj.relax else ri.inext,
-                    relax=
-                      let ik = 'add' {'i32', ni, k} in
-                      let kj = 'add' {'i32', kn, j} in
-                      let ij = 'add' {'i32', ni, j} in
-                      let pik = 'getelementptr' {'i32', p.d, ik} in
-                      let pkj = 'getelementptr' {'i32', p.d, kj} in
-                      let pij = 'getelementptr' {'i32', p.d, ij} in
-                      let dik = 'load' {'i32', pik} in
-                      let dkj = 'load' {'i32', pkj} in
-                      let dij = 'load' {'i32', pij} in
-                      let s = 'add' {'i32', dik, dkj} in
-                      let lt = 'icmp' {'slt', 'i32', s, dij} in
-                      m [] (λrs. {
-                        if lt then rs.store else rj.jnext,
-                        store= let u = 'store' {'i32', s, pij} in rj.jnext,
-                      }),
-                    jnext= let j1 = 'add' {'i32', j, [01000000]} in ri.j j1,
-                  }),
-                inext= let i1 = 'add' {'i32', i, [01000000]} in rk.i i1,
-              }),
-            knext= let k1 = 'add' {'i32', k, [01000000]} in r.k k1,
-          }),
-        done= [00000000],
-      }),
-    },
-    main= {
-      type= {'function', {}, 'i32'},
-      body= λm. λp. m [] (λr. {
-        entry=
-          let a = 'alloca' {{'array', [09], 'i32'}} in
-          let q0 = 'getelementptr' {'i32', a, [00000000]} in
-          let q1 = 'getelementptr' {'i32', a, [01000000]} in
-          let q2 = 'getelementptr' {'i32', a, [02000000]} in
-          let q3 = 'getelementptr' {'i32', a, [03000000]} in
-          let q4 = 'getelementptr' {'i32', a, [04000000]} in
-          let q5 = 'getelementptr' {'i32', a, [05000000]} in
-          let q6 = 'getelementptr' {'i32', a, [06000000]} in
-          let q7 = 'getelementptr' {'i32', a, [07000000]} in
-          let q8 = 'getelementptr' {'i32', a, [08000000]} in
-          let s0 = 'store' {'i32', [00000000], q0} in
-          let s1 = 'store' {'i32', [04000000], q1} in
-          let s2 = 'store' {'i32', [0b000000], q2} in
-          let s3 = 'store' {'i32', [e8030000], q3} in
-          let s4 = 'store' {'i32', [00000000], q4} in
-          let s5 = 'store' {'i32', [03000000], q5} in
-          let s6 = 'store' {'i32', [e8030000], q6} in
-          let s7 = 'store' {'i32', [e8030000], q7} in
-          let s8 = 'store' {'i32', [00000000], q8} in
-          let z = m.floyd {d= a, n= [03000000]} in
-          let v = 'load' {'i32', q2} in v,
-      }),
-    },
+  floyd= {
+    type= {'function', {d= 'ptr', n= 'i32'}, 'i32'},
+    body= λm. λp. m [] (λr. {
+      entry= r.k [00000000],
+      k= λk.
+        let kc = 'icmp' {'slt', 'i32', k, p.n} in
+        let kn = 'mul' {'i32', k, p.n} in
+        m [] (λrk. {
+          if kc then rk.i [00000000] else r.done,
+          i= λi.
+            let ic = 'icmp' {'slt', 'i32', i, p.n} in
+            let ni = 'mul' {'i32', i, p.n} in
+            m [] (λri. {
+              if ic then ri.j [00000000] else rk.knext,
+              j= λj.
+                let jc = 'icmp' {'slt', 'i32', j, p.n} in
+                m [] (λrj. {
+                  if jc then rj.relax else ri.inext,
+                  relax=
+                    let ik = 'add' {'i32', ni, k} in
+                    let kj = 'add' {'i32', kn, j} in
+                    let ij = 'add' {'i32', ni, j} in
+                    let pik = 'getelementptr' {'i32', p.d, ik} in
+                    let pkj = 'getelementptr' {'i32', p.d, kj} in
+                    let pij = 'getelementptr' {'i32', p.d, ij} in
+                    let dik = 'load' {'i32', pik} in
+                    let dkj = 'load' {'i32', pkj} in
+                    let dij = 'load' {'i32', pij} in
+                    let s = 'add' {'i32', dik, dkj} in
+                    let lt = 'icmp' {'slt', 'i32', s, dij} in
+                    m [] (λrs. {
+                      if lt then rs.store else rj.jnext,
+                      store= let u = 'store' {'i32', s, pij} in rj.jnext,
+                    }),
+                  jnext= let j1 = 'add' {'i32', j, [01000000]} in ri.j j1,
+                }),
+              inext= let i1 = 'add' {'i32', i, [01000000]} in rk.i i1,
+            }),
+          knext= let k1 = 'add' {'i32', k, [01000000]} in r.k k1,
+        }),
+      done= [00000000],
+    }),
+  },
+  main= {
+    type= {'function', {}, 'i32'},
+    link= 'main',
+    body= λm. λp. m [] (λr. {
+      entry=
+        let a = 'alloca' {{'array', [09], 'i32'}} in
+        let q0 = 'getelementptr' {'i32', a, [00000000]} in
+        let q1 = 'getelementptr' {'i32', a, [01000000]} in
+        let q2 = 'getelementptr' {'i32', a, [02000000]} in
+        let q3 = 'getelementptr' {'i32', a, [03000000]} in
+        let q4 = 'getelementptr' {'i32', a, [04000000]} in
+        let q5 = 'getelementptr' {'i32', a, [05000000]} in
+        let q6 = 'getelementptr' {'i32', a, [06000000]} in
+        let q7 = 'getelementptr' {'i32', a, [07000000]} in
+        let q8 = 'getelementptr' {'i32', a, [08000000]} in
+        let s0 = 'store' {'i32', [00000000], q0} in
+        let s1 = 'store' {'i32', [04000000], q1} in
+        let s2 = 'store' {'i32', [0b000000], q2} in
+        let s3 = 'store' {'i32', [e8030000], q3} in
+        let s4 = 'store' {'i32', [00000000], q4} in
+        let s5 = 'store' {'i32', [03000000], q5} in
+        let s6 = 'store' {'i32', [e8030000], q6} in
+        let s7 = 'store' {'i32', [e8030000], q7} in
+        let s8 = 'store' {'i32', [00000000], q8} in
+        let z = m.floyd {d= a, n= [03000000]} in
+        let v = 'load' {'i32', q2} in v,
+    }),
   },
 }

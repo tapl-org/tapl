@@ -10,22 +10,19 @@ from oymo.oymomo.grammar import parse
 
 GCD = """
 {
-  version = '0',
-  symbols = {
-    gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
-      body = λm. λp. m [] (λr. {
-        entry = r.loop p.a p.b,
-        loop = λa. λb.
-          let z = 'icmp' {'eq', 'i32', b, [00000000]} in
-          m [] (λq. {
-            if z then r.done a else q.step,
-            step = let c = 'urem' {'i32', a, b} in r.loop b c
-          }),
-        done = λc. c
-      })},
-    main = {type = {'function', {}, 'i32'},
-      body = λm. λp. m [] (λr. {entry = let y = m.gcd {a = [30000000], b = [12000000]} in y})}
-  }
+  gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
+    body = λm. λp. m [] (λr. {
+      entry = r.loop p.a p.b,
+      loop = λa. λb.
+        let z = 'icmp' {'eq', 'i32', b, [00000000]} in
+        m [] (λq. {
+          if z then r.done a else q.step,
+          step = let c = 'urem' {'i32', a, b} in r.loop b c
+        }),
+      done = λc. c
+    })},
+  main = {type = {'function', {}, 'i32'}, link = 'main',
+    body = λm. λp. m [] (λr. {entry = let y = m.gcd {a = [30000000], b = [12000000]} in y})}
 }
 """
 
@@ -42,8 +39,10 @@ def error(source):
 
 def test_gcd():
     """An ingot with gcd: regions, blocks and names."""
-    gcd = read(GCD).lookup('gcd')
+    gcd = read(GCD).lookup(('gcd',))
     assert isinstance(gcd, ingot.Definition)
+    assert gcd.path == ('gcd',)
+    assert gcd.link is None
     assert gcd.args == 'p'
     assert [label for label, _ in gcd.type.params] == ['a', 'b']
     region = gcd.region
@@ -72,19 +71,15 @@ def test_gcd():
 def test_entries():
     source = """
     {
-      version = '0',
-      symbols = {
-        puts = {type = {'function', {s = 'ptr'}, 'i32'}},
-        errno = {type = 'i32'},
-        answer = {type = 'i32', value = [2a000000]},
-        counter = {type = 'i32', init = [29000000]},
-        main = {type = {'function', {}, 'i32'}, body = λm. λp. m [] (λr. {
-          let u = 'store' {'i32', [05000000], m.counter} in
-          let y = m.puts {s = m.answer} in
-          y
-        })},
-      },
-      target = {triple = 'x86_64-unknown-linux-gnu'},
+      puts = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'},
+      errno = {type = 'i32', link = 'errno'},
+      answer = {type = 'i32', value = [2a000000]},
+      counter = {type = 'i32', init = [29000000], link = 'counter'},
+      main = {type = {'function', {}, 'i32'}, link = 'main', body = λm. λp. m [] (λr. {
+        let u = 'store' {'i32', [05000000], m.counter} in
+        let y = m.puts {s = m.answer} in
+        y
+      })},
     }
     """
     result = read(source)
@@ -96,6 +91,7 @@ def test_entries():
         'Definition',
     ]
     puts, errno, answer, counter, main = result.symbols
+    assert [s.link for s in result.symbols] == ['puts', 'errno', None, 'counter', 'main']
     assert ingot.function_type(puts).params == [('s', parse("'ptr'"))]
     assert ingot.function_type(errno) is None
     assert answer.value == parse('[2a000000]')
@@ -103,68 +99,107 @@ def test_entries():
     store, call = main.region.blocks[0].lets
     assert store.opcode == 'store'
     assert isinstance(store.fields[2][1], ingot.Address)
-    assert call.callee == 'puts'
+    assert call.callee == ('puts',)
     # An unlabeled field 0 is named after the region's binder.
     assert main.region.blocks[0].name == 'r.0'
+
+
+def test_namespaces():
+    """Namespaces nest; a symbol's path runs through them, in calls and as an address."""
+    source = """
+    {
+      math = {
+        gcd = {type = {'function', {a = 'i32'}, 'i32'}, body = λm. λp. m [] (λr. {p.a})},
+        zero = {type = 'i32', value = [00000000]},
+        deep = {},
+      },
+      main = {type = {'function', {}, 'i32'}, link = 'main', body = λm. λp. m [] (λr. {
+        let x = 'load' {'i32', m.math.zero} in
+        let y = m.math.gcd {a = x} in y
+      })},
+    }
+    """
+    result = read(source)
+    assert [s.path for s in result.symbols] == [('math', 'gcd'), ('math', 'zero'), ('main',)]
+    assert result.lookup(('math',)) is None
+    load, call = result.lookup(('main',)).region.blocks[0].lets
+    assert load.fields[1][1] == ingot.Address(('math', 'zero'))
+    assert call.callee == ('math', 'gcd')
 
 
 def test_reduction_first():
     """A program may wrap the ingot and use helpers; reduction removes them."""
     source = """
-    (λd. {version = '0', symbols = {
+    (λd. {
       main = {type = {'function', {n = 'i32'}, 'i32'}, body = λm. λp. m [] (λr. {
         entry = let x = 'add' {'i32', p.n, [01000000]} in let y = d.double x in y
       })}
-    }}) {double = λn. 'add' {'i32', n, n}}
+    }) {double = λn. 'add' {'i32', n, n}}
     """
-    lets = read(source).lookup('main').region.blocks[0].lets
+    lets = read(source).lookup(('main',)).region.blocks[0].lets
     assert [(let.result.name, let.opcode) for let in lets] == [('x', 'add'), ('y', 'add')]
 
 
 def test_jump_to_a_labeled_field_0():
     """A labeled field 0 may be jumped to, with no operands."""
     body = "let c = 'icmp' {'eq', 'i32', p.a, [00000000]} in if c then r.entry else r.done, done = p.a"
-    region = read(wrap(body)).lookup('main').region
+    region = read(wrap(body)).lookup(('main',)).region
     assert region.blocks[0].jumped
 
 
 def wrap(body, extra=''):
-    return f"""{{version = '0', symbols = {{
+    return f"""{{
       {extra}
-      helper = {{type = {{'function', {{x = 'i32'}}, 'i32'}}}},
+      helper = {{type = {{'function', {{x = 'i32'}}, 'i32'}}, link = 'helper'}},
       k = {{type = 'i32', value = [00000000]}},
       main = {{type = {{'function', {{a = 'i32'}}, 'i32'}}, body = λm. λp. m [] (λr. {{
         entry = {body},
         next = λb. b,
       }})}},
-    }}}}"""
+    }}"""
 
 
 def entry(fields):
-    return f"{{version = '0', symbols = {{x = {fields}}}}}"
+    return f'{{x = {fields}}}'
 
 
 TAIL_CALL = 'A call that ends a function is bound and returned: let y = m.f {…} in y.'
+M_PATH = 'm names the symbols: an operand through m is m.l₁ ⋯ lₙ, a path to a symbol of the ingot.'
 
 
 @pytest.mark.parametrize(
     ('source', 'message'),
     [
-        ('λm. {}', 'Not an ingot: an ingot is a struct {version, symbols, target}.'),
+        ('λm. {}', 'Not an ingot: an ingot is a namespace, a struct of entries and namespaces.'),
         (
-            "{version = '0', symbols = {}, extra = {}}",
-            "Not an ingot: unknown field 'extra'; an ingot has ['version', 'symbols', 'target'].",
+            "{type = 'i32', value = [00000000]}",
+            'Not an ingot: a struct with a type is an entry; an ingot is a namespace of entries and namespaces.',
         ),
-        ('{symbols = {}}', "Not an ingot: it has no 'version'."),
-        ("{version = '0'}", "Not an ingot: it has no 'symbols'."),
-        ("{version = '1', symbols = {}}", "Unknown ingot version '1'; this oymo reads '0'."),
-        ("{version = '0', symbols = [01]}", 'Not an ingot: symbols must be a struct of entries.'),
-        ("{version = '0', symbols = {{type = 'i32'}}}", "An entry needs a label: its symbol's name."),
-        (entry('[01]'), "Entry 'x' must be a struct {type, ...}."),
-        (entry('{value = [01]}'), "Entry 'x' needs a type."),
+        ("{{type = 'i32', link = 'x'}}", "A field of a namespace needs a label: its symbol's or namespace's name."),
+        (
+            "{a = {{type = 'i32', link = 'x'}}}",
+            "A field of a namespace needs a label: its symbol's or namespace's name.",
+        ),
+        (entry('[01]'), "'x' is a reduce-time value left in the ingot: a namespace holds only entries and namespaces."),
+        (
+            '{a = {f = λy. y}}',
+            "'a.f' is a reduce-time value left in the ingot: a namespace holds only entries and namespaces.",
+        ),
+        (
+            entry('{value = [01]}'),
+            "'x.value' is a reduce-time value left in the ingot: a namespace holds only entries and namespaces.",
+        ),
         (
             entry("{type = 'i8', size = [01]}"),
-            "Entry 'x' has an unknown field 'size'; it may have type, body, init, value.",
+            "Entry 'x' has an unknown field 'size'; it may have type, body, init, value, link.",
+        ),
+        (entry("{type = 'i8'}"), "'x' is a hole: give it a body or a link."),
+        ("{lexer = {error = {type = {'function', {}, 'i32'}}}}", "'lexer.error' is a hole: give it a body or a link."),
+        (entry("{type = 'i8', link = ''}"), "A link is the symbol's name for the linker: a nonempty text byte array."),
+        (entry("{type = 'i8', link = {}}"), "A link is the symbol's name for the linker: a nonempty text byte array."),
+        (
+            entry("{type = 'i8', link = [ff]}"),
+            "A link is the symbol's name for the linker: a nonempty text byte array.",
         ),
         (
             entry("{type = 'i8', init = [01], value = [01]}"),
@@ -214,8 +249,10 @@ TAIL_CALL = 'A call that ends a function is bound and returned: let y = m.f {…
         (wrap('r.next'), 'r.next takes 1 operands, one per parameter; the jump gives 0.'),
         (wrap('r.gone p.a'), "A jump names a block of 'r': one of ['entry', 'next']."),
         (wrap('let x = m.helper {x = r.next} in x'), 'r.l is a block: it only heads a jump.'),
-        (wrap('m.nope'), 'm names the symbols: an operand through m is m.l, l a symbol of the module.'),
-        (wrap('m'), 'm names the symbols: an operand through m is m.l, l a symbol of the module.'),
+        (wrap('m.nope'), M_PATH),
+        (wrap('m'), M_PATH),
+        (wrap('m.k.x'), M_PATH),
+        (wrap('m.ns', extra="ns = {k = {type = 'i32', value = [00000000]}},"), M_PATH),
         (wrap('m.helper {x = [00000000]}'), TAIL_CALL),
         (
             wrap("let x = 'add' {'i32', p.a, p.a} in x.y"),
@@ -223,7 +260,7 @@ TAIL_CALL = 'A call that ends a function is bound and returned: let y = m.f {…
         ),
         (
             wrap('let x = m.k {} in x'),
-            'An instruction calls a function, m.l {...} with l a function of the module.',
+            'An instruction calls a function, m.l₁ ⋯ lₙ {...}, a path to a function of the ingot.',
         ),
         (wrap('let x = m.helper {} in x'), "The call to 'helper' must give ['x'], in order; it gives []."),
         (wrap('{r.next p.a, r.next p.a} m.k'), 'A branch condition is a value or an argument p.l.'),
@@ -250,4 +287,4 @@ def test_error_locations():
 def test_no_normal_form():
     omega = '(λw. w w) (λw. w w)'
     with pytest.raises(reduction.ReductionError, match='No normal form'):
-        ingot.ingot_of(parse(f"{{version = '0', symbols = {{x = {omega}}}}}"), max_steps=100)
+        ingot.ingot_of(parse(f'{{x = {omega}}}'), max_steps=100)

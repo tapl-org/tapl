@@ -4,7 +4,7 @@ target datalayout = ""
 
 declare i32 @"puts"(ptr %"s")
 
-@"msg" = constant [3 x i8] c"hi\00"
+@"msg" = internal constant [3 x i8] c"hi\00"
 define i32 @"main"(i32 %"p.argc")
 {
 r.entry:

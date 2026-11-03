@@ -2,7 +2,7 @@
 target triple = "x86_64-unknown-linux-gnu"
 target datalayout = ""
 
-define i32 @"second"(i32 %"p.a", i8 %"p.b")
+define internal i32 @"second"(i32 %"p.a", i8 %"p.b")
 {
 r.entry:
   %"s1" = insertvalue {i8, i32} {i8 0, i32 0}, i8 %"p.b", 0

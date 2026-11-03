@@ -1,35 +1,32 @@
 language oymomo
 {
-  version= '0',
-  symbols= {
-    bump= {
-      type= {'function', {n= 'i32'}, 'i32'},
-      body= λm. λp. m [] (λr. {
-        entry=
-          let a = 'alloca' {'i32'} in
-          let s = 'store' {'i32', p.n, a} in
-          let v = 'load' {'i32', a} in
-          let w = 'add' {'i32', v, [01000000]} in w,
-      }),
-    },
-    sum= {
-      type= {'function', {n= 'i32'}, 'i32'},
-      body= λm. λp. m [] (λr. {
-        entry=
-          let acc = 'alloca' {'i32'} in
-          let z = 'store' {'i32', [00000000], acc} in
-          m [] (λq. {
-            q.loop p.n,
-            loop= λi.
-              let old = 'load' {'i32', acc} in
-              let new = 'add' {'i32', old, i} in
-              let s = 'store' {'i32', new, acc} in
-              let j = 'sub' {'i32', i, [01000000]} in
-              let done = 'icmp' {'eq', 'i32', j, [00000000]} in
-              if done then q.exit else q.loop j,
-            exit= let v = 'load' {'i32', acc} in v,
-          }),
-      }),
-    },
+  bump= {
+    type= {'function', {n= 'i32'}, 'i32'},
+    body= λm. λp. m [] (λr. {
+      entry=
+        let a = 'alloca' {'i32'} in
+        let s = 'store' {'i32', p.n, a} in
+        let v = 'load' {'i32', a} in
+        let w = 'add' {'i32', v, [01000000]} in w,
+    }),
+  },
+  sum= {
+    type= {'function', {n= 'i32'}, 'i32'},
+    body= λm. λp. m [] (λr. {
+      entry=
+        let acc = 'alloca' {'i32'} in
+        let z = 'store' {'i32', [00000000], acc} in
+        m [] (λq. {
+          q.loop p.n,
+          loop= λi.
+            let old = 'load' {'i32', acc} in
+            let new = 'add' {'i32', old, i} in
+            let s = 'store' {'i32', new, acc} in
+            let j = 'sub' {'i32', i, [01000000]} in
+            let done = 'icmp' {'eq', 'i32', j, [00000000]} in
+            if done then q.exit else q.loop j,
+          exit= let v = 'load' {'i32', acc} in v,
+        }),
+    }),
   },
 }

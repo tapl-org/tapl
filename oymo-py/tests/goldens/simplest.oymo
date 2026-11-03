@@ -1,10 +1,8 @@
 language oymomo
 {
-  version= '0',
-  symbols= {
-    main= {
-      type= {'function', {a= 'i32'}, 'i32'},
-      body= λm. λp. m [] (λr. {entry= [00000000]}),
-    },
+  main= {
+    type= {'function', {a= 'i32'}, 'i32'},
+    link= 'main',
+    body= λm. λp. m [] (λr. {entry= [00000000]}),
   },
 }

@@ -1,27 +1,24 @@
 language oymomo
 {
-  version= '0',
-  symbols= {
-    putchar= {type= {'function', {c= 'i32'}, 'i32'}},
-    hi= {
-      type= {'function', {}, 'i32'},
-      body= λm. λp. m [] (λr. {
-        entry=
-          let x = m.putchar {c= [68000000]} in
-          let y = m.putchar {c= [69000000]} in y,
-      }),
-    },
-    count= {
-      type= {'function', {}, 'i32'},
-      body= λm. λp. m [] (λr. {
-        entry= r.loop [00000000],
-        loop= λi.
-          let x = m.putchar {c= [2a000000]} in
-          let j = 'add' {'i32', i, [01000000]} in
-          let done = 'icmp' {'eq', 'i32', j, [03000000]} in
-          if done then r.exit j else r.loop j,
-        exit= λn. n,
-      }),
-    },
+  putchar= {type= {'function', {c= 'i32'}, 'i32'}, link= 'putchar'},
+  hi= {
+    type= {'function', {}, 'i32'},
+    body= λm. λp. m [] (λr. {
+      entry=
+        let x = m.putchar {c= [68000000]} in
+        let y = m.putchar {c= [69000000]} in y,
+    }),
+  },
+  count= {
+    type= {'function', {}, 'i32'},
+    body= λm. λp. m [] (λr. {
+      entry= r.loop [00000000],
+      loop= λi.
+        let x = m.putchar {c= [2a000000]} in
+        let j = 'add' {'i32', i, [01000000]} in
+        let done = 'icmp' {'eq', 'i32', j, [03000000]} in
+        if done then r.exit j else r.loop j,
+      exit= λn. n,
+    }),
   },
 }
