@@ -264,6 +264,17 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Holes `{type}` filled by merging a body or a `link`; unfilled holes rejected at
   verification; delegates wire dependencies inside a unit
 - A label clash: build one library as its own unit, mount its header elsewhere
+- Symbol addresses in data (`'ptr'` initialized by a label as bytes) dropped for now;
+  then: oymomo-calculus.tex 10 (init), `llvm_translate.py`, `tests/goldens/globals.oymo`
+- Decide (later): a redesign of symbol addresses in data that supports reduction and keeps
+  name realms apart
+- `'struct.rebase' {prefix, X}` (closed, normal bodies, `m` only as path or region head)
+  resolves label clashes in one unit; mounting a header is a rebase; goal as fast as merge,
+  reduction still allowed
+- Convention: a library refers only to its own labels, outside through holes
+- Mixin composition, as a linker does; linear; later: parallel merge, reachability, caching
+- oymomo-calculus.tex 5.4: opacity refined (look inside only closed normal λs; Mitschke);
+  Lean: confluence with such opcodes
 - A namespace is just a struct reached by paths; nothing new in the calculus
 - Nested ingot with `'namespace'`-tagged namespaces; internal LLVM names are paths; inside a unit
   only paths, between units only `link` names

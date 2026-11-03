@@ -2667,6 +2667,43 @@ executable binary). we should mark some place as a platform". The steps that fol
   inlines the delegate; label clashes worked around by a separate unit plus header. User:
   "record this. holes ({type}) can be filled either with providing body or link"
   (decided); asked what the separate-unit workaround means.
+- Agent explained the separate unit plus header and LTO. User: "yes" (committed
+  `83f8301`) "but i'm still not satisfied for the solution of this" (the separate-unit
+  workaround). Agent proposed a mount boundary: `{csv = {'mount', fill = {…}, …}}`, `m`
+  = the nearest boundary (bound by the translation), holes filled from outside by λ-free
+  outer paths in `fill`. User: "note that our target is as fast as merge. but also
+  mention that, we need to allow reduction just in case" (recorded as the goal); "lets
+  see how this works" (running a mounted unit by reduction).
+- Agent showed the instance (one `fix` per mount) and a full example (`inc/lib`,
+  `dbl/lib` with a hole, `main`; `.ll` and reduction both give 12). User: "i thought
+  mount works differently. can you explain the mount again." Agent: two meanings had been
+  conflated (placing a header under a label vs the boundary). User: "what if we introduce
+  replace variable with path ... Actually I dont like this mount and boundary things"
+  (boundary dropped). Agent: `'struct.rebase' {prefix, X}` prefixes `m.…` paths in X's
+  bodies; safe only on closed normal bodies (else β-before vs after differ); refined
+  opacity: look inside a λ only if it is normal. User: "how strong is this statement?"
+  Agent: Mitschke's δ-rule theorem (Barendregt §15.3): closed, normal, deterministic,
+  α-invariant, fixed op table, closed result; base confluence still for Lean. User: "lets
+  go through fully whether this solves all problems?" Agent: table of 20 cases; open:
+  symbol addresses in data. User: "what if we dont suggest to use outside of itself"
+  (convention: a library refers only to its own labels, outside through holes; rebase
+  prefixes every `m.…` path; violations caught as dangling paths).
+- Symbol addresses in data: user: "i did not get it. there was not such a rule" (agent
+  showed calculus 10 and `tests/goldens/globals.oymo`), "why do we need this?" (static
+  pointer tables, function tables, C static structs, `llvm.global_ctors`). User chose
+  "Drop it for now": "we will redesign it. because it should support reduction too. and
+  names in different realms does not mix" (decided).
+- Convention example given (holes vs an outside path becoming `dbl.app.show`). User:
+  "what is the name of this pattern? is it cake pattern?" Agent: close; precisely mixin
+  modules (Ancona–Zucca; Bracha–Cook), Nix fixed points. User: "i know it is bad
+  practice, right?" Agent: yes in Scala (init order, everything sees everything, one
+  wiring), mostly not applicable here; better framed as what a linker does. User: "so
+  linker works like this? and this is fastest way to merge codes, or is there another
+  way?" Agent: collect/resolve/relocate, linear; alternatives (textual inclusion,
+  indices, lazy, reachability, parallel, caching) trade other things; ours is linear and
+  linker-shaped. User: "okay for now" (decided: rebase replaces the boundary, its premise,
+  refined opacity, the convention, mounting = rebase of λ-free, "mixin composition, as a
+  linker does", later speed-ups).
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

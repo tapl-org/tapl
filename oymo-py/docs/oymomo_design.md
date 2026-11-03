@@ -282,6 +282,27 @@ Open:
 - Decided: a label clash between two body-carrying libraries is worked around by building
   one of them as its own unit and mounting its header under another label; inlining across
   the boundary comes back by LTO.
+- Goal: building a unit is as fast as merge (struct opcodes and the translation, no
+  β-steps). Reduction must still be allowed, just in case: a unit can always be run by
+  reduction (calculus 9, "run by reduction").
+- Decided: `'struct.rebase' {prefix, X}` resolves label clashes between body-carrying
+  libraries inside one unit: it prefixes every `m.…` path in X's bodies and places X under
+  the prefix (`m.lib.step` becomes `m.dbl.lib.step`). It fires only when every body in X is
+  closed, in normal form, and uses `m` only as the head of paths or regions. Mounting a
+  header is rebasing a λ-free struct. (A mount boundary with a `fill` table was considered
+  and dropped.)
+- Decided: opacity refined: an opcode may look inside a λ only if the λ is closed and in
+  normal form, deterministically and α-invariantly, with a fixed opcode table and a closed
+  result (Mitschke's δ-rule theorem, Barendregt §15.3); otherwise it may only move, copy or
+  drop it. To be covered by the Lean confluence proof.
+- Decided: convention: a library refers only to its own labels and reaches outside through
+  holes; an outside path breaks under rebase and shows up as a dangling path at
+  verification.
+- Decided: the pattern is called mixin composition, as a linker does (holes = undefined
+  symbols, merge = collect, `m` = resolution); related: the cake pattern (whose problems,
+  init order and one wiring per program, don't apply) and Nix fixed points. It is linear,
+  like a linker. Later speed-ups, implementation only: parallel merge, resolving only
+  reachable entries, caching each file's normalized form.
 - Decided: a namespace is just a struct, reached by paths through a variable
   (`m.lexer.next_token`). The calculus gets nothing new.
 - Decided: the ingot nests namespaces, `{lexer = {'namespace', …}, parser = {'namespace', …}}`,
