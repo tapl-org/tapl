@@ -97,7 +97,7 @@ high ingot ─► high.ll ─► clang -c ─► high.o ┤  (high is optional)
 - Meta is a database outside the calculus. It mirrors the term's nodes, so any node can
   be annotated.
 - The parser builds meta; a frontend writes it. Only the translation reads it.
-- Today's `info` section with `spans` is the first part of meta.
+- The old `info` section with `spans` became the first part of meta (each term's place).
 - Meta is a list of data structures (tables) that may reference each other by id.
   New kinds are added over time.
 - Meta is a protobuf message, written as text format (textproto) after the `---` line.
@@ -107,46 +107,30 @@ high ingot ─► high.ll ─► clang -c ─► high.o ┤  (high is optional)
 - The bootstrap compilers ignore meta: they read the term and skip everything after
   `---`. They lose only debug info and located errors.
 - No proposed target in meta: the platform comes only from the driver.
-- Meta mirrors the term as a flat list, `nodes`: one entry per node of the layered-term,
+- Meta mirrors the term as a flat list, `tags`: one entry per node of the layered-term,
   in pre-order (a node, then its children; the layering node counts). Entry k holds all
-  meta of node k: its span, a value range, and any field added later. No node numbers
+  meta of node k: its place, a value range, and any field added later. No node numbers
   are written; position says which node.
-- `skip: N` stands for the next N entries with no meta (as today's `.N`).
-- Meta about the whole file (module flags, the source files) sits outside `nodes`.
+- `skip: N` stands for the next N empty entries (the old `.N`).
+- Meta about the whole file (module flags, the source files) sits outside `tags`.
 - Not a nested tree: oymomo nests as deep as its `let` chains (a 1,000-instruction body is
   about 2,000 levels), past protobuf's default recursion limit of 100. The list holds the
   same entries; the term gives the shape.
 - The schema is proto3, kept in the repository as `meta.proto`. Values are `bytes`.
-- `code_md5` guards `nodes`: if the code changed, `nodes` is dropped with a warning.
+- `code_md5` guards `tags`: if the code changed, `tags` is dropped with a warning.
 
-First sketch of the schema:
-
-```proto
-syntax = "proto3";
-package oymo.meta;
-
-message Meta {
-  bytes code_md5 = 1;
-  repeated File files = 2;        // source files that spans point into
-  repeated Node nodes = 3;        // one per term node, in pre-order
-  repeated ModuleFlag flags = 4;  // the whole module
-}
-message File {
-  uint64 id = 1; uint64 start = 2; uint64 length = 3;
-  string path = 4; string language = 5; bytes md5 = 6; repeated uint64 lines = 7;
-}
-message Node {
-  uint64 span = 1;                // start << 16 | length; 0: the parent's
-  Range range = 2;
-  uint64 skip = 15;               // this and the next N-1 entries have no meta
-}
-message Range { bytes lo = 1; bytes hi = 2; }
-message ModuleFlag {
-  enum Behavior { ERROR = 0; WARNING = 1; REQUIRE = 2; OVERRIDE = 3;
-                  APPEND = 4; APPEND_UNIQUE = 5; MAX = 6; MIN = 7; }
-  Behavior behavior = 1; string name = 2; bytes value = 3;
-}
-```
+The schema is `src/oymo/oymomo/meta.proto`. The file-level message is `Tags`:
+`code_md5`, `files` (path, language, md5, lines) and `tags`, one `Tag` per term node in
+pre-order. A `Tag` holds the term's place: `optional sint64 file` (unset: the parent's
+place, so an empty entry; `-1`: no place; `k ≥ 0`: `files[k]`), `start` and `length` in
+bytes within that file; `skip: N` for N empty entries. There is no span concept: no packed
+integer, no global numbering of files, no length cap. In memory every term holds `tag: Tag`
+(a frozen dataclass whose place refers to a `File` object, or `None`); copies share it.
+Errors and ingot objects carry a `Tag` too. Hashes are hex strings. `range`, module flags
+and ids come when first needed. Generated Python (`meta_pb2.py`, `.pyi`) is checked in;
+`hatch run proto:generate` regenerates it, and a test checks it matches `meta.proto`.
+(The name `Tag` was chosen over `Node`, `Gloss`, `TermMeta`; "tag" also names type tags in
+field 0, so those are called type tags.)
 
 ### Meta and reduction
 
@@ -281,7 +265,7 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 - Tools, at the user's choice:
   - merge, `'struct.concat'`, deep: same-labeled namespaces combine (merge recurses into
     structs without `type`), equal λ-free entries merge, a λ entry defined twice gets no
-    step and is rejected with both spans;
+    step and is rejected with both places;
   - rebase, `'struct.rebase' {prefix, X}`: prefixes every `m.…` path in X's bodies and
     places X under the prefix (`m.lib.step` becomes `m.dbl.lib.step`), so two libraries with
     the same labels fit in one unit. It fires only when every body in X is closed, in
@@ -323,7 +307,7 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 
 - Source part: a namespace (`{lexer = {…}}`), merged or rebased.
 - Header: declarations only, generated (`lexer.h.oymo`, one per unit, with a layering
-  `(low : high)` for a two-layer unit) or handwritten (`libc.h.oymo`). Its meta keeps spans
+  `(low : high)` for a two-layer unit) or handwritten (`libc.h.oymo`). Its meta keeps places
   into the original source. An unchanged header means its readers need no rebuild.
 - Reduce-time library: any term, applied or `let`-bound, never in the ingot; recursion by
   `fix (λself. …)`, mutual recursion tied by the root with `fix (λl. {a = A l, b = B l})`.
@@ -354,10 +338,10 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 ### 3. Meta
 
 - Decided: ids and references between messages come when a message first needs one
-  (none does yet; a span finds its file by its range of positions).
-- Decided: merging files. `nodes` need no merge: each file's entries stay with its own
-  term parts, which carry their meta through reduction. `files` are concatenated with
-  positions shifted. `flags` follow LLVM's rules. Every other whole-file message states its
+  (a place's `file` is an index into `files`, the first such reference).
+- Decided: merging files. `tags` need no merge: each file's entries stay with its own
+  term parts, which carry their meta through reduction. In memory a place refers to its
+  `File` object, so nothing is renumbered; the writer numbers the files used. `flags` follow LLVM's rules. Every other whole-file message states its
   merge rule in `meta.proto`.
 - Decided: after separation, each part in either layer keeps the entry of the part it
   came from; a layering node's own entry is dropped.
@@ -373,7 +357,7 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
   4. Drop: entries of removed parts are dropped: the redex's application or projection,
      the `λ`, the replaced variable, discarded fields, a layering node
      (`({a = [01]⟨A⟩, b = [02]⟨B⟩}⟨S⟩ .b)⟨P⟩ ⟶ [02]⟨B⟩`).
-- Decided: origin meta (span, …) follows the part by rules 1–4. Value meta (range,
+- Decided: origin meta (place, …) follows the part by rules 1–4. Value meta (range,
   non-null, …) describes the value, which reduction keeps, so it moves from the redex to
   the result; if the result has one already, both hold (for ranges, the intersection).
   Each field of `meta.proto` states its kind; origin is the default.

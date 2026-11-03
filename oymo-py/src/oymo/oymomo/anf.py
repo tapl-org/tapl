@@ -21,6 +21,7 @@ from dataclasses import dataclass
 
 from oymo.core import syntax
 from oymo.oymomo import reduction, terms
+from oymo.oymomo.meta import Tag
 
 
 @dataclass(frozen=True)
@@ -31,8 +32,8 @@ class AnfError:
     term: syntax.Term
 
     @property
-    def span(self) -> int:
-        return getattr(self.term, 'span', 0)
+    def tag(self) -> Tag:
+        return self.term.tag
 
 
 def _root(term):

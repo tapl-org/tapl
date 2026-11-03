@@ -18,8 +18,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `oymomo-redesign` Redesign oymomo and the `.oymo` file
     - `redesign-layers` One or two layers: what a layer is
     - `redesign-operators` Operator precedence and associativity, as in Scala
-    - `redesign-file` The `.oymo` file as (layered-term, meta); meta as a database
-    - `redesign-meta-rules` Meta through reduction: the result's meta, rule by rule
     - `redesign-modules` Module system: reduce-time and link-time dependencies
     - `redesign-links` Ingots of both layers linked across files
   - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
@@ -197,37 +195,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `:` is non-associative: `a : b : c` is a parse error (a layering holds no layering)
 - Then: oymomo-calculus.tex 2 (done), `grammar.py` (`LAYER ::= APPLY | APPLY ':' APPLY`),
   printer, tests
-
-### `redesign-file` The `.oymo` file as (layered-term, meta); meta as a database
-
-- A file is (layered-term, meta); a layered-term has at most two layers
-- Meta mirrors the term's nodes; built by the parser, written by a frontend, read only by
-  the translation
-- Today's `info` section and `spans` become part of meta
-- Meta: tables referencing each other by id; a protobuf message as textproto after
-  `---`; a separate file (textproto or binary) possible later
-- No version (unknown fields skipped); no proposed target; bootstrap compilers skip meta
-- `nodes`: a flat list mirroring the term, one entry per node in pre-order (layering
-  node included), holding all its meta (span, range, …); whole-file meta outside it
-- proto3 schema in `meta.proto`; values as `bytes`; `code_md5` guards `nodes`
-- `skip: N` for N entries with no meta
-- Ids between messages only when a message first needs one
-- Merging files: `nodes` stay with their term parts; `files` concatenated, positions
-  shifted; `flags` by LLVM's rules; each other whole-file message states its rule
-- Separation: each part keeps its entry in both layers; a layering's own entry is dropped
-- Write `meta.proto`; the parser and printer read and write meta as textproto in place of
-  the `info` section; goldens
-
-### `redesign-meta-rules` Meta through reduction: the result's meta, rule by rule
-
-- Meta never changes what a term means; it need not be confluent (`⟶w` fixes it)
-- Four rules for every reduction rule and separation: keep, copy, new (redex's entry),
-  drop
-- Origin meta (span) follows the part; value meta (range) moves from the redex to the
-  result (both hold if the result has one); each `meta.proto` field states its kind
-- No `inlined_at` for now
-- Write the rules into `meta.proto` comments; make reduction carry whole entries (today
-  only spans); tests for each rule
 
 ### `redesign-modules` Module system: reduce-time and link-time dependencies
 

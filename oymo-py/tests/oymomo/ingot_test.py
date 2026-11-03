@@ -4,7 +4,6 @@
 
 import pytest
 
-from oymo.core import spans
 from oymo.oymomo import ingot, reduction
 from oymo.oymomo.grammar import parse
 
@@ -281,7 +280,7 @@ def test_error_locations():
     source = wrap('p.z')
     with pytest.raises(ingot.IngotError) as info:
         read(source)
-    assert spans.start(info.value.span) == source.index('p.z')
+    assert info.value.tag.start == source.encode().index(b'p.z')
 
 
 def test_no_normal_form():

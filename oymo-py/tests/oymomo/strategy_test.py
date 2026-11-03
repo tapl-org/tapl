@@ -359,3 +359,13 @@ def test_strategy_agrees_with_every_order():
         assert key(strategy.normalize(term, max_steps=1000))[0] in normals, show(term)
         checked += 1
     assert checked > 1000
+
+
+def test_normalize_carries_tag_through_the_contexts_it_steps_in():
+    term = reduction.resolve(parse('{a = (λx. x) [01]}'))
+    argument = term.fields[0].value.argument
+    result = strategy.normalize(term)
+    assert isinstance(result, terms.Struct)
+    assert result.tag is term.tag
+    assert result.fields[0].tag is term.fields[0].tag
+    assert result.fields[0].value is argument

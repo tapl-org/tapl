@@ -11,9 +11,22 @@ language oymomo
   },
 }
 ---
-info 1
-code 35aff291df62e6677deaf994ffca4d29
-start length file language hash lines
-1 83 'alcor/helpers.oymo' alcor 03195456326aa6783bfec8d01bf860e5 {0, f, 10, 38, 39, 52, 63, 75, 81, 83}
-spans
-. 3a0049 .e 510032 .c 780009 300005 .5 6e0006 .2 5d0005 .9
+code_md5: "35aff291df62e6677deaf994ffca4d29"
+files {
+  path: "alcor/helpers.oymo"
+  language: "alcor"
+  md5: "03195456326aa6783bfec8d01bf860e5"
+  lines: [0, 15, 16, 56, 57, 82, 99, 117, 129, 131]
+}
+tags {}
+tags { file: 0 start: 57 length: 73 }
+tags { skip: 14 }
+tags { file: 0 start: 80 length: 50 }
+tags { skip: 12 }
+tags { file: 0 start: 119 length: 9 }
+tags { file: 0 start: 47 length: 5 }
+tags { skip: 5 }
+tags { file: 0 start: 109 length: 6 }
+tags { skip: 2 }
+tags { file: 0 start: 92 length: 5 }
+tags { skip: 9 }

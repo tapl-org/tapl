@@ -12,9 +12,24 @@ let d = {inc= λx. 'add' {'i32', x, [01000000]}} in
   },
 }
 ---
-info 1
-code 89dbceb9669466e498e34648404148a4
-start length file language hash lines
-1 83 'alcor/helpers.oymo' alcor 03195456326aa6783bfec8d01bf860e5 {0, f, 10, 38, 39, 52, 63, 75, 81, 83}
-spans
-.3 3a0049 .e 510032 .c 780009 6e0006 .3 5d0005 .a 110027 270011 300005 .8
+code_md5: "89dbceb9669466e498e34648404148a4"
+files {
+  path: "alcor/helpers.oymo"
+  language: "alcor"
+  md5: "03195456326aa6783bfec8d01bf860e5"
+  lines: [0, 15, 16, 56, 57, 82, 99, 117, 129, 131]
+}
+tags { skip: 3 }
+tags { file: 0 start: 57 length: 73 }
+tags { skip: 14 }
+tags { file: 0 start: 80 length: 50 }
+tags { skip: 12 }
+tags { file: 0 start: 119 length: 9 }
+tags { file: 0 start: 109 length: 6 }
+tags { skip: 3 }
+tags { file: 0 start: 92 length: 5 }
+tags { skip: 10 }
+tags { file: 0 start: 16 length: 39 }
+tags { file: 0 start: 38 length: 17 }
+tags { file: 0 start: 47 length: 5 }
+tags { skip: 8 }

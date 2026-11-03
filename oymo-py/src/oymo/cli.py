@@ -9,41 +9,41 @@ import subprocess
 import sys
 import tempfile
 
-from oymo.core import spans, syntax
+from oymo.core import syntax
 from oymo.oymomo import ingot as ingots
 from oymo.oymomo import llvm_opcodes, llvm_translate, reduction, source, strategy
+from oymo.oymomo.meta import NO_TAG, Tag
 
 # The host is assumed to be x86-64 Linux until the `target` leaf reads the host's triple.
 TARGET = llvm_translate.Target(triple='x86_64-unknown-linux-gnu', data_layout='', opcodes=llvm_opcodes.DEFAULT_OPCODES)
 
 
 class CliError(Exception):
-    """An error to print as `file:line:column: error: message`, from its span (`oymo.core.spans`)."""
+    """An error to print as `file:line:column: error: message`, from its tag's place."""
 
-    def __init__(self, message: str, span: int = spans.NO_SPAN) -> None:
+    def __init__(self, message: str, tag: Tag = NO_TAG) -> None:
         super().__init__(message)
         self.message = message
-        self.span = span
+        self.tag = tag
 
 
 class _Program:
-    """The file named on the command line, and the run's span table."""
+    """The file named on the command line."""
 
-    def __init__(self, path: str, text: str, table: spans.SpanTable) -> None:
+    def __init__(self, path: str, text: str) -> None:
         self.path = path
         self.text = text
-        self.table = table
 
     def term(self) -> syntax.Term:
-        """The file's term: its header checked, its code parsed, its spans read."""
+        """The file's term: its header checked, its code parsed, its tags read."""
         try:
-            loaded = source.read(self.text, self.path, self.table)
+            loaded = source.read(self.text, self.path)
         except source.SourceError as error:
-            raise CliError(error.message, error.span) from error
-        for message, span in loaded.warnings:
-            _print(self.table, self.path, 'warning', message, span)
+            raise CliError(error.message, error.tag) from error
+        for message, tag in loaded.warnings:
+            _print(self.path, 'warning', message, tag)
         if errors := syntax.gather_errors(loaded.term):
-            raise CliError(errors[0].message, errors[0].span)
+            raise CliError(errors[0].message, errors[0].tag)
         return loaded.term
 
 
@@ -53,7 +53,7 @@ def _ingot(program: _Program) -> ingots.Ingot:
     try:
         return ingots.ingot_of(program.term())
     except (reduction.ReductionError, ingots.IngotError) as error:
-        raise CliError(error.message, error.span) from error
+        raise CliError(error.message, error.tag) from error
 
 
 def _check(program: _Program) -> None:
@@ -65,7 +65,7 @@ def _emit_llvm(program: _Program) -> str:
     try:
         return str(llvm_translate.translate(ingot, TARGET))
     except llvm_translate.LlvmTranslationError as error:
-        raise CliError(error.message, error.span) from error
+        raise CliError(error.message, error.tag) from error
 
 
 def _normal(program: _Program) -> str:
@@ -73,12 +73,12 @@ def _normal(program: _Program) -> str:
     try:
         normal = strategy.normalize(reduction.resolve(program.term()))
     except reduction.ReductionError as error:
-        raise CliError(error.message, error.span) from error
-    return source.write(normal, program.table)
+        raise CliError(error.message, error.tag) from error
+    return source.write(normal)
 
 
 def _fmt(program: _Program) -> str:
-    return source.write(program.term(), program.table)
+    return source.write(program.term())
 
 
 def _run(program: _Program) -> int:
@@ -109,13 +109,13 @@ def _run(program: _Program) -> int:
     return 0
 
 
-def _print(table: spans.SpanTable, path: str, kind: str, message: str, span: int) -> None:
-    """`file:line:column: kind: message`, the column in bytes; `path: kind: message` with no span."""
-    if (where := table.resolve(span)) is None:
+def _print(path: str, kind: str, message: str, tag: Tag) -> None:
+    """`file:line:column: kind: message`, the column in bytes; `path: kind: message` with no place."""
+    if tag.file is None:
         print(f'{path}: {kind}: {message}', file=sys.stderr)
         return
-    file, line, column = where
-    print(f'{file}:{line}:{column}: {kind}: {message}', file=sys.stderr)
+    line, column = tag.file.position(tag.start)
+    print(f'{tag.file.path}:{line}:{column}: {kind}: {message}', file=sys.stderr)
 
 
 def _argument_parser() -> argparse.ArgumentParser:
@@ -137,13 +137,12 @@ def _argument_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _argument_parser().parse_args(argv)
-    table = spans.SpanTable()
     try:
         try:
             text = pathlib.Path(args.file).read_text(encoding='utf-8')
         except OSError as error:
             raise CliError(f'Cannot read the file: {error.strerror}.') from error
-        program = _Program(args.file, text, table)
+        program = _Program(args.file, text)
         if args.command == 'emit-llvm':
             ir_text = _emit_llvm(program)
             if args.output is None:
@@ -159,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             return _run(program)
     except CliError as error:
-        _print(table, args.file, 'error', error.message, error.span)
+        _print(args.file, 'error', error.message, error.tag)
         return 1
     return 0
 

@@ -11,7 +11,6 @@ import pytest
 from approvaltests.approvals import verify
 from approvaltests.core.namer import Namer
 
-from oymo.core import spans
 from oymo.oymomo import ingot, llvm_opcodes, llvm_translate, reduction, source, strategy
 
 
@@ -70,27 +69,25 @@ def run_python_files(base_directory: str, filenames: list[str], output_file: str
 TARGET = llvm_translate.Target(triple='x86_64-unknown-linux-gnu', data_layout='', opcodes=llvm_opcodes.DEFAULT_OPCODES)
 
 
-def parse(text: str, table: spans.SpanTable):
-    loaded = source.read(text, 'golden.oymo', table)
+def parse(text: str):
+    loaded = source.read(text, 'golden.oymo')
     assert not loaded.warnings
     return loaded.term
 
 
 def compile_oymo(text: str) -> tuple[str, str]:
-    """The normal form, pretty-printed with its spans, and the LLVM IR text."""
-    table = spans.SpanTable()
-    normal = strategy.normalize(reduction.resolve(parse(text, table)))
-    ir_text = str(llvm_translate.translate(ingot.ingot_of(parse(text, table)), TARGET))
+    """The normal form, pretty-printed with its tags, and the LLVM IR text."""
+    normal = strategy.normalize(reduction.resolve(parse(text)))
+    ir_text = str(llvm_translate.translate(ingot.ingot_of(parse(text)), TARGET))
     llvm.parse_assembly(ir_text).verify()
-    return source.write(normal, table), ir_text
+    return source.write(normal), ir_text
 
 
 def run_golden_test(test_name: str) -> None:
     base_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'goldens')
     source_path = pathlib.Path(os.path.join(base_directory, f'{test_name}.oymo'))
     text = source_path.read_text()
-    table = spans.SpanTable()
-    pretty_text = source.write(parse(text, table), table)
+    pretty_text = source.write(parse(text))
     if text != pretty_text:
         # The source is kept pretty-printed: replace it by its pretty form, which must give the same LLVM IR.
         assert compile_oymo(pretty_text)[1] == compile_oymo(text)[1]

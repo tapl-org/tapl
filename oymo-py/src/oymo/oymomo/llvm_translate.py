@@ -30,7 +30,8 @@ from llvmlite import ir
 
 from oymo.core import syntax
 from oymo.oymomo import ingot as ingots
-from oymo.oymomo import opcodes, printer, terms
+from oymo.oymomo import meta, opcodes, printer, terms
+from oymo.oymomo.meta import NO_TAG, Tag
 
 _INT_TYPE = re.compile(r'i([1-9][0-9]*)')
 
@@ -50,10 +51,10 @@ class OpcodeImpl:
 
 
 class LlvmTranslationError(Exception):
-    def __init__(self, message: str, span: int = 0) -> None:
+    def __init__(self, message: str, tag: Tag = NO_TAG) -> None:
         super().__init__(message)
         self.message = message
-        self.span = span
+        self.tag = tag
 
 
 @dataclass
@@ -80,7 +81,7 @@ def llvm_type(term: syntax.Term) -> ir.Type:
         return ir.PointerType()
     if isinstance(term, terms.Struct):
         return ir.LiteralStructType([llvm_type(f.value) for f in term.fields])
-    raise LlvmTranslationError(f'{show_type(term)} is not an LLVM type.', getattr(term, 'span', 0))
+    raise LlvmTranslationError(f'{show_type(term)} is not an LLVM type.', term.tag)
 
 
 def _tagged_type(term, tag, parts):
@@ -89,7 +90,7 @@ def _tagged_type(term, tag, parts):
         return ir.LiteralStructType([llvm_type(f.value) for f in parts], packed=True)
     count = opcodes.tag_count(parts[0].value) if len(parts) == opcodes.SEQUENCE_PARTS else None
     if count is None:
-        raise LlvmTranslationError(f'{show_type(term)} is not an LLVM type.', getattr(term, 'span', 0))
+        raise LlvmTranslationError(f'{show_type(term)} is not an LLVM type.', term.tag)
     element = llvm_type(parts[1].value)
     return ir.ArrayType(element, count) if tag == 'array' else ir.VectorType(element, count)
 
@@ -99,36 +100,36 @@ def constant(type_term: syntax.Term, value: syntax.Term, *, entry: bool = False)
     integer type's size, or a struct (or array) of constants. `{}` is all zeros, for any
     type. In an `entry`'s `init` or `value`, a `'ptr'` is `''`, the null pointer, and one
     byte array may hold an `i8` array, its bytes in order."""
-    span = getattr(value, 'span', 0)
+    tag = value.tag
     typ = llvm_type(type_term)
     if isinstance(value, terms.Struct) and not value.fields:
         return ir.Constant(typ, None)
     if isinstance(typ, ir.PointerType) and entry:
         if not isinstance(value, terms.ByteArray) or value.value:
             raise LlvmTranslationError(
-                "A 'ptr' in data is '', the null pointer: the address of a symbol in data is left out for now.", span
+                "A 'ptr' in data is '', the null pointer: the address of a symbol in data is left out for now.", tag
             )
         return ir.Constant(typ, None)
     if isinstance(typ, ir.IntType):
         size = (typ.width + 7) // 8
         if not isinstance(value, terms.ByteArray) or len(value.value) != size:
-            raise LlvmTranslationError(f'A constant of type {typ} is a byte array of {size} bytes.', span)
+            raise LlvmTranslationError(f'A constant of type {typ} is a byte array of {size} bytes.', tag)
         # Byte arrays are little-endian on every target. LLVM stores the integer in the
         # data layout's byte order, so a big-endian target needs no swap here.
         number = int.from_bytes(value.value, 'little')
         if number >= 1 << typ.width:
-            raise LlvmTranslationError(f'The constant does not fit in {typ}.', span)
+            raise LlvmTranslationError(f'The constant does not fit in {typ}.', tag)
         return ir.Constant(typ, number)
     if entry and isinstance(value, terms.ByteArray) and isinstance(typ, ir.ArrayType) and typ.element == ir.IntType(8):
         if len(value.value) != typ.count:
-            raise LlvmTranslationError(f'{typ} is a byte array of {typ.count} bytes here.', span)
+            raise LlvmTranslationError(f'{typ} is a byte array of {typ.count} bytes here.', tag)
         return ir.Constant(typ, bytearray(value.value))
     parts = _type_parts(type_term)
     if parts is not None and isinstance(value, terms.Struct) and len(value.fields) == len(parts):
         return ir.Constant(
             typ, [constant(part, f.value, entry=entry) for part, f in zip(parts, value.fields, strict=True)]
         )
-    raise LlvmTranslationError(f'No constant of type {typ} is written {printer.show(value)}.', span)
+    raise LlvmTranslationError(f'No constant of type {typ} is written {printer.show(value)}.', tag)
 
 
 def _type_parts(type_term):
@@ -233,7 +234,7 @@ class _Function:
             for var, operand in zip(jump.target.params, jump.operands, strict=True):
                 yield operand, self.types.get(var)
 
-    def _add(self, var, type_term, span):
+    def _add(self, var, type_term, tag):
         if type_term is None:
             return False
         if var not in self.types:
@@ -243,7 +244,7 @@ class _Function:
             raise LlvmTranslationError(
                 f'{var.name!r} gets two types, {llvm_type(self.types[var])} and {llvm_type(type_term)}: '
                 f'give {var.name!r} one typed argument or typed use.',
-                span,
+                tag,
             )
         return False
 
@@ -259,10 +260,10 @@ class _Function:
             for block in self.blocks:
                 for jump in _jumps(block):
                     for var, operand in zip(jump.target.params, jump.operands, strict=True):
-                        changed |= self._add(var, self._type_of(operand), getattr(operand, 'span', 0))
+                        changed |= self._add(var, self._type_of(operand), operand.tag)
                 for operand, type_term in list(self._uses(block)):
                     if isinstance(operand, ingots.Use) and operand.var in params:
-                        changed |= self._add(operand.var, type_term, operand.span)
+                        changed |= self._add(operand.var, type_term, operand.tag)
         used = {
             operand.var for block in self.blocks for operand, _ in self._uses(block) if isinstance(operand, ingots.Use)
         } | {
@@ -272,7 +273,7 @@ class _Function:
         }
         for var in sorted(params - self.types.keys(), key=lambda v: v.name):
             if var in used:
-                raise LlvmTranslationError(f'give {var.name!r} a typed argument or a typed use.', var.span)
+                raise LlvmTranslationError(f'give {var.name!r} a typed argument or a typed use.', var.tag)
 
     # Blocks
 
@@ -341,7 +342,7 @@ class _Function:
         condition = self.operand(branch.condition, None, 'a branch condition')
         if not isinstance(condition.type, ir.IntType):
             raise LlvmTranslationError(
-                f'A branch condition must be an integer, got {condition.type}.', branch.condition.span
+                f'A branch condition must be an integer, got {condition.type}.', branch.condition.tag
             )
         for i, arm in enumerate(branch.arms):
             for other in branch.arms[:i]:
@@ -351,7 +352,7 @@ class _Function:
                     raise LlvmTranslationError(
                         f'Two arms jump to {arm.target.name} with different operands; '
                         'they must pass the same operands.',
-                        arm.span,
+                        arm.tag,
                     )
             self._edge(builder, arm)
         targets = [self.llvm_blocks[arm.target] for arm in branch.arms]
@@ -364,7 +365,7 @@ class _Function:
             holds = (1 << condition.type.width) + 1
             if len(targets) > holds:
                 raise LlvmTranslationError(
-                    f'A branch on {condition.type} has {len(targets)} arms; it holds {holds}.', branch.span
+                    f'A branch on {condition.type} has {len(targets)} arms; it holds {holds}.', branch.tag
                 )
             *cases, default = targets
             switch = builder.switch(condition, default)
@@ -375,19 +376,17 @@ class _Function:
 
     def operand(self, operand, expected, what):
         """An operand as an LLVM value; `expected` is the type term its use needs, or None."""
-        span = getattr(operand, 'span', 0)
+        tag = operand.tag
         if _is_data(operand):
             if expected is None:
-                raise LlvmTranslationError(
-                    f'{printer.show(operand)} needs a type here; {what} does not give one.', span
-                )
+                raise LlvmTranslationError(f'{printer.show(operand)} needs a type here; {what} does not give one.', tag)
             return constant(expected, operand)
         match operand:
             case ingots.Use(var=var):
                 if var not in self.values:
                     if var in self.types:
-                        raise LlvmTranslationError(f'{var.name!r} has no value here.', span)
-                    raise LlvmTranslationError(f"{var.name!r} has no value: a store's result has none.", span)
+                        raise LlvmTranslationError(f'{var.name!r} has no value here.', tag)
+                    raise LlvmTranslationError(f"{var.name!r} has no value: a store's result has none.", tag)
                 value = self.values[var]
             case ingots.Arg(label=label):
                 value = self.args[label]
@@ -396,12 +395,12 @@ class _Function:
                 if expected is not None and not isinstance(llvm_type(expected), ir.PointerType):
                     raise LlvmTranslationError(
                         f'm.{".".join(operand.path)} is an address, a ptr, but {what} needs {llvm_type(expected)}.',
-                        span,
+                        tag,
                     )
                 return value
         if expected is not None and value.type != llvm_type(expected):
             raise LlvmTranslationError(
-                f'This value has LLVM type {value.type}, but {what} needs {llvm_type(expected)}.', span
+                f'This value has LLVM type {value.type}, but {what} needs {llvm_type(expected)}.', tag
             )
         return value
 
@@ -417,7 +416,7 @@ class _Function:
         name = let.opcode
         impl = self.translator.target.opcodes.get(name)
         if impl is None:
-            raise LlvmTranslationError(f'The target has no opcode {name!r}.', let.span)
+            raise LlvmTranslationError(f'The target has no opcode {name!r}.', let.tag)
 
         def operand(field, expected):
             return self.operand(field, expected, f'opcode {name!r}')
@@ -425,7 +424,7 @@ class _Function:
         try:
             value = impl.emit(builder, [q for _, q in let.fields], operand)
         except LlvmTranslationError as error:
-            error.span = error.span or let.span
+            error.tag = meta.placed(error.tag, let.tag)
             raise
         return None if name == 'store' else value
 
@@ -464,13 +463,13 @@ def _linked(symbols: list[ingots.Symbol]) -> ingots.Symbol:
             raise LlvmTranslationError(
                 f'The entries linked as {first.link!r} have different types: '
                 f'{_symbol_type(first)} for {first.name!r}, {_symbol_type(other)} for {other.name!r}.',
-                other.span,
+                other.tag,
             )
     definitions = [s for s in symbols if not isinstance(s, ingots.Declaration)]
     if len(definitions) > 1:
         raise LlvmTranslationError(
             f'Two definitions are linked as {first.link!r}: {definitions[0].name!r} and {definitions[1].name!r}.',
-            definitions[1].span,
+            definitions[1].tag,
         )
     return definitions[0] if definitions else first
 
@@ -499,7 +498,7 @@ class _Translator:
                 symbol = _linked(group) if len(group) > 1 else group[0]
                 self._symbol(llvm_module, symbol, name)
             except LlvmTranslationError as error:
-                error.span = error.span or group[0].span
+                error.tag = meta.placed(error.tag, group[0].tag)
                 raise
             for member in group:
                 self.globals[member.path] = self.globals[symbol.path]
@@ -508,7 +507,7 @@ class _Translator:
             try:
                 self._data(symbol)
             except LlvmTranslationError as error:
-                error.span = error.span or symbol.span
+                error.tag = meta.placed(error.tag, symbol.tag)
                 raise
         for symbol in emitted:
             if isinstance(symbol, ingots.Definition):

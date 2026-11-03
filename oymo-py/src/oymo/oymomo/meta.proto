@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+// The meta section of an oymomo source file, written as textproto after the `---` line.
+// `meta_pb2.py` and `meta_pb2.pyi` are generated from this file: `hatch run proto:generate`.
+
+syntax = "proto3";
+
+package oymo.meta;
+
+// The tags of one .oymo file. Never changes what the term means.
+message Tags {
+  string code_md5 = 1;      // MD5 (hex) of everything before the --- line; guards tags
+  repeated File files = 2;  // source files that tags point into, numbered from 0
+  repeated Tag tags = 3;    // one tag per node of the term, in pre-order
+}
+
+// A source file.
+message File {
+  string path = 1;            // as given on the command line
+  string language = 2;        // the frontend's language
+  string md5 = 3;             // hex
+  repeated uint64 lines = 4;  // the byte offset of each line's start
+}
+
+// The tag of one node. An empty tag: the node has the parent's tag.
+//
+// Through a reduction step every part carries its tag, by four rules:
+// - keep: a part that survives the step keeps its tag;
+// - copy: a copy made by substitution or unfolding carries the tag of what it copies;
+// - new: a part the step creates (E-Opcode's result) takes the redex's tag;
+// - drop: the tags of removed parts are dropped.
+// The place (file, start, length) is origin meta: it follows the part by these rules.
+message Tag {
+  // The place: unset, the parent's place (start and length are the parent's too);
+  // -1, no place; k, files[k].
+  optional sint64 file = 1;
+  uint64 start = 2;   // byte offset in the file
+  uint64 length = 3;  // in bytes
+  uint64 skip = 15;   // this and the next skip-1 nodes are empty tags
+}

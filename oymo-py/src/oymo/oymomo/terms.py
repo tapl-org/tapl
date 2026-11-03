@@ -6,20 +6,21 @@ A `Variable` is a name as written; `reduction.resolve` turns each one into the
 `BruijnIndex` of its binder.
 """
 
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 from dataclasses import dataclass, field
 
 from oymo.core import syntax
+from oymo.oymomo.meta import NO_TAG, Tag
 
 Term = syntax.Term
 
 
-# Every `span` (`oymo.core.spans`: where the term comes from; 0 for none) is left out of
-# `==`, so a parsed term equals the same term built in code.
+# Every `tag` (`meta.Tag`: where the term comes from, and more; `NO_TAG` for none) is left
+# out of `==`, so a parsed term equals the same term built in code.
 @dataclass
 class Variable(Term):
     name: str
-    span: int = field(default=0, compare=False)
+    tag: Tag = field(default=NO_TAG, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield from ()
@@ -28,7 +29,7 @@ class Variable(Term):
 @dataclass
 class BruijnIndex(Term):
     index: int
-    span: int = field(default=0, compare=False)
+    tag: Tag = field(default=NO_TAG, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield from ()
@@ -40,7 +41,7 @@ class Lambda(Term):
 
     param_name: str
     body: Term
-    span: int = field(default=0, compare=False)
+    tag: Tag = field(default=NO_TAG, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield self.body
@@ -50,7 +51,7 @@ class Lambda(Term):
 class Apply(Term):
     function: Term
     argument: Term
-    span: int = field(default=0, compare=False)
+    tag: Tag = field(default=NO_TAG, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield self.function
@@ -63,13 +64,13 @@ class Field:
 
     label: str
     value: Term
-    span: int = field(default=0, compare=False)
+    tag: Tag = field(default=NO_TAG, compare=False)
 
 
 @dataclass
 class Struct(Term):
     fields: list[Field]
-    span: int = field(default=0, compare=False)
+    tag: Tag = field(default=NO_TAG, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield from (f.value for f in self.fields)
@@ -79,7 +80,7 @@ class Struct(Term):
 class Project(Term):
     struct: Term
     label: str
-    span: int = field(default=0, compare=False)
+    tag: Tag = field(default=NO_TAG, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield self.struct
@@ -91,7 +92,7 @@ class Fix(Term):
     is projected (E-FixProj) or applied (E-FixApp)."""
 
     body: Term
-    span: int = field(default=0, compare=False)
+    tag: Tag = field(default=NO_TAG, compare=False)
 
     def children(self) -> Generator[Term, None, None]:
         yield self.body
@@ -101,7 +102,7 @@ class Fix(Term):
 @dataclass
 class ByteArray(Term):
     value: bytes
-    span: int = field(default=0, compare=False)
+    tag: Tag = field(default=NO_TAG, compare=False)
 
     @classmethod
     def from_str(cls, text: str) -> 'ByteArray':
@@ -118,3 +119,26 @@ class ByteArray(Term):
 
     def children(self) -> Generator[Term, None, None]:
         yield from ()
+
+
+# A node of a term: a term, or a struct's field. Each node has a tag.
+type Node = Term | Field
+
+
+def nodes(term: Term) -> Iterator[Node]:
+    """Every node of `term` in pre-order: a node, then its children; a struct's fields, each
+    before its value. A node shared by two parents is visited twice."""
+    stack: list[Node] = [term]
+    while stack:
+        node = stack.pop()
+        yield node
+        stack.extend(reversed(node_children(node)))
+
+
+def node_children(node: Node) -> list[Node]:
+    """The children of a node, as `nodes` visits them."""
+    if isinstance(node, Field):
+        return [node.value]
+    if isinstance(node, Struct):
+        return list(node.fields)
+    return list(node.children())

@@ -1,300 +1,240 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""An oymomo source file: the code, then an optional `info` section with the code's spans.
+"""An oymomo source file: the code, then an optional meta section with the code's tags.
 
     language oymomo
     <the code: one term>
     ---
-    info 1
-    code <MD5 of everything before the `---` line>
-    start length file language hash lines
-    <one row per source file the spans point into>
-    spans
-    <one entry per node of the code's kernel term, in pre-order>
+    <the meta: a `Tags` message of `meta.proto`, as textproto>
 
-The `info` section is not a term and is never reduced: the file's term is the code alone.
-Spans are not for humans; they pass a frontend's source positions on to the backend.
+The meta is not a term and is never reduced: the file's term is the code alone. Tags are
+not for humans; they pass a frontend's source places on to the backend.
 
-- Every number is hex without `0x`. A row is `start length 'file' language hash {lines}`:
-  its range of positions in this file's numbering, the path as given on the command line,
-  the language of that file, the file's MD5, and the start of each of its lines.
-- The column names line names the columns; a reader finds them by name and skips the
-  ones it doesn't know.
-- An entry of `spans` is a span (`start << 16 | length`, `start` in a row of this file),
-  `0` (no span), `.` (the parent's span) or `.N` (N dots, N in hex). Nodes are visited
-  as `nodes` does: a node, then its children; a struct's `Field` before its value.
-- A file read in a run gets a row in the run's `SpanTable`; a term with no entry in the
-  list gets its own position in that row. The rows of the `info` section are added to the
-  table and the spans moved to them, so spans from many files never clash.
-- `write` never writes a span into a `language oymomo` file: oymomo code is generated, so
-  only spans into a frontend's sources (Alcor, Mizar, ...) are kept; it writes `.` for
-  them. With no span left to write, there is no `info` section.
+    code_md5: "<MD5 of everything before the `---` line>"
+    files {
+      path: "alcor/helpers.oymo"
+      language: "alcor"
+      md5: "<the file's MD5>"
+      lines: [0, 15, 16]
+    }
+    tags { skip: 3 }
+    tags { file: 0 start: 57 length: 73 }
+
+- `files` are the source files the tags point into, numbered from 0: the path as given on
+  the command line, the language of that file, the file's MD5, and the byte offset of each
+  of its lines.
+- `tags` has one entry per node of the code's kernel term: the node's `meta.Tag`. Its place
+  is `file: k` (`files[k]`) with `start` and `length` in bytes of that file, or `file: -1`
+  (no place). An entry with no `file` is the parent's place; an empty entry is the parent's
+  tag, shared. `skip: N` stands for N empty entries. Nodes are visited as `terms.nodes`
+  does: a node, then its children; a struct's `Field` before its value.
+- Fields a reader doesn't know are skipped, so meta has no version.
+- A term with no entry gets its place in the file being read. If the code's MD5 doesn't
+  match `code_md5`, the tags are dropped with a warning.
+- `write` writes an empty entry for a tag equal to its parent's. It never writes a place in
+  a `language oymomo` file: oymomo code is generated, so only places in a frontend's
+  sources (Alcor, Mizar, ...) are kept; such a tag is written with its parent's place. It
+  numbers the files in the order of their first use. With no file to point into, there is
+  no meta section.
+- `write` prints the meta in field order: one line per field, a list of numbers on one
+  line, a `files` entry over several lines, and a `tags` entry on one line.
 """
 
 import re
-from collections.abc import Iterator
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass, field, replace
 
-from oymo.core import spans, syntax
-from oymo.oymomo import grammar, printer, terms
+from google.protobuf import text_format
 
-LANGUAGE = 'oymomo'
+from oymo.core import syntax
+from oymo.oymomo import grammar, meta, meta_pb2, printer, terms
+
+LANGUAGE = grammar.LANGUAGE
 LANGUAGE_HEADER = f'language {LANGUAGE}\n'
 SEPARATOR = '---'
-INFO_VERSION = 1
-COLUMNS = ('start', 'length', 'file', 'language', 'hash', 'lines')
 
-# A row's cells: a quoted file name, a `{...}` list of line starts, or a word.
-_CELL = re.compile(r"'[^'\n]*'|\{[^}\n]*\}|\S+")
 _SEPARATOR_LINE = re.compile(rf'^{re.escape(SEPARATOR)}$', re.MULTILINE)
-_LINE_WIDTH = 80
-
-type Node = syntax.Term | terms.Field
+# The `line:column : ` that the textproto parser puts before its message.
+_PARSE_ERROR_PLACE = re.compile(r'^\d+(:\d+)? : ')
 
 
 class SourceError(Exception):
-    def __init__(self, message: str, span: int) -> None:
+    def __init__(self, message: str, tag: meta.Tag) -> None:
         super().__init__(message)
         self.message = message
-        self.span = span
+        self.tag = tag
 
 
 @dataclass
 class Loaded:
-    """A file's term, and warnings as `(message, span)`."""
+    """A file's term, and warnings as `(message, tag)`."""
 
     term: syntax.Term
-    warnings: list[tuple[str, int]] = field(default_factory=list)
+    warnings: list[tuple[str, meta.Tag]] = field(default_factory=list)
 
 
-def nodes(term: syntax.Term) -> Iterator[Node]:
-    """Every node of `term` in pre-order: a node, then its children; a struct's fields, each
-    before its value. A node shared by two parents is visited twice."""
-    stack: list[Node] = [term]
-    while stack:
-        node = stack.pop()
-        yield node
-        stack.extend(reversed(_children(node)))
+def read(text: str, path: str) -> Loaded:
+    """The term of the source file `text`, read from `path`, with its tags. A syntax error is
+    an `ErrorTerm`; a bad header or meta section raises `SourceError`."""
+    file = meta.File.of(path, LANGUAGE, text.encode('utf-8'))
 
-
-def _children(node: Node) -> list[Node]:
-    if isinstance(node, terms.Field):
-        return [node.value]
-    if isinstance(node, terms.Struct):
-        return list(node.fields)
-    return list(node.children())
-
-
-class _Bytes:
-    """UTF-8 byte offsets of the character offsets of a text."""
-
-    def __init__(self, text: str) -> None:
-        self._prefix = None
-        if len(text.encode('utf-8')) != len(text):
-            prefix = [0]
-            for char in text:
-                prefix.append(prefix[-1] + len(char.encode('utf-8')))
-            self._prefix = prefix
-
-    def __call__(self, offset: int) -> int:
-        return offset if self._prefix is None else self._prefix[offset]
-
-
-def read(text: str, file: str, table: spans.SpanTable) -> Loaded:
-    """The term of the source file `text`, read from `file`, with its spans in `table`.
-    A syntax error is an `ErrorTerm`; a bad header or `info` section raises `SourceError`."""
-    row = table.add_file(file, LANGUAGE, text.encode('utf-8'))
-    to_bytes = _Bytes(text)
-
-    def here(offset: int) -> int:
-        return spans.make(row.start + to_bytes(offset), 0)
+    def here(offset: int) -> meta.Tag:
+        return meta.Tag(file, len(text[:offset].encode('utf-8')), 0)
 
     if not text.startswith(LANGUAGE_HEADER):
         raise SourceError(f'Expected the first line to be {LANGUAGE_HEADER.strip()!r}.', here(0))
     separator = _SEPARATOR_LINE.search(text, len(LANGUAGE_HEADER))
     code_end = len(text) if separator is None else separator.start()
-    term = grammar.parse(text[len(LANGUAGE_HEADER) : code_end])
-    _move_to_row(term, len(LANGUAGE_HEADER), row, to_bytes)
+    # The header is ASCII, so its length in characters is its length in bytes.
+    term = grammar.parse(text[len(LANGUAGE_HEADER) : code_end], file, len(LANGUAGE_HEADER))
     loaded = Loaded(term)
     if separator is None or isinstance(term, syntax.ErrorTerm):
         return loaded
-    info = text[separator.end() :].removeprefix('\n')
-    entries = _read_info(info, text[:code_end].encode('utf-8'), table, here(separator.start()), loaded)
-    if entries is not None:
-        _assign(term, entries, here(separator.start()))
+    meta_start = separator.end() + 1 if text.startswith('\n', separator.end()) else separator.end()
+    message = _parse_meta(text, meta_start, here)
+    read_ = _read_meta(message, text[:code_end].encode('utf-8'), here(separator.start()), loaded)
+    if read_ is not None:
+        _assign(term, *read_, here(separator.start()))
     return loaded
 
 
-def _move_to_row(term: syntax.Term, offset: int, row: spans.Row, to_bytes: _Bytes) -> None:
-    """Turns the spans `grammar.parse` gives, characters from `offset` in the file, into
-    spans of `row`."""
-    seen = set()
-    for node in nodes(term):
-        if id(node) in seen:
-            continue
-        seen.add(id(node))
-        start = spans.start(node.span) + offset
-        length = spans.length(node.span)
-        if length < spans.MAX_LENGTH:
-            length = to_bytes(start + length) - to_bytes(start)
-        node.span = spans.make(row.start + to_bytes(start), length)
+def _parse_meta(text: str, meta_start: int, here: Callable[[int], meta.Tag]) -> meta_pb2.Tags:
+    """The meta section, `text` from `meta_start` on; unknown fields are skipped."""
+    message = meta_pb2.Tags()
+    try:
+        text_format.Parse(text[meta_start:], message, allow_unknown_field=True)
+    except text_format.ParseError as error:
+        offset = meta_start
+        if (line := error.GetLine()) is not None:
+            for _ in range(line - 1):
+                offset = text.find('\n', offset) + 1 or len(text)
+            offset = min(offset + max((error.GetColumn() or 1) - 1, 0), len(text))
+        reason = _PARSE_ERROR_PLACE.sub('', str(error))
+        raise SourceError(f'The meta section is not valid textproto: {reason}', here(offset)) from None
+    return message
 
 
-def _read_info(info: str, code: bytes, table: spans.SpanTable, here: int, loaded: Loaded) -> list[int | None] | None:
-    """The `spans` entries, moved into `table` (None for `.`); None if the code changed."""
-    # A missing header line reads as empty, so it fails its own check below.
-    header, code_line, columns_line, *rest = [*info.split('\n'), '', '']
-    if header.split() != ['info', format(INFO_VERSION, 'x')]:
-        raise SourceError(f"The info section must start with 'info {INFO_VERSION:x}'.", here)
-    match code_line.split():
-        case ['code', md5]:
-            pass
-        case _:
-            raise SourceError("The info section needs a line 'code <MD5>' after its header.", here)
-    if md5 != spans.md5(code):
-        loaded.warnings.append(('The code changed since its spans were written; the spans are dropped.', here))
+def _read_meta(
+    message: meta_pb2.Tags, code: bytes, here: meta.Tag, loaded: Loaded
+) -> tuple[list[meta_pb2.Tag | None], list[meta.File]] | None:
+    """The `tags` entries, one per node (None for an empty entry), and the files they number;
+    None if the code changed."""
+    if message.code_md5 != meta.md5(code):
+        loaded.warnings.append(('The code changed since its tags were written; the tags are dropped.', here))
         return None
-    columns = columns_line.split()
-    if missing := [c for c in COLUMNS if c not in columns]:
-        raise SourceError(f'The info section has no column {missing[0]!r}.', here)
-    try:
-        end = rest.index('spans')
-    except ValueError:
-        raise SourceError("The info section needs a line 'spans' after its rows.", here) from None
-    moved = [_read_row(line, columns, table, here) for line in rest[:end] if line.strip()]
-    entries: list[int | None] = []
-    for token in ' '.join(rest[end + 1 :]).split():
-        if token.startswith('.'):
-            entries.extend([None] * (_hex(token[1:], here) if len(token) > 1 else 1))
-        elif (span := _hex(token, here)) == spans.NO_SPAN:
-            entries.append(spans.NO_SPAN)
+    files = [_read_file(file, here) for file in message.files]
+    entries: list[meta_pb2.Tag | None] = []
+    for entry in message.tags:
+        if entry.skip and entry.HasField('file'):
+            raise SourceError('A tag of the meta has both a file and a skip.', here)
+        if not entry.HasField('file') and (entry.start or entry.length):
+            raise SourceError('A tag of the meta has a start or a length but no file.', here)
+        if entry.HasField('file') and not -1 <= entry.file < len(files):
+            raise SourceError(f'A tag of the meta names file {entry.file}; there are {len(files)} files.', here)
+        if entry.skip or not entry.ListFields():
+            entries.extend([None] * max(entry.skip, 1))
         else:
-            entries.append(_move(span, moved, here))
-    return entries
+            entries.append(entry)
+    return entries, files
 
 
-def _read_row(line: str, columns: list[str], table: spans.SpanTable, here: int) -> tuple[int, int, spans.Row]:
-    """`(start, length, row)`: a row's range in the file, and the row it now has in `table`."""
-    cells = _CELL.findall(line)
-    if len(cells) != len(columns):
-        raise SourceError(f'A row of the info section has {len(cells)} cells, not {len(columns)}.', here)
-    row = dict(zip(columns, cells, strict=True))
-    if not (row['file'].startswith("'") and row['file'].endswith("'") and len(row['file']) > 1):
-        raise SourceError(f"A file name is written in quotes, 'name', not {row['file']}.", here)
-    if not (row['lines'].startswith('{') and row['lines'].endswith('}')):
-        raise SourceError(f'Line starts are written {{0, ...}}, not {row["lines"]}.', here)
-    line_starts = tuple(_hex(n.strip(), here) for n in row['lines'][1:-1].split(','))
-    start, length = _hex(row['start'], here), _hex(row['length'], here)
-    added = table.add_row(length, row['file'][1:-1], row['language'], row['hash'], line_starts)
-    return start, length, added
+def _read_file(file: meta_pb2.File, here: meta.Tag) -> meta.File:
+    if not file.lines:
+        raise SourceError(f'The file {file.path!r} in the meta has no line starts.', here)
+    return meta.File(file.path, file.language, file.md5, tuple(file.lines))
 
 
-def _hex(token: str, here: int) -> int:
-    try:
-        return int(token, 16)
-    except ValueError:
-        raise SourceError(f'{token!r} is not a hex number.', here) from None
+def _assign(term: syntax.Term, entries: list[meta_pb2.Tag | None], files: list[meta.File], here: meta.Tag) -> None:
+    """Gives each node its entry's `meta.Tag`; an empty entry (None) gives the parent's."""
 
+    def file(number: int) -> meta.File | None:
+        return None if number == -1 else files[number]
 
-def _move(span: int, moved: list[tuple[int, int, spans.Row]], here: int) -> int:
-    position = spans.start(span)
-    for start, length, row in moved:
-        if start <= position <= start + length:
-            return spans.make(row.start + position - start, spans.length(span))
-    raise SourceError(f'The span {span:x} is in no row of the info section.', here)
-
-
-def _assign(term: syntax.Term, entries: list[int | None], here: int) -> None:
-    """Gives each node its entry; `.` (None) gives the parent's span."""
-    stack: list[tuple[Node, int]] = [(term, spans.NO_SPAN)]
+    stack: list[tuple[terms.Node, meta.Tag]] = [(term, meta.NO_TAG)]
     count = 0
     while stack:
         node, parent = stack.pop()
         if count == len(entries):
-            raise SourceError(f'The spans list has {len(entries)} entries; the code has more nodes.', here)
+            raise SourceError(f'The meta has {len(entries)} tags; the code has more nodes.', here)
         entry = entries[count]
         count += 1
-        node.span = parent if entry is None else entry
-        stack.extend((child, node.span) for child in reversed(_children(node)))
+        node.tag = parent if entry is None else meta.from_proto(entry, parent, file)
+        stack.extend((child, node.tag) for child in reversed(terms.node_children(node)))
     if count != len(entries):
-        raise SourceError(f'The spans list has {len(entries)} entries; the code has {count} nodes.', here)
+        raise SourceError(f'The meta has {len(entries)} tags; the code has {count} nodes.', here)
 
 
-def write(term: syntax.Term, table: spans.SpanTable) -> str:
-    """The source file of `term`: the code pretty-printed, then the `info` section if a span
-    into a frontend's source is left to write."""
+def write(term: syntax.Term) -> str:
+    """The source file of `term`: the code pretty-printed, then the meta section if a place
+    in a frontend's source is left to write."""
     code = LANGUAGE_HEADER + printer.show(term, pretty=True, name_indices=True) + '\n'
-    entries = _entries(term, table)
-    rows = [row for row in table.rows if any(e and table.row_of(e) is row for e in entries)]
-    if not rows:
+    files: list[meta.File] = []
+    numbers: dict[meta.File, int] = {}
+    by_id: dict[int, int] = {}  # numbers by object, so a file's lines are hashed once
+
+    def number(file: meta.File) -> int:
+        if id(file) not in by_id:
+            if file not in numbers:
+                numbers[file] = len(files)
+                files.append(file)
+            by_id[id(file)] = numbers[file]
+        return by_id[id(file)]
+
+    entries = [meta.to_proto(tag, parent, number) for tag, parent in _written(term)]
+    if not files:
         return code
-    starts, start = {}, 1
-    for row in rows:
-        starts[row.start] = start
-        start += row.length + 1
-    lines = [SEPARATOR, f'info {INFO_VERSION:x}', f'code {spans.md5(code.encode("utf-8"))}', ' '.join(COLUMNS)]
-    for row in rows:
-        if "'" in row.file:
-            raise SourceError(f"A file name in the info section can't hold a quote: {row.file}.", spans.NO_SPAN)
-        line_starts = ', '.join(format(n, 'x') for n in row.lines)
-        lines.append(f"{starts[row.start]:x} {row.length:x} '{row.file}' {row.language} {row.hash} {{{line_starts}}}")
-    lines.append('spans')
-    lines.extend(_wrap(_tokens(entries, table, starts)))
-    return code + '\n'.join(lines) + '\n'
+    message = meta_pb2.Tags(code_md5=meta.md5(code.encode('utf-8')))
+    for file in files:
+        message.files.add(path=file.path, language=file.language, md5=file.md5, lines=file.lines)
+    message.tags.extend(_runs(entries))
+    return code + SEPARATOR + '\n' + _show(message)
 
 
-def _entries(term: syntax.Term, table: spans.SpanTable) -> list[int | None]:
-    """One entry per node: its span, `NO_SPAN`, or None for `.` (the parent's span). A span
-    into a `language oymomo` file, or into no row, is never written: it becomes `.`."""
-    entries: list[int | None] = []
-    stack: list[tuple[Node, int]] = [(term, spans.NO_SPAN)]
+def _show(message: meta_pb2.Tags) -> str:
+    """`message` as textproto, in field order: a list of numbers on one line, a `tags` entry
+    on one line. `tags` is the last field, so it is printed last."""
+    head = meta_pb2.Tags()
+    head.CopyFrom(message)
+    del head.tags[:]
+    lines = [text_format.MessageToString(head, as_utf8=True, use_short_repeated_primitives=True)]
+    for entry in message.tags:
+        shown = text_format.MessageToString(entry, as_one_line=True)
+        lines.append(f'tags {{ {shown} }}\n' if shown else 'tags {}\n')
+    return ''.join(lines)
+
+
+def _written(term: syntax.Term) -> list[tuple[meta.Tag, meta.Tag]]:
+    """`(tag, parent)` per node: the `meta.Tag` written for it, and the one written for its
+    parent. A place in a `language oymomo` file is never written: such a tag is written with
+    its parent's place."""
+    written: list[tuple[meta.Tag, meta.Tag]] = []
+    stack: list[tuple[terms.Node, meta.Tag]] = [(term, meta.NO_TAG)]
     while stack:
         node, parent = stack.pop()
-        span = node.span
-        row = table.row_of(span)
-        if span != spans.NO_SPAN and (row is None or row.language == LANGUAGE):
-            entries.append(None)
-            span = parent
-        elif span == parent:
-            entries.append(None)
-        else:
-            entries.append(span)
-        stack.extend((child, span) for child in reversed(_children(node)))
-    return entries
+        tag = node.tag
+        if tag.file is not None and tag.file.language == LANGUAGE:
+            tag = replace(tag, file=parent.file, start=parent.start, length=parent.length)
+        written.append((tag, parent))
+        stack.extend((child, tag) for child in reversed(terms.node_children(node)))
+    return written
 
 
-def _tokens(entries: list[int | None], table: spans.SpanTable, starts: dict[int, int]) -> list[str]:
-    """The entries as text: a run of dots as one `.` or `.N`."""
-    tokens: list[str] = []
-    dots = 0
+def _runs(entries: list[meta_pb2.Tag]) -> list[meta_pb2.Tag]:
+    """`entries` with each run of empty entries as one `skip`, or one empty entry."""
+    result: list[meta_pb2.Tag] = []
+    empty = 0
     for entry in entries:
-        if entry is None:
-            dots += 1
+        if not entry.ListFields():
+            empty += 1
             continue
-        if dots:
-            tokens.append('.' if dots == 1 else f'.{dots:x}')
-            dots = 0
-        tokens.append(_written(entry, table, starts))
-    if dots:
-        tokens.append('.' if dots == 1 else f'.{dots:x}')
-    return tokens
+        if empty:
+            result.append(_empty(empty))
+            empty = 0
+        result.append(entry)
+    if empty:
+        result.append(_empty(empty))
+    return result
 
 
-def _written(span: int, table: spans.SpanTable, starts: dict[int, int]) -> str:
-    row = table.row_of(span)
-    if row is None:
-        return '0'
-    return format(spans.make(starts[row.start] + spans.start(span) - row.start, spans.length(span)), 'x')
-
-
-def _wrap(tokens: list[str]) -> list[str]:
-    lines, line = [], ''
-    for token in tokens:
-        if line and len(line) + 1 + len(token) > _LINE_WIDTH:
-            lines.append(line)
-            line = token
-        else:
-            line = f'{line} {token}' if line else token
-    if line:
-        lines.append(line)
-    return lines
+def _empty(count: int) -> meta_pb2.Tag:
+    return meta_pb2.Tag() if count == 1 else meta_pb2.Tag(skip=count)

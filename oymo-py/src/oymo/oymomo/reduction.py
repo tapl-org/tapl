@@ -5,19 +5,25 @@ computation rules at the root (`reduce`).
 
 A `BruijnIndex(i)` refers to the binder `i` lambdas out: `λx. λy. x` is `λx. λy. $1`.
 Binder names stay on `Lambda.param_name`; references don't carry them.
+
+Every part carries its tag (`meta.Tag`) through a step: a part that survives keeps its
+tag, a copy made by substitution or unfolding shares its source's tag, E-Opcode's result
+takes the redex's tag, and the tags of removed parts (the redex's application or
+projection, the lambda, the replaced variable, discarded fields) are dropped.
 """
 
 from dataclasses import replace
 
 from oymo.core import syntax
 from oymo.oymomo import opcodes, terms
+from oymo.oymomo.meta import Tag
 
 
 class ReductionError(Exception):
-    def __init__(self, message: str, span: int) -> None:
+    def __init__(self, message: str, tag: Tag) -> None:
         super().__init__(message)
         self.message = message
-        self.span = span
+        self.tag = tag
 
 
 def resolve(term: syntax.Term) -> syntax.Term:
@@ -27,11 +33,11 @@ def resolve(term: syntax.Term) -> syntax.Term:
 
 def _resolve(term, names):
     match term:
-        case terms.Variable(name=name, span=span):
+        case terms.Variable(name=name, tag=tag):
             for distance, bound in enumerate(reversed(names)):
                 if bound == name:
-                    return terms.BruijnIndex(distance, span)
-            raise ReductionError(f'Unknown name {name!r}.', span)
+                    return terms.BruijnIndex(distance, tag)
+            raise ReductionError(f'Unknown name {name!r}.', tag)
         case terms.Lambda(param_name=name, body=body):
             names.append(name)
             try:
@@ -164,7 +170,8 @@ def fold_opcode(call: terms.Apply) -> syntax.Term:
     fields = [field.value for field in argument.fields]
     if (result := opcode.evaluate(fields)) is None:
         return call
-    return terms.ByteArray(result.value, call.span)
+    # The result is a new part: it takes the redex's tag.
+    return terms.ByteArray(result.value, call.tag)
 
 
 def project(struct: syntax.Term, label: str) -> syntax.Term | None:

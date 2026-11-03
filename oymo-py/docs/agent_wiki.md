@@ -2785,6 +2785,49 @@ executable binary). we should mark some place as a platform". The steps that fol
   struct with `type` is rejected. 14 goldens rewritten (wrapper dropped, `link` after
   `type` for `main` and declarations, `globals.oymo` without `first`/`second`); `.ll`
   regenerated. `hatch test` 644 passed; ruff, pyrefly clean; `oymo run` works.
+- User asked why `link` was added in goldens where no export/import existed: agent: a
+  `{type}` declaration is now a hole, so declarations need `link`; `main` needs
+  `link = 'main'` to stay external for the C runtime; everything else becomes internal.
+  Committed `a364133`.
+- Meta code plan (artifact `meta_code_plan.md`) approved, recommended answers taken:
+  `protobuf` runtime, generated `meta_pb2.py`/`.pyi` checked in (grpcio-tools in a dev
+  env `proto`, `hatch run proto:generate`; a test compares descriptors with
+  `meta.proto`); hashes as hex strings; schema only `code_md5`, `files`, `nodes`
+  (`optional uint64 span`, `skip`); no version line. Done (subagent): `source.py` reads and
+  writes textproto after `---` (head multi-line, `lines` as `[…]`, each node one line;
+  decimal numbers, as protobuf prints); unknown fields skipped; an md5 mismatch or missing
+  md5 drops nodes with a warning; span plus skip and a file without line starts are
+  errors; the parse error points at its line and column. `spans.oymo` converted,
+  `spans.normal.oymo` regenerated; `hatch test` 648 passed; ruff, pyrefly clean.
+  `redesign-file` finished and removed from the roadmap; the design doc points to
+  `meta.proto`.
+- User: "i thougth we redesign it differently. each term contains a node instead of
+  position" Agent: agreed (the design's "reduction carries whole entries"); offered to
+  commit the format first. User: "extend this step to include the in-memory change before
+  commiting". Done (same subagent): `oymomo/meta.py` frozen dataclass `Node(span)` with
+  `NO_META`, `from_proto`/`to_proto` (only source.py); every term and Field holds
+  `meta: Node` (no `span` property; readers write `term.meta.span`); `ErrorTerm` too (core
+  imports Node only for typing); the parser shares one Node for `let`'s Lambda+Apply and
+  `if`'s Apply+Struct; reading shares the parent's Node for empty entries; writing emits an
+  empty entry when a node equals its parent's (by value). Reduction already rebuilt with
+  `dataclasses.replace`, so it matched the four rules unchanged (E-Opcode's result takes
+  `call.meta`). Tests per rule added; goldens unchanged; `hatch test` 657 passed; ruff,
+  pyrefly clean. Agent wrote the four rules into `meta.proto` comments (the descriptor test
+  still passes), so `redesign-meta-rules` is finished and removed from the roadmap.
+- User: "Node ... this is so general name. can you find better one? now we don't need a
+  span, rigth. Node can contain position and length". Then: "what if we put file index or
+  id, and start is based on each file not in entire spans. so there will be no span
+  concept at all then ... is there performance issue?" (agent: none that matters; direct
+  file reference, shared tags). Names searched (Gloss, Attrs, TermMeta, Passport, …); user:
+  "i liked Tag" (agent's pushback: "tag" also means type tags in field 0, LLVM TBAA,
+  DWARF; say "type tag" for those). On "no place": user: "how about using negative numbers.
+  I dont like file index shift" (decided: `optional sint64 file`, unset = parent, -1 = no
+  place, files from 0). "lgtm, proceed". Done (subagent): `Tags { code_md5, files, tags }`,
+  `File { path, language, md5, lines }`, `Tag { file, start, length, skip }`; in memory
+  `Tag(file: File | None, start, length)`, `NO_TAG`, `placed()`; `core/spans.py` and
+  `SpanTable` deleted; errors and ingot objects carry `tag`; `grammar.parse(text, file,
+  offset)` gives tags in UTF-8 bytes; the writer numbers files by first use; goldens
+  converted with identical places; `hatch test` 662 passed; ruff, pyrefly clean.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

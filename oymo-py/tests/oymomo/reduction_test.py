@@ -2,10 +2,14 @@
 
 import pytest
 
-from oymo.core import spans
-from oymo.oymomo import reduction, terms
+from oymo.oymomo import meta, reduction, terms
 from oymo.oymomo.grammar import RESERVED, parse
 from oymo.oymomo.printer import show
+
+
+def place(node):
+    """A node's place: its start and length in bytes."""
+    return node.tag.start, node.tag.length
 
 
 def resolved(source, free=()):
@@ -39,14 +43,14 @@ def test_resolve_keeps_labels():
 def test_resolve_keeps_location():
     term = reduction.resolve(parse('λx. x'))
     assert term.body == terms.BruijnIndex(0)
-    assert term.body.span == spans.make(4, 1)
+    assert place(term.body) == (len('λx. '.encode()), 1)
 
 
 def test_resolve_unknown_name():
     with pytest.raises(reduction.ReductionError) as info:
         reduction.resolve(parse('λx. y'))
     assert info.value.message == "Unknown name 'y'."
-    assert info.value.span == spans.make(4, 1)
+    assert place(info.value) == (len('λx. '.encode()), 1)
 
 
 def test_shift():
@@ -330,3 +334,62 @@ def test_stuck_fix(source, stuck):
     # `fix b` and `fix {…}` never become a fixed point of a lambda.
     found = reduction.stuck_part(resolved(source, ('x',)))
     assert (None if found is None else show(found)) == stuck
+
+
+# The tag of a step's result: keep, copy, new, drop. Every node is checked by identity.
+
+
+def test_e_beta_copies_share_the_argument_tag_and_the_body_keeps_its_own():
+    argument = parse('[07]')
+    term = resolved('(λx. {x, x}) a', free=('a',))
+    term = terms.Apply(term.function, argument, tag=meta.Tag(meta.File.of('a.alcor', 'alcor', b'abc'), 1, 1))
+    body = term.function.body
+    result = reduction.reduce(term)
+    assert isinstance(result, terms.Struct)
+    assert result.tag is body.tag
+    assert [f.tag for f in result.fields] == [f.tag for f in body.fields]
+    assert all(f.value.tag is argument.tag for f in result.fields)
+    assert all(f.value is argument for f in result.fields)
+
+
+def test_e_beta_shifted_copies_keep_the_argument_tag():
+    # (λx. λz. x) y: the copy of y is shifted under λz, a new term with y's tag.
+    term = resolved('(λx. λz. x) y', free=('y',))
+    result = reduction.reduce(term)
+    assert isinstance(result, terms.Lambda)
+    assert result.body == terms.BruijnIndex(1)
+    assert result.body.tag is term.argument.tag
+    assert result.tag is term.function.body.tag
+
+
+def test_e_opcode_result_takes_the_redex_tag():
+    term = resolved("'add' {'i8', [01], [02]}")
+    result = reduction.reduce(term)
+    assert result == terms.ByteArray(b'\x03')
+    assert result.tag is term.tag
+
+
+def test_e_proj_keeps_the_field_value_and_its_tag():
+    term = resolved('{a = [01], b = [02]}.b')
+    field = term.struct.fields[1]
+    result = reduction.reduce(term)
+    assert result is field.value
+    assert result.tag is not term.tag
+
+
+def test_e_index_keeps_the_selected_field_value():
+    term = resolved('{[01], [02]} [01]')
+    assert reduction.reduce(term) is term.function.fields[1].value
+
+
+def test_e_fix_proj_keeps_the_projection_and_copies_share_the_fixed_point_tag():
+    term = resolved('(fix (λf. {a = f})).a')
+    fixed = term.struct
+    result = reduction.reduce(term)
+    assert isinstance(result, terms.Project)
+    assert result.tag is term.tag
+    unfolded = result.struct
+    assert isinstance(unfolded, terms.Struct)
+    assert unfolded.tag is fixed.body.body.tag
+    assert unfolded.fields[0].tag is fixed.body.body.fields[0].tag
+    assert unfolded.fields[0].value is fixed

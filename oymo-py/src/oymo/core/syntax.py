@@ -9,11 +9,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 
+    from oymo.oymomo.meta import Tag
+
 
 class Term:
-    # Where the term comes from (`oymo.core.spans`); 0 for no span. Subclasses that keep a
-    # span declare it as a field.
-    span: int = 0
+    # The term's tag (`oymo.oymomo.meta.Tag`): where it comes from, and more. Subclasses that
+    # keep a tag declare it as a field.
+    tag: Tag
 
     def children(self) -> Generator[Term, None, None]:
         """Yields the child terms of this term for tree traversal or visitor operations."""
@@ -141,7 +143,7 @@ MODE_LIFT = Layers(layers=(MODE_EVALUATE, MODE_EVALUATE_WITH_SCOPE))
 @dataclass
 class ErrorTerm(Term):
     message: str
-    span: int  # see `oymo.core.spans`
+    tag: Tag  # its place is where the error is
 
     def children(self) -> Generator[Term, None, None]:
         yield from ()

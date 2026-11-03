@@ -26,14 +26,15 @@ reject a stuck normal form, and read the ingot.
 from dataclasses import dataclass, field
 
 from oymo.core import syntax
-from oymo.oymomo import anf, printer, reduction, strategy, terms
+from oymo.oymomo import anf, meta, printer, reduction, strategy, terms
+from oymo.oymomo.meta import NO_TAG, Tag
 
 
 class IngotError(Exception):
-    def __init__(self, message: str, span: int) -> None:
+    def __init__(self, message: str, tag: Tag) -> None:
         super().__init__(message)
         self.message = message
-        self.span = span
+        self.tag = tag
 
 
 # Operands, resolved.
@@ -44,7 +45,7 @@ class Var:
     """A value: bound by a `let` or a block's `λ`. `name` is unique in its definition."""
 
     name: str
-    span: int = field(default=0, compare=False)
+    tag: Tag = field(default=NO_TAG, compare=False)
 
 
 @dataclass(eq=False)
@@ -52,7 +53,7 @@ class Use:
     """A value used as an operand, where it is used."""
 
     var: Var
-    span: int = 0
+    tag: Tag = NO_TAG
 
 
 @dataclass
@@ -60,7 +61,7 @@ class Arg:
     """`p.l`: the argument for the parameter `l`."""
 
     label: str
-    span: int = field(default=0, compare=False)
+    tag: Tag = field(default=NO_TAG, compare=False)
 
 
 @dataclass
@@ -68,7 +69,7 @@ class Address:
     """`m.l₁ ⋯ lₙ` as an operand: the address of the symbol at the path `l₁ ⋯ lₙ`."""
 
     path: tuple[str, ...]
-    span: int = field(default=0, compare=False)
+    tag: Tag = field(default=NO_TAG, compare=False)
 
 
 # A data operand stays the term it is (a byte array or a struct of data), so an opcode
@@ -85,20 +86,20 @@ class Instruction:
     opcode: str | None
     callee: tuple[str, ...] | None
     fields: list[tuple[str, Operand]]
-    span: int = 0
+    tag: Tag = NO_TAG
 
 
 @dataclass(eq=False)
 class Jump:
     target: 'Block'
     operands: list[Operand]
-    span: int = 0
+    tag: Tag = NO_TAG
 
 
 @dataclass(eq=False)
 class Return:
     value: Operand
-    span: int = 0
+    tag: Tag = NO_TAG
 
 
 @dataclass(eq=False)
@@ -107,7 +108,7 @@ class Branch:
 
     arms: list[Jump]
     condition: Use | Arg
-    span: int = 0
+    tag: Tag = NO_TAG
 
 
 @dataclass(eq=False)
@@ -121,7 +122,7 @@ class Block:
     lets: list[Instruction] = field(default_factory=list)
     terminal: 'Terminal | None' = None
     jumped: bool = False
-    span: int = 0
+    tag: Tag = NO_TAG
 
 
 @dataclass(eq=False)
@@ -130,7 +131,7 @@ class Region:
 
     binder: str
     blocks: list[Block]
-    span: int = 0
+    tag: Tag = NO_TAG
 
 
 type Terminal = Return | Jump | Branch | Region
@@ -164,7 +165,7 @@ class Definition(_Named):
     args: str
     region: Region
     link: str | None = None
-    span: int = 0
+    tag: Tag = NO_TAG
 
 
 @dataclass(eq=False)
@@ -174,7 +175,7 @@ class Declaration(_Named):
     path: tuple[str, ...]
     type: FunctionType | syntax.Term
     link: str
-    span: int = 0
+    tag: Tag = NO_TAG
 
 
 @dataclass(eq=False)
@@ -183,7 +184,7 @@ class Constant(_Named):
     type: syntax.Term
     value: syntax.Term
     link: str | None = None
-    span: int = 0
+    tag: Tag = NO_TAG
 
 
 @dataclass(eq=False)
@@ -192,7 +193,7 @@ class Global(_Named):
     type: syntax.Term
     init: syntax.Term
     link: str | None = None
-    span: int = 0
+    tag: Tag = NO_TAG
 
 
 type Symbol = Definition | Declaration | Constant | Global
@@ -220,12 +221,12 @@ def ingot_of(term: syntax.Term, max_steps: int = strategy.MAX_STEPS) -> Ingot:
     """The ingot a parsed program reduces to. Raises `ReductionError` or `IngotError`."""
     normal = strategy.normalize(reduction.resolve(term), max_steps)
     if (stuck := reduction.stuck_part(normal)) is not None:
-        raise IngotError('The program is stuck here: no rule can ever reduce this part.', _span(stuck))
+        raise IngotError('The program is stuck here: no rule can ever reduce this part.', _tag(stuck))
     return read_ingot(normal)
 
 
-def _span(term):
-    return getattr(term, 'span', 0)
+def _tag(term):
+    return term.tag
 
 
 def _fields(struct):
@@ -235,11 +236,11 @@ def _fields(struct):
 def read_ingot(term: syntax.Term) -> Ingot:
     """`term`, a resolved normal form, read as an ingot."""
     if not isinstance(term, terms.Struct):
-        raise IngotError('Not an ingot: an ingot is a namespace, a struct of entries and namespaces.', _span(term))
+        raise IngotError('Not an ingot: an ingot is a namespace, a struct of entries and namespaces.', _tag(term))
     if 'type' in _fields(term):
         raise IngotError(
             'Not an ingot: a struct with a type is an entry; an ingot is a namespace of entries and namespaces.',
-            _span(term),
+            _tag(term),
         )
     ingot = Ingot([])
     bodies = []
@@ -254,14 +255,15 @@ def _namespace(term, path, ingot, bodies):
     for f in term.fields:
         if not f.label:
             raise IngotError(
-                "A field of a namespace needs a label: its symbol's or namespace's name.", f.span or _span(f.value)
+                "A field of a namespace needs a label: its symbol's or namespace's name.",
+                meta.placed(f.tag, f.value.tag),
             )
         here = (*path, f.label)
         if not isinstance(f.value, terms.Struct):
             raise IngotError(
                 f'{".".join(here)!r} is a reduce-time value left in the ingot: '
                 'a namespace holds only entries and namespaces.',
-                f.span or _span(f.value),
+                meta.placed(f.tag, f.value.tag),
             )
         if 'type' not in _fields(f.value):
             _namespace(f.value, here, ingot, bodies)
@@ -287,12 +289,12 @@ def _entry(path, term):
     for label in parts:
         if label not in _ENTRY_FIELDS:
             raise IngotError(
-                f'Entry {name!r} has an unknown field {label!r}; it may have {", ".join(_ENTRY_FIELDS)}.', _span(term)
+                f'Entry {name!r} has an unknown field {label!r}; it may have {", ".join(_ENTRY_FIELDS)}.', _tag(term)
             )
     kinds = [label for label in _KINDS if label in parts]
     if len(kinds) > 1:
         raise IngotError(
-            f'Entry {name!r} has {kinds[0]} and {kinds[1]}; it may have at most one of {list(_KINDS)}.', _span(term)
+            f'Entry {name!r} has {kinds[0]} and {kinds[1]}; it may have at most one of {list(_KINDS)}.', _tag(term)
         )
     link = _link(parts['link']) if 'link' in parts else None
     type_term = _data(parts['type'], 'type')
@@ -302,29 +304,29 @@ def _entry(path, term):
             if fn is None:
                 raise IngotError(
                     f"Entry {name!r} has a body, so its type must be {{'function', {{x = t, ...}}, t}}.",
-                    _span(type_term),
+                    _tag(type_term),
                 )
-            return Definition(path, fn, '', Region('', []), link, _span(term)), parts['body']
+            return Definition(path, fn, '', Region('', []), link, _tag(term)), parts['body']
         case ['init']:
-            return Global(path, type_term, _data(parts['init'], 'init'), link, _span(term)), None
+            return Global(path, type_term, _data(parts['init'], 'init'), link, _tag(term)), None
         case ['value']:
-            return Constant(path, type_term, _data(parts['value'], 'value'), link, _span(term)), None
+            return Constant(path, type_term, _data(parts['value'], 'value'), link, _tag(term)), None
     if link is None:
-        raise IngotError(f'{name!r} is a hole: give it a body or a link.', _span(term))
-    return Declaration(path, fn if fn is not None else type_term, link, _span(term)), None
+        raise IngotError(f'{name!r} is a hole: give it a body or a link.', _tag(term))
+    return Declaration(path, fn if fn is not None else type_term, link, _tag(term)), None
 
 
 def _link(term):
     """A `link`: the symbol's name for the linker, a nonempty text byte array."""
     text = term.as_str if isinstance(term, terms.ByteArray) else None
     if not text:
-        raise IngotError("A link is the symbol's name for the linker: a nonempty text byte array.", _span(term))
+        raise IngotError("A link is the symbol's name for the linker: a nonempty text byte array.", _tag(term))
     return text
 
 
 def _data(term, what):
     if not reduction.is_data(term):
-        raise IngotError(f'A {what} must be data: byte arrays and structs of them.', _span(term))
+        raise IngotError(f'A {what} must be data: byte arrays and structs of them.', _tag(term))
     return term
 
 
@@ -338,7 +340,7 @@ def _function_type(term):
     params = term.fields[1].value if len(term.fields) == 3 else None  # noqa: PLR2004
     if not isinstance(params, terms.Struct) or any(not f.label for f in params.fields):
         raise IngotError(
-            "A function type is {'function', {x = t, ...}, t}: labeled parameters, then the result.", _span(term)
+            "A function type is {'function', {x = t, ...}, t}: labeled parameters, then the result.", _tag(term)
         )
     return FunctionType([(f.label, f.value) for f in params.fields], term.fields[2].value)
 
@@ -380,12 +382,12 @@ class _Body:
     def read(self, body):
         name = self.definition.name
         if not isinstance(body, terms.Lambda) or not isinstance(body.body, terms.Lambda):
-            raise IngotError(f'The body of {name!r} must be λm. λp. m [] (λr. {{blocks}}).', _span(body))
+            raise IngotError(f'The body of {name!r} must be λm. λp. m [] (λr. {{blocks}}).', _tag(body))
         region = body.body.body
         if anf.region_parts(region) is None:
-            raise IngotError(f'The body of {name!r} must be λm. λp. m [] (λr. {{blocks}}).', _span(region))
+            raise IngotError(f'The body of {name!r} must be λm. λp. m [] (λr. {{blocks}}).', _tag(region))
         if (error := anf.region_error(region)) is not None:
-            raise IngotError(f'{name!r} is not in ANF: {error.message}', error.span)
+            raise IngotError(f'{name!r} is not in ANF: {error.message}', error.tag)
         self.fresh(body.param_name)
         args = self.fresh(body.body.param_name)
         self.env = [_Binder('module'), _Binder('arguments')]
@@ -400,19 +402,19 @@ class _Body:
     def region(self, term):
         head, blocks_lambda = anf.region_parts(term)
         if self.binder(head)[0].kind != 'module':
-            raise IngotError('Only the module runs a region: m [] (λr. {...}).', _span(head))
+            raise IngotError('Only the module runs a region: m [] (λr. {...}).', _tag(head))
         binder = self.fresh(blocks_lambda.param_name)
-        region = Region(binder, [], _span(term))
+        region = Region(binder, [], _tag(term))
         for i, f in enumerate(blocks_lambda.body.fields):
             if i > 0 and not f.label:
                 raise IngotError(
-                    'A block after field 0 needs a label, so a jump can name it.', f.span or _span(f.value)
+                    'A block after field 0 needs a label, so a jump can name it.', meta.placed(f.tag, f.value.tag)
                 )
             arity, block = 0, f.value
             while isinstance(block, terms.Lambda):
                 arity, block = arity + 1, block.body
             label = f.label or '0'
-            region.blocks.append(Block(f'{binder}.{label}', f.label, arity, span=f.span or _span(f.value)))
+            region.blocks.append(Block(f'{binder}.{label}', f.label, arity, tag=meta.placed(f.tag, f.value.tag)))
         self.env.append(_Binder('region', region=region))
         for block, f in zip(region.blocks, blocks_lambda.body.fields, strict=True):
             self.block(block, f.value)
@@ -422,13 +424,13 @@ class _Body:
     def block(self, block, term):
         depth = len(self.env)
         while isinstance(term, terms.Lambda):
-            var = Var(self.fresh(term.param_name), _span(term))
+            var = Var(self.fresh(term.param_name), _tag(term))
             block.params.append(var)
             self.env.append(_Binder('value', value=var))
             term = term.body
         while isinstance(term, terms.Apply) and isinstance(term.function, terms.Lambda):
             instruction = self.instruction(term.argument)
-            instruction.result = Var(self.fresh(term.function.param_name), _span(term.function))
+            instruction.result = Var(self.fresh(term.function.param_name), _tag(term.function))
             block.lets.append(instruction)
             self.env.append(_Binder('value', value=instruction.result))
             term = term.function.body
@@ -441,22 +443,22 @@ class _Body:
         operator, struct = term.function, term.argument
         if isinstance(operator, terms.ByteArray):
             fields = [(f.label, self.operand(f.value)) for f in struct.fields]
-            return Instruction(Var(''), operator.as_str or '', None, fields, _span(term))
+            return Instruction(Var(''), operator.as_str or '', None, fields, _tag(term))
         binder, labels = self.binder(operator)
         symbol = self.ingot.lookup(tuple(labels)) if binder.kind == 'module' else None
         fn = function_type(symbol)
         if fn is None:
             raise IngotError(
-                'An instruction calls a function, m.l₁ ⋯ lₙ {...}, a path to a function of the ingot.', _span(operator)
+                'An instruction calls a function, m.l₁ ⋯ lₙ {...}, a path to a function of the ingot.', _tag(operator)
             )
         names = [name for name, _ in fn.params]
         given = [f.label for f in struct.fields]
         if given != names:
             raise IngotError(
-                f'The call to {symbol.name!r} must give {names}, in order; it gives {given}.', _span(struct)
+                f'The call to {symbol.name!r} must give {names}, in order; it gives {given}.', _tag(struct)
             )
         fields = [(f.label, self.operand(f.value)) for f in struct.fields]
-        return Instruction(Var(''), None, symbol.path, fields, _span(term))
+        return Instruction(Var(''), None, symbol.path, fields, _tag(term))
 
     # Operands
 
@@ -464,36 +466,36 @@ class _Body:
         if reduction.is_data(term):
             return term
         binder, labels = self.binder(term)
-        span = _span(term)
+        tag = _tag(term)
         match binder.kind:
             case 'module':
                 if self.ingot.lookup(tuple(labels)) is None:
                     raise IngotError(
                         'm names the symbols: an operand through m is m.l₁ ⋯ lₙ, a path to a symbol of the ingot.',
-                        span,
+                        tag,
                     )
-                return Address(tuple(labels), span)
+                return Address(tuple(labels), tag)
             case 'arguments':
                 names = [name for name, _ in self.definition.type.params]
                 if not labels:
-                    raise IngotError(f'p is never used whole: read an argument as p.l, l one of {names}.', span)
+                    raise IngotError(f'p is never used whole: read an argument as p.l, l one of {names}.', tag)
                 if labels[0] not in names:
-                    raise IngotError(f'{self.definition.name!r} has no parameter {labels[0]!r}; it has {names}.', span)
+                    raise IngotError(f'{self.definition.name!r} has no parameter {labels[0]!r}; it has {names}.', tag)
                 if len(labels) > 1:
                     raise IngotError(
-                        "An argument has no fields: read a field of a struct value with 'extractvalue'.", span
+                        "An argument has no fields: read a field of a struct value with 'extractvalue'.", tag
                     )
-                return Arg(labels[0], span)
+                return Arg(labels[0], tag)
             case 'region':
-                raise IngotError('r.l is a block: it only heads a jump.', span)
+                raise IngotError('r.l is a block: it only heads a jump.', tag)
         if labels:
-            raise IngotError("A value has no fields: read a field of a struct value with 'extractvalue'.", span)
-        return Use(binder.value, span)
+            raise IngotError("A value has no fields: read a field of a struct value with 'extractvalue'.", tag)
+        return Use(binder.value, tag)
 
     def condition(self, term):
         operand = self.operand(term)
         if not isinstance(operand, Use | Arg):
-            raise IngotError('A branch condition is a value or an argument p.l.', _span(term))
+            raise IngotError('A branch condition is a value or an argument p.l.', _tag(term))
         return operand
 
     # Terminals
@@ -503,18 +505,18 @@ class _Body:
             return self.region(term)
         if isinstance(term, terms.Apply) and isinstance(term.function, terms.Struct):
             arms = [self.jump(f.value, arm=True) for f in term.function.fields]
-            return Branch(arms, self.condition(term.argument), _span(term))
+            return Branch(arms, self.condition(term.argument), _tag(term))
         if reduction.is_data(term):
-            return Return(term, _span(term))
+            return Return(term, _tag(term))
         head, operands = anf.jump_parts(term)
         kind = self.binder(head)[0].kind
         if kind == 'region':
             return self.jump(term, arm=False)
         if operands:
             if kind == 'module':
-                raise IngotError(anf.TAIL_CALL, _span(term))
-            raise IngotError('Only a block r.l is applied at the end of a block.', _span(term))
-        return Return(self.operand(term), _span(term))
+                raise IngotError(anf.TAIL_CALL, _tag(term))
+            raise IngotError('Only a block r.l is applied at the end of a block.', _tag(term))
+        return Return(self.operand(term), _tag(term))
 
     def jump(self, term, *, arm):
         head, operands = anf.jump_parts(term)
@@ -524,17 +526,17 @@ class _Body:
                 'An arm of a branch only jumps: r.l Q₁ ⋯ Qₙ, r a region.'
                 if arm
                 else 'A jump goes to a block r.l of a region.',
-                _span(head),
+                _tag(head),
             )
         region = binder.region
         blocks = {block.label: block for block in region.blocks if block.label}
         if len(labels) != 1 or labels[0] not in blocks:
-            raise IngotError(f'A jump names a block of {region.binder!r}: one of {list(blocks)}.', _span(head))
+            raise IngotError(f'A jump names a block of {region.binder!r}: one of {list(blocks)}.', _tag(head))
         target = blocks[labels[0]]
         if len(operands) != target.arity:
             raise IngotError(
                 f'{target.name} takes {target.arity} operands, one per parameter; the jump gives {len(operands)}.',
-                _span(term),
+                _tag(term),
             )
         target.jumped = True
-        return Jump(target, [self.operand(q) for q in operands], _span(term))
+        return Jump(target, [self.operand(q) for q in operands], _tag(term))
