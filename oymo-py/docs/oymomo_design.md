@@ -305,12 +305,15 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 
 #### Opcodes and confluence
 
-- E-Opcode fires on `b A`, `A ::= b | {lᵢ = Aᵢ} | λx. t (closed)`, and its result may be any
-  closed term (calculus 5). Data `D` (λ-free) is in the ANF grammar (8.3).
-- An opcode may move, copy or drop a λ. It may look inside one only if the λ is closed and
-  in normal form, deterministically and α-invariantly, with a fixed opcode table and a
-  closed result (Mitschke's δ-rule theorem, Barendregt §15.3); to be covered by the Lean
-  confluence proof. Asking whether something is a λ doesn't look inside it.
+- E-Opcode fires on `b A`, `A ::= b | {lᵢ = Aᵢ} | λx. t (closed and normal)`, and its result
+  may be any closed term (calculus 5). Data `D` (λ-free) is in the ANF grammar (8.3).
+- So an operand never steps, and an opcode may move, copy, drop or read its λs (α-invariantly,
+  with a fixed opcode table and a closed result): Mitschke's δ-rule condition, Barendregt
+  §15.3. A λ that is not normal yet is not yet an operand; normal depends on the opcode
+  table. Allowing any closed λ (moved only) was dropped: confluence held, but the
+  strategy guarantee failed (a free variable erased by another step can create an
+  E-Opcode redex the order does not see). Proved in Lean (`OpOK`: results closed and
+  well formed; `isNF_iff`).
 - Paths stay non-values: after substitution a path may be a failing projection
   (`(λx. (λy. b) x.l) {}` is `b` inner-first, stuck outer-first).
 - Opcode collections and their names (`'llvm.add'`, …) are roadmap node

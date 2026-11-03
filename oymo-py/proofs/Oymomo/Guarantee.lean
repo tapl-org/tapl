@@ -17,24 +17,16 @@ The proof follows Takahashi's factorization:
   step of the order lowers Takahashi's measure (`ParM`).
 * `IPar.merge`: after an internal step, the step the order takes can be taken first.
 
-The terms are well formed (`WF`): every struct chain ends in `snil`. Steps keep that.
+The terms are well formed (`WF`): every struct chain ends in `snil`. Steps keep that, given
+that opcode results are well formed too (`OpOK`).
 -/
 
 namespace Oymomo
 open Term
 
-variable {op : Bytes → Term → Option Bytes}
+variable {op : Bytes → Term → Option Term}
 
 /-! ## Well-formed chains -/
-
-/-- Every struct chain ends in `snil` (a tail is a struct). -/
-def WF : Term → Prop
-  | lam t => WF t
-  | app a b => WF a ∧ WF b
-  | scons _ t r => WF t ∧ WF r ∧ Oymomo.isStruct r = true
-  | proj t _ => WF t
-  | fix t => WF t
-  | _ => True
 
 theorem isStruct_ren (ξ : Nat → Nat) (r : Term) : Oymomo.isStruct (ren ξ r) = Oymomo.isStruct r := by
   cases r <;> rfl
@@ -97,14 +89,14 @@ theorem Step.isStruct {r r' : Term} (h : Step op r r') (hr : Oymomo.isStruct r =
     Oymomo.isStruct r' = true := by
   cases h <;> simp_all [Oymomo.isStruct]
 
-theorem Step.wf {t t' : Term} (h : Step op t t') : WF t → WF t' := by
+theorem Step.wf (hop : OpOK op) {t t' : Term} (h : Step op t t') : WF t → WF t' := by
   induction h with
   | beta _ =>
     intro hw
     exact WF.subst (fun n => by cases n with | zero => exact hw.2 | succ n => trivial) hw.1
   | @proj s _ _ hl => intro hw; exact WF.lookup (s := s) hw hl
   | index hs => intro hw; exact hw.1.select hs
-  | opcode _ _ _ => intro _; trivial
+  | opcode _ h2 => intro _; exact hop.wf h2
   | lam _ ih => exact ih
   | app1 _ ih => intro hw; exact ⟨ih hw.1, hw.2⟩
   | app2 _ ih => intro hw; exact ⟨hw.1, ih hw.2⟩
@@ -119,12 +111,13 @@ theorem Step.wf {t t' : Term} (h : Step op t t') : WF t → WF t' := by
     exact ⟨WF.subst (fun n => by cases n with | zero => exact hw.1 | succ n => trivial) hw.1, hw.2⟩
   | fix _ ih => exact ih
 
-theorem SStep.wf {t t' : Term} (h : SStep op t t') (hw : WF t) : WF t' := (sstep_step h).wf hw
+theorem SStep.wf (hop : OpOK op) {t t' : Term} (h : SStep op t t') (hw : WF t) : WF t' :=
+  (sstep_step h).wf hop hw
 
-theorem Star.sstep_wf {t t' : Term} (h : Star (SStep op) t t') (hw : WF t) : WF t' := by
+theorem Star.sstep_wf (hop : OpOK op) {t t' : Term} (h : Star (SStep op) t t') (hw : WF t) : WF t' := by
   induction h with
   | refl => exact hw
-  | tail _ h ih => exact h.wf ih
+  | tail _ h ih => exact h.wf hop ih
 
 /-- A nonempty well-formed struct always has a field at any position (E-Index, E-Default). -/
 theorem select_some {l : String} {t r : Term} (n : Nat) (h : WF (scons l t r)) :
@@ -144,6 +137,10 @@ theorem Step.not_data {s s' : Term} (h : Step op s s') : isData s = false := by
 
 theorem not_red_data {s : Term} (h : isData s = true) : ¬ Red op s := fun ⟨_, hs⟩ => by
   rw [hs.not_data] at h; cases h
+
+/-- An opcode operand has no step. -/
+theorem not_red_operand {s : Term} (h : isOperand op s = true) : ¬ Red op s := fun ⟨_, hs⟩ =>
+  isNF_sound (isOperand_isNF h) hs
 
 theorem NVRed.nv {r : Term} (h : NVRed op r) : isValue r = false := by
   induction r with
@@ -174,7 +171,7 @@ theorem Par.normal_eq {t u : Term} (h : Par op t u) (hn : ¬ Red op t) : u = t :
   | beta hu _ _ _ _ => exact absurd ⟨_, .beta hu⟩ hn
   | projR hl _ _ => exact absurd ⟨_, .proj hl⟩ hn
   | indexR hs _ _ => exact absurd ⟨_, .index hs⟩ hn
-  | opcodeR h1 h2 h3 => exact absurd ⟨_, .opcode h1 h2 h3⟩ hn
+  | opcodeR h1 h2 => exact absurd ⟨_, .opcode h1 h2⟩ hn
   | fix _ ih => rw [ih (fun ⟨_, h⟩ => hn ⟨_, .fix h⟩)]
   | fixProjR _ _ => exact absurd ⟨_, .fixProj⟩ hn
   | fixAppR _ _ _ _ => exact absurd ⟨_, .fixApp⟩ hn
@@ -256,9 +253,9 @@ theorem RootRed.par {a a' b b' : Term} (hr : RootRed op (app a b)) (ha : Par op 
     exact hb.value hr
   | bytes c =>
     rw [Par.bytes_inv ha]
-    obtain ⟨h1, h2, h3⟩ := hr
-    rw [hb.data h2]
-    exact ⟨h1, h2, h3⟩
+    obtain ⟨h1, h2⟩ := hr
+    rw [hb.operand h1]
+    exact ⟨h1, h2⟩
   | _ =>
     cases b with
     | bytes d =>
@@ -458,7 +455,7 @@ theorem not_red_snil : ¬ Red op snil := fun ⟨_, h⟩ => by cases h
 
 /-- One step of the split: either the parallel step is internal, or the order takes a step
 and a parallel step of a smaller measure is left. -/
-theorem ParM.split1 {t u : Term} {m : Nat} (h : ParM op t u m) :
+theorem ParM.split1 (hop : OpOK op) {t u : Term} {m : Nat} (h : ParM op t u m) :
     IPar op t u ∨ ∃ t₁ m₁, SStep op t t₁ ∧ ParM op t₁ u m₁ ∧ m₁ < m := by
   induction h with
   | var n => exact .inl (.normal not_red_var)
@@ -474,10 +471,10 @@ theorem ParM.split1 {t u : Term} {m : Nat} (h : ParM op t u m) :
     · exact .inr ⟨_, _, .fix hs, .fix hm, hlt⟩
   | @fixProjR t t' l m ht _ =>
     exact .inr ⟨_, _, .fixProj,
-      .proj (ht.subst (ParM.inst (.fix (.lam ht))) (ValSub.inst_fix _)), by omega⟩
+      .proj (ht.subst hop (ParM.inst (.fix (.lam ht))) (ValSub.inst_fix _)), by omega⟩
   | @fixAppR t t' u u' m₁ m₂ ht hu _ _ =>
     exact .inr ⟨_, _, .fixApp,
-      .app (ht.subst (ParM.inst (.fix (.lam ht))) (ValSub.inst_fix _)) hu, by omega⟩
+      .app (ht.subst hop (ParM.inst (.fix (.lam ht))) (ValSub.inst_fix _)) hu, by omega⟩
   | @app a a' b b' m₁ m₂ ha hb iha ihb =>
     by_cases hroot : RootRed op (Term.app a b)
     · exact .inl (.rootApp hroot ha.par hb.par)
@@ -578,25 +575,25 @@ theorem ParM.split1 {t u : Term} {m : Nat} (h : ParM op t u m) :
       | proj1 h => exact hrs ⟨_, h⟩
       | fixProj => simp [isFixLam] at hf
   | @beta t t' u u' m₁ m₂ hu ht hu' _ _ =>
-    exact .inr ⟨_, _, .beta hu, ht.subst (ParM.inst hu') (ValSub.inst hu), by omega⟩
+    exact .inr ⟨_, _, .beta hu, ht.subst hop (ParM.inst hu') (ValSub.inst hu), by omega⟩
   | projR hl hu _ => exact .inr ⟨_, _, .proj hl, hu, by omega⟩
   | indexR hs hu _ => exact .inr ⟨_, _, .index hs, hu, by omega⟩
-  | opcodeR h1 h2 h3 => exact .inr ⟨_, _, .opcode h1 h2 h3, .bytes _, by omega⟩
+  | opcodeR h1 h2 => exact .inr ⟨_, _, .opcode h1 h2, ParM.refl _, by omega⟩
 
 /-- Split (step A): a parallel step is some steps of the order, then an internal
 step. -/
-theorem Par.split {t u : Term} (h : Par op t u) : ∃ t', Star (SStep op) t t' ∧ IPar op t' u := by
+theorem Par.split (hop : OpOK op) {t u : Term} (h : Par op t u) : ∃ t', Star (SStep op) t t' ∧ IPar op t' u := by
   obtain ⟨m, hm⟩ := h.parM
   induction m using Nat.strongRecOn generalizing t with
   | _ m ih =>
-    rcases hm.split1 with h' | ⟨t₁, m₁, hs, hm₁, hlt⟩
+    rcases (hm.split1 hop) with h' | ⟨t₁, m₁, hs, hm₁, hlt⟩
     · exact ⟨t, .refl _, h'⟩
     · obtain ⟨t', hst, hip⟩ := ih m₁ hlt hm₁.par hm₁
       exact ⟨t', Star.head hs hst, hip⟩
 
 /-! ## Merge: after an internal step, the order's step can come first -/
 
-theorem rootApp_merge {a a' b b' u₁ : Term} (hr : RootRed op (app a b)) (ha : Par op a a')
+theorem rootApp_merge (hop : OpOK op) {a a' b b' u₁ : Term} (hr : RootRed op (app a b)) (ha : Par op a a')
     (hb : Par op b b') (hu : SStep op (app a' b') u₁) :
     ∃ t₂, SStep op (app a b) t₂ ∧ Par op t₂ u₁ := by
   cases a with
@@ -604,13 +601,13 @@ theorem rootApp_merge {a a' b b' u₁ : Term} (hr : RootRed op (app a b)) (ha : 
     obtain ⟨t', rfl, ht⟩ := Par.lam_inv ha
     have hv' : isValue b' = true := hb.value hr
     rw [sstep_det hu (.beta hv')]
-    exact ⟨_, .beta hr, ht.subst (Par.inst hb) (ValSub.inst hr)⟩
+    exact ⟨_, .beta hr, ht.subst hop (Par.inst hb) (ValSub.inst hr)⟩
   | bytes c =>
     rw [Par.bytes_inv ha] at hu
-    obtain ⟨h1, h2, b'', h3⟩ := hr
-    rw [hb.data h2] at hu
-    rw [sstep_det hu (.opcode h1 h2 h3)]
-    exact ⟨_, .opcode h1 h2 h3, .refl _⟩
+    obtain ⟨h1, r, h2⟩ := hr
+    rw [hb.operand h1] at hu
+    rw [sstep_det hu (.opcode h1 h2)]
+    exact ⟨_, .opcode h1 h2, .refl _⟩
   | _ =>
     cases b with
     | bytes d =>
@@ -622,11 +619,11 @@ theorem rootApp_merge {a a' b b' u₁ : Term} (hr : RootRed op (app a b)) (ha : 
     | _ => exact hr.elim
 
 /-- Merge (step B). -/
-theorem IPar.merge {t u : Term} (h : IPar op t u) :
+theorem IPar.merge (hop : OpOK op) {t u : Term} (h : IPar op t u) :
     WF t → ∀ {u₁}, SStep op u u₁ → ∃ t₂, SStep op t t₂ ∧ Par op t₂ u₁ := by
   induction h with
   | normal hn => intro _ _ hu; exact absurd hu.red hn
-  | rootApp hr ha hb => intro _ _ hu; exact rootApp_merge hr ha hb hu
+  | rootApp hr ha hb => intro _ _ hu; exact rootApp_merge hop hr ha hb hu
   | rootProj hl hs =>
     intro _ _ hu
     obtain ⟨w, hw⟩ := hl
@@ -638,13 +635,13 @@ theorem IPar.merge {t u : Term} (h : IPar op t u) :
     obtain ⟨t, rfl⟩ := isFixLam_inv hf
     obtain ⟨t', rfl, ht⟩ := hs.fix_lam_inv
     rw [sstep_det hu .fixProj]
-    exact ⟨_, .fixProj, .proj (ht.subst (Par.inst (.fix (.lam ht))) (ValSub.inst_fix _))⟩
+    exact ⟨_, .fixProj, .proj (ht.subst hop (Par.inst (.fix (.lam ht))) (ValSub.inst_fix _))⟩
   | rootFixApp hf ha hb =>
     intro _ _ hu
     obtain ⟨t, rfl⟩ := isFixLam_inv hf
     obtain ⟨t', rfl, ht⟩ := ha.fix_lam_inv
     rw [sstep_det hu .fixApp]
-    exact ⟨_, .fixApp, .app (ht.subst (Par.inst (.fix (.lam ht))) (ValSub.inst_fix _)) hb⟩
+    exact ⟨_, .fixApp, .app (ht.subst hop (Par.inst (.fix (.lam ht))) (ValSub.inst_fix _)) hb⟩
   | fix _ ih =>
     intro hw _ hu
     cases hu with
@@ -707,7 +704,7 @@ theorem IPar.merge {t u : Term} (h : IPar op t u) :
     | beta _ => simp [Oymomo.isStruct] at hst'
     | arg _ _ => simp [Oymomo.isStruct] at hst'
     | fixApp => simp [Oymomo.isStruct] at hst'
-    | opcode _ _ _ => simp [Oymomo.isStruct] at hst'
+    | opcode _ _ => simp [Oymomo.isStruct] at hst'
     | index _ => rw [hip.bytes_eq] at hrc; exact absurd hrc not_red_bytes
     | cond _ h' =>
       obtain ⟨c₂, hc₂, hp⟩ := ih hw.2 h'
@@ -734,7 +731,7 @@ theorem IPar.merge {t u : Term} (h : IPar op t u) :
       have h := hip.isFixLam_eq
       rw [hf] at h
       simp [isFixLam] at h
-    | opcode _ _ _ => rw [hip.bytes_eq] at hra; exact absurd hra not_red_bytes
+    | opcode _ _ => rw [hip.bytes_eq] at hra; exact absurd hra not_red_bytes
     | index hsel =>
       have hsa' : Oymomo.isStruct a' = true := by
         revert hsel; cases a' <;> simp [Oymomo.select, Oymomo.isStruct]
@@ -762,7 +759,7 @@ theorem IPar.merge {t u : Term} (h : IPar op t u) :
     | beta _ => simp [isLam] at hl
     | arg _ _ => simp [isLam] at hl
     | fixApp => simp [isFixLam] at hf
-    | opcode _ h2 _ => exact absurd hrb' (not_red_data h2)
+    | opcode h1 _ => exact absurd hrb' (not_red_operand h1)
     | index _ => exact absurd hrb' not_red_bytes
     | cond hst _ => rw [hs] at hst; cases hst
     | app1 _ _ _ _ h' => exact absurd h'.red hna
@@ -846,27 +843,27 @@ theorem Star.head_induction {R : Term → Term → Prop} {b : Term} {P : Term �
     exact ih (hstep hmb (.refl _) hb) (fun hac hcm hc => hstep hac (hcm.tail hmb) hc)
 
 /-- A parallel step into a term from which the order reaches a normal form. -/
-theorem par_sstar {n : Term} (hn : ¬ Red op n) {u : Term} (hu : Star (SStep op) u n) :
+theorem par_sstar (hop : OpOK op) {n : Term} (hn : ¬ Red op n) {u : Term} (hu : Star (SStep op) u n) :
     ∀ {t}, WF t → Par op t u → Star (SStep op) t n := by
   refine Star.head_induction (P := fun u => ∀ {t}, WF t → Par op t u → Star (SStep op) t n)
     ?_ ?_ hu
   · intro t _ hp
-    obtain ⟨t', hst, hip⟩ := hp.split
+    obtain ⟨t', hst, hip⟩ := hp.split hop
     have hnt : ¬ Red op t' := fun h => hn (hip.red h)
     rw [← hip.par.normal_eq hnt] at hst
     exact hst
   · intro u u₁ hs _ ih t hw hp
-    obtain ⟨t', hst, hip⟩ := hp.split
-    obtain ⟨t₂, hs₂, hp₂⟩ := hip.merge (hst.sstep_wf hw) hs
-    exact hst.trans (Star.head hs₂ (ih ((hs₂.wf (hst.sstep_wf hw))) hp₂))
+    obtain ⟨t', hst, hip⟩ := hp.split hop
+    obtain ⟨t₂, hs₂, hp₂⟩ := hip.merge hop (hst.sstep_wf hop hw) hs
+    exact hst.trans (Star.head hs₂ (ih ((hs₂.wf hop (hst.sstep_wf hop hw))) hp₂))
 
 /-- The guarantee: when a well-formed term reaches a normal form, the order reaches
-it. -/
-theorem guarantee {t n : Term} (hw : WF t) (h : Star (Step op) t n) (hn : ¬ Red op n) :
+it, for every opcode table whose results are closed and well formed. -/
+theorem guarantee (hop : OpOK op) {t n : Term} (hw : WF t) (h : Star (Step op) t n) (hn : ¬ Red op n) :
     Star (SStep op) t n := by
   refine Star.head_induction (P := fun t => WF t → Star (SStep op) t n) (fun _ => .refl _)
     ?_ h hw
   intro a c hac _ ih hwa
-  exact par_sstar hn (ih (hac.wf hwa)) hwa hac.par
+  exact par_sstar hop hn (ih (hac.wf hop hwa)) hwa hac.par
 
 end Oymomo

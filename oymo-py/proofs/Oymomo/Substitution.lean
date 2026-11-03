@@ -153,4 +153,80 @@ theorem ren_inst (ξ : Nat → Nat) (u t : Term) :
   funext n
   cases n <;> rfl
 
+/-! ## Closed terms -/
+
+/-- Every free index of `t` is below `k`. -/
+def closedAt : Nat → Term → Bool
+  | k, var n => decide (n < k)
+  | k, lam t => closedAt (k + 1) t
+  | k, app a b => closedAt k a && closedAt k b
+  | _, snil => true
+  | k, scons _ t r => closedAt k t && closedAt k r
+  | k, proj t _ => closedAt k t
+  | _, bytes _ => true
+  | k, fix t => closedAt k t
+
+/-- `t` has no free variable. -/
+def closed (t : Term) : Prop := closedAt 0 t = true
+
+/-- A renaming that fixes the free indices of `t` leaves `t` alone. -/
+theorem ren_closedAt {k : Nat} {t : Term} (h : closedAt k t = true) (ξ : Nat → Nat)
+    (hξ : ∀ n, n < k → ξ n = n) : ren ξ t = t := by
+  induction t generalizing k ξ with
+  | var n =>
+    simp only [closedAt, decide_eq_true_eq] at h
+    simp only [ren, hξ n h]
+  | lam t ih =>
+    simp only [closedAt] at h
+    simp only [ren]
+    rw [ih h]
+    intro n hn
+    cases n with
+    | zero => rfl
+    | succ n => simp only [upr]; rw [hξ n (by omega)]
+  | app a b iha ihb =>
+    simp only [closedAt, Bool.and_eq_true] at h
+    simp only [ren, iha h.1 ξ hξ, ihb h.2 ξ hξ]
+  | snil => rfl
+  | scons l t r iht ihr =>
+    simp only [closedAt, Bool.and_eq_true] at h
+    simp only [ren, iht h.1 ξ hξ, ihr h.2 ξ hξ]
+  | proj t l ih => simp only [closedAt] at h; simp only [ren, ih h ξ hξ]
+  | bytes b => rfl
+  | fix t ih => simp only [closedAt] at h; simp only [ren, ih h ξ hξ]
+
+/-- A substitution that fixes the free indices of `t` leaves `t` alone. -/
+theorem subst_closedAt {k : Nat} {t : Term} (h : closedAt k t = true) (σ : Nat → Term)
+    (hσ : ∀ n, n < k → σ n = var n) : subst σ t = t := by
+  induction t generalizing k σ with
+  | var n =>
+    simp only [closedAt, decide_eq_true_eq] at h
+    simp only [subst, hσ n h]
+  | lam t ih =>
+    simp only [closedAt] at h
+    simp only [subst]
+    rw [ih h]
+    intro n hn
+    cases n with
+    | zero => rfl
+    | succ n => simp only [ups]; rw [hσ n (by omega)]; rfl
+  | app a b iha ihb =>
+    simp only [closedAt, Bool.and_eq_true] at h
+    simp only [subst, iha h.1 σ hσ, ihb h.2 σ hσ]
+  | snil => rfl
+  | scons l t r iht ihr =>
+    simp only [closedAt, Bool.and_eq_true] at h
+    simp only [subst, iht h.1 σ hσ, ihr h.2 σ hσ]
+  | proj t l ih => simp only [closedAt] at h; simp only [subst, ih h σ hσ]
+  | bytes b => rfl
+  | fix t ih => simp only [closedAt] at h; simp only [subst, ih h σ hσ]
+
+/-- A closed term has no variable to rename. -/
+theorem ren_closed {t : Term} (h : closed t) (ξ : Nat → Nat) : ren ξ t = t :=
+  ren_closedAt h ξ (fun _ hn => absurd hn (Nat.not_lt_zero _))
+
+/-- A closed term has no variable to substitute. -/
+theorem subst_closed {t : Term} (h : closed t) (σ : Nat → Term) : subst σ t = t :=
+  subst_closedAt h σ (fun _ hn => absurd hn (Nat.not_lt_zero _))
+
 end Oymomo

@@ -13,16 +13,20 @@ the closure of `⟶`, is confluent.
 E-Beta substitutes only values, so the substitution lemma asks the substitution to map
 every variable to a value (`ValSub`); values are closed under substitution of values and
 under parallel reduction (`isValue_subst`, `Par.value`).
+
+E-Opcode's operand never steps and its result is closed (`OpOK`), so renaming and
+substitution leave both alone; the theorems hold for every opcode table with closed
+results.
 -/
 
 namespace Oymomo
 open Term
 
-variable {op : Bytes → Term → Option Bytes}
+variable {op : Bytes → Term → Option Term}
 
 /-! ## Parallel reduction goes through renaming and substitution -/
 
-theorem Par.ren {t t' : Term} (h : Par op t t') (ξ : Nat → Nat) :
+theorem Par.ren (hop : OpOK op) {t t' : Term} (h : Par op t t') (ξ : Nat → Nat) :
     Par op (Oymomo.ren ξ t) (Oymomo.ren ξ t') := by
   induction h generalizing ξ with
   | var n => exact .var _
@@ -38,10 +42,10 @@ theorem Par.ren {t t' : Term} (h : Par op t t') (ξ : Nat → Nat) :
     exact .beta (isValue_ren _ hu) (iht _) (ihu _)
   | projR h _ ih => exact .projR (lookup_ren ξ h) (ih _)
   | indexR h _ ih => exact .indexR (select_ren ξ h) (ih _)
-  | opcodeR h1 h2 h3 =>
+  | opcodeR h1 h2 =>
     simp only [Oymomo.ren]
-    rw [ren_data ξ h2]
-    exact .opcodeR h1 h2 h3
+    rw [ren_closed (isOperand_closed h1), ren_closed (hop.closed h2)]
+    exact .opcodeR h1 h2
   | fix _ ih => exact .fix (ih _)
   | fixProjR _ ih =>
     simp only [Oymomo.ren]
@@ -54,43 +58,43 @@ theorem Par.ren {t t' : Term} (h : Par op t t') (ξ : Nat → Nat) :
     simp only [Oymomo.ren]
     exact .fixAppR (iht _) (ihu _)
 
-theorem Par.ups {σ τ : Nat → Term} (h : ∀ n, Par op (σ n) (τ n)) :
+theorem Par.ups (hop : OpOK op) {σ τ : Nat → Term} (h : ∀ n, Par op (σ n) (τ n)) :
     ∀ n, Par op (Oymomo.ups σ n) (Oymomo.ups τ n)
   | 0 => .var 0
-  | n + 1 => (h n).ren Nat.succ
+  | n + 1 => (h n).ren hop Nat.succ
 
-theorem Par.subst {t t' : Term} (h : Par op t t') {σ τ : Nat → Term}
+theorem Par.subst (hop : OpOK op) {t t' : Term} (h : Par op t t') {σ τ : Nat → Term}
     (hσ : ∀ n, Par op (σ n) (τ n)) (hv : ValSub σ) :
     Par op (Oymomo.subst σ t) (Oymomo.subst τ t') := by
   induction h generalizing σ τ with
   | var n => exact hσ n
   | bytes b => exact .bytes b
   | snil => exact .snil
-  | lam _ ih => exact .lam (ih (Par.ups hσ) hv.ups)
+  | lam _ ih => exact .lam (ih (Par.ups hop hσ) hv.ups)
   | app _ _ iha ihb => exact .app (iha hσ hv) (ihb hσ hv)
   | scons _ _ iht ihr => exact .scons (iht hσ hv) (ihr hσ hv)
   | proj _ ih => exact .proj (ih hσ hv)
   | beta hu _ _ iht ihu =>
     simp only [Oymomo.subst]
     rw [subst_inst]
-    exact .beta (isValue_subst hv hu) (iht (Par.ups hσ) hv.ups) (ihu hσ hv)
+    exact .beta (isValue_subst hv hu) (iht (Par.ups hop hσ) hv.ups) (ihu hσ hv)
   | projR h _ ih => exact .projR (lookup_subst _ h) (ih hσ hv)
   | indexR h _ ih => exact .indexR (select_subst _ h) (ih hσ hv)
-  | opcodeR h1 h2 h3 =>
+  | opcodeR h1 h2 =>
     simp only [Oymomo.subst]
-    rw [subst_data _ h2]
-    exact .opcodeR h1 h2 h3
+    rw [subst_closed (isOperand_closed h1), subst_closed (hop.closed h2)]
+    exact .opcodeR h1 h2
   | fix _ ih => exact .fix (ih hσ hv)
   | fixProjR _ ih =>
     simp only [Oymomo.subst]
     rw [subst_inst]
     simp only [Oymomo.subst]
-    exact .fixProjR (ih (Par.ups hσ) hv.ups)
+    exact .fixProjR (ih (Par.ups hop hσ) hv.ups)
   | fixAppR _ _ iht ihu =>
     simp only [Oymomo.subst]
     rw [subst_inst]
     simp only [Oymomo.subst]
-    exact .fixAppR (iht (Par.ups hσ) hv.ups) (ihu hσ hv)
+    exact .fixAppR (iht (Par.ups hop hσ) hv.ups) (ihu hσ hv)
 
 theorem Par.inst {u u' : Term} (h : Par op u u') :
     ∀ n, Par op (Oymomo.inst u n) (Oymomo.inst u' n)
@@ -112,8 +116,8 @@ def cd : Term → Term
   | proj s l => if (lookup s l).isSome then (lookup (cd s) l).getD snil else proj (cd s) l
   | app (lam t) u => if isValue u then subst (inst (cd u)) (cd t) else app (lam (cd t)) (cd u)
   | app (bytes b) s =>
-    match isStruct s && isData s, op b s with
-    | true, some b' => bytes b'
+    match isOperand op s, op b s with
+    | true, some r => r
     | _, _ => app (bytes b) (cd s)
   | app (fix (lam t)) u => app (subst (inst (fix (lam (cd t)))) (cd t)) (cd u)
   | app s (bytes b) =>
@@ -203,7 +207,7 @@ theorem ValSub.inst_fix (t : Term) : ValSub (Oymomo.inst (Term.fix (Term.lam t))
   ValSub.inst (u := Term.fix (Term.lam t)) rfl
 
 /-- Every parallel step from `t` reaches `cd t` in one more. -/
-theorem Par.triangle {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
+theorem Par.triangle (hop : OpOK op) {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
   induction h with
   | var n => exact .var n
   | bytes b => exact .bytes b
@@ -213,10 +217,10 @@ theorem Par.triangle {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
   | fix _ ih => exact .fix ih
   | @fixProjR t t' l _ ih =>
     simp only [cd]
-    exact .proj (ih.subst (Par.inst (.fix (.lam ih))) (ValSub.inst_fix _))
+    exact .proj (ih.subst hop (Par.inst (.fix (.lam ih))) (ValSub.inst_fix _))
   | @fixAppR t t' u u' _ _ iht ihu =>
     simp only [cd]
-    exact .app (iht.subst (Par.inst (.fix (.lam iht))) (ValSub.inst_fix _)) ihu
+    exact .app (iht.subst hop (Par.inst (.fix (.lam iht))) (ValSub.inst_fix _)) ihu
   | @proj t t' l htt ih =>
     cases hf : isFixLam t with
     | true =>
@@ -289,10 +293,9 @@ theorem Par.triangle {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
         rw [hab.bytes_inv]
         simp only [cd]
         split
-        next b'' hc ho =>
-          simp only [Bool.and_eq_true] at hc
-          rw [hbb.data hc.2]
-          exact .opcodeR hc.1 hc.2 ho
+        next r hc ho =>
+          rw [hbb.operand hc]
+          exact .opcodeR hc ho
         next => exact .app (.bytes c) ihb
       | fix x =>
         cases x with
@@ -306,7 +309,7 @@ theorem Par.triangle {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
       | _ => exact absurd hh Bool.false_ne_true
   | @beta t t' u u' hu _ huu iht ihu =>
     simp only [cd, hu, ite_true]
-    exact iht.subst ihu.inst (ValSub.inst (huu.value hu))
+    exact iht.subst hop ihu.inst (ValSub.inst (huu.value hu))
   | @indexR s u u' b hsel _ ih =>
     cases s with
     | scons l t r =>
@@ -315,32 +318,32 @@ theorem Par.triangle {t s : Term} (h : Par op t s) : Par op s (cd op t) := by
       rw [select_cd hsel, Option.getD_some]
       exact ih
     | _ => simp [select] at hsel
-  | @opcodeR s b b' h1 h2 h3 =>
-    simp only [cd, h1, h2, h3, Bool.and_self]
-    exact .bytes b'
+  | @opcodeR s r b h1 h2 =>
+    simp only [cd, h1, h2]
+    exact .refl r
 
 /-! ## Confluence -/
 
-theorem Par.diamond {t a b : Term} (ha : Par op t a) (hb : Par op t b) :
+theorem Par.diamond (hop : OpOK op) {t a b : Term} (ha : Par op t a) (hb : Par op t b) :
     ∃ c, Par op a c ∧ Par op b c :=
-  ⟨cd op t, ha.triangle, hb.triangle⟩
+  ⟨cd op t, ha.triangle hop, hb.triangle hop⟩
 
-theorem Par.strip {t a b : Term} (ha : Par op t a) (hb : Star (Par op) t b) :
+theorem Par.strip (hop : OpOK op) {t a b : Term} (ha : Par op t a) (hb : Star (Par op) t b) :
     ∃ c, Star (Par op) a c ∧ Par op b c := by
   induction hb generalizing a with
   | refl => exact ⟨a, .refl a, ha⟩
   | tail _ hbc ih =>
     obtain ⟨c, hac, hbc'⟩ := ih ha
-    obtain ⟨d, hcd, hd⟩ := Par.diamond hbc' hbc
+    obtain ⟨d, hcd, hd⟩ := Par.diamond hop hbc' hbc
     exact ⟨d, hac.tail hcd, hd⟩
 
-theorem Par.confluent {t a e : Term} (ha : Star (Par op) t a) (hb : Star (Par op) t e) :
+theorem Par.confluent (hop : OpOK op) {t a e : Term} (ha : Star (Par op) t a) (hb : Star (Par op) t e) :
     ∃ c, Star (Par op) a c ∧ Star (Par op) e c := by
   induction ha generalizing e with
   | refl => exact ⟨e, hb, .refl e⟩
   | tail _ hac ih =>
     obtain ⟨c, hbc, hc⟩ := ih hb
-    obtain ⟨d, had, hcd⟩ := Par.strip hac hbc
+    obtain ⟨d, had, hcd⟩ := Par.strip hop hac hbc
     exact ⟨d, had, hc.tail hcd⟩
 
 theorem star_par_iff {t s : Term} : Star (Par op) t s ↔ Star (Step op) t s := by
@@ -352,10 +355,11 @@ theorem star_par_iff {t s : Term} : Star (Par op) t s ↔ Star (Step op) t s := 
   · intro h
     exact Star.map id (fun h => h.par) h
 
-/-- `⟶` is confluent: two reduction sequences from one term meet again. -/
-theorem confluence {t a b : Term} (ha : Star (Step op) t a) (hb : Star (Step op) t b) :
+/-- `⟶` is confluent: two reduction sequences from one term meet again, for every opcode
+table whose results are closed and well formed. -/
+theorem confluence (hop : OpOK op) {t a b : Term} (ha : Star (Step op) t a) (hb : Star (Step op) t b) :
     ∃ c, Star (Step op) a c ∧ Star (Step op) b c := by
-  obtain ⟨c, hac, hbc⟩ := Par.confluent (star_par_iff.mpr ha) (star_par_iff.mpr hb)
+  obtain ⟨c, hac, hbc⟩ := Par.confluent hop (star_par_iff.mpr ha) (star_par_iff.mpr hb)
   exact ⟨c, star_par_iff.mp hac, star_par_iff.mp hbc⟩
 
 end Oymomo

@@ -280,8 +280,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   reduction still allowed
 - Convention: a library refers only to its own labels, outside through holes
 - Mixin composition, as a linker does; linear; later: parallel merge, reachability, caching
-- oymomo-calculus.tex 5.4: opacity refined (look inside only closed normal λs; Mitschke);
-  Lean: confluence with such opcodes
+- oymomo-calculus.tex 2.1, 5.4: operands hold only closed normal λs (Mitschke); Lean done
+  (`OpOK`, `isOperand`, `isNF_iff`; confluence and the guarantee kept)
 - A namespace is just a struct reached by paths; nothing new in the calculus
 - Nested ingot (namespaces are plain structs; a struct with `type` is an entry, so no
   symbol is named `type`); internal LLVM names are paths; inside a unit

@@ -25,7 +25,7 @@ proof does not need to.
 namespace Oymomo
 open Term
 
-variable {op : Bytes → Term → Option Bytes}
+variable {op : Bytes → Term → Option Term}
 
 inductive Path : Term → Prop
   | var (n : Nat) : Path (var n)
@@ -41,10 +41,12 @@ inductive Operands : Term → Prop
   | scons {l : String} {q r : Term} : Operand q → Operands r → Operands (scons l q r)
 
 variable (op) in
-/-- An instruction: an opcode call that E-Opcode does not compute, or a call. -/
+/-- An instruction: an opcode call that E-Opcode does not compute, or a call. An opcode
+call whose operands hold a path is never computed: a path is not an opcode operand
+(`Path.not_operand`). -/
 inductive Op : Term → Prop
   | opcode {b : Bytes} {s : Term} :
-      Operands s → (∀ b', isData s = true → op b s ≠ some b') → Op (app (bytes b) s)
+      Operands s → (∀ r, isOperand op s = true → op b s ≠ some r) → Op (app (bytes b) s)
   | call {g s : Term} : Path g → Operands s → Op (app g s)
 
 /-- A path applied to operands, one by one. -/
@@ -93,6 +95,10 @@ theorem Path.lookup_none {p : Term} (hp : Path p) (l : String) : lookup p l = no
 theorem Path.select_none {p : Term} (hp : Path p) (n : Nat) : select p n = none := by
   cases hp <;> rfl
 
+/-- A path has a free variable, so it is not an opcode operand. -/
+theorem Path.not_operand {p : Term} (hp : Path p) : isOperand op p = false := by
+  cases hp <;> rfl
+
 theorem Path.normal {p t' : Term} (hp : Path p) : ¬ Step op p t' := by
   induction hp generalizing t' with
   | var n => intro h; cases h
@@ -138,7 +144,7 @@ theorem Op.normal {o t' : Term} (ho : Op op o) : ¬ Step op o t' := by
     intro h
     cases h with
     | index _ => exact absurd rfl hs.not_bytes
-    | opcode _ hd ho => exact hn _ hd ho
+    | opcode hd ho => exact hn _ hd ho
     | app1 h => cases h
     | app2 h => exact hs.normal h
   | call hg hs =>
@@ -146,7 +152,7 @@ theorem Op.normal {o t' : Term} (ho : Op op o) : ¬ Step op o t' := by
     cases h with
     | beta _ => cases hg
     | index _ => exact absurd rfl hs.not_bytes
-    | opcode _ _ _ => cases hg
+    | opcode _ _ => cases hg
     | app1 h => exact hg.normal h
     | app2 h => exact hs.normal h
     | fixApp => cases hg
@@ -167,7 +173,7 @@ theorem Jump.normal {j t' : Term} (hj : Jump j) : ¬ Step op j t' := by
     cases h with
     | beta _ => cases hj with | head hp => cases hp
     | index hs => rw [hj.select_none] at hs; cases hs
-    | opcode _ _ _ => cases hj with | head hp => cases hp
+    | opcode _ _ => cases hj with | head hp => cases hp
     | app1 h => exact ih h
     | app2 h => exact hq.normal h
     | fixApp => cases hj with | head hp => cases hp
@@ -198,7 +204,7 @@ mutual
       cases h with
       | beta _ => cases hs
       | index _ => cases hc
-      | opcode _ _ _ => cases hs
+      | opcode _ _ => cases hs
       | app1 h => exact hs.normal h
       | app2 h => exact hc.normal h
       | fixApp => cases hs

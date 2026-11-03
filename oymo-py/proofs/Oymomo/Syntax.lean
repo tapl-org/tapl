@@ -62,6 +62,15 @@ def isStruct : Term → Bool
   | scons _ _ _ => true
   | _ => false
 
+/-- Every struct chain ends in `snil` (a tail is a struct). -/
+def WF : Term → Prop
+  | lam t => WF t
+  | app a b => WF a ∧ WF b
+  | scons _ t r => WF t ∧ WF r ∧ isStruct r = true
+  | proj t _ => WF t
+  | fix t => WF t
+  | _ => True
+
 /-- The field labeled `l` (labels are unique, so the first one). -/
 def lookup : Term → String → Option Term
   | scons l' t r, l => if l' = l then some t else lookup r l

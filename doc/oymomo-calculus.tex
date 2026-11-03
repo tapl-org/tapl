@@ -139,7 +139,7 @@
 \pt &   & \mid & \kw{fix}\ t & \textit{fixed point} \\[6pt]
 \pt & v & ::= & x \mid \lam{x}{t} \mid b \mid \{l_i = v_i\}_{i<k} \mid \kw{fix}\ (\lam{x}{t})  &
   \textit{value} \\
-\pt\plabel{p:opdata} & A & ::= & b \mid \{l_i = A_i\}_{i<k} \mid \lam{x}{t}\ \text{(closed)} &
+\pt\plabel{p:opdata} & A & ::= & b \mid \{l_i = A_i\}_{i<k} \mid \lam{x}{t}\ \text{(closed, normal)} &
   \textit{opcode operand}
 \end{array}
 \]
@@ -312,14 +312,15 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
     t\end{array}\]
     the $\str{store}$ stays outside the $\str{load}$, and a translation to SSA emits the $\str{store}$
     first, so the $\str{load}$ reads $\hex{05000000}$. Using one's result in the next orders them too.
-  \item The operand may hold closed lambdas, such as a module's entries. An opcode may move, copy
-    or drop a lambda, and look inside it only if it is in normal form:
-    $\str{struct.concat}\ \{\{f = \lam{x}{x}\}, \{g = \lam{y}{y}\}\} \step \{f = \lam{x}{x},\ g = \lam{y}{y}\}$ is allowed;
-    $\str{is\_identity}\ (\lam{x}{x}) \step \hex{01}$ and $\str{is\_identity}\ (\lam{x}{(\lam{y}{y})\ x}) \step \hex{00}$ is not,
-    since the second lambda reduces to the first, so the result would depend on whether the opcode fires
+  \item The operand may hold closed lambdas in normal form, such as a module's entries. An opcode may move, copy,
+    drop or read a lambda:
+    $\str{struct.concat}\ \{\{f = \lam{x}{x}\}, \{g = \lam{y}{y}\}\} \step \{f = \lam{x}{x},\ g = \lam{y}{y}\}$, and $\str{is\_identity}\ (\lam{x}{x}) \step \hex{01}$.
+  \item A lambda that is not yet normal is not yet an operand: $\str{is\_identity}\ (\lam{x}{(\lam{y}{y})\ x})$ waits
+    until the lambda reduces to $\lam{x}{x}$. Otherwise the result would depend on whether the opcode fires
     before or after that step.
-  \item A lambda in normal form never steps, so an opcode may read it, as long as its result does not
-    depend on the names of bound variables ($\lam{x}{x}$ and $\lam{y}{y}$ are one term). Built-in functions
+  \item So an operand never steps. An opcode's result must not depend on the names of bound variables
+    ($\lam{x}{x}$ and $\lam{y}{y}$ are one term). Normal depends on $\fn{op}$: a lambda holding an opcode call
+    that $\fn{op}$ computes is not normal yet. Built-in functions
     on closed normal operands keep a confluent calculus confluent (Mitschke's $\delta$-rules).
   \item The result may hold lambdas but is closed, so substituting it captures no variable; it may
     reduce further.
@@ -407,7 +408,7 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \begin{points}
 \item\label{p:normal} A normal form is a term with no step. By confluence (\pref{p:confluent}), a term has at most one.
 \item\label{p:stuck} A normal form is stuck when it contains a part that no substitution can make
-  reduce, such as $\{\}\ t$, a byte array applied to a lambda, or $t.l$ where $t$ is a lambda, or $\kw{fix}\ t$ where $t$ is a byte array or a struct. A
+  reduce, such as $\{\}\ t$, or $t.l$ where $t$ is a lambda, or $\kw{fix}\ t$ where $t$ is a byte array or a struct. A
   program $t$ with $t \steps t'$ for a stuck $t'$ is rejected.
 \item\label{p:forms} A normal form that is not stuck is valid. An unknown opcode or undefined behavior is not stuck: the call is normal (\pref{p:opcode}). A normal form is in ANF (Section~\ref{sec:banf}) or
   not; only one in ANF is translated. $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$

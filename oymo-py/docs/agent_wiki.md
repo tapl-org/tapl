@@ -2761,6 +2761,14 @@ executable binary). we should mark some place as a platform". The steps that fol
   (Confluence.lean still has E-Opcode on data only). On `unit-var-name`, `label-bytes`,
   `region-marker`, user: "these are outside of oymomo-redesign" (moved under
   `pre-bootstrap`, beside `opcode-namespaces`).
+- Committed `8a0bd49` (ingot leaf renamed "Nested"). Lean update by a subagent: it found
+  the guarantee false with any closed λ as operand (counterexample
+  `λy. c {w = λu. Ω, x = λz. (λ_. b₀) y}`, `op(c)` constant: the order loops on `w`, while
+  reducing `x` closes the operand). Option A: operands hold only closed normal λs (Mitschke).
+  User: "yes" (decided). Lean: `op : Bytes → Term → Option Term`, `isNF op`/`isOperand op`,
+  `isNF_iff`, `OpOK` (results closed, WF); all theorems kept, no sorry/axiom. Calculus pass
+  (2.1 row A, 5.4 bullets, stuck list without "a byte array applied to a lambda") in review
+  marks.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

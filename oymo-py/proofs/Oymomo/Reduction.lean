@@ -6,9 +6,13 @@ import Oymomo.Substitution
 # Reduction
 
 `Step op t t'` is `t ⟶ t'`: a computation rule anywhere in `t` (reduction
-anywhere). `op` is the opcode table, left abstract: `op b s = some b'` when `op(b)` is
-defined on the operands `s`. E-Opcode reads it only when `s` is data, which
-never steps. E-Beta substitutes only a value. E-FixProj and E-FixApp unfold a
+anywhere). `op` is the opcode table, left abstract: `op b s = some t` when `op(b)` is
+defined on the operand `s`. E-Opcode reads it only when `s` is an opcode operand
+(`isOperand`): a byte array, a struct of operands, or a closed lambda in normal form. An
+operand never steps (`isNF_sound`), so an opcode may move, copy, drop or read its lambdas.
+The result is any closed term (`OpOK`); it may hold lambdas and reduce further. Normal
+forms are a syntactic test here (`isNF`, exactly the terms with no step: `isNF_iff`),
+since a rule cannot ask for the absence of steps. E-Beta substitutes only a value. E-FixProj and E-FixApp unfold a
 fixed point `fix (λx. t)` once, where it is projected or applied.
 
 `Par op t t'` is parallel reduction: any set of redexes of `t` at once. It is the tool for
@@ -46,7 +50,45 @@ theorem map {S : Term → Term → Prop} (f : Term → Term) (hf : ∀ {a b}, R 
 
 end Star
 
-variable (op : Bytes → Term → Option Bytes)
+variable (op : Bytes → Term → Option Term)
+
+/-- The root of `a u` is a redex: E-Beta, E-FixApp, E-Opcode (`ok` says that `u` is an
+opcode operand), or E-Index and E-Default. -/
+def appRedex (a u : Term) (ok : Bool) : Bool :=
+  match a, u with
+  | lam _, u => isValue u
+  | fix (lam _), _ => true
+  | bytes b, u => ok && (op b u).isSome
+  | a, bytes n => (select a n.toNat).isSome
+  | _, _ => false
+
+mutual
+  /-- Normal forms, by their syntax: no computation rule fires anywhere in the term. -/
+  def isNF : Term → Bool
+    | var _ => true
+    | lam t => isNF t
+    | app a u => isNF a && isNF u && !appRedex op a u (isOperand u)
+    | snil => true
+    | scons _ t r => isNF t && isNF r
+    | proj s l => isNF s && (lookup s l).isNone && !isFixLam s
+    | bytes _ => true
+    | fix t => isNF t
+
+  /-- Opcode operands `A`: a byte array, a struct of operands, or a closed lambda in normal
+  form. -/
+  def isOperand : Term → Bool
+    | lam t => isNF t && closedAt 1 t
+    | snil => true
+    | scons _ t r => isOperand t && isOperand r
+    | bytes _ => true
+    | _ => false
+end
+
+/-- What the strategy and the proofs ask of the opcode table: every result is closed, so
+substituting it captures no variable, and its struct chains end in `snil`. -/
+structure OpOK : Prop where
+  closed : ∀ {b : Bytes} {s r : Term}, op b s = some r → Oymomo.closed r
+  wf : ∀ {b : Bytes} {s r : Term}, op b s = some r → WF r
 
 /-- One step, `t ⟶ t'`. -/
 inductive Step : Term → Term → Prop
@@ -57,8 +99,8 @@ inductive Step : Term → Term → Prop
   /-- E-Index and E-Default. -/
   | index {s u : Term} {b : Bytes} : select s b.toNat = some u → Step (app s (bytes b)) u
   /-- E-Opcode. -/
-  | opcode {s : Term} {b b' : Bytes} :
-      isStruct s = true → isData s = true → op b s = some b' → Step (app (bytes b) s) (bytes b')
+  | opcode {s r : Term} {b : Bytes} :
+      isOperand op s = true → op b s = some r → Step (app (bytes b) s) r
   /-- E-Abs. -/
   | lam {t t' : Term} : Step t t' → Step (lam t) (lam t')
   /-- E-App1. -/
@@ -93,8 +135,8 @@ inductive Par : Term → Term → Prop
   | projR {s u u' : Term} {l : String} : lookup s l = some u → Par u u' → Par (proj s l) u'
   | indexR {s u u' : Term} {b : Bytes} :
       select s b.toNat = some u → Par u u' → Par (app s (bytes b)) u'
-  | opcodeR {s : Term} {b b' : Bytes} :
-      isStruct s = true → isData s = true → op b s = some b' → Par (app (bytes b) s) (bytes b')
+  | opcodeR {s r : Term} {b : Bytes} :
+      isOperand op s = true → op b s = some r → Par (app (bytes b) s) r
   | fix {t t' : Term} : Par t t' → Par (fix t) (fix t')
   | fixProjR {t t' : Term} {l : String} :
       Par t t' → Par (proj (fix (lam t)) l) (proj (subst (inst (fix (lam t'))) t') l)
@@ -236,7 +278,7 @@ theorem Step.par {t t' : Term} (h : Step op t t') : Par op t t' := by
   | beta hu => exact .beta hu (.refl _) (.refl _)
   | proj h => exact .projR h (.refl _)
   | index h => exact .indexR h (.refl _)
-  | opcode h1 h2 h3 => exact .opcodeR h1 h2 h3
+  | opcode h1 h2 => exact .opcodeR h1 h2
   | lam _ ih => exact .lam ih
   | app1 _ ih => exact .app ih (.refl _)
   | app2 _ ih => exact .app (.refl _) ih
@@ -266,7 +308,7 @@ theorem Par.star {t t' : Term} (h : Par op t t') : Star (Step op) t t' := by
     exact (h1.trans h2).tail (Step.beta (huu.value hu))
   | projR h _ ih => exact Star.head (Step.proj h) ih
   | indexR h _ ih => exact Star.head (Step.index h) ih
-  | opcodeR h1 h2 h3 => exact Star.single (Step.opcode h1 h2 h3)
+  | opcodeR h1 h2 => exact Star.single (Step.opcode h1 h2)
   | fix _ ih => exact Star.map Term.fix (fun h => Step.fix h) ih
   | @fixProjR t t' l _ ih =>
     exact (Star.map (fun x => Term.proj (Term.fix (Term.lam x)) l)
@@ -319,5 +361,141 @@ theorem select_par {s s' u : Term} {n : Nat} (h : Par op s s') (hl : select s n 
       | scons _ _ => simp only [select] at hl ⊢; exact ihr hl
       | _ => simp [select] at hl
   | _ => simp [select] at hl
+
+/-! ## Normal forms and operands -/
+
+theorem isNF_app {a u : Term} :
+    isNF op (app a u) = (isNF op a && isNF op u && !appRedex op a u (isOperand op u)) := by
+  simp [isNF]
+
+theorem isOperand_isNF {s : Term} (h : isOperand op s = true) : isNF op s = true := by
+  induction s with
+  | lam t _ => simp only [isOperand, Bool.and_eq_true] at h; simp [isNF, h.1]
+  | scons l t r iht ihr =>
+    simp only [isOperand, Bool.and_eq_true] at h
+    simp [isNF, iht h.1, ihr h.2]
+  | snil => simp [isNF]
+  | bytes => simp [isNF]
+  | _ => simp [isOperand] at h
+
+/-- An operand is closed. -/
+theorem isOperand_closed {s : Term} (h : isOperand op s = true) : closed s := by
+  induction s with
+  | lam t _ => simp only [isOperand, Bool.and_eq_true] at h; exact h.2
+  | scons l t r iht ihr =>
+    simp only [isOperand, Bool.and_eq_true] at h
+    have h1 := iht h.1
+    have h2 := ihr h.2
+    simp only [closed, closedAt, Bool.and_eq_true] at h1 h2 ⊢
+    exact ⟨h1, h2⟩
+  | snil => rfl
+  | bytes => rfl
+  | _ => simp [isOperand] at h
+
+/-- A redex at the root of an application is a step. -/
+theorem appRedex_step {a u : Term} (h : appRedex op a u (isOperand op u) = true) :
+    ∃ t', Step op (app a u) t' := by
+  unfold appRedex at h
+  split at h
+  · exact ⟨_, .beta h⟩
+  · exact ⟨_, .fixApp⟩
+  · simp only [Bool.and_eq_true, Option.isSome_iff_exists] at h
+    obtain ⟨h1, _, h2⟩ := h
+    exact ⟨_, .opcode h1 h2⟩
+  · obtain ⟨_, hs⟩ := Option.isSome_iff_exists.mp h
+    exact ⟨_, .index hs⟩
+  · cases h
+
+/-- A normal form has no step. -/
+theorem isNF_sound {t t' : Term} (h : isNF op t = true) : ¬ Step op t t' := by
+  intro hs
+  induction hs with
+  | beta hu => simp [isNF_app, appRedex, hu] at h
+  | proj hl => simp [isNF, hl] at h
+  | @index s _ b hsel =>
+    rw [isNF_app] at h
+    cases s with
+    | fix x => cases x <;> simp_all [select]
+    | _ => simp_all [appRedex, select]
+  | opcode h1 h2 => simp [isNF_app, appRedex, h1, h2] at h
+  | lam _ ih => exact ih (by simpa [isNF] using h)
+  | app1 _ ih => simp only [isNF_app, Bool.and_eq_true] at h; exact ih h.1.1
+  | app2 _ ih => simp only [isNF_app, Bool.and_eq_true] at h; exact ih h.1.2
+  | scons1 _ ih => simp only [isNF, Bool.and_eq_true] at h; exact ih h.1
+  | scons2 _ ih => simp only [isNF, Bool.and_eq_true] at h; exact ih h.2
+  | proj1 _ ih => simp only [isNF, Bool.and_eq_true] at h; exact ih h.1.1
+  | fixProj => simp [isNF, isFixLam] at h
+  | fixApp => simp [isNF_app, appRedex] at h
+  | fix _ ih => exact ih (by simpa [isNF] using h)
+
+/-- A term with no step is a normal form. -/
+theorem isNF_complete : ∀ {t : Term}, (∀ t', ¬ Step op t t') → isNF op t = true
+  | var _, _ => by simp [isNF]
+  | snil, _ => by simp [isNF]
+  | bytes _, _ => by simp [isNF]
+  | lam t, h => by
+    simp only [isNF]
+    exact isNF_complete fun t' ht => h _ (.lam ht)
+  | fix t, h => by
+    simp only [isNF]
+    exact isNF_complete fun t' ht => h _ (.fix ht)
+  | scons l t r, h => by
+    simp only [isNF, Bool.and_eq_true]
+    exact ⟨isNF_complete fun t' ht => h _ (.scons1 ht),
+      isNF_complete fun r' hr => h _ (.scons2 hr)⟩
+  | proj s l, h => by
+    simp only [isNF, Bool.and_eq_true, Bool.not_eq_true']
+    refine ⟨⟨isNF_complete fun s' hs => h _ (.proj1 hs), ?_⟩, ?_⟩
+    · cases hl : lookup s l with
+      | none => rfl
+      | some u => exact absurd (Step.proj hl) (h _)
+    · cases s with
+      | fix x =>
+        cases x with
+        | lam t => exact absurd Step.fixProj (h _)
+        | _ => rfl
+      | _ => rfl
+  | app a u, h => by
+    rw [isNF_app]
+    simp only [Bool.and_eq_true, Bool.not_eq_true']
+    refine ⟨⟨isNF_complete fun a' ha => h _ (.app1 ha),
+      isNF_complete fun u' hu => h _ (.app2 hu)⟩, ?_⟩
+    cases hr : appRedex op a u (isOperand op u) with
+    | false => rfl
+    | true =>
+      obtain ⟨_, hs⟩ := appRedex_step hr
+      exact absurd hs (h _)
+
+/-- `isNF` is exactly the normal forms. -/
+theorem isNF_iff {t : Term} : isNF op t = true ↔ ∀ t', ¬ Step op t t' :=
+  ⟨fun h _ => isNF_sound h, isNF_complete⟩
+
+/-- A normal form has no parallel step but itself. -/
+theorem Par.nf_eq {t u : Term} (h : Par op t u) (hn : isNF op t = true) : u = t := by
+  induction h with
+  | var => rfl
+  | bytes => rfl
+  | snil => rfl
+  | lam _ ih => rw [ih (by simpa [isNF] using hn)]
+  | app _ _ iha ihb =>
+    simp only [isNF_app, Bool.and_eq_true] at hn
+    rw [iha hn.1.1, ihb hn.1.2]
+  | scons _ _ iht ihr =>
+    simp only [isNF, Bool.and_eq_true] at hn
+    rw [iht hn.1, ihr hn.2]
+  | proj _ ih =>
+    simp only [isNF, Bool.and_eq_true] at hn
+    rw [ih hn.1.1]
+  | beta hu _ _ _ _ => exact absurd (Step.beta hu) (isNF_sound hn)
+  | projR hl _ _ => exact absurd (Step.proj hl) (isNF_sound hn)
+  | indexR hs _ _ => exact absurd (Step.index hs) (isNF_sound hn)
+  | opcodeR h1 h2 => exact absurd (Step.opcode h1 h2) (isNF_sound hn)
+  | fix _ ih => rw [ih (by simpa [isNF] using hn)]
+  | fixProjR _ _ => exact absurd Step.fixProj (isNF_sound hn)
+  | fixAppR _ _ _ _ => exact absurd Step.fixApp (isNF_sound hn)
+
+/-- An operand never steps. -/
+theorem Par.operand {s s' : Term} (h : Par op s s') (hs : isOperand op s = true) : s' = s :=
+  h.nf_eq (isOperand_isNF hs)
 
 end Oymomo

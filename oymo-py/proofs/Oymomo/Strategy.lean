@@ -18,7 +18,7 @@ congruence rule named in the table.
 namespace Oymomo
 open Term
 
-variable {op : Bytes → Term → Option Bytes}
+variable {op : Bytes → Term → Option Term}
 
 variable (op) in
 /-- `t` has a step. -/
@@ -28,7 +28,7 @@ variable (op) in
 /-- A computation rule fires at the root of `t`. -/
 def RootRed : Term → Prop
   | app (lam _) u => isValue u = true
-  | app (bytes b) s => isStruct s = true ∧ isData s = true ∧ ∃ b', op b s = some b'
+  | app (bytes b) s => isOperand op s = true ∧ ∃ r, op b s = some r
   | app s (bytes b) => ∃ u, select s b.toNat = some u
   | proj s l => ∃ u, lookup s l = some u
   | _ => False
@@ -61,8 +61,8 @@ inductive SStep : Term → Term → Prop
   /-- Row f, E-FixApp. -/
   | fixApp {t u : Term} : SStep (app (fix (lam t)) u) (app (subst (inst (fix (lam t))) t) u)
   /-- Row g, E-Opcode. -/
-  | opcode {s : Term} {b b' : Bytes} :
-      isStruct s = true → isData s = true → op b s = some b' → SStep (app (bytes b) s) (bytes b')
+  | opcode {s r : Term} {b : Bytes} :
+      isOperand op s = true → op b s = some r → SStep (app (bytes b) s) r
   /-- Rows h and i, E-Index and E-Default. -/
   | index {s u : Term} {b : Bytes} : select s b.toNat = some u → SStep (app s (bytes b)) u
   /-- Row j, E-App2 on a branch's condition. -/
@@ -102,7 +102,7 @@ theorem sstep_step {t t' : Term} (h : SStep op t t') : Step op t t' := by
   | beta h => exact .beta h
   | arg _ _ ih => exact .app2 ih
   | fixApp => exact .fixApp
-  | opcode h1 h2 h3 => exact .opcode h1 h2 h3
+  | opcode h1 h2 => exact .opcode h1 h2
   | index h => exact .index h
   | cond _ _ ih => exact .app2 ih
   | app1 _ _ _ _ _ ih => exact .app1 ih
@@ -132,7 +132,7 @@ theorem Step.root_or_parts {a b t' : Term} (h : Step op (app a b) t') :
   cases h with
   | beta hv => exact .inl hv
   | index hs => cases a <;> first | exact .inl ⟨_, hs⟩ | (simp [RootRed]; exact .inl ⟨_, hs⟩) | simp [select] at hs
-  | opcode h1 h2 h3 => exact .inl ⟨h1, h2, _, h3⟩
+  | opcode h1 h2 => exact .inl ⟨h1, _, h2⟩
   | app1 h => exact .inr (.inr (.inl ⟨_, h⟩))
   | app2 h => exact .inr (.inr (.inr ⟨_, h⟩))
   | fixApp => exact .inr (.inl rfl)
@@ -146,14 +146,9 @@ theorem RootRed.sstep {a b : Term} (h : RootRed op (app a b)) : ∃ t', SStep op
   cases a with
   | lam t => exact ⟨_, .beta h⟩
   | bytes c =>
-    cases b with
-    | bytes d =>
-      -- `app (bytes c) (bytes d)`: the opcode pattern comes first
-      obtain ⟨h1, _⟩ := h
-      exact absurd h1 (by simp [isStruct])
-    | _ =>
-      obtain ⟨h1, h2, b', h3⟩ := h
-      exact ⟨_, .opcode h1 h2 h3⟩
+    -- `app (bytes c) (bytes d)` too: the opcode pattern comes first
+    obtain ⟨h1, _, h2⟩ := h
+    exact ⟨_, .opcode h1 h2⟩
   | _ =>
     cases b with
     | bytes d =>
@@ -320,19 +315,19 @@ theorem sstep_det {t a b : Term} (ha : SStep op t a) (hb : SStep op t b) : a = b
     | cond hst _ => simp [isStruct] at hst
     | app1 _ hf _ _ _ => simp [isFixLam] at hf
     | app2 _ hf _ _ _ _ => simp [isFixLam] at hf
-  | opcode h1 h2 h3 =>
+  | opcode h1 h2 =>
     cases hb with
-    | opcode _ _ h3' => rw [h3] at h3'; cases h3'; rfl
-    | index _ => simp [isStruct] at h1
+    | opcode _ h2' => rw [h2] at h2'; cases h2'; rfl
+    | index hs => simp [select] at hs
     | cond hst _ => simp [isStruct] at hst
-    | app1 hr _ _ _ _ => exact absurd ⟨h1, h2, _, h3⟩ hr
-    | app2 hr _ _ _ _ _ => exact absurd ⟨h1, h2, _, h3⟩ hr
+    | app1 hr _ _ _ _ => exact absurd ⟨h1, _, h2⟩ hr
+    | app2 hr _ _ _ _ _ => exact absurd ⟨h1, _, h2⟩ hr
   | index hs =>
     cases hb with
     | beta _ => simp [select] at hs
     | arg _ h => exact absurd h.red not_red_bytes
     | fixApp => simp [select] at hs
-    | opcode h1 _ _ => simp [isStruct] at h1
+    | opcode _ _ => simp [select] at hs
     | index hs' => rw [hs] at hs'; cases hs'; rfl
     | cond _ hc => exact absurd hc.red not_red_bytes
     | app1 hr _ _ _ _ => exact absurd (index_root hs) hr
@@ -342,7 +337,7 @@ theorem sstep_det {t a b : Term} (ha : SStep op t a) (hb : SStep op t b) : a = b
     | beta _ => simp [isStruct] at hst
     | arg _ _ => simp [isStruct] at hst
     | fixApp => simp [isStruct] at hst
-    | opcode _ _ _ => simp [isStruct] at hst
+    | opcode _ _ => simp [isStruct] at hst
     | index _ => exact absurd hc.red not_red_bytes
     | cond _ h' => rw [ih h']
     | app1 _ _ _ hs _ => exact absurd ⟨hst, hc.red⟩ hs
@@ -352,7 +347,7 @@ theorem sstep_det {t a b : Term} (ha : SStep op t a) (hb : SStep op t b) : a = b
     | beta hv => exact absurd hv hr
     | arg _ hb' => exact absurd ⟨rfl, hb'.red⟩ hl
     | fixApp => simp [isFixLam] at hf
-    | opcode h1 h2 h3 => exact absurd ⟨h1, h2, _, h3⟩ hr
+    | opcode h1 h2 => exact absurd ⟨h1, _, h2⟩ hr
     | index hsel => exact absurd (index_root hsel) hr
     | cond hst hc => exact absurd ⟨hst, hc.red⟩ hs
     | app1 _ _ _ _ h' => rw [ih h']
@@ -362,7 +357,7 @@ theorem sstep_det {t a b : Term} (ha : SStep op t a) (hb : SStep op t b) : a = b
     | beta hv => exact absurd hv hr
     | arg _ _ => simp [isLam] at hl
     | fixApp => simp [isFixLam] at hf
-    | opcode h1 h2 h3 => exact absurd ⟨h1, h2, _, h3⟩ hr
+    | opcode h1 h2 => exact absurd ⟨h1, _, h2⟩ hr
     | index hsel => exact absurd (index_root hsel) hr
     | cond hst _ => rw [hs] at hst; cases hst
     | app1 _ _ _ _ ha' => exact absurd ha'.red hna
