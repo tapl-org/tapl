@@ -20,13 +20,13 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - `redesign-operators` Operator precedence and associativity, as in Scala
     - `redesign-file` The `.oymo` file as (layered-term, meta); meta as a database
     - `redesign-meta-rules` Meta through reduction: the result's meta, rule by rule
-    - `redesign-ingot` Flat, platform-neutral ingot
+    - `redesign-ingot` Nested, platform-neutral ingot
     - `redesign-modules` Module system: reduce-time and link-time dependencies
     - `redesign-links` Ingots of both layers linked across files
-    - `unit-var-name` A better name for the unit variable `m`
-    - `label-bytes` A label can be any bytes, not only UTF-8 text
-    - `region-marker` Regions without `m []`; an opcode builds the runnable instance
   - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
+  - `unit-var-name` A better name for the unit variable `m`
+  - `label-bytes` A label can be any bytes, not only UTF-8 text
+  - `region-marker` Regions without `m []`; an opcode builds the runnable instance
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
       - `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
@@ -184,7 +184,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Low and high ingots may define the same symbols, for now (known limit: the run-time
   guard pattern links both into one program and clashes)
 - Layers equal in oymomo; the driver picks where each runs
-- Decide: precedence of `:` (see `redesign-operators`)
+- Precedence of `:` decided in `redesign-operators`
 - oymomo_design.md, then oymomo-calculus.tex (syntax, separation), Lean if needed
 
 ### `redesign-operators` Operator precedence and associativity, as in Scala
@@ -229,7 +229,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Write the rules into `meta.proto` comments; make reduction carry whole entries (today
   only spans); tests for each rule
 
-### `redesign-ingot` Flat, platform-neutral ingot
+### `redesign-ingot` Nested, platform-neutral ingot
 
 - An ingot is one compilation unit and one `.ll`
 - Symbol entries, nested in namespaces (revised from flat, see `redesign-modules`); no
@@ -348,7 +348,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   "field 0 is the entry block"); D no struct constant as a terminal (arbitrary rule);
   E write `(fix R) []` (not normal: loops unroll); F one flat region per function (loses
   nested regions); G source sugar only (still needs a kernel form)
-- Postponed (user: "lets postpone this and add a roadmap leaf into oymomo-redesign")
+- Postponed (user: "lets postpone this and add a roadmap leaf into oymomo-redesign"); later
+  moved outside `oymomo-redesign`
 - Then: oymomo-calculus.tex 8 (regions, `m` kinds) and 9 (instance), Lean `anf_normal`,
   code, goldens
 

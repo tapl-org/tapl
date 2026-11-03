@@ -2757,6 +2757,10 @@ executable binary). we should mark some place as a platform". The steps that fol
   no general Scala rule (frontend's), `:` between application and λ/let/if, `:`
   non-associative. User: "yes", "this one", "yes" (all decided). Calculus §2 pass in
   review marks (the parenthesis rule replaced).
+- Accepted; committed `5974160`. Status review of `oymomo-redesign`: next step is Lean
+  (Confluence.lean still has E-Opcode on data only). On `unit-var-name`, `label-bytes`,
+  `region-marker`, user: "these are outside of oymomo-redesign" (moved under
+  `pre-bootstrap`, beside `opcode-namespaces`).
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
