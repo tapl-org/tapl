@@ -1,6 +1,4 @@
 ; ModuleID = ""
-target triple = "x86_64-unknown-linux-gnu"
-target datalayout = ""
 
 @"answer" = internal constant i32 42
 @"counter" = internal global i32 41

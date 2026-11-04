@@ -412,19 +412,21 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
   - One project, one unit, named `unit`. The project is the workspace; the unit's root is
     the file given to `oymo build FILE`.
   - `oymo-out/` (or `--out DIR`) is only an output, flat, with fixed names: `unit.ll` (the
-    low layer, or the only one), `unit.guard.ll` (two layers), `unit.h.oymo`, `unit` (when
-    the low layer links a `main`), `unit.guard` (when the high layer links a `main`).
-    Adding the first `:` never renames an existing output. The names live only in file
-    names, never inside the `.ll`.
-  - Always the host: clang builds each `.ll` straight into its binary
-    (`clang -x ir unit.ll -o unit`), with no objects and no `--target`.
-  - `oymo build` runs nothing, the guard neither; there is no `oymo run`: the user runs
-    `oymo-out/unit.guard` and `oymo-out/unit` by hand.
-  - Before a build, `unit`, `unit.guard` and `unit.guard.ll` are removed, so a failed or
-    one-layer build leaves none behind.
+    low layer, or the only one), `unit.guard.ll` (two layers), `unit.h.oymo`. Adding the
+    first `:` never renames an existing output. The names live only in file names, never
+    inside the `.ll`. Before a build, `unit.guard.ll` is removed, so a one-layer build
+    leaves no guard behind.
+  - oymo ends at the `.ll` (user: "this is clang job, right? i guess oymomo should end in
+    .ll file"). Linking, other projects' code and other targets are clang's job, and
+    running is the user's: `clang -Wno-override-module oymo-out/unit.ll
+    ../math/oymo-out/unit.ll -o app`, `clang --target=… …`. `oymo build` needs no clang
+    and runs nothing; there is no `oymo run`.
+  - The `.ll` holds no `target triple` and no `target datalayout`: nothing in the
+    translation depends on the platform yet, so clang fills in its target's. clang warns
+    that it overrides the (empty) triple; `-Wno-override-module` silences it. Byte-array
+    literals stay little-endian on every target; that fixes what a literal means, not how
+    memory is laid out (LLVM lays out `i32 42` per the target). Once platform-dependent
+    sizes exist (`platform-sizes`), the translation will need a data layout as input.
   - Headers of other projects are copied in or mounted (`--mount`); reading one is a plain
-    file read, so there is no dependency graph. Linking another project's code is later
-    (roadmap `link-projects`); only clang's default system libraries are linked.
-  - Later: building for another target (roadmap `cross-target`). Once platform-dependent
-    sizes exist (deferred), the `.ll` of one layer may differ per platform.
+    file read, so there is no dependency graph.
   - This is the driver's job, not oymomo's, so "nothing automatic in oymomo" still holds.

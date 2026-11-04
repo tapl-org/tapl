@@ -10,7 +10,7 @@ from llvmlite import binding
 from oymo.oymomo import ingot, llvm_opcodes, llvm_translate
 from oymo.oymomo.grammar import parse
 
-TARGET = llvm_translate.Target('x86_64-unknown-linux-gnu', '', llvm_opcodes.DEFAULT_OPCODES)
+TARGET = llvm_translate.Target(llvm_opcodes.DEFAULT_OPCODES)
 
 GCD = """
 {

@@ -50,8 +50,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
         - 🚫 `noalias` `{'noalias', 'ptr'}` on params and results
         - 🚫 `ll-volatile-asm` `volatile` loads and stores; inline asm
         - 🚫 `ll-atomics` `'atomicrmw'`, `'cmpxchg'`, `'fence'`, orderings
-      - `ll-symbols` Target, symbols, functions, module level
-        - 🚫 `target` Host triple and data layout in the `.ll`
+      - `ll-symbols` Symbols, functions, module level
         - 🚫 `ll-symbol-fields` `linkage`, visibility, `unnamed_addr`, `section`, `comdat`
         - 🚫 `ll-tls` `thread_local` on global variables
         - 🚫 `ll-function-attrs` Calling conventions; function, parameter and result attributes
@@ -88,8 +87,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `obj-link` `.o` via `clang -c`, link with `cc`
       - 🚫 `driver` `oymo build a.oymo -o a`, `-c`
       - 🚫 `e2e-libc` End-to-end tests calling libc and a small C library
-      - `link-projects` Linking another project's code into `unit`
-      - `cross-target` Building for a target other than the host
     - 🚫 `tagged-unions` Enums and tagged unions; `switch` binds the payload
     - 🚫 `l1-generics` System F generics: `List(T)`, `Map(K, V)`
   - `types-files` Multiple files and function pointers
@@ -248,6 +245,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   (`usize`, C layouts) kept symbolic until translation (e.g. `'usize'`, `'c_long'` types;
   `'sizeof'`, `'alignof'`, `'offsetof'` opcodes resolved by the translation)
 - Decide: the types and opcodes, and how the translation resolves them
+- Today the `.ll` has no triple and no data layout (clang fills in its target's); this
+  leaf is the first that needs a data layout, so decide how the user gives one (replaces
+  the old `target` leaf: "host triple and data layout in the `.ll`")
 
 ### `functor-libraries` Functor-style libraries and path aliases (proposals)
 
@@ -507,11 +507,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   as LLVM has them
 - Never folded
 - Goldens
-
-### `target` Host triple and data layout in the `.ll`
-
-- A real `Target`: host triple and data layout written in the `.ll`
-- From the module's `target` field; the host's when absent
 
 ### `ll-symbol-fields` `linkage`, visibility, `unnamed_addr`, `section`, `comdat`
 
@@ -786,9 +781,11 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `driver` `oymo build a.oymo -o a`, `-c`
 
-- `oymo build FILE` exists: one unit, flat `oymo-out/unit*` outputs, host only, runs
-  nothing; `oymo run` was removed (user: "lets remove run command. user will trigger
-  binary manually if they need")
+- `oymo build FILE` exists: one unit, flat `oymo-out/unit*` outputs; `oymo run` was
+  removed (user: "lets remove run command. user will trigger binary manually if they need")
+- Revisit: oymo ends at the `.ll` (user: "this is clang job, right? i guess oymomo should
+  end in .ll file"); linking, `-c` objects and `.c` inputs are clang's job, so this leaf
+  and `obj-link` may not be needed
 - `oymo build ... -c`: object file
 - `oymo build hello.oymo util.c -o hello`: `.c` files linked in
 
@@ -797,19 +794,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `zeroext`/`signext` on `i1`, `i8`, `i16` where needed
 - End-to-end tests calling libc and a small C test library, built and run
 - Done when: `oymo build hello.oymo util.c -o hello` runs; a program reverses a file
-
-### `link-projects` Linking another project's code into `unit`
-
-- Today a project reads another project's header (copied in or `--mount`ed), but only
-  clang's default system libraries are linked, so calling its code fails at link time
-- Decide: how the other project's code reaches the link (`--link FILE`, the mount brings
-  it, …)
-
-### `cross-target` Building for a target other than the host
-
-- Today `oymo build` always builds for the host (user: "lets remove target too. always
-  host targret")
-- Decide: `--target`, output names per target, where the guard runs, cross linkers
 
 ### `tagged-unions` Enums and tagged unions; `switch` binds the payload
 

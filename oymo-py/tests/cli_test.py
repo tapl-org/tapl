@@ -2,7 +2,6 @@
 
 import pathlib
 import shutil
-import stat
 import subprocess
 
 import pytest
@@ -130,40 +129,33 @@ def status(binary: pathlib.Path) -> int:
     return subprocess.run([str(binary)], check=False).returncode
 
 
-@pytest.mark.usefixtures('goldens_workspace')
-def test_build_without_clang(tmp_path, monkeypatch, capsys) -> None:
-    monkeypatch.setattr(cli.shutil, 'which', lambda _name: None)
-    assert cli.main(['build', FACT, '--out', str(tmp_path / 'out')]) == 1
-    assert capsys.readouterr().err == f'{FACT}: error: Linking unit needs clang, which is not on PATH; install clang.\n'
-
-
-def test_build_without_main_needs_no_clang(tmp_path, monkeypatch, capsys) -> None:
-    monkeypatch.setattr(cli.shutil, 'which', lambda _name: None)
-    assert cli.main(['build', write(tmp_path, "language oymomo\n{v= {type= 'i32', init= [00000000]}}\n")]) == 0
-    assert capsys.readouterr() == ('', '')
-    assert files(tmp_path / 'oymo-out') == ['unit.h.oymo', 'unit.ll']
-
-
-def fake_clang(tmp_path, monkeypatch) -> None:
-    """A fake clang whose output binary exits with 120, to test the plumbing without clang."""
-    fake = tmp_path / 'bin' / 'clang'
-    fake.parent.mkdir()
-    fake.write_text(
-        '#!/bin/sh\nwhile [ "$1" != "-o" ]; do shift; done\nprintf "#!/bin/sh\\nexit 120\\n" > "$2"\nchmod +x "$2"\n'
-    )
-    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
-    monkeypatch.setenv('PATH', str(fake.parent), prepend=':')
+def link(ll: pathlib.Path) -> pathlib.Path:
+    """The binary of `ll`, linked by clang as a user would. The `.ll` has no triple, so clang
+    warns that it fills in its own; `-Wno-override-module` silences that, and nothing else
+    may warn."""
+    binary = ll.with_suffix('')
+    command = [str(shutil.which('clang')), '-Wno-override-module', str(ll), '-o', str(binary)]
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    assert (result.returncode, result.stderr) == (0, '')
+    return binary
 
 
 @pytest.mark.usefixtures('goldens_workspace')
-def test_build_writes_flat_outputs_with_fixed_names(tmp_path, monkeypatch, capfd) -> None:
-    fake_clang(tmp_path, monkeypatch)
+def test_build_writes_flat_outputs_with_fixed_names(tmp_path, monkeypatch, capsys) -> None:
+    monkeypatch.setenv('PATH', '')  # oymo ends at the .ll: no clang needed
     out = tmp_path / 'out'
     assert cli.main(['build', FACT, '--out', str(out)]) == 0
-    assert capfd.readouterr() == ('', '')
-    assert files(out) == ['unit', 'unit.h.oymo', 'unit.ll']
+    assert capsys.readouterr() == ('', '')
+    assert files(out) == ['unit.h.oymo', 'unit.ll']
     assert (out / 'unit.ll').read_text(encoding='utf-8') == (GOLDENS / 'fact.ll').read_text(encoding='utf-8')
-    assert status(out / 'unit') == 120
+
+
+@pytest.mark.usefixtures('goldens_workspace')
+def test_the_ll_has_no_triple_and_no_data_layout(capsys) -> None:
+    assert cli.main(['emit-llvm', FACT]) == 0
+    ir_text = capsys.readouterr().out
+    assert 'target triple' not in ir_text
+    assert 'target datalayout' not in ir_text
 
 
 @pytest.mark.usefixtures('goldens_workspace')
@@ -184,11 +176,11 @@ def test_build_writes_flat_outputs_with_fixed_names(tmp_path, monkeypatch, capfd
         ('unit/root', 24),
     ],
 )
-def test_build_golden_and_run_it(tmp_path, golden: str, result: int) -> None:
+def test_build_golden_link_and_run_it(tmp_path, golden: str, result: int) -> None:
     # The goldens that have a `main`.
     out = tmp_path / 'out'
     assert cli.main(['build', str(GOLDENS / f'{golden}.oymo'), '--out', str(out)]) == 0
-    assert status(out / 'unit') == result
+    assert status(link(out / 'unit.ll')) == result
 
 
 LAYERS = str(GOLDENS / 'layers.oymo')
@@ -273,38 +265,26 @@ def test_fmt_keeps_the_layerings_as_written_and_merge_tidies_them(tmp_path, caps
 
 
 @pytest.mark.usefixtures('goldens_workspace')
-def test_build_two_layers_runs_nothing(tmp_path, monkeypatch, capfd) -> None:
-    fake_clang(tmp_path, monkeypatch)  # every binary exits with 120, the guard too
+def test_build_two_layers(tmp_path, capsys) -> None:
     out = tmp_path / 'out'
     assert cli.main(['build', LAYERS, '--out', str(out)]) == 0
-    assert capfd.readouterr() == ('', '')
-    assert files(out) == ['unit', 'unit.guard', 'unit.guard.ll', 'unit.h.oymo', 'unit.ll']
+    assert capsys.readouterr() == ('', '')
+    assert files(out) == ['unit.guard.ll', 'unit.h.oymo', 'unit.ll']
     for name in ('ll', 'guard.ll', 'h.oymo'):
         assert (out / f'unit.{name}').read_text(encoding='utf-8') == (GOLDENS / f'layers.{name}').read_text(
             encoding='utf-8'
         )
 
 
-@pytest.mark.parametrize(
-    ('link', 'binaries'),
-    [("'start' : 'start'", []), ("'main' : 'guard'", ['unit']), ("'start' : 'main'", ['unit.guard'])],
-)
-def test_a_binary_for_each_layer_that_links_main(tmp_path, monkeypatch, link: str, binaries: list[str]) -> None:
-    fake_clang(tmp_path, monkeypatch)
-    assert cli.main(['build', write(tmp_path, two_layers('[00000000]', '[00000000]', link))]) == 0
-    assert files(tmp_path / 'oymo-out') == sorted([*binaries, 'unit.guard.ll', 'unit.h.oymo', 'unit.ll'])
-
-
-def test_build_removes_stale_outputs(tmp_path, monkeypatch, capfd) -> None:
-    fake_clang(tmp_path, monkeypatch)
+def test_build_removes_a_stale_guard(tmp_path, capfd) -> None:
     path = write(tmp_path, two_layers('[00000000]', '[00000000]'))
     assert cli.main(['build', path]) == 0
-    # One layer and no `main`: no guard, no binaries are left.
+    assert files(tmp_path / 'oymo-out') == ['unit.guard.ll', 'unit.h.oymo', 'unit.ll']
+    # One layer: no guard is left.
     write(tmp_path, "language oymomo\n{v= {type= 'i32', init= [00000000]}}\n")
     assert cli.main(['build', path]) == 0
     assert files(tmp_path / 'oymo-out') == ['unit.h.oymo', 'unit.ll']
-    # A failed build leaves no binary or guard either.
-    assert cli.main(['build', path]) == 0
+    # A failed build leaves no guard either.
     write(tmp_path, two_layers('[00000000]', '[00000000]'))
     assert cli.main(['build', path]) == 0
     write(tmp_path, two_layers('[00000000]', '[01]'))
@@ -315,10 +295,10 @@ def test_build_removes_stale_outputs(tmp_path, monkeypatch, capfd) -> None:
 
 @pytest.mark.skipif(shutil.which('clang') is None, reason='needs clang')
 @pytest.mark.parametrize('guard', [0, 3])
-def test_run_the_guard_and_the_unit_by_hand(tmp_path, guard: int) -> None:
+def test_link_and_run_the_guard_and_the_unit_by_hand(tmp_path, guard: int) -> None:
     assert cli.main(['build', write(tmp_path, two_layers('[07000000]', f'[0{guard}000000]'))]) == 0
-    assert status(tmp_path / 'oymo-out' / 'unit.guard') == guard
-    assert status(tmp_path / 'oymo-out' / 'unit') == 7
+    assert status(link(tmp_path / 'oymo-out' / 'unit.guard.ll')) == guard
+    assert status(link(tmp_path / 'oymo-out' / 'unit.ll')) == 7
 
 
 # Driver sessions: a program reads files by their paths from the workspace.
@@ -525,7 +505,7 @@ def test_a_missing_header(tmp_path, monkeypatch, capsys) -> None:
     assert (
         capsys.readouterr().err == f"unit.oymo:4:{column}: error: could not find oymo file 'vendor/math/unit.h.oymo'\n"
     )
-    assert not (tmp_path / 'app' / 'oymo-out' / 'unit').exists()
+    assert not (tmp_path / 'app' / 'oymo-out').exists()
 
 
 def test_oymo_out_is_never_read(tmp_path, monkeypatch, capsys) -> None:
@@ -578,15 +558,15 @@ def test_a_mount_inside_a_project_folder(tmp_path, capsys) -> None:
 @pytest.mark.skipif(shutil.which('clang') is None, reason='needs clang')
 def test_a_unit_calls_another_through_its_header(tmp_path, monkeypatch, capsys) -> None:
     """Compiled reuse: the project math builds to `oymo-out/unit.ll` and its header
-    `oymo-out/unit.h.oymo`; app reads the header through a mount and builds to app.ll; the
-    platform linker joins the two, by hand: oymo links no other project."""
+    `oymo-out/unit.h.oymo`; app reads the header through a mount and builds its own
+    `oymo-out/unit.ll`; clang links the two, as the user does: oymo ends at the `.ll`."""
     math_project(tmp_path, monkeypatch)
     monkeypatch.chdir(tmp_path / 'math')
     assert cli.main(['build', 'unit.oymo']) == 0
     monkeypatch.chdir(tmp_path / 'app')
-    assert cli.main(['emit-llvm', 'unit.oymo', '-o', 'app.ll', '--mount', 'vendor/math=../math/oymo-out']) == 0
+    assert cli.main(['build', 'unit.oymo', '--mount', 'vendor/math=../math/oymo-out']) == 0
     assert capsys.readouterr() == ('', '')
     clang = str(shutil.which('clang'))
     math_ll = str(tmp_path / 'math' / 'oymo-out' / 'unit.ll')
-    subprocess.run([clang, '-Wno-override-module', '-x', 'ir', math_ll, 'app.ll', '-o', 'app.exe'], check=True)
+    subprocess.run([clang, '-Wno-override-module', math_ll, 'oymo-out/unit.ll', '-o', 'app.exe'], check=True)
     assert status(tmp_path / 'app' / 'app.exe') == 6

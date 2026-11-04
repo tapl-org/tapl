@@ -8,9 +8,8 @@ prints the normal form as `low : high` (`--merge` merges the two).
 
 A project is one unit, named `unit`, whose root is the file named on the command line.
 `build` writes its outputs into the destination folder, flat and with fixed names
-(`build.build`): `unit.ll`, `unit.guard.ll` for two layers, the header `unit.h.oymo`, and
-the binaries `unit` and `unit.guard` of the layers that link a `main`, made with clang for
-the host. It runs nothing: the user runs the binaries.
+(`build.build`): `unit.ll`, `unit.guard.ll` for two layers, and the header `unit.h.oymo`.
+oymo ends at the `.ll`: the user links it with clang and runs the binaries.
 
 `emit-header` writes the program's header (`header.header_of_layers`), one file for one
 layer or two (`low : high`; `--merge` merges the two), by default `unit.h.oymo` in the
@@ -29,7 +28,6 @@ it.
 import argparse
 import os
 import pathlib
-import shutil
 import sys
 
 from oymo.core import syntax
@@ -39,7 +37,7 @@ from oymo.oymomo import driver, header, layers, llvm_opcodes, llvm_translate, re
 from oymo.oymomo.meta import NO_TAG, Tag
 
 # The host is assumed to be x86-64 Linux until the `target` leaf reads the host's triple.
-TARGET = llvm_translate.Target(triple='x86_64-unknown-linux-gnu', data_layout='', opcodes=llvm_opcodes.DEFAULT_OPCODES)
+TARGET = llvm_translate.Target(opcodes=llvm_opcodes.DEFAULT_OPCODES)
 
 
 class CliError(Exception):
@@ -221,7 +219,7 @@ def _build(program: _Program, out: str) -> None:
         builds.remove_stale(out)
         compiled = _compile(program)
         unit_header = source.write(header.header_of_layers([ingot for ingot, _ in compiled]))
-        builds.build(out, compiled, unit_header, shutil.which('clang'))
+        builds.build(out, [ir_text for _, ir_text in compiled], unit_header)
     except builds.BuildError as error:
         raise CliError(error.message) from error
 
@@ -323,7 +321,7 @@ def _argument_parser() -> argparse.ArgumentParser:
     _add_config(normal)
     build = commands.add_parser(
         'build',
-        help='build a unit for the host: unit.ll, unit.guard.ll, unit.h.oymo and the binaries unit and unit.guard',
+        help='build a unit: unit.ll, unit.guard.ll (two layers) and unit.h.oymo; link them with clang',
     )
     build.add_argument('file')
     _add_config(build)

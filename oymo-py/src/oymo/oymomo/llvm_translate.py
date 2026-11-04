@@ -59,9 +59,15 @@ class LlvmTranslationError(Exception):
 
 @dataclass
 class Target:
-    triple: str
-    data_layout: str
     opcodes: Mapping[str, OpcodeImpl]
+
+
+class _Module(ir.Module):
+    """An LLVM module printed with no `target triple` and no `target datalayout`: the `.ll`
+    is platform-neutral, and clang fills in its target's (the host's, or `--target`)."""
+
+    def __repr__(self) -> str:
+        return '\n'.join([f'; ModuleID = "{self.name}"', '', *self._get_body_lines(), *self._get_metadata_lines()])
 
 
 def show_type(term: syntax.Term) -> str:
@@ -483,9 +489,7 @@ class _Translator:
         self.address_type = terms.ByteArray(b'ptr')
 
     def translate(self):
-        llvm_module = ir.Module()
-        llvm_module.triple = self.target.triple
-        llvm_module.data_layout = self.target.data_layout
+        llvm_module = _Module()
         names = _llvm_names(self.ingot)
         groups: dict[str, list[ingots.Symbol]] = {}
         for symbol in self.ingot.symbols:

@@ -1,6 +1,4 @@
 ; ModuleID = ""
-target triple = "x86_64-unknown-linux-gnu"
-target datalayout = ""
 
 define internal i32 @"gcd"(i32 %"p.a", i32 %"p.b")
 {

@@ -67,7 +67,7 @@ def run_python_files(base_directory: str, filenames: list[str], output_file: str
     verify(output.getvalue(), namer=ApprovalNamer(filepath))
 
 
-TARGET = llvm_translate.Target(triple='x86_64-unknown-linux-gnu', data_layout='', opcodes=llvm_opcodes.DEFAULT_OPCODES)
+TARGET = llvm_translate.Target(opcodes=llvm_opcodes.DEFAULT_OPCODES)
 
 
 def parse(text: str):

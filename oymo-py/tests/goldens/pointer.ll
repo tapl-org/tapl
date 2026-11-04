@@ -1,6 +1,4 @@
 ; ModuleID = ""
-target triple = "x86_64-unknown-linux-gnu"
-target datalayout = ""
 
 declare i32 @"fill"(ptr %"p", i64 %"n")
 

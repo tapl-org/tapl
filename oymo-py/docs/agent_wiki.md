@@ -3005,6 +3005,32 @@ executable binary). we should mark some place as a platform". The steps that fol
   only `code_md5` changed (same-length rename keeps offsets). A script checked every
   changed line differs only by m → g, except those listed. Lean needed nothing (its `m`
   are numbers). 877 passed.
+
+### oymo ends at the `.ll` (Nov 4)
+
+- Started as `link-projects`. User: "this is clang job, right? i guess oymomo should end
+  in .ll file". Agreed (user: "yes"): `oymo build` writes only `unit.ll`, `unit.guard.ll`,
+  `unit.h.oymo`; no binaries, no clang needed; linking (other projects, `.o`, `.a`) and
+  other targets are clang's job, running is the user's. Roadmap: `link-projects` and
+  `cross-target` removed; `driver` leaf gets a Revisit (it and `obj-link` may not be
+  needed).
+- User asked "why oymo needs tripple, and can we put default data layout (if i remember
+  correctly, we chose little-endian)". Answer: it doesn't; the hard-coded
+  `x86_64-unknown-linux-gnu` and empty layout were never used by the translation. The
+  little-endian decision is about byte-array literals (what `[2a000000]~'i32'` means),
+  not memory layout; an `e` layout would be wrong on big-endian targets and changes
+  nothing on little-endian ones. Decided (user: "yes"): no `target triple` and no
+  `target datalayout` in the `.ll`. `Target` keeps only `opcodes`; `_Module` prints the
+  module without those two lines (llvmlite always writes them, `unknown-unknown-unknown`
+  when unset). Roadmap `target` leaf removed; `platform-sizes` notes it is the first leaf
+  needing a data layout; `ll-symbols` title loses "Target".
+- Found while testing: clang 21 warns "overriding the module target triple" also for an
+  `.ll` with no triple. User chose (recommended) to keep no triple; `-Wno-override-module`
+  silences it (tests and docs use it). Rejected: writing the host triple (needs clang at
+  build time, ties the `.ll` to the host), a `--triple` flag.
+- Tests: build tests link with real clang in the test (`link` helper asserts no other
+  warning); the fake clang is gone; the two-projects test builds app with `--mount` and
+  links both `unit.ll`. `.ll` goldens lost their two target lines. 873 passed.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
