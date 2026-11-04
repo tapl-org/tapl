@@ -173,7 +173,10 @@ def _emit_llvm_to(program: _Program, output: str | None, low: str | None, high: 
         if destination == '-':
             sys.stdout.write(ir_text)
         else:
-            pathlib.Path(str(destination)).write_text(ir_text, encoding='utf-8')
+            try:
+                pathlib.Path(str(destination)).write_text(ir_text, encoding='utf-8')
+            except OSError as error:
+                raise CliError(f'Cannot write the LLVM IR to {destination!r}: {error.strerror}.') from error
 
 
 def _header(program: _Program, *, merged: bool = False) -> str:

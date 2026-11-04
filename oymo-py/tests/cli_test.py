@@ -465,6 +465,15 @@ def test_emit_header_cannot_write(tmp_path, capsys) -> None:
     )
 
 
+def test_emit_llvm_cannot_write(tmp_path, capsys) -> None:
+    output = tmp_path / 'missing' / 'm.ll'
+    path = write_unit(tmp_path, 'math', MATH)
+    assert cli.main(['emit-llvm', path, '-o', str(output)]) == 1
+    assert capsys.readouterr().err == (
+        f'{path}: error: Cannot write the LLVM IR to {str(output)!r}: No such file or directory.\n'
+    )
+
+
 def test_the_root_file_must_be_inside_the_workspace(tmp_path, capsys, monkeypatch) -> None:
     path = write_unit(tmp_path, 'math', MATH)
     (tmp_path / 'app').mkdir()
