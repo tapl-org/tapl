@@ -3145,6 +3145,90 @@ executable binary). we should mark some place as a platform". The steps that fol
   source, and `'unit.rebase'` already turns its byte-array prefix into labels. Moved to
   `single-thread` → `api` (after `mizar-api`), blocked (open Decide items: L2–L6, skipped).
   `kernel-followups` title drops "labels".
+
+### `region-marker` and `'ingot.build'` (Nov 4)
+
+- R2 decided: before the bootstrap (the region form is in every function the bootstrap
+  writes). R1 (the form): user asked "what about just lambda like \r.{...}"; the agent
+  showed plain λ is clear as a body's third λ and after a `let`, but ambiguous as a
+  block's first term (`step = λq. {…}` vs `done = λc. {[00], [01]}`), and laid out A
+  (`'region'`), D' (struct constants returned only via `let`), I (parameter count from the
+  jumps), B (keep `g []`). User asked for more detail, then paused R1 (user: "lets put this
+  on pause and talk about how to instantiate ingot for the reduction").
+- Agent mistake: twice asked a quiz whose explanation existed only in the agent's
+  thinking; the user saw no explanation. Always write the explanation in the message
+  before the quiz.
+- User's idea: an opcode takes an ingot and returns `t = λg. {path = entry, …}`; "then fix
+  t is a fixed point of it (right? i'm not sure)". Yes: `fix` is lazy (E-FixProj,
+  E-FixApp), so `fix t` acts as `t (fix t)` when used; the calculus's "a unit runs by
+  reduction" point writes this instance by hand.
+- Decided (quiz): name `'ingot.build'` (user's choice over `'ingot.instantiate'`); returns
+  `t`, not `fix t` (room to merge dependencies or mock before `fix`); nesting kept, no
+  flattening (a flat `"math.gcd"` label breaks `g.math.gcd`); a definition becomes `λp. R`
+  under `t`'s `λg`; globals stay `{type, value}` until memory (`effect-ticks`);
+  declarations stay, filled by the user before `fix`.
+- Regions: user asked "how about mergeing region as we did for symbols". Agent explained
+  lifting blocks into `g` needs lambda lifting (blocks use outer `a`, `b`, `z`; symbols are
+  closed). User chose per-region `fix`: `'ingot.build'` rewrites each region into
+  `(fix R) [00]`; no runner in field 0. Recorded in the `region-marker` leaf.
+- Corrections (user): name `'unit.instantiate'` ("what about 'unit.instantiate'"; chosen
+  over `'ingot.build'`, beside `'unit.merge'`/`'unit.rebase'`); nesting kept, regions as
+  `(fix R) [00]` and definitions as `λp. R` confirmed ("yes").
+- Region form, explored by the user with reductions:
+  - F (`fix R` in source, the opcode adds `[00]`): user "liked option 1" but not the
+    opcode adding `[00]`; asked to pause reduction another way. Agent: a step stops only
+    at an unapplied `fix` or an unknown (free variable, path); F2 `(fix R) g.entry`, F3
+    weak `fix` (breaks "reduction anywhere", Lean redo), F4 `fix` on closed terms only
+    (closed `while(true)` loops would unroll at compile time).
+  - User wrote fact with `(fix (λr. {…})) []`: with constant inputs it folds to
+    `λg. λp. [78000000]` (120; note today's ANF would reject a body that is just a
+    return); with `r.loop p.a p.b` it has no normal form (`done` unknown, the `else` arm's
+    back edge unfolds forever). Earlier the agent misread the user's intent ("you didnt
+    get me"); showing the reductions helped.
+  - User proposed `g.region (λr. {…})` and asked whether `region` must be a keyword, noting
+    "unit.rebase should not touch the g.region". Agent: it would be a reserved label
+    (rebase, merge, headers need special cases; labels are any bytes). Options: runner
+    parameter, keep `g []`, reserved `g.region`, a `region` kernel term, `'region'` opcode.
+  - Decided (recommended): a runner parameter, the body's second λ:
+    `body= λg. λrun. λp. run (λr. {…})`; `'unit.instantiate'` passes `λR. (fix R) [00]`;
+    unit tools never see it; any name (binders are positions).
+- Plan quiz: Q3 right. User suggested `\g.\r.\p. r (\b. {...})`; offered name sets, user
+  kept `λg. λrun. λp. run (λr. {…})` (jumps `r.loop`). Name: user asked for one that says
+  "its main task is to lift all \g above the unit"; agent: "lift" usually means lambda
+  lifting (adds parameters, the opposite), "hoist" means moving out to an outer scope,
+  which is what happens to each entry's `λg`. Chosen: `'unit.hoist'` (no `_global`: the
+  unit opcodes are one word, and it also passes the runner). Implementer: the agent,
+  calculus first.
+- User asked "show me what will change with examples first" (agent showed sections 1–8:
+  bodies, the opcode, running, calculus, Lean, messages, rebase, `.ll` unchanged), then
+  "Something should change", then moved to `effect-ticks` ("maybe we can merge tick with
+  run").
+- Ticks, explored by the user: first `λg. λt. λp. λt0. t (λr. {entry=λt. …})` (runner
+  doubling as tick). Agent: the first tick must come from the caller (per call), names
+  shadow, field 0 would become a λ, results must return the tick. Agent's shape with
+  `λt` after `p` and `run R t`; nested example; user: "lgtm. do you see any place to
+  simplify it?" Agent: field 0 needs no `λt` (the tick is in scope by substitution), so
+  regions are untouched; the tick can be a parameter. User: "what about p is {run, tick,
+  param}" and "for the function type we can keep it as it is, because this info is for
+  backend, and translator drops run and tick". Then (nested `p.param.a` chosen): "maybe
+  you're right. it is better to use 'region' opcode".
+- Decided (user picked the recommended option): body `λg. λp. 'region' (λr. {…})`, `p =
+  {tick, param}`, parameters `p.param.a`, results `{tick, value}`, calls
+  `g.f {tick= t, param= {…}}`; types unchanged, translator drops ticks and the marker;
+  `'region'` never fires (no implementation), `'unit.hoist'` rewrites `'region' R` to
+  `(fix R) [00]`; ticks are ordinary values (`'store'` returns one, `'load'` takes one,
+  `'alloca'` returns `{tick, ptr}`). `region-marker` and `effect-ticks` are done together.
+  The runner-parameter plan (`region_plan.md`) is superseded.
+- Then user: "tick makes too complicated. do i need the tick at all?" (and "do i need
+  memory reduction too?"). Agent: no. Order: an effect call never steps, so it's never a
+  value, and call-by-value β never copies, drops or moves it; the `let`s fix the order.
+  Memory during reduction: compile-time code runs compiled (`l1-subprocess`), LLVM folds
+  memory (mem2reg, SROA), reduction is for tests and constant folding. Determinism:
+  effect opcodes don't fire. Cost: reduction never computes through memory.
+- Decided (recommended): drop ticks; `effect-ticks` removed. Body
+  `λg. λp. 'region' (λr. {…})`, `p` the parameters (`p.a`), plain results, calls as
+  today. `kernel-followups` is now "regions, addresses". Tick linearity: moot (user had
+  said "No check for now").
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

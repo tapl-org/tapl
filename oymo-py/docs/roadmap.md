@@ -13,9 +13,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ## Tree
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
-  - `kernel-followups` Kernel follow-ups: regions, effects, addresses
-    - `region-marker` Regions without `g []`; an opcode builds the runnable instance
-    - `effect-ticks` Deterministic effects: a tick threaded through effect opcodes
+  - `kernel-followups` Kernel follow-ups: regions, addresses
+    - `region-marker` Regions as `'region' (λr. {…})`; `'unit.hoist'` builds the runnable instance
     - `data-addresses` Symbol addresses in data, redesigned
   - `unit-followups` Unit follow-ups: opcode namespaces, platform sizes, libraries
     - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
@@ -161,48 +160,23 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ## Leaf details
 
-### `region-marker` Regions without `g []`; an opcode builds the runnable instance
+### `region-marker` Regions as `'region' (λr. {…})`; `'unit.hoist'` builds the runnable instance
 
-- Idea (user): remove `g []` from regions; since an opcode may read normal-form code and
-  return a closed term, an opcode can insert what running by reduction needs, so written
-  code is just the program
-- An instantiate opcode reads a normal-form ingot and returns its instance: the namespace
-  fixed point `fix (λg. {…})` and each region as `(fix R) [00]`; no runner in field 0
-- Without `g []`, `λr. {…}` is ambiguous with a block with a parameter returning a struct
-  constant (`done = λc. {[00], [01]}`), so regions need a marker
-- Options: A `'region' (λr. {…})`, an opcode call with no step (its λ is not closed),
-  recommended; B keep `g []`; C a tag in the region struct (still ambiguous, breaks
-  "field 0 is the entry block"); D no struct constant as a terminal (arbitrary rule);
-  E write `(fix R) []` (not normal: loops unroll); F one flat region per function (loses
-  nested regions); G source sugar only (still needs a kernel form)
-- Postponed (user: "lets postpone this and add a roadmap leaf into oymomo-redesign"); later
-  moved outside `oymomo-redesign`
-- Then: oymomo-calculus.tex 8 (regions, `g` kinds) and 9 (instance), Lean `anf_normal`,
-  code, goldens
-
-### `effect-ticks` Deterministic effects: a tick threaded through effect opcodes
-
-- Idea (user): effects take a tick and effect opcodes become deterministic; reduction may
-  then compute memory (`load tick, ptr`, `store tick, ptr, value`)
-- Known as state threading: Haskell `State# RealWorld`, Clean's `*World` (uniqueness),
-  LLVM MemorySSA / MLIR memory versions (memory phi at loop heads)
-- Gains: effect opcodes are pure functions of their operands (Mitschke's condition); a
-  duplicated store computes the same tick, an unused tick is a dead store; memory folds
-  during reduction when it is known
-- Agent's recommendation: a tick is a value naming a memory state, returned by `store`
-  (`let t1 = 'store' {t0, p, v} in 'load' {t1, p}`); in reduction it can be a memory value,
-  at run time it is erased. Counters (`t`, `t+1`) with a hidden `mem[tick]` dictionary
-  were judged to break determinism (state outside the term) and to fail on branches,
-  loops and calls
-- Ticks as ordinary values: an effectful function takes a tick parameter and returns its
-  new tick; `main` gets the first tick from outside; loops carry it as a block parameter;
-  no new binder (user asked: add `t` to the λ, or wrap the λ)
-- Linearity only for the translation: each tick used at most once by a store, never read
-  older than the latest; checked by the verifier
-- Effects on the outside world still wait (the first tick is a free variable)
-- If adopted, unevaluated effects may become opcode operands (copying them is then safe)
-- Decide: what a tick is; how functions and calls carry it; the linearity check; how the
-  translation erases ticks; then oymomo-calculus.tex, Lean, code
+- A body is `λg. λp. 'region' (λr. {…})`; nested regions too. `'region'` is a marker
+  opcode that never fires (not in the opcode table), so a region never steps before
+  `'unit.hoist'`; unit tools see a byte array, not a path on `g`
+- `p` stays the parameters (`p.a`) and results stay plain values; effects stay ordered by
+  their `let`s (call-by-value never moves an effect call); the translator drops the marker
+- `'unit.hoist' I` takes a normal-form ingot and returns `t = λg. {…}` (not fixed; the
+  user writes `fix t`): each entry's `λg` moves out to one shared `λg`; namespaces nested
+  as in the ingot; a definition becomes `λp. R` with each `'region' R` rewritten to
+  `(fix R) [00]`; globals stay `{type, value}`; declarations stay, for the user to fill
+  before `fix`
+- Run by reduction: `let inst = fix ('unit.hoist' I) in inst.main {}`; effect calls stay
+  as they are (reduction never computes through memory)
+- Then: oymomo-calculus.tex (ANF body and region, variable kinds, running a unit by
+  reduction, the translation), Lean (ANF body shape), code (ANF check, ingot reader,
+  translation, `'unit.rebase'`, the new opcode), goldens and examples
 
 ### `data-addresses` Symbol addresses in data, redesigned
 
