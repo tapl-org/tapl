@@ -13,8 +13,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ## Tree
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
-  - `kernel-followups` Kernel follow-ups: labels, regions, effects, addresses
-    - `label-opcodes` Opcodes between labels and byte arrays: `'struct.get'`, `'struct.labels'`, `'struct.with'`
+  - `kernel-followups` Kernel follow-ups: regions, effects, addresses
     - `region-marker` Regions without `g []`; an opcode builds the runnable instance
     - `effect-ticks` Deterministic effects: a tick threaded through effect opcodes
     - `data-addresses` Symbol addresses in data, redesigned
@@ -119,6 +118,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - 🚫 `c-api` C API and Python package
     - 🚫 `registry` Language registry and oymomo API; example `calc`
     - 🚫 `mizar-api` Mizar API; cross-language imports
+    - 🚫 `label-opcodes` Opcodes between labels and byte arrays: `'struct.get'`, `'struct.labels'`, `'struct.with'`
   - `c-abi` Full C ABI
     - 🚫 `build-systems` `cc`-style flags, `-MD`/`-MF`, `compile_commands.json`, pkg-config
     - 🚫 `mizar-floats` Mizar `f32`, `f64`; libm through headers
@@ -160,20 +160,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `block-comments` `/* */` block comments; stuck-term errors shown in them
 
 ## Leaf details
-
-### `label-opcodes` Opcodes between labels and byte arrays: `'struct.get'`, `'struct.labels'`, `'struct.with'`
-
-- Labels are bytes now (`"\FF"`), so a label and a byte array can hold the same bytes;
-  only an opcode moves between them (user: "the reason we need is to enable convertion
-  between label and bytearray")
-- With `s = {name = [01], age = [02]}`: `'struct.get' {s, 'name'}` ⟶ `[01]` (a label from
-  data); `'struct.labels' s` ⟶ `{'name', 'age'}`; `'struct.with' {s, 'id', [07]}` ⟶
-  `{name = [01], age = [02], id = [07]}`
-- Uses: `unit.rebase` with a prefix built as data, paths as data (`data-addresses`),
-  frontends that generate names
-- Later (user: "Later: a new leaf `label-opcodes`; this leaf only makes labels bytes"):
-  design when a use needs them
-- Decide: the opcodes, their E-Opcode results, a missing label, a duplicate label
 
 ### `region-marker` Regions without `g []`; an opcode builds the runnable instance
 
@@ -1032,6 +1018,25 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   oymomo-lowering ones give forms only, unchecked in layer 1
 - Done when: `calc`→Mizar type error located in the `calc` file; Mizar imports from `calc`
   with type checks
+
+### `label-opcodes` Opcodes between labels and byte arrays: `'struct.get'`, `'struct.labels'`, `'struct.with'`
+
+- Labels are bytes now (`"\FF"`), so a label and a byte array can hold the same bytes;
+  only an opcode moves between them (user: "the reason we need is to enable convertion
+  between label and bytearray")
+- With `s = {name = [01], age = [02]}`: `'struct.get' {s, 'name'}` ⟶ `[01]` (a label from
+  data); `'struct.labels' s` ⟶ `{'name', 'age'}`; `'struct.with' {s, 'id', [07]}` ⟶
+  `{name = [01], age = [02], id = [07]}`
+- Uses: `unit.rebase` with a prefix built as data, paths as data (`data-addresses`),
+  frontends that generate names
+- Later (user: "Later: a new leaf `label-opcodes`; this leaf only makes labels bytes"):
+  design when a use needs them
+- Moved after the bootstrap (user: "i dont think we will need label-opcodes in bootstrap
+  phase, right? if yes, move the leaf after the bootstrap"): frontends write labels in
+  source, and `'unit.rebase'` already turns its byte-array prefix into labels
+- Decided: a missing label gives no step (the call stays; the translation rejects it)
+- Decide: `'struct.labels'` on unlabeled fields, `'struct.with'` replace or add, a label
+  with byte 00, `'struct.get'` with `[]`
 
 ### `build-systems` `cc`-style flags, `-MD`/`-MF`, `compile_commands.json`, pkg-config
 

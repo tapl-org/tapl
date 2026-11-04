@@ -3136,6 +3136,15 @@ executable binary). we should mark some place as a platform". The steps that fol
   `<name>/root.normal.oymo`, `root.ll`, `root.guard.ll`, `root.h.oymo`, for all unit
   goldens (`unit/` too). `golden_test.approve` takes a path prefix; `run_unit_golden`
   skips `root.normal.oymo` and `root.h.oymo` when it pretty-prints the unit's sources.
+
+### `label-opcodes` moved after the bootstrap (Nov 4)
+
+- Design quiz started; L1 decided: a missing label gives no step. Then user: "i dont
+  think we will need label-opcodes in bootstrap phase, right? if yes, move the leaf after
+  the bootstrap". Agreed: frontends (Python now, Alcor in the bootstrap) write labels in
+  source, and `'unit.rebase'` already turns its byte-array prefix into labels. Moved to
+  `single-thread` → `api` (after `mizar-api`), blocked (open Decide items: L2–L6, skipped).
+  `kernel-followups` title drops "labels".
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
