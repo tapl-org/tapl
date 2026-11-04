@@ -14,7 +14,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `kernel-followups` Kernel follow-ups: labels, regions, effects, addresses
-    - `label-bytes` A label can be any bytes, not only UTF-8 text
+    - `label-opcodes` Opcodes between labels and byte arrays: `'struct.get'`, `'struct.labels'`, `'struct.with'`
     - `region-marker` Regions without `g []`; an opcode builds the runnable instance
     - `effect-ticks` Deterministic effects: a tick threaded through effect opcodes
     - `data-addresses` Symbol addresses in data, redesigned
@@ -163,16 +163,19 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ## Leaf details
 
-### `label-bytes` A label can be any bytes, not only UTF-8 text
+### `label-opcodes` Opcodes between labels and byte arrays: `'struct.get'`, `'struct.labels'`, `'struct.with'`
 
-- Today a label can only be UTF-8 text (an identifier); a struct field's label should be
-  any byte array
-- Why: to convert between a label and a byte array (user: "the reason we need is to
-  enable convertion between label and bytearray"), e.g. opcodes that build or read
-  labels, rebase prefixes, paths as data
-- Decide: how a non-text label is written in the source (as a byte array literal, like
-  `[ff00]`), printed, and kept in meta
-- Then: oymomo-calculus.tex Section 2 (labels), parser, printer, tests
+- Labels are bytes now (`"\FF"`), so a label and a byte array can hold the same bytes;
+  only an opcode moves between them (user: "the reason we need is to enable convertion
+  between label and bytearray")
+- With `s = {name = [01], age = [02]}`: `'struct.get' {s, 'name'}` ⟶ `[01]` (a label from
+  data); `'struct.labels' s` ⟶ `{'name', 'age'}`; `'struct.with' {s, 'id', [07]}` ⟶
+  `{name = [01], age = [02], id = [07]}`
+- Uses: `unit.rebase` with a prefix built as data, paths as data (`data-addresses`),
+  frontends that generate names
+- Later (user: "Later: a new leaf `label-opcodes`; this leaf only makes labels bytes"):
+  design when a use needs them
+- Decide: the opcodes, their E-Opcode results, a missing label, a duplicate label
 
 ### `region-marker` Regions without `g []`; an opcode builds the runnable instance
 

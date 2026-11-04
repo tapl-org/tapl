@@ -21,6 +21,9 @@ def Bytes.toNat : Bytes → Nat
   | [] => 0
   | b :: bs => b.toNat + 256 * Bytes.toNat bs
 
+/-- Terms. A label is a sequence of bytes in the calculus; here it is a `String`, since the
+proofs only compare labels for equality, so they hold for any label type. Variables are de
+Bruijn indices, so their names don't appear. -/
 inductive Term where
   | var : Nat → Term
   | lam : Term → Term                     -- `λx. t`

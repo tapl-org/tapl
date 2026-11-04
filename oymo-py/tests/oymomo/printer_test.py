@@ -85,9 +85,12 @@ def test_two_field_struct_apply_prints_as_if(source, expected):
 
 def test_pretty_quotes_names_that_need_it():
     assert pretty('λ"if". "a b"') == 'λ"if". "a b"'
-    assert pretty(r'"a\"b\\c"') == r'"a\"b\\c"'
+    assert pretty(r'"a\22b\5cc"') == r'"a\22b\\c"'
+    assert pretty(r'"\ce\bb"') == '"λ"'
+    assert pretty(r'{"\ff\01" = a}.x') == r'{"\FF\01"= a}.x'
+    assert pretty('{"" = a}') == '{a}'
     assert pretty('s."1st"') == 's."1st"'
-    assert show(terms.Variable('a\nb'), pretty=True) == r'"a\u{a}b"'
+    assert show(terms.Variable('a\nb'), pretty=True) == r'"a\0Ab"'
 
 
 def test_pretty_groups_bytes_by_four():
@@ -208,7 +211,8 @@ def test_width_and_indent_flags():
     [
         FACT,
         'f a (λb. b) (if c then d else e).x',
-        'λ"if". λ"a b". s."\\u{3bb}"',
+        'λ"if". λ"a b". s."\\CE\\BB"',
+        '{"\\FF" = a, "" = b, "\\\\" = c}."\\FF"',
         "'tag'",
         'if c then if d then a else b else f a',
         'let x = let y = e in y in f (let z = x in z)',

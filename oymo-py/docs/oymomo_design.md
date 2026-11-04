@@ -210,6 +210,9 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 - File names appear only as operands of the read opcodes (and in meta), resolved by the
   driver inside a virtual directory.
 - Labels and paths appear only inside a unit (`g.lexer.helper`).
+- A label (and a variable's name) is any bytes but 00: a name, or quoted with LLVM's
+  escapes, `\HH` and `\\` (`{"\FF\01" = x}`); `""` is the empty label, the same as no
+  label. As LLVM's names: any bytes but 00 (`llvm.` and a leading 01 are left to LLVM).
 - Link names appear only in `link` fields, across units.
 - They are independent: renaming in one never changes meaning in another. They meet only
   in the `.ll` symbol table: internal symbols are named by their path by default, and the

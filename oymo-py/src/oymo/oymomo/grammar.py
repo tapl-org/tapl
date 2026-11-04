@@ -12,6 +12,12 @@
 A lambda is written `λx. t` or, in ASCII, `\\x. t`; it extends as far right as possible, so as an operand it needs parentheses. `fix t` parses as an application does: `fix g.l a` is `(fix (g.l)) a`. A struct's labels are unique, except the empty
 label of an unlabeled field.
 
+A label, and a variable's name, is any bytes but 00: a name (`main`), or quoted (`"a b"`),
+both their UTF-8 bytes; in a quoted name, as in LLVM, `\\HH` is the byte `HH` and `\\\\` a
+backslash (a quote is `\\22`). `""` is the empty label, the same as no label; a variable's
+name is never empty. A name is held as text decoded with `surrogateescape`
+(`_decode_quoted_name`).
+
 A layering `low : high` binds more loosely than application and projection, and more
 tightly than a lambda, `let` or `if`: `f a : g b` is `(f a) : (g b)`, and `λx. t₁ : t₂` is
 `λx. (t₁ : t₂)`; a lambda, `let` or `if` on either side needs parentheses. A layering holds
@@ -23,8 +29,6 @@ being read: start and length count UTF-8 bytes, start from the file's first byte
 shares tags: `let` gives its lambda and application one tag, and an `if` arm's field has
 the arm's.
 """
-
-import unicodedata
 
 from oymo.core import syntax
 from oymo.core.peg import MISMATCH, Clause, First, Memoized, Parser, Ref, Separated, Seq, ZeroOrMore, drop
@@ -70,43 +74,46 @@ def _punct(*literals, word_chars=None):
     return Fixed(*literals, word_chars=word_chars, skip=TRIVIA, action=drop)
 
 
+_HEX_DIGITS = frozenset('0123456789abcdefABCDEF')
+
+
 def _decode_quoted_name(body):
-    """Decodes `\\"`, `\\\\` and `\\u{hex}`. Returns None for an empty name or a bad escape."""
-    chars, p = [], 0
+    """The bytes of a quoted name's body, as a name: the UTF-8 bytes of its characters, with
+    LLVM's escapes: `\\HH` the byte `HH`, `\\\\` a backslash. Returned as text decoded with
+    `surrogateescape`, so a byte that isn't UTF-8 text is a lone surrogate (`\\FF` is
+    `'\\udcff'`) and `.encode('utf-8', 'surrogateescape')` gives the bytes back. None for a
+    bad escape, or for the byte 00, which no name holds (LLVM's names end at it)."""
+    data, p = bytearray(), 0
     while p < len(body):
         c = body[p]
         if c != '\\':
-            chars.append(c)
+            data += c.encode('utf-8')
             p += 1
-            continue
-        escaped = body[p + 1 : p + 2]
-        if escaped in ('"', '\\'):
-            chars.append(escaped)
+        elif body[p + 1 : p + 2] == '\\':
+            data.append(0x5C)
             p += 2
-        elif escaped == 'u' and body.startswith('{', p + 2):
-            close = body.find('}', p + 3)
-            digits = body[p + 3 : close] if close >= 0 else ''
-            if not digits or any(d not in '0123456789abcdefABCDEF' for d in digits):
-                return None
-            try:
-                char = chr(int(digits, 16))
-            except (ValueError, OverflowError):
-                return None
-            if unicodedata.category(char) == 'Cs':
-                return None
-            chars.append(char)
-            p = close + 1
+        elif len(digits := body[p + 1 : p + 3]) == 2 and set(digits) <= _HEX_DIGITS:
+            data.append(int(digits, 16))
+            p += 3
         else:
             return None
-    return ''.join(chars) or None
+    if 0 in data:
+        return None
+    return bytes(data).decode('utf-8', 'surrogateescape')
 
 
 class _QuotedName(String):
-    def __init__(self, *, skip):
+    """`"…"`, a name of any bytes (`_decode_quoted_name`); empty only where `empty` allows it,
+    as a field's label."""
+
+    def __init__(self, *, skip, empty=False):
         super().__init__(
             quote='"',
+            escapes=False,
             skip=skip,
-            action=lambda c: (name, _token_tag(c)) if (name := _decode_quoted_name(c.body)) else None,
+            action=lambda c: (
+                (name, _token_tag(c)) if (name := _decode_quoted_name(c.body)) is not None and (name or empty) else None
+            ),
         )
 
     def match(self, parser, pos):
@@ -136,13 +143,11 @@ class _TextBytes(String):
         return MISMATCH if m.value is None else m
 
 
-# (name, tag) for a plain or a double-quoted identifier.
-NAME = Memoized(
-    First(
-        Identifier(reserved=RESERVED, skip=TRIVIA, action=lambda c: (c.token_text, _token_tag(c))),
-        _QuotedName(skip=TRIVIA),
-    )
-)
+_IDENTIFIER = Identifier(reserved=RESERVED, skip=TRIVIA, action=lambda c: (c.token_text, _token_tag(c)))
+# (name, tag) for a plain or a double-quoted name: a variable, a binder, a projection's label.
+NAME = Memoized(First(_IDENTIFIER, _QuotedName(skip=TRIVIA)))
+# The same for a field's label, which may also be `""`, the empty label (no label).
+LABEL = Memoized(First(_IDENTIFIER, _QuotedName(skip=TRIVIA, empty=True)))
 
 
 def _lambda(c):
@@ -182,7 +187,7 @@ def _field(c):
 
 
 def _unlabeled_field(c):
-    """A field written without `label =`. Its label is `''`, which no written name can be."""
+    """A field written without `label =`. Its label is `''`, as for `"" =`."""
     return terms.Field(label='', value=c.values[0], tag=_tag(c))
 
 
@@ -242,7 +247,7 @@ RULES: dict[str, Clause] = {
         _punct('{'),
         Separated(
             First(
-                Seq(NAME, _punct('='), Ref(rn.EXPRESSION), action=_field),
+                Seq(LABEL, _punct('='), Ref(rn.EXPRESSION), action=_field),
                 Seq(Ref(rn.EXPRESSION), action=_unlabeled_field),
             ),
             _punct(','),

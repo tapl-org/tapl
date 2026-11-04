@@ -64,10 +64,18 @@ class Target:
 
 class _Module(ir.Module):
     """An LLVM module printed with no `target triple` and no `target datalayout`: the `.ll`
-    is platform-neutral, and clang fills in its target's (the host's, or `--target`)."""
+    is platform-neutral, and clang fills in its target's (the host's, or `--target`).
+
+    A name from a label that isn't UTF-8 text holds lone surrogates (`grammar` decodes
+    names with `surrogateescape`); llvmlite quotes such a name, and each surrogate becomes
+    LLVM's escape for its byte (`\\FF`)."""
 
     def __repr__(self) -> str:
-        return '\n'.join([f'; ModuleID = "{self.name}"', '', *self._get_body_lines(), *self._get_metadata_lines()])
+        text = '\n'.join([f'; ModuleID = "{self.name}"', '', *self._get_body_lines(), *self._get_metadata_lines()])
+        return _SURROGATE.sub(lambda m: f'\\{ord(m.group()) - 0xDC00:02X}', text)
+
+
+_SURROGATE = re.compile('[\udc80-\udcff]')
 
 
 def show_type(term: syntax.Term) -> str:

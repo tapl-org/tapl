@@ -162,6 +162,17 @@
     $k = 0$ it is the empty struct $\{\}$.
   \item A label may be empty (no label); the other labels are unique.
   \end{subpoints}
+\item\label{p:names}A label, and a variable's name, is a sequence of bytes.
+  \begin{subpoints}
+  \item It is written as a name, $\mathit{main}$, or quoted, $\texttt{"a b"}$; both stand for
+    their UTF-8 bytes.
+  \item In a quoted name, as in LLVM, $\texttt{\textbackslash}HH$ is the byte $HH$ in hex and $\texttt{\textbackslash\textbackslash}$ is a backslash:
+    $\texttt{"\textbackslash FF\textbackslash 01"}$ is the bytes $\hex{ff01}$, and a quote is written $\texttt{\textbackslash 22}$.
+  \item A name never holds the byte $\hex{00}$, as in LLVM, whose names end at it.
+  \item $\texttt{""}$ is the empty label: $\{\texttt{""} = t\}$ is $\{t\}$. A variable's name is never empty.
+  \item Only labels are compared, by their bytes (\rn{E-Proj}); a variable stands for the
+    $\lambda$ that binds it, whatever its name.
+  \end{subpoints}
 \item\label{p:layered}A layered-term $u$ is written as a term is, except that some of its parts may be layerings $t_1 : t_2$, with
   $t_1$ in the low layer and $t_2$ in the high layer.
 \[

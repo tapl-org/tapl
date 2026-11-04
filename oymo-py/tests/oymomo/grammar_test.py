@@ -206,8 +206,12 @@ def test_unlabeled_fields():
     assert place(parse('{a}').fields[0]) == (1, 1)
 
 
-def test_a_written_label_is_never_empty():
-    assert show(parse('{"" = x}')) == 'error'
+def test_the_empty_quoted_label_is_no_label():
+    assert parse('{"" = x}') == parse('{x}')
+    # A variable's name, and a projection's label, is never empty.
+    assert show(parse('""')) == 'error'
+    assert show(parse('λ"". x')) == 'error'
+    assert show(parse('s.""')) == 'error'
 
 
 def test_precedence_order():
@@ -261,9 +265,24 @@ def test_quoted_name_equals_plain_name():
 
 
 def test_quoted_name_escapes():
-    assert parse(r'"a\"b"').name == 'a"b'
+    # LLVM's escapes: `\HH` is the byte HH (either case), `\\` a backslash.
+    assert parse(r'"a\22b"').name == 'a"b'
     assert parse(r'"a\\b"').name == 'a\\b'
-    assert parse(r'"\u{3bb}"').name == 'λ'
+    assert parse(r'"a\5Cb"').name == 'a\\b'
+    assert parse(r'"\CE\BB"').name == 'λ'
+    assert parse(r'"\ce\bb"').name == 'λ'
+
+
+def test_a_label_is_any_bytes_but_00():
+    # A byte that isn't UTF-8 text is held as a lone surrogate (`surrogateescape`).
+    field = parse(r'{"\FF\01" = a}').fields[0]
+    assert field.label.encode('utf-8', 'surrogateescape') == b'\xff\x01'
+    term = parse(r'λ"\FF". "\FF"')
+    assert term.param_name == term.body.name == '\udcff'
+    assert parse(r'"\FF"') != parse(r'"\FE"')
+    # No name holds the byte 00, as in LLVM.
+    assert show(parse(r'"a\00b"')) == 'error'
+    assert show(parse(r'{"\00" = a}')) == 'error'
 
 
 def test_quoted_name_rejects_bad_forms():
@@ -273,6 +292,12 @@ def test_quoted_name_rejects_bad_forms():
     assert show(parse(r'"\u{d800}"')) == 'error'
     assert show(parse(r'"\u{110000}"')) == 'error'
     assert show(parse(r'"\u{3bb"')) == 'error'
+    # Only LLVM's escapes.
+    assert show(parse(r'"\u{3bb}"')) == 'error'
+    assert show(parse(r'"\xff"')) == 'error'
+    assert show(parse(r'"a\"b"')) == 'error'
+    assert show(parse(r'"\4"')) == 'error'
+    assert show(parse(r'"\g0"')) == 'error'
     assert show(parse('"a\nb"')) == 'error'
 
 

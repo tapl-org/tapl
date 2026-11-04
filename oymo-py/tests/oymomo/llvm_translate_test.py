@@ -476,3 +476,15 @@ def test_type_shapes(source, expected):
 def test_not_types(source):
     with pytest.raises(llvm_translate.LlvmTranslationError, match='is not an LLVM type'):
         llvm_translate.llvm_type(parse(source))
+
+
+def test_a_name_of_bytes_that_are_not_text():
+    r"""A label that isn't UTF-8 text names its symbol with LLVM's `\HH` escapes."""
+    text = llvm(
+        r"""{
+      "f\FF" = {type = {'function', {}, 'i32'}, body = λg. λp. g [] (λr. {[07000000]})},
+      main = {type = {'function', {}, 'i32'}, link = 'main',
+        body = λg. λp. g [] (λr. {let y = g."f\FF" {} in y})},
+    }"""
+    )
+    assert r'define internal i32 @"f\FF"()' in text

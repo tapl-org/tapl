@@ -3052,6 +3052,53 @@ executable binary). we should mark some place as a platform". The steps that fol
   (`'unit.merge'`), one project is one unit, there is no `run` (so no `-- args`), and
   errors already carry their file (meta `Tag`). `deps-goldens` now says `'unit.merge'`
   instead of `'module.link'`. `struct-tools` left for its own revisit.
+
+### `label-bytes` (Nov 4)
+
+- Plan artifact `label_bytes_plan.md`. User's answers (quiz):
+  - Non-text labels are written with escapes inside quoted names only (not byte-array
+    literals as labels, not hex only): `{"\xff\x00" = x}`.
+  - Only `\xHH` (not `\\`/`\"`, not C-like): a quote is `\x22`, a backslash `\x5c`. The
+    old escapes `\"`, `\\`, `\u{hex}` are dropped (user agreed when asked).
+  - Printer: "the shortest form that reads back the same: an identifier if it is one, else
+    "..." with escape".
+  - `""` is the empty label, the same as no label: `{"" = x}` is `{x}` (printer writes
+    `{x}`). A projection's label and a variable's name are never empty.
+  - Byte arrays `'…'` keep hex for non-text bytes, no escapes.
+  - Binders: user first said "a variable names are ID", then "binders are same as labels":
+    any bytes too.
+  - Lean keeps `String` labels (proofs only compare for equality), with a comment.
+  - Opcodes between labels and byte arrays: later leaf `label-opcodes` (user needed
+    examples: `'struct.get' {s, 'name'}`, `'struct.labels' s`, `'struct.with' {s, 'id', v}`).
+  - Python: labels stay `str`, the bytes decoded with `surrogateescape` (user agreed), so
+    `label == 'main'` code is unchanged.
+  - Plan quiz: 5 of 5.
+- Done: calculus point "A label, and a variable's name, is a sequence of bytes" (with
+  `\new` marks and the legend, awaiting accept); Lean comment on `Term`; `grammar`
+  (`_decode_quoted_name` → `\xHH` only; `LABEL` allows `""`, `NAME` doesn't); `printer._name`
+  (`\xHH` for `"`, `\`, non-printable and non-UTF-8 bytes); `llvm_translate._Module` turns
+  each lone surrogate into LLVM's `\HH` (llvmlite itself escapes only `"` and `\`, and
+  would leave surrogates, which can't be written as UTF-8). Tests: escapes, bad escapes
+  (old ones too), `""`, bytes labels, E-Proj by bytes, LLVM name `@"f\FF"`. 877 passed.
+- User asked "how does llvm implement this?", then "lets see llvm requirements for the
+  symbol block labels and parameter names". Found: one scheme for `@` symbols, `%`
+  values/parameters and block labels (blocks share `%`'s per-function namespace): plain
+  `[-a-zA-Z$._][-a-zA-Z$._0-9]*`, else quoted with any bytes, `\HH` a byte and `\\` a
+  backslash (printer: upper-case hex for `"`, `\`'s `\\`, non-printable); NUL rejected
+  ("NUL character is not allowed in names"); unnamed `%N` numbered in order; duplicates an
+  error in text, renamed by the API (llvmlite: `%"g1"`); `llvm.` reserved for intrinsics;
+  a leading `\01` turns off platform mangling.
+- Decided (user): "reject Byte 00 as LLVM rejects": no name or label holds 00 (parse
+  error). `llvm.` and a leading 01 stay LLVM's to report. Escapes switched to LLVM's
+  (user: "Switch to LLVM's `\HH` and `\\`"): `\HH` (either case in, upper case out) and
+  `\\`; `\xHH` is gone. So oymo and the `.ll` write names alike. The calculus point says
+  so (still with `\new` marks; user: "Keep the marks; I'll review the PDF first").
+  Quiz on the changes: R1, R2, R4 right; R3 answered by the LLVM explanation.
+- A test docstring with `\HH` gave a SyntaxWarning once (shown only when the `.pyc` is
+  rebuilt); it is a raw string now. Check new test files with
+  `python3 -W error::SyntaxWarning -c "compile(...)"`.
+- Accepted (user: "I've reviewed the PDF: remove the marks and legend, and commit"):
+  marks and legend removed.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

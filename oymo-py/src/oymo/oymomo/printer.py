@@ -251,9 +251,19 @@ def _label(label, separator):
 
 
 def _name(name):
+    """A label or variable name as written: as it is if it is an identifier, else quoted with
+    LLVM's escapes: `\\\\` for `\\`, `\\HH` (upper-case hex) for `"` and every byte that isn't
+    printable text (a lone surrogate holds a byte that isn't UTF-8, as `grammar` decodes it)."""
     if name not in RESERVED and name[0] in IDENT_START and all(c in IDENT_CONTINUE for c in name):
         return name
-    escaped = ''.join(
-        '\\' + c if c in '"\\' else c if c.isprintable() else '\\u{' + format(ord(c), 'x') + '}' for c in name
-    )
-    return f'"{escaped}"'
+    return '"' + ''.join(_quoted_char(c) for c in name) + '"'
+
+
+def _quoted_char(c):
+    if c == '\\':
+        return '\\\\'
+    if '\udc80' <= c <= '\udcff':
+        return f'\\{ord(c) - 0xDC00:02X}'
+    if c == '"' or not c.isprintable():
+        return ''.join(f'\\{byte:02X}' for byte in c.encode('utf-8'))
+    return c

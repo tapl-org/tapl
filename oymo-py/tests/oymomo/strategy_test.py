@@ -117,6 +117,11 @@ def test_order_goes_under_lambda_last():
 # Open item 11 (agent_wiki.md, "Semantics decisions"): reduction unit tests.
 
 
+def test_projection_compares_labels_by_their_bytes():
+    assert normal(r'{"\FF" = [01], "\FE" = [02]}."\FE"') == same('[02]')
+    assert normal(r'{"\61" = [01]}.a') == same('[01]')
+
+
 def test_11a_projection_is_not_a_value():
     # Every order ends in the same stuck term; neither gives [01].
     assert normal('(λy. (λx. [01]) y.l) {m = [00]}') == same('(λx. [01]) {m = [00]}.l')
