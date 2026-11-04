@@ -120,15 +120,32 @@ def test_emit_llvm_to_stdout_and_file(tmp_path, capsys) -> None:
     assert output.read_text(encoding='utf-8') == ir_text
 
 
+def files(folder: pathlib.Path) -> list[str]:
+    """The files under `folder`, as sorted paths from it."""
+    return sorted(str(path.relative_to(folder)) for path in folder.rglob('*') if path.is_file())
+
+
+def status(binary: pathlib.Path) -> int:
+    """The exit status of `binary`, run with no arguments, so `argc` is 1."""
+    return subprocess.run([str(binary)], check=False).returncode
+
+
 @pytest.mark.usefixtures('goldens_workspace')
-def test_run_without_clang(monkeypatch, capsys) -> None:
+def test_build_without_clang(tmp_path, monkeypatch, capsys) -> None:
     monkeypatch.setattr(cli.shutil, 'which', lambda _name: None)
-    assert cli.main(['run', FACT]) == 1
-    assert 'needs clang' in capsys.readouterr().err
+    assert cli.main(['build', FACT, '--out', str(tmp_path / 'out')]) == 1
+    assert capsys.readouterr().err == f'{FACT}: error: Linking unit needs clang, which is not on PATH; install clang.\n'
+
+
+def test_build_without_main_needs_no_clang(tmp_path, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(cli.shutil, 'which', lambda _name: None)
+    assert cli.main(['build', write(tmp_path, "language oymomo\n{v= {type= 'i32', init= [00000000]}}\n")]) == 0
+    assert capsys.readouterr() == ('', '')
+    assert files(tmp_path / 'oymo-out') == ['unit.h.oymo', 'unit.ll']
 
 
 def fake_clang(tmp_path, monkeypatch) -> None:
-    """A fake clang whose output program exits with 120, to test the plumbing without clang."""
+    """A fake clang whose output binary exits with 120, to test the plumbing without clang."""
     fake = tmp_path / 'bin' / 'clang'
     fake.parent.mkdir()
     fake.write_text(
@@ -139,10 +156,14 @@ def fake_clang(tmp_path, monkeypatch) -> None:
 
 
 @pytest.mark.usefixtures('goldens_workspace')
-def test_run_prints_the_exit_status(tmp_path, monkeypatch, capfd) -> None:
+def test_build_writes_flat_outputs_with_fixed_names(tmp_path, monkeypatch, capfd) -> None:
     fake_clang(tmp_path, monkeypatch)
-    assert cli.main(['run', FACT]) == 0
-    assert capfd.readouterr().out == '120\n'
+    out = tmp_path / 'out'
+    assert cli.main(['build', FACT, '--out', str(out)]) == 0
+    assert capfd.readouterr() == ('', '')
+    assert files(out) == ['unit', 'unit.h.oymo', 'unit.ll']
+    assert (out / 'unit.ll').read_text(encoding='utf-8') == (GOLDENS / 'fact.ll').read_text(encoding='utf-8')
+    assert status(out / 'unit') == 120
 
 
 @pytest.mark.usefixtures('goldens_workspace')
@@ -163,10 +184,11 @@ def test_run_prints_the_exit_status(tmp_path, monkeypatch, capfd) -> None:
         ('unit/root', 24),
     ],
 )
-def test_run_golden(capfd, golden: str, result: int) -> None:
-    # The goldens that have a `main`; run with no arguments, so `argc` is 1.
-    assert cli.main(['run', str(GOLDENS / f'{golden}.oymo')]) == 0
-    assert capfd.readouterr().out == f'{result}\n'
+def test_build_golden_and_run_it(tmp_path, golden: str, result: int) -> None:
+    # The goldens that have a `main`.
+    out = tmp_path / 'out'
+    assert cli.main(['build', str(GOLDENS / f'{golden}.oymo'), '--out', str(out)]) == 0
+    assert status(out / 'unit') == result
 
 
 LAYERS = str(GOLDENS / 'layers.oymo')
@@ -251,32 +273,52 @@ def test_fmt_keeps_the_layerings_as_written_and_merge_tidies_them(tmp_path, caps
 
 
 @pytest.mark.usefixtures('goldens_workspace')
-def test_run_a_failing_guard_stops_the_program(tmp_path, monkeypatch, capfd) -> None:
-    fake_clang(tmp_path, monkeypatch)  # every program exits with 120, the guard too
-    assert cli.main(['run', LAYERS]) == 1
-    assert capfd.readouterr() == ('', f'{LAYERS}: error: The guard failed with status 120.\n')
+def test_build_two_layers_runs_nothing(tmp_path, monkeypatch, capfd) -> None:
+    fake_clang(tmp_path, monkeypatch)  # every binary exits with 120, the guard too
+    out = tmp_path / 'out'
+    assert cli.main(['build', LAYERS, '--out', str(out)]) == 0
+    assert capfd.readouterr() == ('', '')
+    assert files(out) == ['unit', 'unit.guard', 'unit.guard.ll', 'unit.h.oymo', 'unit.ll']
+    for name in ('ll', 'guard.ll', 'h.oymo'):
+        assert (out / f'unit.{name}').read_text(encoding='utf-8') == (GOLDENS / f'layers.{name}').read_text(
+            encoding='utf-8'
+        )
 
 
 @pytest.mark.parametrize(
-    ('link', 'layer'),
-    [("'main' : 'guard'", 'high layer (the guard)'), ("'start' : 'main'", 'low layer')],
+    ('link', 'binaries'),
+    [("'start' : 'start'", []), ("'main' : 'guard'", ['unit']), ("'start' : 'main'", ['unit.guard'])],
 )
-def test_run_needs_main_in_both_layers(tmp_path, monkeypatch, capfd, link: str, layer: str) -> None:
+def test_a_binary_for_each_layer_that_links_main(tmp_path, monkeypatch, link: str, binaries: list[str]) -> None:
     fake_clang(tmp_path, monkeypatch)
-    path = write(tmp_path, two_layers('[00000000]', '[00000000]', link))
-    assert cli.main(['run', path]) == 1
-    message = f"The {layer} has no function linked as 'main'; both layers need one to run."
-    assert capfd.readouterr() == ('', f'{path}: error: {message}\n')
+    assert cli.main(['build', write(tmp_path, two_layers('[00000000]', '[00000000]', link))]) == 0
+    assert files(tmp_path / 'oymo-out') == sorted([*binaries, 'unit.guard.ll', 'unit.h.oymo', 'unit.ll'])
+
+
+def test_build_removes_stale_outputs(tmp_path, monkeypatch, capfd) -> None:
+    fake_clang(tmp_path, monkeypatch)
+    path = write(tmp_path, two_layers('[00000000]', '[00000000]'))
+    assert cli.main(['build', path]) == 0
+    # One layer and no `main`: no guard, no binaries are left.
+    write(tmp_path, "language oymomo\n{v= {type= 'i32', init= [00000000]}}\n")
+    assert cli.main(['build', path]) == 0
+    assert files(tmp_path / 'oymo-out') == ['unit.h.oymo', 'unit.ll']
+    # A failed build leaves no binary or guard either.
+    assert cli.main(['build', path]) == 0
+    write(tmp_path, two_layers('[00000000]', '[00000000]'))
+    assert cli.main(['build', path]) == 0
+    write(tmp_path, two_layers('[00000000]', '[01]'))
+    assert cli.main(['build', path]) == 1
+    assert 'A constant of type i32 is a byte array of 4 bytes.' in capfd.readouterr().err
+    assert files(tmp_path / 'oymo-out') == ['unit.h.oymo', 'unit.ll']
 
 
 @pytest.mark.skipif(shutil.which('clang') is None, reason='needs clang')
-@pytest.mark.parametrize(('high', 'out', 'err'), [('[00000000]', '7\n', ''), ('[03000000]', '', 'status 3.')])
-def test_run_the_guard_first(tmp_path, capfd, high: str, out: str, err: str) -> None:
-    path = write(tmp_path, two_layers('[07000000]', high))
-    assert cli.main(['run', path]) == (1 if err else 0)
-    captured = capfd.readouterr()
-    assert captured.out == out
-    assert captured.err == (f'{path}: error: The guard failed with {err}\n' if err else '')
+@pytest.mark.parametrize('guard', [0, 3])
+def test_run_the_guard_and_the_unit_by_hand(tmp_path, guard: int) -> None:
+    assert cli.main(['build', write(tmp_path, two_layers('[07000000]', f'[0{guard}000000]'))]) == 0
+    assert status(tmp_path / 'oymo-out' / 'unit.guard') == guard
+    assert status(tmp_path / 'oymo-out' / 'unit') == 7
 
 
 # Driver sessions: a program reads files by their paths from the workspace.
@@ -319,7 +361,7 @@ def test_a_failed_read_is_reported_at_the_read(tmp_path, capsys) -> None:
     path = write(tmp_path, f'language oymomo\n{line}\n')
     assert cli.main(['normal', path]) == 1
     assert capsys.readouterr().err == (
-        f"{path}:2:{_column(line, chr(39) + 'missing')}: error: Cannot read 'missing.oymo': No such file or directory.\n"
+        f"{path}:2:{_column(line, chr(39) + 'missing')}: error: could not find oymo file 'missing.oymo'\n"
     )
 
 
@@ -352,11 +394,11 @@ MATH = """language oymomo
 MATH_HEADER = "language oymomo\n{math= {gcd= {type= {'function', {a= 'i32', b= 'i32'}, 'i32'}, link= 'gcd'}}}\n"
 
 # A unit `app` that mounts math's header under `m2` and calls `gcd` through it. The header
-# mirrors math's root, `math/root.oymo`, in the destination folder.
+# is math's `oymo-out/unit.h.oymo`, which the driver mounts at `vendor/math`.
 APP = """language oymomo
 'unit.merge'
   {
-    'unit.rebase' {{'m2'}, 'driver.read_low' 'out/math/root.h.oymo'},
+    'unit.rebase' {{'m2'}, 'driver.read_low' 'vendor/math/unit.h.oymo'},
     {
       main= {
         type= {'function', {}, 'i32'},
@@ -376,28 +418,19 @@ def write_unit(tmp_path: pathlib.Path, name: str, text: str) -> str:
     return f'{name}/root.oymo'
 
 
-def test_emit_header_mirrors_the_root_in_oymo_out(tmp_path, capsys) -> None:
-    # One destination folder in the current directory for every unit built from here; the
-    # header mirrors the root's path in the workspace.
+def test_emit_header_writes_unit_h_oymo_in_oymo_out(tmp_path, capsys) -> None:
+    # The header's name is fixed, wherever the root is.
     assert cli.main(['emit-header', write_unit(tmp_path, 'math', MATH)]) == 0
     assert capsys.readouterr() == ('', '')
-    assert (tmp_path / 'oymo-out' / 'math' / 'root.h.oymo').read_text(encoding='utf-8') == MATH_HEADER
-    assert not (tmp_path / 'math' / 'oymo-out').exists()
-
-
-def test_emit_header_mirrors_a_nested_root(tmp_path, capsys) -> None:
-    (tmp_path / 'lib').mkdir()
-    write_unit(tmp_path / 'lib', 'math', MATH)
-    assert cli.main(['emit-header', str(tmp_path / 'lib' / 'math' / 'root.oymo')]) == 0
-    assert capsys.readouterr() == ('', '')
-    assert (tmp_path / 'oymo-out' / 'lib' / 'math' / 'root.h.oymo').read_text(encoding='utf-8') == MATH_HEADER
+    assert files(tmp_path / 'oymo-out') == ['unit.h.oymo']
+    assert (tmp_path / 'oymo-out' / 'unit.h.oymo').read_text(encoding='utf-8') == MATH_HEADER
 
 
 def test_emit_header_writes_into_the_out_folder(tmp_path, capsys) -> None:
     out = tmp_path / 'build' / 'gen'
     assert cli.main(['emit-header', write_unit(tmp_path, 'math', MATH), '--out', str(out)]) == 0
     assert capsys.readouterr() == ('', '')
-    assert (out / 'math' / 'root.h.oymo').read_text(encoding='utf-8') == MATH_HEADER
+    assert (out / 'unit.h.oymo').read_text(encoding='utf-8') == MATH_HEADER
     assert not (tmp_path / 'oymo-out').exists()
 
 
@@ -453,30 +486,98 @@ def test_reads_are_paths_from_the_workspace(tmp_path, capsys) -> None:
     assert capsys.readouterr().out == 'language oymomo\n{x= [01]}\n'
     root.write_text("language oymomo\n'driver.read_low' 'lexer.oymo'\n", encoding='utf-8')
     assert cli.main(['normal', 'calc/root.oymo']) == 1
-    assert "Cannot read 'lexer.oymo': No such file or directory." in capsys.readouterr().err
+    assert "could not find oymo file 'lexer.oymo'" in capsys.readouterr().err
 
 
-def test_out_is_read_through_the_virtual_directory(tmp_path, capsys) -> None:
-    out = tmp_path / 'build'
-    assert cli.main(['emit-header', write_unit(tmp_path, 'math', MATH), '--out', str(out)]) == 0
-    app = write_unit(tmp_path, 'app', APP)
-    assert cli.main(['check', app, '--out', str(out)]) == 0
-    # The default destination folder has no header.
-    assert cli.main(['check', app]) == 1
-    assert "Cannot read 'out/math/root.h.oymo': No such file or directory." in capsys.readouterr().err
+def math_project(tmp_path: pathlib.Path, monkeypatch) -> pathlib.Path:
+    """The project `math`, its header emitted into its `oymo-out/`, and `app` the current
+    directory; the folder of math's outputs."""
+    (tmp_path / 'math').mkdir()
+    (tmp_path / 'math' / 'unit.oymo').write_text(MATH, encoding='utf-8')
+    monkeypatch.chdir(tmp_path / 'math')
+    assert cli.main(['emit-header', 'unit.oymo']) == 0
+    (tmp_path / 'app').mkdir()
+    (tmp_path / 'app' / 'unit.oymo').write_text(APP, encoding='utf-8')
+    monkeypatch.chdir(tmp_path / 'app')
+    return tmp_path / 'math' / 'oymo-out'
+
+
+def test_a_mount_shows_a_folder_in_the_virtual_directory(tmp_path, monkeypatch, capsys) -> None:
+    math_out = math_project(tmp_path, monkeypatch)
+    assert cli.main(['check', 'unit.oymo', '--mount', 'vendor/math=../math/oymo-out']) == 0
+    assert cli.main(['check', 'unit.oymo', '--mount', f'vendor/math={math_out}']) == 0
+    assert capsys.readouterr() == ('', '')
+
+
+def test_a_missing_header(tmp_path, monkeypatch, capsys) -> None:
+    math_project(tmp_path, monkeypatch)
+    assert cli.main(['build', 'unit.oymo']) == 1
+    column = _column(APP.splitlines()[3], "'vendor")
+    assert (
+        capsys.readouterr().err == f"unit.oymo:4:{column}: error: could not find oymo file 'vendor/math/unit.h.oymo'\n"
+    )
+    assert not (tmp_path / 'app' / 'oymo-out' / 'unit').exists()
+
+
+def test_oymo_out_is_never_read(tmp_path, monkeypatch, capsys) -> None:
+    # The destination folder is no part of the virtual directory: `out/` names nothing.
+    math_project(tmp_path, monkeypatch)
+    (tmp_path / 'app' / 'unit.oymo').write_text(APP.replace('vendor/math/', 'out/'), encoding='utf-8')
+    assert cli.main(['check', 'unit.oymo', '--out', '../math/oymo-out']) == 1
+    assert "could not find oymo file 'out/unit.h.oymo'" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ('mounts', 'message'),
+    [
+        (['v'], "--mount takes VPATH=DIR, with a nonempty VPATH and DIR; got 'v'."),
+        (['=d'], "--mount takes VPATH=DIR, with a nonempty VPATH and DIR; got '=d'."),
+        (['v='], "--mount takes VPATH=DIR, with a nonempty VPATH and DIR; got 'v='."),
+        (['v=d', 'v=e'], "--mount gives 'v' twice."),
+        (['/v=d'], "The mount path '/v' is absolute; it is relative to the top of the virtual directory."),
+        (
+            ['../v=d'],
+            "The mount path '../v' is not a path of the virtual directory: its parts are separated by '/', "
+            "and none is empty, '.' or '..'.",
+        ),
+        (['v/=d'], "The mount path 'v/' is not a path of the virtual directory"),
+        (['a.oymo=d'], "The mount path 'a.oymo' clashes with the file or folder 'a.oymo' of the top."),
+        (['lib=d'], "The mount path 'lib' clashes with the file or folder 'lib' of the top."),
+        (['a.oymo/v=d'], "The mount path 'a.oymo/v' clashes with the file or folder 'a.oymo' of the top."),
+        (['v=d', 'v/w=e'], "The mount paths 'v' and 'v/w' overlap."),
+        (['v=missing'], "The mount 'v' shows 'missing', which is not a folder."),
+    ],
+)
+def test_bad_mounts(tmp_path, capsys, mounts: list[str], message: str) -> None:
+    for folder in ('d', 'e', 'lib'):
+        (tmp_path / folder).mkdir()
+    path = write(tmp_path, 'language oymomo\n{}\n')
+    assert cli.main(['check', path, *(f'--mount={mount}' for mount in mounts)]) == 1
+    assert capsys.readouterr().err.startswith(f'{path}: error: {message}')
+
+
+def test_a_mount_inside_a_project_folder(tmp_path, capsys) -> None:
+    # `lib` is a folder of the project; `lib/math` is not, so it may be a mount.
+    (tmp_path / 'lib').mkdir()
+    (tmp_path / 'math').mkdir()
+    (tmp_path / 'math' / 'unit.h.oymo').write_text(MATH_HEADER, encoding='utf-8')
+    path = write(tmp_path, "language oymomo\n'driver.read_low' 'lib/math/unit.h.oymo'\n")
+    assert cli.main(['normal', path, '--mount', 'lib/math=math']) == 0
+    assert capsys.readouterr().out == MATH_HEADER
 
 
 @pytest.mark.skipif(shutil.which('clang') is None, reason='needs clang')
-def test_a_unit_calls_another_through_its_header(tmp_path, capsys) -> None:
-    """Compiled reuse, as Blaze builds: from the workspace, math builds to math.ll and its
-    header `oymo-out/math/root.h.oymo`; app reads the header as `out/math/root.h.oymo` and
-    builds to app.ll; the platform linker joins the two."""
-    math = write_unit(tmp_path, 'math', MATH)
-    assert cli.main(['emit-header', math]) == 0
-    assert cli.main(['emit-llvm', math, '-o', 'math.ll']) == 0
-    app = write_unit(tmp_path, 'app', APP)
-    assert cli.main(['emit-llvm', app, '-o', 'app.ll']) == 0
+def test_a_unit_calls_another_through_its_header(tmp_path, monkeypatch, capsys) -> None:
+    """Compiled reuse: the project math builds to `oymo-out/unit.ll` and its header
+    `oymo-out/unit.h.oymo`; app reads the header through a mount and builds to app.ll; the
+    platform linker joins the two, by hand: oymo links no other project."""
+    math_project(tmp_path, monkeypatch)
+    monkeypatch.chdir(tmp_path / 'math')
+    assert cli.main(['build', 'unit.oymo']) == 0
+    monkeypatch.chdir(tmp_path / 'app')
+    assert cli.main(['emit-llvm', 'unit.oymo', '-o', 'app.ll', '--mount', 'vendor/math=../math/oymo-out']) == 0
     assert capsys.readouterr() == ('', '')
     clang = str(shutil.which('clang'))
-    subprocess.run([clang, '-Wno-override-module', '-x', 'ir', 'math.ll', 'app.ll', '-o', 'app.exe'], check=True)
-    assert subprocess.run([str(tmp_path / 'app.exe')], check=False).returncode == 6
+    math_ll = str(tmp_path / 'math' / 'oymo-out' / 'unit.ll')
+    subprocess.run([clang, '-Wno-override-module', '-x', 'ir', math_ll, 'app.ll', '-o', 'app.exe'], check=True)
+    assert status(tmp_path / 'app' / 'app.exe') == 6

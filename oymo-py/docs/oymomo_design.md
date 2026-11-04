@@ -258,8 +258,11 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
   built by the user); libraries are mounted into it, so there are no search paths. As in
   Blaze, its top is the **workspace**, the current directory where `oymo` runs: every read
   path is from there (`calc/root.oymo` reads `'driver.read_low' 'calc/lexer.oymo'`), and a
-  root file outside it is an error. How the user describes mounts is left to the driver
-  design (`vdir-mounts`).
+  root file outside it is an error. A folder outside the workspace is mounted with
+  `--mount VPATH=DIR` (repeatable): `--mount vendor/math=../math/oymo-out` makes
+  `'vendor/math/unit.h.oymo'` read `../math/oymo-out/unit.h.oymo`. A mount path may not
+  clash with a project file or folder, overlap another mount, or leave the top; `DIR` must
+  be a folder.
 - `m` in a body is the whole unit, and the kernel uses absolute paths only (as C++'s
   compiled names are fully qualified); short names are the frontend's job. A better name
   for `m` is roadmap leaf `unit-var-name`.
@@ -315,11 +318,10 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
     definition at its path; internal symbols and the unit's own imports left out.
   - Two layers: one file `low header : high header` by default; `--merge` merges them
     (a layering only where they differ), for developers.
-  - Written to the destination folder, by default `oymo-out/` in the workspace, shared by
-    every unit built from there (as Blaze's `bazel-out/`), mirroring the source path:
-    `oymo emit-header calc/root.oymo` writes `oymo-out/calc/root.h.oymo`. Every build's
-    virtual directory shows that folder as `out/`, so another unit reads
-    `'driver.read_low' 'out/calc/root.h.oymo'`. `--out DIR` changes it.
+  - Written as `unit.h.oymo` to the destination folder, `oymo-out/` in the workspace or
+    `--out DIR`. The destination folder is only written, never part of the virtual
+    directory: another project uses the header by copying it in, or by mounting the
+    folder (`--mount vendor/math=../math/oymo-out`).
   - Places into `language oymomo` files are still never written (see `header-places`, after
     the bootstrap).
 - Reduce-time library: any term, applied or `let`-bound, never in the ingot; recursion by
@@ -344,7 +346,6 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
   with paths (not entries). As OCaml functors and recursive modules.
 - Proposal: aliases: an entry that is a path (`log = m.util.log`) is that symbol for the
   translation; chains followed, cycles and dangling paths rejected.
-- Decide: how the user describes the virtual directory (driver design).
 - Decide: a redesign of symbol addresses in data that supports reduction and keeps the
   realms apart.
 
@@ -401,23 +402,29 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
   is its own code, using the struct tools. No new calculus feature and no special file
   kind. In docs it is called a bridge file, which lifts (low to high) or lowers (high to
   low) code.
-- If a high layer depends on a low layer, that low ingot is also compiled for the host.
-- Decided: output names. One layer: `a.oymo` → `a.ll`. Two layers: layer 0 keeps
-  `a.ll`, so adding the first `:` never renames an existing output; layer 1 writes
-  `a.guard.ll`. The names live only in file names, never inside the `.ll`.
 - Decided: in prose, layer 1 is the guard and layer 0 the guarded layer; a guarded layer
   is safe to run when its guard returns non-error.
 - Decided: the calculus keeps `low` and `high` (where a part goes); guard and guarded
   (what it does) are a convention above the calculus. High is the guard, low the
   guarded layer.
-- Decided: the driver computes which builds a (file, layer) needs from the import graph.
-  Everything a guard reaches is built for the host (where the guard runs at build time);
-  everything a worker reaches is built for the target; a layer reached by both is built
-  for both. The ingot is platform-neutral, so there is one `.ll` and one
-  `clang --target` run per platform, into separate output directories (e.g.
-  `build/host/c.o`, `build/target/c.o`). This is the driver's job, not oymomo's, so
-  "nothing automatic in oymomo" still holds. Example: `a.oymo` is
-  `'add' {…} : c.check_add {…}`; built on x86_64 for arm64, `a.ll` goes to arm64,
-  `a.guard.ll` and `c.ll` to x86_64.
-- Caveat: once platform-dependent sizes exist (deferred), the host and target `.ll` of
-  one layer may differ.
+- Decided: the build model, kept simple (user: "things get so complicated. lets simplify
+  them first"):
+  - One project, one unit, named `unit`. The project is the workspace; the unit's root is
+    the file given to `oymo build FILE`.
+  - `oymo-out/` (or `--out DIR`) is only an output, flat, with fixed names: `unit.ll` (the
+    low layer, or the only one), `unit.guard.ll` (two layers), `unit.h.oymo`, `unit` (when
+    the low layer links a `main`), `unit.guard` (when the high layer links a `main`).
+    Adding the first `:` never renames an existing output. The names live only in file
+    names, never inside the `.ll`.
+  - Always the host: clang builds each `.ll` straight into its binary
+    (`clang -x ir unit.ll -o unit`), with no objects and no `--target`.
+  - `oymo build` runs nothing, the guard neither; there is no `oymo run`: the user runs
+    `oymo-out/unit.guard` and `oymo-out/unit` by hand.
+  - Before a build, `unit`, `unit.guard` and `unit.guard.ll` are removed, so a failed or
+    one-layer build leaves none behind.
+  - Headers of other projects are copied in or mounted (`--mount`); reading one is a plain
+    file read, so there is no dependency graph. Linking another project's code is later
+    (roadmap `link-projects`); only clang's default system libraries are linked.
+  - Later: building for another target (roadmap `cross-target`). Once platform-dependent
+    sizes exist (deferred), the `.ll` of one layer may differ per platform.
+  - This is the driver's job, not oymomo's, so "nothing automatic in oymomo" still holds.

@@ -2933,6 +2933,51 @@ executable binary). we should mark some place as a platform". The steps that fol
   `'unit/…'` with `tests/goldens` as its workspace; CLI tests chdir into a workspace).
   `hatch test` 857 passed. Design doc and roadmap (`vdir-mounts`) updated; a stray step-1
   block left in the `opcode-namespaces` section was removed.
+- Third quiz (Blaze workspace): 5 of 5. Committed `91b134f`.
+
+### `redesign-links` (Nov 4)
+
+- Plan (artifact `links_plan.md`): `oymo build`, (unit, layer) graph from header reads,
+  host/target objects, guards at build time. User: "quiz me the plan before start". Quiz 1:
+  4 of 7. User's choices: a missing dependency header "just fail and say could not find oymo
+  file" (no on-demand builds); objects per platform, only the `.ll` shared ("(a)"); `run`
+  with a foreign target builds, runs the guards, and does not run the target program. Quiz
+  2 after the update: all right (one question re-asked more simply). Implementation started
+  (subagent).
+- Review quiz on the first implementation: 3 of 4 answered (4 skipped). It found a bug:
+  `run --target <foreign>` failed linking ("clang failed") instead of printing the
+  "can't run here" note.
+- Simplified (user: "things get so complicated. lets simplify them first"). The graph,
+  `.deps.json`, host/target objects, `out/` in the virtual directory and `run` were
+  dropped. Why: one project = one unit leaves nothing to order, and `oymo-out` never read
+  means no cycles and no stale headers. Decisions with the user's words:
+  - "one project one unit"; the unit is named `unit` ("unit name is \"unit\". so
+    unit.h.oymo, unit.ll, unit.guard.ll (if exists), unit (binary), unit.guard (binary)").
+  - "oymo-out is a output folder": flat, no mirroring, no `host/`/`target/`.
+  - "headers are either manually copied into the project, or drive mount them into the
+    virtual directory if they are out of project folder": `--mount VPATH=DIR` (finishes
+    `vdir-mounts`).
+  - Always the host: "lets remove target too. always host targret. and remove target in
+    output name too" (after first asking for one `--target` with `<name>-<target>` names).
+  - No `run`: "lets remove run command. user will trigger binary manually if they need";
+    `build` makes the guard binary but doesn't run it.
+  - No objects; clang goes `.ll` → binary. Linking other projects is later (roadmap
+    `link-projects`; only clang's default libraries now). Another target is later
+    (`cross-target`).
+  - `emit-llvm` and `emit-header` stay; `emit-header` writes `oymo-out/unit.h.oymo`.
+  - Plan quiz: 8 of 8.
+- The implementer's extra decisions, accepted by the user: clang is needed only when a
+  binary is linked; a mount clashes when its path, or a prefix of it, is a project file or
+  folder (below an existing folder is fine); `DIR` must be a folder, a path given twice
+  has its own message, a relative `DIR` is from the current directory; `--mount` on every
+  command with `--config`; stale `unit`, `unit.guard`, `unit.guard.ll` are removed before
+  reduction; the `.ll` keeps the hard-coded x86_64 triple. Reading `'oymo-out/…'` as a
+  project file is not blocked (user: "this is ok for now"), though rule 2 says oymo-out is
+  only written.
+- `hatch test` 876 passed; `hatch check` clean. Design doc (virtual directory, kinds of
+  file, §5 build model) and roadmap (`oymomo-redesign`, `redesign-links`, `vdir-mounts`
+  removed; "Paused" line removed; `link-projects`, `cross-target` added under `build`;
+  `driver` leaf updated) updated. `oymomo-redesign` is finished.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

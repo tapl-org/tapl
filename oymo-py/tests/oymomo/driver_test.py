@@ -84,7 +84,7 @@ def test_each_path_is_read_once(tmp_path):
         ('./a.oymo', "'./a.oymo' is not a read path"),
         ('dir//a.oymo', "'dir//a.oymo' is not a read path"),
         ('', "'' is not a read path"),
-        ('missing.oymo', "Cannot read 'missing.oymo': No such file or directory."),
+        ('missing.oymo', "could not find oymo file 'missing.oymo'"),
         ('dir', "Cannot read 'dir': Is a directory."),
     ],
 )
@@ -108,32 +108,53 @@ def test_a_link_may_not_leave_the_top(tmp_path):
     assert build.errors[0][0] == "'link.oymo' leaves the top of the virtual directory."
 
 
-def test_out_names_the_destination_folder(tmp_path):
-    top, out = tmp_path / 'src', tmp_path / 'build'
-    write(top, 'out/a.oymo', HEADER + '{f = [01]}\n')  # hidden: `out/` is the destination folder
-    write(out, 'a.oymo', HEADER + '{f = [02]}\n')
-    with driver.session(str(top), out=str(out)) as build:
-        assert normal("'driver.read_low' 'out/a.oymo'") == normal('{f = [02]}')
-    assert build.paths == ['out/a.oymo']
-    assert build.host_path('out/a.oymo') == os.path.join(str(out), 'a.oymo')
+def test_a_mount_shows_a_host_folder(tmp_path):
+    top, math = tmp_path / 'top', tmp_path / 'math'
+    write(top, 'lib/a.oymo', HEADER + '{f = [01]}\n')
+    write(math, 'unit.h.oymo', HEADER + '{f = [02]}\n')
+    with driver.session(str(top), mounts={'lib/math': str(math)}) as build:
+        assert normal("'driver.read_low' 'lib/math/unit.h.oymo'") == normal('{f = [02]}')
+        assert normal("'driver.read_low' 'lib/a.oymo'") == normal('{f = [01]}')
+    assert not build.errors
+    assert build.paths == ['lib/math/unit.h.oymo', 'lib/a.oymo']
+    assert build.host_path('lib/math/unit.h.oymo') == os.path.join(str(math), 'unit.h.oymo')
+    # A path that only starts with the mount's name is not under it.
+    assert build.host_path('lib/mathx/a.oymo') == os.path.join(str(top), 'lib', 'mathx', 'a.oymo')
 
 
-def test_the_destination_folder_is_oymo_out_in_the_current_directory_by_default(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    write(tmp_path, 'oymo-out/a.h.oymo', HEADER + '{f = [02]}\n')
-    with driver.session(str(tmp_path / 'unit')) as build:
-        assert normal("'driver.read_low' 'out/a.h.oymo'") == normal('{f = [02]}')
-    assert build.out == os.path.join(str(tmp_path), 'oymo-out')
-
-
-def test_a_link_may_not_leave_the_destination_folder(tmp_path):
-    top, out = tmp_path / 'top', tmp_path / 'top' / 'oymo-out'
-    out.mkdir(parents=True)
+def test_a_link_may_not_leave_the_mounted_folder(tmp_path):
+    top, math = tmp_path / 'top', tmp_path / 'math'
     write(top, 'source.oymo', HEADER + '{}\n')
-    (out / 'link.oymo').symlink_to(top / 'source.oymo')
-    with driver.session(str(top), out=str(out)) as build:
-        normal("'driver.read_low' 'out/link.oymo'")
-    assert build.errors[0][0] == "'out/link.oymo' leaves the destination folder."
+    math.mkdir()
+    (math / 'link.oymo').symlink_to(top / 'source.oymo')
+    with driver.session(str(top), mounts={'m': str(math)}) as build:
+        normal("'driver.read_low' 'm/link.oymo'")
+    assert build.errors[0][0] == "'m/link.oymo' leaves the folder mounted at 'm'."
+
+
+def test_a_missing_file_under_a_mount(tmp_path):
+    (tmp_path / 'math').mkdir()
+    with driver.session(str(tmp_path / 'top'), mounts={'m': str(tmp_path / 'math')}) as build:
+        normal("'driver.read_low' 'm/unit.h.oymo'")
+    assert build.errors[0][0] == "could not find oymo file 'm/unit.h.oymo'"
+
+
+def test_bad_mounts_raise(tmp_path):
+    folder = str(tmp_path / 'd')
+    (tmp_path / 'd').mkdir()
+    with (
+        pytest.raises(driver.MountError, match='overlap'),
+        driver.session(str(tmp_path), mounts={'v/w': folder, 'v': folder}),
+    ):
+        pass
+    driver.check_mounts(str(tmp_path), {'v': folder, 'vw': folder})  # `vw` is not under `v`
+
+
+def test_read_bytes_of_a_missing_file(tmp_path):
+    # Not read as an oymo file, so not "could not find oymo file".
+    with driver.session(str(tmp_path)) as build:
+        normal("'driver.read_bytes' 'data.bin'")
+    assert build.errors[0][0] == "Cannot read 'data.bin': No such file or directory."
 
 
 @pytest.mark.parametrize(

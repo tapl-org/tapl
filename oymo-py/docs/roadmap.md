@@ -9,14 +9,10 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   LLVM C API after) and runs `clang`; no JIT before 1.0.
 - Before 1.0, oymomo, Alcor and Mizar syntax, public API and CLI may break.
 - 🚫 marks a blocked leaf. Each node has a fixed id.
-- Paused: everything outside `oymomo-redesign`, until it is done
-  ([oymomo_design.md](oymomo_design.md)).
 
 ## Tree
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
-  - `oymomo-redesign` Redesign oymomo and the `.oymo` file
-    - `redesign-links` Ingots of both layers linked across files
   - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
   - `unit-var-name` A better name for the unit variable `m`
   - `label-bytes` A label can be any bytes, not only UTF-8 text
@@ -25,7 +21,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `effect-ticks` Deterministic effects: a tick threaded through effect opcodes
   - `functor-libraries` Functor-style libraries and path aliases (proposals)
   - `data-addresses` Symbol addresses in data, redesigned
-  - `vdir-mounts` Describing the virtual directory: mounts beyond the workspace
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
       - `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
@@ -90,8 +85,10 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `alcor-memory-frontend` Alcor syntax and lowering for memory
     - `build` `oymo build`: executables, `-c` objects, `.c` files linked in
       - 🚫 `obj-link` `.o` via `clang -c`, link with `cc`
-      - 🚫 `driver` `oymo build a.oymo -o a`, `oymo run`, `-c`
+      - 🚫 `driver` `oymo build a.oymo -o a`, `-c`
       - 🚫 `e2e-libc` End-to-end tests calling libc and a small C library
+      - `link-projects` Linking another project's code into `unit`
+      - `cross-target` Building for a target other than the host
     - 🚫 `tagged-unions` Enums and tagged unions; `switch` binds the payload
     - 🚫 `l1-generics` System F generics: `List(T)`, `Map(K, V)`
   - `types-files` Multiple files and function pointers
@@ -261,13 +258,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide: a form that supports reduction and keeps name realms apart (e.g. a path value);
   until then pointer tables are filled at run time
 
-### `vdir-mounts` Describing the virtual directory: mounts beyond the workspace
-
-- Moved from `redesign-modules`: today the virtual directory is the workspace (the
-  current directory), plus the destination folder as `out/`
-- Decide: how a user mounts other folders (`--mount libs/math=…`, a textproto, an oymo
-  term), and how libraries are found
-
 ### `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
 
 - Moved out of `oymomo-redesign` (user: "move the opcode namespace outside of
@@ -278,26 +268,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide: prefix = the providing collection (LLVM translation, driver, unit tools, an
   opcode provider unit)
 - Later: opcode providers (compiled units loaded by the driver; λs as opaque handles)
-
-### `redesign-links` Ingots of both layers linked across files
-
-- Layers are equal in oymomo; the driver picks where each runs (today `oymo run` runs
-  the high layer, the guard, first and the low layer only if it exits 0)
-- Known limit: the low and high ingots may define the same symbols; linking both into
-  one program (the run-time guard pattern) clashes
-- Each ingot becomes its own `.ll`; the `.ll` files link with each other
-- Output names: one layer `a.oymo` → `a.ll`; with two layers, layer 0 keeps `a.ll`,
-  layer 1 writes `a.guard.ll`
-- The import graph has a node per (file, layer); only that graph must be acyclic
-- An oymo file imports only oymo files (a layer of one), never a `.ll`
-- No rule on which `.ll` files link together (up to the user); a bridge file may lift
-  or lower code between layers
-- Relabeling is optional, no rule: as they are, or either side relabeled
-- That file is an ordinary oymo file importing another file's layer into a different
-  layer of its own (a "bridge file", lifting or lowering code); no special kind
-- The driver computes host and target builds from the (file, layer) import graph: what
-  a guard reaches is built for the host, what a worker reaches for the target; one
-  `.ll`, one `clang --target` run per platform, separate output directories
 
 ### `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
 
@@ -823,18 +793,32 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Link with the system `cc`
 - Compile `.c` inputs with `cc`
 
-### `driver` `oymo build a.oymo -o a`, `oymo run`, `-c`
+### `driver` `oymo build a.oymo -o a`, `-c`
 
-- `oymo build a.oymo -o a`: executable
+- `oymo build FILE` exists: one unit, flat `oymo-out/unit*` outputs, host only, runs
+  nothing; `oymo run` was removed (user: "lets remove run command. user will trigger
+  binary manually if they need")
 - `oymo build ... -c`: object file
 - `oymo build hello.oymo util.c -o hello`: `.c` files linked in
-- `oymo run` through the same build path
 
 ### `e2e-libc` End-to-end tests calling libc and a small C library
 
 - `zeroext`/`signext` on `i1`, `i8`, `i16` where needed
 - End-to-end tests calling libc and a small C test library, built and run
 - Done when: `oymo build hello.oymo util.c -o hello` runs; a program reverses a file
+
+### `link-projects` Linking another project's code into `unit`
+
+- Today a project reads another project's header (copied in or `--mount`ed), but only
+  clang's default system libraries are linked, so calling its code fails at link time
+- Decide: how the other project's code reaches the link (`--link FILE`, the mount brings
+  it, …)
+
+### `cross-target` Building for a target other than the host
+
+- Today `oymo build` always builds for the host (user: "lets remove target too. always
+  host targret")
+- Decide: `--target`, output names per target, where the guard runs, cross linkers
 
 ### `tagged-unions` Enums and tagged unions; `switch` binds the payload
 
