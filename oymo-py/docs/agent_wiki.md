@@ -24,6 +24,14 @@ The user's orders, kept as given. Follow them in every task.
 - After every change to this wiki, stage it: `git add docs/agent_wiki.md`. Stage only
   this file this way; don't commit.
 
+### Questions to the user (Nov 4)
+
+- Ask choices, including "Should I commit and push as …?", in quiz format (the
+  multiple-choice question tool), not as a question at the end of a message (user: "also
+  next time ask this kind of question in quiz format").
+- Quizzes on changes and plans: "make quizes for the changes, so if i answered correctly,
+  then your changes lgtm"; "quiz me the plan before start".
+
 ### Repository layout (Oct 27)
 
 - User: "for now i keep all the work in oymo-py until bootstrap. when the bootstrap start is
@@ -3039,6 +3047,11 @@ executable binary). we should mark some place as a platform". The steps that fol
   as is, flagged to the user: `deps-cli` (many files, a unit per file, `oymo run`)
   conflicts with "one project one unit" and no `run`; the spindle REPL's `oymo run
   --spindle` is far off.
+- Committed `bef5afe`. Then `deps-cli` (user picked it; then the recommended option):
+  removed. Why: the root reads other files itself (`driver.read_*`), merging is user code
+  (`'unit.merge'`), one project is one unit, there is no `run` (so no `-- args`), and
+  errors already carry their file (meta `Tag`). `deps-goldens` now says `'unit.merge'`
+  instead of `'module.link'`. `struct-tools` left for its own revisit.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

@@ -25,7 +25,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
       - `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
-      - 🚫 `deps-cli` Many files: `--unit=each|merge|apply`, `-e` glue
       - 🚫 `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
       - 🚫 `typed-consts` Folding keeps constants' types
       - 🚫 `deps-goldens` Golden tests: diamond, template pattern, merged declarations
@@ -272,29 +271,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Tests: link, conflicts, instantiate and run `gcd`, non-module
   operand stays
 
-### `deps-cli` Many files: `--unit=each|merge|apply`, `-e` glue
-
-- Format `oymo <command> [flags] <files…> [-- args]`; flags anywhere; `--` passes the
-  rest to the program
-- `--unit` says how files become compilation units:
-
-  ```
-  $ oymo run a.oymo b.oymo c.oymo                         each (default): a unit per file, linked
-  $ oymo emit-llvm --unit=merge a.oymo b.oymo -o ab.ll    one unit: built-in glue
-  $ oymo normal --unit=apply link.oymo a.oymo b.oymo      one unit: LINK A B
-  $ oymo run -e "λa. λb. a b" a.oymo b.oymo               -e means apply
-  $ oymo run a.oymo -- 5 7                                program arguments
-  ```
-
-- `merge`: `'module.link' {F₁, …, Fₙ}`; `oymo merge` prints it
-- `-e` with `--unit=each` or `merge`: error; unknown value: error listing the three
-- `each`: `run` builds every unit with `clang` and links; `emit-llvm`, `normal` need
-  `-o DIR` for more than one file; `check` checks every unit
-- For `check`, `emit-llvm`, `normal`, `run`; not `fmt`
-- Each file parsed and resolved alone, the glue too
-- Every file starts with `language oymomo`; an `-e` glue has no header
-- A span's row carries its file; errors print `b.oymo:3:5: error: …`
-
 ### `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
 
 - `letrec x = t₁ in t₂` ≝ `let x = fix (λx. t₁) in t₂`
@@ -315,7 +291,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - Golden: diamond: `a`, `b`, `c`, `d` linked once each; `d` defines, `b` and `c` declare
 - Golden: template pattern: a generic instantiated once in a file's `code`
-- Golden: `puts` imported by two files, merged by `'module.link'`
+- Golden: `puts` imported by two files, merged by `'unit.merge'`
 - Test: mutual recursion between blocks of one group
 
 ### `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
