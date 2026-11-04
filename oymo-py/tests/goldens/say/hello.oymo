@@ -1,0 +1,11 @@
+language oymomo
+{
+  c= {puts= {type= {'function', {s= 'ptr'}, 'i32'}, link= 'puts'}},
+  hello= {
+    msg= {type= {'array', [06], 'i8'}, value= [68656c6c 6f00]},
+    say= {
+      type= {'function', {}, 'i32'},
+      body= λg. λp. g [] (λr. {let u = g.c.puts {s= g.hello.msg} in u}),
+    },
+  },
+}

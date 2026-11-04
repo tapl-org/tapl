@@ -1,0 +1,18 @@
+language oymomo
+'unit.merge'
+  {
+    'driver.read_low' 'diamond/b.oymo',
+    'driver.read_low' 'diamond/c.oymo',
+    'driver.read_low' 'diamond/d.oymo',
+    {
+      main= {
+        type= {'function', {}, 'i32'},
+        link= 'main',
+        body= λg. λp. g [] (λr. {
+          let x = g.b.f {n= [01000000]} in
+          let y = g.c.h {n= [01000000]} in
+          let z = 'add' {'i32', x, y} in z,
+        }),
+      },
+    },
+  }

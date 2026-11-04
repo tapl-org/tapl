@@ -1,0 +1,16 @@
+language oymomo
+'unit.merge'
+  {
+    'driver.read_low' 'say/hello.oymo',
+    'driver.read_low' 'say/bye.oymo',
+    {
+      main= {
+        type= {'function', {}, 'i32'},
+        link= 'main',
+        body= λg. λp. g [] (λr. {
+          let a = g.hello.say {} in
+          let b = g.bye.say {} in [00000000],
+        }),
+      },
+    },
+  }

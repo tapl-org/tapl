@@ -3110,6 +3110,23 @@ executable binary). we should mark some place as a platform". The steps that fol
   `label-opcodes` leaf. Nothing in code or the calculus named `'module.…'`.
 - `deps-goldens` unblocked (user picked it): `'unit.merge'` and multi-file units exist, so
   its goldens can be written now.
+
+### `deps-goldens` (Nov 4)
+
+- Plan quiz (all recommended options, 5 of 5): unit goldens `diamond/` (b and c declare
+  `d.twice`, d defines it, root merges: one `d.twice`; `main` = 7), `template/` (reduce-time
+  library `max.oymo` = `λt. {type, body}` bound with `let max = 'driver.read_low' …` and
+  instantiated once as `max32= max 'i32'`; 9), `say/` (hello and bye each declare `c.puts`
+  linked 'puts'; one `declare` in the `.ll`; prints, 0); single golden `blocks.oymo`
+  (blocks `even`/`odd` of one region jump to each other; 1). All four are also built,
+  linked with clang and run in `cli_test`. Goldens reviewed before approving; the golden
+  test rewrites each unit file in its pretty form (`[68656c6c 6f00]`). Leaf removed.
+- User: "why diamond.normal.oymo and diamond.ll files are outside of diamond folder. same
+  as for other nested fodler goldens?" They followed the old `unit` golden rule
+  (`goldens/<name>.ll` next to the folder). User chose: inside, named after the root:
+  `<name>/root.normal.oymo`, `root.ll`, `root.guard.ll`, `root.h.oymo`, for all unit
+  goldens (`unit/` too). `golden_test.approve` takes a path prefix; `run_unit_golden`
+  skips `root.normal.oymo` and `root.h.oymo` when it pretty-prints the unit's sources.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

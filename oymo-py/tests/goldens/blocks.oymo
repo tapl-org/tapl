@@ -1,0 +1,24 @@
+language oymomo
+{
+  main= {
+    type= {'function', {}, 'i32'},
+    link= 'main',
+    body= λg. λp. g [] (λr. {
+      entry= r.even [0a000000],
+      even= λn.
+        let z = 'icmp' {'eq', 'i32', n, [00000000]} in
+        g [] (λq. {
+          if z then r.yes else q.next,
+          next= let m = 'sub' {'i32', n, [01000000]} in r.odd m,
+        }),
+      odd= λn.
+        let z = 'icmp' {'eq', 'i32', n, [00000000]} in
+        g [] (λq. {
+          if z then r.no else q.next,
+          next= let m = 'sub' {'i32', n, [01000000]} in r.even m,
+        }),
+      yes= [01000000],
+      no= [00000000],
+    }),
+  },
+}

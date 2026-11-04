@@ -174,6 +174,10 @@ def test_the_ll_has_no_triple_and_no_data_layout(capsys) -> None:
         ('layers', 6),
         # A unit of several files; its root reads the others.
         ('unit/root', 24),
+        ('diamond/root', 7),
+        ('template/root', 9),
+        ('say/root', 0),
+        ('blocks', 1),
     ],
 )
 def test_build_golden_link_and_run_it(tmp_path, golden: str, result: int) -> None:

@@ -1,0 +1,12 @@
+language oymomo
+let max = 'driver.read_low' 'template/max.oymo' in
+{
+  max32= max 'i32',
+  main= {
+    type= {'function', {}, 'i32'},
+    link= 'main',
+    body= λg. λp. g [] (λr. {
+      let m = g.max32 {a= [03000000], b= [09000000]} in m,
+    }),
+  },
+}

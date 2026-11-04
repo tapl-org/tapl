@@ -1,0 +1,13 @@
+language oymomo
+{
+  d= {twice= {type= {'function', {n= 'i32'}, 'i32'}}},
+  c= {
+    h= {
+      type= {'function', {n= 'i32'}, 'i32'},
+      body= λg. λp. g [] (λr. {
+        let t = g.d.twice {n= p.n} in
+        let y = 'add' {'i32', t, [02000000]} in y,
+      }),
+    },
+  },
+}

@@ -105,15 +105,14 @@ def run_golden_test(test_name: str) -> None:
         text = pretty_text
     normal_text, ir_texts = compile_oymo(text)
     header_text = header_oymo(text) if test_name in HEADERS else None
-    approve(base_directory, test_name, text, normal_text, ir_texts, header_text)
+    approve(os.path.join(base_directory, test_name), text, normal_text, ir_texts, header_text)
 
 
-def approve(
-    base_directory: str, test_name: str, text: str, normal_text: str, ir_texts: list[str], header_text: str | None
-) -> None:
-    """Approves the outputs of the golden `test_name`, whose root source is `text`; and its
-    header `name.h.oymo` if `header_text` is given."""
-    normal_path = pathlib.Path(base_directory, f'{test_name}.normal.oymo')
+def approve(prefix: str, text: str, normal_text: str, ir_texts: list[str], header_text: str | None) -> None:
+    """Approves the outputs of a golden whose root source is `text`, at the paths `prefix`
+    plus `.normal.oymo`, `.ll`, `.guard.ll`; and its header, `prefix.h.oymo`, if
+    `header_text` is given."""
+    normal_path = pathlib.Path(f'{prefix}.normal.oymo')
     if normal_text == text:
         # The source is already normal: no `.normal.oymo` is kept for it.
         normal_path.unlink(missing_ok=True)
@@ -122,16 +121,16 @@ def approve(
     # The normal form is itself a program, already normal, that gives the same LLVM IR. It
     # reads no file, so it needs no driver session.
     assert compile_oymo(normal_text) == (normal_text, ir_texts)
-    guard_path = pathlib.Path(base_directory, f'{test_name}.guard.ll')
+    guard_path = pathlib.Path(f'{prefix}.guard.ll')
     if len(ir_texts) == 1:
         guard_path.unlink(missing_ok=True)
     else:
         verify(ir_texts[1], namer=ApprovalNamer(str(guard_path)))
-    verify(ir_texts[0], namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.ll')))
+    verify(ir_texts[0], namer=ApprovalNamer(f'{prefix}.ll'))
     if header_text is not None:
         # The normal form gives the same header.
         assert header_oymo(normal_text) == header_text
-        verify(header_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.h.oymo')))
+        verify(header_text, namer=ApprovalNamer(f'{prefix}.h.oymo'))
 
 
 # The goldens whose header `name.h.oymo` is approved too.
@@ -159,6 +158,7 @@ GOLDENS = [
     'helpers',
     'spans',
     'layers',
+    'blocks',
 ]
 
 
@@ -188,12 +188,14 @@ def unit_header(directory: pathlib.Path) -> str:
 def run_unit_golden(test_name: str) -> None:
     """A unit of several files: the directory `name/`, whose `root.oymo` reads the others
     by their paths from the workspace `goldens/` (`'name/lexer.oymo'`).
-    Every file is kept pretty-printed. Approves `name.ll` (and `name.guard.ll` for two
-    layers) and `name.normal.oymo`, the unit's normal form: a program of one file; for a
-    golden in `HEADERS`, its header `name.h.oymo` too."""
+    Every file is kept pretty-printed. Approves, inside the directory and named after the
+    root, `root.ll` (and `root.guard.ll` for two layers) and `root.normal.oymo`, the unit's
+    normal form: a program of one file; for a golden in `HEADERS`, its header `root.h.oymo`
+    too. These outputs are no source of the unit."""
     base_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'goldens')
     directory = pathlib.Path(base_directory, test_name)
-    texts = {path: path.read_text() for path in sorted(directory.rglob('*.oymo'))}
+    outputs = {directory / 'root.normal.oymo', directory / 'root.h.oymo'}
+    texts = {path: path.read_text() for path in sorted(directory.rglob('*.oymo')) if path not in outputs}
     pretty_texts = {path: source.write(parse(text)) for path, text in texts.items()}
     if pretty_texts != texts:
         # Replace each file by its pretty form; the unit must give the same LLVM IR.
@@ -203,10 +205,10 @@ def run_unit_golden(test_name: str) -> None:
         assert compile_unit(directory)[1] == ir_texts
     normal_text, ir_texts = compile_unit(directory)
     header_text = unit_header(directory) if test_name in HEADERS else None
-    approve(base_directory, test_name, pretty_texts[directory / 'root.oymo'], normal_text, ir_texts, header_text)
+    approve(str(directory / 'root'), pretty_texts[directory / 'root.oymo'], normal_text, ir_texts, header_text)
 
 
-UNIT_GOLDENS = ['unit']
+UNIT_GOLDENS = ['unit', 'diamond', 'template', 'say']
 
 
 @pytest.mark.parametrize('name', UNIT_GOLDENS)

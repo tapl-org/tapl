@@ -26,7 +26,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - `deps` Compile-time dependencies between `.oymo` files
       - 🚫 `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
       - 🚫 `typed-consts` Folding keeps constants' types
-      - `deps-goldens` Golden tests: diamond, template pattern, merged declarations
     - `ll-coverage` oymomo writes any `.ll`
       - `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
       - `ll-types` Types: `void`, wide integers, floats, vectors
@@ -273,13 +272,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide: how reduction folds at compile time and still keeps a constant's type; e.g.
   `{'const', t, b}` accepted and returned by opcodes; branches on it are stuck (5.5)
 - Decide: `'select' {type, c, a, b}` opcode (LLVM `select`) for value choices
-
-### `deps-goldens` Golden tests: diamond, template pattern, merged declarations
-
-- Golden: diamond: `a`, `b`, `c`, `d` linked once each; `d` defines, `b` and `c` declare
-- Golden: template pattern: a generic instantiated once in a file's `code`
-- Golden: `puts` imported by two files, merged by `'unit.merge'`
-- Test: mutual recursion between blocks of one group
 
 ### `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
 
