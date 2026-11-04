@@ -520,6 +520,15 @@ result; to add one, add it to `opcodes._generate` and to `llvm_opcodes`, with te
 #### Tests and how to
 
 - Everything: `hatch run full-check` (lint, pyrefly, tests). Tests only: `hatch test`.
+- Type checking (Nov 4; user asked "tapl's hatch run full-check includes types:check. why
+  oymo does not have types:check", then "what kind of type type check oymo uses, if it is
+  not mypy"): oymo uses Hatch's built-in `hatch check` (Hatch 1.18), whose `types`
+  subcommand runs Pyrefly (Meta's type checker, written in Rust, the successor to Pyre;
+  it checks the same PEP 484 hints as mypy). `hatch check` = `code` (ruff lint) + `fmt`
+  (ruff format) + `types` (Pyrefly); `hatch check types` runs only the type check. Its
+  env `hatch-check-types` adds `approvaltests`, `grpcio-tools`, `types-protobuf`. tapl-lang
+  predates this and has a custom `types` env with mypy. User chose to keep Pyrefly through
+  `hatch check`.
 - Try a program: `hatch run python -m oymo.cli normal FILE` (or `check`, `emit-llvm`,
   `fmt`, `run`).
 - Goldens (`tests/golden_test.py`, approvaltests): each `tests/goldens/NAME.oymo` has
