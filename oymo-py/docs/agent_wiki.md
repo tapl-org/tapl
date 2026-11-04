@@ -2985,6 +2985,26 @@ executable binary). we should mark some place as a platform". The steps that fol
   of 7; detail sections reordered to tree order. `emit-llvm -o` into a missing folder now
   says "Cannot write the LLVM IR to '…': No such file or directory." instead of an
   uncaught OSError; it doesn't make the folder, like `emit-header -o`. 877 passed.
+
+### `unit-var-name` (Nov 4)
+
+- User: "lets start small one". The unit variable `m` is now `g`, for global (user picked
+  the recommended option: "the unit is everything at top level, like LLVM's globals. Short
+  in paths: `g.lexer.next`"). Why rename: `m` read as "module", a word now avoided.
+  Rejected: `top`, `unit` (long in every path), `w`, keeping `m`. Taken letters: `u`, `p`,
+  `r`, `c`, `n`, `self`.
+- User's choices (all recommended): no `\new`/`\old` marks for a pure rename (the diff is
+  shown instead); the calculus's kind `module` (the body's first λ) becomes `unit`; the
+  wiki's history keeps `m`; done directly, not by a subagent.
+- Done in the calculus (also "$g$ is the unit" where the body is defined; `\vlamm` macro
+  dropped), code messages ("Only the unit runs a region: g [] …", "g names the symbols:
+  …"), docstrings, tests, goldens, design doc, roadmap (leaf and section removed; the
+  `ssa-sugar` example `blocks g … ≝ m [] (λg. …)` became `blocks r … ≝ g [] (λr. …)` so
+  the region binder doesn't shadow the unit). A test's local `let g` became `let h`, since
+  a local named like the unit gets renamed (`%"g1"`) in the `.ll`. `spans` goldens:
+  only `code_md5` changed (same-length rename keeps offsets). A script checked every
+  changed line differs only by m → g, except those listed. Lean needed nothing (its `m`
+  are numbers). 877 passed.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

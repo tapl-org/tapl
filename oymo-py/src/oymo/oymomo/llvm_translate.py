@@ -394,7 +394,7 @@ class _Function:
                 value = self.translator.globals[operand.path]
                 if expected is not None and not isinstance(llvm_type(expected), ir.PointerType):
                     raise LlvmTranslationError(
-                        f'm.{".".join(operand.path)} is an address, a ptr, but {what} needs {llvm_type(expected)}.',
+                        f'g.{".".join(operand.path)} is an address, a ptr, but {what} needs {llvm_type(expected)}.',
                         tag,
                     )
                 return value

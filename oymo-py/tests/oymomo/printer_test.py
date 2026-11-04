@@ -9,7 +9,7 @@ from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show
 
 FACT = """
-λm. {
+λg. {
 fact = λf. {
   entry = λp.
     (λt0. if t0 then f.then0 {} else f.else0 {n = p.n})
@@ -17,7 +17,7 @@ fact = λf. {
   then0 = λp. [01000000],
   else0 = λp.
     (λt1. (λt2. (λt3. t3) ('mul' {'i32', p.n, t2}))
-             (m.fact {n = t1}))
+             (g.fact {n = t1}))
       ('sub' {'i32', p.n, [01000000]}),
 }}
 """
@@ -122,7 +122,7 @@ def test_text_bytes_print_quoted_only_up_to_128_bytes():
 
 def test_pretty_breaks_long_terms():
     assert pretty(FACT) == textwrap.dedent("""\
-        λm. {
+        λg. {
           fact= λf. {
             entry= λp.
               let t0 = 'icmp' {'eq', 'i32', p.n, [00000000]} in
@@ -130,7 +130,7 @@ def test_pretty_breaks_long_terms():
             then0= λp. [01000000],
             else0= λp.
               let t1 = 'sub' {'i32', p.n, [01000000]} in
-              let t2 = m.fact {n= t1} in
+              let t2 = g.fact {n= t1} in
               let t3 = 'mul' {'i32', p.n, t2} in t3,
           },
         }""")
@@ -194,10 +194,10 @@ def test_name_indices_where_safe(source, expected):
 
 
 def test_width_and_indent_flags():
-    term = parse('λm. {main = f a, id = λx. x}')
-    assert show(term, pretty=True) == 'λm. {main= f a, id= λx. x}'
+    term = parse('λg. {main = f a, id = λx. x}')
+    assert show(term, pretty=True) == 'λg. {main= f a, id= λx. x}'
     assert show(term, pretty=True, width=20, indent=4) == textwrap.dedent("""\
-        λm. {
+        λg. {
             main= f a,
             id= λx. x,
         }""")
@@ -250,13 +250,13 @@ def test_pretty_breaks_a_long_fixed_point():
 
 
 def test_a_broken_layering_puts_its_high_side_on_the_next_line():
-    source = "{entry= 'add' {'i32', p.a, [01000000]} : m.check {a= p.a, b= p.b}}"
+    source = "{entry= 'add' {'i32', p.a, [01000000]} : g.check {a= p.a, b= p.b}}"
     text = show(parse(source), pretty=True, width=40)
     assert text == textwrap.dedent(
         """\
         {
           entry= 'add' {'i32', p.a, [01000000]}
-            : m.check {a= p.a, b= p.b},
+            : g.check {a= p.a, b= p.b},
         }"""
     )
     assert parse(text) == parse(source)

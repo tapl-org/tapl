@@ -180,7 +180,7 @@ def _terminal_error(term):
     return _operand_error(term, 'A return')
 
 
-TAIL_CALL = 'A call that ends a function is bound and returned: let y = m.f {…} in y.'
+TAIL_CALL = 'A call that ends a function is bound and returned: let y = g.f {…} in y.'
 
 
 def is_anf(term: syntax.Term) -> bool:

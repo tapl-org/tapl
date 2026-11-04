@@ -31,7 +31,7 @@ d.oymo   L0 : L1   d's L1 part uses c's L1 part, and guards d's L0 part
 - By convention an error is a tagged struct, such as `{'error', message, span}`.
 - The guard knows what the worker will do by its shape: separation gives both layers the
   same structure and binders, so the guard runs the worker's program on the high
-  layer's values (`'add' {…} : m.check_add {…}`).
+  layer's values (`'add' {…} : g.check_add {…}`).
 - A guard is trusted because it only calls the API it imports from above, which that
   layer's own guard already cleared. The chain ends at the top, which guards itself.
   This is a best practice, not enforced by oymomo or the driver.
@@ -209,7 +209,7 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 
 - File names appear only as operands of the read opcodes (and in meta), resolved by the
   driver inside a virtual directory.
-- Labels and paths appear only inside a unit (`m.lexer.helper`).
+- Labels and paths appear only inside a unit (`g.lexer.helper`).
 - Link names appear only in `link` fields, across units.
 - They are independent: renaming in one never changes meaning in another. They meet only
   in the `.ll` symbol table: internal symbols are named by their path by default, and the
@@ -263,29 +263,29 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
   `'vendor/math/unit.h.oymo'` read `../math/oymo-out/unit.h.oymo`. A mount path may not
   clash with a project file or folder, overlap another mount, or leave the top; `DIR` must
   be a folder.
-- `m` in a body is the whole unit, and the kernel uses absolute paths only (as C++'s
-  compiled names are fully qualified); short names are the frontend's job. A better name
-  for `m` is roadmap leaf `unit-var-name`.
+- `g` (for global) in a body is the whole unit, and the kernel uses absolute paths only
+  (as C++'s compiled names are fully qualified); short names are the frontend's job. It
+  was `m`, renamed because it read as "module".
 - A namespace's label is declared by the file (taken from C++ namespaces: open, nested) or
   picked by the root.
 - Tools, at the user's choice:
   - merge, `'unit.merge' {X₁, X₂, …}`, deep: same-labeled namespaces combine (merge recurses into
     structs without `type`), equal λ-free entries merge, a λ entry defined twice gets no
     step and is rejected with both places;
-  - rebase, `'unit.rebase' {prefix, X}`: prefixes every `m.…` path in X's bodies and
-    places X under the prefix (`m.lib.step` becomes `m.dbl.lib.step`), so two libraries with
+  - rebase, `'unit.rebase' {prefix, X}`: prefixes every `g.…` path in X's bodies and
+    places X under the prefix (`g.lib.step` becomes `g.dbl.lib.step`), so two libraries with
     the same labels fit in one unit. It fires only when every body in X is closed, in
-    normal form, and uses `m` only as the head of paths or regions. Mounting a header is a
+    normal form, and uses `g` only as the head of paths or regions. Mounting a header is a
     rebase of a λ-free struct. (`'struct.check_data'`, a guard for mounting, was dropped:
     rebasing a source file is correct, so mounting one is no longer a mistake.)
 - Delegates wire dependencies: a library declares a hole (`error = {type …}`), and the root
-  fills it with `{type …, body = λm. λp. m.parser.report_error p}` (LLVM inlines it) or with
+  fills it with `{type …, body = λg. λp. g.parser.report_error p}` (LLVM inlines it) or with
   `{type …, link = 'report_error'}`.
 - Convention: a library refers only to its own labels and reaches outside through holes;
   an outside path breaks under rebase and is reported as a dangling path at verification.
 - Another way out of a clash: build one library as its own unit and mount its header.
 - The pattern is mixin composition, as a linker does (holes are undefined symbols, merge
-  collects, `m` resolves). Related: mixin modules (Ancona and Zucca), the cake pattern
+  collects, `g` resolves). Related: mixin modules (Ancona and Zucca), the cake pattern
   (whose problems, init order and one wiring per program, don't apply), Nix fixed points.
 - Goal: building a unit is as fast as merge (struct opcodes and the translation, no
   β-steps), and linear like a linker. Reduction stays possible: a unit can always be run
@@ -342,9 +342,9 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 #### Proposals and open items
 
 - Proposal: functor-style libraries: `λu. {…}`, bodies `λn. λp.` using their
-  own namespace `n`, foreign symbols filled from `u`, wired by the root in `fix (λm. …)`
+  own namespace `n`, foreign symbols filled from `u`, wired by the root in `fix (λg. …)`
   with paths (not entries). As OCaml functors and recursive modules.
-- Proposal: aliases: an entry that is a path (`log = m.util.log`) is that symbol for the
+- Proposal: aliases: an entry that is a path (`log = g.util.log`) is that symbol for the
   translation; chains followed, cycles and dangling paths rejected.
 - Decide: a redesign of symbol addresses in data that supports reduction and keeps the
   realms apart.

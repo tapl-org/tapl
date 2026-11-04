@@ -4,7 +4,7 @@ let k = [05000000] in
   main= {
     type= {'function', {a= 'i32'}, 'i32'},
     link= 'main',
-    body= λm. λp. m [] (λr. {
+    body= λg. λp. g [] (λr. {
       entry= let y = 'add' {'i32', p.a, k} : 'sub' {'i32', p.a, p.a} in y,
     }),
   },

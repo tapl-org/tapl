@@ -290,7 +290,7 @@ def test_locations_skip_leading_trivia():
 def test_gcd_module_parses():
     """A module in the new syntax."""
     source = """
-    λm. {
+    λg. {
       gcd = {
         gives = 'i32',
         body = λf. {
@@ -313,7 +313,7 @@ def test_gcd_module_parses():
     term = parse(source)
     assert not isinstance(term, syntax.ErrorTerm)
     assert isinstance(term, terms.Lambda)
-    assert term.param_name == 'm'
+    assert term.param_name == 'g'
 
 
 def layering(low, high):

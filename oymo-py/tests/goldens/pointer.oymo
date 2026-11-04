@@ -4,12 +4,12 @@ language oymomo
   main= {
     type= {'function', {}, 'i32'},
     link= 'main',
-    body= λm. λp. m [] (λr. {
+    body= λg. λp. g [] (λr. {
       entry=
         let q = 'alloca' {{x= 'i32', y= 'i64'}} in
         let y = 'getelementptr'
           {{x= 'i32', y= 'i64'}, q, [00000000 00000000], [01000000]} in
-        let s = m.fill {p= y, n= [08000000 00000000]} in s,
+        let s = g.fill {p= y, n= [08000000 00000000]} in s,
     }),
   },
 }

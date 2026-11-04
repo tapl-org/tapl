@@ -147,11 +147,11 @@ def test_11f_fix_recursion():
 
 def test_11g_projection_drops_a_field_but_a_let_keeps_it():
     assert normal('{a = e, b = [01]}.b') == '[01]'
-    assert normal('(λx. {a = x, b = [01]}.b) (m.print {r})') == same('(λx. [01]) (m.print {r})')
+    assert normal('(λx. {a = x, b = [01]}.b) (g.print {r})') == same('(λx. [01]) (g.print {r})')
 
 
 def test_11h_a_call_is_never_copied():
-    assert normal('(λx. {x, x}) (m.print {r})') == same('(λx. {x, x}) (m.print {r})')
+    assert normal('(λx. {x, x}) (g.print {r})') == same('(λx. {x, x}) (g.print {r})')
 
 
 def test_11j_store_stays_outside_load():
@@ -169,20 +169,20 @@ def test_normalize_gives_up():
         normal(OMEGA, max_steps=50)
 
 
-# Euclid in ingot shape, run by reduction: the instance binds `m` with `fix`; its
-# field 0 runs regions, so `m [] (λr. {…})` becomes `(fix (λr. {…})) [00]`.
+# Euclid in ingot shape, run by reduction: the instance binds `g` with `fix`; its
+# field 0 runs regions, so `g [] (λr. {…})` becomes `(fix (λr. {…})) [00]`.
 GCD_INGOT_PROGRAM = """
-let gcd = λm. λp. m [] (λr. {
+let gcd = λg. λp. g [] (λr. {
   entry = r.loop p.a p.b,
   loop = λa. λb.
     let z = 'icmp' {'eq', 'i32', b, [00000000]} in
-    m [] (λq. {
+    g [] (λq. {
       if z then r.done a else q.step,
       step = let c = 'urem' {'i32', a, b} in r.loop b c
     }),
   done = λc. c
 }) in
-let instance = fix (λm. {λR. (fix R) [00], gcd = gcd m}) in
+let instance = fix (λg. {λR. (fix R) [00], gcd = gcd g}) in
 instance.gcd {a = [30000000], b = [12000000]}
 """
 

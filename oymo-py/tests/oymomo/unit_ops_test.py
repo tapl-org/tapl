@@ -9,8 +9,8 @@ from oymo.oymomo.grammar import parse
 
 FN = "{'function', {n = 'i32'}, 'i32'}"
 OTHER_FN = "{'function', {n = 'i64'}, 'i64'}"
-# A body that calls `m.lib.step` and ends in a region.
-BODY = 'λm. λp. m [] (λr. {let y = m.lib.step {n = p.n} in y})'
+# A body that calls `g.lib.step` and ends in a region.
+BODY = 'λg. λp. g [] (λr. {let y = g.lib.step {n = p.n} in y})'
 
 
 def normal(source):
@@ -112,19 +112,19 @@ def lib(body=BODY, extra=''):
 
 
 def test_rebase_prefixes_paths_and_puts_the_struct_under_the_prefix():
-    expected_body = 'λm. λp. m [] (λr. {let y = m.dbl.lib.step {n = p.n} in y})'
+    expected_body = 'λg. λp. g [] (λr. {let y = g.dbl.lib.step {n = p.n} in y})'
     assert_gives(f"'unit.rebase' {{{{'dbl'}}, {lib()}}}", f'{{dbl = {lib(expected_body)}}}')
 
 
 def test_rebase_in_nested_regions_and_under_binders():
-    body = 'λm. λp. m [] (λr. {e = λx. m [] (λq. {let y = m.lib.step {n = x} in m.lib.c})})'
-    expected = 'λm. λp. m [] (λr. {e = λx. m [] (λq. {let y = m.a.b.lib.step {n = x} in m.a.b.lib.c})})'
+    body = 'λg. λp. g [] (λr. {e = λx. g [] (λq. {let y = g.lib.step {n = x} in g.lib.c})})'
+    expected = 'λg. λp. g [] (λr. {e = λx. g [] (λq. {let y = g.a.b.lib.step {n = x} in g.a.b.lib.c})})'
     assert_gives(f"'unit.rebase' {{{{'a', 'b'}}, {lib(body)}}}", f'{{a = {{b = {lib(expected)}}}}}')
 
 
 def test_rebase_copies_data_entries():
     extra = ", c = {type = 'i32', value = [01000000]}, h = {type = 'i32'}"
-    expected_body = 'λm. λp. m [] (λr. {let y = m.x.lib.step {n = p.n} in y})'
+    expected_body = 'λg. λp. g [] (λr. {let y = g.x.lib.step {n = p.n} in y})'
     assert_gives(f"'unit.rebase' {{{{'x'}}, {lib(extra=extra)}}}", f'{{x = {lib(expected_body, extra)}}}')
 
 
@@ -140,8 +140,8 @@ def test_rebase_with_an_empty_prefix_changes_nothing():
 @pytest.mark.parametrize(
     'source',
     [
-        # `m` used whole, not as the head of a path or a region.
-        f"'unit.rebase' {{{{'x'}}, {lib('λm. λp. p m')}}}",
+        # `g` used whole, not as the head of a path or a region.
+        f"'unit.rebase' {{{{'x'}}, {lib('λg. λp. p g')}}}",
         # A body that is not a lambda.
         f"'unit.rebase' {{{{'x'}}, {lib('[01]')}}}",
         # A lambda outside an entry's body.
@@ -159,7 +159,7 @@ def test_rebase_gives_no_step(source):
 
 
 def test_a_rebase_resolves_a_clash():
-    other = lib('λm. λp. m [] (λr. {let y = m.lib.step {n = p.n} in [02000000]})')
+    other = lib('λg. λp. g [] (λr. {let y = g.lib.step {n = p.n} in [02000000]})')
     clash = f"'unit.merge' {{{lib()}, {other}}}"
     assert_no_step(clash)
     merged = normal(f"'unit.merge' {{{lib()}, 'unit.rebase' {{{{'dbl'}}, {other}}}}}")

@@ -15,18 +15,18 @@ TARGET = llvm_translate.Target('x86_64-unknown-linux-gnu', '', llvm_opcodes.DEFA
 GCD = """
 {
   gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
-    body = λm. λp. m [] (λr. {
+    body = λg. λp. g [] (λr. {
       entry = r.loop p.a p.b,
       loop = λa. λb.
         let z = 'icmp' {'eq', 'i32', b, [00000000]} in
-        m [] (λq. {
+        g [] (λq. {
           if z then r.done a else q.step,
           step = let c = 'urem' {'i32', a, b} in r.loop b c
         }),
       done = λc. c
     })},
   main = {type = {'function', {}, 'i32'}, link = 'main',
-    body = λm. λp. m [] (λr. {entry = let y = m.gcd {a = [30000000], b = [12000000]} in y})}
+    body = λg. λp. g [] (λr. {entry = let y = g.gcd {a = [30000000], b = [12000000]} in y})}
 }
 """
 
@@ -56,7 +56,7 @@ def single(blocks, params='{}', result="'i32'", extra=''):
     """An ingot with one function `main`, whose region holds `blocks`."""
     return f"""{{
       {extra}
-      main = {{type = {{'function', {params}, {result}}}, link = 'main', body = λm. λp. m [] (λr. {{{blocks}}})}},
+      main = {{type = {{'function', {params}, {result}}}, link = 'main', body = λg. λp. g [] (λr. {{{blocks}}})}},
     }}"""
 
 
@@ -98,12 +98,12 @@ def test_example():
       puts = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'},
       msg = {type = {'array', [03], 'i8'}, value = [686900]},
       main = {type = {'function', {argc = 'i32'}, 'i32'}, link = 'main',
-        body = λm. λp. m [] (λr. {
+        body = λg. λp. g [] (λr. {
           entry =
             let c = 'icmp' {'sgt', 'i32', p.argc, [01000000]} in
-            m [] (λq. {
+            g [] (λq. {
               if c then q.say else r.done,
-              say = let u = m.puts {s = m.msg} in r.done
+              say = let u = g.puts {s = g.msg} in r.done
             }),
           done = [00000000]
         })}
@@ -139,7 +139,7 @@ def test_jump_to_a_nested_field_0_splits_the_block():
     """Field 0 starts a block of its own; the block it continued ends with `br`."""
     blocks = """entry =
       let a = 'alloca' {'i32'} in
-      m [] (λq. {
+      g [] (λq. {
         again = let v = 'load' {'i32', a} in let c = 'icmp' {'eq', 'i32', v, [00000000]} in
           if c then q.again else r.done,
       }),
@@ -192,7 +192,7 @@ def test_parameter_types():
     assert 'phi' not in llvm(single('r.done [07], done = λx. [00000000]'))
     assert error(
         single(
-            'r.done [07], done = λx. let y = m.f {a = x} in [00000000]',
+            'r.done [07], done = λx. let y = g.f {a = x} in [00000000]',
             extra="f = {type = {'function', {a = 'ptr'}, 'i32'}, link = 'f'},",
         )
     ) == ('No constant of type ptr is written [07].')
@@ -217,11 +217,11 @@ def test_symbols():
       text = {type = {'array', [03], 'i8'}, value = 'ab' },
       none = {type = 'ptr', init = ''},
       zeros = {type = {'i32', 'ptr'}, init = {}},
-      main = {type = {'function', {}, 'i32'}, link = 'main', body = λm. λp. m [] (λr. {
-        let u = 'store' {'i32', [05000000], m.counter} in
-        let x = 'load' {'i32', m.answer} in
-        let e = 'load' {'i32', m.errno} in
-        let y = m.puts {s = m.answer} in
+      main = {type = {'function', {}, 'i32'}, link = 'main', body = λg. λp. g [] (λr. {
+        let u = 'store' {'i32', [05000000], g.counter} in
+        let x = 'load' {'i32', g.answer} in
+        let e = 'load' {'i32', g.errno} in
+        let y = g.puts {s = g.answer} in
         x
       })},
     }
@@ -264,14 +264,14 @@ def test_namespaces_and_linkage():
     source = """
     {
       math = {
-        gcd = {type = {'function', {a = 'i32'}, 'i32'}, body = λm. λp. m [] (λr. {p.a})},
+        gcd = {type = {'function', {a = 'i32'}, 'i32'}, body = λg. λp. g [] (λr. {p.a})},
         one = {type = 'i32', value = [01000000]},
         exported = {type = 'i32', init = [02000000], link = 'math_exported'},
       },
-      main = {type = {'function', {}, 'i32'}, link = 'main', body = λm. λp. m [] (λr. {
-        let x = 'load' {'i32', m.math.one} in
-        let y = m.math.gcd {a = x} in
-        let z = 'load' {'i32', m.math.exported} in y
+      main = {type = {'function', {}, 'i32'}, link = 'main', body = λg. λp. g [] (λr. {
+        let x = 'load' {'i32', g.math.one} in
+        let y = g.math.gcd {a = x} in
+        let z = 'load' {'i32', g.math.exported} in y
       })},
     }
     """
@@ -289,7 +289,7 @@ def test_namespaces_and_linkage():
 def test_one_link_is_one_symbol():
     """Entries with the same link are one LLVM symbol: one `declare`, or one `define`."""
     declarations = single(
-        'let x = m.a.puts {s = m.msg} in let y = m.b.write {t = m.msg} in y',
+        'let x = g.a.puts {s = g.msg} in let y = g.b.write {t = g.msg} in y',
         extra="""
         a = {puts = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'}},
         b = {write = {type = {'function', {t = 'ptr'}, 'i32'}, link = 'puts'}},
@@ -302,11 +302,11 @@ def test_one_link_is_one_symbol():
     assert 'declare i32 @"puts"(ptr %"s")' in text
     assert '%"y" = call i32 @"puts"(ptr @"msg")' in text
     definition = single(
-        'let x = m.twice {n = [01000000]} in x',
+        'let x = g.twice {n = [01000000]} in x',
         extra="""
         twice = {type = {'function', {n = 'i32'}, 'i32'}, link = 'twice'},
         impl = {type = {'function', {k = 'i32'}, 'i32'}, link = 'twice',
-          body = λm. λp. m [] (λr. {let y = 'add' {'i32', p.k, p.k} in y})},
+          body = λg. λp. g [] (λr. {let y = 'add' {'i32', p.k, p.k} in y})},
         """,
     )
     text = llvm(definition)
@@ -326,7 +326,7 @@ def test_one_link_errors():
         )
         == "The entries linked as 'puts' have different types: i32 (ptr) for 'a', i32 for 'b'."
     )
-    body = 'body = λm. λp. m [] (λr. {[00000000]})'
+    body = 'body = λg. λp. g [] (λr. {[00000000]})'
     assert (
         error(
             single(
@@ -350,7 +350,7 @@ def test_one_link_errors():
 def test_internal_name_apart_from_link_names():
     """An internal symbol whose path is a link name takes the smallest free number."""
     source = single(
-        'let x = m.say {s = m.puts} in let y = m.ns.say {s = m.ns.puts} in y',
+        'let x = g.say {s = g.puts} in let y = g.ns.say {s = g.ns.puts} in y',
         extra="""
         say = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'},
         puts = {type = 'i8', value = [00]},
@@ -387,7 +387,7 @@ def test_opcodes():
     blocks = """
       let a = 'alloca' {'i32'} in
       let b = 'alloca' {'i8', [04000000]} in
-      let g = 'getelementptr' {'i32', a, [01000000]} in
+      let h = 'getelementptr' {'i32', a, [01000000]} in
       let c = 'zext' {'i8', p.x, 'i32'} in
       let d = 'icmp' {'slt', 'i32', c, [00000000]} in
       let e = 'sext' {'i1', d, 'i32'} in
@@ -399,7 +399,7 @@ def test_opcodes():
     for line in [
         '%"a" = alloca i32',
         '%"b" = alloca i8, i32 4',
-        '%"g" = getelementptr i32, ptr %"a", i32 1',
+        '%"h" = getelementptr i32, ptr %"a", i32 1',
         '%"c" = zext i8 %"p.x" to i32',
         '%"d" = icmp slt i32 %"c", 0',
         '%"e" = sext i1 %"d" to i32',
@@ -423,7 +423,7 @@ def test_opcodes():
         (single("let x = 'icmp' {'lt', 'i32', p.x, p.x} in x", params="{x = 'i32'}"), 'E-Opcode'),
         (
             single(
-                'let y = m.g {x = p.a} in y',
+                'let y = g.g {x = p.a} in y',
                 params="{a = 'i8'}",
                 extra="g = {type = {'function', {x = 'i32'}, 'i32'}, link = 'g'},",
             ),
@@ -435,12 +435,12 @@ def test_opcodes():
         ),
         (single('p.x', params="{x = 'f32'}"), "'f32' is not an LLVM type."),
         (
-            single("let u = 'store' {'i32', [00000000], m.k} in u", extra="k = {type = 'i32', init = [00000000]},"),
+            single("let u = 'store' {'i32', [00000000], g.k} in u", extra="k = {type = 'i32', init = [00000000]},"),
             "'u' has no value: a store's result has none.",
         ),
         (
-            single("let x = 'add' {'i32', m.k, m.k} in x", extra="k = {type = 'i32', init = [00000000]},"),
-            "m.k is an address, a ptr, but opcode 'add' needs i32.",
+            single("let x = 'add' {'i32', g.k, g.k} in x", extra="k = {type = 'i32', init = [00000000]},"),
+            "g.k is an address, a ptr, but opcode 'add' needs i32.",
         ),
     ],
 )

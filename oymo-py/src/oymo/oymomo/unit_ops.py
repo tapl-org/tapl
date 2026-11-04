@@ -105,9 +105,9 @@ def rebase(operand: terms.Term) -> terms.Term | None:
     """`'unit.rebase' {P, X}`: `X` under the prefix `P`, `{p₁ = {p₂ = … X'}}`, or None.
 
     `P` is a struct of labels, each a nonempty text byte array (`{'dbl'}`); the operand's
-    labels are ignored. `X'` is the struct `X` with every path from `m` in every entry's body
-    `λm. …` prefixed: `m.lib.step` becomes `m.dbl.lib.step`. The region runner `m []` is left
-    as it is; any other use of `m`, a body that is not a lambda, or a lambda outside an
+    labels are ignored. `X'` is the struct `X` with every path from `g` in every entry's body
+    `λg. …` prefixed: `g.lib.step` becomes `g.dbl.lib.step`. The region runner `g []` is left
+    as it is; any other use of `g`, a body that is not a lambda, or a lambda outside an
     entry's body gives no result. λ-free data is copied as it is, so mounting a header is a
     rebase too.
     """
@@ -155,7 +155,7 @@ def _rebase_namespace(struct: terms.Struct, path: _Path) -> terms.Struct | None:
 
 
 def _rebase_body(body: terms.Term, path: _Path) -> terms.Term | None:
-    """An entry's body `λm. B` with every path from `m` in `B` prefixed, or None."""
+    """An entry's body `λg. B` with every path from `g` in `B` prefixed, or None."""
     if not isinstance(body, terms.Lambda):
         return None
     rebased = _rebase_term(body.body, 0, path)
@@ -163,8 +163,8 @@ def _rebase_body(body: terms.Term, path: _Path) -> terms.Term | None:
 
 
 def _rebase_term(term: terms.Term, depth: int, path: _Path) -> terms.Term | None:
-    """`term`, `depth` binders inside `λm`, with every path from `m` prefixed, or None where
-    `m` is used another way. `m` is the index `depth`."""
+    """`term`, `depth` binders inside `λg`, with every path from `g` prefixed, or None where
+    `g` is used another way. `g` is the index `depth`."""
     match term:
         case terms.Project():
             labels: list[terms.Project] = []
@@ -184,7 +184,7 @@ def _rebase_term(term: terms.Term, depth: int, path: _Path) -> terms.Term | None
         case terms.Apply(function=terms.BruijnIndex(index=index), argument=terms.ByteArray(value=b'')) if (
             index == depth
         ):
-            # `m []`, the region runner.
+            # `g []`, the region runner.
             return term
         case terms.BruijnIndex(index=index):
             return None if index == depth else term

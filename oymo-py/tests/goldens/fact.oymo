@@ -3,7 +3,7 @@ language oymomo
   main= {
     type= {'function', {}, 'i32'},
     link= 'main',
-    body= λm. λp. m [] (λr. {
+    body= λg. λp. g [] (λr. {
       entry= r.loop [01000000] [05000000],
       loop= λacc. λn.
         let next = 'mul' {'i32', acc, n} in

@@ -5,12 +5,12 @@ language oymomo
   main= {
     type= {'function', {argc= 'i32'}, 'i32'},
     link= 'main',
-    body= λm. λp. m [] (λr. {
+    body= λg. λp. g [] (λr. {
       entry=
         let c = 'icmp' {'sgt', 'i32', p.argc, [01000000]} in
-        m [] (λq. {
+        g [] (λq. {
           if c then q.say else r.done,
-          say= let u = m.puts {s= m.msg} in r.done,
+          say= let u = g.puts {s= g.msg} in r.done,
         }),
       done= [00000000],
     }),

@@ -7,7 +7,7 @@ needs them. With `pretty=True` the result is oymomo source that parses back to t
 term: parentheses only where needed, and quoted names where needed. A term that doesn't
 fit in `width` columns breaks: a struct puts one field per line, a lambda puts its body on
 the next line (unless the body is a struct, another lambda, or a short function applied to
-a lambda, so `λm. λp. m [] (λr. {` stays on one line), an apply puts its argument on the
+a lambda, so `λg. λp. g [] (λr. {` stays on one line), an apply puts its argument on the
 next line (unless the argument is a lambda and the function short), and an `if` puts
 `then` and `else` on their own lines. An empty byte array as an argument prints `[]`.
 
@@ -115,7 +115,7 @@ def _flat(term, level, names, *, grouped=True):
             c, t, e = branch
             text = f'if {sub(c, _EXPRESSION)} then {sub(t, _EXPRESSION)} else {sub(e, _EXPRESSION)}'
         case terms.Apply(function=function, argument=terms.ByteArray(value=b'')):
-            # An index (E-Index): the empty byte array is the number 0, as in `m []`.
+            # An index (E-Index): the empty byte array is the number 0, as in `g []`.
             text = f'{sub(function, _APPLY)} []'
         case terms.Apply(function=function, argument=argument):
             text = f'{sub(function, _APPLY)} {sub(argument, _PROJECT)}'
@@ -171,7 +171,7 @@ def _pretty(term, level, depth, column, width, indent, names):
         case terms.Apply(function=function, argument=terms.Lambda() as argument) if _fits_flat(
             function, column, width, names
         ):
-            # `m [] (λr. {`: a short function stays on the line of its lambda argument.
+            # `g [] (λr. {`: a short function stays on the line of its lambda argument.
             head = _flat(function, _APPLY, names)
             text = f'{head} {sub(argument, _PROJECT, depth, column + len(head) + 1)}'
         case terms.Apply(function=function, argument=argument):
@@ -210,7 +210,7 @@ def _fits_flat(term, column, width, names):
 
 def _hugs(body, *, names):
     """Whether a lambda's body starts on the lambda's line: another lambda, a struct, or a
-    short function applied to a lambda (`λp. m [] (λr. {`)."""
+    short function applied to a lambda (`λp. g [] (λr. {`)."""
     match body:
         case terms.Lambda():
             return True

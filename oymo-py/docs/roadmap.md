@@ -13,10 +13,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ## Tree
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
-  - `kernel-followups` Kernel follow-ups: names, labels, regions, effects, addresses
-    - `unit-var-name` A better name for the unit variable `m`
+  - `kernel-followups` Kernel follow-ups: labels, regions, effects, addresses
     - `label-bytes` A label can be any bytes, not only UTF-8 text
-    - `region-marker` Regions without `m []`; an opcode builds the runnable instance
+    - `region-marker` Regions without `g []`; an opcode builds the runnable instance
     - `effect-ticks` Deterministic effects: a tick threaded through effect opcodes
     - `data-addresses` Symbol addresses in data, redesigned
   - `unit-followups` Unit follow-ups: opcode namespaces, platform sizes, libraries
@@ -171,16 +170,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ## Leaf details
 
-### `unit-var-name` A better name for the unit variable `m`
-
-- `m` (bodies `λm. λp. …`) is the unit, but reads as "module", a word now avoided
-- Only a bound variable: the verifier tells variables apart by position, so it changes no
-  meaning; the cost is examples, code and goldens
-- `u` is taken (calculus 9 run by reduction: the struct of dependencies; the functor
-  proposal's `λu.`)
-- Keep `m` for now (user: "keep for now, create a leaf roadmap for finding a better name")
-- Decide: the name; if renamed, rename in the calculus, code and goldens together
-
 ### `label-bytes` A label can be any bytes, not only UTF-8 text
 
 - Today a label can only be UTF-8 text (an identifier); a struct field's label should be
@@ -192,23 +181,23 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   `[ff00]`), printed, and kept in meta
 - Then: oymomo-calculus.tex Section 2 (labels), parser, printer, tests
 
-### `region-marker` Regions without `m []`; an opcode builds the runnable instance
+### `region-marker` Regions without `g []`; an opcode builds the runnable instance
 
-- Idea (user): remove `m []` from regions; since an opcode may read normal-form code and
+- Idea (user): remove `g []` from regions; since an opcode may read normal-form code and
   return a closed term, an opcode can insert what running by reduction needs, so written
   code is just the program
 - An instantiate opcode reads a normal-form ingot and returns its instance: the namespace
-  fixed point `fix (λm. {…})` and each region as `(fix R) [00]`; no runner in field 0
-- Without `m []`, `λr. {…}` is ambiguous with a block with a parameter returning a struct
+  fixed point `fix (λg. {…})` and each region as `(fix R) [00]`; no runner in field 0
+- Without `g []`, `λr. {…}` is ambiguous with a block with a parameter returning a struct
   constant (`done = λc. {[00], [01]}`), so regions need a marker
 - Options: A `'region' (λr. {…})`, an opcode call with no step (its λ is not closed),
-  recommended; B keep `m []`; C a tag in the region struct (still ambiguous, breaks
+  recommended; B keep `g []`; C a tag in the region struct (still ambiguous, breaks
   "field 0 is the entry block"); D no struct constant as a terminal (arbitrary rule);
   E write `(fix R) []` (not normal: loops unroll); F one flat region per function (loses
   nested regions); G source sugar only (still needs a kernel form)
 - Postponed (user: "lets postpone this and add a roadmap leaf into oymomo-redesign"); later
   moved outside `oymomo-redesign`
-- Then: oymomo-calculus.tex 8 (regions, `m` kinds) and 9 (instance), Lean `anf_normal`,
+- Then: oymomo-calculus.tex 8 (regions, `g` kinds) and 9 (instance), Lean `anf_normal`,
   code, goldens
 
 ### `effect-ticks` Deterministic effects: a tick threaded through effect opcodes
@@ -264,9 +253,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - Moved from `redesign-modules` (finished)
 - Proposal: a library is `λu. {…}`, bodies `λn. λp.` use their own namespace `n`, foreign
-  symbols are fields filled from `u`, the root wires them in `fix (λm. …)` passing paths
+  symbols are fields filled from `u`, the root wires them in `fix (λg. …)` passing paths
   (not entries); as OCaml functors and recursive modules
-- Proposal: an entry that is a path (`log = m.util.log`) is that symbol for the
+- Proposal: an entry that is a path (`log = g.util.log`) is that symbol for the
   translation; chains followed, cycles and dangling paths rejected
 - Today `unit.rebase` and delegates cover relocation and wiring
 - Decide: whether to adopt either
@@ -313,7 +302,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `letrec x = t₁ in t₂` ≝ `let x = fix (λx. t₁) in t₂`
 - `let _ = v in e`: a `let` kept only for its effect
-- `blocks g = {l₁ = b₁, …} in t` ≝ `m [] (λg. {t, l₁ = b₁, …})` (a region); always the struct form
+- `blocks r = {l₁ = b₁, …} in t` ≝ `g [] (λr. {t, l₁ = b₁, …})` (a region); always the struct form
 - Typed lambdas `λ(i: 'i32'). e` for block parameters, if inference needs help
 - oymomo-calculus.tex Section 3, grammar, printer; reserved words
 - Decide: a better name than `blocks`
@@ -608,7 +597,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   `returnaddress`, `prefetch`
 - Goldens
 - Decide: an opcode each (folded where pure), or a declaration named `"llvm.ctpop.i32"`
-  called through `m` (never folded)
+  called through `g` (never folded)
 
 ### `ll-exceptions` `invoke`, `landingpad`, `resume`
 

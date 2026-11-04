@@ -3,57 +3,57 @@ language oymomo
   lexer= {
     token= {
       type= {'function', {c= 'i32'}, 'i32'},
-      body= λm. λp. m [] (λr. {
-        let k = m.parser.kind {c= p.c} in
+      body= λg. λp. g [] (λr. {
+        let k = g.parser.kind {c= p.c} in
         let t = 'add' {'i32', k, [0a000000]} in t,
       }),
     },
     error= {
       type= {'function', {c= 'i32'}, 'i32'},
-      body= λm. λp. m [] (λr. {let v = m.lib.apply {n= p.c} in v}),
+      body= λg. λp. g [] (λr. {let v = g.lib.apply {n= p.c} in v}),
     },
   },
   parser= {
     kind= {
       type= {'function', {c= 'i32'}, 'i32'},
-      body= λm. λp. m [] (λr. {let k = 'and' {'i32', p.c, [01000000]} in k}),
+      body= λg. λp. g [] (λr. {let k = 'and' {'i32', p.c, [01000000]} in k}),
     },
     parse= {
       type= {'function', {c= 'i32'}, 'i32'},
-      body= λm. λp. m [] (λr. {
-        let t = m.lexer.token {c= p.c} in
-        let e = m.lexer.error {c= t} in e,
+      body= λg. λp. g [] (λr. {
+        let t = g.lexer.token {c= p.c} in
+        let e = g.lexer.error {c= t} in e,
       }),
     },
   },
   lib= {
     step= {
       type= {'function', {n= 'i32'}, 'i32'},
-      body= λm. λp. m [] (λr. {let y = 'add' {'i32', p.n, [01000000]} in y}),
+      body= λg. λp. g [] (λr. {let y = 'add' {'i32', p.n, [01000000]} in y}),
     },
     apply= {
       type= {'function', {n= 'i32'}, 'i32'},
-      body= λm. λp. m [] (λr. {let y = m.lib.step {n= p.n} in y}),
+      body= λg. λp. g [] (λr. {let y = g.lib.step {n= p.n} in y}),
     },
   },
   dbl= {
     lib= {
       step= {
         type= {'function', {n= 'i32'}, 'i32'},
-        body= λm. λp. m [] (λr. {let y = 'mul' {'i32', p.n, [02000000]} in y}),
+        body= λg. λp. g [] (λr. {let y = 'mul' {'i32', p.n, [02000000]} in y}),
       },
       apply= {
         type= {'function', {n= 'i32'}, 'i32'},
-        body= λm. λp. m [] (λr. {let y = m.dbl.lib.step {n= p.n} in y}),
+        body= λg. λp. g [] (λr. {let y = g.dbl.lib.step {n= p.n} in y}),
       },
     },
   },
   main= {
     type= {'function', {}, 'i32'},
     link= 'main',
-    body= λm. λp. m [] (λr. {
-      let a = m.parser.parse {c= [03000000]} in
-      let b = m.dbl.lib.apply {n= a} in b,
+    body= λg. λp. g [] (λr. {
+      let a = g.parser.parse {c= [03000000]} in
+      let b = g.dbl.lib.apply {n= a} in b,
     }),
   },
 }

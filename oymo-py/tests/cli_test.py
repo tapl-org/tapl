@@ -27,7 +27,7 @@ def goldens_workspace(monkeypatch) -> None:
 
 
 # An ingot with one function `main`, whose entry block is `{}`.
-INGOT = "{{main = {{type = {{'function', {{}}, 'i32'}}, link = 'main', body = λm. λp. m [] (λr. {{{}}})}}}}"
+INGOT = "{{main = {{type = {{'function', {{}}, 'i32'}}, link = 'main', body = λg. λp. g [] (λr. {{{}}})}}}}"
 
 
 def write(tmp_path: pathlib.Path, text: str) -> str:
@@ -198,7 +198,7 @@ LAYERS = str(GOLDENS / 'layers.oymo')
 def two_layers(low: str, high: str, link: str = "'main'") -> str:
     return (
         "language oymomo\n{main = {type = {'function', {}, 'i32'}, link = "
-        f'{link}, body = λm. λp. m [] (λr. {{entry = {low} : {high}}})}}}}\n'
+        f'{link}, body = λg. λp. g [] (λr. {{entry = {low} : {high}}})}}}}\n'
     )
 
 
@@ -372,20 +372,20 @@ MATH = """language oymomo
     gcd= {
       type= {'function', {a= 'i32', b= 'i32'}, 'i32'},
       link= 'gcd',
-      body= λm. λp. m [] (λr. {
+      body= λg. λp. g [] (λr. {
         entry= r.loop p.a p.b,
         loop= λa. λb.
           let z = 'icmp' {'eq', 'i32', b, [00000000]} in
-          m [] (λq. {
+          g [] (λq. {
             if z then r.done a else q.step,
-            step= let c = m.math.helper {a= a, b= b} in r.loop b c,
+            step= let c = g.math.helper {a= a, b= b} in r.loop b c,
           }),
         done= λc. c,
       }),
     },
     helper= {
       type= {'function', {a= 'i32', b= 'i32'}, 'i32'},
-      body= λm. λp. m [] (λr. {let c = 'urem' {'i32', p.a, p.b} in c}),
+      body= λg. λp. g [] (λr. {let c = 'urem' {'i32', p.a, p.b} in c}),
     },
   },
   puts= {type= {'function', {s= 'ptr'}, 'i32'}, link= 'puts'},
@@ -403,7 +403,7 @@ APP = """language oymomo
       main= {
         type= {'function', {}, 'i32'},
         link= 'main',
-        body= λm. λp. m [] (λr. {let g = m.m2.math.gcd {a= [30000000], b= [12000000]} in g}),
+        body= λg. λp. g [] (λr. {let g = g.m2.math.gcd {a= [30000000], b= [12000000]} in g}),
       },
     },
   }

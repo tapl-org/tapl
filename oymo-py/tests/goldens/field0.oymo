@@ -3,9 +3,9 @@ language oymomo
   next= {type= {'function', {}, 'i32'}, link= 'next'},
   spin= {
     type= {'function', {}, 'i32'},
-    body= λm. λp. m [] (λr. {
+    body= λg. λp. g [] (λr. {
       entry=
-        let x = m.next {} in
+        let x = g.next {} in
         let c = 'icmp' {'eq', 'i32', x, [00000000]} in
         if c then r.entry else r.done,
       done= [00000000],
@@ -13,11 +13,11 @@ language oymomo
   },
   three= {
     type= {'function', {}, 'i32'},
-    body= λm. λp. m [] (λr. {
+    body= λg. λp. g [] (λr. {
       entry=
         let a = 'alloca' {'i32'} in
         let z = 'store' {'i32', [00000000], a} in
-        m [] (λq. {
+        g [] (λq. {
           again=
             let v = 'load' {'i32', a} in
             let w = 'add' {'i32', v, [01000000]} in

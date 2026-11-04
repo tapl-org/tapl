@@ -9,8 +9,8 @@ from oymo.oymomo.grammar import parse
 from oymo.oymomo.printer import show
 
 
-def block_body(source, free=('m', 'f')):
-    """`source` as a block's body: under `λp`, with `m` (the module) and `f` (a region) free."""
+def block_body(source, free=('g', 'f')):
+    """`source` as a block's body: under `λp`, with `g` (the unit) and `f` (a region) free."""
     term = reduction.resolve(parse(''.join(f'λ{name}. ' for name in free) + f'λp. {source}'))
     for _ in free:
         term = term.body
@@ -22,7 +22,7 @@ def error(source):
     return None if found is None else (found.message, show(found.term))
 
 
-TAIL_CALL = 'A call that ends a function is bound and returned: let y = m.f {…} in y.'
+TAIL_CALL = 'A call that ends a function is bound and returned: let y = g.f {…} in y.'
 
 
 @pytest.mark.parametrize(
@@ -30,7 +30,7 @@ TAIL_CALL = 'A call that ends a function is bound and returned: let y = m.f {…
     [
         # Returns: a path, data.
         'p.a',
-        'm.answer',
+        'g.answer',
         '[2a000000]',
         "''",
         '{[01], {[02]}}',
@@ -41,8 +41,8 @@ TAIL_CALL = 'A call that ends a function is bound and returned: let y = m.f {…
         # Lets of opcode calls and calls.
         "let x = 'add' {'i32', p.a, [01000000]} in x",
         "let x = 'add' {'i32', p.a, p.b} in let y = 'mul' {'i32', x, x} in f.print y",
-        "let u = 'store' {'i32', [05000000], m.counter} in let x = 'load' {'i32', m.counter} in x",
-        'let x = m.f {a = p.a, b = {[01]}} in f.next x',
+        "let u = 'store' {'i32', [05000000], g.counter} in let x = 'load' {'i32', g.counter} in x",
+        'let x = g.f {a = p.a, b = {[01]}} in f.next x',
         "let s = 'insertvalue' {{'i8', 'i32'}, {[00], [00000000]}, p.a, [01]} in s",
         # An opcode E-Opcode does not compute: undefined behavior, an unknown opcode.
         "let x = 'sdiv' {'i32', [07000000], [00000000]} in x",
@@ -51,9 +51,9 @@ TAIL_CALL = 'A call that ends a function is bound and returned: let y = m.f {…
         "let z = 'icmp' {'eq', 'i32', p.b, [00000000]} in {f.step p.a p.b, f.done p.a} z",
         '{f.a, f.b, f.c} p.tag',
         # Regions: field 0 an expression, the others blocks.
-        'm [] (λq. {q.x, x = p.a})',
-        'm [] (λq. {if p.c then q.x [01] else f.y, x = λa. λb. a, y = m [] (λs. {s.z, z = [00]})})',
-        'm [] (λq. {l = let x = m.g {} in q.l})',
+        'g [] (λq. {q.x, x = p.a})',
+        'g [] (λq. {if p.c then q.x [01] else f.y, x = λa. λb. a, y = g [] (λs. {s.z, z = [00]})})',
+        'g [] (λq. {l = let x = g.g {} in q.l})',
     ],
 )
 def test_in_anf(source):
@@ -82,11 +82,11 @@ def test_in_anf(source):
             "'add' {'i32', $0.a, $0.b}",
         ),
         (
-            'let x = m.f {a = m.g {}} in x',
+            'let x = g.f {a = g.g {}} in x',
             'An argument must be a path or data: bind it with a let.',
             '$2.g {}',
         ),
-        ('let x = m.f p.a in x', 'An instruction applies its operator to a struct of operands.', '$0.a'),
+        ('let x = g.f p.a in x', 'An instruction applies its operator to a struct of operands.', '$0.a'),
         # A struct operand is data.
         (
             "let x = 'add' {'i32', {p.a}, p.b} in x",
@@ -99,8 +99,8 @@ def test_in_anf(source):
             '{$0.a}',
         ),
         # A call at the end is bound and returned.
-        ('m.f {a = p.a}', TAIL_CALL, '$2.f {a = $0.a}'),
-        ('(m.f {}).x', 'A return must be a path or data: bind it with a let.', '($2.f {}).x'),
+        ('g.f {a = p.a}', TAIL_CALL, '$2.f {a = $0.a}'),
+        ('(g.f {}).x', 'A return must be a path or data: bind it with a let.', '($2.f {}).x'),
         ('λx. x', 'A return must be a path or data: bind it with a let.', 'λx. $0'),
         # A branch's arms only jump; its condition is a path.
         (
@@ -108,7 +108,7 @@ def test_in_anf(source):
             'An arm of a branch only jumps: r.l Q₁ ⋯ Qₙ.',
             "'add' {'i32', $0.a, $0.b}",
         ),
-        ('{f.a, f.b} (m.test {})', 'A branch condition must be a path.', '$2.test {}'),
+        ('{f.a, f.b} (g.test {})', 'A branch condition must be a path.', '$2.test {}'),
         # A let binds an instruction.
         (
             'let x = p.a in x',
@@ -124,11 +124,11 @@ def test_in_anf(source):
             "'add' {'i8', [01], [02]}",
         ),
         # Regions.
-        ('m [] (λq. {λy. y})', 'Field 0 of a region is an expression, never a λ.', 'λy. $0'),
-        ('m [] (λq. {})', 'A region holds a struct of blocks, at least one.', '{}'),
-        ('m [] (λq. q)', 'A region holds a struct of blocks, at least one.', '$0'),
+        ('g [] (λq. {λy. y})', 'Field 0 of a region is an expression, never a λ.', 'λy. $0'),
+        ('g [] (λq. {})', 'A region holds a struct of blocks, at least one.', '{}'),
+        ('g [] (λq. q)', 'A region holds a struct of blocks, at least one.', '$0'),
         (
-            'm [] (λq. {q.x, x = λa. let y = a.l in y})',
+            'g [] (λq. {q.x, x = λa. let y = a.l in y})',
             'A let must bind an opcode call or a function call; '
             'a projection is not a value, so E-Beta never substitutes it.',
             '$0.l',
@@ -140,7 +140,7 @@ def test_not_in_anf(source, message, part):
 
 
 def test_anf_error_has_the_part_location():
-    source = "λm. λp. 'add' {'i32', 'mul' {'i32', p.a, p.a}, p.b}"
+    source = "λg. λp. 'add' {'i32', 'mul' {'i32', p.a, p.a}, p.b}"
     term = reduction.resolve(parse(source)).body.body
     found = anf.anf_error(term)
     assert found.tag.start == source.encode().index(b"'mul'")
@@ -157,11 +157,11 @@ def test_anf_error_has_the_part_location():
         '{a = p}.b',
         # Inside a normal form: under a lambda, in a field, in an argument.
         'λx. {} x',
-        'm.f ((λx. x).l)',
+        'g.f ((λx. x).l)',
     ],
 )
 def test_stuck(source):
-    term = block_body(source, free=('m', 'a', 'b', 'c'))
+    term = block_body(source, free=('g', 'a', 'b', 'c'))
     assert strategy.sstep(term) is None
     assert reduction.stuck_part(term) is not None
 
@@ -175,7 +175,7 @@ def test_stuck(source):
         "'add' {'i32', p.a, [01000000]}",
         "'frobnicate' {[01]}",
         "'sdiv' {'i32', [07000000], [00000000]}",
-        'm.f {x = λy. y}',
+        'g.f {x = λy. y}',
         'p (λx. x)',
         'λx. x.l',
         # A byte array applied to anything is an opcode call; an unknown one is normal.
@@ -185,11 +185,11 @@ def test_stuck(source):
     ],
 )
 def test_valid_normal_forms_are_not_stuck(source):
-    term = block_body(source, free=('m', 'a', 'b', 'c'))
+    term = block_body(source, free=('g', 'a', 'b', 'c'))
     assert strategy.sstep(term) is None
     assert reduction.stuck_part(term) is None
 
 
 def test_stuck_part_is_the_outermost_first():
-    term = block_body('{a = {} p, b = [01] [02]}', free=('m',))
+    term = block_body('{a = {} p, b = [01] [02]}', free=('g',))
     assert show(reduction.stuck_part(term)) == '{} $0'

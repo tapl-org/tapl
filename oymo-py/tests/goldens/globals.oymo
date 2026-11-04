@@ -8,13 +8,13 @@ language oymomo
   main= {
     type= {'function', {}, 'i32'},
     link= 'main',
-    body= λm. λp. m [] (λr. {
+    body= λg. λp. g [] (λr. {
       entry=
-        let a = 'load' {'i32', m.answer} in
-        let c = 'load' {'i32', m.counter} in
+        let a = 'load' {'i32', g.answer} in
+        let c = 'load' {'i32', g.counter} in
         let d = 'add' {'i32', c, a} in
-        let s = 'store' {'i32', d, m.counter} in
-        let e = 'load' {'i32', m.counter} in e,
+        let s = 'store' {'i32', d, g.counter} in
+        let e = 'load' {'i32', g.counter} in e,
     }),
   },
 }

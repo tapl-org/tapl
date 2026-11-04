@@ -10,9 +10,9 @@ linker; an entry with only `type` and `link` is a declaration, and one with only
 is a hole, which is rejected. Anything else left in a namespace is rejected too.
 
 Each symbol is named by its path, its labels from the top (`('math', 'gcd')`). A
-definition's body is `λm. λp. R` in ANF. `read_ingot` checks the grammar
-(`anf.region_error`), then every variable's kind: `m.l₁ ⋯ lₙ` is a path through the
-namespaces to a symbol and `m []` only heads a region; `p.l` names a parameter; `r.l` names a block of the region `r` and
+definition's body is `λg. λp. R` in ANF. `read_ingot` checks the grammar
+(`anf.region_error`), then every variable's kind: `g.l₁ ⋯ lₙ` is a path through the
+namespaces to a symbol and `g []` only heads a region; `p.l` names a parameter; `r.l` names a block of the region `r` and
 only heads a jump, with one operand per parameter; a value has no fields.
 
 It gives the body as regions and blocks, every variable resolved (`Use` of a `Var`, `Arg`,
@@ -67,7 +67,7 @@ class Arg:
 
 @dataclass
 class Address:
-    """`m.l₁ ⋯ lₙ` as an operand: the address of the symbol at the path `l₁ ⋯ lₙ`."""
+    """`g.l₁ ⋯ lₙ` as an operand: the address of the symbol at the path `l₁ ⋯ lₙ`."""
 
     path: tuple[str, ...]
     tag: Tag = field(default=NO_TAG, compare=False)
@@ -128,7 +128,7 @@ class Block:
 
 @dataclass(eq=False)
 class Region:
-    """`m [] (λr. {lᵢ = Kᵢ})`; `blocks[0]` is field 0."""
+    """`g [] (λr. {lᵢ = Kᵢ})`; `blocks[0]` is field 0."""
 
     binder: str
     blocks: list[Block]
@@ -371,7 +371,7 @@ def _path(term):
 
 
 class _Body:
-    """Reads one definition's body `λm. λp. R`."""
+    """Reads one definition's body `λg. λp. R`."""
 
     def __init__(self, ingot: Ingot, definition: Definition) -> None:
         self.ingot = ingot
@@ -390,10 +390,10 @@ class _Body:
     def read(self, body):
         name = self.definition.name
         if not isinstance(body, terms.Lambda) or not isinstance(body.body, terms.Lambda):
-            raise IngotError(f'The body of {name!r} must be λm. λp. m [] (λr. {{blocks}}).', _tag(body))
+            raise IngotError(f'The body of {name!r} must be λg. λp. g [] (λr. {{blocks}}).', _tag(body))
         region = body.body.body
         if anf.region_parts(region) is None:
-            raise IngotError(f'The body of {name!r} must be λm. λp. m [] (λr. {{blocks}}).', _tag(region))
+            raise IngotError(f'The body of {name!r} must be λg. λp. g [] (λr. {{blocks}}).', _tag(region))
         if (error := anf.region_error(region)) is not None:
             raise IngotError(f'{name!r} is not in ANF: {error.message}', error.tag)
         self.fresh(body.param_name)
@@ -410,7 +410,7 @@ class _Body:
     def region(self, term):
         head, blocks_lambda = anf.region_parts(term)
         if self.binder(head)[0].kind != 'module':
-            raise IngotError('Only the module runs a region: m [] (λr. {...}).', _tag(head))
+            raise IngotError('Only the unit runs a region: g [] (λr. {...}).', _tag(head))
         binder = self.fresh(blocks_lambda.param_name)
         region = Region(binder, [], _tag(term))
         for i, f in enumerate(blocks_lambda.body.fields):
@@ -457,7 +457,7 @@ class _Body:
         fn = function_type(symbol)
         if fn is None:
             raise IngotError(
-                'An instruction calls a function, m.l₁ ⋯ lₙ {...}, a path to a function of the ingot.', _tag(operator)
+                'An instruction calls a function, g.l₁ ⋯ lₙ {...}, a path to a function of the ingot.', _tag(operator)
             )
         names = [name for name, _ in fn.params]
         given = [f.label for f in struct.fields]
@@ -479,7 +479,7 @@ class _Body:
             case 'module':
                 if self.ingot.lookup(tuple(labels)) is None:
                     raise IngotError(
-                        'm names the symbols: an operand through m is m.l₁ ⋯ lₙ, a path to a symbol of the ingot.',
+                        'g names the symbols: an operand through g is g.l₁ ⋯ lₙ, a path to a symbol of the ingot.',
                         tag,
                     )
                 return Address(tuple(labels), tag)
