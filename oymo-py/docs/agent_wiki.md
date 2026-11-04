@@ -3031,6 +3031,14 @@ executable binary). we should mark some place as a platform". The steps that fol
 - Tests: build tests link with real clang in the test (`link` helper asserts no other
   warning); the fake clang is gone; the two-projects test builds app with `--mount` and
   links both `unit.ll`. `.ll` goldens lost their two target lines. 873 passed.
+- Committed `e8b729c`. Then the `driver`/`obj-link` revisit (user: "yes"): both removed
+  (oymo makes no objects or binaries); the `build` node collapsed into its last child
+  `e2e-libc`, now linked by hand (`oymo build hello.oymo`, then `clang
+  -Wno-override-module oymo-out/unit.ll util.c -o hello`). `oymo run` mentions in
+  `alcor-core`, `alcor-memory-frontend` and `line-tables` now say build + clang. Left
+  as is, flagged to the user: `deps-cli` (many files, a unit per file, `oymo run`)
+  conflicts with "one project one unit" and no `run`; the spindle REPL's `oymo run
+  --spindle` is far off.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

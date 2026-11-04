@@ -80,13 +80,10 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `l1-two-layer` `<expr:Type>` two-layer expressions, split into two oymomo programs
       - 🚫 `l1-subprocess` Layer 1 → oymomo → `.ll` → `clang` → run as a subprocess
       - 🚫 `l1-runtime` Type values, equality, located errors
-    - 🚫 `alcor-core` Functions, integers, locals, `if`, loops, `switch`, both layers, with `oymo run`
+    - 🚫 `alcor-core` Functions, integers, locals, `if`, loops, `switch`, both layers, built with `oymo build`
     - `alcor-memory` Pointers, structs, arrays, strings, `void`, casts; `extern` to libc
       - 🚫 `alcor-memory-frontend` Alcor syntax and lowering for memory
-    - `build` `oymo build`: executables, `-c` objects, `.c` files linked in
-      - 🚫 `obj-link` `.o` via `clang -c`, link with `cc`
-      - 🚫 `driver` `oymo build a.oymo -o a`, `-c`
-      - 🚫 `e2e-libc` End-to-end tests calling libc and a small C library
+    - 🚫 `e2e-libc` End-to-end tests calling libc and a small C library
     - 🚫 `tagged-unions` Enums and tagged unions; `switch` binds the payload
     - 🚫 `l1-generics` System F generics: `List(T)`, `Map(K, V)`
   - `types-files` Multiple files and function pointers
@@ -603,7 +600,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `line-tables` `-g` line tables from spans
 
-- `-g` on `emit-llvm` and `run` (`run` passes `-g` to `clang`); `oymo build` takes it when it exists
+- `-g` on `emit-llvm` and `build`; the user passes `-g` to clang when linking
 - One `DICompileUnit` per row holding a function's span:
   - `DIFile(filename, directory, checksumkind: CSK_MD5, checksum)` from the row
   - `language: DW_LANG_C11`, `producer: "oymo <version>"`, `emissionKind: LineTablesOnly`
@@ -749,7 +746,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Small layer-1 runtime: type values (`Int32`, `Ptr(T)`, struct types), equality,
   located errors
 
-### `alcor-core` Functions, integers, locals, `if`, loops, `switch`, both layers, with `oymo run`
+### `alcor-core` Functions, integers, locals, `if`, loops, `switch`, both layers, built with `oymo build`
 
 - Grammar on the PEG engine; tree classes with `separate()`
 - Lower layer 0 to an ingot: functions → regions of blocks, `if`/`while` → blocks and
@@ -759,7 +756,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Alcor API: public tree classes and constructors, locations from any file
 - Code in `src/oymo/alcor/`
 - No type checker in the compiler: layer-1 code checks types; release notes say so
-- Done when: `fact`, `fib`, `gcd` in Alcor run with `oymo run`; a call with a wrong
+- Done when: `fact`, `fib`, `gcd` in Alcor build, link with clang and run; a call with a wrong
   integer type is a located layer-1 error
 
 ### `alcor-memory-frontend` Alcor syntax and lowering for memory
@@ -768,32 +765,18 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Layer-1 types: raw `Ptr(T)`, structs, arrays
 - `void` functions, null, pointer comparison, casts, `memcpy`/`memset`
 - Hand-written `extern` declarations to call C; first-order calls, Alcor → C only
-- `oymo run` links libc
+- clang links libc when the user links `unit.ll`
 - Memory via `malloc`/`free` through `extern`
 - Done when: hello world with `puts`; linked list with `malloc`/`free`;
   `puts(42)` → `app.oymo:3:6: expected Ptr(c_char), got Int32`
-
-### `obj-link` `.o` via `clang -c`, link with `cc`
-
-- `.o` via `clang -c` on the `.ll`
-- Link with the system `cc`
-- Compile `.c` inputs with `cc`
-
-### `driver` `oymo build a.oymo -o a`, `-c`
-
-- `oymo build FILE` exists: one unit, flat `oymo-out/unit*` outputs; `oymo run` was
-  removed (user: "lets remove run command. user will trigger binary manually if they need")
-- Revisit: oymo ends at the `.ll` (user: "this is clang job, right? i guess oymomo should
-  end in .ll file"); linking, `-c` objects and `.c` inputs are clang's job, so this leaf
-  and `obj-link` may not be needed
-- `oymo build ... -c`: object file
-- `oymo build hello.oymo util.c -o hello`: `.c` files linked in
 
 ### `e2e-libc` End-to-end tests calling libc and a small C library
 
 - `zeroext`/`signext` on `i1`, `i8`, `i16` where needed
 - End-to-end tests calling libc and a small C test library, built and run
-- Done when: `oymo build hello.oymo util.c -o hello` runs; a program reverses a file
+- Linked by hand, as oymo ends at the `.ll`: `oymo build hello.oymo`, then
+  `clang -Wno-override-module oymo-out/unit.ll util.c -o hello`
+- Done when: that `hello` runs; a program reverses a file
 
 ### `tagged-unions` Enums and tagged unions; `switch` binds the payload
 
