@@ -2978,6 +2978,13 @@ executable binary). we should mark some place as a platform". The steps that fol
   file, §5 build model) and roadmap (`oymomo-redesign`, `redesign-links`, `vdir-mounts`
   removed; "Paused" line removed; `link-projects`, `cross-target` added under `build`;
   `driver` leaf updated) updated. `oymomo-redesign` is finished.
+- Committed `af7c7e6`. Then (user: "yes" to both offers): `pre-bootstrap`'s 9 children
+  grouped under `kernel-followups` (`unit-var-name`, `label-bytes`, `region-marker`,
+  `effect-ticks`, `data-addresses`) and `unit-followups` (`opcode-namespaces`,
+  `platform-sizes`, `functor-libraries`): two nodes, since eight under one breaks the limit
+  of 7; detail sections reordered to tree order. `emit-llvm -o` into a missing folder now
+  says "Cannot write the LLVM IR to '…': No such file or directory." instead of an
+  uncaught OSError; it doesn't make the folder, like `emit-header -o`. 877 passed.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

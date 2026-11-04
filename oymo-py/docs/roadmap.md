@@ -13,14 +13,16 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ## Tree
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
-  - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
-  - `unit-var-name` A better name for the unit variable `m`
-  - `label-bytes` A label can be any bytes, not only UTF-8 text
-  - `region-marker` Regions without `m []`; an opcode builds the runnable instance
-  - `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
-  - `effect-ticks` Deterministic effects: a tick threaded through effect opcodes
-  - `functor-libraries` Functor-style libraries and path aliases (proposals)
-  - `data-addresses` Symbol addresses in data, redesigned
+  - `kernel-followups` Kernel follow-ups: names, labels, regions, effects, addresses
+    - `unit-var-name` A better name for the unit variable `m`
+    - `label-bytes` A label can be any bytes, not only UTF-8 text
+    - `region-marker` Regions without `m []`; an opcode builds the runnable instance
+    - `effect-ticks` Deterministic effects: a tick threaded through effect opcodes
+    - `data-addresses` Symbol addresses in data, redesigned
+  - `unit-followups` Unit follow-ups: opcode namespaces, platform sizes, libraries
+    - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
+    - `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
+    - `functor-libraries` Functor-style libraries and path aliases (proposals)
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
       - `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
@@ -209,13 +211,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Then: oymomo-calculus.tex 8 (regions, `m` kinds) and 9 (instance), Lean `anf_normal`,
   code, goldens
 
-### `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
-
-- Moved from `redesign-ingot` (finished) when needed: sizes that depend on the platform
-  (`usize`, C layouts) kept symbolic until translation (e.g. `'usize'`, `'c_long'` types;
-  `'sizeof'`, `'alignof'`, `'offsetof'` opcodes resolved by the translation)
-- Decide: the types and opcodes, and how the translation resolves them
-
 ### `effect-ticks` Deterministic effects: a tick threaded through effect opcodes
 
 - Idea (user): effects take a tick and effect opcodes become deterministic; reduction may
@@ -240,17 +235,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide: what a tick is; how functions and calls carry it; the linearity check; how the
   translation erases ticks; then oymomo-calculus.tex, Lean, code
 
-### `functor-libraries` Functor-style libraries and path aliases (proposals)
-
-- Moved from `redesign-modules` (finished)
-- Proposal: a library is `λu. {…}`, bodies `λn. λp.` use their own namespace `n`, foreign
-  symbols are fields filled from `u`, the root wires them in `fix (λm. …)` passing paths
-  (not entries); as OCaml functors and recursive modules
-- Proposal: an entry that is a path (`log = m.util.log`) is that symbol for the
-  translation; chains followed, cycles and dangling paths rejected
-- Today `unit.rebase` and delegates cover relocation and wiring
-- Decide: whether to adopt either
-
 ### `data-addresses` Symbol addresses in data, redesigned
 
 - Moved from `redesign-modules`: a `'ptr'` initialized by a label as bytes was dropped (it
@@ -268,6 +252,24 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide: prefix = the providing collection (LLVM translation, driver, unit tools, an
   opcode provider unit)
 - Later: opcode providers (compiled units loaded by the driver; λs as opaque handles)
+
+### `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
+
+- Moved from `redesign-ingot` (finished) when needed: sizes that depend on the platform
+  (`usize`, C layouts) kept symbolic until translation (e.g. `'usize'`, `'c_long'` types;
+  `'sizeof'`, `'alignof'`, `'offsetof'` opcodes resolved by the translation)
+- Decide: the types and opcodes, and how the translation resolves them
+
+### `functor-libraries` Functor-style libraries and path aliases (proposals)
+
+- Moved from `redesign-modules` (finished)
+- Proposal: a library is `λu. {…}`, bodies `λn. λp.` use their own namespace `n`, foreign
+  symbols are fields filled from `u`, the root wires them in `fix (λm. …)` passing paths
+  (not entries); as OCaml functors and recursive modules
+- Proposal: an entry that is a path (`log = m.util.log`) is that symbol for the
+  translation; chains followed, cycles and dangling paths rejected
+- Today `unit.rebase` and delegates cover relocation and wiring
+- Decide: whether to adopt either
 
 ### `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
 
