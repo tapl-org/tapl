@@ -11,7 +11,8 @@ import pytest
 from approvaltests.approvals import verify
 from approvaltests.core.namer import Namer
 
-from oymo.oymomo import driver, ingot, layers, llvm_opcodes, llvm_translate, reduction, source, strategy
+from oymo.core import syntax
+from oymo.oymomo import driver, header, ingot, layers, llvm_opcodes, llvm_translate, reduction, source, strategy
 
 
 def run_command(command):
@@ -84,13 +85,15 @@ def compile_oymo(text: str) -> tuple[str, list[str]]:
     ir_texts = [str(llvm_translate.translate(each, TARGET)) for each in ingot.ingots_of(parse(text))]
     for ir_text in ir_texts:
         llvm.parse_assembly(ir_text).verify()
-    normal = normals[0] if len(normals) == 1 else layers.merge(*normals)
+    # Two layers are written as `low : high`, as `oymo normal` prints them.
+    normal = normals[0] if len(normals) == 1 else syntax.Layers(layers=(normals[0], normals[1]))
     return source.write(normal), ir_texts
 
 
 def run_golden_test(test_name: str) -> None:
     """Approves `name.ll` and, for two layers, `name.guard.ll` (the high layer), and
-    `name.normal.oymo` unless the source is already normal."""
+    `name.normal.oymo` unless the source is already normal; for a golden in `HEADERS`,
+    its header `name.h.oymo` too."""
     base_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'goldens')
     source_path = pathlib.Path(os.path.join(base_directory, f'{test_name}.oymo'))
     text = source_path.read_text()
@@ -101,11 +104,15 @@ def run_golden_test(test_name: str) -> None:
         source_path.write_text(pretty_text)
         text = pretty_text
     normal_text, ir_texts = compile_oymo(text)
-    approve(base_directory, test_name, text, normal_text, ir_texts)
+    header_text = header_oymo(text) if test_name in HEADERS else None
+    approve(base_directory, test_name, text, normal_text, ir_texts, header_text)
 
 
-def approve(base_directory: str, test_name: str, text: str, normal_text: str, ir_texts: list[str]) -> None:
-    """Approves the outputs of the golden `test_name`, whose root source is `text`."""
+def approve(
+    base_directory: str, test_name: str, text: str, normal_text: str, ir_texts: list[str], header_text: str | None
+) -> None:
+    """Approves the outputs of the golden `test_name`, whose root source is `text`; and its
+    header `name.h.oymo` if `header_text` is given."""
     normal_path = pathlib.Path(base_directory, f'{test_name}.normal.oymo')
     if normal_text == text:
         # The source is already normal: no `.normal.oymo` is kept for it.
@@ -121,6 +128,19 @@ def approve(base_directory: str, test_name: str, text: str, normal_text: str, ir
     else:
         verify(ir_texts[1], namer=ApprovalNamer(str(guard_path)))
     verify(ir_texts[0], namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.ll')))
+    if header_text is not None:
+        # The normal form gives the same header.
+        assert header_oymo(normal_text) == header_text
+        verify(header_text, namer=ApprovalNamer(os.path.join(base_directory, f'{test_name}.h.oymo')))
+
+
+# The goldens whose header `name.h.oymo` is approved too.
+HEADERS = {'layers', 'unit'}
+
+
+def header_oymo(text: str) -> str:
+    """The header of the program `text`, as a source file: one file for one layer or two."""
+    return source.write(header.header_of_layers(ingot.ingots_of(parse(text))))
 
 
 GOLDENS = [
@@ -148,17 +168,29 @@ def test_golden(name):
 
 
 def compile_unit(directory: pathlib.Path) -> tuple[str, list[str]]:
-    """`compile_oymo` of `directory/root.oymo`, in a driver session whose top is `directory`."""
-    with driver.session(str(directory)) as build:
+    """`compile_oymo` of `directory/root.oymo`, in a driver session whose top is the
+    workspace, `directory`'s parent (`goldens/`): the unit's reads are paths from there."""
+    with driver.session(str(directory.parent)) as build:
         compiled = compile_oymo((directory / 'root.oymo').read_text())
         build.check()
     return compiled
 
 
+def unit_header(directory: pathlib.Path) -> str:
+    """`header_oymo` of `directory/root.oymo`, in a driver session whose top is the
+    workspace, `directory`'s parent (`goldens/`)."""
+    with driver.session(str(directory.parent)) as build:
+        header_text = header_oymo((directory / 'root.oymo').read_text())
+        build.check()
+    return header_text
+
+
 def run_unit_golden(test_name: str) -> None:
-    """A unit of several files: the directory `name/`, whose `root.oymo` reads the others.
+    """A unit of several files: the directory `name/`, whose `root.oymo` reads the others
+    by their paths from the workspace `goldens/` (`'name/lexer.oymo'`).
     Every file is kept pretty-printed. Approves `name.ll` (and `name.guard.ll` for two
-    layers) and `name.normal.oymo`, the unit's normal form: a program of one file."""
+    layers) and `name.normal.oymo`, the unit's normal form: a program of one file; for a
+    golden in `HEADERS`, its header `name.h.oymo` too."""
     base_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'goldens')
     directory = pathlib.Path(base_directory, test_name)
     texts = {path: path.read_text() for path in sorted(directory.rglob('*.oymo'))}
@@ -170,7 +202,8 @@ def run_unit_golden(test_name: str) -> None:
             path.write_text(text)
         assert compile_unit(directory)[1] == ir_texts
     normal_text, ir_texts = compile_unit(directory)
-    approve(base_directory, test_name, pretty_texts[directory / 'root.oymo'], normal_text, ir_texts)
+    header_text = unit_header(directory) if test_name in HEADERS else None
+    approve(base_directory, test_name, pretty_texts[directory / 'root.oymo'], normal_text, ir_texts, header_text)
 
 
 UNIT_GOLDENS = ['unit']

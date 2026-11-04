@@ -108,6 +108,34 @@ def test_a_link_may_not_leave_the_top(tmp_path):
     assert build.errors[0][0] == "'link.oymo' leaves the top of the virtual directory."
 
 
+def test_out_names_the_destination_folder(tmp_path):
+    top, out = tmp_path / 'src', tmp_path / 'build'
+    write(top, 'out/a.oymo', HEADER + '{f = [01]}\n')  # hidden: `out/` is the destination folder
+    write(out, 'a.oymo', HEADER + '{f = [02]}\n')
+    with driver.session(str(top), out=str(out)) as build:
+        assert normal("'driver.read_low' 'out/a.oymo'") == normal('{f = [02]}')
+    assert build.paths == ['out/a.oymo']
+    assert build.host_path('out/a.oymo') == os.path.join(str(out), 'a.oymo')
+
+
+def test_the_destination_folder_is_oymo_out_in_the_current_directory_by_default(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    write(tmp_path, 'oymo-out/a.h.oymo', HEADER + '{f = [02]}\n')
+    with driver.session(str(tmp_path / 'unit')) as build:
+        assert normal("'driver.read_low' 'out/a.h.oymo'") == normal('{f = [02]}')
+    assert build.out == os.path.join(str(tmp_path), 'oymo-out')
+
+
+def test_a_link_may_not_leave_the_destination_folder(tmp_path):
+    top, out = tmp_path / 'top', tmp_path / 'top' / 'oymo-out'
+    out.mkdir(parents=True)
+    write(top, 'source.oymo', HEADER + '{}\n')
+    (out / 'link.oymo').symlink_to(top / 'source.oymo')
+    with driver.session(str(top), out=str(out)) as build:
+        normal("'driver.read_low' 'out/link.oymo'")
+    assert build.errors[0][0] == "'out/link.oymo' leaves the destination folder."
+
+
 @pytest.mark.parametrize(
     ('text', 'message'),
     [

@@ -16,11 +16,22 @@ Inside a session, the driver opcodes give:
 
 Outside a session they give no result, and the call stays as written.
 
-Paths name files in the virtual directory, whose top is a directory of the host (the root
-file's, for the `oymo` command). A path is relative to the top, its parts separated by `/`;
-it is never absolute and has no `..`, `.` or empty part, and it may not leave the top
-through a link. Each path is read once per session, so the same path always gives the same
-term: the opcodes are deterministic.
+Paths name files in the virtual directory, whose top is a directory of the host: for the
+`oymo` command, the workspace, which is the current directory, as Blaze's workspace root.
+So every read path is from the workspace, whichever file reads it: the root `calc/root.oymo`
+reads its lexer as `'driver.read_low' 'calc/lexer.oymo'`. A path is relative to the top,
+its parts separated by `/`; it is never absolute and has no `..`, `.` or empty part, and it
+may not leave the top through a link. Each path is read once per session, so the same path
+always gives the same term: the opcodes are deterministic.
+
+The virtual directory also shows the destination folder, where generated files such as
+headers are written, under the fixed prefix `out/`. Generated files mirror their sources:
+the header of the unit whose root is `calc/root.oymo` is `calc/root.h.oymo` in the
+destination folder, read as `out/calc/root.h.oymo`. The destination folder is by default
+`oymo-out/` in the current directory, one for every unit built from there, as Blaze's
+`bazel-out/`. A source file never sits under `out/`, so a path says by itself whether it
+names a source or a generated file. A path under `out/` may not leave the destination
+folder through a link.
 
 A read file keeps its own tags, which point into it, so errors inside it name it; its meta
 section is read as usual. A name it doesn't bind is an error in that file, at its place.
@@ -47,12 +58,19 @@ class DriverError(Exception):
         self.tag = tag
 
 
-class Session:
-    """One build: the virtual directory's top, the config, what was read, and the errors
-    and warnings recorded so far."""
+# The prefix under which the virtual directory shows the destination folder.
+OUT = 'out'
+# The destination folder's name in the current directory, by default.
+DEFAULT_OUT = 'oymo-out'
 
-    def __init__(self, top: str, config: Mapping[str, str]) -> None:
+
+class Session:
+    """One build: the virtual directory's top, the destination folder, the config, what was
+    read, and the errors and warnings recorded so far."""
+
+    def __init__(self, top: str, config: Mapping[str, str], out: str | None = None) -> None:
         self.top = top
+        self.out = os.path.join(os.getcwd(), DEFAULT_OUT) if out is None else out
         self.config = dict(config)
         # In order, each once: the opcodes are retried at every step while they fail.
         self._errors: dict[tuple[str, Tag], None] = {}
@@ -107,8 +125,11 @@ class Session:
         if (problem := path_error(path)) is not None:
             return self._error(problem, tag)
         full = self.host_path(path)
-        if not pathlib.Path(os.path.realpath(full)).is_relative_to(os.path.realpath(self.top or os.curdir)):
-            return self._error(f'{path!r} leaves the top of the virtual directory.', tag)
+        generated = _is_generated(path)
+        folder = self.out if generated else self.top
+        if not pathlib.Path(os.path.realpath(full)).is_relative_to(os.path.realpath(folder or os.curdir)):
+            where = 'the destination folder' if generated else 'the top of the virtual directory'
+            return self._error(f'{path!r} leaves {where}.', tag)
         try:
             data = pathlib.Path(full).read_bytes()
         except OSError as error:
@@ -117,8 +138,12 @@ class Session:
         return data
 
     def host_path(self, path: str) -> str:
-        """Where the file at `path` is on the host, as errors in it name it."""
-        return os.path.join(self.top, *path.split('/'))
+        """Where the file at `path` is on the host, as errors in it name it: in the
+        destination folder for a path under `out/`, else in the top."""
+        parts = path.split('/')
+        if _is_generated(path):
+            return os.path.join(self.out, *parts[1:])
+        return os.path.join(self.top, *parts)
 
     def _layer(self, path: str, which: int, tag: Tag) -> syntax.Term | None:
         """Layer `which` (0 low, 1 high) of the oymo file at `path`, resolved; None on an error.
@@ -177,11 +202,17 @@ def path_error(path: str) -> str | None:
     return None
 
 
+def _is_generated(path: str) -> bool:
+    """Whether `path` names a file of the destination folder: it starts with `out/`."""
+    return path.split('/')[0] == OUT
+
+
 @contextlib.contextmanager
-def session(top: str, config: Mapping[str, str] | None = None) -> Iterator[Session]:
+def session(top: str, config: Mapping[str, str] | None = None, out: str | None = None) -> Iterator[Session]:
     """A build whose virtual directory's top is the host directory `top` ('' for the current
-    one), with the config `config`. The driver opcodes give results only inside it."""
-    build = Session(top, config or {})
+    one), with the config `config`, and whose destination folder is the host directory
+    `out` (by default `oymo-out` in the current directory). The driver opcodes give results only inside it."""
+    build = Session(top, config or {}, out)
     token = opcodes.DRIVER.set(build.apply)
     try:
         yield build

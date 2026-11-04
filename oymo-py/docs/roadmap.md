@@ -16,7 +16,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `oymomo-redesign` Redesign oymomo and the `.oymo` file
-    - `redesign-modules` Module system: reduce-time and link-time dependencies
     - `redesign-links` Ingots of both layers linked across files
   - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
   - `unit-var-name` A better name for the unit variable `m`
@@ -24,6 +23,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `region-marker` Regions without `m []`; an opcode builds the runnable instance
   - `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
   - `effect-ticks` Deterministic effects: a tick threaded through effect opcodes
+  - `functor-libraries` Functor-style libraries and path aliases (proposals)
+  - `data-addresses` Symbol addresses in data, redesigned
+  - `vdir-mounts` Describing the virtual directory: mounts beyond the workspace
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
       - `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
@@ -58,7 +60,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
         - 🚫 `ll-tls` `thread_local` on global variables
         - 🚫 `ll-function-attrs` Calling conventions; function, parameter and result attributes
         - 🚫 `fn-address` `module.f` as an address; indirect call through `'ptr'`
-        - 🚫 `ll-varargs` Varargs functions, calls, `va_arg`
         - 🚫 `ll-module-level` Aliases, ifuncs, `module asm`, constructors, constant expressions
       - `ll-code` Instructions, undefined behaviour, intrinsics, exceptions
         - 🚫 `undefined` Undefined behaviour in oymomo: folding, `'unreachable'`, poison
@@ -133,7 +134,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - 🚫 `build-systems` `cc`-style flags, `-MD`/`-MF`, `compile_commands.json`, pkg-config
     - 🚫 `mizar-floats` Mizar `f32`, `f64`; libm through headers
     - 🚫 `by-value-structs` By-value structs, x86-64 SysV, both directions; unions
-    - 🚫 `varargs` Call `printf`; define `...` functions via `va_list`
     - 🚫 `volatile-asm` `volatile` and inline asm
   - `c-headers` C headers
     - 🚫 `c-import` C headers → oymomo: `c_import`, `oymo import-c`
@@ -145,6 +145,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `lto` `-O` levels and LTO
     - 🚫 `safety-checks` Checked build traps on overflow, OOB, null; UBSan on C
     - 🚫 `separate-compilation` Separate compilation, incremental rebuilds
+    - 🚫 `header-places` Places in generated files: source vs generated, not oymomo vs other
   - `completion` Standard library, rest of C, tools
     - 🚫 `full-stdlib` Closures; formatted I/O, containers, pool and Boehm allocators
     - 🚫 `value-gc` Lua-style incremental GC for `Value`, replacing the arena
@@ -170,76 +171,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `block-comments` `/* */` block comments; stuck-term errors shown in them
 
 ## Leaf details
-
-### `redesign-modules` Module system: reduce-time and link-time dependencies
-
-- Reduce-time: another file's term substituted and reduced (today's glue)
-- Link-time: declarations joined by the linker by name
-- Why modules: code that isn't oymomo (the hard reason, already solved by declarations with `link`),
-  reuse, people
-- Reuse is per symbol, by the fields shipped: `body` (source), `link` on a definition (compiled),
-  `{type, link}` alone (a header); the user picks per use
-- People: Go/Rust model: a unit is several files joined into one term (one namespace,
-  cycles allowed), reduced to the unit's ingot(s); link-time cycles between units allowed; only
-  reading generated headers orders builds (a handwritten header breaks a cycle)
-- The root of a unit is oymo code; the driver supplies opcodes `'driver.read_low' {path}` and
-  `'driver.read_high' {path}` (one layer of the file, a plain term); both layers:
-  `('driver.read_low' 'c.oymo' : 'driver.read_high' 'c.oymo')`; reduce-time only; the driver
-  records the paths read
-- oymomo-calculus.tex: E-Opcode fires on `b A` (byte array, struct of operands, closed
-  `λ`, opaque to the op); its result is any closed term
-- A unit's build also writes a header `lexer.h.oymo` (`{type, link}` per linked
-  symbol, namespaces kept); handwritten headers have the same shape
-- Headers are declarations only: reuse between units is compiled only; source sharing
-  is merging the files into one's unit; inlining across units by LTO
-- A two-layer unit has one header with a layering; header meta keeps spans into the source
-- Three independent name realms: file names (read operands), labels/paths (inside a
-  unit), link names (across units); they meet only in the `.ll` symbol table
-- Driver-provided virtual directory (nested, user-built, project folder by default); read
-  paths relative to its top; libraries mounted into it; its description left to the driver
-- Internal LLVM names chosen by the translation (path by default); link names exact
-- Holes `{type}` filled by merging a body or a `link`; unfilled holes rejected at
-  verification; delegates wire dependencies inside a unit
-- A label clash: build one library as its own unit, mount its header elsewhere
-- Symbol addresses in data (`'ptr'` initialized by a label as bytes) dropped for now
-- Decide (later): a redesign of symbol addresses in data that supports reduction and keeps
-  name realms apart
-- `'unit.rebase' {prefix, X}` (closed, normal bodies, `m` only as path or region head)
-  resolves label clashes in one unit; mounting a header is a rebase; goal as fast as merge,
-  reduction still allowed
-- Convention: a library refers only to its own labels, outside through holes
-- Mixin composition, as a linker does; linear; later: parallel merge, reachability, caching
-- oymomo-calculus.tex 2.1, 5.4: operands hold only closed normal λs (Mitschke); Lean done
-  (`OpOK`, `isOperand`, `isNF_iff`; confluence and the guarantee kept)
-- A namespace is just a struct reached by paths; nothing new in the calculus
-- Nested ingot (namespaces are plain structs; a struct with `type` is an entry, so no
-  symbol is named `type`); internal LLVM names are paths; inside a unit
-  only paths, between units only `link` names
-- Each file declares its own namespace label; the root deep-merges files with
-  `'unit.merge'` (namespaces combine, equal λ-free entries merge, a λ entry twice is
-  rejected)
-- The kernel uses absolute paths only; short names are the frontend's job
-- `link = 'name'` replaces `export`/`import`; kind gives direction; a declaration without
-  `link` rejected at verification or translation
-- A unit has no name in oymomo; the importer picks the mount label; the driver names outputs
-- Same link name in one ingot = one symbol (same type, at most one definition)
-- Two operations at the user's choice: merge (sources, by their own labels) and mount
-  (headers, under any label, a rebase of a λ-free struct); clashes: headers re-mounted, sources edited (merge reports
-  both spans), link names by the platform linker
-- Paths stay non-values (not confluent: `(λx. (λy. b) x.l) {}`); views by wrapping bodies
-  dropped
-- Kernel keeps `m` = whole unit (absolute paths); labels declared by the file or picked by
-  the root (both allowed); merge and mount kept as tools
-- Proposal: functor-style libraries (`λu. {…}`, bodies `λn. λp.`, root wires
-  in `fix (λm. …)`, passing paths); proposal: path entries as aliases resolved by the
-  translation
-- Four kinds of file: source part, header, reduce-time library (applied; `fix` for
-  recursion), opcode provider (later: compiled unit loaded by the driver)
-- After reduction an ingot holds only namespaces and entries
-- The root is a named role; driver opcodes `'driver.read_bytes'` (raw data) and `'driver.config'`
-  (build flags, later platform facts)
-- Mangling only in a frontend; the kernel takes explicit `link` strings
-- Then: oymomo-calculus.tex Sections 9–10 (`link`, nested namespaces, path names)
 
 ### `unit-var-name` A better name for the unit variable `m`
 
@@ -312,6 +243,31 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide: what a tick is; how functions and calls carry it; the linearity check; how the
   translation erases ticks; then oymomo-calculus.tex, Lean, code
 
+### `functor-libraries` Functor-style libraries and path aliases (proposals)
+
+- Moved from `redesign-modules` (finished)
+- Proposal: a library is `λu. {…}`, bodies `λn. λp.` use their own namespace `n`, foreign
+  symbols are fields filled from `u`, the root wires them in `fix (λm. …)` passing paths
+  (not entries); as OCaml functors and recursive modules
+- Proposal: an entry that is a path (`log = m.util.log`) is that symbol for the
+  translation; chains followed, cycles and dangling paths rejected
+- Today `unit.rebase` and delegates cover relocation and wiring
+- Decide: whether to adopt either
+
+### `data-addresses` Symbol addresses in data, redesigned
+
+- Moved from `redesign-modules`: a `'ptr'` initialized by a label as bytes was dropped (it
+  mixes the label realm into data and does not survive namespaces or reduction)
+- Decide: a form that supports reduction and keeps name realms apart (e.g. a path value);
+  until then pointer tables are filled at run time
+
+### `vdir-mounts` Describing the virtual directory: mounts beyond the workspace
+
+- Moved from `redesign-modules`: today the virtual directory is the workspace (the
+  current directory), plus the destination folder as `out/`
+- Decide: how a user mounts other folders (`--mount libs/math=…`, a textproto, an oymo
+  term), and how libraries are found
+
 ### `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
 
 - Moved out of `oymomo-redesign` (user: "move the opcode namespace outside of
@@ -322,13 +278,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide: prefix = the providing collection (LLVM translation, driver, unit tools, an
   opcode provider unit)
 - Later: opcode providers (compiled units loaded by the driver; λs as opaque handles)
-
-- Code done (step 1): `unit_ops.py` (`'unit.merge'`, `'unit.rebase'`), `driver.py`
-  (`'driver.read_low'`, `'driver.read_high'`, `'driver.read_bytes'`, `'driver.config'`,
-  a per-build session with the virtual directory rooted at the root file's directory),
-  `--config key=value`, golden `unit/`
-- Then (step 2): generated headers `x.h.oymo` (declarations only, a layering for two
-  layers, meta places into the source)
 
 ### `redesign-links` Ingots of both layers linked across files
 
@@ -633,15 +582,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `module.f` as an address
 - Indirect call through `'ptr'` with a function type
-
-### `ll-varargs` Varargs functions, calls, `va_arg`
-
-- Varargs declarations and calls
-- Definitions: `llvm.va_start`, `llvm.va_end`, `va_arg`
-- Goldens
-- Decide: how the function type says varargs (e.g. a 4th field `'varargs'`), how a call
-  passes extra arguments (calls give exactly the callee's parameter labels today), and
-  how each extra argument gets its type (a byte array has no use to take it from)
 
 ### `ll-module-level` Aliases, ifuncs, `module asm`, constructors, constant expressions
 
@@ -1223,13 +1163,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide: ABI lowering: own code or clang's CodeGen?
 - Decide: unions: a form of their own, or a byte array with size and alignment?
 
-### `varargs` Call `printf`; define `...` functions via `va_list`
-
-- Default argument promotions: `float` → `double`, small ints → `int`
-- Register rules: `%al` on x86-64
-- Mizar syntax for variadic functions
-- Done when: `printf("%d %f %s\n", ...)` from Mizar; a Mizar `...` function called from C
-
 ### `volatile-asm` `volatile` and inline asm
 
 - Mizar syntax for `volatile` and inline asm
@@ -1318,6 +1251,18 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Incremental rebuilds
 - Done when: changing one function body in the compiler rebuilds one object
 - Decide: partial normalization: normalize a file before the glue binds it?
+
+### `header-places` Places in generated files: source vs generated, not oymomo vs other
+
+- Today `source.write` never writes a place into a `language oymomo` file (oymomo code is
+  usually generated), so a header generated from a hand-written oymomo unit carries no
+  places back to its definitions
+- Idea: decide by source vs generated instead: never write places into generated files
+  (under the destination folder, `out/`), keep places into source files of any language
+- Every source file has the extension `.oymo`, Alcor and Mizar too; the `language` line
+  says which
+- Postponed until after the bootstrap (user: "lets return back to 'never write places into
+  language oymomo files'. and put a roadmap leaf after bootstrap")
 
 ### `full-stdlib` Closures; formatted I/O, containers, pool and Boehm allocators
 

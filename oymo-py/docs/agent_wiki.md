@@ -329,6 +329,11 @@ The user's orders, kept as given. Follow them in every task.
 
 ### oymomo design
 
+- Every source file has the extension `.oymo`, Alcor and Mizar too; the first line
+  (`language oymomo`, `language alcor`, …) says which language it is. User (Nov 3):
+  "extention for all is .oymo, even for alcor and mizar. remember this." Never write
+  examples like `helpers.alcor`.
+
 - Nothing automatic in oymomo; everything is manual. For example, `module` declarations
   are not filled in automatically: the user will add tools to concatenate, modify and
   build structs, so they can be combined by hand.
@@ -2884,6 +2889,50 @@ executable binary). we should mark some place as a platform". The steps that fol
   delegate; runs, exit 24), unit golden harness. Agent fixed a caveat: `is_normal`'s cache
   is per build (the driver's opcodes compute only inside one). `hatch test` 831 passed.
   Design doc and roadmap renamed to the new opcode names.
+- Committed `6d85edc`. Modules step 2 plan (artifact `modules_step2_plan.md`): on the places
+  conflict (headers of hand-written oymomo units would carry no places), user: "we can do
+  like blaze did. there is a destination folder, inside destination, we can keep generated
+  header files" (destination folder `oymo-out/`, seen as `out/`). Agent proposed the rule
+  "never write places into generated files" instead of "into `language oymomo` files". User:
+  "extention for all is .oymo, even for alcor and mizar. remember this." (added to Rules) and
+  "lets return back to 'never write places into language oymomo files'. and put a roadmap
+  leaf after bootstrap" (rule unchanged; leaf `header-places` under `quality`).
+- The roadmap still had leaf `varargs` (under `c-abi`), against "lets drop varargs fully"
+  (Nov 1). User: "yes" to removing it (removed with its details). Also `ll-varargs` (under
+  `ll-coverage`): "yes" (removed). Step 2 plan questions (linked definitions only; destination
+  `oymo-out/`, `--out`, seen as `out/`; `emit-header` writing `<out>/<root name>.h.oymo`;
+  afterwards move the remaining design items to later leaves and remove
+  `redesign-modules`): "lgtm".
+- Done (subagent): `header.py` (`header_of`, `header_of_layers`), driver `out/` mapped into
+  the destination folder (default `<top>/oymo-out`, `--out DIR` on emit-llvm, emit-header,
+  check, normal, run), `oymo emit-header FILE [-o PATH|-]`; goldens `unit.h.oymo`,
+  `layers.h.oymo`; end-to-end test links `math.ll` and `app.ll` (app mounts
+  `out/math.h.oymo` by `unit.rebase`) and runs (exit 6). `hatch test` 851 passed.
+  `redesign-modules` finished and removed; its open items became leaves
+  `functor-libraries`, `data-addresses`, `vdir-mounts` under `pre-bootstrap`.
+- User: "make quizes for the changes, so if i answered correctly, then your changes lgtm".
+  Quiz on step 2: 4 of 6 right. On two-layer headers user: "it is always low:high. Exception
+  is for developers who want to see merged one. so lets make the flag by default
+  separated" (done: `header_of_layers(…, merged=False)` gives `Layers(low, high)`;
+  `emit-header --merge` merges; `layers.h.oymo` regenerated). On the destination folder:
+  "in unit's folder. unit's folder is the root folder of the virtual directory" (kept:
+  `<root's folder>/oymo-out/`).
+- User asked for the layout ("show me the directory layout, real and virtual, and current
+  directory"); agent showed that per-unit `oymo-out/` hides one unit's header from another
+  and that `root.h.oymo` names clash under a shared `--out`. User chose the Blaze-like
+  layout: "this one" (done: default destination `oymo-out/` in the current directory,
+  header named after the unit's folder, `calc/root.oymo` → `oymo-out/calc.h.oymo`; driver
+  default changed too; tests run in a temporary current directory). Design doc updated.
+- `normal` follows the same rule, user: "yes" (done: two layers print as `N_low : N_high`;
+  `normal --merge` merges; the golden harness writes `layers.normal.oymo` separated too).
+- Second quiz (7 questions, 5 right): the user's answers described Blaze's full model (top =
+  current directory; outputs mirror sources). User chose it: "this one" (done, subagent: the
+  CLI's session top is the workspace `os.getcwd()`; a root outside it is an error; reads are
+  workspace paths (`'calc/lexer.oymo'`); `emit-header calc/root.oymo` writes
+  `oymo-out/calc/root.h.oymo`, read as `'out/calc/root.h.oymo'`; the unit golden reads
+  `'unit/…'` with `tests/goldens` as its workspace; CLI tests chdir into a workspace).
+  `hatch test` 857 passed. Design doc and roadmap (`vdir-mounts`) updated; a stray step-1
+  block left in the `opcode-namespaces` section was removed.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

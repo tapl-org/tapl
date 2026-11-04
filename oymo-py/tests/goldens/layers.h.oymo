@@ -1,0 +1,3 @@
+language oymomo
+{main= {type= {'function', {a= 'i32'}, 'i32'}, link= 'main'}}
+  : {main= {type= {'function', {a= 'i32'}, 'i32'}, link= 'main'}}

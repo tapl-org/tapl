@@ -1,15 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""The `oymo` command: `emit-llvm`, `check`, `fmt`, `normal`, `run`.
+"""The `oymo` command: `emit-llvm`, `emit-header`, `check`, `fmt`, `normal`, `run`.
 
 A program has one layer or two (a layering `low : high` somewhere in it). With two, each
 layer is built on its own: `emit-llvm` writes them with `--low` and `--high`, `normal`
-prints the merged normal form, and `run` runs the high layer (the guard) first and the low
+prints the normal form as `low : high` (`--merge` merges the two), and `run` runs the high layer (the guard) first and the low
 layer only if the guard exits with status 0.
 
+`emit-header` writes the program's header (`header.header_of_layers`), one file for one
+layer or two (`low : high`; `--merge` merges the two). Outputs mirror sources: the header of
+`calc/root.oymo` is `<out>/calc/root.h.oymo`, the root's path in the workspace with `.oymo`
+changed to `.h.oymo`, so headers of many units meet in one folder without clashing; another
+unit reads it as `'driver.read_low' 'out/calc/root.h.oymo'`.
+
 Every command runs inside a driver session (`driver.session`) whose virtual directory's
-top is the file's directory, so a program may read files (`fmt` reduces nothing, so it reads
-none); `--config key=value` fills `'driver.config' {}`.
+top is the workspace, the current directory, as Blaze's workspace root: every read path is
+from there, and the root file must be inside it. So a program may read files (`fmt` reduces
+nothing, so it reads none); `--config key=value` fills `'driver.config' {}`. The destination
+folder is `oymo-out/` in the current directory (one for every unit built from there, as
+Blaze's `bazel-out/`), or `--out DIR`; the virtual directory shows it under `out/`.
 """
 
 import argparse
@@ -22,7 +31,7 @@ import tempfile
 
 from oymo.core import syntax
 from oymo.oymomo import ingot as ingots
-from oymo.oymomo import driver, layers, llvm_opcodes, llvm_translate, reduction, source, strategy
+from oymo.oymomo import driver, header, layers, llvm_opcodes, llvm_translate, reduction, source, strategy
 from oymo.oymomo.meta import NO_TAG, Tag
 
 # The host is assumed to be x86-64 Linux until the `target` leaf reads the host's triple.
@@ -39,12 +48,14 @@ class CliError(Exception):
 
 
 class _Program:
-    """The file named on the command line, and the build it is the root of."""
+    """The file named on the command line, and the build it is the root of. `workspace_path`
+    is the file's path from the workspace, its parts separated by `/`."""
 
-    def __init__(self, path: str, text: str, build: driver.Session) -> None:
+    def __init__(self, path: str, text: str, build: driver.Session, workspace_path: str) -> None:
         self.path = path
         self.text = text
         self.build = build
+        self.workspace_path = workspace_path
         self._term: syntax.Term | None = None
 
     def term(self) -> syntax.Term:
@@ -115,16 +126,21 @@ def _emit_llvm(program: _Program) -> list[str]:
     return [ir_text for _, ir_text in _compile(program)]
 
 
-def _normal(program: _Program) -> str:
+def _normal(program: _Program, *, merge: bool = False) -> str:
     """The program's normal form, pretty-printed: a program that gives the same ingots. With
-    two layers, each is normalized on its own, and the two are merged into one program."""
+    two layers, each is normalized on its own and printed as `low : high`; with `merge`, the
+    two are merged, a layering left only where they differ."""
     try:
         normals = [strategy.normalize(reduction.resolve(layer)) for layer in program.layers()]
     except reduction.ReductionError as error:
         _check_reads(program)
         raise CliError(error.message, error.tag) from error
     _check_reads(program)
-    return source.write(normals[0] if len(normals) == 1 else layers.merge(*normals))
+    if len(normals) == 1:
+        return source.write(normals[0])
+    if merge:
+        return source.write(layers.merge(*normals))
+    return source.write(syntax.Layers(layers=(normals[0], normals[1])))
 
 
 def _fmt(program: _Program, *, merge: bool = False) -> str:
@@ -154,6 +170,49 @@ def _emit_llvm_to(program: _Program, output: str | None, low: str | None, high: 
             sys.stdout.write(ir_text)
         else:
             pathlib.Path(str(destination)).write_text(ir_text, encoding='utf-8')
+
+
+def _header(program: _Program, *, merged: bool = False) -> str:
+    """The program's header as a source file: one file for one layer or two."""
+    ingots = [_ingot(program, layer) for layer in program.layers()]
+    return source.write(header.header_of_layers(ingots, merged=merged))
+
+
+def _emit_header_to(program: _Program, output: str | None, *, merged: bool = False) -> None:
+    """Writes the header to `output` (`-` for stdout), by default `<out>/<root>.h.oymo` in
+    the destination folder, `<root>` the root's path in the workspace without `.oymo`; the
+    folders on the way are made if missing."""
+    text = _header(program, merged=merged)
+    if output == '-':
+        sys.stdout.write(text)
+        return
+    if output is None:
+        output = os.path.join(program.build.out, *_header_path(program.workspace_path).split('/'))
+        folder = os.path.dirname(output)
+        try:
+            pathlib.Path(folder).mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            raise CliError(f'Cannot make the folder {folder!r} for the header: {error.strerror}.') from error
+    try:
+        pathlib.Path(output).write_text(text, encoding='utf-8')
+    except OSError as error:
+        raise CliError(f'Cannot write the header to {output!r}: {error.strerror}.') from error
+
+
+def _header_path(workspace_path: str) -> str:
+    """The header's path in the destination folder, mirroring the root's path in the
+    workspace: `calc/root.oymo` gives `calc/root.h.oymo`."""
+    return workspace_path.removesuffix('.oymo') + '.h.oymo'
+
+
+def _workspace_path(path: str, workspace: str) -> str:
+    """The path of the root file `path` from `workspace`, its parts separated by `/`. Folders
+    are compared with their links resolved; the file's own name is kept as written."""
+    full = os.path.join(os.path.realpath(os.path.dirname(os.path.abspath(path))), os.path.basename(path))
+    relative = os.path.relpath(full, os.path.realpath(workspace))
+    if relative == os.pardir or relative.startswith(os.pardir + os.sep):
+        raise CliError(f'The root file must be inside the workspace, the current directory: {workspace}.')
+    return relative.replace(os.sep, '/')
 
 
 def _has_main(ingot: ingots.Ingot) -> bool:
@@ -240,6 +299,12 @@ def _add_config(command: argparse.ArgumentParser) -> None:
         metavar='KEY=VALUE',
         help="a config entry for 'driver.config' {}; may be repeated",
     )
+    command.add_argument(
+        '--out',
+        metavar='DIR',
+        help=f'the destination folder, shown as {driver.OUT}/ in the virtual directory '
+        f'(default: {driver.DEFAULT_OUT}/ in the current directory)',
+    )
 
 
 def _argument_parser() -> argparse.ArgumentParser:
@@ -251,6 +316,21 @@ def _argument_parser() -> argparse.ArgumentParser:
     emit.add_argument('--low', help="the low layer's .ll file, or - for stdout; for a program with two layers")
     emit.add_argument('--high', help="the high layer's .ll file, or - for stdout; for a program with two layers")
     _add_config(emit)
+    emit_header = commands.add_parser(
+        'emit-header', help="write a program's header: its linked symbols, declared, for other units to read"
+    )
+    emit_header.add_argument('file')
+    emit_header.add_argument(
+        '-o',
+        dest='output',
+        help='output file, or - for stdout (default: <out>/<root path>.h.oymo, mirroring the root in the workspace)',
+    )
+    emit_header.add_argument(
+        '--merge',
+        action='store_true',
+        help='with two layers, merge their headers: a layering only where they differ',
+    )
+    _add_config(emit_header)
     check = commands.add_parser('check', help='parse, reduce and verify a program; print its errors')
     check.add_argument('file')
     _add_config(check)
@@ -261,6 +341,9 @@ def _argument_parser() -> argparse.ArgumentParser:
     )
     normal = commands.add_parser('normal', help='print the normal form of a program, pretty-printed')
     normal.add_argument('file')
+    normal.add_argument(
+        '--merge', action='store_true', help='with two layers, merge them: a layering only where they differ'
+    )
     _add_config(normal)
     run = commands.add_parser(
         'run', help="build a program with clang, run it, print main's result; with two layers, the high one guards"
@@ -273,21 +356,25 @@ def _argument_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _argument_parser().parse_args(argv)
     try:
+        workspace = os.getcwd()
+        workspace_path = _workspace_path(args.file, workspace)
         try:
             text = pathlib.Path(args.file).read_text(encoding='utf-8')
         except OSError as error:
             raise CliError(f'Cannot read the file: {error.strerror}.') from error
         config = _config(getattr(args, 'config', []))
-        with driver.session(os.path.dirname(args.file), config) as build:
-            program = _Program(args.file, text, build)
+        with driver.session(workspace, config, getattr(args, 'out', None)) as build:
+            program = _Program(args.file, text, build, workspace_path)
             if args.command == 'emit-llvm':
                 _emit_llvm_to(program, args.output, args.low, args.high)
+            elif args.command == 'emit-header':
+                _emit_header_to(program, args.output, merged=args.merge)
             elif args.command == 'check':
                 _check(program)
             elif args.command == 'fmt':
                 sys.stdout.write(_fmt(program, merge=args.merge))
             elif args.command == 'normal':
-                sys.stdout.write(_normal(program))
+                sys.stdout.write(_normal(program, merge=args.merge))
             else:
                 return _run(program)
     except CliError as error:

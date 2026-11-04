@@ -1,10 +1,10 @@
 language oymomo
 'unit.merge'
   {
-    'driver.read_low' 'lexer.oymo',
-    'driver.read_low' 'parser.oymo',
-    'driver.read_low' 'inc/lib.oymo',
-    'unit.rebase' {{'dbl'}, 'driver.read_low' 'dbl/lib.oymo'},
+    'driver.read_low' 'unit/lexer.oymo',
+    'driver.read_low' 'unit/parser.oymo',
+    'driver.read_low' 'unit/inc/lib.oymo',
+    'unit.rebase' {{'dbl'}, 'driver.read_low' 'unit/dbl/lib.oymo'},
     {
       lexer= {
         error= {
