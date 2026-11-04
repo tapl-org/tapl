@@ -3099,6 +3099,17 @@ executable binary). we should mark some place as a platform". The steps that fol
   `python3 -W error::SyntaxWarning -c "compile(...)"`.
 - Accepted (user: "I've reviewed the PDF: remove the marks and legend, and commit"):
   marks and legend removed.
+
+### `struct-tools` removed (Nov 4)
+
+- User picked the recommended "drop `'module.link'`/`'module.instantiate'`, now covered by
+  `'unit.merge'` and user code". Why each part is done or gone: E-Opcode on closed normal
+  operands and a grammar of normal forms are in the calculus and Lean (`isNF_iff`);
+  merging is `'unit.merge'` (with `'unit.rebase'`); instantiating is user code
+  (`fix (λg. {…})`, run by reduction in the gcd strategy test); label tools are the new
+  `label-opcodes` leaf. Nothing in code or the calculus named `'module.…'`.
+- `deps-goldens` unblocked (user picked it): `'unit.merge'` and multi-file units exist, so
+  its goldens can be written now.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

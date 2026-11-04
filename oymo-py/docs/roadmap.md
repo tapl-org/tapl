@@ -24,10 +24,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - `functor-libraries` Functor-style libraries and path aliases (proposals)
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
-      - `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
       - 🚫 `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
       - 🚫 `typed-consts` Folding keeps constants' types
-      - 🚫 `deps-goldens` Golden tests: diamond, template pattern, merged declarations
+      - `deps-goldens` Golden tests: diamond, template pattern, merged declarations
     - `ll-coverage` oymomo writes any `.ll`
       - `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
       - `ll-types` Types: `void`, wide integers, floats, vectors
@@ -258,21 +257,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   translation; chains followed, cycles and dangling paths rejected
 - Today `unit.rebase` and delegates cover relocation and wiring
 - Decide: whether to adopt either
-
-### `struct-tools` Module ops: `'module.link'`, `'module.instantiate'`
-
-- oymomo-calculus.tex E-Opcode: `op(b)(dᵢ) = d'`, any data; Lean: `op`'s result type
-- `'module.…'` ops take and return closed normal forms (data grows to closed normal
-  forms); they may compare and rewrite bodies
-- oymomo-calculus.tex and Lean: a grammar of normal forms, so the op's premise is syntactic, as
-  data is today; the strategy normalizes op operands first
-- Revisit: user decided "foundationally, there is no strategy": merging and instantiating
-  are user code (oymomo-calculus.tex 8.5, 8.6), so `'module.link'` and `'module.instantiate'`
-  may not be needed; generic merge code needs struct tools (concat, labels) on structs
-  holding `λ`s
-- Compile-time only: a call that doesn't fold is rejected by translation
-- Tests: link, conflicts, instantiate and run `gcd`, non-module
-  operand stays
 
 ### `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
 
