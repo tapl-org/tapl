@@ -3503,6 +3503,15 @@ executable binary). we should mark some place as a platform". The steps that fol
   (condition from `'icmp'`, an `i1`) still becomes `br i1`, and only a condition typed by its
   length is a switch.
 - Calculus accepted (user: "Accept now"); marks removed.
+- Committed `599fe23`. Code (agent): `llvm_translate.infer` now runs `_propagate`, then,
+  for used parameters still untyped, `_length_types` (byte-array operands of one length in
+  1, 2, 4, 8 → `iN`) and propagates again until nothing changes. Unused parameters stay
+  without a type (no phi). Tests: the old error case is now `phi i8`; a 3-byte operand is
+  still the error; new `test_a_byte_arrays_length_gives_its_type` (i32 switch, each width,
+  two lengths, a real type first → "A constant of type i8 is a byte array of 1 bytes.").
+  Roadmap leaf removed; design doc line added.
+- `foundations` was left with only `ll-coverage`, so `ll-coverage` (and its subtree) moved up
+  under `pre-bootstrap` and `foundations` was removed.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

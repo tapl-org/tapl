@@ -177,9 +177,36 @@ def test_parameter_types():
     assert error(single("r.done p.a, done = λx. let y = 'add' {'i32', x, x} in y", params="{a = 'i8'}")) == (
         "'x' gets two types, i8 and i32: give 'x' one typed argument or typed use."
     )
-    assert error(single('r.done [00], done = λx. {r.a, r.a} x, a = [00000000]')) == (
+    # Only a branch condition, given byte arrays: their length gives the type.
+    assert 'phi  i8 [0, %"r.0"]' in llvm(single('r.done [00], done = λx. {r.a, r.a} x, a = [00000000]'))
+    # Byte arrays of two lengths, or of a length with no type, give none.
+    assert error(single('r.done [00], done = λx. {r.a, r.a} x, a = [00000000]'.replace('[00],', '[000000],'))) == (
         "give 'x' a typed argument or a typed use."
     )
+
+
+def test_a_byte_arrays_length_gives_its_type():
+    """Where nothing gives a parameter a type, the length of its byte-array operands does."""
+    switch = 'r.check [03000000], check = λc. {r.a, r.b, r.c} c, a = [00000000], b = [00000000], c = [00000000]'
+    text = llvm(single(switch))
+    assert 'phi  i32 [3, %"r.0"]' in text
+    assert 'switch i32 %"c"' in text
+    for operand in ('[01]', '[0100]', '[01000000]', '[0100000000000000]'):
+        width = 8 * (len(operand) - 2) // 2
+        blocks = f'r.check {operand}, check = λc. {{r.a, r.b}} c, a = [00000000], b = [00000000]'
+        assert f'phi  i{width} [1, %"r.0"]' in llvm(single(blocks))
+    # Two lengths.
+    two = (
+        "let k = 'icmp' {'eq', 'i32', [00000000], [00000000]} in {r.one, r.two} k, "
+        'one = r.check [01], two = r.check [01000000], check = λc. {r.a, r.b} c, a = [00000000], b = [00000000]'
+    )
+    assert error(single(two)) == "give 'c' a typed argument or a typed use."
+    # A real type comes first: p.a is an i8, so [03000000] has the wrong size.
+    first = (
+        "let k = 'icmp' {'eq', 'i8', p.a, p.a} in {r.one, r.two} k, "
+        'one = r.check p.a, two = r.check [03000000], check = λc. {r.a, r.b} c, a = [00000000], b = [00000000]'
+    )
+    assert error(single(first, params="{a = 'i8'}")) == 'A constant of type i8 is a byte array of 1 bytes.'
 
 
 def test_symbols():

@@ -291,6 +291,10 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
     so a loop-free unit's form reduces to plain bodies, but a unit with a loop has no
     normal form (the back edge unfolds forever). A call with known arguments still reaches
     its value (`(fix t).gcd {…}` gives `[06000000]`).
+- Types of constants (Nov 5): only a branch condition names no type; where nothing gives a
+  byte array a type, its length does (1, 2, 4, 8 bytes: `i8`, `i16`, `i32`, `i64`), so a
+  folded opcode keeps its type. A used block parameter that receives only byte arrays of
+  one such length takes it. Floats never need it; an ordinary `if` stays `br i1`.
 - The translation adds nothing (Nov 5, a rule): every LLVM block, `br` and instruction is
   written; a jump to field 0 is rejected, so a loop head is a block of its own.
 - Predefs (Nov 5): operands are `Q ::= P | b | {lᵢ = Qᵢ}`; a predef is an operand fixed

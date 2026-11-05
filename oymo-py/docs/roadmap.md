@@ -13,47 +13,45 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ## Tree
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
-  - `foundations` CLI, confluence, deps
-    - `typed-consts` Folding keeps constants' types
-    - `ll-coverage` oymomo writes any `.ll`
-      - `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
-      - `ll-types` Types: `void`, wide integers, floats, vectors
-        - 🚫 `void` Result type `'void'`, a call as a statement
-        - 🚫 `wide-ints` Every `'iN'` LLVM takes, `'i128'` first
-        - `floats` `'float'`, `'double'`
-          - 🚫 `float-forms` `'float'`, `'double'`: literals, params, results, imports
-          - 🚫 `float-arith` `'fadd'`, `'fsub'`, `'fmul'`, `'fdiv'`, `'frem'`, `'fneg'`
-          - 🚫 `float-compare` Comparisons, one symbol per predicate
-          - 🚫 `float-convert` `'fpext'`, `'fptrunc'`, `'fptosi'`, ... conversions
-          - 🚫 `float-intrinsics` `'sqrt'`, `'fabs'`, `'floor'`, ... exact intrinsics
-        - 🚫 `ll-vectors` Vector opcodes, `extractelement`, `insertelement`, `shufflevector`
-        - 🚫 `ll-other-types` `ptr addrspace(n)`, `token`, target extension types
-      - `ll-memory` Pointers, memory, volatile, atomics
-        - 🚫 `ptr-compare` Pointer comparison and `'null' {}`
-        - 🚫 `ptr-casts` `'ptrtoint'`, `'inttoptr'`
-        - 🚫 `bulk-memory` `'memcpy'`, `'memmove'`, `'memset'`
-        - 🚫 `align` Optional `align` on `'load'`, `'store'`, `'alloca'` and global variables
-        - 🚫 `noalias` `{'noalias', 'ptr'}` on params and results
-        - 🚫 `ll-volatile-asm` `volatile` loads and stores; inline asm
-        - 🚫 `ll-atomics` `'atomicrmw'`, `'cmpxchg'`, `'fence'`, orderings
-      - `ll-symbols` Symbols, functions, module level
-        - 🚫 `ll-symbol-fields` `linkage`, visibility, `unnamed_addr`, `section`, `comdat`
-        - 🚫 `ll-tls` `thread_local` on global variables
-        - 🚫 `ll-function-attrs` Calling conventions; function, parameter and result attributes
-        - 🚫 `fn-address` `module.f` as an address; indirect call through `'ptr'`
-        - 🚫 `ll-module-level` Aliases, ifuncs, `module asm`, constructors, constant expressions
-      - `ll-code` Instructions, undefined behaviour, intrinsics, exceptions
-        - 🚫 `undefined` Undefined behaviour in oymomo: folding, `'unreachable'`, poison
-        - 🚫 `ll-instructions` `select`, tail calls, `inbounds`, `indirectbr`, `callbr`
-        - 🚫 `bswap` `'bswap'` for byte order per access
-        - 🚫 `ll-intrinsics` `ctpop`, `ctlz`, `abs`, overflow checks, `assume`, `lifetime`, `trap`, …
-        - 🚫 `ll-exceptions` `invoke`, `landingpad`, `resume`
-      - `ll-metadata` Metadata and debug info
-        - `line-tables` `-g` line tables from spans
-        - 🚫 `ll-debug-info` Params, locals, types as DWARF metadata
-        - 🚫 `alias-scopes` `!alias.scope`, `!noalias`, if `noalias` isn't enough
-        - 🚫 `ll-instr-metadata` `!range`, `!tbaa`, `!prof`, `!llvm.loop`, module flags
-      - 🚫 `ll-check` Every row tested; clang's `-O2` output written in oymomo
+  - `ll-coverage` oymomo writes any `.ll`
+    - `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
+    - `ll-types` Types: `void`, wide integers, floats, vectors
+      - 🚫 `void` Result type `'void'`, a call as a statement
+      - 🚫 `wide-ints` Every `'iN'` LLVM takes, `'i128'` first
+      - `floats` `'float'`, `'double'`
+        - 🚫 `float-forms` `'float'`, `'double'`: literals, params, results, imports
+        - 🚫 `float-arith` `'fadd'`, `'fsub'`, `'fmul'`, `'fdiv'`, `'frem'`, `'fneg'`
+        - 🚫 `float-compare` Comparisons, one symbol per predicate
+        - 🚫 `float-convert` `'fpext'`, `'fptrunc'`, `'fptosi'`, ... conversions
+        - 🚫 `float-intrinsics` `'sqrt'`, `'fabs'`, `'floor'`, ... exact intrinsics
+      - 🚫 `ll-vectors` Vector opcodes, `extractelement`, `insertelement`, `shufflevector`
+      - 🚫 `ll-other-types` `ptr addrspace(n)`, `token`, target extension types
+    - `ll-memory` Pointers, memory, volatile, atomics
+      - 🚫 `ptr-compare` Pointer comparison and `'null' {}`
+      - 🚫 `ptr-casts` `'ptrtoint'`, `'inttoptr'`
+      - 🚫 `bulk-memory` `'memcpy'`, `'memmove'`, `'memset'`
+      - 🚫 `align` Optional `align` on `'load'`, `'store'`, `'alloca'` and global variables
+      - 🚫 `noalias` `{'noalias', 'ptr'}` on params and results
+      - 🚫 `ll-volatile-asm` `volatile` loads and stores; inline asm
+      - 🚫 `ll-atomics` `'atomicrmw'`, `'cmpxchg'`, `'fence'`, orderings
+    - `ll-symbols` Symbols, functions, module level
+      - 🚫 `ll-symbol-fields` `linkage`, visibility, `unnamed_addr`, `section`, `comdat`
+      - 🚫 `ll-tls` `thread_local` on global variables
+      - 🚫 `ll-function-attrs` Calling conventions; function, parameter and result attributes
+      - 🚫 `fn-address` `module.f` as an address; indirect call through `'ptr'`
+      - 🚫 `ll-module-level` Aliases, ifuncs, `module asm`, constructors, constant expressions
+    - `ll-code` Instructions, undefined behaviour, intrinsics, exceptions
+      - 🚫 `undefined` Undefined behaviour in oymomo: folding, `'unreachable'`, poison
+      - 🚫 `ll-instructions` `select`, tail calls, `inbounds`, `indirectbr`, `callbr`
+      - 🚫 `bswap` `'bswap'` for byte order per access
+      - 🚫 `ll-intrinsics` `ctpop`, `ctlz`, `abs`, overflow checks, `assume`, `lifetime`, `trap`, …
+      - 🚫 `ll-exceptions` `invoke`, `landingpad`, `resume`
+    - `ll-metadata` Metadata and debug info
+      - `line-tables` `-g` line tables from spans
+      - 🚫 `ll-debug-info` Params, locals, types as DWARF metadata
+      - 🚫 `alias-scopes` `!alias.scope`, `!noalias`, if `noalias` isn't enough
+      - 🚫 `ll-instr-metadata` `!range`, `!tbaa`, `!prof`, `!llvm.loop`, module flags
+    - 🚫 `ll-check` Every row tested; clang's `-O2` output written in oymomo
   - `alcor` Alcor: a typed language, two oymomo programs per file
     - `alcor-decide` Alcor decisions
       - `alcor-survey` Syntax survey: twenty-nine languages plus C (Zig … Scala; Nelua, Ada, Modula-2, Oberon, OCaml, Racket; Python, JavaScript, TypeScript, C#, Visual Basic, R)
@@ -151,16 +149,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `block-comments` `/* */` block comments; stuck-term errors shown in them
 
 ## Leaf details
-
-### `typed-consts` Folding keeps constants' types
-
-- Decided (user, Nov 5): where nothing gives a type (a parameter that receives only byte
-  arrays and is only a branch condition; a folded opcode's bare result), a byte array's
-  length gives it: 1, 2, 4, 8 bytes are `i8`, `i16`, `i32`, `i64`; other lengths, or two
-  lengths, stay an error. Rejected: typed constants `{'const', t, b}`, typed lambdas
-  `λ(x: 'i32').`, keeping the error
-- Then: oymomo-calculus.tex (byte arrays' type, parameter inference), code (inference),
-  tests
 
 ### `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
 

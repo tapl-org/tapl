@@ -203,6 +203,10 @@ def _blocks(region: ingots.Region) -> Iterator[ingots.Block]:
             yield from _blocks(block.terminal)
 
 
+# The byte lengths that give a type where nothing else does: 1, 2, 4, 8 bytes.
+_TYPE_LENGTHS = (1, 2, 4, 8)
+
+
 def _jumps(block: ingots.Block) -> list[ingots.Jump]:
     match block.terminal:
         case ingots.Jump() as jump:
@@ -304,6 +308,24 @@ class _Function:
                 if (type_term := self._let_type(let)) is not None:
                     self.types[let.result] = type_term
         params = {var for block in self.blocks for var in block.params}
+        self._propagate(params)
+        used = {
+            operand.var for block in self.blocks for operand, _ in self._uses(block) if isinstance(operand, ingots.Use)
+        } | {
+            block.terminal.condition.var
+            for block in self.blocks
+            if isinstance(block.terminal, ingots.Branch) and isinstance(block.terminal.condition, ingots.Use)
+        }
+        # Where nothing gives a used parameter a type, its byte-array operands' length does.
+        while by_length := self._length_types(params & used):
+            self.types.update(by_length)
+            self._propagate(params)
+        for var in sorted(params - self.types.keys(), key=lambda v: v.name):
+            if var in used:
+                raise LlvmTranslationError(f'give {var.name!r} a typed argument or a typed use.', var.tag)
+
+    def _propagate(self, params):
+        """Types from operands jumped to each parameter and from its uses, until nothing changes."""
         changed = True
         while changed:
             changed = False
@@ -314,16 +336,21 @@ class _Function:
                 for operand, type_term in list(self._uses(block)):
                     if isinstance(operand, ingots.Use) and operand.var in params:
                         changed |= self._add(operand.var, type_term, operand.tag)
-        used = {
-            operand.var for block in self.blocks for operand, _ in self._uses(block) if isinstance(operand, ingots.Use)
-        } | {
-            block.terminal.condition.var
-            for block in self.blocks
-            if isinstance(block.terminal, ingots.Branch) and isinstance(block.terminal.condition, ingots.Use)
+
+    def _length_types(self, params):
+        """For each untyped parameter in `params` whose operands include byte arrays, all of one length of
+        1, 2, 4 or 8 bytes: the `iN` that length gives."""
+        lengths: dict[ingots.Var, set[int]] = {}
+        for block in self.blocks:
+            for jump in _jumps(block):
+                for var, operand in zip(jump.target.params, jump.operands, strict=True):
+                    if var in params and var not in self.types and isinstance(operand, terms.ByteArray):
+                        lengths.setdefault(var, set()).add(len(operand.value))
+        return {
+            var: terms.ByteArray(f'i{8 * length}'.encode())
+            for var, found in lengths.items()
+            if len(found) == 1 and (length := next(iter(found))) in _TYPE_LENGTHS
         }
-        for var in sorted(params - self.types.keys(), key=lambda v: v.name):
-            if var in used:
-                raise LlvmTranslationError(f'give {var.name!r} a typed argument or a typed use.', var.tag)
 
     # Blocks
 
