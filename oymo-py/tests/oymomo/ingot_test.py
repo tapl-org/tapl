@@ -344,3 +344,17 @@ def test_no_normal_form():
     omega = '(λw. w w) (λw. w w)'
     with pytest.raises(reduction.ReductionError, match='No normal form'):
         ingot.ingot_of(parse(f'{{x = {omega}}}'), max_steps=100)
+
+
+@pytest.mark.parametrize(
+    ('opcode', 'message'),
+    [
+        ('nope.merge', "No opcode collection 'nope': the collections are ['driver', 'unit']."),
+        (
+            'unit.mrege',
+            "The collection 'unit' has no opcode 'mrege'; it has ['make_reducible', 'merge', 'rebase'].",
+        ),
+    ],
+)
+def test_opcode_names(opcode, message):
+    assert error(wrap(f"let x = '{opcode}' {{p.a}} in x")) == message

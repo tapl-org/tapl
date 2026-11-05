@@ -3424,6 +3424,11 @@ executable binary). we should mark some place as a platform". The steps that fol
   rejects an unknown collection or an unknown opcode of a known collection where written.
   Calculus draft (marks): a new subpoint "Opcode names" under the opcode point, and the
   stale example `'read_low' 'c.oymo'` fixed to `'driver.read_low'`.
+- Calculus accepted at once (user: "Accept now"); committed `49fae7c`. Code:
+  `ingot._check_opcode_name` (collections from `opcodes.OPCODES` dotted names): "No opcode
+  collection 'nope': the collections are ['driver', 'unit'].", "The collection 'unit' has no
+  opcode 'mrege'; it has [...]". Roadmap leaf removed (the "later: opcode providers" note
+  moved to the design doc); `unit-followups` is "platform sizes, libraries".
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

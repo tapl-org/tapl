@@ -333,8 +333,11 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
   them by `rfl`.
 - Paths stay non-values: after substitution a path may be a failing projection
   (`(λx. (λy. b) x.l) {}` is `b` inner-first, stuck outer-first).
-- Opcode collections and their names (`'llvm.add'`, …) are roadmap node
-  `opcode-namespaces`.
+- Opcode names: a name with no dot is LLVM's (`'add'`) or the kernel's marker `'R'`; a
+  dotted `c.o` belongs to the collection `c` (`'unit.merge'`, `'driver.read_low'`). LLVM's
+  stay bare: they are most of every program. The ingot reader rejects an unknown collection
+  or opcode where it is written. Opcode providers (units whose functions become opcodes)
+  are later.
 
 #### Kinds of file
 

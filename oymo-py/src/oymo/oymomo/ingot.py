@@ -33,7 +33,7 @@ two layers, and gives each layer's ingot.
 from dataclasses import dataclass, field, replace
 
 from oymo.core import syntax
-from oymo.oymomo import anf, layers, meta, printer, reduction, strategy, terms
+from oymo.oymomo import anf, layers, meta, opcodes, printer, reduction, strategy, terms
 from oymo.oymomo.meta import NO_TAG, Tag
 
 
@@ -516,6 +516,7 @@ class _Body:
     def instruction(self, term):
         operator, struct = term.function, term.argument
         if isinstance(operator, terms.ByteArray):
+            _check_opcode_name(operator)
             fields = [(f.label, self.operand(f.value)) for f in struct.fields]
             return Instruction(Var(''), operator.as_str or '', None, fields, _tag(term))
         binder, labels = self.binder(operator)
@@ -644,3 +645,29 @@ class _Body:
                 _tag(term),
             )
         return Jump(target, [self.operand(q) for q in operands], _tag(term))
+
+
+def _collections() -> dict[str, list[str]]:
+    """The opcode collections, each with its opcodes: a dotted name `c.o` is `o` of `c`."""
+    found: dict[str, list[str]] = {}
+    for name in opcodes.OPCODES:
+        if '.' in name:
+            collection, op = name.split('.', 1)
+            found.setdefault(collection, []).append(op)
+    return found
+
+
+def _check_opcode_name(operator: terms.ByteArray) -> None:
+    """A dotted opcode name `c.o` must name a known collection `c` and one of its opcodes; a
+    name with no dot is an LLVM instruction's, checked by the translation."""
+    name = operator.as_str or ''
+    if '.' not in name:
+        return
+    collection, op = name.split('.', 1)
+    known = _collections()
+    if collection not in known:
+        raise IngotError(f'No opcode collection {collection!r}: the collections are {sorted(known)}.', _tag(operator))
+    if op not in known[collection]:
+        raise IngotError(
+            f'The collection {collection!r} has no opcode {op!r}; it has {sorted(known[collection])}.', _tag(operator)
+        )
