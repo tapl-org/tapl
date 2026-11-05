@@ -308,7 +308,9 @@ The user's orders, kept as given. Follow them in every task.
   (chosen kernel syntax) and `alcor_sugar_syntax.md` (sugar, on hold; both user, Oct 28;
   they replace `alcor_syntax.md`),
   `oymomo_design.md` (the oymomo redesign: decided and open; user, Oct 31: "yes start"),
-  `oymomo-calculus.tex`, `Makefile`.
+  `ll_coverage.md` (the LLVM LangRef coverage table; user, Nov 5: "lets do not put into
+  callculus, instead create a new markdown file near roadmap").
+  (`oymomo-calculus.tex` and `Makefile` moved to `/doc`.)
 - `docs/semantics_discussion.md` was the semantics review discussion (D1–D96). The user
   had it folded into this wiki (section 4, "Semantics decisions (D1–D96)") and deleted.
   Record new semantics decisions there, as D97, D98, …, newest first.
@@ -3525,7 +3527,7 @@ executable binary). we should mark some place as a platform". The steps that fol
     {'ptr'}`); unblock both `ptr-casts` and `bswap`. Noted in `oymomo_design.md` §4 (and
     removed the stale `platform-sizes` data-layout sentence in §5).
   - Keep `ptr-compare` `🚫` and expand its `Decide:` to cover whether `'null' {}` is needed
-    alongside `{}` at `'ptr'` (already `ptr null` per 10.12c) as well as folding two nulls.
+    alongside `{}` at `'ptr'` (already `ptr null` per 10.11c) as well as folding two nulls.
   - Keep id `fn-address`, narrow its text to indirect call through `'ptr'` (`g.f` as an
     address was done in `data-addresses`), and add a `Decide:` for its ANF spelling and
     `'unit.make_reducible'`.
@@ -3534,7 +3536,43 @@ executable binary). we should mark some place as a platform". The steps that fol
   `form`/`~`/`=>`/`f32`/`f64`/`imports` → `type`/bare bytes/declaration/`float`/`double`;
   `ll-symbol-fields` updated for settled `link` vs `internal`; duplicate `'select'` line in
   `ll-instructions` merged; `line-tables`, `alias-scopes`, `ll-instr-metadata` updated from
-  `spans`/term fields to `meta.proto` (`Tag` and `Tags`).
+  `spans`/term fields to `meta.proto` (`Tag` and `Tags`). Committed and pushed as `412d514`.
+
+### `ll-table` decisions and `docs/ll_coverage.md` (Nov 5)
+
+- User selected leaf `ll-table` next and answered all 5 design questions, then after seeing
+  the Section 10.13 PDF draft decided: "lets do not put into callculus, instead create a new
+  markdown file near roadmap" → `oymo-py/docs/ll_coverage.md` (`doc/oymomo-calculus.tex`
+  kept untouched; `ll-check` in `roadmap.md` points to `docs/ll_coverage.md`; leaf `ll-table`
+  removed from `roadmap.md`):
+  - Group A ("not planned"): `target("…")` target extension types, `x86_amx`, 8-bit FP types,
+    `token`, coroutines (`llvm.coro.*`), LLVM GC shadow-stack/statepoints (`gc`,
+    `llvm.gcroot`, `gc.statepoint`), operand bundles, GPU `convergent`, `uselistorder`,
+    `dso_local_equivalent`/`no_cfi`/`ptrauth`, ObjC ARC, `dllimport`/`dllexport`, and
+    target-cpu string attributes (in addition to previously decided `target datalayout` /
+    `target triple`, varargs `...` / `va_arg` / `llvm.va_*`, named/opaque struct types,
+    scalable vectors, fast-math flags, constrained FP intrinsics, `fcmp false`/`true`,
+    first-class `label`).
+  - Group B ("not planned"): both `callbr` and `indirectbr` + `blockaddress` (no computed goto
+    or `asm goto`, keeping the region/ANF CFG structure closed).
+  - Group C ("not planned"): both Windows MSVC EH funclets (`catchswitch`, `catchpad`,
+    `cleanuppad`, `catchret`, `cleanupret`) and ELF `ifunc` (`ll-exceptions` keeps Itanium
+    `invoke`, `landingpad`, `resume` and `personality`).
+  - Group D: keep `@a = alias …` in `ll-module-level`; mark non-zero `ptr addrspace(n)` (and
+    global `addrspace`) and `addrspacecast` "not planned".
+- `roadmap.md` pruned to match: removed leaf `ll-other-types` (all three of its items are now
+  "not planned"); pruned `gc` and added `range(…)` in `ll-function-attrs`; pruned `addrspace`
+  and added `local_unnamed_addr` in `ll-symbol-fields`; pruned `ifuncs` and added
+  `llvm.compiler.used` in `ll-module-level`; added LLVM 21 poison flags `disjoint`, `nneg`,
+  `samesign` in `undefined`; pruned `indirectbr`, `blockaddress`, `callbr` and added `nuw`,
+  `nusw` on `'getelementptr'` in `ll-instructions`; pruned Windows funclets in
+  `ll-exceptions`. Also fixed two off-by-one point refs (`10.11c` in `ptr-compare`, `10.10` in
+  `ll-symbol-fields`).
+- LaTeX note (kept for future tables in `doc/oymomo-calculus.tex`): `\color{blue}` (`\new{...}`)
+  at the start of a `p{...}` (`\vtop`) column fires in vertical mode before the paragraph
+  begins unless `\leavevmode` precedes it, shifting cell baselines down by a line;
+  `>{\raggedright\arraybackslash\leavevmode}p{...}` inside `longtable` (with `\LTleft` set to
+  `\@totalleftmargin`) keeps row baselines tight and breaks cleanly across pages.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

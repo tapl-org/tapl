@@ -14,7 +14,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `ll-coverage` oymomo writes any `.ll`
-    - `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
     - `ll-types` Types: `void`, wide integers, floats, vectors
       - `void` Result type `'void'`, a call as a statement
       - `wide-ints` Every `'iN'` LLVM takes, `'i128'` first
@@ -25,7 +24,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
         - 🚫 `float-convert` `'fpext'`, `'fptrunc'`, `'fptosi'`, ... conversions
         - 🚫 `float-intrinsics` `'sqrt'`, `'fabs'`, `'floor'`, ... exact intrinsics
       - 🚫 `ll-vectors` Vector opcodes, `extractelement`, `insertelement`, `shufflevector`
-      - 🚫 `ll-other-types` `ptr addrspace(n)`, `token`, target extension types
     - `ll-memory` Pointers, memory, volatile, atomics
       - 🚫 `ptr-compare` Pointer comparison and `'null' {}`
       - `ptr-casts` `'ptrtoint'`, `'inttoptr'`
@@ -39,10 +37,10 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `ll-tls` `thread_local` on global variables
       - 🚫 `ll-function-attrs` Calling conventions; function, parameter and result attributes
       - 🚫 `fn-address` Indirect call through `'ptr'`
-      - 🚫 `ll-module-level` Aliases, ifuncs, `module asm`, constructors, constant expressions
+      - 🚫 `ll-module-level` Aliases, `module asm`, constructors, constant expressions
     - `ll-code` Instructions, undefined behaviour, intrinsics, exceptions
       - 🚫 `undefined` Undefined behaviour in oymomo: folding, `'unreachable'`, poison
-      - 🚫 `ll-instructions` `select`, tail calls, `inbounds`, `indirectbr`, `callbr`
+      - 🚫 `ll-instructions` `select`, tail calls, `inbounds`
       - `bswap` `'bswap'` for byte order per access
       - 🚫 `ll-intrinsics` `ctpop`, `ctlz`, `abs`, overflow checks, `assume`, `lifetime`, `trap`, …
       - 🚫 `ll-exceptions` `invoke`, `landingpad`, `resume`
@@ -150,13 +148,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ## Leaf details
 
-### `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
-
-- A table in oymomo-calculus.tex Section 10: every LangRef construct, its oymomo spelling,
-  or the leaf that owns it, or "not planned"
-- Decide: which constructs are "not planned" (e.g. Windows funclets, `callbr`, ifuncs,
-  target extension types)
-
 ### `void` Result type `'void'`, a call as a statement
 
 - `{'function', params, 'void'}` for functions returning nothing; the body returns `{}`
@@ -253,18 +244,11 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `'extractelement'`, `'insertelement'`, `'shufflevector'`
 - Decide: does reduction fold vectors, or only scalars?
 
-### `ll-other-types` `ptr addrspace(n)`, `token`, target extension types
-
-- `ptr addrspace(n)`; `'addrspacecast'`
-- `token`, for the intrinsics and exception pads that take it
-- Target extension types
-- Decide: spelling of an address space on `'ptr'`
-
 ### `ptr-compare` Pointer comparison and `'null' {}`
 
 - `'icmp' {'eq', 'ptr', p, q}` and the other nine predicates on `'ptr'`; only the LLVM
   lowering changes
-- `{}` at a typed `'ptr'` operand already emits `ptr null` (10.12c); `'null' {}`, if added,
+- `{}` at a typed `'ptr'` operand already emits `ptr null` (10.11c); `'null' {}`, if added,
   carries result type `'ptr'` (for untyped block parameters), pure, no fold
 - Goal program: length of a linked list, load `next` until `'icmp' {'eq', …}` with null
 - Tests and a golden
@@ -342,10 +326,10 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `ll-symbol-fields` `linkage`, visibility, `unnamed_addr`, `section`, `comdat`
 
-- Basic `internal` (no `link`) vs linked (`link = 'name'`) is settled (9.5, 10.11)
+- Basic `internal` (no `link`) vs linked (`link = 'name'`) is settled (9.5, 10.10)
 - Extra entry fields: `linkage` (`private`, `weak`, `linkonce_odr`, `extern_weak`, `common`,
-  `appending`, …), visibility, `dso_local`, `unnamed_addr`, `section`, `comdat`,
-  `addrspace`, `externally_initialized`
+  `appending`, …), visibility, `dso_local`, `unnamed_addr`, `local_unnamed_addr`, `section`,
+  `comdat`, `externally_initialized`
 - Goldens
 - Decide: how extra LLVM linkages combine with `link`, and entry-field shapes for the rest
 
@@ -363,8 +347,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   `memory(…)`, `willreturn`, `uwtable`, …
 - Parameter and result attributes as tagged types in the function type: `nonnull`,
   `dereferenceable(n)`, `captures(none)`, `readonly`, `returned`, `noundef`, `zeroext`,
-  `signext`, `byval`, `sret`
-- `gc`, `personality`, `prefix`, `prologue`
+  `signext`, `byval`, `sret`, `range(…)`
+- `personality`, `prefix`, `prologue`
 - Goldens
 - Decide: exact entry-field and tagged-type shapes for function, parameter and result
   attributes
@@ -377,11 +361,11 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide: spelling of an indirect call in ANF (a `'ptr'` value carries no function type),
   and how `'unit.make_reducible'` treats it
 
-### `ll-module-level` Aliases, ifuncs, `module asm`, constructors, constant expressions
+### `ll-module-level` Aliases, `module asm`, constructors, constant expressions
 
-- Aliases; ifuncs
+- Aliases
 - `module asm`, `source_filename`
-- `llvm.used`, `llvm.global_ctors`/`dtors`
+- `llvm.used`, `llvm.compiler.used`, `llvm.global_ctors`/`dtors`
 - Constant expressions in initializers: `getelementptr`, `ptrtoint`, difference of two
   addresses
 - Goldens
@@ -399,7 +383,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   returns (`exit`, `abort`), a `switch` default that can't happen, facts a frontend proved,
   the optimized mode of `alcor-ub`; never folds
 - Poison and undef: LLVM's `poison` value, flags that make results poison (`nsw`, `nuw`,
-  `exact`), `freeze`
+  `exact`, `disjoint`, `nneg`, `samesign`), `freeze`
 - oymomo-calculus.tex 5, 6, 8–10; Lean (`anf_normal`, `op` partiality); code; goldens: a function
   ending in `exit`, a division by a literal 0
 - Decide: an undefined call found at compile time: keep it as run-time code (today), reject
@@ -409,12 +393,11 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide: `llvm.trap` for checked builds here or in `alcor-ub`
 - Decide: which poison-making flags and `freeze`, and when
 
-### `ll-instructions` `select`, tail calls, `inbounds`, `indirectbr`, `callbr`
+### `ll-instructions` `select`, tail calls, `inbounds`
 
 - `'select' {type, c, a, b}` (LLVM `select`) for value choices
 - `tail`/`musttail`/`notail` on calls
-- `inbounds` on `'getelementptr'`
-- `indirectbr` and `blockaddress`; `callbr`
+- `inbounds`, `nuw`, `nusw` on `'getelementptr'`
 - Goldens
 - Decide (Nov 5, user: "Decide later"): an unreachable block; the translation leaves it out
   today, which changes the program under the "adds none, changes none" rule; reject it with
@@ -438,7 +421,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `ll-exceptions` `invoke`, `landingpad`, `resume`
 
 - `invoke`, `landingpad`, `resume`; a definition's `personality`
-- Windows `catchswitch`, `catchpad`, `cleanuppad`, `catchret`, `cleanupret`
 - Goldens
 - Decide: before 1.0 (unwinding from C++ through oymomo frames), or after
 
@@ -487,8 +469,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `ll-check` Every row tested; clang's `-O2` output written in oymomo
 
 - Each golden passes `opt -passes=verify`
-- Done when: every row of the table has a golden or is "not planned"; the `.ll` clang
-  writes for a C test program at `-O2` can be written in oymomo, construct for construct
+- Done when: every row of `docs/ll_coverage.md` has a golden or is "not planned"; the `.ll`
+  clang writes for a C test program at `-O2` can be written in oymomo, construct for
+  construct
 
 ### `alcor-survey` Syntax survey: twenty-nine languages plus C (Zig … Scala; Nelua, Ada, Modula-2, Oberon, OCaml, Racket; Python, JavaScript, TypeScript, C#, Visual Basic, R)
 
