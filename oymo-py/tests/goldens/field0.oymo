@@ -4,10 +4,11 @@ language oymomo
   spin= {
     type= {'function', {}, 'i32'},
     body= λg. λp. 'R' (λr. {
-      entry=
+      entry= r.loop,
+      loop=
         let x = g.next {} in
         let c = 'icmp' {'eq', 'i32', x, [00000000]} in
-        if c then r.entry else r.done,
+        if c then r.loop else r.done,
       done= [00000000],
     }),
   },
@@ -18,6 +19,7 @@ language oymomo
         let a = 'alloca' {'i32'} in
         let z = 'store' {'i32', [00000000], a} in
         'R' (λq. {
+          q.again,
           again=
             let v = 'load' {'i32', a} in
             let w = 'add' {'i32', v, [01000000]} in

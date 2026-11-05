@@ -13,7 +13,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ## Tree
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
-  - `strict-translation` The translation adds nothing: a jump to field 0 is rejected
   - `unit-followups` Unit follow-ups: namespaces, platform sizes, libraries
     - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
     - `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
@@ -158,18 +157,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `block-comments` `/* */` block comments; stuck-term errors shown in them
 
 ## Leaf details
-
-### `strict-translation` The translation adds nothing: a jump to field 0 is rejected
-
-- Rule (user, Nov 5: "i dont want .ll gets instruction user didn't write"; chose the fully
-  strict form): every LLVM block, `br` and instruction comes from one written part, and
-  the translation adds none (required, no longer "preferred")
-- The one exception today goes: a jump to field 0 (the translation adds an entry block,
-  or splits a nested region's block and adds a `br`); such a jump is rejected, and a loop
-  head is a block of its own (`entry = r.loop …, loop = λi. …`)
-- Then: oymomo-calculus.tex (the translation's one-to-one point, field 0), code (the
-  ingot rejects a jump to field 0; the translation drops the added block), goldens
-  (`field0` becomes loops through their own blocks, plus an error test)
 
 ### `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
 

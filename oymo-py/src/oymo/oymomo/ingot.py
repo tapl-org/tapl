@@ -153,7 +153,6 @@ class Block:
     params: list[Var] = field(default_factory=list)
     lets: list[Instruction] = field(default_factory=list)
     terminal: 'Terminal | None' = None
-    jumped: bool = False
     tag: Tag = NO_TAG
 
 
@@ -633,10 +632,15 @@ class _Body:
         if len(labels) != 1 or labels[0] not in blocks:
             raise IngotError(f'A jump names a block of {region.binder!r}: one of {list(blocks)}.', _tag(head))
         target = blocks[labels[0]]
+        if target is region.blocks[0]:
+            raise IngotError(
+                'A jump never goes to field 0, so the translation adds no block: give the loop head '
+                'a block of its own (entry = r.loop, loop = …).',
+                _tag(head),
+            )
         if len(operands) != target.arity:
             raise IngotError(
                 f'{target.name} takes {target.arity} operands, one per parameter; the jump gives {len(operands)}.',
                 _tag(term),
             )
-        target.jumped = True
         return Jump(target, [self.operand(q) for q in operands], _tag(term))

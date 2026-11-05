@@ -7,11 +7,11 @@ type operand, a function's type, an entry's `type`. A byte array takes the type 
 needs; a block's parameter takes the type of the operands jumped to it and of its
 uses.
 
-The translation is one to one where it can be: regions are flattened in source
+The translation is one to one, as a rule: regions are flattened in source
 order; field 0 of the body's region is the entry block, field 0 of a nested region goes
 on in the block it continues; a `let` becomes one instruction, a return `ret`, a jump
-`br`, a branch `br i1` or `switch`, a block's parameters its `phi`s. A jump to field 0 adds
-a block: a new entry block named after the region's binder, or a split block plus `br`.
+`br`, a branch `br i1` or `switch`, a block's parameters its `phi`s. It adds nothing: no
+jump goes to field 0, so no block is ever added.
 
 Each symbol becomes an LLVM global: one with a `link` is named by it, with LLVM's default
 (external) linkage; one without is internal, named by its dotted path (`math.gcd`), or
@@ -329,10 +329,7 @@ class _Function:
 
     def _layout(self, region, *, top):
         for i, block in enumerate(region.blocks):
-            if i == 0 and top and block.jumped:
-                # LLVM's entry block has no predecessors.
-                self.start = self.llvm_function.append_basic_block(region.binder)
-            if i > 0 or top or block.jumped:
+            if i > 0 or top:
                 self.llvm_blocks[block] = self.llvm_function.append_basic_block(block.name)
             if isinstance(block.terminal, ingots.Region):
                 self._layout(block.terminal, top=False)
@@ -341,7 +338,6 @@ class _Function:
         for label, arg in self.args.items():
             arg.name = f'{self.definition.args}.{label}'
         self.infer()
-        self.start = None
         self._layout(self.definition.region, top=True)
         for block in self.blocks:
             if block in self.llvm_blocks:
@@ -349,17 +345,14 @@ class _Function:
                 for var in block.params:
                     if var in self.types:
                         self.values[var] = builder.phi(llvm_type(self.types[var]), name=var.name)
-        if self.start is not None:
-            ir.IRBuilder(self.start).branch(self.llvm_blocks[self.definition.region.blocks[0]])
         self._region(self.definition.region, None)
 
     def _region(self, region, builder):
         for i, block in enumerate(region.blocks):
-            if i == 0 and builder is not None and not block.jumped:
+            if i == 0 and builder is not None:
+                # Field 0 of a nested region goes on in the block it continues.
                 self._block(block, builder)
                 continue
-            if i == 0 and builder is not None:
-                builder.branch(self.llvm_blocks[block])
             self._block(block, ir.IRBuilder(self.llvm_blocks[block]))
 
     def _block(self, block, builder):

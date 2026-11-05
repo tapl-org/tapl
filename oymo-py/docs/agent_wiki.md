@@ -3393,6 +3393,13 @@ executable binary). we should mark some place as a platform". The steps that fol
   rejected, so the translation never adds a block"; one-to-one "as a rule"; the subpoint on
   the added block struck.
 - Calculus accepted (user: "accept"); marks removed.
+- Committed `83f1607`. Code (agent): `ingot.jump` rejects a jump to field 0 ("A jump never
+  goes to field 0, so the translation adds no block: give the loop head a block of its own
+  (entry = r.loop, loop = …)."); `Block.jumped` removed; `llvm_translate` drops the added
+  entry block and the split `br`. Tests: two llvm tests removed, a rejection test (body and
+  nested region); `field0` golden: `spin` loops through `loop`, `three`'s nested region
+  writes `q.again` in field 0 — its `.ll` is unchanged, the `br` is now written. 982
+  passed. Roadmap leaf removed; design doc line added.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

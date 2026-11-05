@@ -127,28 +127,6 @@ def test_example():
         """)
 
 
-def test_jump_to_field_0_of_the_body_adds_an_entry_block():
-    """LLVM's entry block has no predecessors, so a new one, named after the binder,
-    jumps to field 0."""
-    blocks = "entry = let c = 'icmp' {'eq', 'i32', p.n, [00000000]} in if c then r.entry else r.done, done = p.n"
-    text = function(llvm(single(blocks, params="{n = 'i32'}")), 'main')
-    assert text.startswith('define i32 @"main"(i32 %"p.n")\n{\nr:\n  br label %"r.entry"\nr.entry:\n')
-
-
-def test_jump_to_a_nested_field_0_splits_the_block():
-    """Field 0 starts a block of its own; the block it continued ends with `br`."""
-    blocks = """entry =
-      let a = 'alloca' {'i32'} in
-      'R' (λq. {
-        again = let v = 'load' {'i32', a} in let c = 'icmp' {'eq', 'i32', v, [00000000]} in
-          if c then q.again else r.done,
-      }),
-      done = [00000000]"""
-    text = function(llvm(single(blocks)), 'main')
-    assert 'r.entry:\n  %"a" = alloca i32\n  br label %"q.again"\nq.again:\n' in text
-    assert 'br i1 %"c", label %"q.again", label %"r.done"' in text
-
-
 def test_switch():
     """Arm i is case i, the last arm the default."""
     blocks = '{r.a, r.b, r.c} p.k, a = [01000000], b = [02000000], c = [03000000]'

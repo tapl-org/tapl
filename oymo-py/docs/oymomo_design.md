@@ -287,6 +287,8 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
     `(fix (λr. u)) [00]`; other entries stay. `fix t` runs the unit by reduction; other
     units are merged in first: `fix ('unit.make_reducible' ('unit.merge' {I, U}))`. It
     returns `t`, not `fix t`, to leave room for mocks and wrappers.
+- The translation adds nothing (Nov 5, a rule): every LLVM block, `br` and instruction is
+  written; a jump to field 0 is rejected, so a loop head is a block of its own.
 - Predefs (Nov 5): operands are `Q ::= P | b | {lᵢ = Qᵢ}`; a predef is an operand fixed
   before the program runs, its only paths symbol addresses `g.l₁⋯lₙ`. A struct operand is
   a predef, a type is a predef with no path, and an `init`/`value` is a predef with no path

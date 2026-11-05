@@ -63,8 +63,6 @@ def test_gcd():
     # Bound names are made distinct in source order: step's `c` comes first.
     assert nested.blocks[1].lets[0].result.name == 'c'
     assert [v.name for v in done.params] == ['c1']
-    assert done.jumped
-    assert not entry.jumped
 
 
 def test_entries():
@@ -168,11 +166,21 @@ def test_reduction_first():
     assert [(let.result.name, let.opcode) for let in lets] == [('x', 'add'), ('y', 'add')]
 
 
-def test_jump_to_a_labeled_field_0():
-    """A labeled field 0 may be jumped to, with no operands."""
-    body = "let c = 'icmp' {'eq', 'i32', p.a, [00000000]} in if c then r.entry else r.done, done = p.a"
-    region = read(wrap(body)).lookup(('main',)).region
-    assert region.blocks[0].jumped
+FIELD_0 = (
+    'A jump never goes to field 0, so the translation adds no block: give the loop head '
+    'a block of its own (entry = r.loop, loop = …).'
+)
+
+
+@pytest.mark.parametrize(
+    'body',
+    [
+        "let c = 'icmp' {'eq', 'i32', p.a, [00000000]} in if c then r.entry else r.next p.a",
+        "'R' (λq. {again = let c = 'icmp' {'eq', 'i32', p.a, [00000000]} in if c then q.again else r.next p.a})",
+    ],
+)
+def test_a_jump_to_field_0_is_rejected(body):
+    assert error(wrap(body)) == FIELD_0
 
 
 def wrap(body, extra=''):

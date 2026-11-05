@@ -4,12 +4,12 @@ declare i32 @"next"()
 
 define internal i32 @"spin"()
 {
-r:
-  br label %"r.entry"
 r.entry:
+  br label %"r.loop"
+r.loop:
   %"x" = call i32 @"next"()
   %"c" = icmp eq i32 %"x", 0
-  br i1 %"c", label %"r.entry", label %"r.done"
+  br i1 %"c", label %"r.loop", label %"r.done"
 r.done:
   ret i32 0
 }
