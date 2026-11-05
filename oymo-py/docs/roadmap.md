@@ -461,6 +461,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `inbounds` on `'getelementptr'`
 - `indirectbr` and `blockaddress`; `callbr`
 - Goldens
+- Decide (Nov 5, user: "Decide later"): an unreachable block; the translation leaves it out
+  today, which changes the program under the "adds none, changes none" rule; reject it with
+  a located error instead?
 
 ### `bswap` `'bswap'` for byte order per access
 

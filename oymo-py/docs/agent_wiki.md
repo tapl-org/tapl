@@ -3400,6 +3400,9 @@ executable binary). we should mark some place as a platform". The steps that fol
   nested region); `field0` golden: `spin` loops through `loop`, `three`'s nested region
   writes `q.again` in field 0 — its `.ll` is unchanged, the `br` is now written. 982
   passed. Roadmap leaf removed; design doc line added.
+- Committed `4034071`. Unreachable blocks (dropped silently today; a strict "changes none"
+  would reject them): user chose "Decide later"; noted in `ll-instructions`. User stopped
+  here for now.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
