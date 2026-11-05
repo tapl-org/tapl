@@ -3322,6 +3322,40 @@ executable binary). we should mark some place as a platform". The steps that fol
   passed, hatch check clean. The subagent couldn't read the plan artifact (sandbox), so it
   worked from the message: give subagents the plan's text, not only its path.
 - Roadmap: `opcode-proofs` removed; design doc notes the proofs.
+- Committed `8199b63` (quiz: two answers first wrong, then right on the retry).
+
+### `data-addresses` (Nov 5)
+
+- Problem: `init`/`value` must be λ-free data and aren't under `λg`, so a pointer table
+  (`{g.on_key, g.on_click}`) can't be written; the dropped form (a label as bytes) mixed
+  realms and broke under rebase. User asked "how data grammar grows by one case?" — the
+  agent had jumped to a quiz without answering (mistake again: answer the question in the
+  message first). Answer: `D ::= b | {lᵢ = Dᵢ}` becomes `D ::= b | {lᵢ = Dᵢ} | g.l₁⋯lₙ`.
+- Decided (recommended): option A (data may hold symbol addresses; `init`/`value` may be
+  `λg. D`; unit tools treat it like a body; LLVM constant initializers); before the
+  bootstrap. Rejected: B (fill tables at run time), C (`'addr'` naming the link).
+- Agent showed what would change (calculus rows, entries, kinds, translation; Lean `Data`;
+  ingot reader, translation, unit tools; a `table.oymo` golden of string pointers, since
+  calling through a function table needs `fn-address`). User: "D is used in Q (operand
+  only), and Q contains P too which is path. so if we remove D and only keep Q … the
+  problem is solved right?" Agent: almost — D is also `init`/`value`, types, and the
+  "struct operand is data" ANF rule, and merging lets `{p.a, [01]}` in; but kinds already
+  sort variables, so: `Q ::= P | b | {lᵢ = Qᵢ}`, and the verifier requires `g.…` paths
+  inside struct operands and `init`/`value`, none in types. User chose this.
+- Agent showed the exact calculus changes. User asked about the name for "an operand whose
+  only paths are symbol addresses" ("i didnt get. eloborate more"); after the explanation
+  (it is the role "data" played: struct operands, `init`/`value`, types), user named it
+  "predef". Calculus draft written with marks: `D` row shown red, `Q ::= P | b | {lᵢ = Qᵢ}`,
+  predef defined at the `Q` point (label `p:predef`), kinds row and subpoint, ANF rule,
+  entries (`λg. C`), types, `'unit.make_reducible'` on `init`/`value`, translation
+  (`ptr @name`, `[2 x ptr] [ptr @hello, ptr @bye]`). LaTeX: a color group can't span `&`
+  cells; color each cell.
+- User: "a new roadmap leaf before bootstrap: use stract e-index or e-proj for struct value
+  extraction instead of inservalue or extract value. this is just a proposal". Added
+  blocked leaf `struct-access` under `pre-bootstrap` (after `data-addresses`), with the
+  open questions (normality of `x.l`, building from run-time parts, labels → positions).
+- Calculus (predef) accepted (user: "calculus is accepted"); marks, red row and legend
+  removed; one overfull line reworded.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

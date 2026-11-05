@@ -14,6 +14,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `data-addresses` Symbol addresses in data, redesigned
+  - 🚫 `struct-access` Proposal: struct values read by projection and index, not `'extractvalue'`/`'insertvalue'`
   - `unit-followups` Unit follow-ups: namespaces, platform sizes, libraries
     - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
     - `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
@@ -163,8 +164,28 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - Moved from `redesign-modules`: a `'ptr'` initialized by a label as bytes was dropped (it
   mixes the label realm into data and does not survive namespaces or reduction)
-- Decide: a form that supports reduction and keeps name realms apart (e.g. a path value);
-  until then pointer tables are filled at run time
+- Decided (user, Nov 5): drop the data class `D`; operands are `Q ::= P | b | {lᵢ = Qᵢ}`,
+  and the verifier keeps predefs (operands fixed before the program runs) fixed: inside a struct operand a path must be a
+  symbol address `g.l₁⋯lₙ` (run-time values are built with `insertvalue`); `init`/`value`
+  is `Q` or `λg. Q` with no other free variable; a type holds no path; a path in data is the symbol's address, as an operand in a body; unit tools treat
+  `λg. Q` like a body (`'unit.rebase'` prefixes, `'unit.make_reducible'` hoists); the
+  translation writes LLVM constants (`[ptr @on_key, ptr @on_click]`); before the bootstrap
+- Then: oymomo-calculus.tex (data, entries, kinds), Lean (data shape; unit-op proofs and
+  cases extended to `init`/`value`), code (ingot reader, translation, unit tools), tests
+
+### `struct-access` Proposal: struct values read by projection and index, not `'extractvalue'`/`'insertvalue'`
+
+- Proposal (user, Nov 5): "use struct e-index or e-proj for struct value extraction
+  instead of insertvalue or extractvalue. this is just a proposal"
+- Today a run-time struct value `x` (a `'load'` of a struct type, a parameter) is read with
+  `'extractvalue'` and built with `'insertvalue'`; the kinds reject `x.l` ("a value has
+  no fields"), and a struct operand must be a predef, so `{p.a, [01]}` is rejected
+- Idea: `x.l` and `x [i]` (E-Proj, E-Index) read a field of a struct value, and the
+  translation emits `extractvalue`; a struct built from run-time parts may follow
+- Decide: whether to adopt it; how `x.l`/`x [i]` stay normal in ANF (`x` is a value
+  variable, so neither rule fires); whether building `{p.a, [01]}` is allowed and how it
+  keeps "one part, one instruction"; how labels map to positions (the type's fields);
+  then oymomo-calculus.tex, Lean, code
 
 ### `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
 

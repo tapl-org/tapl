@@ -534,8 +534,7 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \begin{array}{l@{\quad}rcll}
 \pt\plabel{p:path} & P & ::= & x \mid P.l & \textit{path} \\
 \pt & O & ::= & P \mid b & \textit{operator} \\
-\pt\plabel{p:data} & D & ::= & b \mid \{l_i = D_i\}_{i<k} & \textit{data} \\
-\pt & Q & ::= & P \mid D & \textit{operand} \\
+\pt\plabel{p:operand} & Q & ::= & P \mid b \mid \{l_i = Q_i\}_{i<k} & \textit{operand} \\
 \pt & J & ::= & P\ Q_1 \cdots Q_n & \textit{jump} \\
 \pt & T & ::= & Q \mid J \mid \{J_i\}_{i<k}\ P \mid R & \textit{terminal} \\
 \pt & E & ::= & \kw{let}\ x = O\ \{l_i = Q_i\}_{i<k}\ \kw{in}\ E \mid T & \textit{expression} \\
@@ -549,9 +548,10 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
   \item $O$: an operator is a path to a function, or an opcode $b$. Applied to the struct of its operands,
     $O\ \{l_i = Q_i\}_{i<k}$ is an instruction: a call (\pref{p:calls}), or an opcode call that \rn{E-Opcode} does not
     compute (\pref{p:opcode}). The struct only lists the operands: no struct is built at run time, and a struct value is never an operator's argument as a whole.
-  \item $D$: data is a byte array or a struct of data, with no lambda: a constant, as LLVM sees it.
-  \item $Q$: an operand is a path or data (row \pref{p:data}). A struct operand is a constant, such as a type.
+  \item\label{p:predef} $Q$: an operand is a path, a byte array, or a struct of operands.
     A path to a symbol is its address, so $\str{load}\ \{\str{i32}, g.\mathit{counter}\}$ reads a global variable.
+    A \emph{predef} is an operand fixed before the program runs: its only paths are symbol addresses $g.l_1 \cdots l_n$,
+    which the linker fixes. A struct operand is a predef (\pref{p:kinds}), such as a type or $\{g.\mathit{hello}, \hex{01}\}$.
   \item $J$: a jump $P\ Q_1 \cdots Q_n$ goes to the block $P$ with one operand for each of its parameters.
   \item $T$: a terminal is a return $Q$, a jump $J$, a branch $\{J_i\}_{i<k}\ P$ whose arms only jump, or a region $R$.
   \item $E$: an expression is the $\kw{let}$s of one block, up to its terminal.
@@ -574,7 +574,7 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \[
 \begin{array}{l@{\quad}lll}
  & \textit{kind} & \textit{bound by} & \textit{used as} \\ \hline
-\pt & \textit{unit} & \text{the body's 1st } \lambda,\ g & g.l_1 \cdots l_n\text{: operator, operand} \\
+\pt & \textit{unit} & \text{the body's 1st } \lambda,\ g & g.l_1 \cdots l_n\text{: operator, operand, address in a predef} \\
 \pt & \textit{arguments} & \text{the body's 2nd } \lambda,\ p & p.l,\ l \text{ a parameter: operand, condition} \\
 \pt & \textit{region} & \text{a region's } \lambda,\ r & r.l,\ l \text{ a block: head of a jump} \\
 \pt & \textit{value} & \kw{let},\ \text{a block's } \lambda & x\text{: operand, condition}
@@ -586,6 +586,8 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
   \item $r.l$: a jump to the block $l$ passes exactly as many operands as $l$ has parameters.
   \item $x$: a value has no fields, so $x.l$ is rejected; a field of a struct value is read with an
     opcode (\pref{p:struct-values}).
+  \item Inside a struct operand, a path is a symbol address $g.l_1 \cdots l_n$: $p.l$, $r.l$ or a value $x$ there is
+    rejected, since a struct value is built from run-time values with $\str{insertvalue}$ (\pref{p:struct-values}).
   \item A path alone as a terminal is a jump when its head is a region, and a return otherwise.
   \end{subpoints}
 \item\label{p:groups} Where a variable is seen:
@@ -611,8 +613,8 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
   \item No nested instruction: $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$ is normal (\pref{p:forms}) but not in
     ANF. The fix is the program's: bind the $\str{mul}$ with a $\kw{let}$. No rule lifts it.
   \item No nested $\kw{let}$ and no branch as a value: the arms of a branch only jump.
-  \item No struct value built from parts that are not constants: a struct operand is data (row $Q$), so $\{p.a, \hex{01}\}$ as an operand is rejected. A struct value is built from run-time parts one
-    field at a time, starting from data, with $\str{insertvalue}$ (\pref{p:struct-values}):
+  \item No struct value built from parts that are not constants: a struct operand is a predef (\pref{p:predef}), so $\{p.a, \hex{01}\}$ as an operand is rejected. A struct value is built from run-time parts one
+    field at a time, starting from a predef, with $\str{insertvalue}$ (\pref{p:struct-values}):
     $\{p.a, \hex{01}\}$ is $\str{insertvalue}$ of $p.a$ into $\{\hex{00000000}, \hex{01}\}$ at position $\hex{00}$.
   \item Oymomo has no lifting rule, no rule that moves a nested instruction or a nested $\kw{let}$ out into
     a $\kw{let}$ of its own. Lifting is a convenience, not a requirement: a frontend or a sugar can write ANF
@@ -705,15 +707,19 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
     $\{\mathit{type} = \dots,\ \mathit{body} = \lam{g}{\lam{p}{g.\mathit{parser}.\mathit{report}\ p}}\}$.
   \item A hole left in the ingot is rejected.
   \end{subpoints}
-\item\label{p:init} An $\mathit{init}$ or a $\mathit{value}$ is data (row \pref{p:data}) of the entry's type:
+\item\label{p:init} An $\mathit{init}$ or a $\mathit{value}$ is a predef with no path (\pref{p:predef}) of the entry's type:
   $\{\mathit{type} = \str{i32},\ \mathit{init} = \hex{29000000}\}$.
-How data initializes each type belongs to the translation (\pref{p:init-llvm}).
+  Or it is $\lam{g}{C}$, with $C$ a predef: the $\lambda g$ binds the unit, as in a body, so $C$ may hold symbol
+  addresses, and nothing else is free in it:
+  \[\{\mathit{type} = \{\str{array}, \hex{02}, \str{ptr}\},\ \mathit{value} = \lam{g}{\{g.\mathit{hello}, g.\mathit{bye}\}}\}\]
+How a predef initializes each type belongs to the translation (\pref{p:init-llvm}).
 \item\label{p:run-module} A unit also runs by reduction, as a test does. The opcode $\str{unit.make\_reducible}$ takes an ingot $I$ and gives
   $t = \lam{g}{N}$, where $N$ has $I$'s namespaces and:
   \begin{subpoints}
   \item each definition with body $\lam{g}{\lam{p}{R}}$ becomes $\lam{p}{R'}$: its own $\lambda g$ moves out to $t$'s,
     and $R'$ is $R$ with every region $\str{R}\ (\lam{r}{u})$ turned into $(\kw{fix}\ (\lam{r}{u}))\ \hex{00}$;
-  \item every other entry (a global variable, a constant, a declaration) stays as it is.
+  \item an $\mathit{init}$ or a $\mathit{value}$ $\lam{g}{C}$ becomes $C$: its $\lambda g$ moves out to $t$'s too;
+  \item every other entry part stays as it is.
   \end{subpoints}
   The instance is $\kw{fix}\ t$. Code that needs other units first merges them in, so that each
   declaration meets its definition (\pref{p:merge}), then makes the result reducible:
@@ -752,7 +758,7 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
   Oymomo has no types and no type checking: it is an untyped $\lambda$-calculus. An LLVM type is an
   ordinary term that only an opcode or an entry reads, as an operand: $\str{add}\ \{\str{i32}, a, b\}$ is LLVM's
   $\kw{add\ i32}\ a, b$.
-  A type is data (row \pref{p:data}) of one of these shapes, with $t_i$ types and $n$ a byte array read as a number:
+  A type is a predef with no path (\pref{p:predef}) of one of these shapes, with $t_i$ types and $n$ a byte array read as a number:
   \begin{subpoints}
   \item $\str{i}N$, such as $\str{i1}$, $\str{i8}$ or $\str{i32}$: LLVM's integer type $\kw{i}N$.
   \item $\str{ptr}$: LLVM's opaque pointer.
@@ -788,8 +794,8 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
     typed use''. An unused parameter with no type found gets no $\kw{phi}$.
   \item An operand whose type differs from the type its use needs is rejected, at the operand.
   \end{subpoints}
-\item\label{p:llvm-ops} An instruction's struct of operands (\pref{p:anf}) is LLVM's operand list. A struct operand is data,
-  so an LLVM constant, and LLVM builds a struct value from run-time values with $\kw{insertvalue}$, as the
+\item\label{p:llvm-ops} An instruction's struct of operands (\pref{p:anf}) is LLVM's operand list. A struct operand is a predef,
+  so an LLVM constant (an address is $\kw{ptr}\ @\mathit{name}$), and LLVM builds a struct value from run-time values with $\kw{insertvalue}$, as the
   ingot does (\pref{p:struct-values}). Effects are emitted in the order of their $\kw{let}$s (\pref{p:opcode}).
 \item\label{p:one-to-one} The translation is one to one where it can be; this is preferred, not required: every LLVM block, label and instruction is
   written in the ingot, and the translation adds none and changes none, except where the ingot asks for
@@ -836,10 +842,10 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
   \item An internal name carries no meaning: the translation names it by its path, and may choose another
     name to keep it apart from the linker names.
   \end{subpoints}
-\item\label{p:init-llvm} How data initializes a type (\pref{p:init}):
+\item\label{p:init-llvm} How a predef initializes a type (\pref{p:init}):
   \begin{subpoints}
-  \item Where the type is $\str{ptr}$, $\str{}$ is the null pointer. The address of a symbol in data is left out for
-    now: a label written as bytes would mix names into data.
+  \item Where the type is $\str{ptr}$, $\str{}$ is the null pointer, and an address $g.l_1 \cdots l_n$ is the symbol's global, so the
+    $\mathit{value}$ of \pref{p:init} becomes $[2\ \kw{x}\ \kw{ptr}]\ [\kw{ptr}\ @\mathit{hello}, \kw{ptr}\ @\mathit{bye}]$.
   \item An array of $\str{i8}$ may be one byte array, its bytes in order:
     \[\{\mathit{type} = \{\str{array}, \hex{03}, \str{i8}\},\ \mathit{value} = \hex{686900}\}\]
   \item $\{\}$ is all zeros, for any type.
