@@ -3429,6 +3429,20 @@ executable binary). we should mark some place as a platform". The steps that fol
   collection 'nope': the collections are ['driver', 'unit'].", "The collection 'unit' has no
   opcode 'mrege'; it has [...]". Roadmap leaf removed (the "later: opcode providers" note
   moved to the design doc); `unit-followups` is "platform sizes, libraries".
+- Committed `33a5620`.
+
+### `platform-sizes` (Nov 5)
+
+- Agent: A (LLVM computes sizes with the `getelementptr null` constant expressions; `i64`;
+  no data layout) vs B (`'usize'`, `--target`, data layout in the `.ll`). User asked
+  "Explain more first"; agent worked a `malloc(10 * sizeof point)` example both ways (16
+  bytes on x86-64, 8 on 32-bit ARM). Chosen: A; before the bootstrap.
+- Names: bare names are LLVM instructions, and there is no LLVM `sizeof` instruction, so
+  the opcodes go in a collection: `'layout.size'`, `'layout.offset'`, `'layout.align'`
+  (user picked it; the agent again asked without a visible explanation and explained after).
+- Calculus draft (marks): new point `p:sizes` (the three opcodes, the constant expressions,
+  16 vs 8 bytes example), one-to-one exception for size lets, `layout` in opcode names.
+- Calculus accepted (user: "accept"); marks removed.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

@@ -159,13 +159,17 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
 
-- Moved from `redesign-ingot` (finished) when needed: sizes that depend on the platform
-  (`usize`, C layouts) kept symbolic until translation (e.g. `'usize'`, `'c_long'` types;
-  `'sizeof'`, `'alignof'`, `'offsetof'` opcodes resolved by the translation)
-- Decide: the types and opcodes, and how the translation resolves them
-- Today the `.ll` has no triple and no data layout (clang fills in its target's); this
-  leaf is the first that needs a data layout, so decide how the user gives one (replaces
-  the old `target` leaf: "host triple and data layout in the `.ll`")
+- Decided (user, Nov 5): LLVM computes sizes. Opcodes of a new collection `layout`:
+  `'layout.size' {T}`, `'layout.offset' {T, i}`, `'layout.align' {T}`; no table computes
+  them, so reduction never folds them; the translation writes LLVM's constant expressions
+  (`ptrtoint (ptr getelementptr (T, ptr null, i32 1) to i64)`, the offset and `{i1, T}`
+  forms), which clang folds for its target; results are `i64`; no pointer-sized integer
+  type, no data layout, one `.ll` for every platform; before the bootstrap. Rejected:
+  symbolic types (`'usize'`) with `--target` and a data layout in the `.ll`
+- A size opcode's `let` becomes a constant expression, not an instruction (an exception to
+  "each let becomes one instruction"; nothing is added)
+- Then: oymomo-calculus.tex (sizes, the one-to-one point, opcode names' collections), code
+  (the `layout` collection in the opcode table, the translation), tests and a golden
 
 ### `functor-libraries` Functor-style libraries and path aliases (proposals)
 

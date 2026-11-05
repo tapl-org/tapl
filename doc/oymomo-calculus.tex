@@ -315,7 +315,7 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
     array, as for $\str{add}$, or any closed term, as for an opcode that returns code.
   \item\label{p:opcode-names}Opcode names: a name with no dot is an LLVM instruction's, as $\str{add}$, or the
     region marker $\str{R}$ (\pref{p:anf}); a name $c.o$ belongs to the collection $c$: $\str{unit}$ for the unit
-    tools, as $\str{unit.merge}$, and $\str{driver}$ for the driver, as $\str{driver.read\_low}$. The verifier rejects an
+    tools, as $\str{unit.merge}$, $\str{layout}$ for sizes, as $\str{layout.size}$ (\pref{p:sizes}), and $\str{driver}$ for the driver, as $\str{driver.read\_low}$. The verifier rejects an
     unknown collection, or an unknown opcode of a known collection, where it is written.
   \item The operand may be a byte array too: $\str{driver.read\_low}\ \str{c.oymo}$.
   \item Effects include memory opcodes, such as $\str{alloca}$, $\str{load}$ and $\str{store}$.
@@ -792,6 +792,18 @@ How a predef initializes each type belongs to the translation (\pref{p:init-llvm
   \item Its body returns $\{\}$, which becomes $\kw{ret\ void}$; any other returned operand is rejected.
   \item A call of it, $\kw{let}\ u = g.f\ \{\dots\}\ \kw{in}\ \dots$, becomes $\kw{call\ void\ @f(\dots)}$ with no result; a use of $u$ is rejected.
   \end{subpoints}
+\item\label{p:sizes}Sizes depend on the platform, and an ingot is the same for every platform (\pref{p:module}), so
+  oymomo never computes one. $\str{layout.size}\ \{t\}$, $\str{layout.offset}\ \{t, i\}$ and $\str{layout.align}\ \{t\}$
+  are opcodes that no opcode table computes; the translation writes each as LLVM's constant expression, an
+  $\str{i64}$ that the compiler folds for its target:
+  \begin{subpoints}
+  \item $\str{layout.size}\ \{t\}$ becomes $\kw{ptrtoint}\ (\kw{ptr\ getelementptr}\ (t, \kw{ptr\ null}, \kw{i32}\ 1)\ \kw{to\ i64})$:
+    the address of element $1$ of an array of $t$ at address $0$.
+  \item $\str{layout.offset}\ \{t, i\}$, with $t$ a struct type and $i$ a field's position, becomes the same with
+    $\kw{getelementptr}\ (t, \kw{ptr\ null}, \kw{i32}\ 0, \kw{i32}\ i)$.
+  \item $\str{layout.align}\ \{t\}$ becomes the offset of field $1$ of $\{\str{i1}, t\}$.
+  \item So $\{x = \str{i32},\ \mathit{next} = \str{ptr}\}$ has size $16$ on x86-64 and $8$ on 32-bit ARM, from one ingot.
+  \end{subpoints}
 \item\label{p:infer} A block's parameters have no written type: each takes the type of the operands
   jumped to it and of its uses, repeated until nothing changes.
   \begin{subpoints}
@@ -809,7 +821,8 @@ How a predef initializes each type belongs to the translation (\pref{p:init-llvm
     nested region goes on in the block it continues, and every other field is a block. An unlabeled entry block is
     named after its region's binder and its position, as $r.0$. The marker $\str{R}$ itself becomes nothing.
   \item Each $\kw{let}$ becomes one instruction: an opcode call becomes the opcode's instruction, and a
-    call $g.l\ \{\dots\}$ becomes $\kw{call}$ of the function $l$.
+    call $g.l\ \{\dots\}$ becomes $\kw{call}$ of the function $l$. A size opcode's $\kw{let}$ (\pref{p:sizes}) becomes its constant
+    expression, not an instruction; nothing is added.
   \item A return becomes $\kw{ret}$ (or $\kw{ret\ void}$, \pref{p:void}), and a jump $\kw{br}$.
   \item A branch of two arms on an $\str{i1}$ becomes $\kw{br\ i1}$, to arm $1$ when true and arm $0$ when false;
     any other branch becomes $\kw{switch}$, arm $i$ the case $i$ and the last arm the default.
