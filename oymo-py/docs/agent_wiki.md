@@ -3512,6 +3512,29 @@ executable binary). we should mark some place as a platform". The steps that fol
   Roadmap leaf removed; design doc line added.
 - `foundations` was left with only `ll-coverage`, so `ll-coverage` (and its subtree) moved up
   under `pre-bootstrap` and `foundations` was removed.
+
+### `ll-coverage` roadmap refresh (Nov 5)
+
+- User picked refreshing `roadmap.md` under `ll-coverage` first (before picking a leaf).
+- Plan quiz (4 of 4):
+  - Unblock the settled leaves (`void`, `wide-ints`, `bulk-memory`, `align`, `noalias`), and
+    add explicit `Decide:` items to the 4 underspecified Oct 30 stubs (`ll-atomics`, `ll-tls`,
+    `ll-function-attrs`, `ll-module-level`) so they stay `🚫` for a clear reason.
+  - Drop the target pointer-width / byte-order `Decide:` from both `ptr-casts` and `bswap`
+    (user: no target byte-order query in oymomo either; pointer size is `'layout.size'
+    {'ptr'}`); unblock both `ptr-casts` and `bswap`. Noted in `oymomo_design.md` §4 (and
+    removed the stale `platform-sizes` data-layout sentence in §5).
+  - Keep `ptr-compare` `🚫` and expand its `Decide:` to cover whether `'null' {}` is needed
+    alongside `{}` at `'ptr'` (already `ptr null` per 10.12c) as well as folding two nulls.
+  - Keep id `fn-address`, narrow its text to indirect call through `'ptr'` (`g.f` as an
+    address was done in `data-addresses`), and add a `Decide:` for its ANF spelling and
+    `'unit.make_reducible'`.
+- Post-redesign drift fixed across `ll-coverage`: calculus section/point numbers (Section 9 →
+  10, 4.4c → 5.4e, 9.1 → 10.2h, 4.4e/5.6 → 5.4k/6.6, 4/5/7–9 → 5/6/8–10); `floats` pre-refactor
+  `form`/`~`/`=>`/`f32`/`f64`/`imports` → `type`/bare bytes/declaration/`float`/`double`;
+  `ll-symbol-fields` updated for settled `link` vs `internal`; duplicate `'select'` line in
+  `ll-instructions` merged; `line-tables`, `alias-scopes`, `ll-instr-metadata` updated from
+  `spans`/term fields to `meta.proto` (`Tag` and `Tags`).
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

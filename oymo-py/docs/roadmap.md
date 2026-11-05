@@ -16,10 +16,10 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `ll-coverage` oymomo writes any `.ll`
     - `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
     - `ll-types` Types: `void`, wide integers, floats, vectors
-      - 🚫 `void` Result type `'void'`, a call as a statement
-      - 🚫 `wide-ints` Every `'iN'` LLVM takes, `'i128'` first
+      - `void` Result type `'void'`, a call as a statement
+      - `wide-ints` Every `'iN'` LLVM takes, `'i128'` first
       - `floats` `'float'`, `'double'`
-        - 🚫 `float-forms` `'float'`, `'double'`: literals, params, results, imports
+        - 🚫 `float-forms` `'float'`, `'double'`: literals, params, results, declarations
         - 🚫 `float-arith` `'fadd'`, `'fsub'`, `'fmul'`, `'fdiv'`, `'frem'`, `'fneg'`
         - 🚫 `float-compare` Comparisons, one symbol per predicate
         - 🚫 `float-convert` `'fpext'`, `'fptrunc'`, `'fptosi'`, ... conversions
@@ -28,26 +28,26 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `ll-other-types` `ptr addrspace(n)`, `token`, target extension types
     - `ll-memory` Pointers, memory, volatile, atomics
       - 🚫 `ptr-compare` Pointer comparison and `'null' {}`
-      - 🚫 `ptr-casts` `'ptrtoint'`, `'inttoptr'`
-      - 🚫 `bulk-memory` `'memcpy'`, `'memmove'`, `'memset'`
-      - 🚫 `align` Optional `align` on `'load'`, `'store'`, `'alloca'` and global variables
-      - 🚫 `noalias` `{'noalias', 'ptr'}` on params and results
+      - `ptr-casts` `'ptrtoint'`, `'inttoptr'`
+      - `bulk-memory` `'memcpy'`, `'memmove'`, `'memset'`
+      - `align` Optional `align` on `'load'`, `'store'`, `'alloca'` and global variables
+      - `noalias` `{'noalias', 'ptr'}` on params and results
       - 🚫 `ll-volatile-asm` `volatile` loads and stores; inline asm
       - 🚫 `ll-atomics` `'atomicrmw'`, `'cmpxchg'`, `'fence'`, orderings
     - `ll-symbols` Symbols, functions, module level
       - 🚫 `ll-symbol-fields` `linkage`, visibility, `unnamed_addr`, `section`, `comdat`
       - 🚫 `ll-tls` `thread_local` on global variables
       - 🚫 `ll-function-attrs` Calling conventions; function, parameter and result attributes
-      - 🚫 `fn-address` `module.f` as an address; indirect call through `'ptr'`
+      - 🚫 `fn-address` Indirect call through `'ptr'`
       - 🚫 `ll-module-level` Aliases, ifuncs, `module asm`, constructors, constant expressions
     - `ll-code` Instructions, undefined behaviour, intrinsics, exceptions
       - 🚫 `undefined` Undefined behaviour in oymomo: folding, `'unreachable'`, poison
       - 🚫 `ll-instructions` `select`, tail calls, `inbounds`, `indirectbr`, `callbr`
-      - 🚫 `bswap` `'bswap'` for byte order per access
+      - `bswap` `'bswap'` for byte order per access
       - 🚫 `ll-intrinsics` `ctpop`, `ctlz`, `abs`, overflow checks, `assume`, `lifetime`, `trap`, …
       - 🚫 `ll-exceptions` `invoke`, `landingpad`, `resume`
     - `ll-metadata` Metadata and debug info
-      - `line-tables` `-g` line tables from spans
+      - `line-tables` `-g` line tables from meta places
       - 🚫 `ll-debug-info` Params, locals, types as DWARF metadata
       - 🚫 `alias-scopes` `!alias.scope`, `!noalias`, if `noalias` isn't enough
       - 🚫 `ll-instr-metadata` `!range`, `!tbaa`, `!prof`, `!llvm.loop`, module flags
@@ -152,12 +152,12 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
 
-- A table in oymomo-calculus.tex Section 9: every LangRef construct, its oymomo spelling,
+- A table in oymomo-calculus.tex Section 10: every LangRef construct, its oymomo spelling,
   or the leaf that owns it, or "not planned"
 - Decide: which constructs are "not planned" (e.g. Windows funclets, `callbr`, ifuncs,
   target extension types)
 
-### `void` Result type `{}`, a call as a statement
+### `void` Result type `'void'`, a call as a statement
 
 - `{'function', params, 'void'}` for functions returning nothing; the body returns `{}`
   (oymomo-calculus.tex 10, "void")
@@ -170,80 +170,81 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Folding at any width
 - Tests: `'i128'` arithmetic folds as LLVM computes it; a golden
 
-### `float-forms` `'float'`, `'double'`: literals, params, results, imports
+### `float-forms` `'float'`, `'double'`: literals, params, results, declarations
 
 - Add LLVM's floating-point types by their LLVM names (oymomo-calculus.tex 10): `'half'`,
   `'bfloat'`, `'float'`, `'double'`, `'fp128'`, `'x86_fp80'`, `'ppc_fp128'`; `'float'` and
   `'double'` first
-- A float is a value like an integer: param, result, struct field, let, import
-- Literal is its IEEE 754 bits, little-endian: `[0000803f]~'float'`,
-  `[000000000000f03f]~'double'` are 1.0
+- A float is a value like an integer: param, result, struct field, let, declaration
+- Literal is its IEEE 754 bits, little-endian (typed by its use): `[0000803f]` as `'float'`,
+  `[000000000000f03f]` as `'double'` are 1.0
 - Every bit pattern is a value, NaN payloads included
-- Wrong size: `A float constant needs 4 bytes.`
-- No implicit change of bits or form
+- Wrong size: `A constant of type float is a byte array of 4 bytes.`
+- No implicit change of bits or type
 - `.ll`: float constant from its bits; NaN with payload as bits bitcast from an integer
   constant
-- Tests: return an `'double'` param; `float 1.0`; NaN payload kept; float struct field;
-  `sqrt` import; 3-byte `'float'` error; golden `float.oymo`
-- Decide: decimal literals (`1.5~'double'` as sugar for bytes)? Hex float or decimal?
+- Tests: return a `'double'` param; `float 1.0`; NaN payload kept; float struct field;
+  `sqrt` declaration; 3-byte `'float'` error; golden `float.oymo`
+- Decide: decimal literals as sugar for bytes? Hex float or decimal?
 - Decide: float vectors: every symbol accepts them where LLVM does; reduction folds only
   scalars?
 
 ### `float-arith` `'fadd'`, `'fsub'`, `'fmul'`, `'fdiv'`, `'frem'`, `'fneg'`
 
-- Opcodes `{form, a, b}`: `'fadd'`, `'fsub'`, `'fmul'`, `'fdiv'`, `'frem'`;
-  `'fneg'` `{form, value}`
+- Opcodes `{type, a, b}`: `'fadd'`, `'fsub'`, `'fmul'`, `'fdiv'`, `'frem'`;
+  `'fneg'` `{type, value}`
 - LLVM's default FP environment only: round to nearest even, no traps, no fast-math, no
   constrained intrinsics
 - `'float'` computed in binary64, then rounded to binary32
 - Never fold a NaN result; a NaN operand folds if the result isn't NaN
 - `'fneg'` flips only the sign bit; folds even on a NaN
 - `fdiv` by zero gives ∞ or NaN
-- Printed as LLVM: `fadd f64 a, b`
+- Printed as LLVM: `fadd double a, b`
 - Tests: edge operands (`±0`, `±1`, smallest subnormal, largest finite, `±∞`, NaN, both
-  forms) vs LLVM; `1.0 + 2.0` folds to `[0000000000000840]`; `0.0 / 0.0` stays;
+  types) vs LLVM; `1.0 + 2.0` folds to `[0000000000000840]`; `0.0 / 0.0` stays;
   `'float'` `0.1 + 0.2` folds to the `float` bits
 
 ### `float-compare` Comparisons, one symbol per predicate
 
-- One symbol per predicate, `'fcmp_' + predicate`, `{form, lhs, rhs}` → `'i1'`:
+- One symbol per predicate, `'fcmp_' + predicate`, `{type, lhs, rhs}` → `'i1'`:
   - ordered: `oeq`, `one`, `ogt`, `oge`, `olt`, `ole`
   - unordered: `ueq`, `une`, `ugt`, `uge`, `ult`, `ule`
   - `ord`, `uno`
 - No `fcmp false`/`fcmp true`
 - `-0.0` equals `+0.0` under `oeq`
-- Error: `'icmp' takes an integer type, got f32; for floats use 'fcmp_ult'.`
+- Error: `'icmp' takes an integer type, got float; for floats use 'fcmp_ult'.`
 - Tests: every predicate × `{-∞, -1, -0, +0, 1, +∞, NaN}` vs LLVM; literal folds;
-  `'fcmp_uno'` with NaN folds to `[01]~'i1'`
+  `'fcmp_uno'` with NaN folds to `[01]`
 
 ### `float-convert` `'fpext'`, `'fptrunc'`, `'fptosi'`, ... conversions
 
-- Fields `{form, value, to}`, like `'zext'`: `'fpext' {'float', x, 'double'}`
-- `'fpext'` f32 → f64; `'fptrunc'` f64 → f32, rounded
+- Fields `{type, value, to}`, like `'zext'`: `'fpext' {'float', x, 'double'}`
+- `'fpext'` `float` → `double`; `'fptrunc'` `double` → `float`, rounded
 - `'fptosi'`, `'fptoui'`: toward zero; NaN, ∞, out of range: not folded
 - `'sitofp'`, `'uitofp'`: rounded to nearest
-- `'bitcast'`: any → any same-size form LLVM can bitcast (not structs)
-- Error: `'fpext': to must be wider than f64, got f32.`
+- `'bitcast'`: any → any same-size type LLVM can bitcast (not structs)
+- Error: `'fpext': to must be wider than double, got float.`
 - Tests: `fptrunc` rounds to nearest even; `fptosi -1.5` is `-1`; `sitofp` of `2^53 + 1`
   rounds; `fptoui` of `-1.0`, NaN, `2^32` to `'i32'` not folded; `'bitcast'` of
-  `1.0~'float'` to `'i32'` is `[0000803f]`; narrowing and size errors
+  `[0000803f]` from `'float'` to `'i32'` is `[0000803f]`; narrowing and size errors
 - Decide: add saturating `'fptosi_sat'`/`'fptoui_sat'`?
 
 ### `float-intrinsics` `'sqrt'`, `'fabs'`, `'floor'`, ... exact intrinsics
 
 - Exact intrinsics only, `llvm.NAME` without the prefix:
-  - `{form, value}`: `'sqrt'`, `'fabs'`, `'floor'`, `'ceil'`, `'round'`, `'roundeven'`,
+  - `{type, value}`: `'sqrt'`, `'fabs'`, `'floor'`, `'ceil'`, `'round'`, `'roundeven'`,
     round toward zero (`llvm.trunc`)
-  - `{form, magnitude, sign}`: `'copysign'`
-  - `{form, a, b}`: `'minnum'`, `'maxnum'`, `'minimum'`, `'maximum'`
-  - `{form, a, b, c}`: `'fma'`, rounded once
-- Transcendentals are libm imports: `sin = {x = 'double'} => 'double'`
+  - `{type, magnitude, sign}`: `'copysign'`
+  - `{type, a, b}`: `'minnum'`, `'maxnum'`, `'minimum'`, `'maximum'`
+  - `{type, a, b, c}`: `'fma'`, rounded once
+- Transcendentals are libm declarations:
+  `sin = {type = {'function', {x = 'double'}, 'double'}, link = 'sin'}`
 - Tests: edge operands vs LLVM; `fma` where twice-rounded differs; `minnum(NaN, 1.0)` is
   `1.0`, `minimum` is NaN; `minimum(-0.0, +0.0)` is `-0.0`; `'sqrt'` is
   `call double @llvm.sqrt.f64`
 - Done when: `hypot(3.0, 4.0) = 5.0`; every float symbol matches LLVM on edge operands
   (NaN results: "is a NaN")
-- Decide: name of `llvm.trunc`: one `'trunc'` by `form`, `'trunc_toward_zero'`, or
+- Decide: name of `llvm.trunc`: one `'trunc'` by `type`, `'trunc_toward_zero'`, or
   `'ftrunc'`
 
 ### `ll-vectors` Vector opcodes, `extractelement`, `insertelement`, `shufflevector`
@@ -263,11 +264,13 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `'icmp' {'eq', 'ptr', p, q}` and the other nine predicates on `'ptr'`; only the LLVM
   lowering changes
-- `'null' {}`: gives `'ptr'`, pure, no fold, LLVM `ptr null`
-- Goal program: length of a linked list, load `next` until `'icmp' {'eq', …}` with `'null' {}`
+- `{}` at a typed `'ptr'` operand already emits `ptr null` (10.12c); `'null' {}`, if added,
+  carries result type `'ptr'` (for untyped block parameters), pure, no fold
+- Goal program: length of a linked list, load `next` until `'icmp' {'eq', …}` with null
 - Tests and a golden
 - Commit: `oymomo: compare pointers`
-- Decide: should `'icmp' {'eq', 'ptr', …}` of two `'null' {}` fold?
+- Decide: is `'null' {}` needed alongside `{}` at `'ptr'`?
+- Decide: should `'icmp' {'eq', 'ptr', …}` of two nulls fold?
 
 ### `ptr-casts` `'ptrtoint'`, `'inttoptr'`
 
@@ -276,12 +279,10 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Goal program: round an address up to 16 bytes within a 32-byte `alloca`
 - Tests and a golden
 - Commit: `oymomo: add pointer casts`
-- Decide: how a program learns the target's pointer width and byte order: a
-  module-level value, a type (`'iptr'`), or not at all
 
 ### `bulk-memory` `'memcpy'`, `'memmove'`, `'memset'`
 
-- Three impure opcodes, result `{}`, bound by a `let` that only orders them (4.4c):
+- Three impure opcodes, result `{}`, bound by a `let` that only orders them (5.4e):
 
   | Opcode | Fields | LLVM |
   |---|---|---|
@@ -313,7 +314,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `noalias` `{'noalias', 'ptr'}` on params and results
 
-- Tagged type `{'noalias', 'ptr'}`; `'noalias'` becomes a reserved tag (9.1)
+- Tagged type `{'noalias', 'ptr'}`; `'noalias'` becomes a reserved tag (10.2h)
 - Allowed on: a parameter or the result in a function's type
   (`malloc = {type = {'function', {size = 'i64'}, {'noalias', 'ptr'}}}`); elsewhere an
   error
@@ -336,21 +337,24 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   as LLVM has them
 - Never folded
 - Goldens
+- Decide: opcode shapes and field order for atomic `'load'`/`'store'`, `'atomicrmw'`,
+  `'cmpxchg'` (two orderings), `'fence'`, and `syncscope`
 
 ### `ll-symbol-fields` `linkage`, visibility, `unnamed_addr`, `section`, `comdat`
 
-- Entry fields: `linkage` (`private`, `internal`, `weak`, `linkonce_odr`, `extern_weak`,
-  `common`, `appending`, …), visibility, `dso_local`, `unnamed_addr`, `section`,
-  `comdat`, `addrspace`, `externally_initialized`
-- An absent field is LLVM's default
+- Basic `internal` (no `link`) vs linked (`link = 'name'`) is settled (9.5, 10.11)
+- Extra entry fields: `linkage` (`private`, `weak`, `linkonce_odr`, `extern_weak`, `common`,
+  `appending`, …), visibility, `dso_local`, `unnamed_addr`, `section`, `comdat`,
+  `addrspace`, `externally_initialized`
 - Goldens
-- Decide: linkage words: LLVM's, or Cranelift's (`'import'`, `'export'`, `'local'`)
+- Decide: how extra LLVM linkages combine with `link`, and entry-field shapes for the rest
 
 ### `ll-tls` `thread_local` on global variables
 
 - Entry field `thread_local` on a global variable, with LLVM's models (`localdynamic`,
   `initialexec`, `localexec`)
 - Golden
+- Decide: spelling of general-dynamic `thread_local` (no explicit model) vs a model name
 
 ### `ll-function-attrs` Calling conventions; function, parameter and result attributes
 
@@ -362,20 +366,27 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   `signext`, `byval`, `sret`
 - `gc`, `personality`, `prefix`, `prologue`
 - Goldens
+- Decide: exact entry-field and tagged-type shapes for function, parameter and result
+  attributes
 
-### `fn-address` `module.f` as an address; indirect call through `'ptr'`
+### `fn-address` Indirect call through `'ptr'`
 
-- `module.f` as an address
-- Indirect call through `'ptr'` with a function type
+- Indirect call through a `'ptr'` operand with a function type (`g.f` as an address in
+  operands and initializers is done)
+- Goldens
+- Decide: spelling of an indirect call in ANF (a `'ptr'` value carries no function type),
+  and how `'unit.make_reducible'` treats it
 
 ### `ll-module-level` Aliases, ifuncs, `module asm`, constructors, constant expressions
 
-- Aliases (`{type, alias = 'target'}`); ifuncs
+- Aliases; ifuncs
 - `module asm`, `source_filename`
 - `llvm.used`, `llvm.global_ctors`/`dtors`
 - Constant expressions in initializers: `getelementptr`, `ptrtoint`, difference of two
   addresses
 - Goldens
+- Decide: alias target (`λg. g.target` vs `link`) and predef spellings for initializer
+  constant expressions
 
 ### `undefined` Undefined behaviour in oymomo: folding, `'unreachable'`, poison
 
@@ -383,13 +394,13 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   Alcor's checked and optimized modes on it
 - Folding: today E-Opcode gives no result where LLVM is undefined (`udiv`/`sdiv`/`urem`/`srem`
   by 0, `sdiv` of the minimum by −1, a shift by the width or more); the call stays as
-  run-time code (oymomo-calculus.tex 4.4e, 5.6)
+  run-time code (oymomo-calculus.tex 5.4k, 6.6)
 - `'unreachable' {}` as a block end: LLVM's `unreachable`; uses: after a call that never
   returns (`exit`, `abort`), a `switch` default that can't happen, facts a frontend proved,
   the optimized mode of `alcor-ub`; never folds
 - Poison and undef: LLVM's `poison` value, flags that make results poison (`nsw`, `nuw`,
   `exact`), `freeze`
-- oymomo-calculus.tex 4, 5, 7–9; Lean (`anf_normal`, `op` partiality); code; goldens: a function
+- oymomo-calculus.tex 5, 6, 8–10; Lean (`anf_normal`, `op` partiality); code; goldens: a function
   ending in `exit`, a division by a literal 0
 - Decide: an undefined call found at compile time: keep it as run-time code (today), reject
   it as stuck with an error, or fold it to `poison`
@@ -400,7 +411,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `ll-instructions` `select`, tail calls, `inbounds`, `indirectbr`, `callbr`
 
-- `'select' {type, c, a, b}`
+- `'select' {type, c, a, b}` (LLVM `select`) for value choices
 - `tail`/`musttail`/`notail` on calls
 - `inbounds` on `'getelementptr'`
 - `indirectbr` and `blockaddress`; `callbr`
@@ -408,14 +419,11 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide (Nov 5, user: "Decide later"): an unreachable block; the translation leaves it out
   today, which changes the program under the "adds none, changes none" rule; reject it with
   a located error instead?
-- `'select' {type, c, a, b}` (LLVM `select`) for value choices (moved from `typed-consts`)
 
 ### `bswap` `'bswap'` for byte order per access
 
 - `'bswap' {'i32', x}`: `llvm.bswap.iN`, pure, folded
 - Test: read a big-endian `'i32'` header field on a little-endian target
-- Decide: how does a program learn the target's pointer width and byte order: a
-  module-level value, a type (`'iptr'`), or not at all?
 
 ### `ll-intrinsics` `ctpop`, `ctlz`, `abs`, overflow checks, `assume`, `lifetime`, `trap`, …
 
@@ -434,17 +442,19 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Goldens
 - Decide: before 1.0 (unwinding from C++ through oymomo frames), or after
 
-### `line-tables` `-g` line tables from spans
+### `line-tables` `-g` line tables from meta places
 
 - `-g` on `emit-llvm` and `build`; the user passes `-g` to clang when linking
-- One `DICompileUnit` per row holding a function's span:
-  - `DIFile(filename, directory, checksumkind: CSK_MD5, checksum)` from the row
+- One `DICompileUnit` per `File` in `meta.proto` holding a definition's place:
+  - `DIFile(filename, directory, checksumkind: CSK_MD5, checksum)` from `File.path` and
+    `File.md5`
   - `language: DW_LANG_C11`, `producer: "oymo <version>"`, `emissionKind: LineTablesOnly`
   - module flags `Dwarf Version` 5, `Debug Info Version` 3
-- One `DISubprogram` per definition: `line:` from the symbol's field span, `scopeLine:`
-  from the `body` lambda's span; empty `DISubroutineType`
-- `!DILocation` (line, byte column) on every `let` and terminator; null span: `line: 0`
-- Code from another row's file under a `DILexicalBlockFile`; no `inlinedAt`
+- One `DISubprogram` per definition: `line:` from the symbol field's `Tag`, `scopeLine:`
+  from the `body` lambda's `Tag`; empty `DISubroutineType`
+- `!DILocation` (line, byte column from `File.position`) on every `let` and terminator; no
+  place: `line: 0`
+- Code from another `File` under a `DILexicalBlockFile`; no `inlinedAt`
 - Each distinct location built once
 - Tests: golden IR; passes `opt -passes=verify`
 - Breakpoints, line stepping, backtraces in `gdb`/`lldb`
@@ -463,17 +473,16 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ### `alias-scopes` `!alias.scope`, `!noalias`, if `noalias` isn't enough
 
 - Only for a program `noalias` can't serve
-- Scoped aliasing metadata `!alias.scope`, `!noalias` per access
-- New field on `'load'`/`'store'`; scope declarations
-- Decide: scopes declared in `module`, or written inline on each access?
+- Scoped aliasing metadata `!alias.scope`, `!noalias` per access, carried in `meta.proto`
+- Decide: `meta.proto` schema for scope declarations on `Tags` and attachments on `Tag`
 
 ### `ll-instr-metadata` `!range`, `!tbaa`, `!prof`, `!llvm.loop`, module flags
 
-- On instructions: `!range`, `!nonnull`, `!noundef`, `!tbaa`, `!prof` branch weights,
-  `!llvm.loop` hints, `!invariant.load`
-- Module flags
+- On instructions (fields on `Tag` in `meta.proto`): `!range`, `!nonnull`, `!noundef`,
+  `!tbaa`, `!prof` branch weights, `!llvm.loop` hints, `!invariant.load`
+- Module flags on `Tags` in `meta.proto`
 - Goldens
-- Decide: an entry field per kind, or one `meta` field on a `let`
+- Decide: `meta.proto` schema fields and reduction merge rules for each kind
 
 ### `ll-check` Every row tested; clang's `-O2` output written in oymomo
 

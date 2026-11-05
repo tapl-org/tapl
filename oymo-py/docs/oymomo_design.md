@@ -418,8 +418,9 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
   no table; the translation writes LLVM's constant expressions
   (`ptrtoint (ptr getelementptr (t, ptr null, i32 1) to i64)`, and the offset and `{i1, t}`
   forms), which clang folds for its target. Sizes are `i64`; there is no pointer-sized
-  integer type and no data layout, so one `.ll` serves every platform. Rejected: symbolic
-  types (`'usize'`) with `--target` and a data layout in the `.ll`.
+  integer type, no target byte-order query and no data layout, so one `.ll` serves every
+  platform. Rejected: symbolic types (`'usize'`) with `--target` and a data layout in the
+  `.ll`.
 
 ### 5. Linking across layers
 
@@ -457,11 +458,10 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
     ../math/oymo-out/unit.ll -o app`, `clang --target=… …`. `oymo build` needs no clang
     and runs nothing; there is no `oymo run`.
   - The `.ll` holds no `target triple` and no `target datalayout`: nothing in the
-    translation depends on the platform yet, so clang fills in its target's. clang warns
-    that it overrides the (empty) triple; `-Wno-override-module` silences it. Byte-array
+    translation depends on the platform, so clang fills in its target's. clang warns that
+    it overrides the (empty) triple; `-Wno-override-module` silences it. Byte-array
     literals stay little-endian on every target; that fixes what a literal means, not how
-    memory is laid out (LLVM lays out `i32 42` per the target). Once platform-dependent
-    sizes exist (`platform-sizes`), the translation will need a data layout as input.
+    memory is laid out (LLVM lays out `i32 42` per the target).
   - Headers of other projects are copied in or mounted (`--mount`); reading one is a plain
     file read, so there is no dependency graph.
   - This is the driver's job, not oymomo's, so "nothing automatic in oymomo" still holds.
