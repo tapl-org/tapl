@@ -4,7 +4,7 @@ language oymomo
   main= {
     type= {'function', {}, 'i32'},
     link= 'main',
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry=
         let q = 'alloca' {{x= 'i32', y= 'i64'}} in
         let y = 'getelementptr'

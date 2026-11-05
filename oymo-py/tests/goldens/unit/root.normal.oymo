@@ -3,24 +3,24 @@ language oymomo
   lexer= {
     token= {
       type= {'function', {c= 'i32'}, 'i32'},
-      body= λg. λp. g [] (λr. {
+      body= λg. λp. 'R' (λr. {
         let k = g.parser.kind {c= p.c} in
         let t = 'add' {'i32', k, [0a000000]} in t,
       }),
     },
     error= {
       type= {'function', {c= 'i32'}, 'i32'},
-      body= λg. λp. g [] (λr. {let v = g.lib.apply {n= p.c} in v}),
+      body= λg. λp. 'R' (λr. {let v = g.lib.apply {n= p.c} in v}),
     },
   },
   parser= {
     kind= {
       type= {'function', {c= 'i32'}, 'i32'},
-      body= λg. λp. g [] (λr. {let k = 'and' {'i32', p.c, [01000000]} in k}),
+      body= λg. λp. 'R' (λr. {let k = 'and' {'i32', p.c, [01000000]} in k}),
     },
     parse= {
       type= {'function', {c= 'i32'}, 'i32'},
-      body= λg. λp. g [] (λr. {
+      body= λg. λp. 'R' (λr. {
         let t = g.lexer.token {c= p.c} in
         let e = g.lexer.error {c= t} in e,
       }),
@@ -29,29 +29,29 @@ language oymomo
   lib= {
     step= {
       type= {'function', {n= 'i32'}, 'i32'},
-      body= λg. λp. g [] (λr. {let y = 'add' {'i32', p.n, [01000000]} in y}),
+      body= λg. λp. 'R' (λr. {let y = 'add' {'i32', p.n, [01000000]} in y}),
     },
     apply= {
       type= {'function', {n= 'i32'}, 'i32'},
-      body= λg. λp. g [] (λr. {let y = g.lib.step {n= p.n} in y}),
+      body= λg. λp. 'R' (λr. {let y = g.lib.step {n= p.n} in y}),
     },
   },
   dbl= {
     lib= {
       step= {
         type= {'function', {n= 'i32'}, 'i32'},
-        body= λg. λp. g [] (λr. {let y = 'mul' {'i32', p.n, [02000000]} in y}),
+        body= λg. λp. 'R' (λr. {let y = 'mul' {'i32', p.n, [02000000]} in y}),
       },
       apply= {
         type= {'function', {n= 'i32'}, 'i32'},
-        body= λg. λp. g [] (λr. {let y = g.dbl.lib.step {n= p.n} in y}),
+        body= λg. λp. 'R' (λr. {let y = g.dbl.lib.step {n= p.n} in y}),
       },
     },
   },
   main= {
     type= {'function', {}, 'i32'},
     link= 'main',
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       let a = g.parser.parse {c= [03000000]} in
       let b = g.dbl.lib.apply {n= a} in b,
     }),

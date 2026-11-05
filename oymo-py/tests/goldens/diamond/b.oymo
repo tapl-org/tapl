@@ -4,7 +4,7 @@ language oymomo
   b= {
     f= {
       type= {'function', {n= 'i32'}, 'i32'},
-      body= λg. λp. g [] (λr. {
+      body= λg. λp. 'R' (λr. {
         let t = g.d.twice {n= p.n} in
         let y = 'add' {'i32', t, [01000000]} in y,
       }),

@@ -9,7 +9,7 @@ language oymomo
       lexer= {
         error= {
           type= {'function', {c= 'i32'}, 'i32'},
-          body= λg. λp. g [] (λr. {let v = g.lib.apply {n= p.c} in v}),
+          body= λg. λp. 'R' (λr. {let v = g.lib.apply {n= p.c} in v}),
         },
       },
     },
@@ -17,7 +17,7 @@ language oymomo
       main= {
         type= {'function', {}, 'i32'},
         link= 'main',
-        body= λg. λp. g [] (λr. {
+        body= λg. λp. 'R' (λr. {
           let a = g.parser.parse {c= [03000000]} in
           let b = g.dbl.lib.apply {n= a} in b,
         }),

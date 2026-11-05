@@ -3,6 +3,6 @@ language oymomo
   main= {
     type= {'function', {a= 'i32'}, 'i32'},
     link= 'main',
-    body= λg. λp. g [] (λr. {entry= [00000000]}),
+    body= λg. λp. 'R' (λr. {entry= [00000000]}),
   },
 }

@@ -9,10 +9,11 @@
     T ::= Q | J | {Jᵢ} P | R                       terminal
     E ::= let x = O {lᵢ = Qᵢ} in E | T             expression
     K ::= E | λx₁. ⋯ λxₙ. E                        block
-    R ::= x [] (λx. {lᵢ = Kᵢ}), 0 < k              region; field 0 is an E
+    R ::= 'R' (λx. {lᵢ = Kᵢ}), 0 < k              region; field 0 is an E
 
 Every variable is `x`: the grammar does not tell them apart; `ingot` checks their kinds. An opcode call in ANF is one that E-Opcode does not compute. A term in ANF is a
-normal form (`Oymomo.anf_normal`).
+normal form (`Oymomo.anf_normal`). `'R'` is the region marker: no opcode table computes it,
+so a region never steps.
 
 `anf_error` checks a term (resolved or not) and names the first part that is not in ANF.
 """
@@ -53,14 +54,15 @@ def is_operand(term: syntax.Term) -> bool:
     return is_path(term) or reduction.is_data(term)
 
 
-def region_parts(term: syntax.Term) -> tuple[syntax.Term, terms.Lambda] | None:
-    """`(x, λr. {…})` for a term shaped `x [] (λr. {…})`, else None."""
+# The region marker: `'R' (λr. {…})` is a region.
+REGION = b'R'
+
+
+def region_parts(term: syntax.Term) -> terms.Lambda | None:
+    """`λr. {…}` for a term shaped `'R' (λr. {…})`, else None."""
     match term:
-        case terms.Apply(
-            function=terms.Apply(function=head, argument=terms.ByteArray(value=b'')),
-            argument=terms.Lambda() as blocks,
-        ) if isinstance(head, terms.BruijnIndex | terms.Variable):
-            return head, blocks
+        case terms.Apply(function=terms.ByteArray(value=value), argument=terms.Lambda() as blocks) if value == REGION:
+            return blocks
     return None
 
 
@@ -86,8 +88,8 @@ def region_error(term: syntax.Term) -> AnfError | None:
     """None if `term` is a region `R` in ANF, else the first part that is not."""
     parts = region_parts(term)
     if parts is None:
-        return AnfError('A region is x [] (λr. {blocks}).', term)
-    body = parts[1].body
+        return AnfError("A region is 'R' (λr. {blocks}).", term)
+    body = parts.body
     if not isinstance(body, terms.Struct) or not body.fields:
         return AnfError('A region holds a struct of blocks, at least one.', body)
     first, *rest = body.fields

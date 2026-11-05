@@ -5,8 +5,6 @@ let max = 'driver.read_low' 'template/max.oymo' in
   main= {
     type= {'function', {}, 'i32'},
     link= 'main',
-    body= λg. λp. g [] (λr. {
-      let m = g.max32 {a= [03000000], b= [09000000]} in m,
-    }),
+    body= λg. λp. 'R' (λr. {let m = g.max32 {a= [03000000], b= [09000000]} in m}),
   },
 }

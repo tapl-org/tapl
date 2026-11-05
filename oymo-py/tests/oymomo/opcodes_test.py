@@ -38,7 +38,7 @@ def test_one_opcode_per_llvm_instruction():
 def test_reduce_time_opcodes():
     """The unit tools and the driver's opcodes read their whole operand; LLVM has none of them."""
     assert {name for name, opcode in OPCODES.items() if opcode.apply is not None} == {
-        *('unit.merge', 'unit.rebase'),
+        *('unit.merge', 'unit.rebase', 'unit.make_reducible'),
         *('driver.read_low', 'driver.read_high', 'driver.read_bytes', 'driver.config'),
     }
     assert not set(llvm_opcodes.DEFAULT_OPCODES) & {'unit.merge', 'driver.config'}

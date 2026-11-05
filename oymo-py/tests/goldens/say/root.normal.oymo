@@ -5,20 +5,20 @@ language oymomo
     msg= {type= {'array', [06], 'i8'}, value= [68656c6c 6f00]},
     say= {
       type= {'function', {}, 'i32'},
-      body= λg. λp. g [] (λr. {let u = g.c.puts {s= g.hello.msg} in u}),
+      body= λg. λp. 'R' (λr. {let u = g.c.puts {s= g.hello.msg} in u}),
     },
   },
   bye= {
     msg= {type= {'array', [04], 'i8'}, value= [62796500]},
     say= {
       type= {'function', {}, 'i32'},
-      body= λg. λp. g [] (λr. {let u = g.c.puts {s= g.bye.msg} in u}),
+      body= λg. λp. 'R' (λr. {let u = g.c.puts {s= g.bye.msg} in u}),
     },
   },
   main= {
     type= {'function', {}, 'i32'},
     link= 'main',
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       let a = g.hello.say {} in
       let b = g.bye.say {} in [00000000],
     }),

@@ -2,21 +2,21 @@ language oymomo
 {
   floyd= {
     type= {'function', {d= 'ptr', n= 'i32'}, 'i32'},
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry= r.k [00000000],
       k= λk.
         let kc = 'icmp' {'slt', 'i32', k, p.n} in
         let kn = 'mul' {'i32', k, p.n} in
-        g [] (λrk. {
+        'R' (λrk. {
           if kc then rk.i [00000000] else r.done,
           i= λi.
             let ic = 'icmp' {'slt', 'i32', i, p.n} in
             let ni = 'mul' {'i32', i, p.n} in
-            g [] (λri. {
+            'R' (λri. {
               if ic then ri.j [00000000] else rk.knext,
               j= λj.
                 let jc = 'icmp' {'slt', 'i32', j, p.n} in
-                g [] (λrj. {
+                'R' (λrj. {
                   if jc then rj.relax else ri.inext,
                   relax=
                     let ik = 'add' {'i32', ni, k} in
@@ -30,7 +30,7 @@ language oymomo
                     let dij = 'load' {'i32', pij} in
                     let s = 'add' {'i32', dik, dkj} in
                     let lt = 'icmp' {'slt', 'i32', s, dij} in
-                    g [] (λrs. {
+                    'R' (λrs. {
                       if lt then rs.store else rj.jnext,
                       store= let u = 'store' {'i32', s, pij} in rj.jnext,
                     }),
@@ -46,7 +46,7 @@ language oymomo
   main= {
     type= {'function', {}, 'i32'},
     link= 'main',
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry=
         let a = 'alloca' {{'array', [09], 'i32'}} in
         let q0 = 'getelementptr' {'i32', a, [00000000]} in

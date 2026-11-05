@@ -12,7 +12,7 @@ is a hole, which is rejected. Anything else left in a namespace is rejected too.
 Each symbol is named by its path, its labels from the top (`('math', 'gcd')`). A
 definition's body is `λg. λp. R` in ANF. `read_ingot` checks the grammar
 (`anf.region_error`), then every variable's kind: `g.l₁ ⋯ lₙ` is a path through the
-namespaces to a symbol and `g []` only heads a region; `p.l` names a parameter; `r.l` names a block of the region `r` and
+namespaces to a symbol; a region is `'R' (λr. {…})`; `p.l` names a parameter; `r.l` names a block of the region `r` and
 only heads a jump, with one operand per parameter; a value has no fields.
 
 It gives the body as regions and blocks, every variable resolved (`Use` of a `Var`, `Arg`,
@@ -128,7 +128,7 @@ class Block:
 
 @dataclass(eq=False)
 class Region:
-    """`g [] (λr. {lᵢ = Kᵢ})`; `blocks[0]` is field 0."""
+    """`'R' (λr. {lᵢ = Kᵢ})`; `blocks[0]` is field 0."""
 
     binder: str
     blocks: list[Block]
@@ -390,10 +390,10 @@ class _Body:
     def read(self, body):
         name = self.definition.name
         if not isinstance(body, terms.Lambda) or not isinstance(body.body, terms.Lambda):
-            raise IngotError(f'The body of {name!r} must be λg. λp. g [] (λr. {{blocks}}).', _tag(body))
+            raise IngotError(f"The body of {name!r} must be λg. λp. 'R' (λr. {{blocks}}).", _tag(body))
         region = body.body.body
         if anf.region_parts(region) is None:
-            raise IngotError(f'The body of {name!r} must be λg. λp. g [] (λr. {{blocks}}).', _tag(region))
+            raise IngotError(f"The body of {name!r} must be λg. λp. 'R' (λr. {{blocks}}).", _tag(region))
         if (error := anf.region_error(region)) is not None:
             raise IngotError(f'{name!r} is not in ANF: {error.message}', error.tag)
         self.fresh(body.param_name)
@@ -408,9 +408,7 @@ class _Body:
     # Regions and blocks
 
     def region(self, term):
-        head, blocks_lambda = anf.region_parts(term)
-        if self.binder(head)[0].kind != 'module':
-            raise IngotError('Only the unit runs a region: g [] (λr. {...}).', _tag(head))
+        blocks_lambda = anf.region_parts(term)
         binder = self.fresh(blocks_lambda.param_name)
         region = Region(binder, [], _tag(term))
         for i, f in enumerate(blocks_lambda.body.fields):

@@ -3,11 +3,11 @@ language oymomo
   parser= {
     kind= {
       type= {'function', {c= 'i32'}, 'i32'},
-      body= λg. λp. g [] (λr. {let k = 'and' {'i32', p.c, [01000000]} in k}),
+      body= λg. λp. 'R' (λr. {let k = 'and' {'i32', p.c, [01000000]} in k}),
     },
     parse= {
       type= {'function', {c= 'i32'}, 'i32'},
-      body= λg. λp. g [] (λr. {
+      body= λg. λp. 'R' (λr. {
         let t = g.lexer.token {c= p.c} in
         let e = g.lexer.error {c= t} in e,
       }),

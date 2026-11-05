@@ -2,7 +2,7 @@ language oymomo
 {
   bump= {
     type= {'function', {n= 'i32'}, 'i32'},
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry=
         let a = 'alloca' {'i32'} in
         let s = 'store' {'i32', p.n, a} in
@@ -12,11 +12,11 @@ language oymomo
   },
   sum= {
     type= {'function', {n= 'i32'}, 'i32'},
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry=
         let acc = 'alloca' {'i32'} in
         let z = 'store' {'i32', [00000000], acc} in
-        g [] (λq. {
+        'R' (λq. {
           q.loop p.n,
           loop= λi.
             let old = 'load' {'i32', acc} in

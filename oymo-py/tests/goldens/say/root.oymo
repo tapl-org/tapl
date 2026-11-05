@@ -7,7 +7,7 @@ language oymomo
       main= {
         type= {'function', {}, 'i32'},
         link= 'main',
-        body= λg. λp. g [] (λr. {
+        body= λg. λp. 'R' (λr. {
           let a = g.hello.say {} in
           let b = g.bye.say {} in [00000000],
         }),

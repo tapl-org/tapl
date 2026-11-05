@@ -3280,6 +3280,28 @@ executable binary). we should mark some place as a platform". The steps that fol
   correctness = substitution `g := g.P`.
 - Calculus accepted (user: "calculus draft is reviewed and accepted"): marks, red/blue
   displays, `formatcom` colors and the legend removed; one overfull line reworded.
+- Committed `5a5c2d1`. Lean: `Region` is `app (bytes regionMarker) (lam …)` with
+  `regionMarker = [0x52]` and a premise that E-Opcode doesn't compute it (as `Op.opcode`);
+  `runner_normal` removed; `Region.normal` proved again.
+- Code: `anf.REGION = b'R'`, `region_parts` returns the blocks λ; ingot messages ("The body
+  of 'x' must be λg. λp. 'R' (λr. {blocks})."); the "Only the unit runs a region" check is
+  gone (its test case now gets "An operand of a jump must be a path or data"); rebase's
+  `g []` case removed; `'unit.make_reducible'` added (`unit_ops.make_reducible`, in the
+  opcode table). Tests and goldens: `g [] (` → `'R' (` by a tokenize script (single-quoted
+  Python strings turned double-quoted); `template/root.normal.oymo` now fits on one line;
+  spans goldens rebuilt by converting the HEAD term and writing it again (tags kept, `skip`
+  12 → 10, code identical); the strategy test runs gcd through
+  `fix ('unit.make_reducible' ingot)`; new tests: fact run by reduction, hoisting shape,
+  merge then make reducible, no-step cases, rebase leaves regions alone. `.ll` goldens
+  unchanged.
+- Found: `'unit.merge'` gave no step for a declaration `{type, link}` plus its definition,
+  so "merge in other units first" couldn't work. Agent asked twice without a visible
+  explanation (user: "i did not understand the question"); user picked A: merge now joins
+  a declaration with the entry of the same type and `link` that brings `body`/`init`/
+  `value`. Tests added.
+- Roadmap: `region-marker` removed; `kernel-followups` had one child left, so
+  `data-addresses` moved up under `pre-bootstrap` and the node was removed. Design doc:
+  make reducible, the region form, the merge rule.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

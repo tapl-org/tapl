@@ -408,6 +408,7 @@ def _generate():
     # The unit tools, always available.
     yield Opcode('unit.merge', _no_type, _never, apply=unit_ops.merge)
     yield Opcode('unit.rebase', _no_type, _never, apply=unit_ops.rebase)
+    yield Opcode('unit.make_reducible', _no_type, _never, apply=unit_ops.make_reducible)
     # The driver's opcodes: they give a result only inside a build (`DRIVER`).
     for name in DRIVER_OPCODES:
         yield Opcode(name, _no_type, _never, apply=_driver_opcode(name))

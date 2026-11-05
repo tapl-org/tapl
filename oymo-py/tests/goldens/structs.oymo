@@ -3,7 +3,7 @@ let pair = {'i8', 'i32'} in
 {
   second= {
     type= {'function', {a= 'i32', b= 'i8'}, 'i32'},
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry=
         let s1 = 'insertvalue' {pair, {[00], [00000000]}, p.b, [00]} in
         let s2 = 'insertvalue' {pair, s1, p.a, [01]} in
@@ -13,7 +13,7 @@ let pair = {'i8', 'i32'} in
   main= {
     type= {'function', {}, 'i32'},
     link= 'main',
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry= let y = g.second {a= [07000000], b= [01]} in y,
     }),
   },

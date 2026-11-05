@@ -2,7 +2,7 @@ language oymomo
 {
   second= {
     type= {'function', {a= 'i32', b= 'i8'}, 'i32'},
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry=
         let s1 = 'insertvalue' {{'i8', 'i32'}, {[00], [00000000]}, p.b, [00]} in
         let s2 = 'insertvalue' {{'i8', 'i32'}, s1, p.a, [01]} in
@@ -12,7 +12,7 @@ language oymomo
   main= {
     type= {'function', {}, 'i32'},
     link= 'main',
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry= let y = g.second {a= [07000000], b= [01]} in y,
     }),
   },

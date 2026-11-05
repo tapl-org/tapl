@@ -10,18 +10,18 @@ from oymo.oymomo.grammar import parse
 GCD = """
 {
   gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
-    body = λg. λp. g [] (λr. {
+    body = λg. λp. 'R' (λr. {
       entry = r.loop p.a p.b,
       loop = λa. λb.
         let z = 'icmp' {'eq', 'i32', b, [00000000]} in
-        g [] (λq. {
+        'R' (λq. {
           if z then r.done a else q.step,
           step = let c = 'urem' {'i32', a, b} in r.loop b c
         }),
       done = λc. c
     })},
   main = {type = {'function', {}, 'i32'}, link = 'main',
-    body = λg. λp. g [] (λr. {entry = let y = g.gcd {a = [30000000], b = [12000000]} in y})}
+    body = λg. λp. 'R' (λr. {entry = let y = g.gcd {a = [30000000], b = [12000000]} in y})}
 }
 """
 
@@ -74,7 +74,7 @@ def test_entries():
       errno = {type = 'i32', link = 'errno'},
       answer = {type = 'i32', value = [2a000000]},
       counter = {type = 'i32', init = [29000000], link = 'counter'},
-      main = {type = {'function', {}, 'i32'}, link = 'main', body = λg. λp. g [] (λr. {
+      main = {type = {'function', {}, 'i32'}, link = 'main', body = λg. λp. 'R' (λr. {
         let u = 'store' {'i32', [05000000], g.counter} in
         let y = g.puts {s = g.answer} in
         y
@@ -108,11 +108,11 @@ def test_namespaces():
     source = """
     {
       math = {
-        gcd = {type = {'function', {a = 'i32'}, 'i32'}, body = λg. λp. g [] (λr. {p.a})},
+        gcd = {type = {'function', {a = 'i32'}, 'i32'}, body = λg. λp. 'R' (λr. {p.a})},
         zero = {type = 'i32', value = [00000000]},
         deep = {},
       },
-      main = {type = {'function', {}, 'i32'}, link = 'main', body = λg. λp. g [] (λr. {
+      main = {type = {'function', {}, 'i32'}, link = 'main', body = λg. λp. 'R' (λr. {
         let x = 'load' {'i32', g.math.zero} in
         let y = g.math.gcd {a = x} in y
       })},
@@ -130,7 +130,7 @@ def test_reduction_first():
     """A program may wrap the ingot and use helpers; reduction removes them."""
     source = """
     (λd. {
-      main = {type = {'function', {n = 'i32'}, 'i32'}, body = λg. λp. g [] (λr. {
+      main = {type = {'function', {n = 'i32'}, 'i32'}, body = λg. λp. 'R' (λr. {
         entry = let x = 'add' {'i32', p.n, [01000000]} in let y = d.double x in y
       })}
     }) {double = λn. 'add' {'i32', n, n}}
@@ -151,7 +151,7 @@ def wrap(body, extra=''):
       {extra}
       helper = {{type = {{'function', {{x = 'i32'}}, 'i32'}}, link = 'helper'}},
       k = {{type = 'i32', value = [00000000]}},
-      main = {{type = {{'function', {{a = 'i32'}}, 'i32'}}, body = λg. λp. g [] (λr. {{
+      main = {{type = {{'function', {{a = 'i32'}}, 'i32'}}, body = λg. λp. 'R' (λr. {{
         entry = {body},
         next = λb. b,
       }})}},
@@ -207,7 +207,7 @@ M_PATH = 'g names the symbols: an operand through g is g.l₁ ⋯ lₙ, a path t
         (entry('{type = λy. y}'), 'A type must be data: byte arrays and structs of them.'),
         (entry("{type = 'i8', init = λy. y}"), 'A init must be data: byte arrays and structs of them.'),
         (
-            entry("{type = 'i32', body = λg. λp. g [] (λr. {[00000000]})}"),
+            entry("{type = 'i32', body = λg. λp. 'R' (λr. {[00000000]})}"),
             "Entry 'x' has a body, so its type must be {'function', {x = t, ...}, t}.",
         ),
         (
@@ -216,11 +216,11 @@ M_PATH = 'g names the symbols: an operand through g is g.l₁ ⋯ lₙ, a path t
         ),
         (
             entry("{type = {'function', {}, 'i32'}, body = λg. [00000000]}"),
-            "The body of 'x' must be λg. λp. g [] (λr. {blocks}).",
+            "The body of 'x' must be λg. λp. 'R' (λr. {blocks}).",
         ),
         (
             entry("{type = {'function', {}, 'i32'}, body = λg. λp. [00000000]}"),
-            "The body of 'x' must be λg. λp. g [] (λr. {blocks}).",
+            "The body of 'x' must be λg. λp. 'R' (λr. {blocks}).",
         ),
         # The grammar.
         (
@@ -240,8 +240,8 @@ M_PATH = 'g names the symbols: an operand through g is g.l₁ ⋯ lₙ, a path t
             'An arm of a branch only jumps: r.l Q₁ ⋯ Qₙ, r a region.',
         ),
         (wrap('g.helper {x = p.a}'), f"'main' is not in ANF: {TAIL_CALL}"),
-        (wrap('g [] (λq. {λy. y})'), "'main' is not in ANF: Field 0 of a region is an expression, never a λ."),
-        (wrap('g [] (λq. {})'), "'main' is not in ANF: A region holds a struct of blocks, at least one."),
+        (wrap("'R' (λq. {λy. y})"), "'main' is not in ANF: Field 0 of a region is an expression, never a λ."),
+        (wrap("'R' (λq. {})"), "'main' is not in ANF: A region holds a struct of blocks, at least one."),
         # Kinds.
         (wrap('p.z'), "'main' has no parameter 'z'; it has ['a']."),
         (wrap('p'), "p is never used whole: read an argument as p.l, l one of ['a']."),
@@ -264,10 +264,10 @@ M_PATH = 'g names the symbols: an operand through g is g.l₁ ⋯ lₙ, a path t
         (wrap('let x = g.helper {} in x'), "The call to 'helper' must give ['x'], in order; it gives []."),
         (wrap('{r.next p.a, r.next p.a} g.k'), 'A branch condition is a value or an argument p.l.'),
         (wrap('p.a [00000000]'), 'Only a block r.l is applied at the end of a block.'),
-        (wrap('g [] (λq. {[00000000], [00000000]})'), 'A block after field 0 needs a label, so a jump can name it.'),
+        (wrap("'R' (λq. {[00000000], [00000000]})"), 'A block after field 0 needs a label, so a jump can name it.'),
         (
             wrap("let x = 'add' {'i32', p.a, p.a} in x [] (λq. {[00000000]})"),
-            'Only the unit runs a region: g [] (λr. {...}).',
+            "'main' is not in ANF: An operand of a jump must be a path or data: bind it with a let.",
         ),
         (wrap('{} p.a'), 'The program is stuck here: no rule can ever reduce this part.'),
     ],

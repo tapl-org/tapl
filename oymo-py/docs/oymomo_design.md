@@ -273,14 +273,23 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
   picked by the root.
 - Tools, at the user's choice:
   - merge, `'unit.merge' {X₁, X₂, …}`, deep: same-labeled namespaces combine (merge recurses into
-    structs without `type`), equal λ-free entries merge, a λ entry defined twice gets no
-    step and is rejected with both places;
+    structs without `type`), equal λ-free entries merge, a declaration `{type, link}` meets
+    the definition of the same type and `link` (what the linker would join), a λ entry
+    defined twice gets no step and is rejected with both places;
   - rebase, `'unit.rebase' {prefix, X}`: prefixes every `g.…` path in X's bodies and
     places X under the prefix (`g.lib.step` becomes `g.dbl.lib.step`), so two libraries with
     the same labels fit in one unit. It fires only when every body in X is closed, in
-    normal form, and uses `g` only as the head of paths or regions. Mounting a header is a
+    normal form, and uses `g` only as the head of paths. Mounting a header is a
     rebase of a λ-free struct. (`'struct.check_data'`, a guard for mounting, was dropped:
     rebasing a source file is correct, so mounting one is no longer a mistake.)
+  - make reducible, `'unit.make_reducible' I`: gives `t = λg. N`, each definition's own `λg`
+    moved out to one shared `λg` and each region `'R' (λr. u)` turned into
+    `(fix (λr. u)) [00]`; other entries stay. `fix t` runs the unit by reduction; other
+    units are merged in first: `fix ('unit.make_reducible' ('unit.merge' {I, U}))`. It
+    returns `t`, not `fix t`, to leave room for mocks and wrappers.
+- A region is `'R' (λr. {…})`: `'R'` is a marker opcode that no table computes, so a region
+  never steps; `g` only heads paths. Effects stay ordered by their `let`s (an effect call
+  never steps, so call-by-value never moves it); reduction never computes through memory.
 - Delegates wire dependencies: a library declares a hole (`error = {type …}`), and the root
   fills it with `{type …, body = λg. λp. g.parser.report_error p}` (LLVM inlines it) or with
   `{type …, link = 'report_error'}`.

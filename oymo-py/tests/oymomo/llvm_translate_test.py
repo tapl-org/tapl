@@ -15,18 +15,18 @@ TARGET = llvm_translate.Target(llvm_opcodes.DEFAULT_OPCODES)
 GCD = """
 {
   gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
-    body = λg. λp. g [] (λr. {
+    body = λg. λp. 'R' (λr. {
       entry = r.loop p.a p.b,
       loop = λa. λb.
         let z = 'icmp' {'eq', 'i32', b, [00000000]} in
-        g [] (λq. {
+        'R' (λq. {
           if z then r.done a else q.step,
           step = let c = 'urem' {'i32', a, b} in r.loop b c
         }),
       done = λc. c
     })},
   main = {type = {'function', {}, 'i32'}, link = 'main',
-    body = λg. λp. g [] (λr. {entry = let y = g.gcd {a = [30000000], b = [12000000]} in y})}
+    body = λg. λp. 'R' (λr. {entry = let y = g.gcd {a = [30000000], b = [12000000]} in y})}
 }
 """
 
@@ -56,7 +56,7 @@ def single(blocks, params='{}', result="'i32'", extra=''):
     """An ingot with one function `main`, whose region holds `blocks`."""
     return f"""{{
       {extra}
-      main = {{type = {{'function', {params}, {result}}}, link = 'main', body = λg. λp. g [] (λr. {{{blocks}}})}},
+      main = {{type = {{'function', {params}, {result}}}, link = 'main', body = λg. λp. 'R' (λr. {{{blocks}}})}},
     }}"""
 
 
@@ -98,10 +98,10 @@ def test_example():
       puts = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'},
       msg = {type = {'array', [03], 'i8'}, value = [686900]},
       main = {type = {'function', {argc = 'i32'}, 'i32'}, link = 'main',
-        body = λg. λp. g [] (λr. {
+        body = λg. λp. 'R' (λr. {
           entry =
             let c = 'icmp' {'sgt', 'i32', p.argc, [01000000]} in
-            g [] (λq. {
+            'R' (λq. {
               if c then q.say else r.done,
               say = let u = g.puts {s = g.msg} in r.done
             }),
@@ -139,7 +139,7 @@ def test_jump_to_a_nested_field_0_splits_the_block():
     """Field 0 starts a block of its own; the block it continued ends with `br`."""
     blocks = """entry =
       let a = 'alloca' {'i32'} in
-      g [] (λq. {
+      'R' (λq. {
         again = let v = 'load' {'i32', a} in let c = 'icmp' {'eq', 'i32', v, [00000000]} in
           if c then q.again else r.done,
       }),
@@ -217,7 +217,7 @@ def test_symbols():
       text = {type = {'array', [03], 'i8'}, value = 'ab' },
       none = {type = 'ptr', init = ''},
       zeros = {type = {'i32', 'ptr'}, init = {}},
-      main = {type = {'function', {}, 'i32'}, link = 'main', body = λg. λp. g [] (λr. {
+      main = {type = {'function', {}, 'i32'}, link = 'main', body = λg. λp. 'R' (λr. {
         let u = 'store' {'i32', [05000000], g.counter} in
         let x = 'load' {'i32', g.answer} in
         let e = 'load' {'i32', g.errno} in
@@ -264,11 +264,11 @@ def test_namespaces_and_linkage():
     source = """
     {
       math = {
-        gcd = {type = {'function', {a = 'i32'}, 'i32'}, body = λg. λp. g [] (λr. {p.a})},
+        gcd = {type = {'function', {a = 'i32'}, 'i32'}, body = λg. λp. 'R' (λr. {p.a})},
         one = {type = 'i32', value = [01000000]},
         exported = {type = 'i32', init = [02000000], link = 'math_exported'},
       },
-      main = {type = {'function', {}, 'i32'}, link = 'main', body = λg. λp. g [] (λr. {
+      main = {type = {'function', {}, 'i32'}, link = 'main', body = λg. λp. 'R' (λr. {
         let x = 'load' {'i32', g.math.one} in
         let y = g.math.gcd {a = x} in
         let z = 'load' {'i32', g.math.exported} in y
@@ -306,7 +306,7 @@ def test_one_link_is_one_symbol():
         extra="""
         twice = {type = {'function', {n = 'i32'}, 'i32'}, link = 'twice'},
         impl = {type = {'function', {k = 'i32'}, 'i32'}, link = 'twice',
-          body = λg. λp. g [] (λr. {let y = 'add' {'i32', p.k, p.k} in y})},
+          body = λg. λp. 'R' (λr. {let y = 'add' {'i32', p.k, p.k} in y})},
         """,
     )
     text = llvm(definition)
@@ -326,7 +326,7 @@ def test_one_link_errors():
         )
         == "The entries linked as 'puts' have different types: i32 (ptr) for 'a', i32 for 'b'."
     )
-    body = 'body = λg. λp. g [] (λr. {[00000000]})'
+    body = "body = λg. λp. 'R' (λr. {[00000000]})"
     assert (
         error(
             single(
@@ -482,9 +482,9 @@ def test_a_name_of_bytes_that_are_not_text():
     r"""A label that isn't UTF-8 text names its symbol with LLVM's `\HH` escapes."""
     text = llvm(
         r"""{
-      "f\FF" = {type = {'function', {}, 'i32'}, body = λg. λp. g [] (λr. {[07000000]})},
+      "f\FF" = {type = {'function', {}, 'i32'}, body = λg. λp. 'R' (λr. {[07000000]})},
       main = {type = {'function', {}, 'i32'}, link = 'main',
-        body = λg. λp. g [] (λr. {let y = g."f\FF" {} in y})},
+        body = λg. λp. 'R' (λr. {let y = g."f\FF" {} in y})},
     }"""
     )
     assert r'define internal i32 @"f\FF"()' in text

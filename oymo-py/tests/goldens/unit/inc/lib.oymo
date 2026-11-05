@@ -3,11 +3,11 @@ language oymomo
   lib= {
     step= {
       type= {'function', {n= 'i32'}, 'i32'},
-      body= λg. λp. g [] (λr. {let y = 'add' {'i32', p.n, [01000000]} in y}),
+      body= λg. λp. 'R' (λr. {let y = 'add' {'i32', p.n, [01000000]} in y}),
     },
     apply= {
       type= {'function', {n= 'i32'}, 'i32'},
-      body= λg. λp. g [] (λr. {let y = g.lib.step {n= p.n} in y}),
+      body= λg. λp. 'R' (λr. {let y = g.lib.step {n= p.n} in y}),
     },
   },
 }

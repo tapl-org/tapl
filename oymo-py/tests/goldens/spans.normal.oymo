@@ -3,7 +3,7 @@ language oymomo
   main= {
     type= {'function', {n= 'i32'}, 'i32'},
     link= 'main',
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry=
         let x = 'mul' {'i32', p.n, [02000000]} in
         let y = 'add' {'i32', x, [01000000]} in y,
@@ -11,7 +11,7 @@ language oymomo
   },
 }
 ---
-code_md5: "3de8f03be0a93428c381938647ef0be8"
+code_md5: "e6d1bf02b3809032ac855041aa7239e5"
 files {
   path: "alcor/helpers.oymo"
   language: "alcor"
@@ -22,7 +22,7 @@ tags {}
 tags { file: 0 start: 57 length: 73 }
 tags { skip: 14 }
 tags { file: 0 start: 80 length: 50 }
-tags { skip: 12 }
+tags { skip: 10 }
 tags { file: 0 start: 119 length: 9 }
 tags { file: 0 start: 47 length: 5 }
 tags { skip: 5 }

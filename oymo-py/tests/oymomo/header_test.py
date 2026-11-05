@@ -6,7 +6,7 @@ from oymo.oymomo import header, ingot, meta, reduction, source, strategy, terms
 from oymo.oymomo.grammar import parse
 
 FUNCTION = "{'function', {a = 'i32', b = 'i32'}, 'i32'}"
-BODY = "λg. λp. g [] (λr. {let y = 'add' {'i32', p.a, p.b} in y})"
+BODY = "λg. λp. 'R' (λr. {let y = 'add' {'i32', p.a, p.b} in y})"
 ALCOR_FILE = meta.File.of('alcor/math.oymo', 'alcor', b'language alcor\nfn gcd(a: i32, b: i32) -> i32 {}\n')
 
 

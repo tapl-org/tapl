@@ -2,11 +2,11 @@ language oymomo
 {
   gcd= {
     type= {'function', {a= 'i32', b= 'i32'}, 'i32'},
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry= r.loop p.a p.b,
       loop= λa. λb.
         let z = 'icmp' {'eq', 'i32', b, [00000000]} in
-        g [] (λq. {
+        'R' (λq. {
           if z then r.done a else q.step,
           step= let c = 'urem' {'i32', a, b} in r.loop b c,
         }),
@@ -16,7 +16,7 @@ language oymomo
   main= {
     type= {'function', {}, 'i32'},
     link= 'main',
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry= let y = g.gcd {a= [30000000], b= [12000000]} in y,
     }),
   },

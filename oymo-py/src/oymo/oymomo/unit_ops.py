@@ -5,8 +5,10 @@
 - `'unit.merge' {X₁, X₂, …}` merges the structs `Xᵢ` deeply, in order.
 - `'unit.rebase' {P, X}` puts `X` under the prefix `P` and rewrites the paths in its
   entries' bodies to match.
+- `'unit.make_reducible' I` turns an ingot into `t = λg. {…}`, whose fixed point `fix t`
+  runs the unit by reduction.
 
-Both read their whole operand (`Opcode.apply`): a closed normal value. Where the result is
+All read their whole operand (`Opcode.apply`): a closed normal value. Where the result is
 not defined they give none, and the call stays; the ingot rejects it later as a
 reduce-time value left in the ingot.
 
@@ -27,8 +29,9 @@ def merge(operand: terms.Term) -> terms.Term | None:
 
     A label in one of them is kept as it is. A label in two is merged: two namespaces
     (structs without `type`) recursively; a hole `{type}` and an entry of the same type that
-    brings a `body`, `init`, `value` or `link` give that entry; two equal λ-free values give
-    one. Anything else gives no result: a symbol defined twice is an error even if both
+    brings a `body`, `init`, `value` or `link` give that entry; a declaration `{type, link}`
+    and a definition, global variable or constant of the same type and `link` give the
+    latter (what the system linker would join); two equal λ-free values give one. Anything else gives no result: a symbol defined twice is an error even if both
     bodies are equal. Unlabeled fields are appended, never merged. Labels keep the order of
     their first appearance. The operand's labels are ignored.
     """
@@ -73,6 +76,10 @@ def _merge_values(a: terms.Term, b: terms.Term) -> terms.Term | None:
                 return b
             if _is_hole(b) and _fills(a):
                 return a
+            if _is_declaration(a) and _defines(b, a):
+                return b
+            if _is_declaration(b) and _defines(a, b):
+                return a
     if a == b and _is_lambda_free(a):
         return a
     return None
@@ -97,6 +104,20 @@ def _fills(entry: terms.Struct) -> bool:
     return any(label in _FILLERS for label in _labels(entry))
 
 
+def _is_declaration(entry: terms.Struct) -> bool:
+    """An entry with only a `type` and a `link`: a symbol another unit defines."""
+    return sorted(_labels(entry)) == ['link', 'type']
+
+
+def _defines(entry: terms.Struct, declaration: terms.Struct) -> bool:
+    """Whether `entry` defines what `declaration` declares: it brings a `body`, `init` or
+    `value`, and has the same `link`."""
+    link = next(f.value for f in declaration.fields if f.label == 'link')
+    return any(label in ('body', 'init', 'value') for label in _labels(entry)) and any(
+        f.label == 'link' and f.value == link for f in entry.fields
+    )
+
+
 def _is_lambda_free(term: terms.Term) -> bool:
     return not any(isinstance(node, terms.Lambda | terms.Fix) for node in terms.nodes(term))
 
@@ -106,9 +127,8 @@ def rebase(operand: terms.Term) -> terms.Term | None:
 
     `P` is a struct of labels, each a nonempty text byte array (`{'dbl'}`); the operand's
     labels are ignored. `X'` is the struct `X` with every path from `g` in every entry's body
-    `λg. …` prefixed: `g.lib.step` becomes `g.dbl.lib.step`. The region runner `g []` is left
-    as it is; any other use of `g`, a body that is not a lambda, or a lambda outside an
-    entry's body gives no result. λ-free data is copied as it is, so mounting a header is a
+    `λg. …` prefixed: `g.lib.step` becomes `g.dbl.lib.step`. Any other use of `g`, a body
+    that is not a lambda, or a lambda outside an entry's body gives no result. λ-free data is copied as it is, so mounting a header is a
     rebase too.
     """
     if not isinstance(operand, terms.Struct) or len(operand.fields) != 2:  # noqa: PLR2004
@@ -181,11 +201,6 @@ def _rebase_term(term: terms.Term, depth: int, path: _Path) -> terms.Term | None
                 return rebuilt
             struct = _rebase_term(term.struct, depth, path)
             return None if struct is None else replace(term, struct=struct)
-        case terms.Apply(function=terms.BruijnIndex(index=index), argument=terms.ByteArray(value=b'')) if (
-            index == depth
-        ):
-            # `g []`, the region runner.
-            return term
         case terms.BruijnIndex(index=index):
             return None if index == depth else term
         case terms.Lambda(body=body):
@@ -208,4 +223,69 @@ def _rebase_term(term: terms.Term, depth: int, path: _Path) -> terms.Term | None
         case terms.Fix(body=body):
             rebased = _rebase_term(body, depth, path)
             return None if rebased is None else replace(term, body=rebased)
+    return term
+
+
+# The region marker (`anf.REGION`, kept here so `opcodes` can import this module).
+_REGION = b'R'
+
+
+def make_reducible(operand: terms.Term) -> terms.Term | None:
+    """`'unit.make_reducible' I`: the ingot `I` as `t = λg. N`, or None.
+
+    `N` has `I`'s namespaces. A definition, an entry whose `body` is `λg. λp. R`, becomes
+    `λp. R'`: its own `λg` moves out to `t`'s (structs bind nothing, so `g` keeps its index),
+    and `R'` is `R` with every region `'R' (λr. u)` turned into `(fix (λr. u)) [00]`. Every
+    other entry (a global variable, a constant, a declaration, a hole) stays as it is. So
+    `fix t` is the unit's instance: projecting a definition unfolds it, and a call runs the
+    body. A struct with a λ outside an entry's body, or a body not shaped `λg. λp. …`, gives
+    no result.
+    """
+    if not isinstance(operand, terms.Struct):
+        return None
+    namespace = _reducible_namespace(operand)
+    if namespace is None:
+        return None
+    return terms.Lambda('g', namespace, operand.tag)
+
+
+def _reducible_namespace(struct: terms.Struct) -> terms.Struct | None:
+    fields = []
+    for f in struct.fields:
+        value = f.value
+        if isinstance(value, terms.Struct) and 'type' in _labels(value):
+            body = next((e.value for e in value.fields if e.label == 'body'), None)
+            if body is None:
+                if not _is_lambda_free(value):
+                    return None
+            elif isinstance(body, terms.Lambda) and isinstance(body.body, terms.Lambda):
+                value = _run_regions(body.body)
+            else:
+                return None
+        elif isinstance(value, terms.Struct):
+            value = _reducible_namespace(value)
+            if value is None:
+                return None
+        elif not _is_lambda_free(value):
+            return None
+        fields.append(f if value is f.value else replace(f, value=value))
+    return replace(struct, fields=fields)
+
+
+def _run_regions(term: terms.Term) -> terms.Term:
+    """`term` with every region `'R' (λr. u)` turned into `(fix (λr. u)) [00]`."""
+    match term:
+        case terms.Apply(function=terms.ByteArray(value=value), argument=terms.Lambda() as blocks) if value == _REGION:
+            fixed = terms.Fix(_run_regions(blocks), term.tag)
+            return terms.Apply(fixed, terms.ByteArray(b'\x00', term.function.tag), term.tag)
+        case terms.Lambda(body=body):
+            return replace(term, body=_run_regions(body))
+        case terms.Apply(function=function, argument=argument):
+            return replace(term, function=_run_regions(function), argument=_run_regions(argument))
+        case terms.Struct(fields=fields):
+            return replace(term, fields=[replace(f, value=_run_regions(f.value)) for f in fields])
+        case terms.Project(struct=struct):
+            return replace(term, struct=_run_regions(struct))
+        case terms.Fix(body=body):
+            return replace(term, body=_run_regions(body))
     return term

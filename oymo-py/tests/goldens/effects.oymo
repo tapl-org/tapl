@@ -3,7 +3,7 @@ language oymomo
   putchar= {type= {'function', {c= 'i32'}, 'i32'}, link= 'putchar'},
   hi= {
     type= {'function', {}, 'i32'},
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry=
         let x = g.putchar {c= [68000000]} in
         let y = g.putchar {c= [69000000]} in y,
@@ -11,7 +11,7 @@ language oymomo
   },
   count= {
     type= {'function', {}, 'i32'},
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry= r.loop [00000000],
       loop= λi.
         let x = g.putchar {c= [2a000000]} in

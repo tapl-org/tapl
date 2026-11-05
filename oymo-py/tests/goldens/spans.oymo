@@ -4,7 +4,7 @@ let d = {inc= λx. 'add' {'i32', x, [01000000]}} in
   main= {
     type= {'function', {n= 'i32'}, 'i32'},
     link= 'main',
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry=
         let x = 'mul' {'i32', p.n, [02000000]} in
         let y = d.inc x in y,
@@ -12,7 +12,7 @@ let d = {inc= λx. 'add' {'i32', x, [01000000]}} in
   },
 }
 ---
-code_md5: "60a5dfb674b68a375fabf7230a138d98"
+code_md5: "2069146dc5766190d276751a16270bed"
 files {
   path: "alcor/helpers.oymo"
   language: "alcor"
@@ -23,7 +23,7 @@ tags { skip: 3 }
 tags { file: 0 start: 57 length: 73 }
 tags { skip: 14 }
 tags { file: 0 start: 80 length: 50 }
-tags { skip: 12 }
+tags { skip: 10 }
 tags { file: 0 start: 119 length: 9 }
 tags { file: 0 start: 109 length: 6 }
 tags { skip: 3 }

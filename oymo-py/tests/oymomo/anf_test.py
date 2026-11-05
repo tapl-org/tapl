@@ -51,9 +51,9 @@ TAIL_CALL = 'A call that ends a function is bound and returned: let y = g.f {…
         "let z = 'icmp' {'eq', 'i32', p.b, [00000000]} in {f.step p.a p.b, f.done p.a} z",
         '{f.a, f.b, f.c} p.tag',
         # Regions: field 0 an expression, the others blocks.
-        'g [] (λq. {q.x, x = p.a})',
-        'g [] (λq. {if p.c then q.x [01] else f.y, x = λa. λb. a, y = g [] (λs. {s.z, z = [00]})})',
-        'g [] (λq. {l = let x = g.g {} in q.l})',
+        "'R' (λq. {q.x, x = p.a})",
+        "'R' (λq. {if p.c then q.x [01] else f.y, x = λa. λb. a, y = 'R' (λs. {s.z, z = [00]})})",
+        "'R' (λq. {l = let x = g.g {} in q.l})",
     ],
 )
 def test_in_anf(source):
@@ -124,11 +124,11 @@ def test_in_anf(source):
             "'add' {'i8', [01], [02]}",
         ),
         # Regions.
-        ('g [] (λq. {λy. y})', 'Field 0 of a region is an expression, never a λ.', 'λy. $0'),
-        ('g [] (λq. {})', 'A region holds a struct of blocks, at least one.', '{}'),
-        ('g [] (λq. q)', 'A region holds a struct of blocks, at least one.', '$0'),
+        ("'R' (λq. {λy. y})", 'Field 0 of a region is an expression, never a λ.', 'λy. $0'),
+        ("'R' (λq. {})", 'A region holds a struct of blocks, at least one.', '{}'),
+        ("'R' (λq. q)", 'A region holds a struct of blocks, at least one.', '$0'),
         (
-            'g [] (λq. {q.x, x = λa. let y = a.l in y})',
+            "'R' (λq. {q.x, x = λa. let y = a.l in y})",
             'A let must bind an opcode call or a function call; '
             'a projection is not a value, so E-Beta never substitutes it.',
             '$0.l',

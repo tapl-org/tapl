@@ -3,7 +3,7 @@ language oymomo
   lexer= {
     token= {
       type= {'function', {c= 'i32'}, 'i32'},
-      body= λg. λp. g [] (λr. {
+      body= λg. λp. 'R' (λr. {
         let k = g.parser.kind {c= p.c} in
         let t = 'add' {'i32', k, [0a000000]} in t,
       }),

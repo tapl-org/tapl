@@ -2,7 +2,7 @@ language oymomo
 {
   sum= {
     type= {'function', {}, 'i32'},
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       entry=
         let a = 'alloca' {{'array', [03], 'i32'}} in
         let p0 = 'getelementptr'
@@ -14,7 +14,7 @@ language oymomo
         let s0 = 'store' {'i32', [0a000000], p0} in
         let s1 = 'store' {'i32', [14000000], p1} in
         let s2 = 'store' {'i32', [0c000000], p2} in
-        g [] (λq. {
+        'R' (λq. {
           q.loop [00000000 00000000] [00000000],
           loop= λi. λtotal.
             let e = 'getelementptr'

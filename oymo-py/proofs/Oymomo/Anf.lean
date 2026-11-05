@@ -17,7 +17,8 @@ proof does not need to.
 * `Terminal` `T ::= Q | J | {Jᵢ} P | R`.
 * `Expr` `E ::= let x = O {lᵢ = Qᵢ} in E | T`, the `let` being `(λx. E) (O {…})`.
 * `Block` `K ::= E | λx₁. ⋯ λxₙ. E`; `Blocks`: a struct of them.
-* `Region` `R ::= x [] (λx. {lᵢ = Kᵢ})`, `0 < k`, field 0 an expression.
+* `Region` `R ::= 'R' (λx. {lᵢ = Kᵢ})`, `0 < k`, field 0 an expression: an opcode call
+  that E-Opcode does not compute (no table computes the marker `'R'`).
 
 `anf_normal`: a term in ANF has no step, regions included.
 -/
@@ -26,6 +27,9 @@ namespace Oymomo
 open Term
 
 variable {op : Bytes → Term → Option Term}
+
+/-- The region marker `'R'`: the byte `52`. -/
+def regionMarker : Bytes := [0x52]
 
 inductive Path : Term → Prop
   | var (n : Nat) : Path (var n)
@@ -81,10 +85,12 @@ mutual
     | snil : Blocks snil
     | scons {l : String} {k s : Term} : Block k → Blocks s → Blocks (scons l k s)
 
-  /-- `x [] (λr. {l₀ = e, lᵢ = Kᵢ})`: field 0 is an expression. -/
+  /-- `'R' (λr. {l₀ = e, lᵢ = Kᵢ})`: field 0 is an expression, and E-Opcode does not
+  compute the marker. -/
   inductive Region : Term → Prop
-    | mk {l : String} {e s : Term} (n : Nat) :
-        Expr e → Blocks s → Region (app (app (var n) (bytes [])) (lam (scons l e s)))
+    | mk {l : String} {e s : Term} :
+        (∀ r, isOperand op (lam (scons l e s)) = true → op regionMarker (lam (scons l e s)) ≠ some r) →
+        Expr e → Blocks s → Region (app (bytes regionMarker) (lam (scons l e s)))
 end
 
 /-! ## No step -/
@@ -187,14 +193,6 @@ theorem Jumps.normal {s t' : Term} (hs : Jumps s) : ¬ Step op s t' := by
     | scons1 h => exact hj.normal h
     | scons2 h => exact ih h
 
-/-- The runner `x []` has no step. -/
-theorem runner_normal {n : Nat} {t' : Term} : ¬ Step op (app (var n) (bytes [])) t' := by
-  intro h
-  cases h with
-  | index hs => cases hs
-  | app1 h => cases h
-  | app2 h => cases h
-
 mutual
   theorem Terminal.normal {t t' : Term} : Terminal op t → ¬ Step op t t'
     | .ret hq => hq.normal
@@ -235,9 +233,10 @@ mutual
       | scons2 h => exact hs.normal h
 
   theorem Region.normal {r t' : Term} : Region op r → ¬ Step op r t'
-    | .mk _ he hs => fun h => by
+    | .mk hn he hs => fun h => by
       cases h with
-      | app1 h => exact runner_normal h
+      | opcode hd ho => exact hn _ hd ho
+      | app1 h => cases h
       | app2 h =>
         cases h with
         | lam h =>

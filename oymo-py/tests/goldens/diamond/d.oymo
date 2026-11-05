@@ -3,7 +3,7 @@ language oymomo
   d= {
     twice= {
       type= {'function', {n= 'i32'}, 'i32'},
-      body= λg. λp. g [] (λr. {let y = 'mul' {'i32', p.n, [02000000]} in y}),
+      body= λg. λp. 'R' (λr. {let y = 'mul' {'i32', p.n, [02000000]} in y}),
     },
   },
 }

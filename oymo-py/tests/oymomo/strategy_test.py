@@ -174,20 +174,22 @@ def test_normalize_gives_up():
         normal(OMEGA, max_steps=50)
 
 
-# Euclid in ingot shape, run by reduction: the instance binds `g` with `fix`; its
-# field 0 runs regions, so `g [] (λr. {…})` becomes `(fix (λr. {…})) [00]`.
+# Euclid in ingot shape, run by reduction: 'unit.make_reducible' hoists `λg` out of the
+# entries and turns each region `'R' (λr. {…})` into `(fix (λr. {…})) [00]`; `fix` ties `g`.
 GCD_INGOT_PROGRAM = """
-let gcd = λg. λp. g [] (λr. {
-  entry = r.loop p.a p.b,
-  loop = λa. λb.
-    let z = 'icmp' {'eq', 'i32', b, [00000000]} in
-    g [] (λq. {
-      if z then r.done a else q.step,
-      step = let c = 'urem' {'i32', a, b} in r.loop b c
-    }),
-  done = λc. c
-}) in
-let instance = fix (λg. {λR. (fix R) [00], gcd = gcd g}) in
+let ingot = {
+  gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'}, body = λg. λp. 'R' (λr. {
+    entry = r.loop p.a p.b,
+    loop = λa. λb.
+      let z = 'icmp' {'eq', 'i32', b, [00000000]} in
+      'R' (λq. {
+        if z then r.done a else q.step,
+        step = let c = 'urem' {'i32', a, b} in r.loop b c
+      }),
+    done = λc. c
+  })}
+} in
+let instance = fix ('unit.make_reducible' ingot) in
 instance.gcd {a = [30000000], b = [12000000]}
 """
 

@@ -13,9 +13,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ## Tree
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
-  - `kernel-followups` Kernel follow-ups: regions, addresses
-    - `region-marker` Regions as `'R' (λr. {…})`; `'unit.make_reducible'` builds the runnable instance
-    - `data-addresses` Symbol addresses in data, redesigned
+  - `data-addresses` Symbol addresses in data, redesigned
   - `unit-followups` Unit follow-ups: opcode proofs, namespaces, platform sizes, libraries
     - `opcode-proofs` Lean: the unit opcodes give closed, well-formed results; rebasing keeps meaning
     - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
@@ -162,24 +160,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ## Leaf details
 
-### `region-marker` Regions as `'R' (λr. {…})`; `'unit.make_reducible'` builds the runnable instance
-
-- A body is `λg. λp. 'R' (λr. {…})`; nested regions too. `'R'` is a marker
-  opcode that never fires (not in the opcode table), so a region never steps before
-  `'unit.make_reducible'`; unit tools see a byte array, not a path on `g`
-- `p` stays the parameters (`p.a`) and results stay plain values; effects stay ordered by
-  their `let`s (call-by-value never moves an effect call); the translator drops the marker
-- `'unit.make_reducible' I` takes a normal-form ingot and returns `t = λg. {…}` (not fixed; the
-  user writes `fix t`): each entry's `λg` moves out to one shared `λg`; namespaces nested
-  as in the ingot; a definition becomes `λp. …` with each `'R' (λr. {…})` rewritten to
-  `(fix (λr. {…})) [00]`; globals stay `{type, value}`; declarations stay; other units are
-  merged in first: `fix ('unit.make_reducible' ('unit.merge' {I, U}))`
-- Run by reduction: `let inst = fix ('unit.make_reducible' I) in inst.main {}`; effect calls stay
-  as they are (reduction never computes through memory)
-- Then: oymomo-calculus.tex (ANF body and region, variable kinds, running a unit by
-  reduction, the translation), Lean (ANF body shape), code (ANF check, ingot reader,
-  translation, `'unit.rebase'`, the new opcode), goldens and examples
-
 ### `data-addresses` Symbol addresses in data, redesigned
 
 - Moved from `redesign-modules`: a `'ptr'` initialized by a label as bytes was dropped (it
@@ -198,7 +178,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Rebase correctness: rebasing a body is substituting `g := g.P` (`rebase P (λg. b)` is
   `λg. b[g := g.P]`), so calling an entry of the rebased unit reduces to the same result
   as calling the original entry, with every `g.…` resolved under `P`
-- After `region-marker` (so `'unit.make_reducible'` exists)
 - Decide: how the Lean definitions are kept in step with the Python ones
 
 ### `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
@@ -237,7 +216,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `letrec x = t₁ in t₂` ≝ `let x = fix (λx. t₁) in t₂`
 - `let _ = v in e`: a `let` kept only for its effect
-- `blocks r = {l₁ = b₁, …} in t` ≝ `g [] (λr. {t, l₁ = b₁, …})` (a region); always the struct form
+- `blocks r = {l₁ = b₁, …} in t` ≝ `'R' (λr. {t, l₁ = b₁, …})` (a region); always the struct form
 - Typed lambdas `λ(i: 'i32'). e` for block parameters, if inference needs help
 - oymomo-calculus.tex Section 3, grammar, printer; reserved words
 - Decide: a better name than `blocks`

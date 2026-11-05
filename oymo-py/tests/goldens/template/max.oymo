@@ -1,8 +1,8 @@
 language oymomo
 λt. {
   type= {'function', {a= t, b= t}, t},
-  body= λg. λp. g [] (λr. {
+  body= λg. λp. 'R' (λr. {
     let c = 'icmp' {'sgt', t, p.a, p.b} in
-    g [] (λq. {if c then q.first else q.second, first= p.a, second= p.b}),
+    'R' (λq. {if c then q.first else q.second, first= p.a, second= p.b}),
   }),
 }

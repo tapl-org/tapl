@@ -2,16 +2,14 @@ language oymomo
 {
   max32= {
     type= {'function', {a= 'i32', b= 'i32'}, 'i32'},
-    body= λg. λp. g [] (λr. {
+    body= λg. λp. 'R' (λr. {
       let c = 'icmp' {'sgt', 'i32', p.a, p.b} in
-      g [] (λq. {if c then q.first else q.second, first= p.a, second= p.b}),
+      'R' (λq. {if c then q.first else q.second, first= p.a, second= p.b}),
     }),
   },
   main= {
     type= {'function', {}, 'i32'},
     link= 'main',
-    body= λg. λp. g [] (λr. {
-      let m = g.max32 {a= [03000000], b= [09000000]} in m,
-    }),
+    body= λg. λp. 'R' (λr. {let m = g.max32 {a= [03000000], b= [09000000]} in m}),
   },
 }

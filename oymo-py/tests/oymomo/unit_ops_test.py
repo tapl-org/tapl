@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""The unit tools, `'unit.merge'` and `'unit.rebase'`, called as opcodes."""
+"""The unit tools, `'unit.merge'`, `'unit.rebase'` and `'unit.make_reducible'`, called as opcodes."""
 
 import pytest
 
@@ -10,7 +10,7 @@ from oymo.oymomo.grammar import parse
 FN = "{'function', {n = 'i32'}, 'i32'}"
 OTHER_FN = "{'function', {n = 'i64'}, 'i64'}"
 # A body that calls `g.lib.step` and ends in a region.
-BODY = 'λg. λp. g [] (λr. {let y = g.lib.step {n = p.n} in y})'
+BODY = "λg. λp. 'R' (λr. {let y = g.lib.step {n = p.n} in y})"
 
 
 def normal(source):
@@ -112,19 +112,19 @@ def lib(body=BODY, extra=''):
 
 
 def test_rebase_prefixes_paths_and_puts_the_struct_under_the_prefix():
-    expected_body = 'λg. λp. g [] (λr. {let y = g.dbl.lib.step {n = p.n} in y})'
+    expected_body = "λg. λp. 'R' (λr. {let y = g.dbl.lib.step {n = p.n} in y})"
     assert_gives(f"'unit.rebase' {{{{'dbl'}}, {lib()}}}", f'{{dbl = {lib(expected_body)}}}')
 
 
 def test_rebase_in_nested_regions_and_under_binders():
-    body = 'λg. λp. g [] (λr. {e = λx. g [] (λq. {let y = g.lib.step {n = x} in g.lib.c})})'
-    expected = 'λg. λp. g [] (λr. {e = λx. g [] (λq. {let y = g.a.b.lib.step {n = x} in g.a.b.lib.c})})'
+    body = "λg. λp. 'R' (λr. {e = λx. 'R' (λq. {let y = g.lib.step {n = x} in g.lib.c})})"
+    expected = "λg. λp. 'R' (λr. {e = λx. 'R' (λq. {let y = g.a.b.lib.step {n = x} in g.a.b.lib.c})})"
     assert_gives(f"'unit.rebase' {{{{'a', 'b'}}, {lib(body)}}}", f'{{a = {{b = {lib(expected)}}}}}')
 
 
 def test_rebase_copies_data_entries():
     extra = ", c = {type = 'i32', value = [01000000]}, h = {type = 'i32'}"
-    expected_body = 'λg. λp. g [] (λr. {let y = g.x.lib.step {n = p.n} in y})'
+    expected_body = "λg. λp. 'R' (λr. {let y = g.x.lib.step {n = p.n} in y})"
     assert_gives(f"'unit.rebase' {{{{'x'}}, {lib(extra=extra)}}}", f'{{x = {lib(expected_body, extra)}}}')
 
 
@@ -159,8 +159,81 @@ def test_rebase_gives_no_step(source):
 
 
 def test_a_rebase_resolves_a_clash():
-    other = lib('λg. λp. g [] (λr. {let y = g.lib.step {n = p.n} in [02000000]})')
+    other = lib("λg. λp. 'R' (λr. {let y = g.lib.step {n = p.n} in [02000000]})")
     clash = f"'unit.merge' {{{lib()}, {other}}}"
     assert_no_step(clash)
     merged = normal(f"'unit.merge' {{{lib()}, 'unit.rebase' {{{{'dbl'}}, {other}}}}}")
     assert [f.label for f in merged.fields] == ['lib', 'dbl']
+
+
+# Make reducible
+
+# Factorial of 5 in ingot shape: a loop region, and `main` calling `g.math.fact`.
+FACT_INGOT = """{
+  math = {fact = {type = {'function', {n = 'i32'}, 'i32'}, body = λg. λp. 'R' (λr. {
+    entry = r.loop [01000000] p.n,
+    loop = λacc. λn.
+      let next = 'mul' {'i32', acc, n} in
+      let k = 'sub' {'i32', n, [01000000]} in
+      let done = 'icmp' {'eq', 'i32', k, [00000000]} in
+      if done then r.exit next else r.loop next k,
+    exit = λacc. acc
+  })}},
+  main = {type = {'function', {}, 'i32'}, link = 'main',
+    body = λg. λp. 'R' (λr. {let y = g.math.fact {n = [05000000]} in y})},
+  puts = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'},
+  counter = {type = 'i32', init = [00000000]}
+}"""
+
+
+def test_make_reducible_runs_a_unit_by_reduction():
+    assert_gives(f"(fix ('unit.make_reducible' {FACT_INGOT})).main {{}}", '[78000000]')
+    assert_gives(f"(fix ('unit.make_reducible' {FACT_INGOT})).math.fact {{n = [04000000]}}", '[18000000]')
+
+
+def test_make_reducible_hoists_g_and_runs_regions():
+    # Each body's own `λg` moves out to one `λg`; a region becomes `(fix R) [00]`; other
+    # entries (a declaration, a global variable) stay as they are.
+    assert_gives(
+        "'unit.make_reducible' {f = {type = 'i32', body = λg. λp. 'R' (λr. {g.k})}, "
+        "k = {type = 'i32', value = [07000000]}, d = {type = 'i32', link = 'd'}}",
+        "λg. {f = λp. (fix (λr. {g.k})) [00], k = {type = 'i32', value = [07000000]}, d = {type = 'i32', link = 'd'}}",
+    )
+
+
+def test_make_reducible_after_merge_fills_declarations():
+    lib = (
+        f"{{lib = {{step = {{type = {FN}, link = 'step', "
+        f"body = λg. λp. 'R' (λr. {{let y = 'mul' {{'i32', p.n, [02000000]}} in y}})}}}}}}"
+    )
+    app = f"{{lib = {{step = {{type = {FN}, link = 'step'}}}}, main = {{type = {FN}, body = {BODY}}}}}"
+    assert_gives(f"(fix ('unit.make_reducible' ('unit.merge' {{{app}, {lib}}}))).main {{n = [03000000]}}", '[06000000]')
+
+
+@pytest.mark.parametrize(
+    'operand',
+    [
+        "{f = {type = 'i32', body = λg. 'R' (λr. {[00]})}}",  # a body that is not λg. λp. …
+        '{f = λx. x}',  # a λ outside an entry's body
+        "'notastruct'",
+    ],
+)
+def test_make_reducible_gives_no_step(operand):
+    assert_no_step(f"'unit.make_reducible' {operand}")
+
+
+def test_rebase_leaves_regions_alone():
+    assert_gives(
+        f"'unit.rebase' {{{{'dbl'}}, {{main = {{type = {FN}, body = {BODY}}}}}}}",
+        f"{{dbl = {{main = {{type = {FN}, body = λg. λp. 'R' (λr. {{let y = g.dbl.lib.step {{n = p.n}} in y}})}}}}}}",
+    )
+
+
+def test_merge_joins_a_declaration_with_its_definition():
+    definition = f"{{type = {FN}, link = 'step', body = {BODY}}}"
+    declaration = f"{{type = {FN}, link = 'step'}}"
+    assert_gives(f"'unit.merge' {{{{f = {declaration}}}, {{f = {definition}}}}}", f'{{f = {definition}}}')
+    assert_gives(f"'unit.merge' {{{{f = {definition}}}, {{f = {declaration}}}}}", f'{{f = {definition}}}')
+    # Another link, or another type, is not the same symbol.
+    assert_no_step(f"'unit.merge' {{{{f = {{type = {FN}, link = 'other'}}}}, {{f = {definition}}}}}")
+    assert_no_step(f"'unit.merge' {{{{f = {{type = {OTHER_FN}, link = 'step'}}}}, {{f = {definition}}}}}")
