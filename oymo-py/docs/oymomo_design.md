@@ -372,11 +372,10 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 
 #### Proposals and open items
 
-- Proposal: functor-style libraries: `λu. {…}`, bodies `λn. λp.` using their
-  own namespace `n`, foreign symbols filled from `u`, wired by the root in `fix (λg. …)`
-  with paths (not entries). As OCaml functors and recursive modules.
-- Proposal: aliases: an entry that is a path (`log = g.util.log`) is that symbol for the
-  translation; chains followed, cycles and dangling paths rejected.
+- Dropped (Nov 5): functor-style libraries (`λu. {…}`, bodies `λn. λp.` with a relative
+  namespace; relocation is `'unit.rebase'` and wiring is holes plus `'unit.merge'`, and a
+  second body shape would cost the proofs and the translation) and aliases (an entry that
+  is a path; a forwarding function is enough).
 
 ### 3. Meta
 

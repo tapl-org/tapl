@@ -3450,6 +3450,15 @@ executable binary). we should mark some place as a platform". The steps that fol
   a non-struct or a missing field. Golden `sizes` (16 + 8 + 8 = 32 on x86-64), built and
   run. Roadmap: `platform-sizes` removed; `unit-followups` had one child left, so
   `functor-libraries` moved up under `pre-bootstrap`. Design doc §4 rewritten.
+- Committed `7660f92`.
+
+### `functor-libraries` dropped (Nov 5)
+
+- Agent explained both proposals against today's wiring (rebase for relocation, holes +
+  merge for dependencies). User: drop functor-style libraries (recommended: covered, and
+  a second body shape `λn. λp.` would cost proofs and translation); drop aliases too
+  ("wrappers are enough"; agent had recommended deferring). Leaf removed; design doc notes
+  both as dropped.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

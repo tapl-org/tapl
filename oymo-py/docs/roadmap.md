@@ -13,7 +13,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ## Tree
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
-  - `functor-libraries` Functor-style libraries and path aliases (proposals)
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
       - 🚫 `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
@@ -154,17 +153,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `block-comments` `/* */` block comments; stuck-term errors shown in them
 
 ## Leaf details
-
-### `functor-libraries` Functor-style libraries and path aliases (proposals)
-
-- Moved from `redesign-modules` (finished)
-- Proposal: a library is `λu. {…}`, bodies `λn. λp.` use their own namespace `n`, foreign
-  symbols are fields filled from `u`, the root wires them in `fix (λg. …)` passing paths
-  (not entries); as OCaml functors and recursive modules
-- Proposal: an entry that is a path (`log = g.util.log`) is that symbol for the
-  translation; chains followed, cycles and dangling paths rejected
-- Today `unit.rebase` and delegates cover relocation and wiring
-- Decide: whether to adopt either
 
 ### `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
 
