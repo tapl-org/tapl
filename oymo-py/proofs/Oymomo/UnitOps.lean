@@ -184,12 +184,17 @@ def rebaseBody (P : List String) : Term → Option Term
   | lam t => (rebaseTerm P 0 t).map lam
   | _ => none
 
-/-- A struct with its entries' bodies rebased, or none: `entry` says the struct is an
-entry. λ-free data is copied; a λ outside an entry's body gives none. -/
+/-- An entry's field that `λg` binds: its `body`, or an `init` or `value` that is a λ
+(`λg. C`). -/
+def bindsUnit (l : String) (v : Term) : Bool :=
+  l == "body" || ((l == "init" || l == "value") && isLam v)
+
+/-- A struct with its entries' bodies, and `init`s and `value`s `λg. C`, rebased, or none:
+`entry` says the struct is an entry. λ-free data is copied; a λ elsewhere gives none. -/
 def rebaseNs (P : List String) (entry : Bool) : Term → Option Term
   | scons l v r =>
     let v' :=
-      if entry && l == "body" then rebaseBody P v
+      if entry && bindsUnit l v then rebaseBody P v
       else if isStruct v then rebaseNs P (isEntry v) v
       else if lamFree v then some v else none
     match v', rebaseNs P entry r with
@@ -219,7 +224,7 @@ def prefixOf : Term → Option (List String)
 def nest (P : List String) (t : Term) : Term := P.foldr (fun l t => scons l t snil) t
 
 /-- `'unit.rebase' {P, X}`: `X` under the prefix `P`, with the paths in its entries' bodies
-prefixed, or none. -/
+(and `init`s and `value`s `λg. C`) prefixed, or none. -/
 def rebase : Term → Option Term
   | scons _ p (scons _ x snil) =>
     if isStruct p && isStruct x then
@@ -245,15 +250,26 @@ def runRegions : Term → Term
   | bytes b => bytes b
   | fix t => fix (runRegions t)
 
+/-- An entry's field with its `λg` moved out: an `init` or `value` `λg. C` becomes `C`. -/
+def hoistPart (l : String) : Term → Term
+  | lam c => if l = "init" ∨ l = "value" then c else lam c
+  | t => t
+
+/-- An entry with each `init` or `value` `λg. C` turned into `C`. -/
+def hoistInits : Term → Term
+  | scons l t r => scons l (hoistPart l t) (hoistInits r)
+  | t => t
+
 /-- A struct with each definition `{…, body = λg. λp. R, …}` turned into `λp. R'` (`R`
-with its regions run), or none. Other entries and λ-free data stay; a λ outside an entry's
-body, or a body not shaped `λg. λp. …`, gives none. -/
+with its regions run), and each `init` or `value` `λg. C` of another entry turned into `C`,
+or none. Other entry parts and λ-free data stay; any other λ, or a body not shaped
+`λg. λp. …`, gives none. -/
 def reducibleNs : Term → Option Term
   | scons l v r =>
     let v' :=
       if isEntry v then
         match lookup v "body" with
-        | none => if lamFree v then some v else none
+        | none => if lamFree (hoistInits v) then some (hoistInits v) else none
         | some (lam (lam R)) => some (runRegions (lam R))
         | some _ => none
       else if isStruct v then reducibleNs v
@@ -713,6 +729,42 @@ theorem closedAt_lookup {k : Nat} {s u : Term} {l : String} (hs : closedAt k s =
     (h : lookup s l = some u) : closedAt k u = true :=
   (StructClosed.closedAt k).lookup hs h
 
+theorem hoistPart_closedAt {k : Nat} (l : String) {t : Term} (h : closedAt k t = true) :
+    closedAt (k + 1) (hoistPart l t) = true := by
+  cases t with
+  | lam c =>
+    simp only [hoistPart]
+    split
+    · exact h
+    · exact closedAt_mono (t := lam c) h (by omega)
+  | _ => exact closedAt_mono h (by omega)
+
+theorem hoistInits_closedAt {k : Nat} {t : Term} (h : closedAt k t = true) :
+    closedAt (k + 1) (hoistInits t) = true := by
+  induction t with
+  | scons l t r _ ihr =>
+    simp only [hoistInits, closedAt, Bool.and_eq_true] at h ⊢
+    exact ⟨hoistPart_closedAt l h.1, ihr h.2⟩
+  | _ => exact closedAt_mono h (by omega)
+
+theorem hoistPart_wf (l : String) {t : Term} (h : WF t) : WF (hoistPart l t) := by
+  cases t with
+  | lam c =>
+    simp only [hoistPart]
+    split
+    · exact h
+    · exact h
+  | _ => exact h
+
+theorem isStruct_hoistInits (t : Term) : isStruct (hoistInits t) = isStruct t := by
+  cases t <;> rfl
+
+theorem hoistInits_wf {t : Term} (h : WF t) : WF (hoistInits t) := by
+  induction t with
+  | scons l t r _ ihr =>
+    exact ⟨hoistPart_wf l h.1, ihr h.2.1, by rw [isStruct_hoistInits]; exact h.2.2⟩
+  | _ => simpa only [hoistInits] using h
+
 theorem reducibleNs_closedAt {k : Nat} {s s' : Term} (h : reducibleNs s = some s')
     (hc : closedAt k s = true) : closedAt (k + 1) s' = true := by
   induction s generalizing s' with
@@ -726,7 +778,7 @@ theorem reducibleNs_closedAt {k : Nat} {s s' : Term} (h : reducibleNs s = some s
       split at hv
       · split at hv
         · split at hv
-          · cases hv; exact closedAt_mono hc.1 (by omega)
+          · cases hv; exact hoistInits_closedAt hc.1
           · cases hv
         · rename_i R hb
           cases hv
@@ -755,7 +807,7 @@ theorem reducibleNs_wf {s s' : Term} (h : reducibleNs s = some s') (hw : WF s) :
       split at hv
       · split at hv
         · split at hv
-          · cases hv; exact hw.1
+          · cases hv; exact hoistInits_wf hw.1
           · cases hv
         · rename_i R hb
           cases hv

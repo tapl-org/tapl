@@ -181,6 +181,15 @@ def _rebase_cases() -> list[Case]:
             f"{{{{'x'}}, {lib(extra=data)}}}",
             f'{{x = {lib("λg. λp. 'R' (λr. {let y = g.x.lib.step {n = p.n} in y})", data)}}}',
         ),
+        rebase(
+            "prefixes the paths in an init's and a value's λg",
+            "{{'x'}, {s = {type = 'ptr', init = λg. g.k}, "
+            "t = {type = {'array', [02], 'ptr'}, value = λg. {g.s, g.k}}, k = {type = 'i32', value = [07000000]}}}",
+            "{x = {s = {type = 'ptr', init = λg. g.x.k}, "
+            "t = {type = {'array', [02], 'ptr'}, value = λg. {g.x.s, g.x.k}}, k = {type = 'i32', value = [07000000]}}}",
+        ),
+        rebase('g used whole in a value', "{{'x'}, {s = {type = 'ptr', value = λg. g}}}", None),
+        rebase('an init field outside an entry', "{{'x'}, {ns = {init = λg. g.x}}}", None),
         rebase('mounts a header', f"{{{{'libc'}}, {header}}}", f'{{libc = {header}}}'),
         rebase('an empty prefix changes nothing', f'{{{{}}, {lib()}}}', lib()),
         rebase(
@@ -230,11 +239,19 @@ def _make_reducible_cases() -> list[Case]:
             "{ns = {f = {type = 'i32', body = λg. λp. g.ns.f p}}, v = [01]}",
             'λg. {ns = {f = λp. g.ns.f p}, v = [01]}',
         ),
+        make_reducible(
+            "hoists an init's and a value's λg",
+            "{s = {type = 'ptr', link = 's', init = λg. g.k}, "
+            "t = {type = {'array', [02], 'ptr'}, value = λg. {g.s, g.k}}, k = {type = 'i32', value = [07000000]}}",
+            "λg. {s = {type = 'ptr', link = 's', init = g.k}, "
+            "t = {type = {'array', [02], 'ptr'}, value = {g.s, g.k}}, k = {type = 'i32', value = [07000000]}}",
+        ),
         make_reducible('an empty ingot', '{}', 'λg. {}'),
         make_reducible('a body not shaped λg. λp. …', "{f = {type = 'i32', body = λg. 'R' (λr. {[00]})}}", None),
         make_reducible('a body that is not a lambda', "{f = {type = 'i32', body = [01]}}", None),
         make_reducible('a lambda outside an entry body', '{f = λx. x}', None),
-        make_reducible('a lambda in an entry without a body', "{f = {type = 'i32', init = λx. x}}", None),
+        make_reducible('a lambda in an init under its λg', "{f = {type = 'i32', init = λg. λx. x}}", None),
+        make_reducible('a lambda in an entry without a body', "{f = {type = 'i32', link = λx. x}}", None),
         make_reducible('an operand that is not a struct', "'notastruct'", None),
     ]
 

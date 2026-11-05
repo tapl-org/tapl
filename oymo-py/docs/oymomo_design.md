@@ -287,6 +287,11 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
     `(fix (λr. u)) [00]`; other entries stay. `fix t` runs the unit by reduction; other
     units are merged in first: `fix ('unit.make_reducible' ('unit.merge' {I, U}))`. It
     returns `t`, not `fix t`, to leave room for mocks and wrappers.
+- Predefs (Nov 5): operands are `Q ::= P | b | {lᵢ = Qᵢ}`; a predef is an operand fixed
+  before the program runs, its only paths symbol addresses `g.l₁⋯lₙ`. A struct operand is
+  a predef, a type is a predef with no path, and an `init`/`value` is a predef with no path
+  or `λg. C`, so global data can hold addresses: `value = λg. {g.hello, g.bye}` becomes
+  `[2 x ptr] [ptr @hello, ptr @bye]`. Unit tools treat `λg. C` like a body.
 - A region is `'R' (λr. {…})`: `'R'` is a marker opcode that no table computes, so a region
   never steps; `g` only heads paths. Effects stay ordered by their `let`s (an effect call
   never steps, so call-by-value never moves it); reduction never computes through memory.
@@ -363,8 +368,6 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
   with paths (not entries). As OCaml functors and recursive modules.
 - Proposal: aliases: an entry that is a path (`log = g.util.log`) is that symbol for the
   translation; chains followed, cycles and dangling paths rejected.
-- Decide: a redesign of symbol addresses in data that supports reduction and keeps the
-  realms apart.
 
 ### 3. Meta
 

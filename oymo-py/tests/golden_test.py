@@ -159,6 +159,7 @@ GOLDENS = [
     'spans',
     'layers',
     'blocks',
+    'table',
 ]
 
 

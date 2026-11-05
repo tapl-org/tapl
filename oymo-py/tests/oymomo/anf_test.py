@@ -54,6 +54,12 @@ TAIL_CALL = 'A call that ends a function is bound and returned: let y = g.f {…
         "'R' (λq. {q.x, x = p.a})",
         "'R' (λq. {if p.c then q.x [01] else f.y, x = λa. λb. a, y = 'R' (λs. {s.z, z = [00]})})",
         "'R' (λq. {l = let x = g.g {} in q.l})",
+        # A struct operand is any struct of operands here; that its only paths are symbol
+        # addresses (a predef) is the ingot's rule, as is that a call never ends a block.
+        "let x = 'add' {'i32', {p.a}, p.b} in x",
+        "let u = 'store' {{'ptr', 'i8'}, {g.f, [01]}, p.a} in f.done",
+        'f.next p.a {p.a}',
+        'g.f {a = p.a}',
     ],
 )
 def test_in_anf(source):
@@ -68,12 +74,12 @@ def test_in_anf(source):
         # Normal, but not in ANF; the fix is a let.
         (
             "'add' {'i32', 'mul' {'i32', p.a, p.a}, p.b}",
-            'An operand must be a path or data: bind it with a let.',
+            'An operand must be a path, a byte array or a struct of them: bind it with a let.',
             "'mul' {'i32', $0.a, $0.a}",
         ),
         (
             "let x = 'add' {'i32', 'mul' {'i32', p.a, p.a}, p.b} in x",
-            'An operand must be a path or data: bind it with a let.',
+            'An operand must be a path, a byte array or a struct of them: bind it with a let.',
             "'mul' {'i32', $0.a, $0.a}",
         ),
         (
@@ -83,25 +89,21 @@ def test_in_anf(source):
         ),
         (
             'let x = g.f {a = g.g {}} in x',
-            'An argument must be a path or data: bind it with a let.',
+            'An argument must be a path, a byte array or a struct of them: bind it with a let.',
             '$2.g {}',
         ),
         ('let x = g.f p.a in x', 'An instruction applies its operator to a struct of operands.', '$0.a'),
         # A struct operand is data.
+        # A struct operand holds operands; inside it, an argument is not an operand either.
         (
-            "let x = 'add' {'i32', {p.a}, p.b} in x",
-            "An operand must be a path or data; a struct value is built with 'insertvalue'.",
-            '{$0.a}',
-        ),
-        (
-            'f.next p.a {p.a}',
-            "An operand of a jump must be a path or data; a struct value is built with 'insertvalue'.",
-            '{$0.a}',
+            "let x = 'add' {'i32', {'mul' {'i32', p.a, p.a}}, p.b} in x",
+            'A field of a struct operand must be a path, a byte array or a struct of them: bind it with a let.',
+            "'mul' {'i32', $0.a, $0.a}",
         ),
         # A call at the end is bound and returned.
-        ('g.f {a = p.a}', TAIL_CALL, '$2.f {a = $0.a}'),
-        ('(g.f {}).x', 'A return must be a path or data: bind it with a let.', '($2.f {}).x'),
-        ('λx. x', 'A return must be a path or data: bind it with a let.', 'λx. $0'),
+        ('g.f {a = g.h {}}', TAIL_CALL, '$2.f {a = $2.h {}}'),
+        ('(g.f {}).x', 'A return must be a path, a byte array or a struct of them: bind it with a let.', '($2.f {}).x'),
+        ('λx. x', 'A return must be a path, a byte array or a struct of them: bind it with a let.', 'λx. $0'),
         # A branch's arms only jump; its condition is a path.
         (
             "{f.a, 'add' {'i32', p.a, p.b}} p.c",

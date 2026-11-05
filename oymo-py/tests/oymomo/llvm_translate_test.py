@@ -248,15 +248,78 @@ def test_symbols():
     assert '%"y" = call i32 @"puts"(ptr @"answer")' in main
 
 
-@pytest.mark.parametrize('value', ["'counter'", "{'counter', [01]}", "{''}"])
-def test_no_symbol_address_in_data(value):
-    """In data, a `'ptr'` is only `''`, the null pointer."""
+@pytest.mark.parametrize('value', ["'counter'", "{'counter', [01]}", "{''}", 'λg. {g.counter}'])
+def test_ptr_in_an_initializer(value):
+    """In an init or value, a `'ptr'` is `''`, the null pointer, or an address under λg."""
     source = single(
         '[00000000]', extra=f"counter = {{type = 'i32', init = [00000000]}}, here = {{type = 'ptr', value = {value}}},"
     )
-    assert error(source) == (
-        "A 'ptr' in data is '', the null pointer: the address of a symbol in data is left out for now."
+    assert error(source) == "A 'ptr' in an init or value is '', the null pointer, or an address g.l₁ ⋯ lₙ under λg."
+
+
+def test_addresses_in_initializers():
+    """An address in an init or value λg. C is the symbol's global: a variable, a constant,
+    a function or a declaration."""
+    text = llvm(
+        single(
+            '[00000000]',
+            extra="""
+            hello = {type = {'array', [03], 'i8'}, value = [686900]},
+            puts = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'},
+            names = {type = {'array', [02], 'ptr'}, value = λg. {g.hello, g.ns.bye}},
+            ns = {bye = {type = 'i32', init = [00000000]}},
+            first = {type = 'ptr', init = λg. g.puts},
+            pair = {type = {'ptr', 'i32'}, value = λg. {g.main, [07000000]}},
+            """,
+        )
     )
+    for line in [
+        '@"names" = internal constant [2 x ptr] [ptr @"hello", ptr @"ns.bye"]',
+        '@"first" = internal global ptr @"puts"',
+        '@"pair" = internal constant {ptr, i32} {ptr @"main", i32 7}',
+    ]:
+        assert line in text, line
+
+
+def test_addresses_in_struct_operands():
+    """A struct operand is a predef: an address in it is the symbol's global, in an LLVM
+    constant struct."""
+    main = function(
+        llvm(
+            single(
+                "let u = 'store' {{'ptr', 'i8'}, {g.k, [01]}, g.slot} in "
+                "let v = 'extractvalue' {{'ptr', 'i8'}, {g.k, [02]}, [00]} in r.done {g.k, [03]},"
+                'done = λs. [00000000]',
+                extra="k = {type = 'i32', value = [00000000]}, slot = {type = {'ptr', 'i8'}, init = {}},",
+            )
+        ),
+        'main',
+    )
+    assert 'store {ptr, i8} {ptr @"k", i8 1}, ptr @"slot"' in main
+    assert 'extractvalue {ptr, i8} {ptr @"k", i8 2}, 0' in main
+
+
+@pytest.mark.parametrize(
+    ('source', 'message'),
+    [
+        (
+            single('[00000000]', extra="k = {type = 'i32', value = λg. g.k},"),
+            'g.k is an address, a ptr, but this constant is i32.',
+        ),
+        (
+            single(
+                "let u = 'store' {{'i32'}, {g.k}, g.k} in [00000000]", extra="k = {type = 'i32', value = [00000000]},"
+            ),
+            'g.k is an address, a ptr, but this constant is i32.',
+        ),
+        (
+            single("let x = 'load' {{g.k}, g.k} in [00000000]", extra="k = {type = 'i32', value = [00000000]},"),
+            "'load': field 0 is a type, and a type holds no address.",
+        ),
+    ],
+)
+def test_address_errors(source, message):
+    assert error(source) == message
 
 
 def test_namespaces_and_linkage():

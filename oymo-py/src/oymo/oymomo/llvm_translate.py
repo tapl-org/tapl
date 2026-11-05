@@ -95,6 +95,8 @@ def llvm_type(term: syntax.Term) -> ir.Type:
         return ir.PointerType()
     if isinstance(term, terms.Struct):
         return ir.LiteralStructType([llvm_type(f.value) for f in term.fields])
+    if isinstance(term, terms.Project | terms.BruijnIndex):
+        raise LlvmTranslationError('A type holds no address.', term.tag)
     raise LlvmTranslationError(f'{show_type(term)} is not an LLVM type.', term.tag)
 
 
@@ -109,19 +111,49 @@ def _tagged_type(term, tag, parts):
     return ir.ArrayType(element, count) if tag == 'array' else ir.VectorType(element, count)
 
 
-def constant(type_term: syntax.Term, value: syntax.Term, *, entry: bool = False) -> ir.Constant:
-    """`value`, data, as an LLVM constant of the type `type_term` names: a byte array of an
-    integer type's size, or a struct (or array) of constants. `{}` is all zeros, for any
-    type. In an `entry`'s `init` or `value`, a `'ptr'` is `''`, the null pointer, and one
-    byte array may hold an `i8` array, its bytes in order."""
+# Each symbol's LLVM global, by path: what an address in a predef stands for.
+type Globals = Mapping[tuple[str, ...], ir.GlobalValue]
+
+
+class _FunctionAddress(ir.Constant):
+    """A function's address, an opaque `ptr`: llvmlite types a function by its prototype
+    (`i32 ()*`), which LLVM's opaque pointers no longer write."""
+
+    def __init__(self, function: ir.Function) -> None:
+        super().__init__(ir.PointerType(), None)
+        self.function = function
+
+    def get_reference(self) -> str:
+        return self.function.get_reference()
+
+
+def address(value: ir.GlobalValue) -> ir.Constant | ir.GlobalValue:
+    """A symbol's global as an operand or a constant: its address, a `ptr`."""
+    return _FunctionAddress(value) if isinstance(value, ir.Function) else value
+
+
+def constant(
+    type_term: syntax.Term, value: syntax.Term, *, entry: bool = False, globals_: Globals | None = None
+) -> ir.Constant | ir.GlobalValue:
+    """`value`, a predef, as an LLVM constant of the type `type_term` names: a byte array of
+    an integer type's size, an address `g.l₁ ⋯ lₙ` (`ingot.address_path`) at a `'ptr'`,
+    which is the symbol's global in `globals_`, or a struct (or array) of constants. `{}` is
+    all zeros, for any type. In an `entry`'s `init` or `value`, a `'ptr'` may also be `''`,
+    the null pointer, and one byte array may hold an `i8` array, its bytes in order."""
     tag = value.tag
     typ = llvm_type(type_term)
     if isinstance(value, terms.Struct) and not value.fields:
         return ir.Constant(typ, None)
+    if (path := ingots.address_path(value)) is not None:
+        if not isinstance(typ, ir.PointerType):
+            raise LlvmTranslationError(f'g.{".".join(path)} is an address, a ptr, but this constant is {typ}.', tag)
+        if globals_ is None or path not in globals_:
+            raise LlvmTranslationError(ingots.ADDRESS, tag)
+        return address(globals_[path])
     if isinstance(typ, ir.PointerType) and entry:
         if not isinstance(value, terms.ByteArray) or value.value:
             raise LlvmTranslationError(
-                "A 'ptr' in data is '', the null pointer: the address of a symbol in data is left out for now.", tag
+                "A 'ptr' in an init or value is '', the null pointer, or an address g.l₁ ⋯ lₙ under λg.", tag
             )
         return ir.Constant(typ, None)
     if isinstance(typ, ir.IntType):
@@ -141,7 +173,11 @@ def constant(type_term: syntax.Term, value: syntax.Term, *, entry: bool = False)
     parts = _type_parts(type_term)
     if parts is not None and isinstance(value, terms.Struct) and len(value.fields) == len(parts):
         return ir.Constant(
-            typ, [constant(part, f.value, entry=entry) for part, f in zip(parts, value.fields, strict=True)]
+            typ,
+            [
+                constant(part, f.value, entry=entry, globals_=globals_)
+                for part, f in zip(parts, value.fields, strict=True)
+            ],
         )
     raise LlvmTranslationError(f'No constant of type {typ} is written {printer.show(value)}.', tag)
 
@@ -394,7 +430,7 @@ class _Function:
         if _is_data(operand):
             if expected is None:
                 raise LlvmTranslationError(f'{printer.show(operand)} needs a type here; {what} does not give one.', tag)
-            return constant(expected, operand)
+            return constant(expected, operand, globals_=self.translator.globals)
         match operand:
             case ingots.Use(var=var):
                 if var not in self.values:
@@ -405,7 +441,7 @@ class _Function:
             case ingots.Arg(label=label):
                 value = self.args[label]
             case _:
-                value = self.translator.globals[operand.path]
+                value = address(self.translator.globals[operand.path])
                 if expected is not None and not isinstance(llvm_type(expected), ir.PointerType):
                     raise LlvmTranslationError(
                         f'g.{".".join(operand.path)} is an address, a ptr, but {what} needs {llvm_type(expected)}.',
@@ -545,11 +581,11 @@ class _Translator:
         self.globals[symbol.path] = value
 
     def _data(self, symbol):
-        """An initializer, read once every symbol exists. It names no symbol: the address of
-        a symbol in data is left out for now."""
+        """An initializer, read once every symbol exists: an address in it is the symbol's
+        global."""
         match symbol:
             case ingots.Constant(type=type_term, value=value) | ingots.Global(type=type_term, init=value):
-                self.globals[symbol.path].initializer = constant(type_term, value, entry=True)
+                self.globals[symbol.path].initializer = constant(type_term, value, entry=True, globals_=self.globals)
 
 
 def translate(ingot: ingots.Ingot, target: Target) -> ir.Module:

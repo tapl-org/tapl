@@ -4,14 +4,15 @@
 
     P ::= x | P.l                                  path
     O ::= P | b                                    operator
-    Q ::= P | D                                    operand (D data)
+    Q ::= P | b | {lᵢ = Qᵢ}                        operand
     J ::= P Q₁ ⋯ Qₙ                                jump
     T ::= Q | J | {Jᵢ} P | R                       terminal
     E ::= let x = O {lᵢ = Qᵢ} in E | T             expression
     K ::= E | λx₁. ⋯ λxₙ. E                        block
     R ::= 'R' (λx. {lᵢ = Kᵢ}), 0 < k              region; field 0 is an E
 
-Every variable is `x`: the grammar does not tell them apart; `ingot` checks their kinds. An opcode call in ANF is one that E-Opcode does not compute. A term in ANF is a
+Every variable is `x`: the grammar does not tell them apart; `ingot` checks their kinds,
+and that a struct operand is a predef (its only paths symbol addresses). An opcode call in ANF is one that E-Opcode does not compute. A term in ANF is a
 normal form (`Oymomo.anf_normal`). `'R'` is the region marker: no opcode table computes it,
 so a region never steps.
 
@@ -50,8 +51,13 @@ def is_path(term: syntax.Term) -> bool:
 
 
 def is_operand(term: syntax.Term) -> bool:
-    """`Q`: a path or data."""
-    return is_path(term) or reduction.is_data(term)
+    """`Q`: a path, a byte array, or a struct of operands."""
+    match term:
+        case terms.ByteArray():
+            return True
+        case terms.Struct(fields=fields):
+            return all(is_operand(f.value) for f in fields)
+    return is_path(term)
 
 
 # The region marker: `'R' (λr. {…})` is a region.
@@ -107,14 +113,15 @@ def region_error(term: syntax.Term) -> AnfError | None:
 
 
 def _operand_error(term, what):
+    """None if `term` is an operand, else the first part of it that is not."""
     if is_operand(term):
         return None
     if isinstance(term, terms.Struct):
-        return AnfError(
-            f"{what} must be a path or data; a struct value is built with 'insertvalue'.",
-            term,
+        # The first field that is not an operand.
+        return next(
+            _operand_error(f.value, 'A field of a struct operand') for f in term.fields if not is_operand(f.value)
         )
-    return AnfError(f'{what} must be a path or data: bind it with a let.', term)
+    return AnfError(f'{what} must be a path, a byte array or a struct of them: bind it with a let.', term)
 
 
 def _operands_error(struct, what):

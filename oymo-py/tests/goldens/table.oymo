@@ -1,0 +1,22 @@
+language oymomo
+{
+  hello= {type= {'array', [06], 'i8'}, value= [68656c6c 6f00]},
+  bye= {type= {'array', [04], 'i8'}, value= [62796500]},
+  names= {type= {'array', [02], 'ptr'}, value= λg. {g.hello, g.bye}},
+  puts= {type= {'function', {s= 'ptr'}, 'i32'}, link= 'puts'},
+  main= {
+    type= {'function', {}, 'i32'},
+    link= 'main',
+    body= λg. λp. 'R' (λr. {
+      entry= r.loop [00000000 00000000],
+      loop= λi.
+        let a = 'getelementptr' {'ptr', g.names, i} in
+        let s = 'load' {'ptr', a} in
+        let u = g.puts {s= s} in
+        let j = 'add' {'i64', i, [01000000 00000000]} in
+        let more = 'icmp' {'ult', 'i64', j, [02000000 00000000]} in
+        if more then r.loop j else r.done,
+      done= [00000000],
+    }),
+  },
+}

@@ -126,6 +126,35 @@ def test_namespaces():
     assert call.callee == ('math', 'gcd')
 
 
+def test_predefs():
+    """An init or value λg. C, and a struct operand, are predefs: their addresses are kept as
+    paths from the index 0, so `address_path` reads them wherever they were written."""
+    source = """
+    {
+      hello = {type = {'array', [03], 'i8'}, value = [686900]},
+      names = {type = {'array', [02], 'ptr'}, value = λg. {g.hello, g.main}},
+      first = {type = 'ptr', init = λg. g.hello},
+      none = {type = 'ptr', init = λg. ''},
+      main = {type = {'function', {}, 'i32'}, link = 'main', body = λg. λp. 'R' (λr. {
+        let u = 'store' {{'ptr', 'i8'}, {g.hello, [01]}, g.first} in
+        r.done {g.names, [00]},
+        done = λs. [00000000],
+      })},
+    }
+    """
+    result = read(source)
+    names, first, none = (result.lookup((name,)) for name in ('names', 'first', 'none'))
+    assert [ingot.address_path(f.value) for f in names.value.fields] == [('hello',), ('main',)]
+    assert ingot.address_path(first.init) == ('hello',)
+    assert none.init == parse("''")
+    blocks = result.lookup(('main',)).region.blocks
+    stored = blocks[0].lets[0].fields[1][1]
+    assert ingot.address_path(stored.fields[0].value) == ('hello',)
+    jumped = blocks[0].terminal.operands[0]
+    assert [ingot.address_path(f.value) for f in jumped.fields] == [('names',), None]
+    assert ingot.addresses(jumped) == [jumped.fields[0].value]
+
+
 def test_reduction_first():
     """A program may wrap the ingot and use helpers; reduction removes them."""
     source = """
@@ -163,6 +192,8 @@ def entry(fields):
 
 
 TAIL_CALL = 'A call that ends a function is bound and returned: let y = g.f {…} in y.'
+ADDRESS = 'An address in a predef is a path g.l₁ ⋯ lₙ to a symbol of the ingot.'
+STRUCT_OPERAND = "A struct operand is a predef: build a struct of run-time values with 'insertvalue'."
 M_PATH = 'g names the symbols: an operand through g is g.l₁ ⋯ lₙ, a path to a symbol of the ingot.'
 
 
@@ -204,8 +235,8 @@ M_PATH = 'g names the symbols: an operand through g is g.l₁ ⋯ lₙ, a path t
             entry("{type = 'i8', init = [01], value = [01]}"),
             "Entry 'x' has init and value; it may have at most one of ['body', 'init', 'value'].",
         ),
-        (entry('{type = λy. y}'), 'A type must be data: byte arrays and structs of them.'),
-        (entry("{type = 'i8', init = λy. y}"), 'A init must be data: byte arrays and structs of them.'),
+        (entry('{type = λy. y}'), 'A type holds no address: it is byte arrays and structs of them.'),
+        (entry("{type = 'i8', init = λy. y}"), ADDRESS),
         (
             entry("{type = 'i32', body = λg. λp. 'R' (λr. {[00000000]})}"),
             "Entry 'x' has a body, so its type must be {'function', {x = t, ...}, t}.",
@@ -225,11 +256,11 @@ M_PATH = 'g names the symbols: an operand through g is g.l₁ ⋯ lₙ, a path t
         # The grammar.
         (
             wrap("'add' {'i32', 'mul' {'i32', p.a, p.a}, p.a}"),
-            "'main' is not in ANF: An operand must be a path or data: bind it with a let.",
+            "'main' is not in ANF: An operand must be a path, a byte array or a struct of them: bind it with a let.",
         ),
         (
             wrap("let x = 'add' {'i32', {p.a}, p.a} in x"),
-            "'main' is not in ANF: An operand must be a path or data; a struct value is built with 'insertvalue'.",
+            STRUCT_OPERAND,
         ),
         (
             wrap('let x = g.helper {x = p.a} in {r.next x, [00]} x'),
@@ -239,7 +270,7 @@ M_PATH = 'g names the symbols: an operand through g is g.l₁ ⋯ lₙ, a path t
             wrap('let x = g.helper {x = p.a} in {r.next x, x} x'),
             'An arm of a branch only jumps: r.l Q₁ ⋯ Qₙ, r a region.',
         ),
-        (wrap('g.helper {x = p.a}'), f"'main' is not in ANF: {TAIL_CALL}"),
+        (wrap('g.helper {x = p.a}'), TAIL_CALL),
         (wrap("'R' (λq. {λy. y})"), "'main' is not in ANF: Field 0 of a region is an expression, never a λ."),
         (wrap("'R' (λq. {})"), "'main' is not in ANF: A region holds a struct of blocks, at least one."),
         # Kinds.
@@ -267,9 +298,27 @@ M_PATH = 'g names the symbols: an operand through g is g.l₁ ⋯ lₙ, a path t
         (wrap("'R' (λq. {[00000000], [00000000]})"), 'A block after field 0 needs a label, so a jump can name it.'),
         (
             wrap("let x = 'add' {'i32', p.a, p.a} in x [] (λq. {[00000000]})"),
-            "'main' is not in ANF: An operand of a jump must be a path or data: bind it with a let.",
+            "'main' is not in ANF: An operand of a jump must be a path, a byte array or a struct of them: bind it with a let.",
         ),
         (wrap('{} p.a'), 'The program is stuck here: no rule can ever reduce this part.'),
+        # An init or value λg. C holds addresses g.l₁ ⋯ lₙ of symbols, and nothing else free.
+        (entry("{type = 'ptr', init = λg. g.nope}"), ADDRESS),
+        ("{k = {type = 'i32', value = [00]}, x = {type = 'ptr', value = λg. {g.k.v}}}", ADDRESS),
+        (
+            entry("{type = 'ptr', value = λg. {λy. y}}"),
+            'A predef holds byte arrays, addresses g.l₁ ⋯ lₙ and structs of them.',
+        ),
+        (
+            entry("{type = 'ptr', init = {λy. y}}"),
+            'An init is a predef: byte arrays and structs of them, or λg. C to hold symbol addresses g.l₁ ⋯ lₙ.',
+        ),
+        # Inside a struct operand, a path is a symbol address.
+        (wrap("let u = 'store' {{'ptr', 'i32'}, {g.k, p.a}, g.k} in [00000000]"), STRUCT_OPERAND),
+        (wrap("let x = 'add' {'i32', p.a, p.a} in let u = 'store' {{'i32'}, {x}, g.k} in x"), STRUCT_OPERAND),
+        (wrap("let u = 'store' {{'ptr'}, {r.next}, g.k} in [00000000]"), STRUCT_OPERAND),
+        (wrap('{g.nope, [01]}'), ADDRESS),
+        (wrap('{g}'), ADDRESS),
+        (wrap('r.next {p.a}'), STRUCT_OPERAND),
     ],
 )
 def test_errors(source, message):

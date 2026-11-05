@@ -6,17 +6,23 @@ An ingot is a namespace: a struct `{lᵢ = Eᵢ}` whose every field is an entry 
 namespace again. A struct with a `type` field is an entry; any other struct is a
 namespace. An entry has a `type`, at most one of `body` (a definition), `init` (a global
 variable) or `value` (a constant), and an optional `link`, the symbol's name for the
-linker; an entry with only `type` and `link` is a declaration, and one with only `type`
+linker. A type is a predef with no path (byte arrays and structs of them); an `init` or
+`value` is one too, or `λg. C` with `C` a predef: its paths are symbol addresses
+`g.l₁ ⋯ lₙ`; an entry with only `type` and `link` is a declaration, and one with only `type`
 is a hole, which is rejected. Anything else left in a namespace is rejected too.
 
 Each symbol is named by its path, its labels from the top (`('math', 'gcd')`). A
 definition's body is `λg. λp. R` in ANF. `read_ingot` checks the grammar
 (`anf.region_error`), then every variable's kind: `g.l₁ ⋯ lₙ` is a path through the
 namespaces to a symbol; a region is `'R' (λr. {…})`; `p.l` names a parameter; `r.l` names a block of the region `r` and
-only heads a jump, with one operand per parameter; a value has no fields.
+only heads a jump, with one operand per parameter; a value has no fields; a struct operand
+is a predef, so its only paths are symbol addresses `g.l₁ ⋯ lₙ`.
+
+A predef is kept as `C` of `λg. C`: an address in it is the path `g.l₁ ⋯ lₙ` from the
+index 0 (`address_path`), wherever it was written.
 
 It gives the body as regions and blocks, every variable resolved (`Use` of a `Var`, `Arg`,
-`Address`, data) and every bound name made distinct: a repeated name takes the
+`Address`, a predef) and every bound name made distinct: a repeated name takes the
 smallest free number (`c`, `c1`).
 
 `ingot_of` runs the whole way from a parsed program: resolve, normalize,
@@ -24,7 +30,7 @@ reject a stuck normal form, and read the ingot. `ingots_of` first separates a pr
 two layers, and gives each layer's ingot.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from oymo.core import syntax
 from oymo.oymomo import anf, layers, meta, printer, reduction, strategy, terms
@@ -73,9 +79,34 @@ class Address:
     tag: Tag = field(default=NO_TAG, compare=False)
 
 
-# A data operand stays the term it is (a byte array or a struct of data), so an opcode
-# reads its type fields as terms.
+# A predef operand stays the term it is (a byte array, or a struct of predefs whose paths
+# are addresses from the index 0), so an opcode reads its type fields as terms.
 type Operand = Use | Arg | Address | syntax.Term
+
+
+def address_path(term: syntax.Term) -> tuple[str, ...] | None:
+    """`(l₁, …, lₙ)` for an address `g.l₁ ⋯ lₙ` in a predef (`g` the index 0, `n ≥ 1`),
+    else None."""
+    labels = []
+    while isinstance(term, terms.Project):
+        labels.append(term.label)
+        term = term.struct
+    if labels and isinstance(term, terms.BruijnIndex) and term.index == 0:
+        return tuple(labels[::-1])
+    return None
+
+
+def addresses(term: syntax.Term) -> list[syntax.Term]:
+    """Every address in the predef `term`, in order."""
+    if address_path(term) is not None:
+        return [term]
+    if isinstance(term, terms.Struct):
+        return [a for f in term.fields for a in addresses(f.value)]
+    return []
+
+
+ADDRESS = 'An address in a predef is a path g.l₁ ⋯ lₙ to a symbol of the ingot.'
+STRUCT_OPERAND = "A struct operand is a predef: build a struct of run-time values with 'insertvalue'."
 
 
 @dataclass(eq=False)
@@ -253,6 +284,11 @@ def read_ingot(term: syntax.Term) -> Ingot:
     ingot = Ingot([])
     bodies = []
     _namespace(term, (), ingot, bodies)
+    for symbol in ingot.symbols:
+        if isinstance(symbol, Global | Constant):
+            for address in addresses(symbol.init if isinstance(symbol, Global) else symbol.value):
+                if ingot.lookup(address_path(address) or ()) is None:
+                    raise IngotError(ADDRESS, _tag(address))
     for symbol, body in bodies:
         symbol.region, symbol.args = _Body(ingot, symbol).read(body)
     return ingot
@@ -305,7 +341,7 @@ def _entry(path, term):
             f'Entry {name!r} has {kinds[0]} and {kinds[1]}; it may have at most one of {list(_KINDS)}.', _tag(term)
         )
     link = _link(parts['link']) if 'link' in parts else None
-    type_term = _data(parts['type'], 'type')
+    type_term = _type(parts['type'])
     fn = _function_type(type_term)
     match kinds:
         case ['body']:
@@ -316,9 +352,9 @@ def _entry(path, term):
                 )
             return Definition(path, fn, '', Region('', []), link, _tag(term)), parts['body']
         case ['init']:
-            return Global(path, type_term, _data(parts['init'], 'init'), link, _tag(term)), None
+            return Global(path, type_term, _initializer(parts['init'], 'init'), link, _tag(term)), None
         case ['value']:
-            return Constant(path, type_term, _data(parts['value'], 'value'), link, _tag(term)), None
+            return Constant(path, type_term, _initializer(parts['value'], 'value'), link, _tag(term)), None
     if link is None:
         raise IngotError(f'{name!r} is a hole: give it a body or a link.', _tag(term))
     return Declaration(path, fn if fn is not None else type_term, link, _tag(term)), None
@@ -332,10 +368,43 @@ def _link(term):
     return text
 
 
-def _data(term, what):
+def _type(term):
+    """A type: a predef with no path."""
     if not reduction.is_data(term):
-        raise IngotError(f'A {what} must be data: byte arrays and structs of them.', _tag(term))
+        raise IngotError('A type holds no address: it is byte arrays and structs of them.', _tag(term))
     return term
+
+
+def _initializer(term, what):
+    """An `init` or `value`: a predef with no path, or `λg. C` with `C` a predef whose paths
+    are addresses; gives `C`. Whether each address names a symbol is checked once every
+    symbol is read."""
+    if reduction.is_data(term):
+        return term
+    if not isinstance(term, terms.Lambda):
+        raise IngotError(
+            f'An {what} is a predef: byte arrays and structs of them, or λg. C to hold symbol addresses g.l₁ ⋯ lₙ.',
+            _tag(term),
+        )
+    _predef_shape(term.body)
+    return term.body
+
+
+def _predef_shape(term):
+    """Checks that `term`, under its `λg`, is a predef: byte arrays, addresses `g.l₁ ⋯ lₙ`,
+    and structs of them."""
+    match term:
+        case terms.ByteArray():
+            return
+        case terms.Struct(fields=fields):
+            for f in fields:
+                _predef_shape(f.value)
+            return
+    if anf.is_path(term):
+        if address_path(term) is None:
+            raise IngotError(ADDRESS, _tag(term))
+        return
+    raise IngotError('A predef holds byte arrays, addresses g.l₁ ⋯ lₙ and structs of them.', _tag(term))
 
 
 def _function_type(term):
@@ -471,6 +540,8 @@ class _Body:
     def operand(self, term):
         if reduction.is_data(term):
             return term
+        if isinstance(term, terms.Struct):
+            return self.predef(term)
         binder, labels = self.binder(term)
         tag = _tag(term)
         match binder.kind:
@@ -498,6 +569,29 @@ class _Body:
             raise IngotError("A value has no fields: read a field of a struct value with 'extractvalue'.", tag)
         return Use(binder.value, tag)
 
+    def predef(self, term):
+        """A struct operand, a predef: its paths are addresses `g.l₁ ⋯ lₙ`, kept as paths from
+        the index 0."""
+        match term:
+            case terms.ByteArray():
+                return term
+            case terms.Struct(fields=fields):
+                return replace(term, fields=[replace(f, value=self.predef(f.value)) for f in fields])
+        binder, labels = self.binder(term)
+        if binder.kind != 'module':
+            raise IngotError(STRUCT_OPERAND, _tag(term))
+        if not labels or self.ingot.lookup(tuple(labels)) is None:
+            raise IngotError(ADDRESS, _tag(term))
+        address: syntax.Term = terms.BruijnIndex(0, _tag(term))
+        root = term
+        projects = []
+        while isinstance(root, terms.Project):
+            projects.append(root)
+            root = root.struct
+        for project in reversed(projects):
+            address = replace(project, struct=address)
+        return address
+
     def condition(self, term):
         operand = self.operand(term)
         if not isinstance(operand, Use | Arg):
@@ -512,8 +606,8 @@ class _Body:
         if isinstance(term, terms.Apply) and isinstance(term.function, terms.Struct):
             arms = [self.jump(f.value, arm=True) for f in term.function.fields]
             return Branch(arms, self.condition(term.argument), _tag(term))
-        if reduction.is_data(term):
-            return Return(term, _tag(term))
+        if isinstance(term, terms.ByteArray | terms.Struct):
+            return Return(self.operand(term), _tag(term))
         head, operands = anf.jump_parts(term)
         kind = self.binder(head)[0].kind
         if kind == 'region':

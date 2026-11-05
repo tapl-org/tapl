@@ -150,6 +150,18 @@ example : rebase (scons "" (scons "" (bytes [0x61]) (scons "" (bytes [0x62]) (sn
 example : rebase (scons "" (scons "" (bytes [0x78]) (snil)) (scons "" (scons "lib" (scons "step" (scons "type" (scons "" (bytes [0x66, 0x75, 0x6e, 0x63, 0x74, 0x69, 0x6f, 0x6e]) (scons "" (scons "n" (bytes [0x69, 0x33, 0x32]) (snil)) (scons "" (bytes [0x69, 0x33, 0x32]) (snil)))) (scons "body" (lam (lam (app (bytes [0x52]) (lam (scons "" (app (lam (var 0)) (app (proj (proj (var 2) "lib") "step") (scons "n" (proj (var 1) "n") (snil)))) (snil)))))) (snil))) (scons "c" (scons "type" (bytes [0x69, 0x33, 0x32]) (scons "value" (bytes [0x01, 0x00, 0x00, 0x00]) (snil))) (scons "h" (scons "type" (bytes [0x69, 0x33, 0x32]) (snil)) (snil)))) (snil)) (snil))) =
     some (scons "x" (scons "lib" (scons "step" (scons "type" (scons "" (bytes [0x66, 0x75, 0x6e, 0x63, 0x74, 0x69, 0x6f, 0x6e]) (scons "" (scons "n" (bytes [0x69, 0x33, 0x32]) (snil)) (scons "" (bytes [0x69, 0x33, 0x32]) (snil)))) (scons "body" (lam (lam (app (bytes [0x52]) (lam (scons "" (app (lam (var 0)) (app (proj (proj (proj (var 2) "x") "lib") "step") (scons "n" (proj (var 1) "n") (snil)))) (snil)))))) (snil))) (scons "c" (scons "type" (bytes [0x69, 0x33, 0x32]) (scons "value" (bytes [0x01, 0x00, 0x00, 0x00]) (snil))) (scons "h" (scons "type" (bytes [0x69, 0x33, 0x32]) (snil)) (snil)))) (snil)) (snil)) := by rfl
 
+/-- `rebase`: prefixes the paths in an init's and a value's λg. -/
+example : rebase (scons "" (scons "" (bytes [0x78]) (snil)) (scons "" (scons "s" (scons "type" (bytes [0x70, 0x74, 0x72]) (scons "init" (lam (proj (var 0) "k")) (snil))) (scons "t" (scons "type" (scons "" (bytes [0x61, 0x72, 0x72, 0x61, 0x79]) (scons "" (bytes [0x02]) (scons "" (bytes [0x70, 0x74, 0x72]) (snil)))) (scons "value" (lam (scons "" (proj (var 0) "s") (scons "" (proj (var 0) "k") (snil)))) (snil))) (scons "k" (scons "type" (bytes [0x69, 0x33, 0x32]) (scons "value" (bytes [0x07, 0x00, 0x00, 0x00]) (snil))) (snil)))) (snil))) =
+    some (scons "x" (scons "s" (scons "type" (bytes [0x70, 0x74, 0x72]) (scons "init" (lam (proj (proj (var 0) "x") "k")) (snil))) (scons "t" (scons "type" (scons "" (bytes [0x61, 0x72, 0x72, 0x61, 0x79]) (scons "" (bytes [0x02]) (scons "" (bytes [0x70, 0x74, 0x72]) (snil)))) (scons "value" (lam (scons "" (proj (proj (var 0) "x") "s") (scons "" (proj (proj (var 0) "x") "k") (snil)))) (snil))) (scons "k" (scons "type" (bytes [0x69, 0x33, 0x32]) (scons "value" (bytes [0x07, 0x00, 0x00, 0x00]) (snil))) (snil)))) (snil)) := by rfl
+
+/-- `rebase`: g used whole in a value. -/
+example : rebase (scons "" (scons "" (bytes [0x78]) (snil)) (scons "" (scons "s" (scons "type" (bytes [0x70, 0x74, 0x72]) (scons "value" (lam (var 0)) (snil))) (snil)) (snil))) =
+    none := by rfl
+
+/-- `rebase`: an init field outside an entry. -/
+example : rebase (scons "" (scons "" (bytes [0x78]) (snil)) (scons "" (scons "ns" (scons "init" (lam (proj (var 0) "x")) (snil)) (snil)) (snil))) =
+    none := by rfl
+
 /-- `rebase`: mounts a header. -/
 example : rebase (scons "" (scons "" (bytes [0x6c, 0x69, 0x62, 0x63]) (snil)) (scons "" (scons "lib" (scons "step" (scons "type" (scons "" (bytes [0x66, 0x75, 0x6e, 0x63, 0x74, 0x69, 0x6f, 0x6e]) (scons "" (scons "n" (bytes [0x69, 0x33, 0x32]) (snil)) (scons "" (bytes [0x69, 0x33, 0x32]) (snil)))) (scons "link" (bytes [0x73, 0x74, 0x65, 0x70]) (snil))) (snil)) (snil)) (snil))) =
     some (scons "libc" (scons "lib" (scons "step" (scons "type" (scons "" (bytes [0x66, 0x75, 0x6e, 0x63, 0x74, 0x69, 0x6f, 0x6e]) (scons "" (scons "n" (bytes [0x69, 0x33, 0x32]) (snil)) (scons "" (bytes [0x69, 0x33, 0x32]) (snil)))) (scons "link" (bytes [0x73, 0x74, 0x65, 0x70]) (snil))) (snil)) (snil)) (snil)) := by rfl
@@ -230,6 +242,10 @@ example : makeReducible (scons "f" (scons "type" (bytes [0x69, 0x33, 0x32]) (sco
 example : makeReducible (scons "ns" (scons "f" (scons "type" (bytes [0x69, 0x33, 0x32]) (scons "body" (lam (lam (app (proj (proj (var 1) "ns") "f") (var 0)))) (snil))) (snil)) (scons "v" (bytes [0x01]) (snil))) =
     some (lam (scons "ns" (scons "f" (lam (app (proj (proj (var 1) "ns") "f") (var 0))) (snil)) (scons "v" (bytes [0x01]) (snil)))) := by rfl
 
+/-- `make_reducible`: hoists an init's and a value's λg. -/
+example : makeReducible (scons "s" (scons "type" (bytes [0x70, 0x74, 0x72]) (scons "link" (bytes [0x73]) (scons "init" (lam (proj (var 0) "k")) (snil)))) (scons "t" (scons "type" (scons "" (bytes [0x61, 0x72, 0x72, 0x61, 0x79]) (scons "" (bytes [0x02]) (scons "" (bytes [0x70, 0x74, 0x72]) (snil)))) (scons "value" (lam (scons "" (proj (var 0) "s") (scons "" (proj (var 0) "k") (snil)))) (snil))) (scons "k" (scons "type" (bytes [0x69, 0x33, 0x32]) (scons "value" (bytes [0x07, 0x00, 0x00, 0x00]) (snil))) (snil)))) =
+    some (lam (scons "s" (scons "type" (bytes [0x70, 0x74, 0x72]) (scons "link" (bytes [0x73]) (scons "init" (proj (var 0) "k") (snil)))) (scons "t" (scons "type" (scons "" (bytes [0x61, 0x72, 0x72, 0x61, 0x79]) (scons "" (bytes [0x02]) (scons "" (bytes [0x70, 0x74, 0x72]) (snil)))) (scons "value" (scons "" (proj (var 0) "s") (scons "" (proj (var 0) "k") (snil))) (snil))) (scons "k" (scons "type" (bytes [0x69, 0x33, 0x32]) (scons "value" (bytes [0x07, 0x00, 0x00, 0x00]) (snil))) (snil))))) := by rfl
+
 /-- `make_reducible`: an empty ingot. -/
 example : makeReducible (snil) =
     some (lam (snil)) := by rfl
@@ -246,8 +262,12 @@ example : makeReducible (scons "f" (scons "type" (bytes [0x69, 0x33, 0x32]) (sco
 example : makeReducible (scons "f" (lam (var 0)) (snil)) =
     none := by rfl
 
+/-- `make_reducible`: a lambda in an init under its λg. -/
+example : makeReducible (scons "f" (scons "type" (bytes [0x69, 0x33, 0x32]) (scons "init" (lam (lam (var 0))) (snil))) (snil)) =
+    none := by rfl
+
 /-- `make_reducible`: a lambda in an entry without a body. -/
-example : makeReducible (scons "f" (scons "type" (bytes [0x69, 0x33, 0x32]) (scons "init" (lam (var 0)) (snil))) (snil)) =
+example : makeReducible (scons "f" (scons "type" (bytes [0x69, 0x33, 0x32]) (scons "link" (lam (var 0)) (snil))) (snil)) =
     none := by rfl
 
 /-- `make_reducible`: an operand that is not a struct. -/

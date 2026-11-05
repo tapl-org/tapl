@@ -4,7 +4,7 @@
 
 - `'unit.merge' {X₁, X₂, …}` merges the structs `Xᵢ` deeply, in order.
 - `'unit.rebase' {P, X}` puts `X` under the prefix `P` and rewrites the paths in its
-  entries' bodies to match.
+  entries' bodies (and `init`s and `value`s `λg. C`) to match.
 - `'unit.make_reducible' I` turns an ingot into `t = λg. {…}`, whose fixed point `fix t`
   runs the unit by reduction.
 
@@ -22,6 +22,8 @@ from oymo.oymomo.meta import Tag
 
 # What an entry may bring besides its `type`: a hole is filled by an entry that brings one.
 _FILLERS = ('body', 'init', 'value', 'link')
+# The fields that hold a global variable's or a constant's predef: `C`, or `λg. C`.
+_INITS = ('init', 'value')
 
 
 def merge(operand: terms.Term) -> terms.Term | None:
@@ -127,8 +129,9 @@ def rebase(operand: terms.Term) -> terms.Term | None:
 
     `P` is a struct of labels, each a nonempty text byte array (`{'dbl'}`); the operand's
     labels are ignored. `X'` is the struct `X` with every path from `g` in every entry's body
-    `λg. …` prefixed: `g.lib.step` becomes `g.dbl.lib.step`. Any other use of `g`, a body
-    that is not a lambda, or a lambda outside an entry's body gives no result. λ-free data is copied as it is, so mounting a header is a
+    `λg. …`, and in every entry's `init` or `value` `λg. C`, prefixed: `g.lib.step` becomes
+    `g.dbl.lib.step`. Any other use of `g`, a body that is not a lambda, or a lambda elsewhere
+    gives no result. λ-free data is copied as it is, so mounting a header is a
     rebase too.
     """
     if not isinstance(operand, terms.Struct) or len(operand.fields) != 2:  # noqa: PLR2004
@@ -158,11 +161,12 @@ type _Path = list[tuple[str, Tag]]
 
 
 def _rebase_namespace(struct: terms.Struct, path: _Path) -> terms.Struct | None:
-    """A struct of `X` with its entries' bodies rebased, or None."""
+    """A struct of `X` with its entries' bodies, and `init`s and `value`s `λg. C`, rebased,
+    or None."""
     is_entry = 'type' in _labels(struct)
     fields = []
     for f in struct.fields:
-        if is_entry and f.label == 'body':
+        if is_entry and _binds_unit(f):
             value = _rebase_body(f.value, path)
         elif isinstance(f.value, terms.Struct):
             value = _rebase_namespace(f.value, path)
@@ -174,8 +178,14 @@ def _rebase_namespace(struct: terms.Struct, path: _Path) -> terms.Struct | None:
     return replace(struct, fields=fields)
 
 
+def _binds_unit(f: terms.Field) -> bool:
+    """An entry's field that `λg` binds: its `body`, or an `init` or `value` `λg. C`."""
+    return f.label == 'body' or (f.label in _INITS and isinstance(f.value, terms.Lambda))
+
+
 def _rebase_body(body: terms.Term, path: _Path) -> terms.Term | None:
-    """An entry's body `λg. B` with every path from `g` in `B` prefixed, or None."""
+    """An entry's body `λg. B` (or `init` or `value` `λg. C`) with every path from `g` in `B`
+    prefixed, or None."""
     if not isinstance(body, terms.Lambda):
         return None
     rebased = _rebase_term(body.body, 0, path)
@@ -235,11 +245,12 @@ def make_reducible(operand: terms.Term) -> terms.Term | None:
 
     `N` has `I`'s namespaces. A definition, an entry whose `body` is `λg. λp. R`, becomes
     `λp. R'`: its own `λg` moves out to `t`'s (structs bind nothing, so `g` keeps its index),
-    and `R'` is `R` with every region `'R' (λr. u)` turned into `(fix (λr. u)) [00]`. Every
-    other entry (a global variable, a constant, a declaration, a hole) stays as it is. So
-    `fix t` is the unit's instance: projecting a definition unfolds it, and a call runs the
-    body. A struct with a λ outside an entry's body, or a body not shaped `λg. λp. …`, gives
-    no result.
+    and `R'` is `R` with every region `'R' (λr. u)` turned into `(fix (λr. u)) [00]`. In
+    every other entry (a global variable, a constant, a declaration, a hole), an `init` or
+    `value` `λg. C` becomes `C`: its `λg` moves out to `t`'s too; every other part stays as it
+    is. So `fix t` is the unit's instance: projecting a definition unfolds it, and a call runs
+    the body. Any other λ (outside an entry's body, or left in an entry once its `init` or
+    `value` is hoisted), or a body not shaped `λg. λp. …`, gives no result.
     """
     if not isinstance(operand, terms.Struct):
         return None
@@ -256,6 +267,7 @@ def _reducible_namespace(struct: terms.Struct) -> terms.Struct | None:
         if isinstance(value, terms.Struct) and 'type' in _labels(value):
             body = next((e.value for e in value.fields if e.label == 'body'), None)
             if body is None:
+                value = _hoist_inits(value)
                 if not _is_lambda_free(value):
                     return None
             elif isinstance(body, terms.Lambda) and isinstance(body.body, terms.Lambda):
@@ -270,6 +282,15 @@ def _reducible_namespace(struct: terms.Struct) -> terms.Struct | None:
             return None
         fields.append(f if value is f.value else replace(f, value=value))
     return replace(struct, fields=fields)
+
+
+def _hoist_inits(entry: terms.Struct) -> terms.Struct:
+    """`entry` with each `init` or `value` `λg. C` turned into `C`."""
+    fields = [
+        replace(f, value=f.value.body) if f.label in _INITS and isinstance(f.value, terms.Lambda) else f
+        for f in entry.fields
+    ]
+    return entry if all(a is b for a, b in zip(fields, entry.fields, strict=True)) else replace(entry, fields=fields)
 
 
 def _run_regions(term: terms.Term) -> terms.Term:

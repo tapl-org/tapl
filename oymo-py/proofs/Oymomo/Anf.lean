@@ -10,7 +10,7 @@ the module, the arguments, a region and a value apart (the verifier does), and t
 proof does not need to.
 
 * `Path` `P ::= x | P.l`.
-* `Operand` `Q ::= P | D`, `D` data; `Operands`: a struct of them.
+* `Operand` `Q ::= P | b | {lᵢ = Qᵢ}`; `Operands`: a struct of them.
 * `Op`: an instruction `O {lᵢ = Qᵢ}`, `O ::= P | b`: a call, or an opcode call
   that E-Opcode does not compute.
 * `Jump` `J ::= P Q₁ ⋯ Qₙ`; `Jumps`: a struct of them, the arms of a branch.
@@ -35,14 +35,19 @@ inductive Path : Term → Prop
   | var (n : Nat) : Path (var n)
   | proj {p : Term} (l : String) : Path p → Path (proj p l)
 
-inductive Operand : Term → Prop
-  | path {p : Term} : Path p → Operand p
-  | data {d : Term} : isData d = true → Operand d
+mutual
+  /-- A path, a byte array, or a struct of operands. Which paths a struct operand may
+  hold (only symbol addresses: it is a predef) is the verifier's rule, not the grammar's. -/
+  inductive Operand : Term → Prop
+    | path {p : Term} : Path p → Operand p
+    | bytes (b : Bytes) : Operand (bytes b)
+    | struct {s : Term} : Operands s → Operand s
 
-/-- A struct of operands. -/
-inductive Operands : Term → Prop
-  | snil : Operands snil
-  | scons {l : String} {q r : Term} : Operand q → Operands r → Operands (scons l q r)
+  /-- A struct of operands. -/
+  inductive Operands : Term → Prop
+    | snil : Operands snil
+    | scons {l : String} {q r : Term} : Operand q → Operands r → Operands (scons l q r)
+end
 
 variable (op) in
 /-- An instruction: an opcode call that E-Opcode does not compute, or a call. An opcode
@@ -115,31 +120,20 @@ theorem Path.normal {p t' : Term} (hp : Path p) : ¬ Step op p t' := by
     | proj1 h => exact ih h
     | fixProj => cases hp
 
-/-- Data has no step. -/
-theorem data_normal {d t' : Term} (hd : isData d = true) : ¬ Step op d t' := by
-  induction d generalizing t' with
-  | snil => intro h; cases h
-  | bytes b => intro h; cases h
-  | scons l t r iht ihr =>
-    simp only [isData, Bool.and_eq_true] at hd
-    intro h
-    cases h with
-    | scons1 h => exact iht hd.1 h
-    | scons2 h => exact ihr hd.2 h
-  | _ => simp [isData] at hd
+mutual
+  /-- An operand has no step. -/
+  theorem Operand.normal {q t' : Term} : Operand q → ¬ Step op q t'
+    | .path hp => hp.normal
+    | .bytes _ => fun h => by cases h
+    | .struct hs => hs.normal
 
-theorem Operand.normal {q t' : Term} : Operand q → ¬ Step op q t'
-  | .path hp => hp.normal
-  | .data hd => data_normal hd
-
-theorem Operands.normal {s t' : Term} (hs : Operands s) : ¬ Step op s t' := by
-  induction hs generalizing t' with
-  | snil => intro h; cases h
-  | scons hq _ ih =>
-    intro h
-    cases h with
-    | scons1 h => exact hq.normal h
-    | scons2 h => exact ih h
+  theorem Operands.normal {s t' : Term} : Operands s → ¬ Step op s t'
+    | .snil => fun h => by cases h
+    | .scons hq hr => fun h => by
+      cases h with
+      | scons1 h => exact hq.normal h
+      | scons2 h => exact hr.normal h
+end
 
 theorem Operands.not_bytes {s : Term} {b : Bytes} (hs : Operands s) : s ≠ bytes b := by
   cases hs <;> simp

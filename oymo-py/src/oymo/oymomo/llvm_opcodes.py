@@ -20,7 +20,7 @@ from collections.abc import Sequence
 from llvmlite import ir
 
 from oymo.core import syntax
-from oymo.oymomo import opcodes, printer, terms
+from oymo.oymomo import ingot, opcodes, printer, terms
 from oymo.oymomo.llvm_translate import LlvmTranslationError, OpcodeImpl, Operand, llvm_type
 
 _I32 = terms.ByteArray(b'i32')
@@ -47,6 +47,8 @@ def _int_type(name: str, fields: Sequence[syntax.Term], index: int) -> syntax.Te
 def _type(name: str, fields: Sequence[syntax.Term], index: int) -> syntax.Term:
     """Field `index`, any type term."""
     field = fields[index]
+    if ingot.addresses(field):
+        raise LlvmTranslationError(f'{name!r}: field {index} is a type, and a type holds no address.')
     if not opcodes.is_literal_type(field):
         raise LlvmTranslationError(f"{name!r}: field {index} must be a type, such as 'i32'.")
     return field

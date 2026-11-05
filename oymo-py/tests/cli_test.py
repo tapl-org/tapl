@@ -178,6 +178,7 @@ def test_the_ll_has_no_triple_and_no_data_layout(capsys) -> None:
         ('template/root', 9),
         ('say/root', 0),
         ('blocks', 1),
+        ('table', 0),
     ],
 )
 def test_build_golden_link_and_run_it(tmp_path, golden: str, result: int) -> None:

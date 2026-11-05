@@ -3356,6 +3356,27 @@ executable binary). we should mark some place as a platform". The steps that fol
   open questions (normality of `x.l`, building from run-time parts, labels → positions).
 - Calculus (predef) accepted (user: "calculus is accepted"); marks, red row and legend
   removed; one overfull line reworded.
+- Committed `dc0edd4`. User chose a subagent for Lean and code (Predef Implementer,
+  75bb2c51-489d-4d7c-93b0-05ec0dc8f39a; brief held the full design text). Report: Lean
+  `Operand`/`Operands` mutual (path | bytes | struct), `data_normal` gone, `anf_normal`
+  unchanged; UnitOps `bindsUnit` (body, or init/value that is a λ), `hoistInits` with
+  closedAt/WF lemmas; cases extended. Python: anf operand = bytes | struct | path; ingot
+  `predef`, `address_path`, errors ("An address in a predef is a path g.l₁ ⋯ lₙ to a symbol
+  of the ingot.", "A struct operand is a predef: build a struct of run-time values with
+  'insertvalue'.", "A type holds no address: …"); llvm addresses as `ptr @name`
+  (`_FunctionAddress` because llvmlite types a function as `i32 ()*`); `llvm_opcodes._type`
+  rejects addresses; unit_ops `_binds_unit`, `_hoist_inits`. Golden `table` (`@names =
+  internal constant [2 x ptr] [ptr @hello, ptr @bye]`), built and run. Its decisions: a
+  predef is stored as the C of λg. C (paths rooted at index 0); `g.f {a = p.a}` is now a
+  kinds error (TAIL_CALL) not ANF; make_reducible doesn't check C is a predef
+  (`init = λg. g` gives `g`); an address at a non-`ptr` type is an error. Agent checked:
+  lake build, 983 passed, hatch check clean. Roadmap: `data-addresses` removed; design
+  doc: predefs.
+- Quiz: Q1 right; Q2 (`{p.a, [01]}` as an operand) answered "allowed", then user: "this
+  should be allowed, if it is rejected show me with example". Agent again asked a quiz
+  before showing the example (mistake). Decided: keep it rejected for now, commit, and
+  decide allowing it in `struct-access` (noted there: one `insertvalue` per run-time
+  field).
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
