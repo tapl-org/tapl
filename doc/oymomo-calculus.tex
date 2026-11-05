@@ -313,7 +313,11 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
   \begin{subpoints}
   \item $\fn{op}(b)$ is a partial function from opcode operands (row \pref{p:opdata}) to a closed term: a byte
     array, as for $\str{add}$, or any closed term, as for an opcode that returns code.
-  \item The operand may be a byte array too: $\str{read\_low}\ \str{c.oymo}$.
+  \item\label{p:opcode-names}Opcode names: a name with no dot is an LLVM instruction's, as $\str{add}$, or the
+    region marker $\str{R}$ (\pref{p:anf}); a name $c.o$ belongs to the collection $c$: $\str{unit}$ for the unit
+    tools, as $\str{unit.merge}$, and $\str{driver}$ for the driver, as $\str{driver.read\_low}$. The verifier rejects an
+    unknown collection, or an unknown opcode of a known collection, where it is written.
+  \item The operand may be a byte array too: $\str{driver.read\_low}\ \str{c.oymo}$.
   \item Effects include memory opcodes, such as $\str{alloca}$, $\str{load}$ and $\str{store}$.
   \item Reduction has no memory: it never computes an address or the contents of
     one, and it never runs a memory opcode. It never moves a term that is not a value either

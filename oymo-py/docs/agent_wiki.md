@@ -3414,6 +3414,16 @@ executable binary). we should mark some place as a platform". The steps that fol
 - User simplified it: read `diamond/root.normal.oymo` (already merged) with
   `'driver.read_low'`, make it reducible, assert the result; no `'unit.merge'`, no calls;
   the expected form in pretty multi-line format. Now `test_make_reducible_of_diamond`.
+- Committed `da1ec32`.
+
+### `opcode-namespaces` (Nov 5)
+
+- Agent laid out today's names (LLVM bare, `'R'`, `unit.`, `driver.`) vs MLIR (every op
+  prefixed). Decided (recommended): A — LLVM stays bare (byte cost; user wants to save
+  bytes), a dotted `c.o` belongs to collection `c`, `'R'` is the kernel's; the verifier
+  rejects an unknown collection or an unknown opcode of a known collection where written.
+  Calculus draft (marks): a new subpoint "Opcode names" under the opcode point, and the
+  stale example `'read_low' 'c.oymo'` fixed to `'driver.read_low'`.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

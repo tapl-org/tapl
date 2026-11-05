@@ -162,11 +162,11 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - Moved out of `oymomo-redesign` (user: "move the opcode namespace outside of
   oymomo-redesign")
-- Decide: an opcode's collection as a prefix of its name (`'llvm.add'`,
-  `'driver.read_low'`, `'unit.merge'`), as MLIR dialect ops; whether LLVM opcodes get
-  `'llvm.'`; the frontend may hide prefixes
-- Decide: prefix = the providing collection (LLVM translation, driver, unit tools, an
-  opcode provider unit)
+- Decided (user, Nov 5): LLVM opcodes stay bare (they are most of every program; `'llvm.'`
+  would cost 5 bytes each); a name with no dot is LLVM's, or the kernel's marker `'R'`; a
+  dotted name `c.o` belongs to the collection `c` (`unit`, `driver`); the verifier rejects
+  an unknown collection, or an unknown opcode of a known collection, where it is written
+- Then: oymomo-calculus.tex (opcode names), code (the ingot reader's check), tests
 - Later: opcode providers (compiled units loaded by the driver; λs as opaque handles)
 
 ### `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
