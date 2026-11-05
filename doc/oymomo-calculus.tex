@@ -253,7 +253,7 @@
   in the high layer:
   \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
 inc = {type = {'function', {a = 'i32'}, 'i32'},
-       body = @vlamg. @vlamp. g [] (@vlamr. {
+       body = @vlamg. @vlamp. 'R' (@vlamr. {
          let y = ('add' {'i32', p.a, [01000000]} : g.check {a = p.a}) in y
        })}
 \end{Verbatim}
@@ -510,11 +510,11 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
   \end{subpoints}
 \item\label{p:gcd-body} For example, the body of Euclid's $\gcd$, with the sugar of \pref{p:if}:
   \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
-@vlamg. @vlamp. g [] (@vlamr. {
+@vlamg. @vlamp. 'R' (@vlamr. {
   entry = r.loop p.a p.b,
   loop = @vlama. @vlamb.
     let z = 'icmp' {'eq', 'i32', b, [00000000]} in
-    g [] (@vlamq. {
+    'R' (@vlamq. {
       if z then r.done a else q.step,
       step = let c = 'urem' {'i32', a, b} in r.loop b c
     }),
@@ -540,7 +540,7 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \pt & T & ::= & Q \mid J \mid \{J_i\}_{i<k}\ P \mid R & \textit{terminal} \\
 \pt & E & ::= & \kw{let}\ x = O\ \{l_i = Q_i\}_{i<k}\ \kw{in}\ E \mid T & \textit{expression} \\
 \pt & K & ::= & E \mid \lam{x_1}{\cdots \lam{x_n}{E}},\ 0 < n & \textit{block} \\
-\pt & R & ::= & x\ \hex{}\ (\lam{x}{\{l_i = K_i\}_{i<k}}),\ 0 < k & \textit{region}
+\pt & R & ::= & \str{R}\ (\lam{x}{\{l_i = K_i\}_{i<k}}),\ 0 < k & \textit{region}
 \end{array}
 \]
 \item What each class is:
@@ -556,10 +556,11 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
   \item $T$: a terminal is a return $Q$, a jump $J$, a branch $\{J_i\}_{i<k}\ P$ whose arms only jump, or a region $R$.
   \item $E$: an expression is the $\kw{let}$s of one block, up to its terminal.
   \item $K$: a block is an expression, or $\lambda$s taking its parameters one by one.
-  \item $R$: a region $g\ \hex{}\ (\lam{r}{\{l_i = K_i\}_{i<k}})$ names its blocks: $r.l_i$ is $K_i$. $g\ \hex{}$ is the module's
-    runner of regions (\pref{p:run-module}).
+  \item $R$: a region $\str{R}\ (\lam{r}{\{l_i = K_i\}_{i<k}})$ names its blocks: $r.l_i$ is $K_i$. $\str{R}$ is a marker: an opcode that no opcode table computes, so the call never
+    steps (\pref{p:opcode}), and a region does not reduce. To run, $\str{unit.make\_reducible}$ turns it into
+    $(\kw{fix}\ (\lam{r}{\dots}))\ \hex{00}$ (\pref{p:run-module}).
   \end{subpoints}
-\item\label{p:top-group} Field $0$ of a region is an expression, never a $\lambda$; $g\ \hex{}$ runs only field $0$:
+\item\label{p:top-group} Field $0$ of a region is an expression, never a $\lambda$; a region is entered at field $0$:
   \begin{subpoints}
   \item In the body's region it is the entry block, as $\mathit{entry}$ in \pref{p:gcd-body}.
   \item In a nested region it continues the block the region ends; the region's other fields
@@ -573,7 +574,7 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \[
 \begin{array}{l@{\quad}lll}
  & \textit{kind} & \textit{bound by} & \textit{used as} \\ \hline
-\pt & \textit{unit} & \text{the body's 1st } \lambda,\ g & g.l_1 \cdots l_n\text{: operator, operand};\ g\ \hex{}\text{: runner} \\
+\pt & \textit{unit} & \text{the body's 1st } \lambda,\ g & g.l_1 \cdots l_n\text{: operator, operand} \\
 \pt & \textit{arguments} & \text{the body's 2nd } \lambda,\ p & p.l,\ l \text{ a parameter: operand, condition} \\
 \pt & \textit{region} & \text{a region's } \lambda,\ r & r.l,\ l \text{ a block: head of a jump} \\
 \pt & \textit{value} & \kw{let},\ \text{a block's } \lambda & x\text{: operand, condition}
@@ -581,8 +582,7 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \]
   \begin{subpoints}
   \item $g.l_1 \cdots l_n$: a path from the ingot's top, through its namespaces, to an entry
-    (\pref{p:module}); it is an operator when the entry is a function, and otherwise an operand, its address. $g\ \hex{}$ only heads a region; any other
-    $x\ b$ is rejected.
+    (\pref{p:module}); it is an operator when the entry is a function, and otherwise an operand, its address. Any other use of $g$, such as $g\ b$, is rejected.
   \item $r.l$: a jump to the block $l$ passes exactly as many operands as $l$ has parameters.
   \item $x$: a value has no fields, so $x.l$ is rejected; a field of a struct value is read with an
     opcode (\pref{p:struct-values}).
@@ -624,7 +624,7 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
   \item A path or a jump has a variable at its head, and an operand is never applied or projected, so no
     other rule fires at them.
   \item A branch applies a struct to a path, never to a byte array, so \rn{E-Index} and \rn{E-Default} don't fire.
-  \item A region applies $g\ \hex{}$, and nothing applies the body, so $g$ stays free and the region doesn't reduce.
+  \item A region is an opcode call that never steps, $\str{R}\ (\lam{r}{\dots})$, so it doesn't reduce.
   \item The proof is in Lean 4, in \texttt{proofs/} (theorem \texttt{Oymomo.anf\_normal}), regions included.
   \end{subpoints}
 \end{points}
@@ -640,9 +640,9 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \item\label{p:gcd} For example, an ingot with $\gcd$ (its body is \pref{p:gcd-body}) and $\mathit{main}$:
   \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
 { math = { gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
-                  body = @vlamg. @vlamp. g [] (@vlamr. { @ldots })}},
+                  body = @vlamg. @vlamp. 'R' (@vlamr. { @ldots })}},
   main = {type = {'function', {}, 'i32'},
-          body = @vlamg. @vlamp. g [] (@vlamr. {
+          body = @vlamg. @vlamp. 'R' (@vlamr. {
             entry = let y = g.math.gcd {a = [30000000], b = [12000000]} in y
           }),
           link = 'main'} }
@@ -708,22 +708,26 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \item\label{p:init} An $\mathit{init}$ or a $\mathit{value}$ is data (row \pref{p:data}) of the entry's type:
   $\{\mathit{type} = \str{i32},\ \mathit{init} = \hex{29000000}\}$.
 How data initializes each type belongs to the translation (\pref{p:init-llvm}).
-\item\label{p:run-module} A module also runs by reduction, as a test does, once $g$ is bound to an instance. For a
-  module with definitions $f_i$ of bodies $B_i$ and declarations $n_j$, and a struct $u$ that holds
-  those names, the instance is (with namespaces, each namespace becomes a struct of the same shape, and a
-  definition or declaration at a path takes its place there)
-  \[\kw{fix}\ (\lam{g}{\{\lam{R}{(\kw{fix}\ R)\ \hex{00}},\ f_i = B_i\ g,\ n_j = u.n_j\}_{i<k,\ j<n}})\]
+\item\label{p:run-module} A unit also runs by reduction, as a test does. The opcode $\str{unit.make\_reducible}$ takes an ingot $I$ and gives
+  $t = \lam{g}{N}$, where $N$ has $I$'s namespaces and:
   \begin{subpoints}
-  \item Field $0$ is the runner of regions, so a module runs its own regions. $g\ \hex{}\ (\lam{r}{t})$ takes it
-    (\rn{E-FixApp}, \rn{E-Index}) and becomes $(\kw{fix}\ (\lam{r}{t}))\ \hex{00}$: it runs field $0$ of $t$ with $r$ bound to
-    its own blocks, and a jump $r.l\ Q_1 \cdots Q_n$ takes the block $l$ and applies it.
-  \item $f_i = B_i\ g$: projecting $f_i$ unfolds the instance (\rn{E-FixProj}), so a call runs the body, and a call
+  \item each definition with body $\lam{g}{\lam{p}{R}}$ becomes $\lam{p}{R'}$: its own $\lambda g$ moves out to $t$'s,
+    and $R'$ is $R$ with every region $\str{R}\ (\lam{r}{u})$ turned into $(\kw{fix}\ (\lam{r}{u}))\ \hex{00}$;
+  \item every other entry (a global variable, a constant, a declaration) stays as it is.
+  \end{subpoints}
+  The instance is $\kw{fix}\ t$. Code that needs other units first merges them in, so that each
+  declaration meets its definition (\pref{p:merge}), then makes the result reducible:
+  \[\kw{fix}\ (\str{unit.make\_reducible}\ (\str{unit.merge}\ \{I, U\}))\]
+  \begin{subpoints}
+  \item $(\kw{fix}\ (\lam{r}{u}))\ \hex{00}$ runs field $0$ of $u$ with $r$ bound to
+    its own blocks (\rn{E-FixApp}, \rn{E-Index}), and a jump $r.l\ Q_1 \cdots Q_n$ takes the block $l$ and applies it.
+  \item Projecting a definition unfolds the instance (\rn{E-FixProj}), so a call runs the body, and a call
     $g.f_j\ \{\dots\}$ inside it reaches the instance again.
-  \item $n_j = u.n_j$ copies each dependency in, so a body reaches $g.n_j$ as it reaches its own symbols.
+  \item A filled declaration is reached as $g.n$, as the unit's own symbols are.
   \item User code instantiates modules in dependency order and passes them by name (\pref{p:merge}),
     so each gets one instance of each module below it; in a diamond, both sides share one instance.
-  \item With the ingot of \pref{p:gcd} and $u = \{\}$, a call of the instance's $\mathit{math}.\mathit{gcd}$ on
-    $\{a = \hex{30000000}, b = \hex{12000000}\}$ reduces to $\hex{06000000}$.
+  \item With the ingot of \pref{p:gcd}, the instance's $\mathit{math}.\mathit{gcd}$ reduces to $\hex{06000000}$
+    when called on $\{a = \hex{30000000}, b = \hex{12000000}\}$.
   \item An opcode that \rn{E-Opcode} does not compute, such as $\str{load}$, stays in the result, waiting for
     run time.
   \end{subpoints}
@@ -793,7 +797,7 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
   \begin{subpoints}
   \item Regions are flattened, in source order: field $0$ of the body's region is the entry block, field $0$ of a
     nested region goes on in the block it continues, and every other field is a block. An unlabeled entry block is
-    named after its region's binder and its position, as $r.0$. The runner $g\ \hex{}$ itself becomes nothing.
+    named after its region's binder and its position, as $r.0$. The marker $\str{R}$ itself becomes nothing.
   \item Each $\kw{let}$ becomes one instruction: an opcode call becomes the opcode's instruction, and a
     call $g.l\ \{\dots\}$ becomes $\kw{call}$ of the function $l$.
   \item A return becomes $\kw{ret}$ (or $\kw{ret\ void}$, \pref{p:void}), and a jump $\kw{br}$.
@@ -847,10 +851,10 @@ How data initializes each type belongs to the translation (\pref{p:init-llvm}).
   msg  = {type = {'array', [03], 'i8'}, value = [686900]},
   main = {type = {'function', {argc = 'i32'}, 'i32'},
           link = 'main',
-          body = @vlamg. @vlamp. g [] (@vlamr. {
+          body = @vlamg. @vlamp. 'R' (@vlamr. {
             entry =
               let c = 'icmp' {'sgt', 'i32', p.argc, [01000000]} in
-              g [] (@vlamq. {
+              'R' (@vlamq. {
                 if c then q.say else r.done,
                 say = let u = g.puts {s = g.msg} in r.done
               }),

@@ -3229,6 +3229,57 @@ executable binary). we should mark some place as a platform". The steps that fol
   `λg. λp. 'region' (λr. {…})`, `p` the parameters (`p.a`), plain results, calls as
   today. `kernel-followups` is now "regions, addresses". Tick linearity: moot (user had
   said "No check for now").
+- Calculus (with marks, awaiting review): grammar row R `'region' (λx. {…})`; R's
+  description (marker opcode, never steps, `'unit.hoist'` turns it into `(fix R) [00]`);
+  field 0 "a region is entered at field 0"; kinds table drops `g []: runner`; "Any other
+  use of g, such as g b, is rejected"; ANF-normal point; running a unit by reduction
+  rewritten around `'unit.hoist'` (`fix t`, `fix (λg. 'unit.merge' {t g, U})`); the
+  translation: "The marker 'region' itself becomes nothing"; four Verbatim examples
+  changed and colored blue (`formatcom=\color{blue}`; no red "Before" copies). LaTeX:
+  `\old{$…$}` inside math needs `\text{…}`; a display can't sit inside `\old`/`\new`, so
+  displays are wrapped `{\color{red}\[…\]}` / `{\color{blue}\[…\]}`.
+- Names (user: "what about just using 'R' instead of 'region' … i want to econmosie with
+  bytes"; "unit.hoist is also somehow non common sense. users could not get it"): marker
+  `'R'` (3 bytes, the calculus's R, uppercase apart from the binder `r`; `[]` reads as an
+  index); opcode `'unit.make_reducible'` (user: "i guess method name should start with
+  verb. right?" — yes: `'unit.merge'`, `'unit.rebase'`, `'driver.read_low'` are verbs;
+  "hoist" told how, not what you get). Calculus draft, roadmap and wiki renamed.
+- User asked again for a name that "really good describe what function does". Agent: the
+  input is a normal form (irreducible: regions held by `'R'`, bodies wait for `g`); the
+  result computes once fixed and called, so `'unit.make_reducible'` names the purpose
+  exactly; alternatives `'unit.abstract_self'` (the shape), `'unit.make_runnable'`
+  (clashes with compiled "run"), `'unit.to_function'`, `'unit.instantiate'`. Kept
+  `'unit.make_reducible'`.
+- User on calculus 8.6a: "it is also possible to call region with e-index. in the future,
+  i have a plan to remove all labels and parameter names, only keep unlabeled struct and
+  bruijn index. for fingerprint and translate to production ready binary. the purpose is
+  code logic should not depend on struct label and parameter name." Agent: yes (`r [01]`
+  = `r.loop` at run time); today's ANF allows labels only; every label points into a
+  struct of known shape, so a pass can drop them. Decided: a roadmap leaf `label-free`,
+  after the bootstrap (user), under `single-thread` → `quality`; `region-marker` unchanged.
+- User: "first fill units with other declerations using unit.merge, then call
+  unit.make_reducible". Calculus draft and roadmap now say
+  `fix ('unit.make_reducible' ('unit.merge' {I, U}))` (was `fix (λg. 'unit.merge' {t g,
+  U})`). Asked whether to return `fix t` now that merging comes first; kept `t` (user:
+  room for mocks and wrappers; `'unit.merge'` can't replace a definition).
+- User: "I dont like unit.make_reducible which process lambdas without calculus. how about
+  struct.hoist which hoist all leaf lambdaes in the struct … or keep current design, it
+  works and better than pure logic". Agent: `'unit.make_reducible'` is an ordinary
+  E-Opcode step (closed normal operand, fixed table, α-invariant, closed result; `OpOK`),
+  like `'unit.rebase'`. `'struct.hoist'` would also need an entry→body tool (calls expect
+  `g.f` to be the function) and `'R'` as a real opcode firing on closed normal regions;
+  then a closed infinite loop (`while (1)` storing to a constant address) unrolls at
+  compile time and hangs. Kept `'unit.make_reducible'`.
+- User: "how about unit.rebase, does it also proven, or does it need a proof?" Agent: Lean
+  proves confluence and the guarantee for any table with `OpOK` (closed, WF results;
+  determinism and name-independence come free from functions on de Bruijn terms); each
+  Python opcode's duties are argued and tested, not proved. Options: leave, run-time
+  check, Lean proofs. User: "no check at run time. prove it in lean (also prove that
+  rebasing is also does not break the code)". Decided (recommended): leaf `opcode-proofs`
+  in `unit-followups`, right after `region-marker`; all three unit opcodes; rebase
+  correctness = substitution `g := g.P`.
+- Calculus accepted (user: "calculus draft is reviewed and accepted"): marks, red/blue
+  displays, `formatcom` colors and the legend removed; one overfull line reworded.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

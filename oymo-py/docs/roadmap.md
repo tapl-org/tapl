@@ -14,9 +14,10 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `kernel-followups` Kernel follow-ups: regions, addresses
-    - `region-marker` Regions as `'region' (λr. {…})`; `'unit.hoist'` builds the runnable instance
+    - `region-marker` Regions as `'R' (λr. {…})`; `'unit.make_reducible'` builds the runnable instance
     - `data-addresses` Symbol addresses in data, redesigned
-  - `unit-followups` Unit follow-ups: opcode namespaces, platform sizes, libraries
+  - `unit-followups` Unit follow-ups: opcode proofs, namespaces, platform sizes, libraries
+    - `opcode-proofs` Lean: the unit opcodes give closed, well-formed results; rebasing keeps meaning
     - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
     - `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
     - `functor-libraries` Functor-style libraries and path aliases (proposals)
@@ -134,6 +135,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - 🚫 `safety-checks` Checked build traps on overflow, OOB, null; UBSan on C
     - 🚫 `separate-compilation` Separate compilation, incremental rebuilds
     - 🚫 `header-places` Places in generated files: source vs generated, not oymomo vs other
+    - 🚫 `label-free` Labels and names out of the logic: positions, de Bruijn indices, fingerprints
   - `completion` Standard library, rest of C, tools
     - 🚫 `full-stdlib` Closures; formatted I/O, containers, pool and Boehm allocators
     - 🚫 `value-gc` Lua-style incremental GC for `Value`, replacing the arena
@@ -160,19 +162,19 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ## Leaf details
 
-### `region-marker` Regions as `'region' (λr. {…})`; `'unit.hoist'` builds the runnable instance
+### `region-marker` Regions as `'R' (λr. {…})`; `'unit.make_reducible'` builds the runnable instance
 
-- A body is `λg. λp. 'region' (λr. {…})`; nested regions too. `'region'` is a marker
+- A body is `λg. λp. 'R' (λr. {…})`; nested regions too. `'R'` is a marker
   opcode that never fires (not in the opcode table), so a region never steps before
-  `'unit.hoist'`; unit tools see a byte array, not a path on `g`
+  `'unit.make_reducible'`; unit tools see a byte array, not a path on `g`
 - `p` stays the parameters (`p.a`) and results stay plain values; effects stay ordered by
   their `let`s (call-by-value never moves an effect call); the translator drops the marker
-- `'unit.hoist' I` takes a normal-form ingot and returns `t = λg. {…}` (not fixed; the
+- `'unit.make_reducible' I` takes a normal-form ingot and returns `t = λg. {…}` (not fixed; the
   user writes `fix t`): each entry's `λg` moves out to one shared `λg`; namespaces nested
-  as in the ingot; a definition becomes `λp. R` with each `'region' R` rewritten to
-  `(fix R) [00]`; globals stay `{type, value}`; declarations stay, for the user to fill
-  before `fix`
-- Run by reduction: `let inst = fix ('unit.hoist' I) in inst.main {}`; effect calls stay
+  as in the ingot; a definition becomes `λp. …` with each `'R' (λr. {…})` rewritten to
+  `(fix (λr. {…})) [00]`; globals stay `{type, value}`; declarations stay; other units are
+  merged in first: `fix ('unit.make_reducible' ('unit.merge' {I, U}))`
+- Run by reduction: `let inst = fix ('unit.make_reducible' I) in inst.main {}`; effect calls stay
   as they are (reduction never computes through memory)
 - Then: oymomo-calculus.tex (ANF body and region, variable kinds, running a unit by
   reduction, the translation), Lean (ANF body shape), code (ANF check, ingot reader,
@@ -184,6 +186,20 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   mixes the label realm into data and does not survive namespaces or reduction)
 - Decide: a form that supports reduction and keeps name realms apart (e.g. a path value);
   until then pointer tables are filled at run time
+
+### `opcode-proofs` Lean: the unit opcodes give closed, well-formed results; rebasing keeps meaning
+
+- Why: confluence and the strategy guarantee hold for any opcode table satisfying `OpOK`
+  (every result closed and well formed); each opcode's part of it is argued and tested,
+  not proved (user: "no check at run time. prove it in lean (also prove that rebasing is
+  also does not break the code)")
+- Define `'unit.rebase'`, `'unit.merge'` and `'unit.make_reducible'` on Lean's `Term`; prove
+  `closed` and `WF` for each result
+- Rebase correctness: rebasing a body is substituting `g := g.P` (`rebase P (λg. b)` is
+  `λg. b[g := g.P]`), so calling an entry of the rebased unit reduces to the same result
+  as calling the original entry, with every `g.…` resolved under `P`
+- After `region-marker` (so `'unit.make_reducible'` exists)
+- Decide: how the Lean definitions are kept in step with the Python ones
 
 ### `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
 
@@ -1139,6 +1155,22 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   says which
 - Postponed until after the bootstrap (user: "lets return back to 'never write places into
   language oymomo files'. and put a roadmap leaf after bootstrap")
+
+### `label-free` Labels and names out of the logic: positions, de Bruijn indices, fingerprints
+
+- Plan (user): "remove all labels and parameter names, only keep unlabeled struct and
+  bruijn index. for fingerprint and translate to production ready binary. the purpose is
+  code logic should not depend on struct label and parameter name"
+- Every label in a body points into a struct of known shape (`p.a` from the function's
+  type, `r.loop` from its region, `g.math.gcd` from the ingot), so a pass can turn each
+  `x.l` into `x [i]` and each name into a de Bruijn index without changing meaning; a
+  region's block is already reachable by E-Index (`r [01]` acts as `r.loop`)
+- Labels move into meta, beside the places, for the translation and the debugger; `link`
+  names stay (byte arrays for the linker); `'unit.merge'`/`'unit.rebase'` use labels, but
+  run before an ingot is final
+- Fingerprints: a hash of the label-free form changes only when the logic does
+- Decide: index paths in ANF (`P ::= x | P.l | P b`; a variable's kind says how many
+  indices it takes); where labels live in meta; the fingerprint's hash and use
 
 ### `full-stdlib` Closures; formatted I/O, containers, pool and Boehm allocators
 
