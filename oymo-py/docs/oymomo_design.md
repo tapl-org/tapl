@@ -315,6 +315,11 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
   strategy guarantee failed (a free variable erased by another step can create an
   E-Opcode redex the order does not see). Proved in Lean (`OpOK`: results closed and
   well formed; `isNF_iff`).
+- The unit opcodes are proved to meet `OpOK` in Lean (`UnitOps.lean`: `'unit.merge'`,
+  `'unit.rebase'`, `'unit.make_reducible'` give closed, well-formed results), and rebasing
+  keeps meaning (it is substituting `g := g.P`). Shared cases keep the Lean and Python
+  definitions in step: Python tests check them, and a generated `UnitOpsCases.lean` checks
+  them by `rfl`.
 - Paths stay non-values: after substitution a path may be a failing projection
   (`(λx. (λy. b) x.l) {}` is `b` inner-first, stuck outer-first).
 - Opcode collections and their names (`'llvm.add'`, …) are roadmap node

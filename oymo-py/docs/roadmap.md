@@ -14,8 +14,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `data-addresses` Symbol addresses in data, redesigned
-  - `unit-followups` Unit follow-ups: opcode proofs, namespaces, platform sizes, libraries
-    - `opcode-proofs` Lean: the unit opcodes give closed, well-formed results; rebasing keeps meaning
+  - `unit-followups` Unit follow-ups: namespaces, platform sizes, libraries
     - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
     - `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
     - `functor-libraries` Functor-style libraries and path aliases (proposals)
@@ -166,19 +165,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   mixes the label realm into data and does not survive namespaces or reduction)
 - Decide: a form that supports reduction and keeps name realms apart (e.g. a path value);
   until then pointer tables are filled at run time
-
-### `opcode-proofs` Lean: the unit opcodes give closed, well-formed results; rebasing keeps meaning
-
-- Why: confluence and the strategy guarantee hold for any opcode table satisfying `OpOK`
-  (every result closed and well formed); each opcode's part of it is argued and tested,
-  not proved (user: "no check at run time. prove it in lean (also prove that rebasing is
-  also does not break the code)")
-- Define `'unit.rebase'`, `'unit.merge'` and `'unit.make_reducible'` on Lean's `Term`; prove
-  `closed` and `WF` for each result
-- Rebase correctness: rebasing a body is substituting `g := g.P` (`rebase P (λg. b)` is
-  `λg. b[g := g.P]`), so calling an entry of the rebased unit reduces to the same result
-  as calling the original entry, with every `g.…` resolved under `P`
-- Decide: how the Lean definitions are kept in step with the Python ones
 
 ### `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
 

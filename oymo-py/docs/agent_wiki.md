@@ -3302,6 +3302,26 @@ executable binary). we should mark some place as a platform". The steps that fol
 - Roadmap: `region-marker` removed; `kernel-followups` had one child left, so
   `data-addresses` moved up under `pre-bootstrap` and the node was removed. Design doc:
   make reducible, the region form, the merge rule.
+- Committed `c8dfd02`. `opcode-proofs` plan (artifact `opcode_proofs_plan.md`): Lean
+  definitions of the three unit opcodes, closed/WF proofs (→ `OpOK`), rebase correctness
+  (substitution `g := g.P` + joinability via `Par.subst`), conformance cases shared by
+  Python tests and a generated `UnitOpsCases.lean` checked by `rfl`. User chose a subagent
+  (Lean Opcode Prover, 00199964-f6b6-43a6-9b6d-564aa9ca6e99) and the generator; plan quiz
+  right.
+- Subagent report: `UnitOps.lean` (1018 lines) with `merge_closed/_wf`,
+  `rebase_closed/_wf`, `makeReducible_closed/_wf`, `unitOps_ok : OpOK unitOps`,
+  `withUnitOps_ok` (adds the tools to any OpOK table), `rebaseTerm_subst` (rebase =
+  `subst (prefixAt P d)`, i.e. g := g.P), `rebase_call` (rebased and original calls reach
+  `b[g := G]`), `rebase_call_nf` (via confluence). No sorry, standard axioms only. The
+  table guards on `closedAt 0 s && isWF s` (OpOK quantifies over every `s`; E-Opcode's
+  `isOperand` implies closed). Merge keeps fields last-first to match Python's
+  `positions` dict. Labels decode with `String.fromUTF8?`, as strict as Python. 61
+  conformance cases in `tests/oymomo/unit_ops_cases.py`, generated `UnitOpsCases.lean`
+  (`rfl`), a test that it is up to date (regenerate: `hatch run python -m
+  tests.oymomo.unit_ops_cases`). No Python bug found. Agent checked: lake build, 956
+  passed, hatch check clean. The subagent couldn't read the plan artifact (sandbox), so it
+  worked from the message: give subagents the plan's text, not only its path.
+- Roadmap: `opcode-proofs` removed; design doc notes the proofs.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
