@@ -3403,6 +3403,11 @@ executable binary). we should mark some place as a platform". The steps that fol
 - Committed `4034071`. Unreachable blocks (dropped silently today; a strict "changes none"
   would reject them): user chose "Decide later"; noted in `ll-instructions`. User stopped
   here for now.
+- User asked for a golden showing the normal form after `'unit.make_reducible'`. None
+  existed; agent computed diamond's (one `λg`, bodies plain `let`s: `(fix R) [00]`
+  unfolded) and noted, unsaid before, that a looping unit's reducible form has no normal
+  form (running a call still works). User: no golden ("the unit tests are enough"); fine as
+  is, recorded in the design doc.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

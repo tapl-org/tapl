@@ -287,6 +287,10 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
     `(fix (λr. u)) [00]`; other entries stay. `fix t` runs the unit by reduction; other
     units are merged in first: `fix ('unit.make_reducible' ('unit.merge' {I, U}))`. It
     returns `t`, not `fix t`, to leave room for mocks and wrappers.
+    The reducible form is for running: under reduction anywhere each `(fix R) [00]` unfolds,
+    so a loop-free unit's form reduces to plain bodies, but a unit with a loop has no
+    normal form (the back edge unfolds forever). A call with known arguments still reaches
+    its value (`(fix t).gcd {…}` gives `[06000000]`).
 - The translation adds nothing (Nov 5, a rule): every LLVM block, `br` and instruction is
   written; a jump to field 0 is rejected, so a loop head is a block of its own.
 - Predefs (Nov 5): operands are `Q ::= P | b | {lᵢ = Qᵢ}`; a predef is an operand fixed
