@@ -32,7 +32,16 @@ def test_one_opcode_per_llvm_instruction():
         *('zext', 'sext', 'trunc'),
         *('alloca', 'getelementptr', 'load', 'store'),
         *('extractvalue', 'insertvalue'),
+        # Sizes: LLVM constant expressions, not instructions.
+        *('layout.size', 'layout.offset', 'layout.align'),
     }
+
+
+def test_size_opcodes_give_an_i64_and_never_evaluate():
+    point = terms.Struct([terms.Field('x', I32), terms.Field('next', PTR)])
+    for name in ('layout.size', 'layout.offset', 'layout.align'):
+        assert OPCODES[name].result_type([point]) == I64
+        assert OPCODES[name].evaluate([point]) is None
 
 
 def test_reduce_time_opcodes():

@@ -3443,6 +3443,13 @@ executable binary). we should mark some place as a platform". The steps that fol
 - Calculus draft (marks): new point `p:sizes` (the three opcodes, the constant expressions,
   16 vs 8 bytes example), one-to-one exception for size lets, `layout` in opcode names.
 - Calculus accepted (user: "accept"); marks removed.
+- Committed `d319bc9`. Code (agent): `opcodes.LAYOUT_OPCODES`, each `_i64_result`, `_never`
+  (pure, never folds); `llvm_opcodes._layout` writes `ir.FormattedConstant(i64,
+  'ptrtoint (ptr getelementptr (…) to i64)')` (llvmlite's constant `gep` fails on opaque
+  pointers), so the let is a constant, not an instruction; errors for `'layout.offset'` on
+  a non-struct or a missing field. Golden `sizes` (16 + 8 + 8 = 32 on x86-64), built and
+  run. Roadmap: `platform-sizes` removed; `unit-followups` had one child left, so
+  `functor-libraries` moved up under `pre-bootstrap`. Design doc §4 rewritten.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

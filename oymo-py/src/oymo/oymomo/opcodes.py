@@ -355,6 +355,14 @@ def _insertvalue_form_of(fields: Fields) -> terms.Term | None:
     return fields[0] if element_type(fields[0], fields[3:]) is not None else None
 
 
+# The size opcodes: `{t}`, `{t, i}` (a struct type and a field's position), `{t}`.
+LAYOUT_OPCODES = ('layout.size', 'layout.offset', 'layout.align')
+
+
+def _i64_result(_fields: Fields) -> terms.Term | None:
+    return terms.ByteArray(b'i64')
+
+
 def _no_type(_fields: Fields) -> terms.Term | None:
     return None
 
@@ -405,6 +413,10 @@ def _generate():
     # Struct values. E-Opcode gives only byte arrays, so they never fold.
     yield Opcode('extractvalue', _extractvalue_form_of, _never)
     yield Opcode('insertvalue', _insertvalue_form_of, _never)
+    # Sizes: no table computes them; the translation writes LLVM's constant expressions,
+    # which the compiler folds for its target.
+    for name in LAYOUT_OPCODES:
+        yield Opcode(name, _i64_result, _never)
     # The unit tools, always available.
     yield Opcode('unit.merge', _no_type, _never, apply=unit_ops.merge)
     yield Opcode('unit.rebase', _no_type, _never, apply=unit_ops.rebase)

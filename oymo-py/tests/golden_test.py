@@ -160,6 +160,7 @@ GOLDENS = [
     'layers',
     'blocks',
     'table',
+    'sizes',
 ]
 
 

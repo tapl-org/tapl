@@ -410,10 +410,13 @@ Written by topic; the discussion and every user quote are in `agent_wiki.md`
 
 ### 4. Platform-neutral ingots
 
-- Decide later, when needed: how a size that depends on the platform (`usize`, a C
-  struct's layout) stays out of the ingot until translation. Idea: symbolic types
-  (`'usize'`, `'c_long'`) and opcodes reduction never folds (`'sizeof'`, `'alignof'`,
-  `'offsetof'`), resolved by the translation from the data layout.
+- Decided (Nov 5): an ingot is the same for every platform, so oymomo never computes a
+  size. `'layout.size' {t}`, `'layout.offset' {t, i}`, `'layout.align' {t}` are computed by
+  no table; the translation writes LLVM's constant expressions
+  (`ptrtoint (ptr getelementptr (t, ptr null, i32 1) to i64)`, and the offset and `{i1, t}`
+  forms), which clang folds for its target. Sizes are `i64`; there is no pointer-sized
+  integer type and no data layout, so one `.ll` serves every platform. Rejected: symbolic
+  types (`'usize'`) with `--target` and a data layout in the `.ll`.
 
 ### 5. Linking across layers
 

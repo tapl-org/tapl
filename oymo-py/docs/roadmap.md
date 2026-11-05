@@ -13,9 +13,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ## Tree
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
-  - `unit-followups` Unit follow-ups: platform sizes, libraries
-    - `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
-    - `functor-libraries` Functor-style libraries and path aliases (proposals)
+  - `functor-libraries` Functor-style libraries and path aliases (proposals)
   - `foundations` CLI, confluence, deps
     - `deps` Compile-time dependencies between `.oymo` files
       - 🚫 `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
@@ -156,20 +154,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `block-comments` `/* */` block comments; stuck-term errors shown in them
 
 ## Leaf details
-
-### `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
-
-- Decided (user, Nov 5): LLVM computes sizes. Opcodes of a new collection `layout`:
-  `'layout.size' {T}`, `'layout.offset' {T, i}`, `'layout.align' {T}`; no table computes
-  them, so reduction never folds them; the translation writes LLVM's constant expressions
-  (`ptrtoint (ptr getelementptr (T, ptr null, i32 1) to i64)`, the offset and `{i1, T}`
-  forms), which clang folds for its target; results are `i64`; no pointer-sized integer
-  type, no data layout, one `.ll` for every platform; before the bootstrap. Rejected:
-  symbolic types (`'usize'`) with `--target` and a data layout in the `.ll`
-- A size opcode's `let` becomes a constant expression, not an instruction (an exception to
-  "each let becomes one instruction"; nothing is added)
-- Then: oymomo-calculus.tex (sizes, the one-to-one point, opcode names' collections), code
-  (the `layout` collection in the opcode table, the translation), tests and a golden
 
 ### `functor-libraries` Functor-style libraries and path aliases (proposals)
 

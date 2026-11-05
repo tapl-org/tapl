@@ -179,6 +179,8 @@ def test_the_ll_has_no_triple_and_no_data_layout(capsys) -> None:
         ('say/root', 0),
         ('blocks', 1),
         ('table', 0),
+        # size 16 + offset 8 + align 8 on a 64-bit host.
+        ('sizes', 32),
     ],
 )
 def test_build_golden_link_and_run_it(tmp_path, golden: str, result: int) -> None:

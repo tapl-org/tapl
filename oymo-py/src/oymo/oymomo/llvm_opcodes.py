@@ -228,6 +228,37 @@ def _insertvalue(builder, fields, operand: Operand):
     )
 
 
+def _layout(name):
+    """A size opcode as LLVM's constant expression: the address of an element past the null
+    pointer, as an `i64`, which the compiler folds for its target. No instruction."""
+
+    def impl(_builder, fields, _operand):
+        if name == 'layout.offset':
+            _arity(name, fields, 2)
+            typ = _type(name, fields, 0)
+            index = fields[1]
+            if not isinstance(index, terms.ByteArray) or not isinstance(llvm_type(typ), ir.BaseStructType):
+                raise LlvmTranslationError(f"{name!r}: field 0 is a struct type and field 1 a field's position.")
+            fields_count = len(llvm_type(typ).elements)
+            position = int.from_bytes(index.value, 'little')
+            if position >= fields_count:
+                raise LlvmTranslationError(
+                    f'{name!r}: the struct has no field {position}; its fields are 0 to {fields_count - 1}.'
+                )
+            gep = f'getelementptr ({llvm_type(typ)}, ptr null, i32 0, i32 {position})'
+        else:
+            _arity(name, fields, 1)
+            typ = llvm_type(_type(name, fields, 0))
+            gep = (
+                f'getelementptr ({typ}, ptr null, i32 1)'
+                if name == 'layout.size'
+                else f'getelementptr ({{i1, {typ}}}, ptr null, i32 0, i32 1)'
+            )
+        return ir.FormattedConstant(ir.IntType(64), f'ptrtoint (ptr {gep} to i64)')
+
+    return impl
+
+
 _MEMORY = {'alloca': _alloca, 'getelementptr': _getelementptr, 'load': _load, 'store': _store}
 _STRUCT = {'extractvalue': _extractvalue, 'insertvalue': _insertvalue}
 
@@ -281,6 +312,8 @@ def _emit(name: str):
         return _MEMORY[name]
     if name in _STRUCT:
         return _STRUCT[name]
+    if name in opcodes.LAYOUT_OPCODES:
+        return _layout(name)
     return _convert(name, _CONVERT[name])
 
 

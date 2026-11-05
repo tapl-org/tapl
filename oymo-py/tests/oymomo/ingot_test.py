@@ -349,7 +349,7 @@ def test_no_normal_form():
 @pytest.mark.parametrize(
     ('opcode', 'message'),
     [
-        ('nope.merge', "No opcode collection 'nope': the collections are ['driver', 'unit']."),
+        ('nope.merge', "No opcode collection 'nope': the collections are ['driver', 'layout', 'unit']."),
         (
             'unit.mrege',
             "The collection 'unit' has no opcode 'mrege'; it has ['make_reducible', 'merge', 'rebase'].",

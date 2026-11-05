@@ -529,3 +529,37 @@ def test_a_name_of_bytes_that_are_not_text():
     }"""
     )
     assert r'define internal i32 @"f\FF"()' in text
+
+
+def test_sizes_are_constant_expressions():
+    text = llvm(
+        single(
+            """let n = 'layout.size' {{x = 'i32', next = 'ptr'}} in
+            let o = 'layout.offset' {{x = 'i32', next = 'ptr'}, [01]} in
+            let a = 'layout.align' {'ptr'} in
+            let s = 'add' {'i64', n, o} in let t = 'add' {'i64', s, a} in
+            let u = 'trunc' {'i64', t, 'i32'} in u"""
+        )
+    )
+    assert 'ptrtoint (ptr getelementptr ({i32, ptr}, ptr null, i32 1) to i64)' in text
+    assert 'ptrtoint (ptr getelementptr ({i32, ptr}, ptr null, i32 0, i32 1) to i64)' in text
+    assert 'ptrtoint (ptr getelementptr ({i1, ptr}, ptr null, i32 0, i32 1) to i64)' in text
+    # A size's let is a constant, not an instruction.
+    assert '%"n"' not in text
+
+
+@pytest.mark.parametrize(
+    ('blocks', 'message'),
+    [
+        (
+            "let o = 'layout.offset' {'i32', [00]} in let u = 'trunc' {'i64', o, 'i32'} in u",
+            "'layout.offset': field 0 is a struct type and field 1 a field's position.",
+        ),
+        (
+            "let o = 'layout.offset' {{x = 'i32'}, [01]} in let u = 'trunc' {'i64', o, 'i32'} in u",
+            "'layout.offset': the struct has no field 1; its fields are 0 to 0.",
+        ),
+    ],
+)
+def test_size_errors(blocks, message):
+    assert error(single(blocks)) == message

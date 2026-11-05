@@ -1,0 +1,15 @@
+language oymomo
+{
+  main= {
+    type= {'function', {}, 'i32'},
+    link= 'main',
+    body= λg. λp. 'R' (λr. {
+      let n = 'layout.size' {{x= 'i32', next= 'ptr'}} in
+      let o = 'layout.offset' {{x= 'i32', next= 'ptr'}, [01]} in
+      let a = 'layout.align' {'ptr'} in
+      let s = 'add' {'i64', n, o} in
+      let t = 'add' {'i64', s, a} in
+      let u = 'trunc' {'i64', t, 'i32'} in u,
+    }),
+  },
+}
