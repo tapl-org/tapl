@@ -14,7 +14,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `foundations` CLI, confluence, deps
-    - 🚫 `typed-consts` Folding keeps constants' types
+    - `typed-consts` Folding keeps constants' types
     - `ll-coverage` oymomo writes any `.ll`
       - `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
       - `ll-types` Types: `void`, wide integers, floats, vectors
@@ -154,12 +154,13 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `typed-consts` Folding keeps constants' types
 
-- Constants that reach an ingot untyped (literal-only block parameters)
-- Decide: how reduction folds at compile time and still keeps a constant's type; e.g.
-  `{'const', t, b}` accepted and returned by opcodes; branches on it are stuck (5.5)
-- Decide: `'select' {type, c, a, b}` opcode (LLVM `select`) for value choices
-- Typed lambdas `λ(i: 'i32'). e` for block parameters, if inference needs help (moved from
-  `ssa-sugar`: the same problem, types for constants and parameters)
+- Decided (user, Nov 5): where nothing gives a type (a parameter that receives only byte
+  arrays and is only a branch condition; a folded opcode's bare result), a byte array's
+  length gives it: 1, 2, 4, 8 bytes are `i8`, `i16`, `i32`, `i64`; other lengths, or two
+  lengths, stay an error. Rejected: typed constants `{'const', t, b}`, typed lambdas
+  `λ(x: 'i32').`, keeping the error
+- Then: oymomo-calculus.tex (byte arrays' type, parameter inference), code (inference),
+  tests
 
 ### `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
 
@@ -419,6 +420,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide (Nov 5, user: "Decide later"): an unreachable block; the translation leaves it out
   today, which changes the program under the "adds none, changes none" rule; reject it with
   a located error instead?
+- `'select' {type, c, a, b}` (LLVM `select`) for value choices (moved from `typed-consts`)
 
 ### `bswap` `'bswap'` for byte order per access
 

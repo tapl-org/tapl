@@ -783,6 +783,19 @@ How a predef initializes each type belongs to the translation (\pref{p:init-llvm
   \begin{subpoints}
   \item A count or index of $\str{alloca}$ or $\str{getelementptr}$ has no type operand: a byte array of $8$ bytes there is an
     $\str{i64}$, any other an $\str{i32}$.
+  \item \label{p:bytes-length}Sometimes no use gives a byte array a type. Then its length gives one: $1$ byte is an
+    $\str{i8}$, $2$ bytes an $\str{i16}$, $4$ bytes an $\str{i32}$ and $8$ bytes an $\str{i64}$. Any other length is rejected.
+  \item Only a branch condition names no type. Here $c$ is only a condition, and it receives $\hex{03000000}$, which
+    has $4$ bytes, so $c$ is an $\str{i32}$ (\pref{p:infer}):
+    \[\mathit{entry} = r.\mathit{check}\ \hex{03000000},\quad \mathit{check} = \lam{c}{\{r.a, r.b, r.c\}\ c}\]
+  \item Reduction needs this too. It computes an opcode and keeps only the bytes:
+    \[\kw{let}\ y = \str{add}\ \{\str{i32}, \hex{01000000}, \hex{02000000}\}\ \kw{in}\ r.\mathit{check}\ y\]
+    reduces to $r.\mathit{check}\ \hex{03000000}$. The $\str{i32}$ is gone, but the $4$ bytes give it back.
+  \item A floating-point value, of any floating-point type ($\str{half}$, $\str{float}$, $\str{double}$ and the others), never
+    needs this: it is never a condition. It is compared first, which gives an $\str{i1}$.
+  \item An ordinary $\kw{if}$ does not change: its condition comes from an $\str{icmp}$, which gives an $\str{i1}$, so
+    it becomes a $\kw{br\ i1}$. Only a condition typed by its length is different: a one-byte one is an $\str{i8}$, and a
+    branch on it becomes a $\kw{switch}$ (\pref{p:one-to-one}), with the same meaning.
   \item As a floating-point type it has the type's size in bytes ($2$ for $\str{half}$, $4$ for $\str{float}$, $8$ for
     $\str{double}$, $10$ for $\str{x86\_fp80}$, $16$ for $\str{fp128}$ and $\str{ppc\_fp128}$), holding its bits, least significant byte
     first, as numbers are: $1.0$ as a $\str{float}$ is $\hex{0000803F}$.
@@ -807,7 +820,16 @@ How a predef initializes each type belongs to the translation (\pref{p:init-llvm
 \item\label{p:infer} A block's parameters have no written type: each takes the type of the operands
   jumped to it and of its uses, repeated until nothing changes.
   \begin{subpoints}
-  \item A used parameter with no type found, or with two, is rejected: ``give $x$ a typed argument or a
+  \item If no operand and no use gives a parameter a type, the length of its byte-array operands does
+    (\pref{p:bytes-length}). For a parameter $c$:
+    \begin{itemize}
+    \item given $\hex{03000000}$ and $\hex{05000000}$, $c$ is an $\str{i32}$: both have $4$ bytes;
+    \item given $\hex{03}$ and $\hex{05000000}$, it is rejected: two lengths;
+    \item given $\hex{030000}$, it is rejected: $3$ bytes give no type;
+    \item given $p.a$, an $\str{i8}$, and $\hex{03000000}$, $c$ is an $\str{i8}$, since a real type comes first. Then
+      $\hex{03000000}$ is rejected, since it does not have $1$ byte (the last subpoint below).
+    \end{itemize}
+  \item A used parameter with two types is rejected: ``give $x$ a typed argument or a
     typed use''. An unused parameter with no type found gets no $\kw{phi}$.
   \item An operand whose type differs from the type its use needs is rejected, at the operand.
   \end{subpoints}

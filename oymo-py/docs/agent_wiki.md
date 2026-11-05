@@ -3468,6 +3468,41 @@ executable binary). we should mark some place as a platform". The steps that fol
   drop `let _ =`, move typed lambdas to `typed-consts`. Leaf removed.
 - `deps` was left with only `typed-consts`, which isn't about dependencies, so `typed-consts`
   moved up under `foundations` and `deps` was removed.
+- Committed `1151241`.
+
+### `typed-consts` (Nov 5)
+
+- Agent explained with the test case (`r.done [00], done = λx. {r.a, r.b} x`) and how
+  folding drops types (`'add' {'i32', …}` folds to a bare `[03000000]`). Options A (length
+  gives the type), B (typed constants), C (typed lambdas), D (keep the error). User chose
+  A; `'select'` moved to `ll-instructions`. Typed lambdas therefore not adopted.
+- Calculus draft (marks): a byte-array subpoint "Where nothing gives a type … its length
+  does" (label `p:bytes-length`), and parameter inference uses it.
+- User: "what about float types". Agent: the only use naming no type is a branch condition,
+  which is an integer; a float is compared with `'fcmp'` first, so a float always gets its
+  type from a use. Added to the draft: "A float never needs this: every use of a float
+  names its type, and a branch condition is an integer."
+- User: "what about i1". A one-byte condition gets i8; a two-arm branch on it is a switch
+  with the same meaning (LLVM turns it into br). User proposed hex-digit width: "[0] is a
+  byte array … high 4 bits are guaranteed zeros … it should be i4 … translation can
+  translate it to i1". Agent (after asking twice without explaining, again): the parser
+  makes [1] and [01] the same byte, so the width needs meta (B, written literals only, i4
+  still a switch) or hex-digit arrays (C, kernel change). User chose A: keep i8; draft
+  unchanged.
+- User didn't understand the calculus changes and asked to elaborate them "in the calculus
+  doc": the draft now has the example (`check = λc. {r.a, r.b, r.c} c`), the folded `'add'`
+  as a display, the float and one-byte-condition notes, and the cases of 10.6a (agree, two
+  lengths, no such length, a real type first).
+- User: "when reading the doc, i dont understand the text. make it easy readable in the
+  doc". Rewritten in short plain sentences: 10.3b–f (the rule; only a condition names no
+  type, with the example as a display; reduction keeps only bytes; floats; one-byte
+  conditions) and 10.6a as a list of four cases, 10.6b the old rule (two types).
+  Lesson: write calculus text plainly — short sentences, one idea each, an example.
+- User: "what about other float types, like double, half" and 10.3f read as "all of them
+  becomes switch". 10.3e now names every floating-point type; 10.3f says an ordinary `if`
+  (condition from `'icmp'`, an `i1`) still becomes `br i1`, and only a condition typed by its
+  length is a switch.
+- Calculus accepted (user: "Accept now"); marks removed.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
