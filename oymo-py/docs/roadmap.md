@@ -13,7 +13,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ## Tree
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
-  - 🚫 `struct-access` Proposal: struct values read by projection and index, not `'extractvalue'`/`'insertvalue'`
+  - `strict-translation` The translation adds nothing: a jump to field 0 is rejected
   - `unit-followups` Unit follow-ups: namespaces, platform sizes, libraries
     - `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
     - `platform-sizes` Platform-dependent sizes in a platform-neutral ingot
@@ -159,21 +159,17 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ## Leaf details
 
-### `struct-access` Proposal: struct values read by projection and index, not `'extractvalue'`/`'insertvalue'`
+### `strict-translation` The translation adds nothing: a jump to field 0 is rejected
 
-- Proposal (user, Nov 5): "use struct e-index or e-proj for struct value extraction
-  instead of insertvalue or extractvalue. this is just a proposal"
-- Today a run-time struct value `x` (a `'load'` of a struct type, a parameter) is read with
-  `'extractvalue'` and built with `'insertvalue'`; the kinds reject `x.l` ("a value has
-  no fields"), and a struct operand must be a predef, so `{p.a, [01]}` is rejected
-- Idea: `x.l` and `x [i]` (E-Proj, E-Index) read a field of a struct value, and the
-  translation emits `extractvalue`; a struct built from run-time parts may follow
-- User (Nov 5): `{p.a, [01]}` as an operand "should be allowed"; the translation would
-  emit one `insertvalue` per run-time field, starting from the predef fields
-- Decide: whether to adopt it; how `x.l`/`x [i]` stay normal in ANF (`x` is a value
-  variable, so neither rule fires); whether building `{p.a, [01]}` is allowed and how it
-  keeps "one part, one instruction"; how labels map to positions (the type's fields);
-  then oymomo-calculus.tex, Lean, code
+- Rule (user, Nov 5: "i dont want .ll gets instruction user didn't write"; chose the fully
+  strict form): every LLVM block, `br` and instruction comes from one written part, and
+  the translation adds none (required, no longer "preferred")
+- The one exception today goes: a jump to field 0 (the translation adds an entry block,
+  or splits a nested region's block and adds a `br`); such a jump is rejected, and a loop
+  head is a block of its own (`entry = r.loop …, loop = λi. …`)
+- Then: oymomo-calculus.tex (the translation's one-to-one point, field 0), code (the
+  ingot rejects a jump to field 0; the translation drops the added block), goldens
+  (`field0` becomes loops through their own blocks, plus an error test)
 
 ### `opcode-namespaces` Opcode collections and namespaces, as MLIR dialects
 

@@ -3377,6 +3377,22 @@ executable binary). we should mark some place as a platform". The steps that fol
   before showing the example (mistake). Decided: keep it rejected for now, commit, and
   decide allowing it in `struct-access` (noted there: one `insertvalue` per run-time
   field).
+- Committed `c6dae98`.
+
+### `struct-access` dropped; strict translation (Nov 5)
+
+- Agent explained the proposal: `s.l`/`s [i]` (E-Proj/E-Index) already mean extractvalue,
+  struct literals mean insertvalue; options R1/R2 (where reads go), B1/B2/B3 (building).
+  User, on R1 "the .ll gets instructions you didn't write": "i dont want .ll gets
+  instruction user didn't write. should we make this as a rule". Agent: yes; today the
+  only addition is a jump to field 0 (an added entry block with `br`, or a split block
+  with `br`); offered A (strict for computations) or B (fully strict). User chose B, and
+  "Keep both opcodes; drop the proposal". `struct-access` removed; new leaf
+  `strict-translation`.
+- Calculus draft (marks): field 0 "No jump goes to it, labeled or not: a jump to field 0 is
+  rejected, so the translation never adds a block"; one-to-one "as a rule"; the subpoint on
+  the added block struck.
+- Calculus accepted (user: "accept"); marks removed.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

@@ -565,8 +565,9 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
   \item In the body's region it is the entry block, as $\mathit{entry}$ in \pref{p:gcd-body}.
   \item In a nested region it continues the block the region ends; the region's other fields
     are new blocks.
-  \item Its label is free: it may have any label or none. With a label, a jump may go to it, with no
-    operands, since field $0$ has no parameters; the translation then adds a block (\pref{p:one-to-one}).
+  \item Its label is free: it may have any label or none. No jump goes to it, labeled or not: a
+    jump to field $0$ is rejected, so the translation never adds a block (\pref{p:one-to-one}); a loop head is a
+    block of its own, as $\mathit{entry} = r.\mathit{loop},\ \mathit{loop} = \dots$
   \item The other fields are labeled, so that a jump can name them.
   \end{subpoints}
 \item\label{p:kinds} Each variable has a kind, given by its binder. The verifier checks every use against the
@@ -797,9 +798,8 @@ How a predef initializes each type belongs to the translation (\pref{p:init-llvm
 \item\label{p:llvm-ops} An instruction's struct of operands (\pref{p:anf}) is LLVM's operand list. A struct operand is a predef,
   so an LLVM constant (an address is $\kw{ptr}\ @\mathit{name}$), and LLVM builds a struct value from run-time values with $\kw{insertvalue}$, as the
   ingot does (\pref{p:struct-values}). Effects are emitted in the order of their $\kw{let}$s (\pref{p:opcode}).
-\item\label{p:one-to-one} The translation is one to one where it can be; this is preferred, not required: every LLVM block, label and instruction is
-  written in the ingot, and the translation adds none and changes none, except where the ingot asks for
-  what LLVM can't write directly.
+\item\label{p:one-to-one} The translation is one to one, as a rule: every LLVM block, label and instruction is
+  written in the ingot, and the translation adds none and changes none.
   \begin{subpoints}
   \item Regions are flattened, in source order: field $0$ of the body's region is the entry block, field $0$ of a
     nested region goes on in the block it continues, and every other field is a block. An unlabeled entry block is
@@ -807,9 +807,6 @@ How a predef initializes each type belongs to the translation (\pref{p:init-llvm
   \item Each $\kw{let}$ becomes one instruction: an opcode call becomes the opcode's instruction, and a
     call $g.l\ \{\dots\}$ becomes $\kw{call}$ of the function $l$.
   \item A return becomes $\kw{ret}$ (or $\kw{ret\ void}$, \pref{p:void}), and a jump $\kw{br}$.
-  \item A jump to field $0$ (\pref{p:top-group}) adds a block. LLVM's entry block has no predecessors, so in the
-    body's region the translation adds a new entry block that only jumps to field $0$, named after the region's binder, as $r$. In a nested region, field
-    $0$ starts a block of its own, and the block it continued ends with an added $\kw{br}$ to it.
   \item A branch of two arms on an $\str{i1}$ becomes $\kw{br\ i1}$, to arm $1$ when true and arm $0$ when false;
     any other branch becomes $\kw{switch}$, arm $i$ the case $i$ and the last arm the default.
   \item A block's parameters become its $\kw{phi}$ instructions, one incoming value per jump to it, even
