@@ -14,9 +14,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `foundations` CLI, confluence, deps
-    - `deps` Compile-time dependencies between `.oymo` files
-      - 🚫 `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
-      - 🚫 `typed-consts` Folding keeps constants' types
+    - 🚫 `typed-consts` Folding keeps constants' types
     - `ll-coverage` oymomo writes any `.ll`
       - `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
       - `ll-types` Types: `void`, wide integers, floats, vectors
@@ -154,21 +152,14 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ## Leaf details
 
-### `ssa-sugar` Sugars: `letrec`, `let _ =`, `blocks`, typed lambdas
-
-- `letrec x = t₁ in t₂` ≝ `let x = fix (λx. t₁) in t₂`
-- `let _ = v in e`: a `let` kept only for its effect
-- `blocks r = {l₁ = b₁, …} in t` ≝ `'R' (λr. {t, l₁ = b₁, …})` (a region); always the struct form
-- Typed lambdas `λ(i: 'i32'). e` for block parameters, if inference needs help
-- oymomo-calculus.tex Section 3, grammar, printer; reserved words
-- Decide: a better name than `blocks`
-
 ### `typed-consts` Folding keeps constants' types
 
 - Constants that reach an ingot untyped (literal-only block parameters)
 - Decide: how reduction folds at compile time and still keeps a constant's type; e.g.
   `{'const', t, b}` accepted and returned by opcodes; branches on it are stuck (5.5)
 - Decide: `'select' {type, c, a, b}` opcode (LLVM `select`) for value choices
+- Typed lambdas `λ(i: 'i32'). e` for block parameters, if inference needs help (moved from
+  `ssa-sugar`: the same problem, types for constants and parameters)
 
 ### `ll-table` Coverage table: every LangRef construct, its spelling, its leaf
 

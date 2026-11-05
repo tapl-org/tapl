@@ -3459,6 +3459,15 @@ executable binary). we should mark some place as a platform". The steps that fol
   a second body shape `λn. λp.` would cost proofs and translation); drop aliases too
   ("wrappers are enough"; agent had recommended deferring). Leaf removed; design doc notes
   both as dropped.
+- Committed `bf123e4`.
+
+### `ssa-sugar` dropped (Nov 5)
+
+- User picked `ssa-sugar`. The agent asked four questions without explaining them first
+  (again). User's answers: drop `blocks` (`'R' (λr. {…})` is short already), drop `letrec`,
+  drop `let _ =`, move typed lambdas to `typed-consts`. Leaf removed.
+- `deps` was left with only `typed-consts`, which isn't about dependencies, so `typed-consts`
+  moved up under `foundations` and `deps` was removed.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
