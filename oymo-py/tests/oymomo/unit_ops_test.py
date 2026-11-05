@@ -2,9 +2,11 @@
 
 """The unit tools, `'unit.merge'`, `'unit.rebase'` and `'unit.make_reducible'`, called as opcodes."""
 
+import pathlib
+
 import pytest
 
-from oymo.oymomo import reduction, strategy
+from oymo.oymomo import driver, reduction, strategy
 from oymo.oymomo.grammar import parse
 
 FN = "{'function', {n = 'i32'}, 'i32'}"
@@ -237,3 +239,35 @@ def test_merge_joins_a_declaration_with_its_definition():
     # Another link, or another type, is not the same symbol.
     assert_no_step(f"'unit.merge' {{{{f = {{type = {FN}, link = 'other'}}}}, {{f = {definition}}}}}")
     assert_no_step(f"'unit.merge' {{{{f = {{type = {OTHER_FN}, link = 'step'}}}}, {{f = {definition}}}}}")
+
+
+# The `diamond` golden's normal form (its three units already merged), made reducible.
+GOLDENS = pathlib.Path(__file__).parent.parent / 'goldens'
+DIAMOND = "'unit.make_reducible' ('driver.read_low' 'diamond/root.normal.oymo')"
+# One shared `λg`; each entry is its code; each region `(fix R) [00]` has unfolded to its
+# field 0, since the unit has no loop.
+DIAMOND_REDUCIBLE = """
+λg. {
+  d= {twice= λp. let y = 'mul' {'i32', p.n, [02000000]} in y},
+  b= {
+    f= λp.
+      let t = g.d.twice {n= p.n} in
+      let y = 'add' {'i32', t, [01000000]} in y,
+  },
+  c= {
+    h= λp.
+      let t = g.d.twice {n= p.n} in
+      let y = 'add' {'i32', t, [02000000]} in y,
+  },
+  main= λp.
+    let x = g.b.f {n= [01000000]} in
+    let y = g.c.h {n= [01000000]} in
+    let z = 'add' {'i32', x, y} in z,
+}
+"""
+
+
+def test_make_reducible_of_diamond():
+    with driver.session(str(GOLDENS)) as build:
+        assert_gives(DIAMOND, DIAMOND_REDUCIBLE)
+        build.check()

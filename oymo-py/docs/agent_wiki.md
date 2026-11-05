@@ -3408,6 +3408,12 @@ executable binary). we should mark some place as a platform". The steps that fol
   unfolded) and noted, unsaid before, that a looping unit's reducible form has no normal
   form (running a call still works). User: no golden ("the unit tests are enough"); fine as
   is, recorded in the design doc.
+- Then user asked for a test of it: `test_make_reducible_of_three_merged_units` in
+  `unit_ops_test.py` reads diamond's b, c, d in a driver session over `tests/goldens`,
+  checks the reducible form (one `λg`, plain bodies) and runs `b.f 1` = 3, `c.h 1` = 4.
+- User simplified it: read `diamond/root.normal.oymo` (already merged) with
+  `'driver.read_low'`, make it reducible, assert the result; no `'unit.merge'`, no calls;
+  the expected form in pretty multi-line format. Now `test_make_reducible_of_diamond`.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
