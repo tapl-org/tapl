@@ -348,15 +348,14 @@ The user's orders, kept as given. Follow them in every task.
   are not filled in automatically: the user will add tools to concatenate, modify and
   build structs, so they can be combined by hand.
 - Before 1.0, anything may be redesigned freely: oymomo syntax, Alcor and Mizar syntax,
-  public API, CLI; except the ANF and ingot shapes once the bootstrap is done (next bullet).
-- Shape freeze (user, Nov 6): "after bootstrap i dont want to change the shape of anf and
-  ingot. so oymomo should be fixed with compability .ll . it does not need to be all
-  feature of .ll should be in oymomo, but ingot shape will not be effected." The shape (ANF
-  grammar, variable kinds, body form, entry fields and kinds, predef grammar, attribute
-  slots, the fields of every opcode that exists at the bootstrap) is decided and implemented
-  before the bootstrap; after it, only new names (opcodes, type names and tags, attribute
-  names, collections) and meta. A `.ll` feature that needs another shape is done before the
-  bootstrap or is not planned. See "Shape freeze at the bootstrap (Nov 6)" in section 4.
+  public API, CLI.
+- Only what the bootstrap needs (user, Nov 6; replaces the shape freeze of the same day):
+  "i've changed my mind, only keep llvm features which are needed for the bootstrap, all
+  others will be implemented after bootstrap when they are needed". Before the bootstrap,
+  the roadmap holds a `.ll` feature only if the Alcor-written compiler needs it; every other
+  one waits until a need appears after the bootstrap. Shapes may change before 1.0, as
+  before (the freeze is dropped). History: "Shape freeze at the bootstrap, then only what
+  the bootstrap needs (Nov 6)" in section 4.
 - Code refactor to oymomo-calculus.tex (after D93; plan in 8 stages: terms/grammar, values and
   rules, strategy table, stuck/ANF checks, ANF IR, modules, LLVM, goldens/CLI). Stage 1
   done: no forms (`~`, `⇒`), no builtins (`$name`); lambda is `λx. t` or ASCII `\x. t`
@@ -3727,7 +3726,7 @@ executable binary). we should mark some place as a platform". The steps that fol
   ("High layer runs on the host, low on the target" is superseded: where a layer is
   built follows from what reaches it, decided above.)
 
-### Shape freeze at the bootstrap (Nov 6)
+### Shape freeze at the bootstrap, then only what the bootstrap needs (Nov 6)
 
 - User: "lets review oymo roadmap. my interest is until bootstrap. after bootstrap i dont
   want to change the shape of anf and ingot. so oymomo should be fixed with compability .ll
@@ -3853,6 +3852,39 @@ executable binary). we should mark some place as a platform". The steps that fol
   - Lesson: a list of findings with only leaf ids and short labels was not enough for the
     user to choose ("i do have no idea"); give each item a concrete example (the term,
     the leaf, what breaks) before asking.
+- Changed (user, later the same day): "i've changed my mind, only keep llvm features which
+  are needed for the bootstrap, all others will be implemented after bootstrap when they
+  are needed". The test (agent's, accepted): a feature is needed if the Alcor-written
+  compiler (with its stdlib, its libc calls and the LLVM C API) can't be written without it.
+  - Q1: the freeze is dropped (the agent had recommended relaxing it to "additive only"):
+    before 1.0 the shapes may change freely, as before. Roadmap intro and the Rules bullet
+    reverted; `shape-freeze` removed.
+  - Q2: debugging aids move after the bootstrap (the agent had recommended keeping both,
+    with `asan` through a `-fsanitize=address` flag): `line-tables` (first leaf of
+    `ll-metadata`), `asan` (`quality`), `lsp`'s breakpoints (`dev-tools`); `debugging` held
+    only `lsp`, so `lsp` moved up under `rewrite-tools`.
+  - Q3 (user first asked "explain more"; then recommended): before the bootstrap only
+    `ll-bootstrap` = `fn-address` (allocator interface, `interfaces`, `alcor-fn-values`),
+    `ptr-compare` (null checks), `ptr-casts` (arena alignment, hashing by address). Moved,
+    as one node `ll-structure`, to the first child of `single-thread` → `ll-coverage`:
+    `undefined` (a dummy return after `exit`; `llvm.trap` is a declaration), `ll-tail-calls`
+    (no guaranteed tail calls needed), `sparse-switch` (a 256-arm branch or compares; `-O2`
+    rebuilds the switch), `opcode-options` with `align` (no packed structs, volatile,
+    atomics or flags), `attr-slots` (the compiler passes only `int`-sized values and pointers
+    to C: libc, and the LLVM C API, whose `LLVMBool` is `int`), `ll-module-level` (static
+    data is strings and address tables). `e2e-libc` now tests `int`-sized and pointer
+    arguments; `char`/`short`/`_Bool` arguments wait for `attr-slots`. `fn-address` keeps
+    plain C function types.
+  - Probes (today's compiler): `'icmp'` on `'ptr'` already lowers (`icmp eq ptr %p.p, null`
+    with `{}`, `ult` too; two nulls don't fold), so `ptr-compare` is tests, a golden and its
+    two Decides; `'ptrtoint'` is rejected ("The target has no opcode 'ptrtoint'.").
+  - Q4 (recommended): `label-free` stays "a copy only" (the freeze is gone, but the copy
+    reaches the goal without changing ingots).
+  - Q5: commit and push as `docs: keep only the .ll features the bootstrap needs`.
+  - Kept from the passes above: `stdlib-core` non-variadic libc only, `alcor-memory-frontend`
+    `memcpy`/`memset` through declarations, the layer-1 running Decides in `alcor-layer1` and
+    `oymo-test`, `seed-decide`'s notes (with an oymomo-text seed, a change to the printed form
+    needs a new `stage0`). Still not planned: exceptions, variadic calls.
 
 ### Debug info rides on `Term.location` (Answers 3–6; design in progress)
 

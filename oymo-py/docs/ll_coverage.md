@@ -1,8 +1,8 @@
 # LLVM LangRef coverage
 
 Every construct in LLVM's Language Reference Manual (LLVM 21): how oymomo writes it (with
-its point in `doc/oymomo-calculus.tex`), which leaf in [roadmap.md](roadmap.md)
-(`ll-structure`, `ll-bootstrap`, `ll-coverage`) owns it, or `not planned`.
+its point in `doc/oymomo-calculus.tex`), which leaf in [roadmap.md](roadmap.md) owns it
+(`ll-bootstrap` before the bootstrap, `ll-coverage` after it), or `not planned`.
 
 ## 1. Module level and symbols
 

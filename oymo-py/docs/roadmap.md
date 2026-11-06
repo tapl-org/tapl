@@ -7,29 +7,16 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   finished. Each is a toolchain someone can use. `production` is 1.0; semver after.
 - The compiler builds LLVM IR through an LLVM API (llvmlite before the bootstrap, the
   LLVM C API after) and runs `clang`; no JIT before 1.0.
-- Before 1.0, oymomo, Alcor and Mizar syntax, public API and CLI may break, except the ANF
-  and ingot shapes: fixed at the bootstrap; after it, only new names (opcodes, type names,
-  attribute names) and meta.
+- Before 1.0, oymomo, Alcor and Mizar syntax, public API and CLI may break.
 - 🚫 marks a blocked leaf. Each node has a fixed id.
 
 ## Tree
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
-  - `ll-structure` Calculus, ANF and entry shapes for `.ll`
-    - `ll-anf` Calls, terminators, switch cases, opcode options
-      - 🚫 `fn-address` Indirect call through `'ptr'`
-      - 🚫 `undefined` Undefined behaviour in oymomo: folding and `'unreachable'`
-      - 🚫 `ll-tail-calls` `musttail` calls and unreachable blocks
-      - 🚫 `sparse-switch` Branch arms with case values
-      - 🚫 `opcode-options` Options on opcodes (`align`, `volatile`, orderings, flags); `poison`, `undef`
-    - `ll-entries` Entry fields, attributes, module level
-      - 🚫 `attr-slots` Attribute slots: entries, parameters and results, `cc`
-      - 🚫 `ll-module-level` Aliases, `module asm`, constant expressions in initializers
-    - 🚫 `shape-freeze` Every `.ll` row is vocabulary, a settled shape, or not planned
   - `ll-bootstrap` `.ll` features needed before the bootstrap
+    - 🚫 `fn-address` Indirect call through `'ptr'`
     - 🚫 `ptr-compare` Pointer comparison and `'null' {}`
     - `ptr-casts` `'ptrtoint'`, `'inttoptr'`
-    - `line-tables` `-g` line tables from meta places
   - `alcor` Alcor: a typed language, two oymomo programs per file
     - `alcor-decide` Alcor decisions
       - `alcor-survey` Syntax survey: twenty-nine languages plus C (Zig … Scala; Nelua, Ada, Modula-2, Oberon, OCaml, Racket; Python, JavaScript, TypeScript, C#, Visual Basic, R)
@@ -59,9 +46,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `stdlib-core` Strings, slices, I/O, allocator interface, first allocators
       - 🚫 `oymo-test` `oymo test`
       - 🚫 `folder-split` Goldens into `oymo/`; CI tests `oymo/` alone
-    - `debugging` Debugging and editors
-      - 🚫 `asan` ASan
-      - 🚫 `lsp` `oymo lsp` and a VS Code extension
+    - 🚫 `lsp` `oymo lsp` and a VS Code extension
 - `bootstrap` Bootstrap: oymo in Alcor
   - `seed-decide` Seed: storage, refresh, oymomo or `.ll`
   - 🚫 `rewrite-core` PEG engine and the oymomo pipeline in Alcor
@@ -76,6 +61,15 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - 🚫 `own-repo` `oymo/` exported to its own repository
 - `single-thread` Single-threaded, in the Alcor-written compiler
   - `ll-coverage` oymomo writes any `.ll`
+    - `ll-structure` Calculus, ANF and entry shapes for `.ll`
+      - `ll-anf` Terminators, switch cases, opcode options
+        - 🚫 `undefined` Undefined behaviour in oymomo: folding and `'unreachable'`
+        - 🚫 `ll-tail-calls` `musttail` calls and unreachable blocks
+        - 🚫 `sparse-switch` Branch arms with case values
+        - 🚫 `opcode-options` Options on opcodes (`align`, `volatile`, orderings, flags); `poison`, `undef`
+      - `ll-entries` Entry fields, attributes, module level
+        - 🚫 `attr-slots` Attribute slots: entries, parameters and results, `cc`
+        - 🚫 `ll-module-level` Aliases, `module asm`, constant expressions in initializers
     - `ll-types` Types: `void`, wide integers, floats, vectors
       - 🚫 `wide-ints` Every `'iN'` LLVM takes, `'i128'` first
       - `floats` `'float'`, `'double'`
@@ -100,6 +94,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
       - 🚫 `ll-symbol-fields` Global `align`, `linkage`, visibility, `unnamed_addr`, `section`, `comdat`
       - 🚫 `ll-tls` `thread_local` on global variables
     - `ll-metadata` Metadata and debug info
+      - 🚫 `line-tables` `-g` line tables from meta places
       - 🚫 `ll-debug-info` Params, locals, types as DWARF metadata
       - 🚫 `alias-scopes` `!alias.scope`, `!noalias`, if `noalias` isn't enough
       - 🚫 `ll-instr-metadata` `!range`, `!tbaa`, `!prof`, `!llvm.loop`, module flags
@@ -128,6 +123,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - `optimization` `-O0..-O3`, LTO across C and Mizar
       - 🚫 `lto` `-O` levels and LTO
     - 🚫 `safety-checks` Checked build traps on overflow, OOB, null; UBSan on C
+    - 🚫 `asan` ASan
     - 🚫 `separate-compilation` Separate compilation, incremental rebuilds
     - 🚫 `header-places` Places in generated files: source vs generated, not oymomo vs other
     - 🚫 `label-free` Labels and names out of the logic: positions, de Bruijn indices, fingerprints
@@ -161,121 +157,20 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - Indirect call through a `'ptr'` operand with a function type (`g.f` as an address in
   operands and initializers is done)
-- The function type carries `cc` and parameter and result attributes, as `attr-slots`
-  decides
+- Function types as today: C calling convention, no attributes
 - Goldens
 - Decide: spelling of an indirect call in ANF (a `'ptr'` value carries no function type),
   and how `'unit.make_reducible'` treats it
 
-### `undefined` Undefined behaviour in oymomo: folding and `'unreachable'`
-
-- One place for every case LLVM leaves undefined, at the oymomo level; `alcor-ub` builds
-  Alcor's checked and optimized modes on it
-- Folding: today E-Opcode gives no result where LLVM is undefined (`udiv`/`sdiv`/`urem`/`srem`
-  by 0, `sdiv` of the minimum by −1, a shift by the width or more); the call stays as
-  run-time code (oymomo-calculus.tex 5.4k, 6.6)
-- `'unreachable' {}` as a block end: LLVM's `unreachable`; uses: after a call that never
-  returns (`exit`, `abort`), a `switch` default that can't happen, facts a frontend proved,
-  the optimized mode of `alcor-ub`; never folds
-- oymomo-calculus.tex 5, 6, 8–10; Lean (`anf_normal`, `op` partiality); code; goldens: a function
-  ending in `exit`, a division by a literal 0
-- Decide: an undefined call found at compile time: keep it as run-time code (today), reject
-  it as stuck with an error, or fold it to `poison` (then `poison` in bodies, now in
-  `ll-poison`, moves before the bootstrap)
-- Decide: `'unreachable'`: spelling, opcode call or own form, only at a block's end or also
-  bound by a `let`
-
-### `ll-tail-calls` `musttail` calls and unreachable blocks
-
-- `musttail` call as a block end: LLVM's `musttail call` and its `ret`
-- Goldens
-- Decide: spelling of `musttail` in ANF (a terminal `g.f {…}` is rejected today), and on an
-  indirect call (`fn-address`)
-- Decide (Nov 5, user: "Decide later"): an unreachable block; the translation leaves it out
-  today, which changes the program under the "adds none, changes none" rule; reject it with
-  a located error instead?
-
-### `sparse-switch` Branch arms with case values
-
-- A branch whose arms carry case values, as LLVM's `switch iN c, label %d [iN v, label %b …]`;
-  the dense branch `{J_i} P` stays
-- oymomo-calculus.tex 5, 8, 10; Lean (the reduction rule, confluence, `anf_normal`); code;
-  goldens: a switch on character codes
-- Decide: spelling (a label can't hold byte 00, so a case value can't be a label), the
-  reduction rule, and how case values get their type
-
-### `opcode-options` Options on opcodes (`align`, `volatile`, orderings, flags); `poison`, `undef`
-
-- One convention for options on opcodes; the fields of every opcode that exists at the
-  bootstrap stay valid
-- Covers `align`, `volatile`, atomic orderings and `syncscope`, poison flags (`nsw`, `nuw`,
-  `exact`, `disjoint`, `nneg`, `samesign`), and `inbounds`, `nuw`, `nusw` on variadic
-  `'getelementptr'`
-- `align` on `'load'`, `'store'` and `'alloca'`, the first option: a literal power of two,
-  read unsigned; too large `align` is undefined behaviour, unchecked
-- Spelling of `poison` and `undef`, for bodies and predefs
-- `'fcmp'`'s shape, for `float-compare`
-- oymomo-calculus.tex 5, 8, 10; code: the convention in the opcode table, `align`; tests:
-  unaligned `'i32'` read from a packed struct, `align 1`
-- Decide: the convention (one trailing struct of options, labeled fields, or other)
-- Decide: spelling of `poison` and `undef` (marker opcodes like `'layout.size'`, or other)
-- Decide: `'fcmp'`: one opcode `{pred, type, a, b}` as `'icmp'`, or one per predicate
-
-### `attr-slots` Attribute slots: entries, parameters and results, `cc`
-
-- An entry slot: function attributes, linkages, visibility, `section`, `align`,
-  `thread_local`, `comdat`, `unnamed_addr`
-- A parameter and result slot in the function type
-- `cc` in the function type, so an indirect call (`fn-address`) has it
-- Every attribute value fits: flags, integers (`dereferenceable(8)`), types (`byval(T)`,
-  `sret(T)`), ranges (`range(i32 0, 10)`), structured values (`memory(argmem: read)`,
-  `initializes((0, 16))`), strings (`"frame-pointer"="all"`)
-- `comdat` with its selection kind (`any`, `largest`, …) fits the entry slot; no
-  ingot-level comdat table
-- Rules for `'unit.merge'`, `'unit.rebase'`, `'unit.make_reducible'` and `emit-header`
-- First names: `zeroext`, `signext` (`e2e-libc`), `sanitize_address` (`asan`)
-- oymomo-calculus.tex 9, 10; Lean (`UnitOps.lean`: `isHole`, `isDecl`, merge); code
-  (`ingot.py`, `header.py`, `llvm_translate.py`); goldens
-- Decide: the slot shapes
-- Decide: do hints that can be dropped (`noalias`, `nonnull`, `noinline`, …) go in meta
-  instead
-- Decide: the merge rule for attributes, and how linkages (`weak`, `linkonce_odr`,
-  `extern_weak`, …) combine with `link` and `'unit.merge'`
-
-### `ll-module-level` Aliases, `module asm`, constant expressions in initializers
-
-- Aliases: a new entry kind
-- `module asm`
-- Constant expressions in predefs (`init`, `value`): `getelementptr`, `ptrtoint`, difference
-  of two addresses, `'layout.size'`, `'layout.offset'`, `'layout.align'`
-- `poison` and `undef` in predefs, spelled as `opcode-options` decides
-- oymomo-calculus.tex 8–10; Lean (`Anf.lean` operands, `UnitOps.lean`); code; goldens
-- Decide: alias target (`λg. g.target` vs `link`)
-- Decide: where `module asm` sits in the ingot
-- Decide: spellings of constant expressions in predefs
-
-### `shape-freeze` Every `.ll` row is vocabulary, a settled shape, or not planned
-
-- Write the freeze in `oymomo_design.md`: the shape (ANF grammar, variable kinds, body form,
-  entry fields and kinds, predef grammar, attribute slots, the fields of every opcode that
-  exists then) is decided and implemented before the bootstrap; after it, only new names
-  (opcodes, type names and tags, attribute names, collections) and meta
-- Mark every row of `docs/ll_coverage.md`: vocabulary, a settled shape (with its point), or
-  not planned
-- Lean: `anf_normal` and the unit-opcode proofs cover every shape
-- Done when: no leaf after the bootstrap needs a new shape
-
 ### `ptr-compare` Pointer comparison and `'null' {}`
 
-- `'icmp' {'eq', 'ptr', p, q}` and the other nine predicates on `'ptr'`; only the LLVM
-  lowering changes
-- `{}` at a typed `'ptr'` operand already emits `ptr null` (10.11c); `'null' {}`, if added,
-  carries result type `'ptr'` (for untyped block parameters), pure, no fold
+- `'icmp' {'eq', 'ptr', p, q}` and the other nine predicates on `'ptr'`, and against `{}`
+  (`ptr null`): the lowering already works; pin it with tests and a golden
+- `'null' {}`, if added, carries result type `'ptr'` (for untyped block parameters), pure,
+  no fold
 - Goal program: length of a linked list, load `next` until `'icmp' {'eq', …}` with null
-- Tests and a golden
 - Commit: `oymomo: compare pointers`
-- Decide: is `'null' {}` needed alongside `{}` at `'ptr'`? If so, spelled like `poison` and
-  `undef` (`opcode-options`)
+- Decide: is `'null' {}` needed alongside `{}` at `'ptr'`?
 - Decide: should `'icmp' {'eq', 'ptr', …}` of two nulls fold?
 
 ### `ptr-casts` `'ptrtoint'`, `'inttoptr'`
@@ -285,24 +180,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Goal program: round an address up to 16 bytes within a 32-byte `alloca`
 - Tests and a golden
 - Commit: `oymomo: add pointer casts`
-
-### `line-tables` `-g` line tables from meta places
-
-- `-g` on `emit-llvm` and `build`; the user passes `-g` to clang when linking
-- One `DICompileUnit` per `File` in `meta.proto` holding a definition's place:
-  - `DIFile(filename, directory, checksumkind: CSK_MD5, checksum)` from `File.path` and
-    `File.md5`
-  - `language: DW_LANG_C11`, `producer: "oymo <version>"`, `emissionKind: LineTablesOnly`
-  - module flags `Dwarf Version` 5, `Debug Info Version` 3
-- One `DISubprogram` per definition: `line:` from the symbol field's `Tag`, `scopeLine:`
-  from the `body` lambda's `Tag`; empty `DISubroutineType`
-- `!DILocation` (line, byte column from `File.position`) on every `let` and terminator; no
-  place: `line: 0`
-- Code from another `File` under a `DILexicalBlockFile`; no `inlinedAt`
-- Each distinct location built once
-- Tests: golden IR; passes `opt -passes=verify`
-- Breakpoints, line stepping, backtraces in `gdb`/`lldb`
-- Done when: `gdb` breaks on a line of a `.oymo` file and steps by its lines
 
 ### `alcor-survey` Syntax survey: twenty-nine languages plus C (Zig … Scala; Nelua, Ada, Modula-2, Oberon, OCaml, Racket; Python, JavaScript, TypeScript, C#, Visual Basic, R)
 
@@ -434,7 +311,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `e2e-libc` End-to-end tests calling libc and a small C library
 
-- `zeroext`/`signext` on `i1`, `i8`, `i16` where needed (`attr-slots`)
+- C arguments `int`-sized or wider, and pointers; `char`, `short` and `_Bool` arguments
+  wait for `attr-slots` (`zeroext`/`signext`)
 - End-to-end tests calling libc and a small C test library, built and run
 - Linked by hand, as oymo ends at the `.ll`: `oymo build hello.oymo`, then
   `clang -Wno-override-module oymo-out/unit.ll util.c -o hello`
@@ -510,27 +388,20 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - CI builds and tests a copy of `oymo/` alone
 - New tests are goldens or `oymo test` files
 
-### `asan` ASan
-
-- Pass `-fsanitize=address` to `clang`
-- Definitions carry `sanitize_address` (`attr-slots`)
-- Done when: ASan catches use after free in the linked-list program, with its Alcor line
-
 ### `lsp` `oymo lsp` and a VS Code extension
 
 - `oymo lsp`: any `.oymo` language; parse and layer-1 errors as you type
 - VS Code extension in `oymo/editors/vscode/`:
   - highlighting for oymomo and Alcor, picked by the header
   - starts the server; runs whichever `oymo` is on `PATH`
-  - breakpoints and launch configs via `gdb`/`lldb`
 - Done when: VS Code underlines a type error
 
 ### `seed-decide` Seed: storage, refresh, oymomo or `.ll`
 
 - Pick the seed form: normal-form oymomo text in split files (proposed) or `bootstrap/oymo.ll`
 - Record the decision before `rewrite-core` starts
-- An oymomo-text seed means `stage0` reads the printed normal form, so that form is fixed
-  with the shape
+- An oymomo-text seed means `stage0` reads the printed normal form; a change to that form
+  needs a new `stage0`
 - Decide: storage and refresh: commit and regenerate only when needed, Git LFS, or a
   release artifact
 - Decide: target-independent seed (oymomo seed, or `zig1.wasm`-like + small interpreter
@@ -655,6 +526,91 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Delete `oymo-py/`; tag `oymo-py-final`
 - Decide: when is the public launch? Recommended: soft launch at `substructural-types`
   (site, tutorial, posts), main launch at `mizar-headers`
+
+### `undefined` Undefined behaviour in oymomo: folding and `'unreachable'`
+
+- One place for every case LLVM leaves undefined, at the oymomo level; `alcor-ub` builds
+  Alcor's checked and optimized modes on it
+- Folding: today E-Opcode gives no result where LLVM is undefined (`udiv`/`sdiv`/`urem`/`srem`
+  by 0, `sdiv` of the minimum by −1, a shift by the width or more); the call stays as
+  run-time code (oymomo-calculus.tex 5.4k, 6.6)
+- `'unreachable' {}` as a block end: LLVM's `unreachable`; uses: after a call that never
+  returns (`exit`, `abort`), a `switch` default that can't happen, facts a frontend proved,
+  the optimized mode of `alcor-ub`; never folds
+- oymomo-calculus.tex 5, 6, 8–10; Lean (`anf_normal`, `op` partiality); code; goldens: a function
+  ending in `exit`, a division by a literal 0
+- Decide: an undefined call found at compile time: keep it as run-time code (today), reject
+  it as stuck with an error, or fold it to `poison` (then `ll-poison`'s `poison` in bodies
+  comes first)
+- Decide: `'unreachable'`: spelling, opcode call or own form, only at a block's end or also
+  bound by a `let`
+
+### `ll-tail-calls` `musttail` calls and unreachable blocks
+
+- `musttail` call as a block end: LLVM's `musttail call` and its `ret`
+- Goldens
+- Decide: spelling of `musttail` in ANF (a terminal `g.f {…}` is rejected today), and on an
+  indirect call (`fn-address`)
+- Decide (Nov 5, user: "Decide later"): an unreachable block; the translation leaves it out
+  today, which changes the program under the "adds none, changes none" rule; reject it with
+  a located error instead?
+
+### `sparse-switch` Branch arms with case values
+
+- A branch whose arms carry case values, as LLVM's `switch iN c, label %d [iN v, label %b …]`;
+  the dense branch `{J_i} P` stays
+- oymomo-calculus.tex 5, 8, 10; Lean (the reduction rule, confluence, `anf_normal`); code;
+  goldens: a switch on character codes
+- Decide: spelling (a label can't hold byte 00, so a case value can't be a label), the
+  reduction rule, and how case values get their type
+
+### `opcode-options` Options on opcodes (`align`, `volatile`, orderings, flags); `poison`, `undef`
+
+- One convention for options on opcodes, the opcodes of today included
+- Covers `align`, `volatile`, atomic orderings and `syncscope`, poison flags (`nsw`, `nuw`,
+  `exact`, `disjoint`, `nneg`, `samesign`), and `inbounds`, `nuw`, `nusw` on variadic
+  `'getelementptr'`
+- `align` on `'load'`, `'store'` and `'alloca'`, the first option: a literal power of two,
+  read unsigned; too large `align` is undefined behaviour, unchecked
+- Spelling of `poison` and `undef`, for bodies and predefs
+- `'fcmp'`'s shape, for `float-compare`
+- oymomo-calculus.tex 5, 8, 10; code: the convention in the opcode table, `align`; tests:
+  unaligned `'i32'` read from a packed struct, `align 1`
+- Decide: the convention (one trailing struct of options, labeled fields, or other)
+- Decide: spelling of `poison` and `undef` (marker opcodes like `'layout.size'`, or other)
+- Decide: `'fcmp'`: one opcode `{pred, type, a, b}` as `'icmp'`, or one per predicate
+
+### `attr-slots` Attribute slots: entries, parameters and results, `cc`
+
+- An entry slot: function attributes, linkages, visibility, `section`, `align`,
+  `thread_local`, `comdat`, `unnamed_addr`
+- A parameter and result slot in the function type
+- `cc` in the function type, so an indirect call (`fn-address`) has it
+- Every attribute value fits: flags, integers (`dereferenceable(8)`), types (`byval(T)`,
+  `sret(T)`), ranges (`range(i32 0, 10)`), structured values (`memory(argmem: read)`,
+  `initializes((0, 16))`), strings (`"frame-pointer"="all"`)
+- `comdat` with its selection kind (`any`, `largest`, …)
+- Rules for `'unit.merge'`, `'unit.rebase'`, `'unit.make_reducible'` and `emit-header`
+- First names: `zeroext`, `signext`, `sanitize_address` (`asan`)
+- oymomo-calculus.tex 9, 10; Lean (`UnitOps.lean`: `isHole`, `isDecl`, merge); code
+  (`ingot.py`, `header.py`, `llvm_translate.py`); goldens
+- Decide: the slot shapes
+- Decide: do hints that can be dropped (`noalias`, `nonnull`, `noinline`, …) go in meta
+  instead
+- Decide: the merge rule for attributes, and how linkages (`weak`, `linkonce_odr`,
+  `extern_weak`, …) combine with `link` and `'unit.merge'`
+
+### `ll-module-level` Aliases, `module asm`, constant expressions in initializers
+
+- Aliases: a new entry kind
+- `module asm`
+- Constant expressions in predefs (`init`, `value`): `getelementptr`, `ptrtoint`, difference
+  of two addresses, `'layout.size'`, `'layout.offset'`, `'layout.align'`
+- `poison` and `undef` in predefs, spelled as `opcode-options` decides
+- oymomo-calculus.tex 8–10; Lean (`Anf.lean` operands, `UnitOps.lean`); code; goldens
+- Decide: alias target (`λg. g.target` vs `link`)
+- Decide: where `module asm` sits in the ingot
+- Decide: spellings of constant expressions in predefs
 
 ### `wide-ints` Every `'iN'` LLVM takes, `'i128'` first
 
@@ -837,6 +793,24 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   `initialexec`, `localexec`)
 - Golden
 - Decide: spelling of general-dynamic `thread_local` (no explicit model) vs a model name
+
+### `line-tables` `-g` line tables from meta places
+
+- `-g` on `emit-llvm` and `build`; the user passes `-g` to clang when linking
+- One `DICompileUnit` per `File` in `meta.proto` holding a definition's place:
+  - `DIFile(filename, directory, checksumkind: CSK_MD5, checksum)` from `File.path` and
+    `File.md5`
+  - `language: DW_LANG_C11`, `producer: "oymo <version>"`, `emissionKind: LineTablesOnly`
+  - module flags `Dwarf Version` 5, `Debug Info Version` 3
+- One `DISubprogram` per definition: `line:` from the symbol field's `Tag`, `scopeLine:`
+  from the `body` lambda's `Tag`; empty `DISubroutineType`
+- `!DILocation` (line, byte column from `File.position`) on every `let` and terminator; no
+  place: `line: 0`
+- Code from another `File` under a `DILexicalBlockFile`; no `inlinedAt`
+- Each distinct location built once
+- Tests: golden IR; passes `opt -passes=verify`
+- Breakpoints, line stepping, backtraces in `gdb`/`lldb`
+- Done when: `gdb` breaks on a line of a `.oymo` file and steps by its lines
 
 ### `ll-debug-info` Params, locals, types as DWARF metadata
 
@@ -1092,6 +1066,12 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Done when: an OOB write is caught by the checked build and by ASan (optimized), with
   the Mizar line
 
+### `asan` ASan
+
+- Pass `-fsanitize=address` to `clang`
+- Definitions carry `sanitize_address` (`attr-slots`)
+- Done when: ASan catches use after free in the linked-list program, with its Alcor line
+
 ### `separate-compilation` Separate compilation, incremental rebuilds
 
 - Separate compilation and multiple modules, on module interfaces
@@ -1158,6 +1138,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - LSP: errors as you type, go to definition (into C headers), hover with layer-1 types,
   completion, find references, rename
 - Any LSP editor (Neovim, Emacs, Helix) works with `oymo lsp`
+- VS Code breakpoints and launch configs via `gdb`/`lldb` (`line-tables`)
 - Publish the extension on VS Marketplace and Open VSX
 - Done when: editor shows errors as you type, goes to definition in C headers, hover types
 
