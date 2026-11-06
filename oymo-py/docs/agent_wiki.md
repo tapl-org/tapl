@@ -3823,6 +3823,36 @@ executable binary). we should mark some place as a platform". The steps that fol
   (`linkage = 'export'`, now `link`), `c-import` (forms `=>`, `~`), `lto` and
   `build-systems` (`oymo -c`, but oymo ends at the `.ll`), `deps-seed` ("no `deps`"),
   `emit-oymomo` ("one file per module"), `vm-symbols`/`vm-coroutines` (`$seq`, `form`).
+- Second pass (user: "one more go through, is everything in pre-bootstrap settled in"): the
+  shape side is complete (every `.ll` shape item has a pre-bootstrap leaf or is not
+  planned; 103 leaves in tree order; blocked marks consistent; no references to removed
+  ids). Found:
+  - A, shape holes in `attr-slots`: attribute values (types `byval(T)`, integers, ranges,
+    structured `memory(…)`/`initializes(…)`, strings) must fit the slots; `comdat` has a
+    per-module selection kind (`$c = comdat largest`), and the Oct 27 note's "`comdats`
+    field if needed" would be an ingot-level item. Q1 (recommended): both added to
+    `attr-slots`.
+  - B, pre-bootstrap leaves leaning on later or not-planned work: `alcor-memory-frontend`
+    (`memcpy`/`memset`, but `bulk-memory` is after; declarations work), `undefined` ("fold
+    to poison" needs poison in bodies, now in `ll-poison`), `stdlib-core` (variadic not
+    planned: `fopen`/`creat`, `posix_spawnp`), `e2e-libc` (point at `attr-slots`),
+    `seed-decide` (option (b) needs `section`/`llvm.used`; an oymomo-text seed freezes the
+    printed normal form), `ptr-compare` (`'null' {}` with `opcode-options`' markers). Q2:
+    user "i do have no idea", so the agent explained each with an example and asked again;
+    then (recommended) all six written into their leaves.
+  - C, not shape: oymo ends at the `.ll` (Nov 4), yet `l1-subprocess`, `alcor-layer1`, the
+    done-whens of `alcor-core`/`alcor-memory-frontend`, `lsp`, `stdlib-core`, `oymo-test`,
+    the intro ("runs `clang`"), and after the bootstrap `rewrite-alcor`/`frontend-interface`
+    assume oymo runs clang or the guard. Q3 (recommended): recorded open, as Decide items in
+    `alcor-layer1` and `oymo-test`; the affected leaves stay as they are until decided.
+  - D, after the bootstrap, left to their leaves: `value-gc` "LLVM stack maps later"
+    (stackmap intrinsics are variadic; GC statepoints not planned); `c-import` should skip
+    variadic functions.
+  - Q4: commit and push as `docs: settle pre-bootstrap dependencies`, after Q2 was
+    settled.
+  - Lesson: a list of findings with only leaf ids and short labels was not enough for the
+    user to choose ("i do have no idea"); give each item a concrete example (the term,
+    the leaf, what breaks) before asking.
 
 ### Debug info rides on `Term.location` (Answers 3–6; design in progress)
 

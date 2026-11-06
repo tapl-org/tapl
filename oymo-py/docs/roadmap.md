@@ -180,7 +180,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - oymomo-calculus.tex 5, 6, 8–10; Lean (`anf_normal`, `op` partiality); code; goldens: a function
   ending in `exit`, a division by a literal 0
 - Decide: an undefined call found at compile time: keep it as run-time code (today), reject
-  it as stuck with an error, or fold it to `poison`
+  it as stuck with an error, or fold it to `poison` (then `poison` in bodies, now in
+  `ll-poison`, moves before the bootstrap)
 - Decide: `'unreachable'`: spelling, opcode call or own form, only at a block's end or also
   bound by a `let`
 
@@ -226,6 +227,11 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   `thread_local`, `comdat`, `unnamed_addr`
 - A parameter and result slot in the function type
 - `cc` in the function type, so an indirect call (`fn-address`) has it
+- Every attribute value fits: flags, integers (`dereferenceable(8)`), types (`byval(T)`,
+  `sret(T)`), ranges (`range(i32 0, 10)`), structured values (`memory(argmem: read)`,
+  `initializes((0, 16))`), strings (`"frame-pointer"="all"`)
+- `comdat` with its selection kind (`any`, `largest`, …) fits the entry slot; no
+  ingot-level comdat table
 - Rules for `'unit.merge'`, `'unit.rebase'`, `'unit.make_reducible'` and `emit-header`
 - First names: `zeroext`, `signext` (`e2e-libc`), `sanitize_address` (`asan`)
 - oymomo-calculus.tex 9, 10; Lean (`UnitOps.lean`: `isHole`, `isDecl`, merge); code
@@ -268,7 +274,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Goal program: length of a linked list, load `next` until `'icmp' {'eq', …}` with null
 - Tests and a golden
 - Commit: `oymomo: compare pointers`
-- Decide: is `'null' {}` needed alongside `{}` at `'ptr'`?
+- Decide: is `'null' {}` needed alongside `{}` at `'ptr'`? If so, spelled like `poison` and
+  `undef` (`opcode-options`)
 - Decide: should `'icmp' {'eq', 'ptr', …}` of two nulls fold?
 
 ### `ptr-casts` `'ptrtoint'`, `'inttoptr'`
@@ -351,6 +358,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide: does layer 1 lower exactly like layer 0, or may it use features layer 0
   can't (closures, a GC)?
 - Decide: how layer-1 code calls layer-0 code (link or merge the oymomo programs)
+- Decide: who builds and runs the guard (`unit.guard.ll`), and how its located errors reach
+  the user and `oymo lsp`, now that oymo ends at the `.ll`
 
 ### `alcor-ub` Undefined behaviour: checked and optimized build modes
 
@@ -415,7 +424,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - Alcor syntax and lowering for pointers, structs, arrays, strings
 - Layer-1 types: raw `Ptr(T)`, structs, arrays
-- `void` functions, null, pointer comparison, casts, `memcpy`/`memset`
+- `void` functions, null, pointer comparison, casts, `memcpy`/`memset` through declarations
+  of `llvm.memcpy`/`llvm.memset`
 - Hand-written `extern` declarations to call C; first-order calls, Alcor → C only
 - clang links libc when the user links `unit.ll`
 - Memory via `malloc`/`free` through `extern`
@@ -424,7 +434,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ### `e2e-libc` End-to-end tests calling libc and a small C library
 
-- `zeroext`/`signext` on `i1`, `i8`, `i16` where needed
+- `zeroext`/`signext` on `i1`, `i8`, `i16` where needed (`attr-slots`)
 - End-to-end tests calling libc and a small C test library, built and run
 - Linked by hand, as oymo ends at the `.ll`: `oymo build hello.oymo`, then
   `clang -Wno-override-module oymo-out/unit.ll util.c -o hello`
@@ -481,6 +491,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Strings, string builder, slices
 - Number formatting (no `printf`)
 - File I/O; running a process (to call `clang`)
+- Non-variadic libc only: `fopen`/`creat`, not `open` with a mode; `posix_spawnp` to start
+  a process
 - Allocator interface; arena and libc allocators
 - Lives in `oymo/lib/`
 
@@ -488,6 +500,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `oymo test`, as `zig test` does
 - Done when: word count over a large file (hash map, arena), tests via `oymo test`
+- Decide: does `oymo test` build and run the tests (it needs clang), now that oymo ends at
+  the `.ll`?
 
 ### `folder-split` Goldens into `oymo/`; CI tests `oymo/` alone
 
@@ -515,6 +529,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - Pick the seed form: normal-form oymomo text in split files (proposed) or `bootstrap/oymo.ll`
 - Record the decision before `rewrite-core` starts
+- An oymomo-text seed means `stage0` reads the printed normal form, so that form is fixed
+  with the shape
 - Decide: storage and refresh: commit and regenerate only when needed, Git LFS, or a
   release artifact
 - Decide: target-independent seed (oymomo seed, or `zig1.wasm`-like + small interpreter
@@ -524,7 +540,8 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Decide: `c_import` bakes in `long`, `size_t`, struct layouts: ban target-dependent C
   types in the compiler (CI check), or one seed per target
 - Decide: how the core finds a language: (a) linked in at build time, (b) static table
-  filled at link time, (c) `.so` loaded at run time. Leaning: a now, c later
+  filled at link time (needs `section`/`llvm.used` from `ll-symbol-fields` before the
+  bootstrap), (c) `.so` loaded at run time. Leaning: a now, c later
 - Decide: how is `stage0.ll` produced: generated once from a small oymo program and
   committed, or written by hand
 - Decide: how are the Alcor seed files split (e.g. lexer, parser, checker, lowering);
