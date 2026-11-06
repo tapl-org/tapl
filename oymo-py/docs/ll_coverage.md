@@ -1,8 +1,8 @@
 # LLVM LangRef coverage
 
 Every construct in LLVM's Language Reference Manual (LLVM 21): how oymomo writes it (with
-its point in `doc/oymomo-calculus.tex`), which `ll-coverage` leaf in
-[roadmap.md](roadmap.md) owns it, or `not planned`.
+its point in `doc/oymomo-calculus.tex`), which leaf in [roadmap.md](roadmap.md)
+(`ll-structure`, `ll-bootstrap`, `ll-coverage`) owns it, or `not planned`.
 
 ## 1. Module level and symbols
 
@@ -15,7 +15,7 @@ its point in `doc/oymomo-calculus.tex`), which `ll-coverage` leaf in
 | `global`, `constant` | `{type = t, init = …}`, `{type = t, value = …}` (9.4, 9.7, 10.10) | done |
 | External vs `internal` linkage | `link = b` vs no `link` (9.5, 10.10) | done |
 | Other linkages (`private`, `weak`, `linkonce_odr`, `extern_weak`, `common`, `appending`, …), visibility (`default`, `hidden`, `protected`), `dso_local`, `unnamed_addr`, `local_unnamed_addr`, `section`, `comdat`, `externally_initialized` | extra entry fields (*to decide*) | `ll-symbol-fields` |
-| Global `align` | entry field `align = b` | `align` |
+| Global `align` | entry field `align = b` | `ll-symbol-fields` |
 | `thread_local` (`localdynamic`, `initialexec`, `localexec`, general-dynamic) | entry field `thread_local` | `ll-tls` |
 | Calling conventions (`ccc`, `fastcc`, `coldcc`, `tailcc`, …) | entry field `cc` | `ll-function-attrs` |
 | `noalias` on parameter or result | `{'noalias', 'ptr'}` | `noalias` |
@@ -55,7 +55,7 @@ its point in `doc/oymomo-calculus.tex`), which `ll-coverage` leaf in
 | `null` pointer | `{}` at `'ptr'`, and `''` in `init` or `value` (10.11a, 10.11c); `'null' {}` open in `ptr-compare` | done (`ptr-compare` for `'null' {}`) |
 | Struct, array and vector constants, `c"…"`, `zeroinitializer` | predefs `{l_i = Q_i}`, byte array for `{'array', n, 'i8'}` in `init`/`value`, `{}` (10.7, 10.11) | done |
 | Global and function addresses `@name` | path `g.l_1.….l_n`, under `λg` in `init` or `value` (8.4c, 9.7, 10.11a) | done |
-| `poison`, `undef` | *to decide* | `undefined` |
+| `poison`, `undef` | *to decide* | `ll-poison` |
 | Size, offset and alignment `getelementptr` / `ptrtoint` on `null` | `'layout.size' {t}`, `'layout.offset' {t, i}`, `'layout.align' {t}` (10.5) | done |
 | Initializer constant expressions (`getelementptr`, `ptrtoint`, address difference) | *to decide* | `ll-module-level` |
 | `blockaddress`, `dso_local_equivalent`, `no_cfi`, `ptrauth`, `none` (`token`) | — | not planned |
@@ -78,7 +78,7 @@ its point in `doc/oymomo-calculus.tex`), which `ll-coverage` leaf in
 | LLVM construct | Oymomo spelling | Status / leaf |
 |---|---|---|
 | `add`, `sub`, `mul`, `udiv`, `sdiv`, `urem`, `srem`, `shl`, `lshr`, `ashr`, `and`, `or`, `xor` | `'add' {t, a, b}`, … (5.4; `'i1'`/`'i8'`/`'i16'`/`'i32'`/`'i64'` done) | done (`wide-ints`, `ll-vectors`) |
-| Poison flags (`nsw`, `nuw`, `exact`, `disjoint`, `nneg`, `samesign`) | *to decide* | `undefined` |
+| Poison flags (`nsw`, `nuw`, `exact`, `disjoint`, `nneg`, `samesign`) | *to decide* | `ll-poison` |
 | `fneg`, `fadd`, `fsub`, `fmul`, `fdiv`, `frem` | `'fneg' {t, value}`, `'fadd' {t, a, b}`, … | `float-arith` |
 | Fast-math flags (`nnan`, `ninf`, `nsz`, `arcp`, `contract`, `afn`, `reassoc`, `fast`) | — | not planned |
 | `extractelement`, `insertelement`, `shufflevector` | `'extractelement'`, `'insertelement'`, `'shufflevector'` | `ll-vectors` |
@@ -95,8 +95,8 @@ its point in `doc/oymomo-calculus.tex`), which `ll-coverage` leaf in
 | `fcmp` | `'fcmp_' + pred` `{t, lhs, rhs}` (`fcmp false` and `fcmp true` not planned) | `float-compare` |
 | `phi` | block parameters `λx_1. … λx_n. E` (10.6, 10.8e) | done |
 | `select` | `'select' {t, c, a, b}` | `ll-instructions` |
-| `freeze` | *to decide* | `undefined` |
-| `call` (direct) | `g.l {x_i = Q_i}` (8.8, 10.4b, 10.8b); `tail` / `musttail` / `notail` in `ll-instructions` | done (`ll-instructions`) |
+| `freeze` | *to decide* | `ll-poison` |
+| `call` (direct) | `g.l {x_i = Q_i}` (8.8, 10.4b, 10.8b); `tail` / `musttail` / `notail` in `ll-tail-calls` | done (`ll-tail-calls`) |
 | `call` (indirect through `'ptr'`) | *to decide* | `fn-address` |
 | `landingpad` | *to decide* | `ll-exceptions` |
 | `va_arg`, `catchpad`, `cleanuppad`, operand bundles (`[ "bundle"(…) ]`) | — | not planned |

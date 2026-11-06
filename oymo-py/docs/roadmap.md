@@ -13,42 +13,24 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 ## Tree
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
-  - `ll-coverage` oymomo writes any `.ll`
-    - `ll-types` Types: `void`, wide integers, floats, vectors
-      - `wide-ints` Every `'iN'` LLVM takes, `'i128'` first
-      - `floats` `'float'`, `'double'`
-        - 🚫 `float-forms` `'float'`, `'double'`: literals, params, results, declarations
-        - 🚫 `float-arith` `'fadd'`, `'fsub'`, `'fmul'`, `'fdiv'`, `'frem'`, `'fneg'`
-        - 🚫 `float-compare` Comparisons, one symbol per predicate
-        - 🚫 `float-convert` `'fpext'`, `'fptrunc'`, `'fptosi'`, ... conversions
-        - 🚫 `float-intrinsics` `'sqrt'`, `'fabs'`, `'floor'`, ... exact intrinsics
-      - 🚫 `ll-vectors` Vector opcodes, `extractelement`, `insertelement`, `shufflevector`
-    - `ll-memory` Pointers, memory, volatile, atomics
-      - 🚫 `ptr-compare` Pointer comparison and `'null' {}`
-      - `ptr-casts` `'ptrtoint'`, `'inttoptr'`
-      - `bulk-memory` `'memcpy'`, `'memmove'`, `'memset'`
-      - `align` Optional `align` on `'load'`, `'store'`, `'alloca'` and global variables
-      - `noalias` `{'noalias', 'ptr'}` on params and results
-      - 🚫 `ll-volatile-asm` `volatile` loads and stores; inline asm
-      - 🚫 `ll-atomics` `'atomicrmw'`, `'cmpxchg'`, `'fence'`, orderings
-    - `ll-symbols` Symbols, functions, module level
-      - 🚫 `ll-symbol-fields` `linkage`, visibility, `unnamed_addr`, `section`, `comdat`
-      - 🚫 `ll-tls` `thread_local` on global variables
-      - 🚫 `ll-function-attrs` Calling conventions; function, parameter and result attributes
+  - `ll-structure` Calculus, ANF and entry shapes for `.ll`
+    - `ll-anf` Calls, terminators, exceptions
       - 🚫 `fn-address` Indirect call through `'ptr'`
-      - 🚫 `ll-module-level` Aliases, `module asm`, constructors, constant expressions
-    - `ll-code` Instructions, undefined behaviour, intrinsics, exceptions
-      - 🚫 `undefined` Undefined behaviour in oymomo: folding, `'unreachable'`, poison
-      - 🚫 `ll-instructions` `select`, tail calls, `inbounds`
-      - `bswap` `'bswap'` for byte order per access
-      - 🚫 `ll-intrinsics` `ctpop`, `ctlz`, `abs`, overflow checks, `assume`, `lifetime`, `trap`, …
+      - 🚫 `undefined` Undefined behaviour in oymomo: folding and `'unreachable'`
+      - 🚫 `ll-tail-calls` Tail calls and unreachable blocks
       - 🚫 `ll-exceptions` `invoke`, `landingpad`, `resume`
-    - `ll-metadata` Metadata and debug info
-      - `line-tables` `-g` line tables from meta places
-      - 🚫 `ll-debug-info` Params, locals, types as DWARF metadata
-      - 🚫 `alias-scopes` `!alias.scope`, `!noalias`, if `noalias` isn't enough
-      - 🚫 `ll-instr-metadata` `!range`, `!tbaa`, `!prof`, `!llvm.loop`, module flags
-    - 🚫 `ll-check` Every row tested; clang's `-O2` output written in oymomo
+    - `ll-entries` Entry fields, attributes, module level
+      - `noalias` `{'noalias', 'ptr'}` on params and results
+      - 🚫 `ll-function-attrs` Calling conventions; function, parameter and result attributes
+      - 🚫 `ll-symbol-fields` Global `align`, `linkage`, visibility, `unnamed_addr`, `section`, `comdat`
+      - 🚫 `ll-tls` `thread_local` on global variables
+      - 🚫 `ll-module-level` Aliases, `module asm`, constructors, constant expressions
+  - `ll-bootstrap` `.ll` features needed before the bootstrap
+    - 🚫 `ptr-compare` Pointer comparison and `'null' {}`
+    - `ptr-casts` `'ptrtoint'`, `'inttoptr'`
+    - `bulk-memory` `'memcpy'`, `'memmove'`, `'memset'`
+    - `align` Optional `align` on `'load'`, `'store'` and `'alloca'`
+    - `line-tables` `-g` line tables from meta places
   - `alcor` Alcor: a typed language, two oymomo programs per file
     - `alcor-decide` Alcor decisions
       - `alcor-survey` Syntax survey: twenty-nine languages plus C (Zig … Scala; Nelua, Ada, Modula-2, Oberon, OCaml, Racket; Python, JavaScript, TypeScript, C#, Visual Basic, R)
@@ -94,6 +76,29 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
     - 🚫 `mizar-ext` `language mizar` as an extension of Alcor, adding nothing yet
     - 🚫 `own-repo` `oymo/` exported to its own repository
 - `single-thread` Single-threaded, in the Alcor-written compiler
+  - `ll-coverage` oymomo writes any `.ll`
+    - `ll-types` Types: `void`, wide integers, floats, vectors
+      - 🚫 `wide-ints` Every `'iN'` LLVM takes, `'i128'` first
+      - `floats` `'float'`, `'double'`
+        - 🚫 `float-forms` `'float'`, `'double'`: literals, params, results, declarations
+        - 🚫 `float-arith` `'fadd'`, `'fsub'`, `'fmul'`, `'fdiv'`, `'frem'`, `'fneg'`
+        - 🚫 `float-compare` Comparisons, one symbol per predicate
+        - 🚫 `float-convert` `'fpext'`, `'fptrunc'`, `'fptosi'`, ... conversions
+        - 🚫 `float-intrinsics` `'sqrt'`, `'fabs'`, `'floor'`, ... exact intrinsics
+      - 🚫 `ll-vectors` Vector opcodes, `extractelement`, `insertelement`, `shufflevector`
+    - `ll-memory` Pointers, memory, volatile, atomics
+      - 🚫 `ll-volatile-asm` `volatile` loads and stores; inline asm
+      - 🚫 `ll-atomics` `'atomicrmw'`, `'cmpxchg'`, `'fence'`, orderings
+    - `ll-code` Instructions, poison, intrinsics
+      - 🚫 `ll-poison` `poison`, poison flags, `freeze`
+      - 🚫 `ll-instructions` `select` and `getelementptr` flags
+      - 🚫 `bswap` `'bswap'` for byte order per access
+      - 🚫 `ll-intrinsics` `ctpop`, `ctlz`, `abs`, overflow checks, `assume`, `lifetime`, `trap`, …
+    - `ll-metadata` Metadata and debug info
+      - 🚫 `ll-debug-info` Params, locals, types as DWARF metadata
+      - 🚫 `alias-scopes` `!alias.scope`, `!noalias`, if `noalias` isn't enough
+      - 🚫 `ll-instr-metadata` `!range`, `!tbaa`, `!prof`, `!llvm.loop`, module flags
+    - 🚫 `ll-check` Every row tested; clang's `-O2` output written in oymomo
   - `safety` Memory safety
     - 🚫 `assigned-before-use` Layer-1 check: a variable is assigned before it is read
     - 🚫 `dependent-types` `Array(u8, ^16)`, `Index(n)`; unproven index is a build error
@@ -147,94 +152,100 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 ## Leaf details
 
-### `wide-ints` Every `'iN'` LLVM takes, `'i128'` first
+### `fn-address` Indirect call through `'ptr'`
 
-- Types `'iN'` for every width LLVM takes; `'i128'` first
-- Folding at any width
-- Tests: `'i128'` arithmetic folds as LLVM computes it; a golden
+- Indirect call through a `'ptr'` operand with a function type (`g.f` as an address in
+  operands and initializers is done)
+- Goldens
+- Decide: spelling of an indirect call in ANF (a `'ptr'` value carries no function type),
+  and how `'unit.make_reducible'` treats it
 
-### `float-forms` `'float'`, `'double'`: literals, params, results, declarations
+### `undefined` Undefined behaviour in oymomo: folding and `'unreachable'`
 
-- Add LLVM's floating-point types by their LLVM names (oymomo-calculus.tex 10): `'half'`,
-  `'bfloat'`, `'float'`, `'double'`, `'fp128'`, `'x86_fp80'`, `'ppc_fp128'`; `'float'` and
-  `'double'` first
-- A float is a value like an integer: param, result, struct field, let, declaration
-- Literal is its IEEE 754 bits, little-endian (typed by its use): `[0000803f]` as `'float'`,
-  `[000000000000f03f]` as `'double'` are 1.0
-- Every bit pattern is a value, NaN payloads included
-- Wrong size: `A constant of type float is a byte array of 4 bytes.`
-- No implicit change of bits or type
-- `.ll`: float constant from its bits; NaN with payload as bits bitcast from an integer
-  constant
-- Tests: return a `'double'` param; `float 1.0`; NaN payload kept; float struct field;
-  `sqrt` declaration; 3-byte `'float'` error; golden `float.oymo`
-- Decide: decimal literals as sugar for bytes? Hex float or decimal?
-- Decide: float vectors: every symbol accepts them where LLVM does; reduction folds only
-  scalars?
+- One place for every case LLVM leaves undefined, at the oymomo level; `alcor-ub` builds
+  Alcor's checked and optimized modes on it
+- Folding: today E-Opcode gives no result where LLVM is undefined (`udiv`/`sdiv`/`urem`/`srem`
+  by 0, `sdiv` of the minimum by −1, a shift by the width or more); the call stays as
+  run-time code (oymomo-calculus.tex 5.4k, 6.6)
+- `'unreachable' {}` as a block end: LLVM's `unreachable`; uses: after a call that never
+  returns (`exit`, `abort`), a `switch` default that can't happen, facts a frontend proved,
+  the optimized mode of `alcor-ub`; never folds
+- oymomo-calculus.tex 5, 6, 8–10; Lean (`anf_normal`, `op` partiality); code; goldens: a function
+  ending in `exit`, a division by a literal 0
+- Decide: an undefined call found at compile time: keep it as run-time code (today), reject
+  it as stuck with an error, or fold it to `poison`
+- Decide: `'unreachable'`: spelling, opcode call or own form, only at a block's end or also
+  bound by a `let`
+- Decide: `llvm.trap` for checked builds here or in `alcor-ub`
 
-### `float-arith` `'fadd'`, `'fsub'`, `'fmul'`, `'fdiv'`, `'frem'`, `'fneg'`
+### `ll-tail-calls` Tail calls and unreachable blocks
 
-- Opcodes `{type, a, b}`: `'fadd'`, `'fsub'`, `'fmul'`, `'fdiv'`, `'frem'`;
-  `'fneg'` `{type, value}`
-- LLVM's default FP environment only: round to nearest even, no traps, no fast-math, no
-  constrained intrinsics
-- `'float'` computed in binary64, then rounded to binary32
-- Never fold a NaN result; a NaN operand folds if the result isn't NaN
-- `'fneg'` flips only the sign bit; folds even on a NaN
-- `fdiv` by zero gives ∞ or NaN
-- Printed as LLVM: `fadd double a, b`
-- Tests: edge operands (`±0`, `±1`, smallest subnormal, largest finite, `±∞`, NaN, both
-  types) vs LLVM; `1.0 + 2.0` folds to `[0000000000000840]`; `0.0 / 0.0` stays;
-  `'float'` `0.1 + 0.2` folds to the `float` bits
+- `tail`/`musttail`/`notail` on calls
+- Goldens
+- Decide: spelling of `tail`, `musttail` and `notail` on calls in ANF (`musttail` must
+  immediately precede `ret`, vs 8.8a `let y = g.f {…} in y`)
+- Decide (Nov 5, user: "Decide later"): an unreachable block; the translation leaves it out
+  today, which changes the program under the "adds none, changes none" rule; reject it with
+  a located error instead?
 
-### `float-compare` Comparisons, one symbol per predicate
+### `ll-exceptions` `invoke`, `landingpad`, `resume`
 
-- One symbol per predicate, `'fcmp_' + predicate`, `{type, lhs, rhs}` → `'i1'`:
-  - ordered: `oeq`, `one`, `ogt`, `oge`, `olt`, `ole`
-  - unordered: `ueq`, `une`, `ugt`, `uge`, `ult`, `ule`
-  - `ord`, `uno`
-- No `fcmp false`/`fcmp true`
-- `-0.0` equals `+0.0` under `oeq`
-- Error: `'icmp' takes an integer type, got float; for floats use 'fcmp_ult'.`
-- Tests: every predicate × `{-∞, -1, -0, +0, 1, +∞, NaN}` vs LLVM; literal folds;
-  `'fcmp_uno'` with NaN folds to `[01]`
+- `invoke`, `landingpad`, `resume`; a definition's `personality`
+- Goldens
+- Decide: ANF shapes for `invoke` (call + two-target terminator), `landingpad` and `resume`
+- Decide: before 1.0 (unwinding from C++ through oymomo frames), or after
 
-### `float-convert` `'fpext'`, `'fptrunc'`, `'fptosi'`, ... conversions
+### `noalias` `{'noalias', 'ptr'}` on params and results
 
-- Fields `{type, value, to}`, like `'zext'`: `'fpext' {'float', x, 'double'}`
-- `'fpext'` `float` → `double`; `'fptrunc'` `double` → `float`, rounded
-- `'fptosi'`, `'fptoui'`: toward zero; NaN, ∞, out of range: not folded
-- `'sitofp'`, `'uitofp'`: rounded to nearest
-- `'bitcast'`: any → any same-size type LLVM can bitcast (not structs)
-- Error: `'fpext': to must be wider than double, got float.`
-- Tests: `fptrunc` rounds to nearest even; `fptosi -1.5` is `-1`; `sitofp` of `2^53 + 1`
-  rounds; `fptoui` of `-1.0`, NaN, `2^32` to `'i32'` not folded; `'bitcast'` of
-  `[0000803f]` from `'float'` to `'i32'` is `[0000803f]`; narrowing and size errors
-- Decide: add saturating `'fptosi_sat'`/`'fptoui_sat'`?
+- Tagged type `{'noalias', 'ptr'}`; `'noalias'` becomes a reserved tag (10.2h)
+- Allowed on: a parameter or the result in a function's type
+  (`malloc = {type = {'function', {size = 'i64'}, {'noalias', 'ptr'}}}`); elsewhere an
+  error
+- Everywhere else it counts as `'ptr'` (a jump may pass it to a block parameter)
+- LLVM: `ptr noalias %dst`, `noalias ptr @malloc(...)`
+- Breaking the promise is undefined behaviour, unchecked
+- Test: `dst[i] = src[i] * 2` over two `'ptr'` params; `-O2` leaves no `vector.memcheck`
 
-### `float-intrinsics` `'sqrt'`, `'fabs'`, `'floor'`, ... exact intrinsics
+### `ll-function-attrs` Calling conventions; function, parameter and result attributes
 
-- Exact intrinsics only, `llvm.NAME` without the prefix:
-  - `{type, value}`: `'sqrt'`, `'fabs'`, `'floor'`, `'ceil'`, `'round'`, `'roundeven'`,
-    round toward zero (`llvm.trunc`)
-  - `{type, magnitude, sign}`: `'copysign'`
-  - `{type, a, b}`: `'minnum'`, `'maxnum'`, `'minimum'`, `'maximum'`
-  - `{type, a, b, c}`: `'fma'`, rounded once
-- Transcendentals are libm declarations:
-  `sin = {type = {'function', {x = 'double'}, 'double'}, link = 'sin'}`
-- Tests: edge operands vs LLVM; `fma` where twice-rounded differs; `minnum(NaN, 1.0)` is
-  `1.0`, `minimum` is NaN; `minimum(-0.0, +0.0)` is `-0.0`; `'sqrt'` is
-  `call double @llvm.sqrt.f64`
-- Done when: `hypot(3.0, 4.0) = 5.0`; every float symbol matches LLVM on edge operands
-  (NaN results: "is a NaN")
-- Decide: name of `llvm.trunc`: one `'trunc'` by `type`, `'trunc_toward_zero'`, or
-  `'ftrunc'`
+- Entry field `cc` (`fastcc`, `coldcc`, `tailcc`, …), read from the callee's entry at a call
+- Function attributes: `nounwind`, `noreturn`, `noinline`, `alwaysinline`, `cold`,
+  `memory(…)`, `willreturn`, `uwtable`, …
+- Parameter and result attributes as tagged types in the function type: `nonnull`,
+  `dereferenceable(n)`, `captures(none)`, `readonly`, `returned`, `noundef`, `zeroext`,
+  `signext`, `byval`, `sret`, `range(…)`
+- `personality`, `prefix`, `prologue`
+- Goldens
+- Decide: exact entry-field and tagged-type shapes for function, parameter and result
+  attributes
 
-### `ll-vectors` Vector opcodes, `extractelement`, `insertelement`, `shufflevector`
+### `ll-symbol-fields` Global `align`, `linkage`, visibility, `unnamed_addr`, `section`, `comdat`
 
-- Integer opcodes and `'icmp'` on `{'vector', n, t}`
-- `'extractelement'`, `'insertelement'`, `'shufflevector'`
-- Decide: does reduction fold vectors, or only scalars?
+- Basic `internal` (no `link`) vs linked (`link = 'name'`) is settled (9.5, 10.10)
+- Global variable or constant entry field `align = [08]` beside `type` and `init`/`value`
+- Extra entry fields: `linkage` (`private`, `weak`, `linkonce_odr`, `extern_weak`, `common`,
+  `appending`, …), visibility, `dso_local`, `unnamed_addr`, `local_unnamed_addr`, `section`,
+  `comdat`, `externally_initialized`
+- oymomo-calculus.tex 9.3b, 9.5, 10.10; Lean (`UnitOps.lean`); code; goldens
+- Decide: how extra LLVM linkages combine with `link`, and entry-field shapes for the rest
+
+### `ll-tls` `thread_local` on global variables
+
+- Entry field `thread_local` on a global variable, with LLVM's models (`localdynamic`,
+  `initialexec`, `localexec`)
+- Golden
+- Decide: spelling of general-dynamic `thread_local` (no explicit model) vs a model name
+
+### `ll-module-level` Aliases, `module asm`, constructors, constant expressions
+
+- Aliases
+- `module asm`, `source_filename`
+- `llvm.used`, `llvm.compiler.used`, `llvm.global_ctors`/`dtors`
+- Constant expressions in initializers: `getelementptr`, `ptrtoint`, difference of two
+  addresses
+- Goldens
+- Decide: alias target (`λg. g.target` vs `link`) and predef spellings for initializer
+  constant expressions
 
 ### `ptr-compare` Pointer comparison and `'null' {}`
 
@@ -272,7 +283,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Tests and a golden
 - Commit: `oymomo: add bulk memory ops`
 
-### `align` Optional `align` on `'load'`, `'store'`, `'alloca'` and global variables
+### `align` Optional `align` on `'load'`, `'store'` and `'alloca'`
 
 - One more positional field, last, a literal power of two, read unsigned:
 
@@ -282,139 +293,9 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   | `'store'` | `{type, value, ptr}`, `{type, value, ptr, align}` |
   | `'alloca'` | `{type}`, `{type, count}`, `{type, count, align}` |
 
-- A global variable or constant: an entry field `align = [08]` beside `type` and
-  `init`/`value`
 - `'alloca'`: `count` must be written to give `align`
 - Too large `align` is undefined behaviour, unchecked
 - Test: unaligned `'i32'` read from a packed struct, `align 1`
-
-### `noalias` `{'noalias', 'ptr'}` on params and results
-
-- Tagged type `{'noalias', 'ptr'}`; `'noalias'` becomes a reserved tag (10.2h)
-- Allowed on: a parameter or the result in a function's type
-  (`malloc = {type = {'function', {size = 'i64'}, {'noalias', 'ptr'}}}`); elsewhere an
-  error
-- Everywhere else it counts as `'ptr'` (a jump may pass it to a block parameter)
-- LLVM: `ptr noalias %dst`, `noalias ptr @malloc(...)`
-- Breaking the promise is undefined behaviour, unchecked
-- Test: `dst[i] = src[i] * 2` over two `'ptr'` params; `-O2` leaves no `vector.memcheck`
-
-### `ll-volatile-asm` `volatile` loads and stores; inline asm
-
-- `volatile` flag on `'load'`/`'store'`, as LLVM has it
-- `'asm'` inline asm, as LLVM has it
-- Goldens
-- Decide: one `volatile` field for `'load'`, `'store'` and the bulk ops, or `volatile`
-  variants?
-
-### `ll-atomics` `'atomicrmw'`, `'cmpxchg'`, `'fence'`, orderings
-
-- `'atomicrmw'`, `'cmpxchg'`, `'fence'`, atomic `'load'`/`'store'`, orderings, `syncscope`,
-  as LLVM has them
-- Never folded
-- Goldens
-- Decide: opcode shapes and field order for atomic `'load'`/`'store'`, `'atomicrmw'`,
-  `'cmpxchg'` (two orderings), `'fence'`, and `syncscope`
-
-### `ll-symbol-fields` `linkage`, visibility, `unnamed_addr`, `section`, `comdat`
-
-- Basic `internal` (no `link`) vs linked (`link = 'name'`) is settled (9.5, 10.10)
-- Extra entry fields: `linkage` (`private`, `weak`, `linkonce_odr`, `extern_weak`, `common`,
-  `appending`, …), visibility, `dso_local`, `unnamed_addr`, `local_unnamed_addr`, `section`,
-  `comdat`, `externally_initialized`
-- Goldens
-- Decide: how extra LLVM linkages combine with `link`, and entry-field shapes for the rest
-
-### `ll-tls` `thread_local` on global variables
-
-- Entry field `thread_local` on a global variable, with LLVM's models (`localdynamic`,
-  `initialexec`, `localexec`)
-- Golden
-- Decide: spelling of general-dynamic `thread_local` (no explicit model) vs a model name
-
-### `ll-function-attrs` Calling conventions; function, parameter and result attributes
-
-- Entry field `cc` (`fastcc`, `coldcc`, `tailcc`, …), read from the callee's entry at a call
-- Function attributes: `nounwind`, `noreturn`, `noinline`, `alwaysinline`, `cold`,
-  `memory(…)`, `willreturn`, `uwtable`, …
-- Parameter and result attributes as tagged types in the function type: `nonnull`,
-  `dereferenceable(n)`, `captures(none)`, `readonly`, `returned`, `noundef`, `zeroext`,
-  `signext`, `byval`, `sret`, `range(…)`
-- `personality`, `prefix`, `prologue`
-- Goldens
-- Decide: exact entry-field and tagged-type shapes for function, parameter and result
-  attributes
-
-### `fn-address` Indirect call through `'ptr'`
-
-- Indirect call through a `'ptr'` operand with a function type (`g.f` as an address in
-  operands and initializers is done)
-- Goldens
-- Decide: spelling of an indirect call in ANF (a `'ptr'` value carries no function type),
-  and how `'unit.make_reducible'` treats it
-
-### `ll-module-level` Aliases, `module asm`, constructors, constant expressions
-
-- Aliases
-- `module asm`, `source_filename`
-- `llvm.used`, `llvm.compiler.used`, `llvm.global_ctors`/`dtors`
-- Constant expressions in initializers: `getelementptr`, `ptrtoint`, difference of two
-  addresses
-- Goldens
-- Decide: alias target (`λg. g.target` vs `link`) and predef spellings for initializer
-  constant expressions
-
-### `undefined` Undefined behaviour in oymomo: folding, `'unreachable'`, poison
-
-- One place for every case LLVM leaves undefined, at the oymomo level; `alcor-ub` builds
-  Alcor's checked and optimized modes on it
-- Folding: today E-Opcode gives no result where LLVM is undefined (`udiv`/`sdiv`/`urem`/`srem`
-  by 0, `sdiv` of the minimum by −1, a shift by the width or more); the call stays as
-  run-time code (oymomo-calculus.tex 5.4k, 6.6)
-- `'unreachable' {}` as a block end: LLVM's `unreachable`; uses: after a call that never
-  returns (`exit`, `abort`), a `switch` default that can't happen, facts a frontend proved,
-  the optimized mode of `alcor-ub`; never folds
-- Poison and undef: LLVM's `poison` value, flags that make results poison (`nsw`, `nuw`,
-  `exact`, `disjoint`, `nneg`, `samesign`), `freeze`
-- oymomo-calculus.tex 5, 6, 8–10; Lean (`anf_normal`, `op` partiality); code; goldens: a function
-  ending in `exit`, a division by a literal 0
-- Decide: an undefined call found at compile time: keep it as run-time code (today), reject
-  it as stuck with an error, or fold it to `poison`
-- Decide: `'unreachable'`: spelling, opcode call or own form, only at a block's end or also
-  bound by a `let`
-- Decide: `llvm.trap` for checked builds here or in `alcor-ub`
-- Decide: which poison-making flags and `freeze`, and when
-
-### `ll-instructions` `select`, tail calls, `inbounds`
-
-- `'select' {type, c, a, b}` (LLVM `select`) for value choices
-- `tail`/`musttail`/`notail` on calls
-- `inbounds`, `nuw`, `nusw` on `'getelementptr'`
-- Goldens
-- Decide (Nov 5, user: "Decide later"): an unreachable block; the translation leaves it out
-  today, which changes the program under the "adds none, changes none" rule; reject it with
-  a located error instead?
-
-### `bswap` `'bswap'` for byte order per access
-
-- `'bswap' {'i32', x}`: `llvm.bswap.iN`, pure, folded
-- Test: read a big-endian `'i32'` header field on a little-endian target
-
-### `ll-intrinsics` `ctpop`, `ctlz`, `abs`, overflow checks, `assume`, `lifetime`, `trap`, …
-
-- `ctpop`, `ctlz`, `cttz`, `abs`, `smin`/`smax`/`umin`/`umax`, `fshl`/`fshr`,
-  `bitreverse`, `*.with.overflow`, `*.sat`
-- `assume`, `expect`, `lifetime.start`/`end`, `trap`, `stacksave`/`stackrestore`,
-  `returnaddress`, `prefetch`
-- Goldens
-- Decide: an opcode each (folded where pure), or a declaration named `"llvm.ctpop.i32"`
-  called through `g` (never folded)
-
-### `ll-exceptions` `invoke`, `landingpad`, `resume`
-
-- `invoke`, `landingpad`, `resume`; a definition's `personality`
-- Goldens
-- Decide: before 1.0 (unwinding from C++ through oymomo frames), or after
 
 ### `line-tables` `-g` line tables from meta places
 
@@ -433,37 +314,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Tests: golden IR; passes `opt -passes=verify`
 - Breakpoints, line stepping, backtraces in `gdb`/`lldb`
 - Done when: `gdb` breaks on a line of a `.oymo` file and steps by its lines
-
-### `ll-debug-info` Params, locals, types as DWARF metadata
-
-- Metadata helpers: compile unit with module flags, file, subprogram, location, basic
-  and composite types; each adds a node (reusing an equal one) and returns its index
-- `DILocalVariable` for params and locals; `DIBasicType`, `DIDerivedType`,
-  `DICompositeType`; the frontend gives names and types
-- Goldens
-- Decide: locals: is a location enough, or do `alloca`s need `#dbg_declare` records
-  (`DILocalVariable`)?
-
-### `alias-scopes` `!alias.scope`, `!noalias`, if `noalias` isn't enough
-
-- Only for a program `noalias` can't serve
-- Scoped aliasing metadata `!alias.scope`, `!noalias` per access, carried in `meta.proto`
-- Decide: `meta.proto` schema for scope declarations on `Tags` and attachments on `Tag`
-
-### `ll-instr-metadata` `!range`, `!tbaa`, `!prof`, `!llvm.loop`, module flags
-
-- On instructions (fields on `Tag` in `meta.proto`): `!range`, `!nonnull`, `!noundef`,
-  `!tbaa`, `!prof` branch weights, `!llvm.loop` hints, `!invariant.load`
-- Module flags on `Tags` in `meta.proto`
-- Goldens
-- Decide: `meta.proto` schema fields and reduction merge rules for each kind
-
-### `ll-check` Every row tested; clang's `-O2` output written in oymomo
-
-- Each golden passes `opt -passes=verify`
-- Done when: every row of `docs/ll_coverage.md` has a golden or is "not planned"; the `.ll`
-  clang writes for a C test program at `-O2` can be written in oymomo, construct for
-  construct
 
 ### `alcor-survey` Syntax survey: twenty-nine languages plus C (Zig … Scala; Nelua, Ada, Modula-2, Oberon, OCaml, Racket; Python, JavaScript, TypeScript, C#, Visual Basic, R)
 
@@ -804,6 +654,174 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - Delete `oymo-py/`; tag `oymo-py-final`
 - Decide: when is the public launch? Recommended: soft launch at `substructural-types`
   (site, tutorial, posts), main launch at `mizar-headers`
+
+### `wide-ints` Every `'iN'` LLVM takes, `'i128'` first
+
+- Types `'iN'` for every width LLVM takes; `'i128'` first
+- Folding at any width
+- Tests: `'i128'` arithmetic folds as LLVM computes it; a golden
+
+### `float-forms` `'float'`, `'double'`: literals, params, results, declarations
+
+- Add LLVM's floating-point types by their LLVM names (oymomo-calculus.tex 10): `'half'`,
+  `'bfloat'`, `'float'`, `'double'`, `'fp128'`, `'x86_fp80'`, `'ppc_fp128'`; `'float'` and
+  `'double'` first
+- A float is a value like an integer: param, result, struct field, let, declaration
+- Literal is its IEEE 754 bits, little-endian (typed by its use): `[0000803f]` as `'float'`,
+  `[000000000000f03f]` as `'double'` are 1.0
+- Every bit pattern is a value, NaN payloads included
+- Wrong size: `A constant of type float is a byte array of 4 bytes.`
+- No implicit change of bits or type
+- `.ll`: float constant from its bits; NaN with payload as bits bitcast from an integer
+  constant
+- Tests: return a `'double'` param; `float 1.0`; NaN payload kept; float struct field;
+  `sqrt` declaration; 3-byte `'float'` error; golden `float.oymo`
+- Decide: decimal literals as sugar for bytes? Hex float or decimal?
+- Decide: float vectors: every symbol accepts them where LLVM does; reduction folds only
+  scalars?
+
+### `float-arith` `'fadd'`, `'fsub'`, `'fmul'`, `'fdiv'`, `'frem'`, `'fneg'`
+
+- Opcodes `{type, a, b}`: `'fadd'`, `'fsub'`, `'fmul'`, `'fdiv'`, `'frem'`;
+  `'fneg'` `{type, value}`
+- LLVM's default FP environment only: round to nearest even, no traps, no fast-math, no
+  constrained intrinsics
+- `'float'` computed in binary64, then rounded to binary32
+- Never fold a NaN result; a NaN operand folds if the result isn't NaN
+- `'fneg'` flips only the sign bit; folds even on a NaN
+- `fdiv` by zero gives ∞ or NaN
+- Printed as LLVM: `fadd double a, b`
+- Tests: edge operands (`±0`, `±1`, smallest subnormal, largest finite, `±∞`, NaN, both
+  types) vs LLVM; `1.0 + 2.0` folds to `[0000000000000840]`; `0.0 / 0.0` stays;
+  `'float'` `0.1 + 0.2` folds to the `float` bits
+
+### `float-compare` Comparisons, one symbol per predicate
+
+- One symbol per predicate, `'fcmp_' + predicate`, `{type, lhs, rhs}` → `'i1'`:
+  - ordered: `oeq`, `one`, `ogt`, `oge`, `olt`, `ole`
+  - unordered: `ueq`, `une`, `ugt`, `uge`, `ult`, `ule`
+  - `ord`, `uno`
+- No `fcmp false`/`fcmp true`
+- `-0.0` equals `+0.0` under `oeq`
+- Error: `'icmp' takes an integer type, got float; for floats use 'fcmp_ult'.`
+- Tests: every predicate × `{-∞, -1, -0, +0, 1, +∞, NaN}` vs LLVM; literal folds;
+  `'fcmp_uno'` with NaN folds to `[01]`
+
+### `float-convert` `'fpext'`, `'fptrunc'`, `'fptosi'`, ... conversions
+
+- Fields `{type, value, to}`, like `'zext'`: `'fpext' {'float', x, 'double'}`
+- `'fpext'` `float` → `double`; `'fptrunc'` `double` → `float`, rounded
+- `'fptosi'`, `'fptoui'`: toward zero; NaN, ∞, out of range: not folded
+- `'sitofp'`, `'uitofp'`: rounded to nearest
+- `'bitcast'`: any → any same-size type LLVM can bitcast (not structs)
+- Error: `'fpext': to must be wider than double, got float.`
+- Tests: `fptrunc` rounds to nearest even; `fptosi -1.5` is `-1`; `sitofp` of `2^53 + 1`
+  rounds; `fptoui` of `-1.0`, NaN, `2^32` to `'i32'` not folded; `'bitcast'` of
+  `[0000803f]` from `'float'` to `'i32'` is `[0000803f]`; narrowing and size errors
+- Decide: add saturating `'fptosi_sat'`/`'fptoui_sat'`?
+
+### `float-intrinsics` `'sqrt'`, `'fabs'`, `'floor'`, ... exact intrinsics
+
+- Exact intrinsics only, `llvm.NAME` without the prefix:
+  - `{type, value}`: `'sqrt'`, `'fabs'`, `'floor'`, `'ceil'`, `'round'`, `'roundeven'`,
+    round toward zero (`llvm.trunc`)
+  - `{type, magnitude, sign}`: `'copysign'`
+  - `{type, a, b}`: `'minnum'`, `'maxnum'`, `'minimum'`, `'maximum'`
+  - `{type, a, b, c}`: `'fma'`, rounded once
+- Transcendentals are libm declarations:
+  `sin = {type = {'function', {x = 'double'}, 'double'}, link = 'sin'}`
+- Tests: edge operands vs LLVM; `fma` where twice-rounded differs; `minnum(NaN, 1.0)` is
+  `1.0`, `minimum` is NaN; `minimum(-0.0, +0.0)` is `-0.0`; `'sqrt'` is
+  `call double @llvm.sqrt.f64`
+- Done when: `hypot(3.0, 4.0) = 5.0`; every float symbol matches LLVM on edge operands
+  (NaN results: "is a NaN")
+- Decide: name of `llvm.trunc`: one `'trunc'` by `type`, `'trunc_toward_zero'`, or
+  `'ftrunc'`
+
+### `ll-vectors` Vector opcodes, `extractelement`, `insertelement`, `shufflevector`
+
+- Integer opcodes and `'icmp'` on `{'vector', n, t}`
+- `'extractelement'`, `'insertelement'`, `'shufflevector'`
+- Decide: does reduction fold vectors, or only scalars?
+
+### `ll-volatile-asm` `volatile` loads and stores; inline asm
+
+- `volatile` flag on `'load'`/`'store'`, as LLVM has it
+- `'asm'` inline asm, as LLVM has it
+- Goldens
+- Decide: one `volatile` field for `'load'`, `'store'` and the bulk ops, or `volatile`
+  variants?
+
+### `ll-atomics` `'atomicrmw'`, `'cmpxchg'`, `'fence'`, orderings
+
+- `'atomicrmw'`, `'cmpxchg'`, `'fence'`, atomic `'load'`/`'store'`, orderings, `syncscope`,
+  as LLVM has them
+- Never folded
+- Goldens
+- Decide: opcode shapes and field order for atomic `'load'`/`'store'`, `'atomicrmw'`,
+  `'cmpxchg'` (two orderings), `'fence'`, and `syncscope`
+
+### `ll-poison` `poison`, poison flags, `freeze`
+
+- LLVM's `poison` and `undef` values
+- Flags that make results poison (`nsw`, `nuw`, `exact`, `disjoint`, `nneg`, `samesign`)
+- `'freeze'`
+- Goldens
+- Decide: spellings of `poison` and `undef`, which poison-making flags and `'freeze'`, and
+  their shapes
+
+### `ll-instructions` `select` and `getelementptr` flags
+
+- `'select' {type, c, a, b}` (LLVM `select`) for value choices
+- `inbounds`, `nuw`, `nusw` on `'getelementptr'`
+- Goldens
+- Decide: how `inbounds`, `nuw` and `nusw` are passed to variadic `'getelementptr'`
+
+### `bswap` `'bswap'` for byte order per access
+
+- `'bswap' {'i32', x}`: `llvm.bswap.iN`, pure, folded
+- Test: read a big-endian `'i32'` header field on a little-endian target
+
+### `ll-intrinsics` `ctpop`, `ctlz`, `abs`, overflow checks, `assume`, `lifetime`, `trap`, …
+
+- `ctpop`, `ctlz`, `cttz`, `abs`, `smin`/`smax`/`umin`/`umax`, `fshl`/`fshr`,
+  `bitreverse`, `*.with.overflow`, `*.sat`
+- `assume`, `expect`, `lifetime.start`/`end`, `trap`, `stacksave`/`stackrestore`,
+  `returnaddress`, `prefetch`
+- Goldens
+- Decide: an opcode each (folded where pure), or a declaration named `"llvm.ctpop.i32"`
+  called through `g` (never folded)
+
+### `ll-debug-info` Params, locals, types as DWARF metadata
+
+- Metadata helpers: compile unit with module flags, file, subprogram, location, basic
+  and composite types; each adds a node (reusing an equal one) and returns its index
+- `DILocalVariable` for params and locals; `DIBasicType`, `DIDerivedType`,
+  `DICompositeType`; the frontend gives names and types
+- Goldens
+- Decide: locals: is a location enough, or do `alloca`s need `#dbg_declare` records
+  (`DILocalVariable`)?
+
+### `alias-scopes` `!alias.scope`, `!noalias`, if `noalias` isn't enough
+
+- Only for a program `noalias` can't serve
+- Scoped aliasing metadata `!alias.scope`, `!noalias` per access, carried in `meta.proto`
+- Decide: `meta.proto` schema for scope declarations on `Tags` and attachments on `Tag`
+
+### `ll-instr-metadata` `!range`, `!tbaa`, `!prof`, `!llvm.loop`, module flags
+
+- On instructions (fields on `Tag` in `meta.proto`): `!range`, `!nonnull`, `!noundef`,
+  `!tbaa`, `!prof` branch weights, `!llvm.loop` hints, `!invariant.load`
+- Module flags on `Tags` in `meta.proto`
+- Goldens
+- Decide: `meta.proto` schema fields and reduction merge rules for each kind
+
+### `ll-check` Every row tested; clang's `-O2` output written in oymomo
+
+- Each golden passes `opt -passes=verify`
+- Done when: every row of `docs/ll_coverage.md` has a golden or is "not planned"; the `.ll`
+  clang writes for a C test program at `-O2` can be written in oymomo, construct for
+  construct
 
 ### `assigned-before-use` Layer-1 check: a variable is assigned before it is read
 

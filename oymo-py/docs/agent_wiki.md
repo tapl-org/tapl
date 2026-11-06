@@ -3656,6 +3656,64 @@ executable binary). we should mark some place as a platform". The steps that fol
   adds "Its one value is [], the byte array of 0 bytes"; `p:void` "returns []", sub-point a
   "returns [], written as such"; sub-point b unchanged ("a use of u is rejected").
   `p:bytes-length` unchanged. Still uncommitted (user: "Keep uncommitted").
+
+### `ll-coverage` split into 3 groups (Nov 6)
+
+- User asked first to analyze (without editing) how the 29 remaining `ll-coverage` leaves
+  divide into:
+  1. changes `doc/oymomo-calculus.tex` or structural shapes (Lean proofs, ANF, ingot/entry or
+     `FunctionType` structure),
+  2. needed before/for bootstrapping (`alcor`, `types-files`, `rewrite-tools`, `bootstrap`)
+     without changing calculus/structure,
+  3. the rest of `.ll` coverage;
+  then asked to restructure `roadmap.md` (and `ll_coverage.md`) accordingly.
+- Plan quiz decisions (user, Nov 6, 4 of 4):
+  1. **Macro placement:** Groups 1 (`ll-structure`) and 2 (`ll-bootstrap`) stay in
+     `pre-bootstrap` (before `alcor`); Group 3 (`ll-coverage`) moves after `bootstrap` as the
+     first child of `single-thread` (so the Python compiler and `rewrite-core` stay small, and
+     the Alcor-written compiler finishes full `.ll` coverage first).
+  2. **Split the 3 mixed leaves along group boundaries** (29 → 31 leaves):
+     - `undefined`: keep UB folding and `'unreachable'` in `ll-structure` → `ll-anf`; move
+       `poison`/`undef`, poison flags (`nsw`, `nuw`, `exact`, `disjoint`, `nneg`, `samesign`),
+       and `freeze` to a new leaf `ll-poison` in `ll-coverage` → `ll-code`.
+     - `ll-instructions`: move `tail`/`musttail`/`notail` calls (`musttail` must immediately
+       precede `ret`, vs 8.8a `let y = g.f {…} in y`) and the Nov 5 unreachable-block `Decide:`
+       to a new leaf `ll-tail-calls` in `ll-structure` → `ll-anf`; keep `'select'` and
+       `getelementptr` flags (`inbounds`, `nuw`, `nusw`, with a `Decide:` on passing them to
+       variadic `'getelementptr'`) in `ll-instructions` in `ll-coverage` → `ll-code`.
+     - `align`: keep optional positional `align` on `'load'`, `'store'` and `'alloca'` in
+       `align` in `ll-bootstrap`; fold global entry field `align = [08]` into
+       `ll-symbol-fields` in `ll-structure` → `ll-entries` (since `oymomo-calculus.tex` 9.3b,
+       `ingot.py` `_ENTRY_FIELDS`, and `UnitOps.lean` `isHole`/`isDecl`/`bindsUnit`/`hoistPart`
+       currently restrict entry fields to `type, body, init, value, link`).
+  3. **`ll-exceptions` (`invoke`, `landingpad`, `resume`):** keep in `ll-structure` → `ll-anf`
+     in `pre-bootstrap` so its ANF shape (a call that is also a two-target terminator) is
+     settled early alongside the other ANF extensions.
+  4. **Group 3 organization:** keep Group 3 together as one `ll-coverage` subtree first under
+     `single-thread` (`ll-types`, `ll-memory`, `ll-code`, `ll-metadata`, ending in `ll-check`),
+     with all leaves marked `🚫` because `single-thread` depends on `bootstrap`.
+- Resulting 3 groups (9 + 5 + 17 = 31 leaves):
+  - `pre-bootstrap` → `ll-structure`:
+    - `ll-anf` (ANF / `Anf.lean` / `unit.make_reducible`): `fn-address` (needed by
+      `alcor-fn-values`/`interfaces`), `undefined` (needed by `alcor-ub` and `exit`/`abort`),
+      `ll-tail-calls`, `ll-exceptions`.
+    - `ll-entries` (entry fields / `FunctionType` / `UnitOps.lean` / predefs): `noalias`,
+      `ll-function-attrs` (`zeroext`/`signext` needed by `e2e-libc`), `ll-symbol-fields`,
+      `ll-tls`, `ll-module-level`.
+  - `pre-bootstrap` → `ll-bootstrap` (additive opcodes/meta only, no calculus/Lean/ANF/ingot
+    change): `ptr-compare` (`alcor-memory-frontend`), `ptr-casts` (`alcor-memory-frontend` /
+    arena alignment), `bulk-memory` (`alcor-memory-frontend` / `stdlib-core`), `align`
+    (opcode alignment), `line-tables` (`asan` / `lsp` gdb breakpoints; `meta.proto` already has
+    `File` + `Tag` places, outside the calculus).
+  - `single-thread` → `ll-coverage`: `wide-ints` (`rewrite-core` explicitly keeps `i64` as
+    widest int), `float-forms`/`float-arith`/`float-compare`/`float-convert`/`float-intrinsics`
+    (before `mizar-floats`), `ll-vectors` (before `mizar-later`), `ll-volatile-asm` (before
+    `volatile-asm`), `ll-atomics` (before `atomics`), `ll-poison`, `ll-instructions`, `bswap`,
+    `ll-intrinsics`, `ll-debug-info` (before `debug-info`), `alias-scopes`,
+    `ll-instr-metadata`, `ll-check`.
+- `docs/ll_coverage.md` synced: intro updated to name `ll-structure`, `ll-bootstrap`,
+  `ll-coverage`; Global `align` → `ll-symbol-fields`; `poison`/`undef`, Poison flags, `freeze`
+  → `ll-poison`; `call` (direct) `tail`/`musttail`/`notail` → `ll-tail-calls`.
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
