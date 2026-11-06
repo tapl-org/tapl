@@ -549,7 +549,8 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \item What each class is:
   \begin{subpoints}
   \item $P$: a path is a variable followed by labels: $p.a$, $g.\mathit{gcd}$, $r.\mathit{loop}$.
-  \item $O$: an operator is a path to a function, or an opcode $b$. Applied to the struct of its operands,
+  \item $O$: an operator is a path to a function (a symbol $g.l$, or an argument or value that holds a function's
+    address, \pref{p:calls}), or an opcode $b$. Applied to the struct of its operands,
     $O\ \{l_i = Q_i\}_{i<k}$ is an instruction: a call (\pref{p:calls}), or an opcode call that \rn{E-Opcode} does not
     compute (\pref{p:opcode}). The struct only lists the operands: no struct is built at run time, and a struct value is never an operator's argument as a whole.
   \item\label{p:predef} $Q$: an operand is a path, a byte array, or a struct of operands.
@@ -580,15 +581,17 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
 \begin{array}{l@{\quad}lll}
  & \textit{kind} & \textit{bound by} & \textit{used as} \\ \hline
 \pt & \textit{unit} & \text{the body's 1st } \lambda,\ g & g.l_1 \cdots l_n\text{: operator, operand, address in a predef} \\
-\pt & \textit{arguments} & \text{the body's 2nd } \lambda,\ p & p.l,\ l \text{ a parameter: operand, condition} \\
+\pt & \textit{arguments} & \text{the body's 2nd } \lambda,\ p & p.l,\ l \text{ a parameter: operand, condition, operator} \\
 \pt & \textit{region} & \text{a region's } \lambda,\ r & r.l,\ l \text{ a block: head of a jump} \\
-\pt & \textit{value} & \kw{let},\ \text{a block's } \lambda & x\text{: operand, condition}
+\pt & \textit{value} & \kw{let},\ \text{a block's } \lambda & x\text{: operand, condition, operator}
 \end{array}
 \]
   \begin{subpoints}
   \item $g.l_1 \cdots l_n$: a path from the ingot's top, through its namespaces, to an entry
     (\pref{p:module}); it is an operator when the entry is a function, and otherwise an operand, its address. Any other use of $g$, such as $g\ b$, is rejected.
   \item $r.l$: a jump to the block $l$ passes exactly as many operands as $l$ has parameters.
+  \item $p.l$ or $x$ heads a call only when its type is a function type (\pref{p:fn-value-type}): an indirect call
+    (\pref{p:indirect}).
   \item $x$: a value has no fields, so $x.l$ is rejected; a field of a struct value is read with an
     opcode (\pref{p:struct-values}).
   \item Inside a struct operand, a path is a symbol address $g.l_1 \cdots l_n$: $p.l$, $r.l$ or a value $x$ there is
@@ -603,10 +606,26 @@ inc = {type = {'function', {a = 'i32'}, 'i32'},
   \item So a block sees the variables bound before its region: the block runs only after that code, and
     nested regions give dominance.
   \end{subpoints}
-\item\label{p:calls} A call is $g.l\ \{x_i = Q_i\}_{i<k}$, with $x_i$ the parameters' labels of the function $l$, in order.
+\item\label{p:calls} A call is $P\ \{Q_i\}_{i<k}$: one operand for each parameter of the function, in order. A label
+  may be written; it must be the label of the parameter at its position. So these are one call:
+  \[g.\mathit{gcd}\ \{\hex{30000000}, \hex{12000000}\} \qquad g.\mathit{gcd}\ \{a = \hex{30000000}, b = \hex{12000000}\}\]
   \begin{subpoints}
+  \item A direct call names the function: $P$ is $g.l$, and the function's type is its entry's.
+  \item\label{p:indirect}An indirect call goes through an address held at run time: $P$ is an argument $p.l$ or a value $x$
+    whose type is a function type (\pref{p:fn-value-type}). The parameter $\mathit{cmp}$ of $\mathit{sort}$ holds a
+    function, and the body calls it:
+\begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
+sort = {type = {'function', {xs = 'ptr', n = 'i32',
+                             cmp = {'function', {a = 'i32', b = 'i32'}, 'i32'}},
+                'void'},
+        body = @vlamg. @vlamp. @ldots let c = p.cmp {x, z} in @ldots}
+\end{Verbatim}
   \item A call that ends a function is bound and returned: $\kw{let}\ y = g.f\ \{\dots\}\ \kw{in}\ y$.
-  \item A path to a function that is not called is the function's address.
+  \item A path to a function that is not called is the function's address: a value whose type is the function's
+    type. So $g.\mathit{sort}\ \{\mathit{buf}, \hex{0a000000}, g.\mathit{asc}\}$ passes $\mathit{asc}$ to $\mathit{sort}$.
+  \item A function held as a value is only an entry's address: a $\lambda$ is never a value at run time, so a
+    function never captures a local variable. A frontend that needs a closure builds it as a struct of an address
+    and a pointer to the captured variables, which it allocates itself.
   \end{subpoints}
 \item\label{p:struct-values} A struct value, such as a $\str{load}$ of a struct type, is read and built
   with opcodes, with positions for indices:
@@ -734,6 +753,14 @@ How a predef initializes each type belongs to the translation (\pref{p:init-llvm
     its own blocks (\rn{E-FixApp}, \rn{E-Index}), and a jump $r.l\ Q_1 \cdots Q_n$ takes the block $l$ and applies it.
   \item Projecting a definition unfolds the instance (\rn{E-FixProj}), so a call runs the body, and a call
     $g.f_j\ \{\dots\}$ inside it reaches the instance again.
+  \item A function passed as a value runs too: in $g.\mathit{sort}\ \{\mathit{xs} = \mathit{buf}, n = \hex{0a000000}, \mathit{cmp} = g.\mathit{asc}\}$ the
+    instance's $\mathit{asc}$ is passed, and $p.\mathit{cmp}\ \{a = x, b = z\}$ inside $\mathit{sort}$ applies it, when $\mathit{asc}$'s parameters are $a$
+    and $b$. An address read from memory, as by a $\str{load}$, waits for run time.
+  \item Reduction reads an argument by its label ($p.a$ is \rn{E-Proj}), while a call passes its operands by position
+    (\pref{p:calls}). So a call runs by reduction only when it writes the labels of the function it reaches:
+    $g.\mathit{gcd}\ \{\hex{30000000}, \hex{12000000}\}$, or $p.\mathit{cmp}\ \{a = x, b = z\}$ reaching an $\mathit{asc}$ whose
+    parameters are $x$ and $y$, leaves a projection that has no field, which is stuck. Compiled, both are correct: the
+    translation passes arguments by position.
   \item A filled declaration is reached as $g.n$, as the unit's own symbols are.
   \item User code instantiates modules in dependency order and passes them by name (\pref{p:merge}),
     so each gets one instance of each module below it; in a diamond, both sides share one instance.
@@ -774,6 +801,10 @@ How a predef initializes each type belongs to the translation (\pref{p:init-llvm
   \item $\{l_i = t_i\}_{i<k}$: LLVM's struct $\{t_0, \dots, t_{k-1}\}$. The labels only name the fields.
   \item $\{\str{array}, n, t\}$ and $\{\str{vector}, n, t\}$: LLVM's $[n \times t]$ and $\langle n \times t\rangle$.
   \item $\{\str{packed}, t_0, \dots, t_{k-1}\}$: LLVM's packed struct $\langle\{t_0, \dots, t_{k-1}\}\rangle$.
+  \item\label{p:fn-value-type}$\{\str{function}, \{x_i = t_i\}_{i<k}, t\}$ as a value's type: LLVM's $\str{ptr}$, holding the address of a
+    function of that type, as C's $\kw{int\ (*)(int,\ int)}$. A call through the value (\pref{p:indirect}) reads its
+    parameters and result from it. As in LLVM it is a $\str{ptr}$, so it fits wherever a $\str{ptr}$ or another function
+    type does, and $g.\mathit{asc}$ may be passed for $\mathit{cmp}$ whatever $\mathit{asc}$'s labels are.
   \item A struct whose field $0$ is $\str{array}$, $\str{vector}$, $\str{packed}$ or $\str{function}$ is read by these
     shapes or as a function's type (\pref{p:entry-kind}), never as a plain struct.
   \end{subpoints}
@@ -805,6 +836,7 @@ How a predef initializes each type belongs to the translation (\pref{p:init-llvm
   \begin{subpoints}
   \item Its body returns $\hex{}$, written as such, which becomes $\kw{ret\ void}$; any other returned operand is rejected.
   \item A call of it, $\kw{let}\ u = g.f\ \{\dots\}\ \kw{in}\ \dots$, becomes $\kw{call\ void\ @f(\dots)}$ with no result; a use of $u$ is rejected.
+    So does an indirect call through a value whose function type has the result type $\str{void}$.
   \end{subpoints}
 \item\label{p:sizes}Sizes depend on the platform, and an ingot is the same for every platform (\pref{p:module}), so
   oymomo never computes one. $\str{layout.size}\ \{t\}$, $\str{layout.offset}\ \{t, i\}$ and $\str{layout.align}\ \{t\}$
@@ -845,7 +877,9 @@ How a predef initializes each type belongs to the translation (\pref{p:init-llvm
     named after its region's binder and its position, as $r.0$. The marker $\str{R}$ itself becomes nothing.
   \item Each $\kw{let}$ becomes one instruction: an opcode call becomes the opcode's instruction, and a
     call $g.l\ \{\dots\}$ becomes $\kw{call}$ of the function $l$. A size opcode's $\kw{let}$ (\pref{p:sizes}) becomes its constant
-    expression, not an instruction; nothing is added.
+    expression, not an instruction; nothing is added. An indirect call (\pref{p:indirect}) becomes $\kw{call}$ through the
+    address, with the function type of the value: $\kw{let}\ c = p.\mathit{cmp}\ \{x, z\}$ becomes
+    $\kw{\%c = call\ i32\ \%p.cmp(i32\ \%x,\ i32\ \%z)}$.
   \item A return becomes $\kw{ret}$ (or $\kw{ret\ void}$, \pref{p:void}), and a jump $\kw{br}$.
   \item A branch of two arms on an $\str{i1}$ becomes $\kw{br\ i1}$, to arm $1$ when true and arm $0$ when false;
     any other branch becomes $\kw{switch}$, arm $i$ the case $i$ and the last arm the default.

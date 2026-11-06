@@ -3886,6 +3886,77 @@ executable binary). we should mark some place as a platform". The steps that fol
     `oymo-test`, `seed-decide`'s notes (with an oymomo-text seed, a change to the printed form
     needs a new `stage0`). Still not planned: exceptions, variadic calls.
 
+### `fn-address` (Nov 6)
+
+- User: "lets start fn-address". Found before asking: a struct operand must be a predef, so
+  run-time arguments can't be nested as one struct field; llvmlite 0.50's `builder.call`
+  reads `func.function_type`, so a call through an opaque `ptr` fails (`'PointerType' object
+  has no attribute 'pointee'`); a wrapper carrying the function type, like
+  `_FunctionAddress`, fixes it.
+- Options shown with examples before the quiz: A, opcode `'call' {type, callee, args…}`
+  (LLVM's name and order; no ANF/kinds/Lean change); A′, the same with labeled arguments
+  checked against the type (breaks "opcode labels are ignored"); B, a new operator form with
+  labeled arguments (ANF grammar, kinds, `anf_normal` change). For reduction: rewrite
+  `'call' {T, f, q…}` into `f {xᵢ = qᵢ}` in `'unit.make_reducible'`, or leave it.
+- Decided (quiz): F1 A (recommended): `let y = 'call' {{'function', {a = 'i32', b = 'i32'},
+  'i32'}, p.cmp, x, z} in …` → `%y = call i32 %p.cmp(i32 %x, i32 %z)`; callee any `'ptr'`
+  operand (value, `p.l`, `g.f`); argument count must match the type; `'void'` result has no
+  value, as for direct calls. F2 "Leave it" (the agent had recommended the rewrite):
+  `'call'` never steps, so a unit can't run by reduction through a callback; Lean needs no
+  change. F3 (recommended): calculus draft with marks first, then Lean (nothing) and code by
+  the agent directly.
+- Calculus draft (marks, legend restored): new 8.8c `p:indirect`; 9.8's last subpoint ("So
+  does an indirect call: reduction never runs a function through an address"); 10.4b (a
+  `'void'` indirect call); 10.8b (the translation, with the `%y = call i32 %p.cmp(…)` line).
+  Build: same 58 warnings as HEAD, no overfull, no undefined references. Roadmap: leaf
+  unblocked, Decide replaced by the decisions.
+- Review quiz: Q1 answered `p.cmp {a = x, b = z}` "with the type taken from p.cmp", Q2
+  "rejected as stuck"; both differ from the draft. Agent then asked a follow-up quiz
+  without explaining first (the same mistake again); user: "maybe i did not understand
+  indirect call. explain it intuitively and difference between direct and indirect first".
+  Agent explained with C's `qsort`/`cmp`: a direct call names a known function (its entry
+  has a type); an indirect call jumps to an address held at run time, and `'ptr'` says
+  nothing about the function there; stuck means wrong forever, while an unknown callee only
+  waits for run time.
+- Redesign (user: "for the indirect call lets redisgn from the beginning. we may introduce
+  high order lambda function, right?"). Agent: oymomo is already higher-order at reduce
+  time; only ANF is first-order. Case A, function known at build time: specialize by
+  reduction (as the `template/` golden), no indirect call left; works today. Case B, known
+  only at run time: a function value is an entry's address, typed by a function type, and
+  called by plain application. Lean's `Op.call` already takes any path as callee, so only the
+  verifier's kinds change; running by reduction works with no rule (`g.sort {…, g.asc}`
+  substitutes `p`, then `p.cmp {…}` is `g.asc {…}`). Closures need allocated environments,
+  which LLVM doesn't have, so they stay the frontend's (code + environment pointer).
+- Decided (quiz):
+  - Q1 (recommended): case B; no closures in the kernel; case A as today; the `'call'` draft
+    dropped (calculus restored from HEAD, then redrafted).
+  - Q2 (user's own rule): "positional, if there is a label, label must match that position".
+    Follow-up (recommended): the same rule for direct calls, so `g.gcd {[30000000],
+    [12000000]}` and `g.gcd {a = …, b = …}` are one call.
+  - Types (recommended): compared as LLVM sees them: a function type as a value's type is
+    `'ptr'`, so `g.asc`, any `'ptr'` or another function type fits; labels only name.
+- Calculus draft (marks): 8.3 operator (a symbol, or an argument or value holding a
+  function's address); 8.6 kinds table (`p.l` and `x` also operators) and a subpoint (only
+  when the type is a function type); 8.8 rewritten (`P {Qᵢ}`, the label rule; a direct, b
+  indirect `p:indirect` with the `sort` example, d a function's address is a value of its
+  type, e no closures); 9.8 (a function passed as a value runs; a loaded address waits);
+  10.2h `p:fn-value-type`; 10.4b (`'void'` indirect call); 10.8b (`%c = call i32 %p.cmp(…)`).
+  LaTeX: `\color` ignores spaces after it, so a space at the start of `\new{ …}` is lost;
+  put the space outside. Build: 58 warnings (same as HEAD), no overfull, no undefined
+  references.
+- Found after the draft: reduction reads `p.a` by label (E-Proj), while calls are now
+  positional, so a positional call, or a function value whose labels differ from the type
+  it's called through, gives a projection with no field (stuck) when run by reduction;
+  compiled it's correct. Agent mistake again: asked the fix quiz with the explanation only in
+  the options, not in a message first. Options: (i) `'unit.make_reducible'` rewrites `p.l`
+  to `p [i]` (Lean change); (ii) back to strict labels; (iii) keep the draft and say so.
+  User chose (iii). Calculus: new 9.8d (with the `gcd` and `asc` examples); 9.8c's example
+  now writes the labels (`g.sort {xs = buf, n = [0a000000], cmp = g.asc}`, `p.cmp {a = x,
+  b = z}` with `asc`'s parameters `a`, `b`), since its unlabeled form was itself stuck.
+- Calculus accepted (user: "accept"); marks, legend and blue Verbatim removed (a script
+  that matches braces: `\new` unwrapped, `\old` deleted). Removing the marks moved a line
+  break and made 8.8's intro overfull; its two `gcd` calls went into a display.
+
 ### Debug info rides on `Term.location` (Answers 3–6; design in progress)
 
 - User: `module-shape` is not ready until debug info storage is designed ("how debug info

@@ -14,7 +14,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `ll-bootstrap` `.ll` features needed before the bootstrap
-    - 🚫 `fn-address` Indirect call through `'ptr'`
+    - `fn-address` Indirect call through `'ptr'`
     - 🚫 `ptr-compare` Pointer comparison and `'null' {}`
     - `ptr-casts` `'ptrtoint'`, `'inttoptr'`
   - `alcor` Alcor: a typed language, two oymomo programs per file
@@ -157,10 +157,19 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - Indirect call through a `'ptr'` operand with a function type (`g.f` as an address in
   operands and initializers is done)
+- A function type `{'function', {…}, t}` as a value's type: LLVM `ptr`; it fits wherever a
+  `'ptr'` or another function type does
+- An argument `p.l` or a value `x` of a function type heads a call: `p.cmp {x, z}` →
+  `%c = call i32 %p.cmp(i32 %x, i32 %z)`; a `'void'` result has no value
+- Every call is positional; a written label must be the parameter's at its position
+  (`g.gcd {[30000000], [12000000]}` is accepted too)
+- No closures: a function value is an entry's address
+- Running by reduction: `g.sort {…, g.asc}` runs `asc` through `p.cmp`; no special rule
 - Function types as today: C calling convention, no attributes
-- Goldens
-- Decide: spelling of an indirect call in ANF (a `'ptr'` value carries no function type),
-  and how `'unit.make_reducible'` treats it
+- oymomo-calculus.tex 8.3, 8.6, 8.8, 9.8, 10.2, 10.4, 10.8 (Lean unchanged: `Op.call`
+  takes any path); code: ingot reader (kinds, call labels), type inference, translation;
+  goldens: a callback through `p.cmp`, a table of addresses read by `'load'`, a positional
+  direct call
 
 ### `ptr-compare` Pointer comparison and `'null' {}`
 
