@@ -348,7 +348,15 @@ The user's orders, kept as given. Follow them in every task.
   are not filled in automatically: the user will add tools to concatenate, modify and
   build structs, so they can be combined by hand.
 - Before 1.0, anything may be redesigned freely: oymomo syntax, Alcor and Mizar syntax,
-  public API, CLI.
+  public API, CLI; except the ANF and ingot shapes once the bootstrap is done (next bullet).
+- Shape freeze (user, Nov 6): "after bootstrap i dont want to change the shape of anf and
+  ingot. so oymomo should be fixed with compability .ll . it does not need to be all
+  feature of .ll should be in oymomo, but ingot shape will not be effected." The shape (ANF
+  grammar, variable kinds, body form, entry fields and kinds, predef grammar, attribute
+  slots, the fields of every opcode that exists at the bootstrap) is decided and implemented
+  before the bootstrap; after it, only new names (opcodes, type names and tags, attribute
+  names, collections) and meta. A `.ll` feature that needs another shape is done before the
+  bootstrap or is not planned. See "Shape freeze at the bootstrap (Nov 6)" in section 4.
 - Code refactor to oymomo-calculus.tex (after D93; plan in 8 stages: terms/grammar, values and
   rules, strategy table, stuck/ANF checks, ANF IR, modules, LLVM, goldens/CLI). Stage 1
   done: no forms (`~`, `⇒`), no builtins (`$name`); lambda is `λx. t` or ASCII `\x. t`
@@ -3718,6 +3726,103 @@ executable binary). we should mark some place as a platform". The steps that fol
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is
   built follows from what reaches it, decided above.)
+
+### Shape freeze at the bootstrap (Nov 6)
+
+- User: "lets review oymo roadmap. my interest is until bootstrap. after bootstrap i dont
+  want to change the shape of anf and ingot. so oymomo should be fixed with compability .ll
+  . it does not need to be all feature of .ll should be in oymomo, but ingot shape will not
+  be effected. so review pre-bootstrap roadmap leaf, and see what needs to move out, and
+  what needs to be done pre-bootstrap". Agent's review: artifact `shape_freeze_review.md`
+  (line between shape and vocabulary, a verdict per leaf, gaps, conflicts, probes).
+- The line (agent's, accepted as Q1): shape = ANF grammar `P, O, Q, J, T, E, K, R` (8.3),
+  variable kinds (8.6), body form, entry fields and kinds (9.3), predef grammar, attribute
+  slots, and the fields of every opcode that exists at the bootstrap; vocabulary = opcode
+  names, type names and tags in existing slots, attribute names, link names, collections;
+  `meta.proto` is outside the shape (protobuf grows; bootstrap compilers skip meta). Whys:
+  `rewrite-core` copies the Python compiler and adds nothing; a normal-form oymomo seed and
+  `stage0.ll` read the shape (and its printed form, if `seed-decide` picks that seed);
+  `anf_normal`, and `UnitOps.lean` (`isHole`/`isDecl` compare exact label lists, like
+  `ingot._ENTRY_FIELDS`) change with every shape change, so one batch costs one Lean round.
+  Precedent for names reserved before they work: `'float'` is in 10.2 but `llvm_type`
+  rejects it.
+- Probes (clang 21, scratch only):
+  - Declarations linked `'llvm.memcpy.p0.p0.i64'` (params `dst`, `src`, `len`, `volatile`
+    `'i1'`, result `'void'`) and `'llvm.trap'` already translate; `-O2` keeps the `memcpy`
+    and turns what follows `llvm.trap` into `unreachable`. So `bulk-memory` and an
+    `llvm.trap` opcode aren't needed for the bootstrap.
+  - `clang -fsanitize=address` on a `.ll` instruments only functions with
+    `sanitize_address`: `asan` needs that attribute.
+  - Functions with no attributes get `.cfi_startproc`: C++ exceptions unwind through
+    oymomo frames with no `invoke`/`landingpad`.
+  - On x86-64 only a variadic call sets `%al`; `printf("%f", x)` through a fixed
+    declaration may print garbage (Linux too, not only macOS AArch64).
+- Decided (quiz Q1–Q6):
+  1. Q1 (recommended): the freeze as above, decided and implemented before the bootstrap.
+  2. Q2 (recommended): `ll-exceptions` not planned (`invoke`, `landingpad`, `resume`,
+     `personality`). Why: Alcor and Mizar have no exceptions; unwinding through needs no
+     new shape; `nounwind`/`uwtable` are attribute names.
+  3. Q3 (recommended): new leaf `attr-slots` before the bootstrap: an entry slot, a
+     parameter/result slot and `cc` in the function type (an indirect call has only the
+     type; the Oct 27 `module-shape` check already noted this), with merge, rebase,
+     make-reducible and header rules; first names `zeroext`, `signext`, `sanitize_address`.
+     `noalias`, `ll-tls`, the rest of `ll-function-attrs`/`ll-symbol-fields` moved after
+     the bootstrap (new node `ll-attrs`); ctors and `llvm.used` are `appending` globals
+     (`ll-symbol-fields`).
+  4. Q4 (recommended): new leaf `opcode-options` before the bootstrap. Why: opcode fields
+     are positional with labels ignored, and `'getelementptr'`/`'extractvalue'`/
+     `'insertvalue'` are variadic, so a bare trailing option is ambiguous; one convention
+     keeps today's opcodes valid. It also owns `poison`/`undef` spelling (F2: spelling only)
+     and `'fcmp'`'s shape (`float-compare` planned `'fcmp_' + pred`, while `'icmp'` is one
+     opcode `{pred, …}`). `align` and `bulk-memory` moved after the bootstrap (`ll-memory`);
+     F1 then moved `align` into `opcode-options`.
+  5. Q5 (recommended): `label-free` stays after the bootstrap as a derived copy only
+     (fingerprints, release `.ll` with unnamed locals); ingots, ANF and headers keep labels.
+     Its old plan (index paths `P b` in ANF, labels in meta) would change the shape.
+  6. Q6 (multi-select): added before the bootstrap: `'unreachable'` (`undefined`), sparse
+     `switch` case values (new leaf `sparse-switch`; revises the Oct 26 "no arbitrary case
+     values"), and in `ll-module-level` LLVM `alias` as an entry kind, `module asm`,
+     constant expressions in initializers, `poison`/`undef` in initializers. Not planned:
+     variadic calls, and `musttail` until F3 (the agent had recommended both; user left them
+     out).
+- Plan quiz (P1–P4):
+  - P1 (user's own choice, not the recommended; superseded by F3): `ll-tail-calls` stays
+    before the bootstrap with `tail`/`notail` written in the term; the agent had proposed
+    meta hints (both can be dropped) and moving the unreachable-blocks Decide to
+    `undefined`; that Decide stays in `ll-tail-calls`.
+  - P2 (recommended): `undefined`'s `llvm.trap` Decide dropped (it is a declaration;
+    checked builds belong to `alcor-ub`).
+  - P3 skipped: the freeze is written now only in the roadmap intro and this wiki;
+    `shape-freeze` writes it into `oymomo_design.md`.
+  - P4 (recommended): pre-bootstrap stale text fixed: `folder-split` title (the rename it
+    named was done Oct 27), dependency lines in `asan` (`sanitize_address`), `tagged-unions`
+    (platform-neutral ingots: a union member's size may differ by target, e.g. `'ptr'`;
+    options: worst-case padding or storage sized by `'layout.size'`), `by-value-structs`
+    (unions as `tagged-unions` decides).
+- Review quiz on the edit (R1–R3): all three answers differed from the edit: R1 "`align`
+  merged into `opcode-options`", R2 "`poison`/`undef` in `ll-poison`, after the bootstrap",
+  R3 "`musttail` as a block end, `tail`/`notail` as meta". Agent mistake again: asked the
+  fix quiz (F1–F4) with no message explaining the differences first. Fixes (all
+  recommended):
+  - F1: `align` is `opcode-options`'s first option, implemented before the bootstrap (it
+    tests the convention); leaf `align` removed; `bulk-memory` stays in `ll-memory`.
+  - F2: `opcode-options` only spells `poison`/`undef`; `ll-module-level` implements them in
+    initializers (before the bootstrap), `ll-poison` in bodies (after).
+  - F3: `musttail` as a block end is a shape before the bootstrap (`ll-tail-calls`, with the
+    unreachable-blocks Decide); `tail`/`notail` are meta hints in `ll-instr-metadata`
+    (after). Supersedes P1 and Q6's "`musttail` not planned".
+  - F4: commit and push as `docs: fix the ANF and ingot shapes at the bootstrap`.
+- Roadmap after it: `ll-anf` = `fn-address`, `undefined`, `ll-tail-calls`, `sparse-switch`,
+  `opcode-options`; `ll-entries` = `attr-slots`, `ll-module-level`; new `shape-freeze`
+  (audit: every `ll_coverage.md` row is vocabulary, a settled shape, or not planned);
+  `ll-bootstrap` = `ptr-compare`, `ptr-casts`, `line-tables`. Decide items moved into
+  `opcode-options` from `ll-instructions`, `ll-volatile-asm`, `ll-atomics`, `ll-poison`.
+  `source_filename` goes to `ll-instr-metadata` (meta). `ll-check` excepts not-planned
+  constructs. `docs/ll_coverage.md` synced.
+- Stale text left for its own leaves (after the bootstrap): `c-calls-mizar`
+  (`linkage = 'export'`, now `link`), `c-import` (forms `=>`, `~`), `lto` and
+  `build-systems` (`oymo -c`, but oymo ends at the `.ll`), `deps-seed` ("no `deps`"),
+  `emit-oymomo` ("one file per module"), `vm-symbols`/`vm-coroutines` (`$seq`, `form`).
 
 ### Debug info rides on `Term.location` (Answers 3–6; design in progress)
 
