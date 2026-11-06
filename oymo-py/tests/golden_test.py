@@ -162,6 +162,7 @@ GOLDENS = [
     'table',
     'sizes',
     'void',
+    'callback',
 ]
 
 

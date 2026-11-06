@@ -502,6 +502,16 @@ $0                       a BruijnIndex, as the printer writes it
 - Types are data (9.2): `'iN'`, `'ptr'`, structs, `{'array', n, t}`,
   `{'vector', n, t}`, `{'packed', …}`; a byte array takes its type from its use (9.3);
   block parameters are inferred (9.4).
+- Calls (Nov 6, `fn-address`; calculus 8.8, 10.2h): `P {Q…}`, one operand per parameter in
+  order, a written label must be the parameter's at its position (`ingot.call_error`).
+  Direct: `P` is `g.l` (`Instruction.callee`). Indirect: `P` is `p.l` or a value whose type
+  is a function type (`Instruction.via`); the reader checks `p.l` against its parameter's
+  type, the translation checks a value against its inferred type (`_Function._indirect`,
+  final after inference). A function type as a value's type is LLVM `ptr`
+  (`llvm_type`); a function's address `g.f` is a value of its function type
+  (`FunctionType.term()`); `_add` prefers a function type over `'ptr'`. llvmlite's `call`
+  reads `callee.function_type`, so an indirect call goes through `_Callee`. Golden
+  `callback.oymo` (28).
 - `oymo run` builds with `clang` and prints `main`'s result (the exit status).
 
 #### Opcodes
@@ -3956,6 +3966,33 @@ executable binary). we should mark some place as a platform". The steps that fol
 - Calculus accepted (user: "accept"); marks, legend and blue Verbatim removed (a script
   that matches braces: `\new` unwrapped, `\old` deleted). Removing the marks moved a line
   break and made 8.8's intro overfull; its two `gcd` calls went into a display.
+- Committed `01b2851` (calculus, roadmap, wiki; not pushed). Code (agent, directly; Lean
+  unchanged):
+  - `ingot.py`: `Instruction.via` (`Arg | Use`) for an indirect call; `is_function_type`,
+    `as_function_type` (no raising), `FunctionType.term()`, `call_error` (count, then a
+    written label must be the parameter's at its position); `_Body.instruction`: `g.l`
+    direct, `r.l` rejected, `p.l` checked against its parameter's type ("p.a heads a call, so
+    its type must be a function type; it is 'i32'."), a value left to the translation.
+  - `llvm_translate.py`: `llvm_type` of a function type is `ptr`; `_Callee` (llvmlite's
+    `call` reads `function_type`; probed, LLVM verifies `call i32 %".1"(…)`);
+    `_llvm_function_type` shared with `_symbol_type`; `_type_of(Address)` gives a function's
+    type term; `_indirect(let, final=…)` (non-final while inferring, so a parameter typed
+    `'ptr'` first can still become a function type); `_type_lets` re-types lets inside
+    `_propagate` (a call through a block parameter gets its result type after inference);
+    callee values count as used; `_add` upgrades `'ptr'` to a function type.
+  - Tests: reader (`test_calls`, `test_call_error`, `test_function_types`, error rows), the
+    translation (`test_indirect_calls` with exact IR, void, six error rows), reduction
+    (`main` passing `g.inc` to `twice` gives `[07000000]`; `inc {[05000000]}` without labels
+    is stuck), golden `callback` (through `p.f` labeled and positional, a table loaded with
+    a function type, a block parameter `h`; `main` exits 28, linked and run in `cli_test`).
+  - 1059 passed; `hatch check` clean (`hatch` is at `~/.local/bin/hatch`, needs
+    BypassSandbox: it writes its config under `~/.local/share/hatch`; pyrefly doesn't narrow
+    through a helper like `is_function_type`, so `as_function_type` checks `isinstance`
+    itself, and `ir.Value` lacks `type`/`get_reference`, so `_Callee` takes
+    `ir.NamedValue | ir.Constant`). The test env's python:
+    `~/.local/share/hatch/env/virtual/oymo/Kw-BKK-G/hatch-test.py3.13/bin/python -m pytest`.
+  - Roadmap: leaf removed (references now point to calculus 8.8b); `ll_coverage.md` row done;
+    section 3 "Ingots and LLVM" has a Calls bullet.
 
 ### Debug info rides on `Term.location` (Answers 3–6; design in progress)
 

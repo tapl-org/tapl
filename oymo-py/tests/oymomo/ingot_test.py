@@ -166,6 +166,63 @@ def test_reduction_first():
     assert [(let.result.name, let.opcode) for let in lets] == [('x', 'add'), ('y', 'add')]
 
 
+APPLY = """
+{
+  inc = {type = {'function', {n = 'i32'}, 'i32'}, link = 'inc'},
+  apply = {type = {'function', {f = {'function', {x = 'i32'}, 'i32'}, x = 'i32'}, 'i32'},
+    body = λg. λp. 'R' (λr. {
+      let a = p.f {x = p.x} in
+      let b = p.f {a} in
+      let h = 'load' {{'function', {x = 'i32'}, 'i32'}, g.inc} in
+      let c = h {b} in c
+    })},
+  main = {type = {'function', {}, 'i32'}, link = 'main',
+    body = λg. λp. 'R' (λr. {let y = g.apply {g.inc, [05000000]} in y})}
+}
+"""
+
+
+def test_calls():
+    """A call gives one operand per parameter, labeled or not: direct through g, indirect
+    through an argument or a value."""
+    result = read(APPLY)
+    a, b, h, c = result.lookup(('apply',)).region.blocks[0].lets
+    assert (a.callee, a.via, [label for label, _ in a.fields]) == (None, ingot.Arg('f'), ['x'])
+    assert (b.callee, b.via, [label for label, _ in b.fields]) == (None, ingot.Arg('f'), [''])
+    assert h.opcode == 'load'
+    # A value's type is the translation's: the reader only records it as the callee.
+    assert isinstance(c.via, ingot.Use)
+    assert c.via.var is h.result
+    (call,) = result.lookup(('main',)).region.blocks[0].lets
+    assert (call.callee, call.via) == (('apply',), None)
+    assert [label for label, _ in call.fields] == ['', '']
+    assert call.fields[0][1] == ingot.Address(('inc',))
+
+
+@pytest.mark.parametrize(
+    ('given', 'message'),
+    [
+        (['x'], None),
+        ([''], None),
+        (['', ''], "The call to 'f' gives 2 operands; it takes 1, ['x']."),
+        (['y'], "Operand 0 of the call to 'f' is labeled 'y', but parameter 0 is 'x'."),
+    ],
+)
+def test_call_error(given, message):
+    assert ingot.call_error('f', [('x', parse("'i32'"))], given) == message
+
+
+def test_function_types():
+    """`as_function_type` reads `{'function', {xᵢ = tᵢ}, t}`; `term` writes it back."""
+    fn = ingot.as_function_type(parse("{'function', {a = 'i32'}, 'void'}"))
+    assert fn.params == [('a', parse("'i32'"))]
+    assert fn.result == parse("'void'")
+    assert fn.term() == parse("{'function', {a = 'i32'}, 'void'}")
+    assert ingot.as_function_type(parse("'ptr'")) is None
+    assert ingot.as_function_type(parse("{'function', {'i32'}, 'i32'}")) is None
+    assert ingot.is_function_type(parse("{'function', {'i32'}, 'i32'}"))
+
+
 FIELD_0 = (
     'A jump never goes to field 0, so the translation adds no block: give the loop head '
     'a block of its own (entry = r.loop, loop = …).'
@@ -300,7 +357,17 @@ M_PATH = 'g names the symbols: an operand through g is g.l₁ ⋯ lₙ, a path t
             wrap('let x = g.k {} in x'),
             'An instruction calls a function, g.l₁ ⋯ lₙ {...}, a path to a function of the ingot.',
         ),
-        (wrap('let x = g.helper {} in x'), "The call to 'helper' must give ['x'], in order; it gives []."),
+        (wrap('let x = g.helper {} in x'), "The call to 'helper' gives 0 operands; it takes 1, ['x']."),
+        (
+            wrap('let x = g.helper {y = p.a} in x'),
+            "Operand 0 of the call to 'helper' is labeled 'y', but parameter 0 is 'x'.",
+        ),
+        # An indirect call through an argument needs a function type.
+        (
+            wrap('let x = p.a {p.a} in x'),
+            "p.a heads a call, so its type must be a function type; it is 'i32'.",
+        ),
+        (wrap('let x = r.next {p.a} in x'), 'r.l is a block: it only heads a jump.'),
         (wrap('{r.next p.a, r.next p.a} g.k'), 'A branch condition is a value or an argument p.l.'),
         (wrap('p.a [00000000]'), 'Only a block r.l is applied at the end of a block.'),
         (wrap("'R' (λq. {[00000000], [00000000]})"), 'A block after field 0 needs a label, so a jump can name it.'),

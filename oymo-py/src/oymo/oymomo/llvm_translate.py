@@ -94,10 +94,13 @@ def show_type(term: syntax.Term) -> str:
 
 
 def llvm_type(term: syntax.Term) -> ir.Type:
-    """The LLVM type a type term names: `'iN'`, `'ptr'`, a struct of types, or a
-    tagged struct (`{'array', n, t}`, `{'vector', n, t}`, `{'packed', ...}`)."""
+    """The LLVM type a type term names: `'iN'`, `'ptr'`, a struct of types, a tagged struct
+    (`{'array', n, t}`, `{'vector', n, t}`, `{'packed', ...}`), or a function type, which as
+    a value's type is a `ptr` holding a function's address."""
     if (tagged := opcodes.tagged_type(term)) is not None:
         return _tagged_type(term, *tagged)
+    if ingots.is_function_type(term):
+        return ir.PointerType()
     name = term.as_str if isinstance(term, terms.ByteArray) else None
     if name is not None and (match := _INT_TYPE.fullmatch(name)):
         return ir.IntType(int(match.group(1)))
@@ -143,6 +146,25 @@ class _FunctionAddress(ir.Constant):
 def address(value: ir.GlobalValue) -> ir.Constant | ir.GlobalValue:
     """A symbol's global as an operand or a constant: its address, a `ptr`."""
     return _FunctionAddress(value) if isinstance(value, ir.Function) else value
+
+
+class _Callee:
+    """A `ptr` value called through: llvmlite's `call` reads the callee's `function_type`,
+    which an opaque `ptr` doesn't have, so this gives it the call's."""
+
+    def __init__(self, value: ir.NamedValue | ir.Constant, function_type: ir.FunctionType) -> None:
+        self.value = value
+        self.type = value.type
+        self.function_type = function_type
+
+    def get_reference(self) -> str:
+        return self.value.get_reference()
+
+
+def _llvm_function_type(fn: ingots.FunctionType) -> ir.FunctionType:
+    """A function type, whose result may be `'void'`, as LLVM's."""
+    result = ir.VoidType() if is_void(fn.result) else llvm_type(fn.result)
+    return ir.FunctionType(result, [llvm_type(t) for _, t in fn.params])
 
 
 def constant(
@@ -272,17 +294,59 @@ class _Function:
                 return self.types.get(var)
             case ingots.Arg(label=label):
                 return self.arg_types[label]
-            case ingots.Address():
-                return self.translator.address_type
+            case ingots.Address(path=path):
+                # A function's address is a value of the function's type; any other symbol's, a 'ptr'.
+                fn = ingots.function_type(self.translator.ingot.lookup(path))
+                return fn.term() if fn is not None else self.translator.address_type
+        return None
+
+    def _callee_name(self, let) -> str:
+        match let.via:
+            case ingots.Arg(label=label):
+                return f'{self.definition.args}.{label}'
+            case ingots.Use(var=var):
+                return var.name
+        return '.'.join(let.callee)
+
+    def _indirect(self, let, *, final: bool = False) -> ingots.FunctionType | None:
+        """The function type of an indirect call's callee, or None while it has none yet.
+        Operands that don't fit it are rejected; once inference is `final`, so is a callee
+        without a function type."""
+        type_term = self._type_of(let.via)
+        name = self._callee_name(let)
+        fn = ingots.as_function_type(type_term)
+        if fn is None:
+            if not final:
+                return None
+            if type_term is None:
+                raise LlvmTranslationError(
+                    f'{name!r} heads a call, so it needs a function type; it has no type.', let.via.tag
+                )
+            raise LlvmTranslationError(
+                f'{name!r} heads a call, so its type must be a function type; it is {show_type(type_term)}.',
+                let.via.tag,
+            )
+        if (error := ingots.call_error(name, fn.params, [label for label, _ in let.fields])) is not None:
+            raise LlvmTranslationError(error, let.tag)
+        return fn
+
+    def _function_of(self, let, *, final: bool = False) -> ingots.FunctionType | None:
+        """The function a call reaches: the callee's entry, or the callee value's type."""
+        if let.via is not None:
+            return self._indirect(let, final=final)
+        if let.callee is not None:
+            return ingots.function_type(self.translator.ingot.lookup(let.callee))
         return None
 
     def _let_type(self, let):
-        if let.callee is not None:
-            result = ingots.function_type(self.translator.ingot.lookup(let.callee)).result
-            if is_void(result):
+        if let.callee is not None or let.via is not None:
+            fn = self._function_of(let)
+            if fn is None:
+                return None
+            if is_void(fn.result):
                 self.no_value[let.result] = "a 'void' call has none"
                 return None
-            return result
+            return fn.result
         if let.opcode == 'store':
             self.no_value[let.result] = "a store's result has none"
             return None
@@ -293,9 +357,9 @@ class _Function:
         """`(operand, type)` for each operand of `block` read at a known type."""
         for let in block.lets:
             fields = [q for _, q in let.fields]
-            if let.callee is not None:
-                params = ingots.function_type(self.translator.ingot.lookup(let.callee)).params
-                types = [t for _, t in params]
+            if let.callee is not None or let.via is not None:
+                fn = self._function_of(let)
+                types = [t for _, t in fn.params] if fn is not None else [None] * len(fields)
             elif (impl := self.translator.target.opcodes.get(let.opcode)) is not None:
                 types = impl.uses(fields)
             else:
@@ -320,22 +384,43 @@ class _Function:
                 f'give {var.name!r} one typed argument or typed use.',
                 tag,
             )
+        # Both are a `ptr` to LLVM; a function type says more, and a call through the
+        # value needs it.
+        if ingots.is_function_type(type_term) and not ingots.is_function_type(self.types[var]):
+            self.types[var] = type_term
+            return True
         return False
 
-    def infer(self):
+    def _type_lets(self) -> bool:
+        """Types each let still without one whose type is now known: a call through a value
+        typed only by inference. True if one got a type."""
+        changed = False
         for block in self.blocks:
             for let in block.lets:
-                if (type_term := self._let_type(let)) is not None:
-                    self.types[let.result] = type_term
+                if let.result not in self.types and let.result not in self.no_value:
+                    if (type_term := self._let_type(let)) is not None:
+                        self.types[let.result] = type_term
+                        changed = True
+        return changed
+
+    def infer(self):
+        self._type_lets()
         params = {var for block in self.blocks for var in block.params}
         self._propagate(params)
-        used = {
-            operand.var for block in self.blocks for operand, _ in self._uses(block) if isinstance(operand, ingots.Use)
-        } | {
-            block.terminal.condition.var
-            for block in self.blocks
-            if isinstance(block.terminal, ingots.Branch) and isinstance(block.terminal.condition, ingots.Use)
-        }
+        used = (
+            {
+                operand.var
+                for block in self.blocks
+                for operand, _ in self._uses(block)
+                if isinstance(operand, ingots.Use)
+            }
+            | {
+                block.terminal.condition.var
+                for block in self.blocks
+                if isinstance(block.terminal, ingots.Branch) and isinstance(block.terminal.condition, ingots.Use)
+            }
+            | {let.via.var for block in self.blocks for let in block.lets if isinstance(let.via, ingots.Use)}
+        )
         # Where nothing gives a used parameter a type, its byte-array operands' length does.
         while by_length := self._length_types(params & used):
             self.types.update(by_length)
@@ -344,6 +429,10 @@ class _Function:
             if var in used:
                 self._check_no_value_jumps()
                 raise LlvmTranslationError(f'give {var.name!r} a typed argument or a typed use.', var.tag)
+        for block in self.blocks:
+            for let in block.lets:
+                if let.via is not None:
+                    self._indirect(let, final=True)
 
     def _check_no_value_jumps(self) -> None:
         for block in self.blocks:
@@ -358,7 +447,7 @@ class _Function:
         """Types from operands jumped to each parameter and from its uses, until nothing changes."""
         changed = True
         while changed:
-            changed = False
+            changed = self._type_lets()
             for block in self.blocks:
                 for jump in _jumps(block):
                     for var, operand in zip(jump.target.params, jump.operands, strict=True):
@@ -514,14 +603,17 @@ class _Function:
         return value
 
     def _instruction(self, builder, let):
-        if let.callee is not None:
-            fn = ingots.function_type(self.translator.ingot.lookup(let.callee))
-            callee = '.'.join(let.callee)
+        if let.callee is not None or let.via is not None:
+            fn = self._function_of(let, final=True)
+            name = self._callee_name(let)
             args = [
-                self.operand(q, t, f'parameter {label!r} of {callee!r}')
+                self.operand(q, t, f'parameter {label!r} of {name!r}')
                 for (_, q), (label, t) in zip(let.fields, fn.params, strict=True)
             ]
-            return builder.call(self.translator.globals[let.callee], args)
+            if let.via is None:
+                return builder.call(self.translator.globals[let.callee], args)
+            callee = self.operand(let.via, None, f'the callee {name!r}')
+            return builder.call(_Callee(callee, _llvm_function_type(fn)), args)
         name = let.opcode
         impl = self.translator.target.opcodes.get(name)
         if impl is None:
@@ -542,8 +634,7 @@ def _symbol_type(symbol: ingots.Symbol) -> ir.Type:
     """The LLVM type of a symbol: its function type (whose result may be `'void'`), or the
     type of its variable."""
     if isinstance(symbol.type, ingots.FunctionType):
-        result = ir.VoidType() if is_void(symbol.type.result) else llvm_type(symbol.type.result)
-        return ir.FunctionType(result, [llvm_type(t) for _, t in symbol.type.params])
+        return _llvm_function_type(symbol.type)
     return llvm_type(symbol.type)
 
 

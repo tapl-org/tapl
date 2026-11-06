@@ -14,7 +14,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `ll-bootstrap` `.ll` features needed before the bootstrap
-    - `fn-address` Indirect call through `'ptr'`
     - 🚫 `ptr-compare` Pointer comparison and `'null' {}`
     - `ptr-casts` `'ptrtoint'`, `'inttoptr'`
   - `alcor` Alcor: a typed language, two oymomo programs per file
@@ -152,24 +151,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `block-comments` `/* */` block comments; stuck-term errors shown in them
 
 ## Leaf details
-
-### `fn-address` Indirect call through `'ptr'`
-
-- Indirect call through a `'ptr'` operand with a function type (`g.f` as an address in
-  operands and initializers is done)
-- A function type `{'function', {…}, t}` as a value's type: LLVM `ptr`; it fits wherever a
-  `'ptr'` or another function type does
-- An argument `p.l` or a value `x` of a function type heads a call: `p.cmp {x, z}` →
-  `%c = call i32 %p.cmp(i32 %x, i32 %z)`; a `'void'` result has no value
-- Every call is positional; a written label must be the parameter's at its position
-  (`g.gcd {[30000000], [12000000]}` is accepted too)
-- No closures: a function value is an entry's address
-- Running by reduction: `g.sort {…, g.asc}` runs `asc` through `p.cmp`; no special rule
-- Function types as today: C calling convention, no attributes
-- oymomo-calculus.tex 8.3, 8.6, 8.8, 9.8, 10.2, 10.4, 10.8 (Lean unchanged: `Op.call`
-  takes any path); code: ingot reader (kinds, call labels), type inference, translation;
-  goldens: a callback through `p.cmp`, a table of addresses read by `'load'`, a positional
-  direct call
 
 ### `ptr-compare` Pointer comparison and `'null' {}`
 
@@ -559,7 +540,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `musttail` call as a block end: LLVM's `musttail call` and its `ret`
 - Goldens
 - Decide: spelling of `musttail` in ANF (a terminal `g.f {…}` is rejected today), and on an
-  indirect call (`fn-address`)
+  indirect call (oymomo-calculus.tex 8.8b)
 - Decide (Nov 5, user: "Decide later"): an unreachable block; the translation leaves it out
   today, which changes the program under the "adds none, changes none" rule; reject it with
   a located error instead?
@@ -594,7 +575,7 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - An entry slot: function attributes, linkages, visibility, `section`, `align`,
   `thread_local`, `comdat`, `unnamed_addr`
 - A parameter and result slot in the function type
-- `cc` in the function type, so an indirect call (`fn-address`) has it
+- `cc` in the function type, so an indirect call (oymomo-calculus.tex 8.8b) has it
 - Every attribute value fits: flags, integers (`dereferenceable(8)`), types (`byval(T)`,
   `sret(T)`), ranges (`range(i32 0, 10)`), structured values (`memory(argmem: read)`,
   `initializes((0, 16))`), strings (`"frame-pointer"="all"`)

@@ -1,0 +1,43 @@
+language oymomo
+{
+  inc= {
+    type= {'function', {n= 'i32'}, 'i32'},
+    body= λg. λp. 'R' (λr. {let y = 'add' {'i32', p.n, [01000000]} in y}),
+  },
+  dbl= {
+    type= {'function', {n= 'i32'}, 'i32'},
+    body= λg. λp. 'R' (λr. {let y = 'mul' {'i32', p.n, [02000000]} in y}),
+  },
+  ops= {
+    type= {'array', [02], {'function', {n= 'i32'}, 'i32'}},
+    value= λg. {g.inc, g.dbl},
+  },
+  twice= {
+    type= {'function', {f= {'function', {x= 'i32'}, 'i32'}, x= 'i32'}, 'i32'},
+    body= λg. λp. 'R' (λr. {
+      let a = p.f {x= p.x} in
+      let b = p.f {a} in b,
+    }),
+  },
+  apply_at= {
+    type= {'function', {i= 'i64', v= 'i32'}, 'i32'},
+    body= λg. λp. 'R' (λr. {
+      let a = 'getelementptr' {{'function', {n= 'i32'}, 'i32'}, g.ops, p.i} in
+      let f = 'load' {{'function', {n= 'i32'}, 'i32'}, a} in
+      let y = f {n= p.v} in y,
+    }),
+  },
+  main= {
+    type= {'function', {}, 'i32'},
+    link= 'main',
+    body= λg. λp. 'R' (λr. {
+      entry=
+        let a = g.twice {g.inc, [05000000]} in
+        let b = g.apply_at {[01000000 00000000], [05000000]} in
+        let s = 'add' {'i32', a, b} in r.pick g.inc s,
+      pick= λh. λs.
+        let c = h {[0a000000]} in
+        let t = 'add' {'i32', s, c} in t,
+    }),
+  },
+}

@@ -16,7 +16,10 @@ definition's body is `λg. λp. R` in ANF. `read_ingot` checks the grammar
 (`anf.region_error`), then every variable's kind: `g.l₁ ⋯ lₙ` is a path through the
 namespaces to a symbol; a region is `'R' (λr. {…})`; `p.l` names a parameter; `r.l` names a block of the region `r` and
 only heads a jump, with one operand per parameter; a value has no fields; a struct operand
-is a predef, so its only paths are symbol addresses `g.l₁ ⋯ lₙ`.
+is a predef, so its only paths are symbol addresses `g.l₁ ⋯ lₙ`. A call is direct, headed by
+`g.l₁ ⋯ lₙ`, or indirect, headed by `p.l` or a value whose type is a function type; it gives
+one operand per parameter, in order, and a written label is the parameter's at its position
+(`call_error`).
 
 A predef is kept as `C` of `λg. C`: an address in it is the path `g.l₁ ⋯ lₙ` from the
 index 0 (`address_path`), wherever it was written.
@@ -111,14 +114,16 @@ STRUCT_OPERAND = "A struct operand is a predef: build a struct of run-time value
 
 @dataclass(eq=False)
 class Instruction:
-    """`let result = O {lᵢ = Qᵢ}`: an opcode call (`opcode`) or a call (`callee`, the
-    function's path)."""
+    """`let result = O {Qᵢ}`: an opcode call (`opcode`), a direct call (`callee`, the
+    function's path), or an indirect call (`via`, the argument or value holding the
+    function's address, whose type is a function type)."""
 
     result: Var
     opcode: str | None
     callee: tuple[str, ...] | None
     fields: list[tuple[str, Operand]]
     tag: Tag = NO_TAG
+    via: Use | Arg | None = None
 
 
 @dataclass(eq=False)
@@ -174,6 +179,17 @@ class FunctionType:
 
     params: list[tuple[str, syntax.Term]]
     result: syntax.Term
+
+    def term(self) -> syntax.Term:
+        """The type as the term `{'function', {xᵢ = tᵢ}, t}`."""
+        params = terms.Struct([terms.Field(label, t) for label, t in self.params])
+        return terms.Struct(
+            [
+                terms.Field('', terms.ByteArray.from_str('function')),
+                terms.Field('', params),
+                terms.Field('', self.result),
+            ]
+        )
 
 
 class _Named:
@@ -245,6 +261,37 @@ def function_type(symbol: Symbol | None) -> FunctionType | None:
     """The function type of a definition or a declared function, else None."""
     if isinstance(symbol, Definition | Declaration) and isinstance(symbol.type, FunctionType):
         return symbol.type
+    return None
+
+
+def is_function_type(term: syntax.Term | None) -> bool:
+    """`term` is tagged `'function'`: `{'function', …}`."""
+    if not isinstance(term, terms.Struct) or not term.fields:
+        return False
+    tag = term.fields[0].value
+    return isinstance(tag, terms.ByteArray) and tag.as_str == 'function'
+
+
+def as_function_type(term: syntax.Term | None) -> FunctionType | None:
+    """`{'function', {xᵢ = tᵢ}, t}` read as a `FunctionType`, or None for any other term."""
+    if not isinstance(term, terms.Struct) or not is_function_type(term) or len(term.fields) != 3:  # noqa: PLR2004
+        return None
+    _, params, result = (f.value for f in term.fields)
+    if not isinstance(params, terms.Struct) or any(not f.label for f in params.fields):
+        return None
+    return FunctionType([(f.label, f.value) for f in params.fields], result)
+
+
+def call_error(name: str, params: list[tuple[str, syntax.Term]], given: list[str]) -> str | None:
+    """Why a call to `name` with operands labeled `given` does not fit `params`, or None: a
+    call gives one operand per parameter, in order; a written label is the parameter's at
+    its position."""
+    names = [label for label, _ in params]
+    if len(given) != len(names):
+        return f'The call to {name!r} gives {len(given)} operands; it takes {len(names)}, {names}.'
+    for i, (label, param) in enumerate(zip(given, names, strict=True)):
+        if label and label != param:
+            return f'Operand {i} of the call to {name!r} is labeled {label!r}, but parameter {i} is {param!r}.'
     return None
 
 
@@ -408,17 +455,13 @@ def _predef_shape(term):
 
 def _function_type(term):
     """`{'function', params, result}` read as a `FunctionType`, or None for another type."""
-    if not isinstance(term, terms.Struct) or not term.fields:
+    if not is_function_type(term):
         return None
-    tag = term.fields[0].value
-    if not isinstance(tag, terms.ByteArray) or tag.as_str != 'function':
-        return None
-    params = term.fields[1].value if len(term.fields) == 3 else None  # noqa: PLR2004
-    if not isinstance(params, terms.Struct) or any(not f.label for f in params.fields):
+    if (fn := as_function_type(term)) is None:
         raise IngotError(
             "A function type is {'function', {x = t, ...}, t}: labeled parameters, then the result.", _tag(term)
         )
-    return FunctionType([(f.label, f.value) for f in params.fields], term.fields[2].value)
+    return fn
 
 
 # What a variable is, innermost binder last.
@@ -520,20 +563,38 @@ class _Body:
             fields = [(f.label, self.operand(f.value)) for f in struct.fields]
             return Instruction(Var(''), operator.as_str or '', None, fields, _tag(term))
         binder, labels = self.binder(operator)
-        symbol = self.ingot.lookup(tuple(labels)) if binder.kind == 'module' else None
-        fn = function_type(symbol)
-        if fn is None:
-            raise IngotError(
-                'An instruction calls a function, g.l₁ ⋯ lₙ {...}, a path to a function of the ingot.', _tag(operator)
-            )
-        names = [name for name, _ in fn.params]
         given = [f.label for f in struct.fields]
-        if given != names:
-            raise IngotError(
-                f'The call to {symbol.name!r} must give {names}, in order; it gives {given}.', _tag(struct)
-            )
+        match binder.kind:
+            case 'module':
+                symbol = self.ingot.lookup(tuple(labels))
+                fn = function_type(symbol)
+                if fn is None:
+                    raise IngotError(
+                        'An instruction calls a function, g.l₁ ⋯ lₙ {...}, a path to a function of the ingot.',
+                        _tag(operator),
+                    )
+                self._check_call(symbol.name, fn, given, struct)
+                fields = [(f.label, self.operand(f.value)) for f in struct.fields]
+                return Instruction(Var(''), None, symbol.path, fields, _tag(term))
+            case 'region':
+                raise IngotError('r.l is a block: it only heads a jump.', _tag(operator))
+        via = self.operand(operator)
+        if isinstance(via, Arg):
+            type_term = dict(self.definition.type.params)[via.label]
+            fn = as_function_type(type_term)
+            if fn is None:
+                raise IngotError(
+                    f'p.{via.label} heads a call, so its type must be a function type; it is {_show(type_term)}.',
+                    _tag(operator),
+                )
+            self._check_call(f'p.{via.label}', fn, given, struct)
+        # A value's type is known only to the translation, which checks the call against it.
         fields = [(f.label, self.operand(f.value)) for f in struct.fields]
-        return Instruction(Var(''), None, symbol.path, fields, _tag(term))
+        return Instruction(Var(''), None, None, fields, _tag(term), via)
+
+    def _check_call(self, name, fn, given, struct):
+        if (error := call_error(name, fn.params, given)) is not None:
+            raise IngotError(error, _tag(struct))
 
     # Operands
 

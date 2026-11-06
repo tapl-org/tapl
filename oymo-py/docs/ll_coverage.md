@@ -101,7 +101,7 @@ its point in `doc/oymomo-calculus.tex`), which leaf in [roadmap.md](roadmap.md) 
 | `select` | `'select' {t, c, a, b}` | `ll-instructions` |
 | `freeze` | `'freeze'` | `ll-poison` |
 | `call` (direct) | `g.l {x_i = Q_i}` (8.8, 10.4b, 10.8b); `musttail` in `ll-tail-calls`; `tail` / `notail` as meta hints in `ll-instr-metadata` | done (`ll-tail-calls`, `ll-instr-metadata`) |
-| `call` (indirect through `'ptr'`) | *to decide* | `fn-address` |
+| `call` (indirect through `'ptr'`) | `p.l {Q…}` or `x {Q…}`, the callee's type a function type, which as a value's type is `'ptr'` (8.8b, 10.2h, 10.8b) | done |
 | `landingpad` | — | not planned |
 | `va_arg`, `catchpad`, `cleanuppad`, operand bundles (`[ "bundle"(…) ]`) | — | not planned |
 

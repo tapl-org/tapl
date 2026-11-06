@@ -202,6 +202,30 @@ def test_make_reducible_runs_a_void_function_by_reduction():
     assert_gives(f"(fix ('unit.make_reducible' {ingot})).main {{}}", '[2a000000]')
 
 
+# `twice` calls the function it is given, `p.f`, twice; `inc` adds one; `main` passes `g.inc`.
+APPLY_INGOT = """{
+  inc = {type = {'function', {n = 'i32'}, 'i32'},
+    body = λg. λp. 'R' (λr. {let y = 'add' {'i32', p.n, [01000000]} in y})},
+  twice = {type = {'function', {f = {'function', {n = 'i32'}, 'i32'}, x = 'i32'}, 'i32'},
+    body = λg. λp. 'R' (λr. {let a = p.f {n = p.x} in let b = p.f {n = a} in b})},
+  main = {type = {'function', {}, 'i32'},
+    body = λg. λp. 'R' (λr. {let y = g.twice {f = g.inc, x = [05000000]} in y})},
+}"""
+
+
+def test_make_reducible_runs_a_function_passed_as_a_value():
+    # The instance's `inc` is passed for `f`, and `p.f {…}` applies it: no rule of its own.
+    assert_gives(f"(fix ('unit.make_reducible' {APPLY_INGOT})).main {{}}", '[07000000]')
+
+
+def test_a_call_without_the_labels_is_stuck_by_reduction():
+    # Reduction reads p.n by its label, so operands given by position leave a projection with
+    # no field; compiled, the translation passes them by position.
+    unit = f"(fix ('unit.make_reducible' {APPLY_INGOT}))"
+    term = normal(f'{unit}.inc {{[05000000]}}')
+    assert reduction.stuck_part(term) is not None
+
+
 def test_make_reducible_hoists_g_and_runs_regions():
     # Each body's own `λg` moves out to one `λg`; a region becomes `(fix R) [00]`; other
     # entries (a declaration, a global variable) stay as they are.

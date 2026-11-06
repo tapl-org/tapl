@@ -531,6 +531,9 @@ def test_errors(source, message):
         ("{'vector', [04000000], 'i8'}", '<4 x i8>'),
         ("{'packed', 'i8', 'i32'}", '<{i8, i32}>'),
         ("{'array', [02], {'packed', 'i8', {'i16'}}}", '[2 x <{i8, {i16}}>]'),
+        # A function type as a value's type holds a function's address.
+        ("{'function', {a = 'i32'}, 'void'}", 'ptr'),
+        ("{'array', [02], {'function', {}, 'i32'}}", '[2 x ptr]'),
     ],
 )
 def test_type_shapes(source, expected):
@@ -768,3 +771,91 @@ def test_store_result_jumped_to_unused_parameter_is_rejected():
         extra="k = {type = 'i32', init = [00000000]},",
     )
     assert error(source) == "'u' has no value: a store's result has none."
+
+
+# A function of one `'i32'`, and one of none that returns nothing.
+INC = "inc = {type = {'function', {n = 'i32'}, 'i32'}, link = 'inc'},"
+TICK = "tick = {type = {'function', {}, 'void'}, link = 'tick'},"
+FN_I32 = "{'function', {x = 'i32'}, 'i32'}"
+
+
+def test_indirect_calls():
+    """A call through an argument, a loaded value or a block parameter is `call` through the
+    `ptr` it holds, with the function type it has; a function's address is a value of its
+    type. Direct calls may leave their labels out."""
+    source = single(
+        f"""
+        entry =
+          let a = g.apply {{g.inc, [05000000]}} in
+          let h = 'load' {{{FN_I32}, g.slot}} in
+          let b = h {{x = a}} in r.pick g.inc b,
+        pick = λf. λb. let c = f {{b}} in c
+        """,
+        extra=INC
+        + f'slot = {{type = {FN_I32}, init = λg. g.inc}},'
+        + f"""apply = {{type = {{'function', {{f = {FN_I32}, v = 'i32'}}, 'i32'}},
+            body = λg. λp. 'R' (λr. {{let y = p.f {{p.v}} in y}})}},""",
+    )
+    text = llvm(source)
+    assert '%"y" = call i32 %"p.f"(i32 %"p.v")' in function(text, 'apply')
+    assert function(text, 'main') == textwrap.dedent(
+        """\
+        define i32 @"main"()
+        {
+        r.entry:
+          %"a" = call i32 @"apply"(ptr @"inc", i32 5)
+          %"h" = load ptr, ptr @"slot"
+          %"b" = call i32 %"h"(i32 %"a")
+          br label %"r.pick"
+        r.pick:
+          %"f" = phi  ptr [@"inc", %"r.entry"]
+          %"b1" = phi  i32 [%"b", %"r.entry"]
+          %"c" = call i32 %"f"(i32 %"b1")
+          ret i32 %"c"
+        }
+        """
+    )
+    assert '@"slot" = internal global ptr @"inc"' in text
+
+
+def test_indirect_void_call():
+    source = single(
+        'let u = p.t {} in [00000000]',
+        params="{t = {'function', {}, 'void'}}",
+    )
+    assert '  call void %"p.t"()\n' in llvm(source)
+
+
+@pytest.mark.parametrize(
+    ('blocks', 'message'),
+    [
+        (
+            "let h = 'load' {'ptr', g.slot} in let y = h {[01000000]} in y",
+            "'h' heads a call, so its type must be a function type; it is 'ptr'.",
+        ),
+        (
+            "let h = 'load' {{'function', {x = 'i32'}, 'i32'}, g.slot} in let y = h {n = [01000000]} in y",
+            "Operand 0 of the call to 'h' is labeled 'n', but parameter 0 is 'x'.",
+        ),
+        (
+            "let h = 'load' {{'function', {x = 'i32'}, 'i32'}, g.slot} in let y = h {} in y",
+            "The call to 'h' gives 0 operands; it takes 1, ['x'].",
+        ),
+        # A byte array's length types f: a number is not a function.
+        (
+            'entry = r.go [00], go = λf. let y = f {} in y',
+            "'f' heads a call, so its type must be a function type; it is 'i8'.",
+        ),
+        # A non-function address: a global's is a 'ptr'.
+        (
+            'entry = r.go g.slot, go = λf. let y = f {} in y',
+            "'f' heads a call, so its type must be a function type; it is 'ptr'.",
+        ),
+        (
+            "let h = 'load' {{'function', {}, 'void'}, g.slot} in let u = h {} in u",
+            "'u' has no value: a 'void' call has none.",
+        ),
+    ],
+)
+def test_indirect_call_errors(blocks, message):
+    assert error(single(blocks, extra="slot = {type = 'ptr', init = ''},")) == message

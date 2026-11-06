@@ -182,6 +182,8 @@ def test_the_ll_has_no_triple_and_no_data_layout(capsys) -> None:
         # size 16 + offset 8 + align 8 on a 64-bit host.
         ('sizes', 32),
         ('void', 42),
+        # twice(inc, 5) + ops[1](5) + inc(10), the calls through function values.
+        ('callback', 28),
     ],
 )
 def test_build_golden_link_and_run_it(tmp_path, golden: str, result: int) -> None:
