@@ -19,12 +19,17 @@ def normal(text: str) -> terms.Term:
 
 
 def test_linked_definitions_are_kept_internal_symbols_and_imports_dropped():
+    void_fn = "{'function', {p = 'ptr'}, 'void'}"
+    void_body = "λg. λp. 'R' (λr. {[]})"
     unit = read(
         f"{{math = {{gcd = {{type = {FUNCTION}, body = {BODY}, link = 'gcd'}},"
+        f" clear = {{type = {void_fn}, body = {void_body}, link = 'clear'}},"
         f' helper = {{type = {FUNCTION}, body = {BODY}}}}},'
         " puts = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'}}"
     )
-    assert header.header_of(unit) == normal(f"{{math = {{gcd = {{type = {FUNCTION}, link = 'gcd'}}}}}}")
+    assert header.header_of(unit) == normal(
+        f"{{math = {{gcd = {{type = {FUNCTION}, link = 'gcd'}}, clear = {{type = {void_fn}, link = 'clear'}}}}}}"
+    )
 
 
 def test_namespaces_are_kept_and_empty_ones_removed():

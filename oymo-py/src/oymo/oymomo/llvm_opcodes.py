@@ -51,6 +51,7 @@ def _type(name: str, fields: Sequence[syntax.Term], index: int) -> syntax.Term:
         raise LlvmTranslationError(f'{name!r}: field {index} is a type, and a type holds no address.')
     if not opcodes.is_literal_type(field):
         raise LlvmTranslationError(f"{name!r}: field {index} must be a type, such as 'i32'.")
+    llvm_type(field)
     return field
 
 

@@ -193,6 +193,15 @@ def test_make_reducible_runs_a_unit_by_reduction():
     assert_gives(f"(fix ('unit.make_reducible' {FACT_INGOT})).math.fact {{n = [04000000]}}", '[18000000]')
 
 
+def test_make_reducible_runs_a_void_function_by_reduction():
+    ingot = (
+        "{nop = {type = {'function', {x = 'i32'}, 'void'}, body = λg. λp. 'R' (λr. {[]})},"
+        " main = {type = {'function', {}, 'i32'}, body = λg. λp. 'R' (λr. {let u = g.nop {x = [01000000]} in [2a000000]})}}"
+    )
+    assert_gives(f"(fix ('unit.make_reducible' {ingot})).nop {{x = [01000000]}}", '[]')
+    assert_gives(f"(fix ('unit.make_reducible' {ingot})).main {{}}", '[2a000000]')
+
+
 def test_make_reducible_hoists_g_and_runs_regions():
     # Each body's own `λg` moves out to one `λg`; a region becomes `(fix R) [00]`; other
     # entries (a declaration, a global variable) stay as they are.

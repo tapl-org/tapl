@@ -15,7 +15,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
 - `pre-bootstrap` Before the bootstrap: the Python compiler
   - `ll-coverage` oymomo writes any `.ll`
     - `ll-types` Types: `void`, wide integers, floats, vectors
-      - `void` Result type `'void'`, a call as a statement
       - `wide-ints` Every `'iN'` LLVM takes, `'i128'` first
       - `floats` `'float'`, `'double'`
         - 🚫 `float-forms` `'float'`, `'double'`: literals, params, results, declarations
@@ -147,13 +146,6 @@ glue code. One package, `oymo`: oymomo, Alcor, Mizar and the toolchain.
   - `block-comments` `/* */` block comments; stuck-term errors shown in them
 
 ## Leaf details
-
-### `void` Result type `'void'`, a call as a statement
-
-- `{'function', params, 'void'}` for functions returning nothing; the body returns `{}`
-  (oymomo-calculus.tex 10, "void")
-- A call as a statement: its `let` variable can't be used
-- LLVM `void` declarations, definitions, calls, `ret void`
 
 ### `wide-ints` Every `'iN'` LLVM takes, `'i128'` first
 

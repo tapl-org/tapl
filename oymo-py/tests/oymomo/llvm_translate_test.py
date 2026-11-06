@@ -590,3 +590,181 @@ def test_sizes_are_constant_expressions():
 )
 def test_size_errors(blocks, message):
     assert error(single(blocks)) == message
+
+
+def test_void_functions_and_statement_calls():
+    """`'void'` declarations, definitions, statement calls and `ret void`."""
+    source = """
+    {
+      free = {type = {'function', {p = 'ptr'}, 'void'}, link = 'free'},
+      step = {
+        type = {'function', {slot = 'ptr', x = 'i32'}, 'void'},
+        body = λg. λp. 'R' (λr. {
+          entry =
+            let z = 'icmp' {'eq', 'i32', p.x, [00000000]} in
+            if z then r.skip else r.write,
+          skip = [],
+          write = let s = 'store' {'i32', p.x, p.slot} in [],
+        }),
+      },
+      unit = {type = {'function', {}, {}}, body = λg. λp. 'R' (λr. {{}})},
+      fn_ptr = {type = 'ptr', value = λg. g.step},
+      main = {
+        type = {'function', {}, 'i32'},
+        link = 'main',
+        body = λg. λp. 'R' (λr. {
+          let a = 'alloca' {'i32'} in
+          let u = g.step {slot = a, x = [07000000]} in
+          let y = 'load' {'i32', a} in
+          let e = g.unit {} in
+          let v = g.free {p = {}} in
+          y
+        }),
+      },
+    }
+    """
+    text = llvm(source)
+    assert 'declare void @"free"(ptr %"p")' in text
+    assert '@"fn_ptr" = internal constant ptr @"step"' in text
+    assert function(text, 'step') == textwrap.dedent("""\
+        define internal void @"step"(ptr %"p.slot", i32 %"p.x")
+        {
+        r.entry:
+          %"z" = icmp eq i32 %"p.x", 0
+          br i1 %"z", label %"r.skip", label %"r.write"
+        r.skip:
+          ret void
+        r.write:
+          store i32 %"p.x", ptr %"p.slot"
+          ret void
+        }
+        """)
+    assert function(text, 'unit') == textwrap.dedent("""\
+        define internal {} @"unit"()
+        {
+        r.0:
+          ret {} zeroinitializer
+        }
+        """)
+    main = function(text, 'main')
+    assert '\n  call void @"step"(ptr %"a", i32 7)\n' in main
+    assert '\n  call void @"free"(ptr null)\n' in main
+    assert '%"e" = call {} @"unit"()' in main
+    assert '%"u"' not in main
+    assert '%"v"' not in main
+
+
+def test_linked_void_entries():
+    linked = single(
+        'let u = g.decl {} in [00000000]',
+        extra="""
+        decl = {type = {'function', {}, 'void'}, link = 'noop'},
+        impl = {type = {'function', {}, 'void'}, link = 'noop', body = λg. λp. 'R' (λr. {[]})},
+        """,
+    )
+    text = llvm(linked)
+    assert 'declare' not in text
+    assert 'define void @"noop"()' in text
+    mismatch = single(
+        '[00000000]',
+        extra="""
+        a = {type = {'function', {}, 'void'}, link = 'f'},
+        b = {type = {'function', {}, 'i32'}, link = 'f'},
+        """,
+    )
+    assert error(mismatch) == "The entries linked as 'f' have different types: void () for 'a', i32 () for 'b'."
+
+
+@pytest.mark.parametrize(
+    'type_source',
+    [
+        "'void'",
+        "{x = 'void'}",
+        "{'packed', 'void'}",
+        "{'array', [02], 'void'}",
+        "{'vector', [02], 'void'}",
+    ],
+)
+def test_void_is_not_a_value_type(type_source):
+    with pytest.raises(llvm_translate.LlvmTranslationError) as info:
+        llvm_translate.llvm_type(parse(type_source))
+    assert info.value.message == "'void' is only a function's result type."
+
+
+@pytest.mark.parametrize(
+    'source',
+    [
+        single('[00000000]', params="{x = 'void'}"),
+        single('{}', result="{x = 'void'}"),
+        single('[00000000]', extra="g = {type = 'void', link = 'g'},"),
+        single('[00000000]', extra="g = {type = 'void', init = {}},"),
+        single('[00000000]', extra="k = {type = 'void', value = {}},"),
+        single("let a = 'alloca' {'void'} in [00000000]"),
+        single("let x = 'load' {'void', p.q} in [00000000]", params="{q = 'ptr'}"),
+        single("let u = 'store' {'void', [00], p.q} in [00000000]", params="{q = 'ptr'}"),
+        single("let q = 'getelementptr' {'void', p.q, [00000000]} in [00000000]", params="{q = 'ptr'}"),
+        single("let c = 'icmp' {'eq', 'void', p.q, p.q} in [00000000]", params="{q = 'ptr'}"),
+        single("let x = 'extractvalue' {{'void'}, {}, [00]} in [00000000]"),
+        single("let x = 'insertvalue' {{'void'}, {}, {}, [00]} in [00000000]"),
+        single("let n = 'layout.size' {'void'} in [00000000]"),
+        single("let a = 'layout.align' {'void'} in [00000000]"),
+        single("let o = 'layout.offset' {{'void'}, [00]} in [00000000]"),
+    ],
+)
+def test_void_outside_result_type_is_rejected(source):
+    assert error(source) == "'void' is only a function's result type."
+
+
+NOOP = "noop = {type = {'function', {}, 'void'}, link = 'noop'},"
+TAKE = "take = {type = {'function', {x = 'i32'}, 'i32'}, link = 'take'},"
+
+
+@pytest.mark.parametrize('blocks', ['[]', "''", 'let u = g.noop {} in []'])
+def test_void_function_returns_written_empty_byte_array(blocks):
+    text = llvm(single(blocks, result="'void'", extra=NOOP))
+    assert 'ret void' in text
+
+
+@pytest.mark.parametrize(
+    'blocks',
+    [
+        '[00000000]',
+        '{}',
+        '{[00]}',
+        'p.x',
+        'g.k',
+        "let y = 'add' {'i32', p.x, p.x} in y",
+        'let u = g.noop {} in u',
+        'r.done [], done = λx. x',
+    ],
+)
+def test_void_function_must_return_empty_byte_array(blocks):
+    extra = NOOP + "k = {type = 'i32', value = [00000000]},"
+    assert (
+        error(single(blocks, params="{x = 'i32'}", result="'void'", extra=extra))
+        == "'main' has result type 'void', so it must return []."
+    )
+
+
+@pytest.mark.parametrize(
+    'blocks',
+    [
+        "let u = g.noop {} in let y = 'add' {'i32', u, [01000000]} in y",
+        'let u = g.noop {} in let y = g.take {x = u} in y',
+        'let u = g.noop {} in u',
+        'let u = g.noop {} in {r.a, r.a} u, a = [00000000]',
+        "let u = g.noop {} in r.done u, done = λx. let y = 'add' {'i32', x, x} in y",
+        'let u = g.noop {} in r.done u, done = λx. {r.a, r.a} x, a = [00000000]',
+        'let u = g.noop {} in r.done u, done = λx. [00000000]',
+    ],
+)
+def test_void_call_result_cannot_be_used(blocks):
+    assert error(single(blocks, extra=NOOP + TAKE)) == "'u' has no value: a 'void' call has none."
+
+
+def test_store_result_jumped_to_unused_parameter_is_rejected():
+    source = single(
+        "let u = 'store' {'i32', [00000000], g.k} in r.done u, done = λx. [00000000]",
+        extra="k = {type = 'i32', init = [00000000]},",
+    )
+    assert error(source) == "'u' has no value: a store's result has none."

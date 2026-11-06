@@ -1,0 +1,25 @@
+language oymomo
+{
+  malloc= {type= {'function', {n= 'i64'}, 'ptr'}, link= 'malloc'},
+  free= {type= {'function', {p= 'ptr'}, 'void'}, link= 'free'},
+  fill= {
+    type= {'function', {slot= 'ptr', x= 'i32'}, 'void'},
+    body= λg. λp. 'R' (λr. {
+      entry=
+        let z = 'icmp' {'eq', 'i32', p.x, [00000000]} in
+        if z then r.skip else r.write,
+      skip= '',
+      write= let s = 'store' {'i32', p.x, p.slot} in '',
+    }),
+  },
+  main= {
+    type= {'function', {}, 'i32'},
+    link= 'main',
+    body= λg. λp. 'R' (λr. {
+      let buf = g.malloc {n= [04000000 00000000]} in
+      let u = g.fill {slot= buf, x= [2a000000]} in
+      let y = 'load' {'i32', buf} in
+      let v = g.free {p= buf} in y,
+    }),
+  },
+}

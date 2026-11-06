@@ -161,6 +161,7 @@ GOLDENS = [
     'blocks',
     'table',
     'sizes',
+    'void',
 ]
 
 

@@ -30,7 +30,7 @@ its point in `doc/oymomo-calculus.tex`), which `ll-coverage` leaf in
 
 | LLVM construct | Oymomo spelling | Status / leaf |
 |---|---|---|
-| `void` | `'void'` as a function's result type (10.2d, 10.4) | `void` |
+| `void` | `'void'` as a function's result type; its one value is `[]` (10.2d, 10.4) | done |
 | Function type `t (t0, …)` | `{'function', {x_i = t_i}, t}` in an entry's `type` (9.4, 10.2h) | done |
 | `i1`, `i8`, `i16`, `i32`, `i64` | `'i1'`, `'i8'`, `'i16'`, `'i32'`, `'i64'` (10.2a) | done |
 | Other `iN` (`i128`, …) | `'iN'` (10.2a; folding in `wide-ints`) | `wide-ints` |
@@ -65,7 +65,7 @@ its point in `doc/oymomo-calculus.tex`), which `ll-coverage` leaf in
 | LLVM construct | Oymomo spelling | Status / leaf |
 |---|---|---|
 | `ret t v` | return terminal `Q` (8.3e, 10.8c) | done |
-| `ret void` | `{}` returned from a `'void'` function (10.4a) | `void` |
+| `ret void` | `[]`, written as such, returned from a `'void'` function (10.4a) | done |
 | `br label %b` | jump `r.l Q_1 … Q_n` (8.3d, 10.8c) | done |
 | `br i1 c, label %t, label %f` | two-arm branch `{J_0, J_1} P` on an `'i1'` (`if P then J_1 else J_0`, 10.8d) | done |
 | `switch iN c, label %d […]` | branch `{J_i} P` (10.8d) | done |
@@ -96,7 +96,7 @@ its point in `doc/oymomo-calculus.tex`), which `ll-coverage` leaf in
 | `phi` | block parameters `λx_1. … λx_n. E` (10.6, 10.8e) | done |
 | `select` | `'select' {t, c, a, b}` | `ll-instructions` |
 | `freeze` | *to decide* | `undefined` |
-| `call` (direct) | `g.l {x_i = Q_i}` (8.8, 10.8b); `'void'` in `void`; `tail` / `musttail` / `notail` in `ll-instructions` | done (`void`, `ll-instructions`) |
+| `call` (direct) | `g.l {x_i = Q_i}` (8.8, 10.4b, 10.8b); `tail` / `musttail` / `notail` in `ll-instructions` | done (`ll-instructions`) |
 | `call` (indirect through `'ptr'`) | *to decide* | `fn-address` |
 | `landingpad` | *to decide* | `ll-exceptions` |
 | `va_arg`, `catchpad`, `cleanuppad`, operand bundles (`[ "bundle"(…) ]`) | — | not planned |

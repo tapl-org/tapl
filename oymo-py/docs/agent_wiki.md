@@ -3573,6 +3573,89 @@ executable binary). we should mark some place as a platform". The steps that fol
   begins unless `\leavevmode` precedes it, shifting cell baselines down by a line;
   `>{\raggedright\arraybackslash\leavevmode}p{...}` inside `longtable` (with `\LTleft` set to
   `\@totalleftmargin`) keeps row baselines tight and breaks cleanly across pages.
+
+### `void` (Nov 5)
+
+- On the plan quiz, user asked: "do we need a void type. how about just using {}". Agent
+  checked LLVM 21 directly and laid out both levels:
+  - Why `.ll` itself needs LLVM `void` (not `define {}` / `declare {}`): void `@llvm.*`
+    intrinsics (`@llvm.trap`, `@llvm.assume`, `@llvm.lifetime.start.p0`, …) fail LLVM's
+    verifier with `declare {}` (`Intrinsic has incorrect return type!`), and under `clang
+    -flto -O2` calling `define {} @call_oymo` from C's `void` declaration fails to inline
+    (signature mismatch in LangRef), whereas `define void @call_oymo` inlines and folds to
+    `ret i32 42`.
+  - Spelling options in Oymomo: keep `'void'` (`'void'` → LLVM `void`, `{}` → LLVM `{}`
+    everywhere, matching `oymomo-calculus.tex` 10.2d, 10.4) vs lowering result type `{}` to
+    LLVM `void` (either as a unit value or strict statement). User chose Option A: keep
+    `'void'`.
+- Implemented in `llvm_translate.py` and `llvm_opcodes.py`:
+  - `VOID = ByteArray(b'void')`, `is_void(term)`. `llvm_type` rejects `'void'` with
+    `"'void' is only a function's result type."`, and `llvm_opcodes._type` calls `llvm_type`
+    so opcode type fields (`'alloca'`, `'load'`, `'store'`, `'getelementptr'`, `'icmp'`,
+    `'extractvalue'`, `'insertvalue'`, `'layout.*'`) report the same error first.
+  - `_symbol_type` maps `FunctionType.result` to `ir.VoidType()` when `is_void(...)` (leaving
+    `{}` as `ir.LiteralStructType([])`).
+  - `_Function._uses` skips `Return` when `is_void(result)`; `_Function._block` requires `{}`
+    and emits `builder.ret_void()`, rejecting any other returned operand with
+    `"'<name>' has result type 'void', so it must return {}."`.
+  - `_Function._let_type` records `let.result` in `self.no_value` (`"a 'void' call has none"`
+    vs `"a store's result has none"`) and returns `None` (also replacing the old
+    `type_term == opcodes.STORE_RESULT` check with `let.opcode == 'store'` so `'load' {{}, p}`
+    is not mistaken for `'store'`). Any `Use` of a `no_value` variable is rejected in
+    `operand`, `_edge` (even when jumping to an unused block parameter), and `infer`
+    (`_check_no_value_jumps`, before blaming an untyped parameter).
+- Tests & docs: unit tests in `llvm_translate_test.py`, `unit_ops_test.py`, `header_test.py`;
+  golden `tests/goldens/void.oymo` + `void.ll` (linked and run via `clang` in `cli_test.py`,
+  returning 42); `docs/ll_coverage.md` updated (`void`, `ret void`, `call (direct)`); leaf
+  `void` removed from `docs/roadmap.md`.
+- Review quiz (Nov 5): the user's answers didn't match the strict code. The user expected
+  `let u = g.noop {} in u` in a `'void'` function to emit `call void` + `ret void`, and
+  `r.done u` with `done = λx. …` to type `x` (not an error). Not committed; user paused.
+- User (Nov 6): "type of [01] is i8, type of [0100] is i16 … what is the value of 'void'. i
+  guess there is only one value which is {}, right? then a function which returns 'void'
+  type should return {}, correct?", then "from set perspective how many elements does
+  'void' have? 0 or 1 … lets define it first". Agent: C/LLVM `void` result is the unit type
+  (1 element; a `void` function returns), not the empty type ⊥ (0 elements: Haskell
+  `Void`, Scala `Nothing`, Rust `!`; a function returning it never returns, which LLVM
+  spells as the `noreturn` attribute, `ll-function-attrs`/`undefined`). `{}` (empty
+  product) is also a 1-element set.
+- **Definition (user accepted, Nov 6):** `'void'` is a type with one element, `{}` (the same
+  set as `{}`). It has no LLVM representation, so it may only be a function's result type.
+  A `'void'` function returns `{}` and emits `ret void`. A `'void'` call's result is the
+  value `{}`, of type `'void'`. Consequence (not yet implemented, plan not yet quizzed):
+  the strict `no_value` rejections of returning or jumping a `'void'` call's result go
+  against this definition.
+- Plan quiz (Nov 6) split by-value (a `'void'` call's result may be returned) vs
+  by-spelling (only a literal return). User: "how about using [] instead of {}. I know
+  that we defined [] as 0. but we can ignore that. [] means empty bytearray. and the only
+  value of void is []". Agent: fits byte-length typing (`[0100]` → `'i16'`, `[01]` →
+  `'i8'`, `[]` → 0 bits, 2⁰ = 1 element, in effect `i0`; LLVM has no `i0`, so the name
+  stays `'void'`); keeps `{}` the empty struct only; `[]` is the same term as `''` (null at
+  `'ptr'` in entries, arm 0 as an index), fine since a byte array is typed by its use.
+- **Decision (user, Nov 6; supersedes the `{}` return above):** `'void'`'s only value is
+  `[]`. A `'void'` function returns `[]` only (`{}` is an error) and emits `ret void`. A
+  `'void'` call's result is `[]` of type `'void'`: it may be returned from a `'void'`
+  function or jumped to a block parameter (typed `'void'`, no `phi`); using it where an
+  LLVM value is needed is a type mismatch. `'store'`'s result is unchanged (no value).
+  User also chose to update `doc/oymomo-calculus.tex` (`'void'` item in 10.2, `p:void`
+  in 10.4), as the user directs.
+- Implemented (Nov 6, uncommitted): `is_void_value` (`ByteArray(b'')`), `_type_name`;
+  `_let_type` types a `'void'` call's result `'void'` (no `no_value` entry); `_uses` yields
+  the return at `'void'` too, so a returned parameter is typed `'void'`; `'void'` block
+  parameters get no `phi`; `operand` at `'void'` accepts `[]` or a `'void'` variable and
+  gives None, else `"<what> has type 'void', whose only value is []."`; a `'void'`
+  variable where an LLVM value is needed: `"'u' has type 'void', but <what> needs i32."`
+  (or `needs an LLVM value` for a branch condition); `_add` messages print `void`. Return
+  error now says `must return [].` Golden `void.oymo` returns `[]`.
+- **Then reverted to by spelling (user, Nov 6, quiz):** "only a literally written [] may be
+  returned or passed; a 'void' call's result u can't be used at all". Code now: a `'void'`
+  function's return terminal must be the literal `[]` (`is_void_value`; `''` is the same
+  term) else `must return [].`; a `'void'` call's result is back in `no_value` (`"a 'void'
+  call has none"`); no `'void'` variables or parameters, no `_type_name`/`_is_void_operand`.
+  Calculus edited (user approved the wording, adapted to by-spelling): 10.2 `'void'` item
+  adds "Its one value is [], the byte array of 0 bytes"; `p:void` "returns []", sub-point a
+  "returns [], written as such"; sub-point b unchanged ("a use of u is rejected").
+  `p:bytes-length` unchanged. Still uncommitted (user: "Keep uncommitted").
 - Agent proposal not yet answered: E-Beta records `inlined_at` on the result (conflicts
   with Answer 12 of the spans design, "no `inlined_at` for now"; kept as a Decide item).
   ("High layer runs on the host, low on the target" is superseded: where a layer is

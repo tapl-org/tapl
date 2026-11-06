@@ -34,6 +34,17 @@ from oymo.oymomo import meta, opcodes, printer, terms
 from oymo.oymomo.meta import NO_TAG, Tag
 
 _INT_TYPE = re.compile(r'i([1-9][0-9]*)')
+VOID = terms.ByteArray(b'void')
+
+
+def is_void(term: syntax.Term) -> bool:
+    return term == VOID
+
+
+def is_void_value(term) -> bool:
+    """`[]`, the one value of `'void'`."""
+    return isinstance(term, terms.ByteArray) and not term.value
+
 
 # An operand of an opcode as an LLVM value: the field, and the type term it is read at
 # (None where the opcode doesn't say; a byte array then has no type and is an error).
@@ -93,6 +104,8 @@ def llvm_type(term: syntax.Term) -> ir.Type:
     if name == 'ptr':
         # LLVM's opaque pointer: it says nothing about what it points to.
         return ir.PointerType()
+    if name == 'void':
+        raise LlvmTranslationError("'void' is only a function's result type.", term.tag)
     if isinstance(term, terms.Struct):
         return ir.LiteralStructType([llvm_type(f.value) for f in term.fields])
     if isinstance(term, terms.Project | terms.BruijnIndex):
@@ -247,6 +260,7 @@ class _Function:
         self.args = {label: arg for (label, _), arg in zip(definition.type.params, llvm_function.args, strict=True)}
         self.arg_types = dict(definition.type.params)
         self.types: dict[ingots.Var, syntax.Term] = {}
+        self.no_value: dict[ingots.Var, str] = {}
         self.values: dict[ingots.Var, ir.Value] = {}
         self.llvm_blocks: dict[ingots.Block, ir.Block] = {}
 
@@ -264,10 +278,16 @@ class _Function:
 
     def _let_type(self, let):
         if let.callee is not None:
-            return ingots.function_type(self.translator.ingot.lookup(let.callee)).result
+            result = ingots.function_type(self.translator.ingot.lookup(let.callee)).result
+            if is_void(result):
+                self.no_value[let.result] = "a 'void' call has none"
+                return None
+            return result
+        if let.opcode == 'store':
+            self.no_value[let.result] = "a store's result has none"
+            return None
         opcode = opcodes.OPCODES.get(let.opcode)
-        type_term = opcode.result_type([q for _, q in let.fields]) if opcode is not None else None
-        return None if type_term == opcodes.STORE_RESULT else type_term
+        return opcode.result_type([q for _, q in let.fields]) if opcode is not None else None
 
     def _uses(self, block):
         """`(operand, type)` for each operand of `block` read at a known type."""
@@ -282,7 +302,7 @@ class _Function:
                 types = [None] * len(fields)
             yield from zip(fields, types, strict=True)
         match block.terminal:
-            case ingots.Return(value=value):
+            case ingots.Return(value=value) if not is_void(self.definition.type.result):
                 yield value, self.definition.type.result
         for jump in _jumps(block):
             for var, operand in zip(jump.target.params, jump.operands, strict=True):
@@ -322,7 +342,17 @@ class _Function:
             self._propagate(params)
         for var in sorted(params - self.types.keys(), key=lambda v: v.name):
             if var in used:
+                self._check_no_value_jumps()
                 raise LlvmTranslationError(f'give {var.name!r} a typed argument or a typed use.', var.tag)
+
+    def _check_no_value_jumps(self) -> None:
+        for block in self.blocks:
+            for jump in _jumps(block):
+                for operand in jump.operands:
+                    if isinstance(operand, ingots.Use) and operand.var in self.no_value:
+                        raise LlvmTranslationError(
+                            f'{operand.var.name!r} has no value: {self.no_value[operand.var]}.', operand.tag
+                        )
 
     def _propagate(self, params):
         """Types from operands jumped to each parameter and from its uses, until nothing changes."""
@@ -392,7 +422,14 @@ class _Function:
         match block.terminal:
             case ingots.Return(value=value):
                 result = self.definition.type.result
-                builder.ret(self.operand(value, result, f'the result of {self.definition.name!r}'))
+                if is_void(result):
+                    if not is_void_value(value):
+                        raise LlvmTranslationError(
+                            f"{self.definition.name!r} has result type 'void', so it must return [].", value.tag
+                        )
+                    builder.ret_void()
+                else:
+                    builder.ret(self.operand(value, result, f'the result of {self.definition.name!r}'))
             case ingots.Jump() as jump:
                 self._edge(builder, jump)
                 builder.branch(self.llvm_blocks[jump.target])
@@ -407,6 +444,8 @@ class _Function:
             if var in self.values:
                 value = self.operand(operand, self.types[var], f'parameter {var.name!r} of {jump.target.name}')
                 self.values[var].add_incoming(value, builder.block)
+            elif isinstance(operand, ingots.Use) and operand.var in self.no_value:
+                self.operand(operand, None, f'parameter {var.name!r} of {jump.target.name}')
 
     def _branch(self, builder, branch):
         condition = self.operand(branch.condition, None, 'a branch condition')
@@ -453,10 +492,10 @@ class _Function:
             return constant(expected, operand, globals_=self.translator.globals)
         match operand:
             case ingots.Use(var=var):
+                if var in self.no_value:
+                    raise LlvmTranslationError(f'{var.name!r} has no value: {self.no_value[var]}.', tag)
                 if var not in self.values:
-                    if var in self.types:
-                        raise LlvmTranslationError(f'{var.name!r} has no value here.', tag)
-                    raise LlvmTranslationError(f"{var.name!r} has no value: a store's result has none.", tag)
+                    raise LlvmTranslationError(f'{var.name!r} has no value here.', tag)
                 value = self.values[var]
             case ingots.Arg(label=label):
                 value = self.args[label]
@@ -500,9 +539,11 @@ class _Function:
 
 
 def _symbol_type(symbol: ingots.Symbol) -> ir.Type:
-    """The LLVM type of a symbol: its function type, or the type of its variable."""
+    """The LLVM type of a symbol: its function type (whose result may be `'void'`), or the
+    type of its variable."""
     if isinstance(symbol.type, ingots.FunctionType):
-        return ir.FunctionType(llvm_type(symbol.type.result), [llvm_type(t) for _, t in symbol.type.params])
+        result = ir.VoidType() if is_void(symbol.type.result) else llvm_type(symbol.type.result)
+        return ir.FunctionType(result, [llvm_type(t) for _, t in symbol.type.params])
     return llvm_type(symbol.type)
 
 
