@@ -4,7 +4,7 @@
 
 # Builds the arXiv submissions: one PDF (for checking) and one tarball (for
 # uploading) per paper. theta-calculus.tex is taken from doc/; oymomo-calculus.tex
-# is the arXiv edition in this folder (doc/oymomo-calculus.tex is frozen).
+# is the arXiv edition in this folder, a copy of doc/oymomo-calculus.tex.
 
 BUILD = build
 export PATH := /Library/TeX/texbin:$(PATH)
