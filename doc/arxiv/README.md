@@ -13,9 +13,11 @@ Two preprints, posted to establish authorship. They are not peer reviewed.
 | The θ-Calculus | [`../theta-calculus.tex`](../theta-calculus.tex) | `build/theta-calculus.tar.gz` |
 | The Oymomo Calculus | [`oymomo-calculus.tex`](oymomo-calculus.tex) (arXiv edition) | `build/oymomo-calculus.tar.gz` |
 
-`doc/oymomo-calculus.tex` is frozen, so its arXiv edition lives here. It adds an
-abstract, a subtitle, citations, a Related Work section and a bibliography, and
-renames one duplicate label. The calculus itself is unchanged.
+The oymomo paper's arXiv edition is a copy of `doc/oymomo-calculus.tex`, kept here
+so the original stays as it is. The copy adds an abstract, a subtitle, citations,
+a Related Work section and a bibliography, and renames one duplicate label. The
+calculus itself is unchanged. If `doc/oymomo-calculus.tex` changes before you
+submit, carry the change into the copy.
 
 ## Build
 
