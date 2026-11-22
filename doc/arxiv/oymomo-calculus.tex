@@ -1,0 +1,1140 @@
+\pdfoutput=1
+% Part of the TAPL project, under the Apache License v2.0 with LLVM
+% Exceptions. See /LICENSE for license information.
+% SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+%
+% arXiv edition of doc/oymomo-calculus.tex (frozen, November 2026). It adds an
+% abstract, citations, a Related Work section and a bibliography; the calculus
+% itself is unchanged. The living spec is oymo-py/docs/oymomo_calculus.md.
+
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{mathpartir}
+\usepackage{xcolor}
+\usepackage[normalem]{ulem}
+\usepackage{enumitem}
+\usepackage{fancyvrb}
+\usepackage{upquote}
+\newcommand{\vto}{\mbox{$\to$}}  % → inside a code listing
+\newcommand{\vlam}{\mbox{$\lambda$}}  % \lambda inside a code listing
+\newcommand{\vlamf}{\vlam f}\newcommand{\vlamp}{\vlam p}
+\newcommand{\vlamg}{\vlam g}\newcommand{\vlamh}{\vlam h}\newcommand{\vlama}{\vlam a}\newcommand{\vlamb}{\vlam b}\newcommand{\vlamr}{\vlam r}\newcommand{\vlamd}{\vlam d}\newcommand{\vlamq}{\vlam q}\newcommand{\vlamc}{\vlam c}\newcommand{\vlams}{\vlam s}
+\usepackage[hidelinks]{hyperref}
+
+%% ── Macros (each notation is introduced in the text where it is first used) ──
+\newcommand{\step}{\mathrel{\longrightarrow}}     % one step (TAPL)
+\newcommand{\steps}{\mathrel{\longrightarrow^{*}}} % zero or more steps
+\newcommand{\lam}[2]{\lambda #1.\,#2}       % \lambda x. t
+\newcommand{\subst}[3]{[#1 \mapsto #2]\,#3}     % [x ↦ t2] t1
+\newcommand{\fn}[1]{\mathit{#1}}                % meta function
+\newcommand{\rn}[1]{\textsc{#1}}                % rule name in text
+\newcommand{\kw}[1]{\mathtt{#1}}
+\newcommand{\str}[1]{\text{\ttfamily\textquotesingle #1\textquotesingle}}  % 'text' bytes
+\newcommand{\hex}[1]{\text{\ttfamily [#1]}}  % [hex] bytes                % keyword in math
+
+\mprset{sep=1.5em}
+
+%% Numbered points: rules, formula rows and bullets share one counter per section,
+%% shown as N.M (N the section, M the point); a sub-bullet of point N.M is N.Ma, N.Mb, ...
+%% A point that is referred to has a \label; a reference is \pref{label}, so
+%% renumbering never changes the text of a reference.
+\newcounter{pt}
+\counterwithin*{pt}{section}
+\renewcommand{\thesubsection}{\thesection\alph{subsection}}  % 4a, 4b, ...
+\renewcommand{\thept}{\thesection.\arabic{pt}}
+\newcommand{\ptone}{\refstepcounter{pt}\textup{\thept.}}  % number a lone formula row
+%% A group of formula rows (or rules) is the sub-points of one bullet: each row shows
+%% its letter, a., b., ..., and a reference to it reads N.Ma.
+\newcounter{spt}
+\renewcommand{\thespt}{\thesection.\arabic{pointsi}\alph{spt}}
+\newcommand{\pt}{\refstepcounter{spt}\textup{\alph{spt}.}}  % number a formula row
+\newcommand{\pref}[1]{\ref{#1}}  % a reference to a numbered point
+\makeatletter\newcommand{\plabel}[1]{\ltx@label{#1}}\makeatother  % a label in a display (amsmath allows one)
+\newlist{points}{enumerate}{1}
+\counterwithin*{spt}{pointsi}
+%% A bullet list continues the section's count, so the numbering never restarts
+%% inside a section.
+\setlist[points]{label=\thesection.\arabic*., ref=\thesection.\arabic*, leftmargin=*,
+  start=\numexpr\value{pt}+1\relax, after={\setcounter{pt}{\value{pointsi}}}}
+%% A sub-bullet is shown by its letter only (a., b., ...); a reference to it is N.Ma.
+\newlist{subpoints}{enumerate}{1}
+\setlist[subpoints]{label=\alph*.,
+  ref=\thesection.\arabic{pointsi}\alph*, nosep, leftmargin=*}
+
+%% Review marks; removed once the user accepts a change.
+\newcommand{\new}[1]{{\color{blue}#1}}          % new or changed text
+\newcommand{\old}[1]{{\color{red}\sout{#1}}}    % removed text
+\newcommand{\mold}[1]{\text{\old{$#1$}}}       % removed math (review only)
+
+%% One rule per line, centered on the page, its name right-aligned in a column.
+%% The left column (the rule's number) is as wide as the name column, so the rule is
+%% truly centered.
+%% Each rule is its own row, so a long list can break across pages.
+%% \axiomrow{Name}{conclusion}            a rule with no premises, no bar
+%% \rulerow{Name}{premises}{conclusion}   premises over a bar
+\newlength{\rulenamewidth}
+\setlength{\rulenamewidth}{6.5em}
+\newenvironment{rules}{\par\smallskip}{\par}
+\newcommand{\rulename}[1]{\makebox[\rulenamewidth][r]{\rn{#1}}}
+\newcommand{\ruleline}[2]
+  {\par\noindent
+   \begin{tabular*}{\linewidth}{@{}l@{\extracolsep{\fill}}c@{\extracolsep{\fill}}r@{}}
+   \makebox[\rulenamewidth][l]{\pt\plabel{r:#1}} & #2 & \rulename{#1}
+   \end{tabular*}\par}
+\newcommand{\axiomrow}[2]{\ruleline{#1}{$#2$}\vspace{8pt}}
+\newcommand{\rulerow}[3]{\ruleline{#1}{$\inferrule{#2}{#3}$}\vspace{12pt}}
+\newcommand{\oldrow}[2]{\par\noindent\begin{tabular*}{\linewidth}{@{}l@{\extracolsep{\fill}}c@{\extracolsep{\fill}}r@{}}\makebox[\rulenamewidth][l]{} & \sout{#2} & \makebox[\rulenamewidth][r]{\sout{\rn{#1}}}\end{tabular*}\par\vspace{8pt}}  % a removed rule, not numbered
+
+\title{The Oymomo Calculus:\\A Layered, Confluent $\lambda$-Calculus that Translates to SSA}
+\author{Orti Bazar\\ \texttt{orti.bazar@gmail.com}}
+\date{November 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Oymomo is a small untyped $\lambda$-calculus meant as a compiler's intermediate
+language that translates directly to SSA form. To variables, abstraction and
+application it adds ordered structs with projection and indexing, byte arrays
+that name opcodes, and a fixed point; its $\beta$ rule is call-by-value. A
+program may have two layers, low and high, written with a layering $t_1 : t_2$
+and separated before any reduction, so one source gives two programs that
+reduce independently. Reduction may fire anywhere, under a $\lambda$ and in
+every arm of a branch. It is confluent for every opcode table, and a
+deterministic strategy is sound, complete, and reaches the normal form whenever
+one exists. A-normal form needs no lifting rule: every term in ANF is already a
+normal form. A function body is a region of labeled blocks that end in returns,
+jumps, branches or nested regions. Modules, called ingots, are structs of typed
+entries with explicit linkage, and each ingot translates to one LLVM module.
+Confluence, the strategy's soundness, completeness and guarantee, and the
+normality of ANF are proved in Lean~4.
+\end{abstract}
+
+%% ── Goal ───────────────────────────────────────────────────────────────
+
+\section{Goal}\label{sec:goal}
+
+\begin{points}
+\item Oymomo is an extension of the untyped $\lambda$-calculus: to variables, abstraction and
+  application it adds structs, projection and byte arrays, which name
+  opcodes, and a fixed point for recursion; its $\beta$ rule is call-by-value: a function is applied only to a value, so a term that still has to run is never copied or dropped.
+\item A term may have two layers, low and high. They are separated before any
+  reduction, and each layer then reduces on its own (Section~\ref{sec:layers}).
+\item Section~\ref{sec:goal} states the goal, Section~\ref{sec:syntax} gives the syntax, Section~\ref{sec:sugar} the sugar,
+  Section~\ref{sec:layers} the layers,
+  Sections~\ref{sec:computation} and~\ref{sec:congruence} the reduction, Section~\ref{sec:strategy} how to reach a normal form, Section~\ref{sec:banf} ANF (A-normal form)~\cite{flanagan1993} and functions, Section~\ref{sec:modules} ingots, Section~\ref{sec:llvm} the translation to LLVM~\cite{lattner2004}, and Section~\ref{sec:related} related work.
+\item Oymomo and ingots don't depend on LLVM: an ingot can be translated to any SSA form, and
+  Section~\ref{sec:llvm} translates it to LLVM's. The examples use the opcodes and
+  types of that translation, such as $\str{add}$ and $\str{i32}$; oymomo reads them only as byte arrays.
+\item\label{p:goal-anywhere} Reduction happens anywhere: a rule may fire in any position, under a
+  $\lambda$, in a struct field and in an argument.
+\item\label{p:goal-banf} A term in ANF (Section~\ref{sec:banf}) is a normal form: it
+  has no step left, so reaching ANF never needs a rule that lifts a term into a $\kw{let}$.
+\item\label{p:goal-agree} Every path agrees: if one reduction path ends in an ANF term, every path that ends,
+  ends in that same term. This is confluence (\pref{p:confluent}).
+\item\label{p:goal-ends} Confluence can't promise that every path ends:  some orders may loop while
+  others finish, as in $\{a = \Omega, b = \hex{01}\}.b$, where $\Omega = (\lam{x}{x\ x})\ (\lam{x}{x\ x})$ steps to itself. It promises only that every path that ends gives the same normal form.
+\item\label{p:goal-strategy} One order of steps, the strategy (Section~\ref{sec:strategy}), is complete and guaranteed: it
+  chooses a step whenever the term has one, and if the term has a normal form, it reaches it.
+\end{points}
+
+%% ── Syntax ─────────────────────────────────────────────────────────────
+
+\section{Kernel Syntax}\label{sec:syntax}
+
+\begin{points}
+\item The terms $t$ and two classes of them: values $v$ and opcode operands $A$.
+\[
+\begin{array}{l@{\quad}rcll}
+ & t & ::= & & \textit{term} \\
+\pt &   & \mid & x & \textit{variable} \\
+\pt &   & \mid & \lam{x}{t} & \textit{abstraction} \\
+\pt &   & \mid & t\ t & \textit{application} \\
+\pt &   & \mid & b & \textit{byte array} \\
+\pt &   & \mid & \{l_i = t_i\}_{i<k} & \textit{struct} \\
+\pt &   & \mid & t.l & \textit{projection} \\
+\pt &   & \mid & \kw{fix}\ t & \textit{fixed point} \\[6pt]
+\pt & v & ::= & x \mid \lam{x}{t} \mid b \mid \{l_i = v_i\}_{i<k} \mid \kw{fix}\ (\lam{x}{t})  &
+  \textit{value} \\
+\pt\plabel{p:opdata} & A & ::= & b \mid \{l_i = A_i\}_{i<k} \mid \lam{x}{t} \mid \kw{fix}\ (\lam{x}{t})\ \text{(closed, normal)} &
+  \textit{opcode operand}
+\end{array}
+\]
+\item A lambda $\lam{x}{t}$ extends as far right as possible:
+  $\lam{x}{\lam{y}{t}}$ is $\lam{x}{(\lam{y}{t})}$. The dot right after the binder ends the binder; every other
+  dot is projection: $\lam{p}{p.a}$ is $\lam{p}{(p.a)}$.
+\item $\kw{fix}$ is a keyword. $\kw{fix}\ t$ parses as an application does:
+  $\kw{fix}\ g.l\ a$ is $(\kw{fix}\ (g.l))\ a$.
+\item A byte array $b$ is a sequence of bytes.
+  \begin{subpoints}
+  \item Where a number is expected, $b$ is read as an unsigned, little-endian
+    number: $\hex{0201}$ is $258$, and the empty byte array is $0$.
+  \item It is mostly written in hex, $\hex{01ff}$.
+  \item When its bytes are valid UTF-8 text, it may be written as text
+    instead: $\str{i32}$ is the byte array $\hex{693332}$.
+  \end{subpoints}
+\item A struct's fields are ordered.
+  \begin{subpoints}
+  \item $\{l_i = t_i\}_{i<k}$ has $k$ fields, $l_0 = t_0$ up to $l_{k-1} = t_{k-1}$; with
+    $k = 0$ it is the empty struct $\{\}$.
+  \item A label may be empty (no label); the other labels are unique.
+  \end{subpoints}
+\item\label{p:names}A label, and a variable's name, is a sequence of bytes.
+  \begin{subpoints}
+  \item It is written as a name, $\mathit{main}$, or quoted, $\texttt{"a b"}$; both stand for
+    their UTF-8 bytes.
+  \item In a quoted name, as in LLVM, $\texttt{\textbackslash}HH$ is the byte $HH$ in hex and $\texttt{\textbackslash\textbackslash}$ is a backslash:
+    $\texttt{"\textbackslash FF\textbackslash 01"}$ is the bytes $\hex{ff01}$, and a quote is written $\texttt{\textbackslash 22}$.
+  \item A name never holds the byte $\hex{00}$, as in LLVM, whose names end at it.
+  \item $\texttt{""}$ is the empty label: $\{\texttt{""} = t\}$ is $\{t\}$. A variable's name is never empty.
+  \item Only labels are compared, by their bytes (\rn{E-Proj}); a variable stands for the
+    $\lambda$ that binds it, whatever its name.
+  \end{subpoints}
+\item\label{p:layered}A layered-term $u$ is written as a term is, except that some of its parts may be layerings $t_1 : t_2$, with
+  $t_1$ in the low layer and $t_2$ in the high layer.
+\[
+\begin{array}{l@{\quad}rcll}
+ & u & ::= & & \textit{layered-term} \\
+\pt &   & \mid & x \mid b & \textit{variable, byte array} \\
+\pt &   & \mid & \lam{x}{u} \mid u\ u \mid \{l_i = u_i\}_{i<k} \mid u.l \mid \kw{fix}\ u & \textit{as for } t \\
+\pt &   & \mid & t : t & \textit{layering}
+\end{array}
+\]
+\item Every term $t$ is a layered-term with no layering. Both sides of a layering are terms $t$, so a
+  layering holds no layering: a layered-term has at most two layers.
+\item A layering binds more loosely than application and projection, and more tightly than a lambda,
+  $\kw{let}$ or $\kw{if}$, which extend as far right as possible:
+  \begin{subpoints}
+  \item $f\ a : g\ b$ is $(f\ a) : (g\ b)$, and $\lam{x}{t_1 : t_2}$ is $\lam{x}{(t_1 : t_2)}$. A lambda, $\kw{let}$ or $\kw{if}$ on
+    either side is written in parentheses: $t_1 : (\lam{x}{t_2})$.
+  \item The two differ in meaning, not only in reading: $\lam{x}{(t_1 : t_2)}$ has the high layer $\lam{x}{t_2}$, while
+    $(\lam{x}{t_1}) : t_2$ has the high layer $t_2$ (\pref{p:separate}).
+  \item $:$ is not associative: $t_1 : t_2 : t_3$ is rejected, since a layering holds no layering.
+  \end{subpoints}
+\end{points}
+
+%% ── Sugar ────────────────────────────────────────────────────────────
+
+\section{Sugar Syntax}\label{sec:sugar}
+
+\begin{points}
+\item Each sugar form stands for a kernel term.
+\[
+\begin{array}{l@{\qquad}l@{\qquad}l}
+ & \textit{sugar syntax} & \textit{kernel syntax} \\ \hline
+\pt\plabel{p:let} & \kw{let}\ x = t_1\ \kw{in}\ t_2 & (\lam{x}{t_2})\ t_1 \\
+\pt\plabel{p:if} & \kw{if}\ t_1\ \kw{then}\ t_2\ \kw{else}\ t_3 & \{t_3, t_2\}\ t_1
+\end{array}
+\]
+\end{points}
+
+%% ── Layers ───────────────────────────────────────────────────────────
+
+\section{Layers}\label{sec:layers}
+
+\begin{points}
+\item\label{p:separate}Separation splits a layered-term $u$ into its low layer $\fn{low}(u)$ and its high layer
+  $\fn{high}(u)$, part by part:
+\[
+\begin{array}{l@{\qquad}l@{\qquad}l@{\qquad}l}
+ & u & \fn{low}(u) & \fn{high}(u) \\ \hline
+\pt & t_1 : t_2 & t_1 & t_2 \\
+\pt & x & x & x \\
+\pt & b & b & b \\
+\pt & \lam{x}{u} & \lam{x}{\fn{low}(u)} & \lam{x}{\fn{high}(u)} \\
+\pt & u_1\ u_2 & \fn{low}(u_1)\ \fn{low}(u_2) & \fn{high}(u_1)\ \fn{high}(u_2) \\
+\pt & \{l_i = u_i\}_{i<k} & \{l_i = \fn{low}(u_i)\}_{i<k} & \{l_i = \fn{high}(u_i)\}_{i<k} \\
+\pt & u.l & \fn{low}(u).l & \fn{high}(u).l \\
+\pt & \kw{fix}\ u & \kw{fix}\ \fn{low}(u) & \kw{fix}\ \fn{high}(u)
+\end{array}
+\]
+\item What separation keeps and changes:
+  \begin{subpoints}
+  \item A part with no layering is copied into both layers: $\fn{low}(t) = \fn{high}(t) = t$. Only a
+    layering makes the layers differ.
+  \item Both layers keep every binder, so in the high layer a variable stands for the high layer of
+    the value passed for it: $(\lam{s}{s})\ (t_1 : t_2)$ has the low layer $(\lam{s}{s})\ t_1$ and the high
+    layer $(\lam{s}{s})\ t_2$.
+  \item Separation reads only the written layered-term, once, before any reduction. Reduction
+    (Sections~\ref{sec:computation} to~\ref{sec:strategy}) never meets a layering.
+  \end{subpoints}
+\item\label{p:one-or-two}A program is a layered-term $u$:
+  \begin{subpoints}
+  \item If $u$ has no layering, the program has one layer, $u$ itself.
+  \item Otherwise it has two, $\fn{low}(u)$ and $\fn{high}(u)$. Each is a term, and each reduces on its
+    own; no rule reads one layer from the other.
+  \item The two layers are equal: oymomo gives neither a meaning of its own. Each layer reduces to
+    its own ingot (Section~\ref{sec:modules}).
+  \end{subpoints}
+\item\label{p:layer-example}For example, an entry whose body adds one in the low layer and calls a check
+  in the high layer:
+  \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
+inc = {type = {'function', {a = 'i32'}, 'i32'},
+       body = @vlamg. @vlamp. 'R' (@vlamr. {
+         let y = ('add' {'i32', p.a, [01000000]} : g.check {a = p.a}) in y
+       })}
+\end{Verbatim}
+  \begin{subpoints}
+  \item Its low layer has $\kw{let}\ y = \str{add}\ \{\str{i32}, p.a, \hex{01000000}\}\ \kw{in}\ y$; its high
+    layer has $\kw{let}\ y = g.\mathit{check}\ \{a = p.a\}\ \kw{in}\ y$, where $p.a$ is the high layer of the
+    argument.
+  \item The $\mathit{type}$ field has no layering, so both layers get it: each layer's ingot has a
+    symbol $\mathit{inc}$ of that type. Only the high ingot uses $\mathit{check}$.
+  \end{subpoints}
+\end{points}
+%% ── Computation ────────────────────────────────────────────────────────
+
+\section{Computation (at the root)}\label{sec:computation}
+
+\begin{points}
+\item The computation rules reduce a term at its root.
+\begin{rules}
+\axiomrow{E-Beta}
+  {(\lam{x}{t_1})\ v \;\step\; \subst{x}{v}{t_1}}
+\rulerow{E-Opcode}
+  {\fn{op}(b)(A) = t}
+  {b\ A \;\step\; t}
+\rulerow{E-Proj}
+  {l_j = l}
+  {\{l_i = t_i\}_{i<k}.l \;\step\; t_j}
+\rulerow{E-Index}
+  {b < k}
+  {\{l_i = t_i\}_{i<k}\ b \;\step\; t_b}
+\rulerow{E-Default}
+  {0 < k \le b}
+  {\{l_i = t_i\}_{i<k}\ b \;\step\; t_{k-1}}
+\axiomrow{E-FixProj}
+  {(\kw{fix}\ (\lam{x}{t})).l \;\step\; (\subst{x}{\kw{fix}\ (\lam{x}{t})}{t}).l}
+\axiomrow{E-FixApp}
+  {(\kw{fix}\ (\lam{x}{t_1}))\ t_2 \;\step\; (\subst{x}{\kw{fix}\ (\lam{x}{t_1})}{t_1})\ t_2}
+\end{rules}
+\item Terms are equal up to $\alpha$-equivalence (renaming bound variables).
+  When a bound variable of $t_1$ clashes with a free variable of $t_2$,
+  $\subst{x}{t_2}{t_1}$ first renames it ($\alpha$-conversion), then
+  substitutes.
+\item\label{p:values} A value is a variable, $\lam{x}{t}$, a byte array, a struct of values or a fixed point $\kw{fix}\ (\lam{x}{t})$ (Section~\ref{sec:syntax}).
+  \rn{E-Beta} substitutes only a value, so it never copies or drops a term that still has to
+  run: in $(\lam{x}{\{x, x\}})\ (g.\mathit{print}\ \{r\})$ the call is not a value, so it stays as
+  written, a $\kw{let}$ (\pref{p:let}), and runs once. A variable is a value because it stands for one.
+  \begin{subpoints}
+  \item\label{p:call} A call to a function, such as $g.\mathit{print}\ \{r\}$ (Section~\ref{sec:modules}),
+    is an effect too. Reduction never binds $g$: the linker connects it, so the call never
+    reduces. It is not a value, so \rn{E-Beta} never copies or drops it: a $\kw{let}$ (\pref{p:let}) keeps it where it is written.
+  \item A fixed point is a value: it has no effect, so copying it runs nothing twice, and it
+    unfolds only when it is used (\pref{p:fix}).
+  \end{subpoints}
+\item\label{p:opcode} A byte array applied to a term, $b\ t$, is an
+  opcode call: $b$ names the opcode and $t$ is its operand, mostly a struct of operands, as in
+  $\str{add}\ \{\str{i32}, a, b\}$. \rn{E-Opcode} computes the call when $\fn{op}(b)$ is
+  defined: \[\str{add}\ \{\str{i32}, \hex{02000000}, \hex{03000000}\} \step \hex{05000000}\]
+  \begin{subpoints}
+  \item $\fn{op}(b)$ is a partial function from opcode operands (row \pref{p:opdata}) to a closed term: a byte
+    array, as for $\str{add}$, or any closed term, as for an opcode that returns code.
+  \item\label{p:opcode-names}Opcode names: a name with no dot is an LLVM instruction's, as $\str{add}$, or the
+    region marker $\str{R}$ (\pref{p:anf}); a name $c.o$ belongs to the collection $c$: $\str{unit}$ for the unit
+    tools, as $\str{unit.merge}$, $\str{layout}$ for sizes, as $\str{layout.size}$ (\pref{p:sizes}), and $\str{driver}$ for the driver, as $\str{driver.read\_low}$. The verifier rejects an
+    unknown collection, or an unknown opcode of a known collection, where it is written.
+  \item The operand may be a byte array too: $\str{driver.read\_low}\ \str{c.oymo}$.
+  \item Effects include memory opcodes, such as $\str{alloca}$, $\str{load}$ and $\str{store}$.
+  \item Reduction has no memory: it never computes an address or the contents of
+    one, and it never runs a memory opcode. It never moves a term that is not a value either
+    (\pref{p:values}), so the order the program gives its effects survives into the normal form: in
+    \[\begin{array}{l}\kw{let}\ u = \str{store}\ \{\str{i32}, \hex{05000000}, p\}\ \kw{in} \\
+    \kw{let}\ x = \str{load}\ \{\str{i32}, p\}\ \kw{in} \\
+    t\end{array}\]
+    the $\str{store}$ stays outside the $\str{load}$, and a translation to SSA emits the $\str{store}$
+    first, so the $\str{load}$ reads $\hex{05000000}$. Using one's result in the next orders them too.
+  \item An operand is a value: copying or dropping it runs nothing. So an opcode never receives an
+    effect that has still to run, such as a $\str{store}$ call, which it could otherwise copy or drop.
+  \item The operand may hold closed lambdas and fixed points in normal form, such as a module's entries. An opcode may move, copy,
+    drop or read a lambda:
+    $\str{struct.concat}\ \{\{f = \lam{x}{x}\}, \{g = \lam{y}{y}\}\} \step \{f = \lam{x}{x},\ g = \lam{y}{y}\}$, and $\str{is\_identity}\ (\lam{x}{x}) \step \hex{01}$.
+  \item A lambda that is not yet normal is not yet an operand: $\str{is\_identity}\ (\lam{x}{(\lam{y}{y})\ x})$ waits
+    until the lambda reduces to $\lam{x}{x}$. Otherwise the result would depend on whether the opcode fires
+    before or after that step.
+  \item So an operand never steps. An opcode's result must not depend on the names of bound variables
+    ($\lam{x}{x}$ and $\lam{y}{y}$ are one term). Normal depends on $\fn{op}$: a lambda holding an opcode call
+    that $\fn{op}$ computes is not normal yet. Built-in functions
+    on closed normal operands keep a confluent calculus confluent (Mitschke's $\delta$-rules~\cite{barendregt1984}).
+  \item The result may hold lambdas but is closed, so substituting it captures no variable; it may
+    reduce further.
+  \item Otherwise the call does not reduce: an effect, undefined behavior, an unknown opcode, or an
+    operand that is not in $A$, such as a parameter $p.a$. With normal operands it is normal. A translation to SSA emits it as an instruction.
+    \end{subpoints}
+\item \rn{E-Proj} takes the field labeled $l$ (labels are unique): $\{x = a, b, y = c\}.x \step a$.
+  \begin{subpoints}
+  \item The other fields are discarded, even one with an effect:
+    $\{a = e, b = \hex{01}\}.b \step \hex{01}$. Reduction may
+    reduce $e$ or not, but $e$ is not in the normal form: it is dropped.
+  \item To run it, bind it first with a $\kw{let}$:
+    $(\lam{x}{\{a = x, b = \hex{01}\}.b})\ e$.
+    \end{subpoints}
+\item \rn{E-Index}: a struct applied to a byte array $b$, with $b < k$, selects the field at position $b$.
+  In $q = \{x = a, b, y = c\}$: $q\ \hex{00} = q.x = a$, $q\ \hex{01} = b$,
+  $q\ \hex{02} = q.y = c$. An unlabeled field is reached only by its position.
+  \begin{subpoints}
+    \item\label{p:branch} A branch is a struct applied to a condition that is not a byte array yet; when it
+    becomes one, \rn{E-Index} or \rn{E-Default} picks the arm.
+    $\{\mathit{false} = t_2, \mathit{true} = t_1\}\ c$ takes $t_1$ when $c$ is
+    not $0$ and $t_2$ when it is $0$.
+  \item With more fields it is a multi-way branch.
+  \item The labels only document the arms.
+  \item It keeps one arm and discards the others. Reduction
+    may reduce a discarded arm or not, but it does not contribute to the normal form.
+  \end{subpoints}
+\item \rn{E-Default}: past the last field, a byte array selects the last one, so the last field is
+  a default arm: $q\ \hex{05} = c$. The empty struct has no default (\pref{p:stuck}).
+\item\label{p:fix} A fixed point $\kw{fix}\ (\lam{x}{t})$ is recursion on any value, a struct
+  too: it stands for $t$, with $x$ standing for the fixed point itself.
+  \begin{subpoints}
+  \item It unfolds only when it is used: projected (\rn{E-FixProj}) or applied (\rn{E-FixApp}).
+    Each use unfolds it once, putting $\kw{fix}\ (\lam{x}{t})$ in for $x$; on its own it never
+    steps at the root.
+  \item On a struct: in $\kw{fix}\ (\lam{f}{\{l = \lam{p}{f.l\ p}\}})$, $f$ is the fixed point
+    itself, so $f.l$ unfolds it and takes the field $l$.
+  \item An unfolded copy holds the fixed point again, often under a lambda, where reduction may
+    unfold it again and again. Every path that ends gives the same
+    normal form (\pref{p:confluent}); a normal form holds a fixed point only where it is not used.
+  \item For example, with numbers in decimal standing for $\str{i32}$ byte arrays,
+    \[\begin{array}{l}F = \kw{fix}\ (\lam{f}{\lam{n}{\kw{if}\ \str{icmp}\ \{\str{eq}, \str{i32}, n, 0\}\ \kw{then}\ 1}} \\
+\qquad \kw{else}\ \str{mul}\ \{\str{i32}, n, f\ (\str{sub}\ \{\str{i32}, n, 1\})\})\end{array}\]
+    every path of $F\ 3$ that ends gives $6$. $F\ p.n$ has no normal form: recursion on an
+    unknown never stops. Recursion at run time goes through $g$ and regions (Section~\ref{sec:banf}).
+  \item For example, $\kw{fix}$ binds $g$ and regions to run an ingot by reduction (\pref{p:run-module}).
+  \end{subpoints}
+\end{points}
+
+%% ── Congruence ─────────────────────────────────────────────────────────
+
+\section{Reduction Anywhere}\label{sec:congruence}
+
+\begin{points}
+\item The congruence rules reduce a term inside it.
+\begin{rules}
+\rulerow{E-Abs}{t \step t'}{\lam{x}{t} \;\step\; \lam{x}{t'}}
+\rulerow{E-App1}{t_1 \step t_1'}{t_1\ t_2 \;\step\; t_1'\ t_2}
+\rulerow{E-App2}{t_2 \step t_2'}{t_1\ t_2 \;\step\; t_1\ t_2'}
+\rulerow{E-Struct}{t_i \step t_i'}
+  {\{\dots, l_i = t_i, \dots\} \;\step\; \{\dots, l_i = t_i', \dots\}}
+\rulerow{E-Proj1}{t \step t'}{t.l \;\step\; t'.l}
+\rulerow{E-Fix1}{t \step t'}{\kw{fix}\ t \;\step\; \kw{fix}\ t'}
+\end{rules}
+\item $\step$ is reduction anywhere: a rule of Section~\ref{sec:computation} may fire
+  anywhere, under a lambda, in a struct field (so in every arm of a branch) too.
+  A struct's fields are computed in no particular order.
+  $t \steps t'$ is zero or more $\step$ steps.
+\item\label{p:confluent} $\step$ is confluent: it is the call-by-value $\lambda$-calculus (Plotkin's $\lambda_v$~\cite{plotkin1975}) with reduction anywhere, with
+   structs, projection, branching and a fixed point (Church--Rosser~\cite{churchrosser1936}; projection is the usual record rule). The
+  proof is in Lean 4~\cite{moura2021}, in \texttt{proofs/}~\cite{oymoproofs} (theorem \texttt{Oymomo.confluence}), for
+  every opcode table $\fn{op}$.
+  \begin{subpoints}
+  \item Paths that end agree, even when other paths loop: if $t \steps n_1$ and $t \steps n_2$ with
+    both normal, confluence gives a $u$ with $n_1 \steps u$ and $n_2 \steps u$; a normal form has
+    no step, so $n_1 = u = n_2$. Looping paths don't matter: confluence never asks every
+    path to end.
+    $\kw{fix}$ adds \rn{E-FixProj}, \rn{E-FixApp} and \rn{E-Fix1} (\pref{p:fix}); the proof covers them.
+  \item Confluence is what lets programs be combined. For two programs $A$ and $B$ merged as
+    $A\ B$: reducing $A$ and $B$ first, $A \steps A'$ and $B \steps B'$, and then $A\ B$ is one of the orders of $A\ B$
+    (\rn{E-App1}, \rn{E-App2}: $A\ B \steps A'\ B'$), so it reaches the same normal form as applying first. Merging never binds a
+    module's $g$ (\pref{p:call}), so a call between $A$ and $B$ is never inlined.
+    \end{subpoints}
+\end{points}
+\begin{points}
+\item\label{p:normal} A normal form is a term with no step. By confluence (\pref{p:confluent}), a term has at most one.
+\item\label{p:stuck} A normal form is stuck when it contains a part that no substitution can make
+  reduce, such as $\{\}\ t$, or $t.l$ where $t$ is a lambda, or $\kw{fix}\ t$ where $t$ is a byte array or a struct. A
+  program $t$ with $t \steps t'$ for a stuck $t'$ is rejected.
+\item\label{p:forms} A normal form that is not stuck is valid. An unknown opcode or undefined behavior is not stuck: the call is normal (\pref{p:opcode}). A normal form is in ANF (Section~\ref{sec:banf}) or
+  not; only one in ANF is translated. $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$
+  is normal but not in ANF; written with a  $\kw{let}$ for the $\str{mul}$, it is.
+\end{points}
+
+
+%% ── ANF and Strategy ─────────────────────────────────────────────────
+
+\section{Strategy}\label{sec:strategy}
+
+\begin{points}
+\item\label{p:strategy} If a term has a normal form, any order of steps that ends reaches it
+  (\pref{p:confluent}).
+\item\label{p:order} This order is one way. Each row matches a shape and chooses either a rule of
+  Section~\ref{sec:computation}, which fires at the root, or a part of the term, which takes the next step
+  by the rule of Section~\ref{sec:congruence} shown; the order defines no rule of its own. Rows are tried top to bottom, and a part is chosen only when it has a step.
+  A term matches rows of only one group (projection, application, struct, lambda, fixed point), so only the
+  order within a group matters.
+\[
+\begin{array}{l@{\quad}l@{\quad}l}
+ & \textit{shape} & \textit{choose} \\ \hline
+\pt & \{l_i = t_i\}_{i<k}.l \quad l_j = l & \rn{E-Proj} \\
+\pt & (\kw{fix}\ (\lam{x}{t})).l & \rn{E-FixProj} \\
+\pt\plabel{p:order-proj} & t.l & \rn{E-Proj1}\text{ on }t \\
+\pt & (\lam{x}{t_1})\ v & \rn{E-Beta} \\
+\pt\plabel{p:order-arg} & (\lam{x}{t_1})\ t_2 & \rn{E-App2}\text{ on }t_2 \\
+\pt & (\kw{fix}\ (\lam{x}{t_1}))\ t_2 & \rn{E-FixApp} \\
+\pt & b\ A \quad \fn{op}(b)(A) = t & \rn{E-Opcode} \\
+\pt & \{l_i = t_i\}_{i<k}\ b \quad b < k & \rn{E-Index} \\
+\pt & \{l_i = t_i\}_{i<k}\ b \quad 0 < k \le b & \rn{E-Default} \\
+\pt\plabel{p:order-cond} & \{l_i = t_i\}_{i<k}\ t & \rn{E-App2}\text{ on }t \\
+\pt & t_1\ t_2 & \rn{E-App1}\text{ on }t_1 \\
+\pt & t_1\ t_2 & \rn{E-App2}\text{ on }t_2 \\
+\pt\plabel{p:order-field} & \{l_i = t_i\}_{i<k} & \rn{E-Struct}\text{ on the first } t_i \text{ not a value} \text{ with a step} \\
+\pt & \{l_i = t_i\}_{i<k} & \rn{E-Struct}\text{ on the first } t_i \text{ with a step} \\
+\pt\plabel{p:order-lam} & \lam{x}{t} & \rn{E-Abs}\text{ on }t \\
+\pt & \kw{fix}\ t & \rn{E-Fix1}\text{ on }t
+\end{array}
+\]
+\item What the order gives:
+  \begin{subpoints}
+  \item A projected term is reduced before its fields (row \pref{p:order-proj}); \rn{E-Proj} keeps one
+    field and the others are never reduced.
+  \item An argument is reduced to a value before the function's body (row \pref{p:order-arg}).
+  \item A branch's condition is reduced before its arms (row \pref{p:order-cond}); when it is a byte array,
+    \rn{E-Index} or \rn{E-Default} keeps one arm and the others are never reduced.
+  \item The order goes under a lambda only when nothing outside it can step (row \pref{p:order-lam}), so a fixed point inside a lambda unfolds only
+    when nothing outside can step (\pref{p:fix}). In a
+    struct, a field that is not a value is reduced before a field that is (row \pref{p:order-field}):
+    $(\lam{x}{x.g})\ \{f = \lam{u}{\Omega}, g = (\lam{y}{y})\ \hex{01}\}$ reduces $g$ and never enters $\lam{u}{\Omega}$.
+  \end{subpoints}
+\item Each step of this order is a $\step$ step, and when no row applies the term has no step
+  (completeness), so when the order ends, it ends in the normal form (\pref{p:normal}). If a term has a
+  normal form, the order reaches it (guarantee). Both are part of the goal (\pref{p:goal-strategy}). In Lean 4, in \texttt{proofs/}~\cite{oymoproofs}, the order is a relation with one rule per row of the table;
+  each rule says that the row's shape matches, that the chosen part has a step, and that no
+  earlier row of its group applies. Completeness and the guarantee matter for an implementation that follows
+  this order: it never stops early, and it never loops when a normal form exists.
+  \begin{subpoints}
+  \item Soundness (theorem \texttt{Oymomo.sstep\_step}): each step of the order is a $\step$ step, so the
+    order defines no rule of its own. Each row's rule is a rule of Section~\ref{sec:computation} or~\ref{sec:congruence}.
+  \item Completeness (theorem \texttt{Oymomo.sstep\_complete}): if a term has a $\step$ step, the order chooses
+    one. The proof goes by the shape of the term: a rule at the root is a row of its own, and
+    otherwise the step is inside a part, which the order reaches by the rows that choose a part.
+  \item Determinism (theorem \texttt{Oymomo.sstep\_det}): the order chooses at most one step, since the rows of
+    a group exclude each other. With completeness, every term with a step gets exactly one choice.
+  \item Guarantee (theorem \texttt{Oymomo.guarantee}): if some steps lead from $t$ to a normal form $n$,
+    the order leads from $t$ to $n$ too, so it never loops when a normal form exists. The proof shows that a
+    step the order does not choose can always wait: taking the order's step first still reaches $n$.
+  \end{subpoints}
+\end{points}
+
+%% ── ANF and Functions ────────────────────────────────────────────────
+
+\section{ANF and Functions}\label{sec:banf}
+
+\begin{points}
+\item\label{p:definition} A function's body has three layers:
+  \begin{subpoints}
+  \item The body is $\lam{g}{\lam{p}{R}}$: $g$ is the unit, its symbols and its dependencies (Section~\ref{sec:modules}),
+    and $p$ holds the arguments.
+  \item $R$ is a region: labeled blocks that may jump to each other and to themselves, entered by the code in
+    its field $0$.
+  \item A block is a list of $\kw{let}$s, one per instruction, ending in a terminal: a return, a jump, a branch, or a
+    nested region. This is ANF.
+  \end{subpoints}
+\item\label{p:gcd-body} For example, the body of Euclid's $\gcd$, with the sugar of \pref{p:if}:
+  \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
+@vlamg. @vlamp. 'R' (@vlamr. {
+  entry = r.loop p.a p.b,
+  loop = @vlama. @vlamb.
+    let z = 'icmp' {'eq', 'i32', b, [00000000]} in
+    'R' (@vlamq. {
+      if z then r.done a else q.step,
+      step = let c = 'urem' {'i32', a, b} in r.loop b c
+    }),
+  done = @vlamc. c
+})
+\end{Verbatim}
+  \begin{subpoints}
+  \item The body's region $r$ has the blocks $\mathit{entry}$, $\mathit{loop}$ and $\mathit{done}$; $\mathit{entry}$ runs first.
+  \item $r.\mathit{loop}\ p.a\ p.b$ jumps to $\mathit{loop}$, passing $p.a$ and $p.b$ for its parameters $a$ and $b$.
+  \item $\mathit{loop}$ ends in a nested region $q$. Its field $0$ continues $\mathit{loop}$ after the $\kw{let}$ and branches; $\mathit{step}$ is a
+    new block.
+  \item $\mathit{step}$ uses $a$ and $b$ without being passed them: a block sees the variables bound before its region.
+  \end{subpoints}
+\item\label{p:anf} The grammar. Every variable is written $x$: the grammar does not tell variables apart; the
+  verifier does, by their kinds (\pref{p:kinds}).
+\[
+\begin{array}{l@{\quad}rcll}
+\pt\plabel{p:path} & P & ::= & x \mid P.l & \textit{path} \\
+\pt & O & ::= & P \mid b & \textit{operator} \\
+\pt\plabel{p:operand} & Q & ::= & P \mid b \mid \{l_i = Q_i\}_{i<k} & \textit{operand} \\
+\pt & J & ::= & P\ Q_1 \cdots Q_n & \textit{jump} \\
+\pt & T & ::= & Q \mid J \mid \{J_i\}_{i<k}\ P \mid R & \textit{terminal} \\
+\pt & E & ::= & \kw{let}\ x = O\ \{l_i = Q_i\}_{i<k}\ \kw{in}\ E \mid T & \textit{expression} \\
+\pt & K & ::= & E \mid \lam{x_1}{\cdots \lam{x_n}{E}},\ 0 < n & \textit{block} \\
+\pt & R & ::= & \str{R}\ (\lam{x}{\{l_i = K_i\}_{i<k}}),\ 0 < k & \textit{region}
+\end{array}
+\]
+\item What each class is:
+  \begin{subpoints}
+  \item $P$: a path is a variable followed by labels: $p.a$, $g.\mathit{gcd}$, $r.\mathit{loop}$.
+  \item $O$: an operator is a path to a function (a symbol $g.l$, or an argument or value that holds a function's
+    address, \pref{p:calls}), or an opcode $b$. Applied to the struct of its operands,
+    $O\ \{l_i = Q_i\}_{i<k}$ is an instruction: a call (\pref{p:calls}), or an opcode call that \rn{E-Opcode} does not
+    compute (\pref{p:opcode}). The struct only lists the operands: no struct is built at run time, and a struct value is never an operator's argument as a whole.
+  \item\label{p:predef} $Q$: an operand is a path, a byte array, or a struct of operands.
+    A path to a symbol is its address, so $\str{load}\ \{\str{i32}, g.\mathit{counter}\}$ reads a global variable.
+    A \emph{predef} is an operand fixed before the program runs: its only paths are symbol addresses $g.l_1 \cdots l_n$,
+    which the linker fixes. A struct operand is a predef (\pref{p:kinds}), such as a type or $\{g.\mathit{hello}, \hex{01}\}$.
+  \item $J$: a jump $P\ Q_1 \cdots Q_n$ goes to the block $P$ with one operand for each of its parameters.
+  \item $T$: a terminal is a return $Q$, a jump $J$, a branch $\{J_i\}_{i<k}\ P$ whose arms only jump, or a region $R$.
+  \item $E$: an expression is the $\kw{let}$s of one block, up to its terminal.
+  \item $K$: a block is an expression, or $\lambda$s taking its parameters one by one.
+  \item $R$: a region $\str{R}\ (\lam{r}{\{l_i = K_i\}_{i<k}})$ names its blocks: $r.l_i$ is $K_i$. $\str{R}$ is a marker: an opcode that no opcode table computes, so the call never
+    steps (\pref{p:opcode}), and a region does not reduce. To run, $\str{unit.make\_reducible}$ turns it into
+    $(\kw{fix}\ (\lam{r}{\dots}))\ \hex{00}$ (\pref{p:run-module}).
+  \end{subpoints}
+\item\label{p:top-group} Field $0$ of a region is an expression, never a $\lambda$; a region is entered at field $0$:
+  \begin{subpoints}
+  \item In the body's region it is the entry block, as $\mathit{entry}$ in \pref{p:gcd-body}.
+  \item In a nested region it continues the block the region ends; the region's other fields
+    are new blocks.
+  \item Its label is free: it may have any label or none. No jump goes to it, labeled or not: a
+    jump to field $0$ is rejected, so the translation never adds a block (\pref{p:one-to-one}); a loop head is a
+    block of its own, as $\mathit{entry} = r.\mathit{loop},\ \mathit{loop} = \dots$
+  \item The other fields are labeled, so that a jump can name them.
+  \end{subpoints}
+\item\label{p:kinds} Each variable has a kind, given by its binder. The verifier checks every use against the
+  kind and rejects the others:
+\[
+\begin{array}{l@{\quad}lll}
+ & \textit{kind} & \textit{bound by} & \textit{used as} \\ \hline
+\pt & \textit{unit} & \text{the body's 1st } \lambda,\ g & g.l_1 \cdots l_n\text{: operator, operand, address in a predef} \\
+\pt & \textit{arguments} & \text{the body's 2nd } \lambda,\ p & p.l,\ l \text{ a parameter: operand, condition, operator} \\
+\pt & \textit{region} & \text{a region's } \lambda,\ r & r.l,\ l \text{ a block: head of a jump} \\
+\pt & \textit{value} & \kw{let},\ \text{a block's } \lambda & x\text{: operand, condition, operator}
+\end{array}
+\]
+  \begin{subpoints}
+  \item $g.l_1 \cdots l_n$: a path from the ingot's top, through its namespaces, to an entry
+    (\pref{p:module}); it is an operator when the entry is a function, and otherwise an operand, its address. Any other use of $g$, such as $g\ b$, is rejected.
+  \item $r.l$: a jump to the block $l$ passes exactly as many operands as $l$ has parameters.
+  \item $p.l$ or $x$ heads a call only when its type is a function type (\pref{p:fn-value-type}): an indirect call
+    (\pref{p:indirect}).
+  \item $x$: a value has no fields, so $x.l$ is rejected; a field of a struct value is read with an
+    opcode (\pref{p:struct-values}).
+  \item Inside a struct operand, a path is a symbol address $g.l_1 \cdots l_n$: $p.l$, $r.l$ or a value $x$ there is
+    rejected, since a struct value is built from run-time values with $\str{insertvalue}$ (\pref{p:struct-values}).
+  \item A path alone as a terminal is a jump when its head is a region, and a return otherwise.
+  \end{subpoints}
+\item\label{p:groups} Where a variable is seen:
+  \begin{subpoints}
+  \item $g$ and $p$: in the whole body.
+  \item A region's $r$: in all of its fields, so its blocks may jump to each other and to themselves.
+  \item A $\kw{let}$'s $x$: in the rest of its block. A block's parameters: in the block.
+  \item So a block sees the variables bound before its region: the block runs only after that code, and
+    nested regions give dominance.
+  \end{subpoints}
+\item\label{p:calls} A call is $P\ \{Q_i\}_{i<k}$: one operand for each parameter of the function, in order. A label
+  may be written; it must be the label of the parameter at its position. So these are one call:
+  \[g.\mathit{gcd}\ \{\hex{30000000}, \hex{12000000}\} \qquad g.\mathit{gcd}\ \{a = \hex{30000000}, b = \hex{12000000}\}\]
+  \begin{subpoints}
+  \item A direct call names the function: $P$ is $g.l$, and the function's type is its entry's.
+  \item\label{p:indirect}An indirect call goes through an address held at run time: $P$ is an argument $p.l$ or a value $x$
+    whose type is a function type (\pref{p:fn-value-type}). The parameter $\mathit{cmp}$ of $\mathit{sort}$ holds a
+    function, and the body calls it:
+\begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
+sort = {type = {'function', {xs = 'ptr', n = 'i32',
+                             cmp = {'function', {a = 'i32', b = 'i32'}, 'i32'}},
+                'void'},
+        body = @vlamg. @vlamp. @ldots let c = p.cmp {x, z} in @ldots}
+\end{Verbatim}
+  \item A call that ends a function is bound and returned: $\kw{let}\ y = g.f\ \{\dots\}\ \kw{in}\ y$.
+  \item A path to a function that is not called is the function's address: a value whose type is the function's
+    type. So $g.\mathit{sort}\ \{\mathit{buf}, \hex{0a000000}, g.\mathit{asc}\}$ passes $\mathit{asc}$ to $\mathit{sort}$.
+  \item A function held as a value is only an entry's address: a $\lambda$ is never a value at run time, so a
+    function never captures a local variable. A frontend that needs a closure builds it as a struct of an address
+    and a pointer to the captured variables, which it allocates itself.
+  \end{subpoints}
+\item\label{p:struct-values} A struct value, such as a $\str{load}$ of a struct type, is read and built
+  with opcodes, with positions for indices:
+  \[\begin{array}{l}\kw{let}\ s_1 = \str{insertvalue}\ \{\{\str{i8}, \str{i32}\}, \{\hex{00}, \hex{00000000}\}, p.a, \hex{00}\}\ \kw{in} \\
+    \kw{let}\ s_2 = \str{insertvalue}\ \{\{\str{i8}, \str{i32}\}, s_1, w, \hex{01}\}\ \kw{in} \\
+    \kw{let}\ y = \str{extractvalue}\ \{\{\str{i8}, \str{i32}\}, s_2, \hex{01}\}\ \kw{in}\ \dots\end{array}\]
+\item\label{p:anf-rules} What ANF rules out, so that each part is one instruction:
+  \begin{subpoints}
+  \item No nested instruction: $\str{add}\ \{\str{i32}, \str{mul}\ \{\dots\}, x\}$ is normal (\pref{p:forms}) but not in
+    ANF. The fix is the program's: bind the $\str{mul}$ with a $\kw{let}$. No rule lifts it.
+  \item No nested $\kw{let}$ and no branch as a value: the arms of a branch only jump.
+  \item No struct value built from parts that are not constants: a struct operand is a predef (\pref{p:predef}), so $\{p.a, \hex{01}\}$ as an operand is rejected. A struct value is built from run-time parts one
+    field at a time, starting from a predef, with $\str{insertvalue}$ (\pref{p:struct-values}):
+    $\{p.a, \hex{01}\}$ is $\str{insertvalue}$ of $p.a$ into $\{\hex{00000000}, \hex{01}\}$ at position $\hex{00}$.
+  \item Oymomo has no lifting rule, no rule that moves a nested instruction or a nested $\kw{let}$ out into
+    a $\kw{let}$ of its own. Lifting is a convenience, not a requirement: a frontend or a sugar can write ANF
+    directly, and the translation never needs it. Oymomo is kept as small as possible.
+  \end{subpoints}
+\item\label{p:anf-normal} A body is a normal form (\pref{p:normal}), as Goal \pref{p:goal-banf} asks:
+  \begin{subpoints}
+  \item An instruction is not a value, so \rn{E-Beta} never fires on its $\kw{let}$.
+  \item A path or a jump has a variable at its head, and an operand is never applied or projected, so no
+    other rule fires at them.
+  \item A branch applies a struct to a path, never to a byte array, so \rn{E-Index} and \rn{E-Default} don't fire.
+  \item A region is an opcode call that never steps, $\str{R}\ (\lam{r}{\dots})$, so it doesn't reduce.
+  \item The proof is in Lean 4, in \texttt{proofs/}~\cite{oymoproofs} (theorem \texttt{Oymomo.anf\_normal}), regions included.
+  \end{subpoints}
+\end{points}
+
+%% ── Ingots ───────────────────────────────────────────────────────────
+
+\section{Ingots}\label{sec:modules}
+
+\begin{points}
+\item\label{p:module} An ingot is a module in a fixed shape that can be translated to SSA: one ingot is one
+  compilation unit. Each layer of a program (\pref{p:one-or-two}) reduces to an ingot; only an ingot is translated.
+  \[N ::= \{l_i = E_i\}_{i<k},\ l_i \ne \mathit{type} \qquad E ::= e \mid N\]
+\item\label{p:gcd} For example, an ingot with $\gcd$ (its body is \pref{p:gcd-body}) and $\mathit{main}$:
+  \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
+{ math = { gcd = {type = {'function', {a = 'i32', b = 'i32'}, 'i32'},
+                  body = @vlamg. @vlamp. 'R' (@vlamr. { @ldots })}},
+  main = {type = {'function', {}, 'i32'},
+          body = @vlamg. @vlamp. 'R' (@vlamr. {
+            entry = let y = g.math.gcd {a = [30000000], b = [12000000]} in y
+          }),
+          link = 'main'} }
+\end{Verbatim}
+\item The fields:
+  \begin{subpoints}
+  \item An ingot is a namespace $N$: a struct each of whose fields is an
+    entry $e$ (a symbol the ingot defines or uses) or a namespace again, so an ingot and the namespaces in
+    it have one shape.
+  \item A struct with a $\mathit{type}$ field is an entry; any other struct is a namespace. Every entry has a
+    $\mathit{type}$ (\pref{p:entry-kind}), so no symbol may be labeled $\mathit{type}$; an entry's other fields are
+    among $\mathit{body}$, $\mathit{init}$, $\mathit{value}$ and $\mathit{link}$, and any other field is rejected. A symbol
+    defined in another ingot is a declaration (\pref{p:entry-kind}).
+  \item After reduction an ingot holds only namespaces and entries; anything else, such as a lambda left
+    by reduce-time code, is rejected.
+  \item An ingot has no version and no target: it is made and translated by the same compiler, and
+    the platform reaches the translation from outside. An ingot is the same for every platform.
+  \item Each entry is closed: its body names other symbols only through paths from $g$ (\pref{p:kinds}), so a source
+    language lowers each of its items to one entry on its own.
+  \end{subpoints}
+\item\label{p:entry-kind} An entry is a struct with a $\mathit{type}$ and at most one of
+  $\mathit{body}$, $\mathit{init}$, $\mathit{value}$; that field gives its kind:
+\[
+\begin{array}{l@{\quad}l@{\quad}l@{\quad}l}
+ & \textit{fields} & \textit{kind} & \textit{type} \\ \hline
+\pt & \mathit{type}, \mathit{body} & \textit{definition} & \{\str{function}, \{x_i = t_i\}_{i<k}, t\} \\
+\pt & \mathit{type}, \mathit{init} & \textit{global variable} & \text{a type, read by the translation (\pref{p:types})} \\
+\pt & \mathit{type}, \mathit{value} & \textit{constant} & \text{a type} \\
+\pt & \mathit{type}, \mathit{link} & \textit{declaration} & \text{either} \\
+\pt & \mathit{type} & \textit{hole} & \text{either}
+\end{array}
+\]
+  \begin{subpoints}
+  \item A definition's $\mathit{body}$ is a function's body (Section~\ref{sec:banf}).
+  \item A function's type holds its parameters' types, in order, and its result type:
+    $\mathit{puts} = \{\mathit{type} = \{\str{function}, \{s = \str{ptr}\}, \str{i32}\},\ \mathit{link} = \str{puts}\}$ declares $\mathit{puts}$.
+  \item A function takes exactly its parameters; there are no variable arguments (C's $\kw{...}$). Data of
+    variable size is passed as a pointer and a length: $\{\mathit{data} = \str{ptr},\ \mathit{len} = \str{i64}\}$.
+  \item A declaration is a function, global variable or constant that another ingot defines.
+  \end{subpoints}
+\item\label{p:linkage} Each entry has a linkage, given by an optional field $\mathit{link} = b$, a byte array that names the symbol for the linker; the
+  entry's kind gives the direction:
+  \begin{subpoints}
+  \item A definition, global variable or constant with $\mathit{link} = b$: other ingots may use it, under the name $b$.
+  \item A declaration with $\mathit{link} = b$: the symbol named $b$ in another ingot. Every declaration has
+    it; one without is rejected.
+  \item No $\mathit{link}$: the symbol is internal, seen only inside its ingot. This is the default, so the helpers of two
+    ingots, such as two $\gcd$s, never clash.
+  \item The linker's name is apart from the label: $\{\mathit{say} = \{\mathit{type} = \dots,\ \mathit{link} = \str{puts}\}\}$ is
+    reached as $g.\mathit{say}$ and linked to $\mathit{puts}$; so a label can be renamed without changing what is linked.
+  \item Link names are opaque to the ingot: nothing inside it reads them, so changing them changes no
+    reduction; they are for the system linker only.
+  \item Linkage is part of the term, as it changes what a program means: whether two ingots link or clash.
+  \item Reduction ignores $\mathit{link}$ (\pref{p:run-module}); only the translation reads it (\pref{p:symbols-llvm}).
+  \end{subpoints}
+\item\label{p:hole} A hole is an entry with only a $\mathit{type}$: a symbol the ingot needs and does not yet have.
+  \begin{subpoints}
+  \item Code that builds the ingot fills it with an entry of the same type that brings a $\mathit{body}$ (a
+    definition) or a $\mathit{link}$ (a declaration), for example a definition that forwards a call:
+    $\{\mathit{type} = \dots,\ \mathit{body} = \lam{g}{\lam{p}{g.\mathit{parser}.\mathit{report}\ p}}\}$.
+  \item A hole left in the ingot is rejected.
+  \end{subpoints}
+\item\label{p:init} An $\mathit{init}$ or a $\mathit{value}$ is a predef with no path (\pref{p:predef}) of the entry's type:
+  $\{\mathit{type} = \str{i32},\ \mathit{init} = \hex{29000000}\}$.
+  Or it is $\lam{g}{C}$, with $C$ a predef: the $\lambda g$ binds the unit, as in a body, so $C$ may hold symbol
+  addresses, and nothing else is free in it:
+  \[\{\mathit{type} = \{\str{array}, \hex{02}, \str{ptr}\},\ \mathit{value} = \lam{g}{\{g.\mathit{hello}, g.\mathit{bye}\}}\}\]
+How a predef initializes each type belongs to the translation (\pref{p:init-llvm}).
+\item\label{p:run-module} A unit also runs by reduction, as a test does. The opcode $\str{unit.make\_reducible}$ takes an ingot $I$ and gives
+  $t = \lam{g}{N}$, where $N$ has $I$'s namespaces and:
+  \begin{subpoints}
+  \item each definition with body $\lam{g}{\lam{p}{R}}$ becomes $\lam{p}{R'}$: its own $\lambda g$ moves out to $t$'s,
+    and $R'$ is $R$ with every region $\str{R}\ (\lam{r}{u})$ turned into $(\kw{fix}\ (\lam{r}{u}))\ \hex{00}$;
+  \item an $\mathit{init}$ or a $\mathit{value}$ $\lam{g}{C}$ becomes $C$: its $\lambda g$ moves out to $t$'s too;
+  \item every other entry part stays as it is.
+  \end{subpoints}
+  The instance is $\kw{fix}\ t$. Code that needs other units first merges them in, so that each
+  declaration meets its definition (\pref{p:merge}), then makes the result reducible:
+  \[\kw{fix}\ (\str{unit.make\_reducible}\ (\str{unit.merge}\ \{I, U\}))\]
+  \begin{subpoints}
+  \item $(\kw{fix}\ (\lam{r}{u}))\ \hex{00}$ runs field $0$ of $u$ with $r$ bound to
+    its own blocks (\rn{E-FixApp}, \rn{E-Index}), and a jump $r.l\ Q_1 \cdots Q_n$ takes the block $l$ and applies it.
+  \item Projecting a definition unfolds the instance (\rn{E-FixProj}), so a call runs the body, and a call
+    $g.f_j\ \{\dots\}$ inside it reaches the instance again.
+  \item A function passed as a value runs too: in $g.\mathit{sort}\ \{\mathit{xs} = \mathit{buf}, n = \hex{0a000000}, \mathit{cmp} = g.\mathit{asc}\}$ the
+    instance's $\mathit{asc}$ is passed, and $p.\mathit{cmp}\ \{a = x, b = z\}$ inside $\mathit{sort}$ applies it, when $\mathit{asc}$'s parameters are $a$
+    and $b$. An address read from memory, as by a $\str{load}$, waits for run time.
+  \item Reduction reads an argument by its label ($p.a$ is \rn{E-Proj}), while a call passes its operands by position
+    (\pref{p:calls}). So a call runs by reduction only when it writes the labels of the function it reaches:
+    $g.\mathit{gcd}\ \{\hex{30000000}, \hex{12000000}\}$, or $p.\mathit{cmp}\ \{a = x, b = z\}$ reaching an $\mathit{asc}$ whose
+    parameters are $x$ and $y$, leaves a projection that has no field, which is stuck. Compiled, both are correct: the
+    translation passes arguments by position.
+  \item A filled declaration is reached as $g.n$, as the unit's own symbols are.
+  \item User code instantiates modules in dependency order and passes them by name (\pref{p:merge}),
+    so each gets one instance of each module below it; in a diamond, both sides share one instance.
+  \item With the ingot of \pref{p:gcd}, the instance's $\mathit{math}.\mathit{gcd}$ reduces to $\hex{06000000}$
+    when called on $\{a = \hex{30000000}, b = \hex{12000000}\}$.
+  \item An opcode that \rn{E-Opcode} does not compute, such as $\str{load}$, stays in the result, waiting for
+    run time.
+  \end{subpoints}
+\item\label{p:merge} Modules are combined by user code; this document gives no rule for it:
+  \begin{subpoints}
+  \item To compile, each module is its own ingot, and the system linker joins them by name: a declaration's
+    $\mathit{link}$ to a definition's $\mathit{link}$ of the same name in another ingot.
+  \item User code may also build one ingot from several files with opcodes (E-Opcode): it may merge them,
+    so that namespaces with the same label combine, and it may move one under a new label, adding the label
+    to every path from $g$ in its bodies, which are in normal form (\pref{p:opcode}).
+  \end{subpoints}
+\end{points}
+
+%% ── LLVM ─────────────────────────────────────────────────────────────
+
+\section{LLVM Translation}\label{sec:llvm}
+
+\begin{points}
+\item\label{p:llvm-module} LLVM IR is one SSA form. One ingot becomes one LLVM module. The translation mostly only reads the ingot (\pref{p:one-to-one}):
+  an ingot is written in the shape LLVM wants.
+\item\label{p:types}
+  Oymomo has no types and no type checking: it is an untyped $\lambda$-calculus. An LLVM type is an
+  ordinary term that only an opcode or an entry reads, as an operand: $\str{add}\ \{\str{i32}, a, b\}$ is LLVM's
+  $\kw{add\ i32}\ a, b$.
+  A type is a predef with no path (\pref{p:predef}) of one of these shapes, with $t_i$ types and $n$ a byte array read as a number:
+  \begin{subpoints}
+  \item $\str{i}N$, such as $\str{i1}$, $\str{i8}$ or $\str{i32}$: LLVM's integer type $\kw{i}N$.
+  \item $\str{ptr}$: LLVM's opaque pointer.
+  \item $\str{half}$, $\str{bfloat}$, $\str{float}$, $\str{double}$, $\str{fp128}$, $\str{x86\_fp80}$, $\str{ppc\_fp128}$: LLVM's
+    floating-point types of the same names.
+  \item $\str{void}$: LLVM's $\kw{void}$, only as a function's result type; anywhere else it is rejected. Its one value is
+    $\hex{}$, the byte array of $0$ bytes.
+  \item $\{l_i = t_i\}_{i<k}$: LLVM's struct $\{t_0, \dots, t_{k-1}\}$. The labels only name the fields.
+  \item $\{\str{array}, n, t\}$ and $\{\str{vector}, n, t\}$: LLVM's $[n \times t]$ and $\langle n \times t\rangle$.
+  \item $\{\str{packed}, t_0, \dots, t_{k-1}\}$: LLVM's packed struct $\langle\{t_0, \dots, t_{k-1}\}\rangle$.
+  \item\label{p:fn-value-type}$\{\str{function}, \{x_i = t_i\}_{i<k}, t\}$ as a value's type: LLVM's $\str{ptr}$, holding the address of a
+    function of that type, as C's $\kw{int\ (*)(int,\ int)}$. A call through the value (\pref{p:indirect}) reads its
+    parameters and result from it. As in LLVM it is a $\str{ptr}$, so it fits wherever a $\str{ptr}$ or another function
+    type does, and $g.\mathit{asc}$ may be passed for $\mathit{cmp}$ whatever $\mathit{asc}$'s labels are.
+  \item A struct whose field $0$ is $\str{array}$, $\str{vector}$, $\str{packed}$ or $\str{function}$ is read by these
+    shapes or as a function's type (\pref{p:entry-kind}), never as a plain struct.
+  \end{subpoints}
+\item\label{p:bytes-type} A byte array has no type of its own either: it takes the type its use needs: the
+  opcode's type operand, the parameter it is passed to, the result type of the function it returns from, or
+  the $\mathit{type}$ of the entry it initializes. As an $\str{i}N$ it has $\lceil N/8 \rceil$ bytes:
+  $\str{add}\ \{\str{i32}, \hex{01000000}, p.a\}$, never $\hex{01}$.
+  \begin{subpoints}
+  \item A count or index of $\str{alloca}$ or $\str{getelementptr}$ has no type operand: a byte array of $8$ bytes there is an
+    $\str{i64}$, any other an $\str{i32}$.
+  \item \label{p:bytes-length}Sometimes no use gives a byte array a type. Then its length gives one: $1$ byte is an
+    $\str{i8}$, $2$ bytes an $\str{i16}$, $4$ bytes an $\str{i32}$ and $8$ bytes an $\str{i64}$. Any other length is rejected.
+  \item Only a branch condition names no type. Here $c$ is only a condition, and it receives $\hex{03000000}$, which
+    has $4$ bytes, so $c$ is an $\str{i32}$ (\pref{p:infer}):
+    \[\mathit{entry} = r.\mathit{check}\ \hex{03000000},\quad \mathit{check} = \lam{c}{\{r.a, r.b, r.c\}\ c}\]
+  \item Reduction needs this too. It computes an opcode and keeps only the bytes:
+    \[\kw{let}\ y = \str{add}\ \{\str{i32}, \hex{01000000}, \hex{02000000}\}\ \kw{in}\ r.\mathit{check}\ y\]
+    reduces to $r.\mathit{check}\ \hex{03000000}$. The $\str{i32}$ is gone, but the $4$ bytes give it back.
+  \item A floating-point value, of any floating-point type ($\str{half}$, $\str{float}$, $\str{double}$ and the others), never
+    needs this: it is never a condition. It is compared first, which gives an $\str{i1}$.
+  \item An ordinary $\kw{if}$ does not change: its condition comes from an $\str{icmp}$, which gives an $\str{i1}$, so
+    it becomes a $\kw{br\ i1}$. Only a condition typed by its length is different: a one-byte one is an $\str{i8}$, and a
+    branch on it becomes a $\kw{switch}$ (\pref{p:one-to-one}), with the same meaning.
+  \item As a floating-point type it has the type's size in bytes ($2$ for $\str{half}$, $4$ for $\str{float}$, $8$ for
+    $\str{double}$, $10$ for $\str{x86\_fp80}$, $16$ for $\str{fp128}$ and $\str{ppc\_fp128}$), holding its bits, least significant byte
+    first, as numbers are: $1.0$ as a $\str{float}$ is $\hex{0000803F}$.
+  \end{subpoints}
+\item\label{p:void} A function whose result type is $\str{void}$ returns $\hex{}$:
+  \begin{subpoints}
+  \item Its body returns $\hex{}$, written as such, which becomes $\kw{ret\ void}$; any other returned operand is rejected.
+  \item A call of it, $\kw{let}\ u = g.f\ \{\dots\}\ \kw{in}\ \dots$, becomes $\kw{call\ void\ @f(\dots)}$ with no result; a use of $u$ is rejected.
+    So does an indirect call through a value whose function type has the result type $\str{void}$.
+  \end{subpoints}
+\item\label{p:sizes}Sizes depend on the platform, and an ingot is the same for every platform (\pref{p:module}), so
+  oymomo never computes one. $\str{layout.size}\ \{t\}$, $\str{layout.offset}\ \{t, i\}$ and $\str{layout.align}\ \{t\}$
+  are opcodes that no opcode table computes; the translation writes each as LLVM's constant expression, an
+  $\str{i64}$ that the compiler folds for its target:
+  \begin{subpoints}
+  \item $\str{layout.size}\ \{t\}$ becomes $\kw{ptrtoint}\ (\kw{ptr\ getelementptr}\ (t, \kw{ptr\ null}, \kw{i32}\ 1)\ \kw{to\ i64})$:
+    the address of element $1$ of an array of $t$ at address $0$.
+  \item $\str{layout.offset}\ \{t, i\}$, with $t$ a struct type and $i$ a field's position, becomes the same with
+    $\kw{getelementptr}\ (t, \kw{ptr\ null}, \kw{i32}\ 0, \kw{i32}\ i)$.
+  \item $\str{layout.align}\ \{t\}$ becomes the offset of field $1$ of $\{\str{i1}, t\}$.
+  \item So $\{x = \str{i32},\ \mathit{next} = \str{ptr}\}$ has size $16$ on x86-64 and $8$ on 32-bit ARM, from one ingot.
+  \end{subpoints}
+\item\label{p:infer} A block's parameters have no written type: each takes the type of the operands
+  jumped to it and of its uses, repeated until nothing changes.
+  \begin{subpoints}
+  \item If no operand and no use gives a parameter a type, the length of its byte-array operands does
+    (\pref{p:bytes-length}). For a parameter $c$:
+    \begin{itemize}
+    \item given $\hex{03000000}$ and $\hex{05000000}$, $c$ is an $\str{i32}$: both have $4$ bytes;
+    \item given $\hex{03}$ and $\hex{05000000}$, it is rejected: two lengths;
+    \item given $\hex{030000}$, it is rejected: $3$ bytes give no type;
+    \item given $p.a$, an $\str{i8}$, and $\hex{03000000}$, $c$ is an $\str{i8}$, since a real type comes first. Then
+      $\hex{03000000}$ is rejected, since it does not have $1$ byte (the last subpoint below).
+    \end{itemize}
+  \item A used parameter with two types is rejected: ``give $x$ a typed argument or a
+    typed use''. An unused parameter with no type found gets no $\kw{phi}$.
+  \item An operand whose type differs from the type its use needs is rejected, at the operand.
+  \end{subpoints}
+\item\label{p:llvm-ops} An instruction's struct of operands (\pref{p:anf}) is LLVM's operand list. A struct operand is a predef,
+  so an LLVM constant (an address is $\kw{ptr}\ @\mathit{name}$), and LLVM builds a struct value from run-time values with $\kw{insertvalue}$, as the
+  ingot does (\pref{p:struct-values}). Effects are emitted in the order of their $\kw{let}$s (\pref{p:opcode}).
+\item\label{p:one-to-one} The translation is one to one, as a rule: every LLVM block, label and instruction is
+  written in the ingot, and the translation adds none and changes none.
+  \begin{subpoints}
+  \item Regions are flattened, in source order: field $0$ of the body's region is the entry block, field $0$ of a
+    nested region goes on in the block it continues, and every other field is a block. An unlabeled entry block is
+    named after its region's binder and its position, as $r.0$. The marker $\str{R}$ itself becomes nothing.
+  \item Each $\kw{let}$ becomes one instruction: an opcode call becomes the opcode's instruction, and a
+    call $g.l\ \{\dots\}$ becomes $\kw{call}$ of the function $l$. A size opcode's $\kw{let}$ (\pref{p:sizes}) becomes its constant
+    expression, not an instruction; nothing is added. An indirect call (\pref{p:indirect}) becomes $\kw{call}$ through the
+    address, with the function type of the value: $\kw{let}\ c = p.\mathit{cmp}\ \{x, z\}$ becomes
+    $\kw{\%c = call\ i32\ \%p.cmp(i32\ \%x,\ i32\ \%z)}$.
+  \item A return becomes $\kw{ret}$ (or $\kw{ret\ void}$, \pref{p:void}), and a jump $\kw{br}$.
+  \item A branch of two arms on an $\str{i1}$ becomes $\kw{br\ i1}$, to arm $1$ when true and arm $0$ when false;
+    any other branch becomes $\kw{switch}$, arm $i$ the case $i$ and the last arm the default.
+  \item A block's parameters become its $\kw{phi}$ instructions, one incoming value per jump to it, even
+    when only one jump goes there. Two arms of one branch that jump to the same block pass the same
+    operands; otherwise the branch is rejected.
+  \end{subpoints}
+\item\label{p:names-llvm} Names: terms are equal up to renaming bound variables, so the translation reads
+  each definition with all its bound variables named apart, a repeated name taking the smallest free
+  number ($c$, $c1$).
+  \begin{subpoints}
+  \item An argument is named $p.x_i$, a block $r.l$ by its region and label, and a let variable by its name.
+    No two can be equal.
+  \item For \pref{p:gcd}, $\mathit{done}$'s parameter is named $c1$, and the blocks are $r.\mathit{entry}$,
+    $r.\mathit{loop}$, $q.\mathit{step}$ and $r.\mathit{done}$.
+  \end{subpoints}
+\item\label{p:symbols-llvm} Each symbol becomes an LLVM global. A symbol with a $\mathit{link}$ is named by its
+  linker name (\pref{p:linkage}), as $\kw{@main}$ or $\kw{@puts}$; an internal one by its path, with LLVM's
+  $\kw{internal}$ linkage, as $\kw{@math.gcd}$:
+  \begin{subpoints}
+  \item A definition becomes LLVM's $\kw{define}$; its parameters and result come from its type:
+    $\kw{define\ internal\ i32\ @math.gcd(\dots)}$, $\kw{define\ i32\ @main()}$.
+  \item A declared function becomes $\kw{declare}$: $\mathit{puts}$ is
+    $\kw{declare\ i32\ @puts(ptr)}$; a declared variable becomes $\kw{external\ global}$.
+  \item A constant becomes $\kw{@answer\ =\ internal\ constant\ i32\ 42}$, or without $\kw{internal}$ when it has a $\mathit{link}$.
+  \item A global variable becomes $\kw{@counter\ =\ global\ i32\ 41}$ when its $\mathit{link}$ is $\str{counter}$.
+  \item $\{\}$ becomes $\kw{zeroinitializer}$, and a byte array for an $\str{i8}$ array becomes $\kw{c"\dots"}$.
+  \item Entries with the same $\mathit{link}$ are one LLVM symbol, as the linker would make them: one
+    $\kw{define}$ if one of them is a definition, else one $\kw{declare}$; their types must be equal, and two
+    definitions are rejected.
+  \item An internal name carries no meaning: the translation names it by its path, and may choose another
+    name to keep it apart from the linker names.
+  \end{subpoints}
+\item\label{p:init-llvm} How a predef initializes a type (\pref{p:init}):
+  \begin{subpoints}
+  \item Where the type is $\str{ptr}$, $\str{}$ is the null pointer, and an address $g.l_1 \cdots l_n$ is the symbol's global, so the
+    $\mathit{value}$ of \pref{p:init} becomes $[2\ \kw{x}\ \kw{ptr}]\ [\kw{ptr}\ @\mathit{hello}, \kw{ptr}\ @\mathit{bye}]$.
+  \item An array of $\str{i8}$ may be one byte array, its bytes in order:
+    \[\{\mathit{type} = \{\str{array}, \hex{03}, \str{i8}\},\ \mathit{value} = \hex{686900}\}\]
+  \item $\{\}$ is all zeros, for any type.
+  \end{subpoints}
+\item\label{p:example} For example, a $\mathit{main}$ that calls $\mathit{puts}$ when it is given an argument. The branch
+  sits in a nested region $q$, whose field $0$ continues the entry block:
+  \begin{Verbatim}[commandchars=\@\<\>, xleftmargin=2em]
+{ puts = {type = {'function', {s = 'ptr'}, 'i32'}, link = 'puts'},
+  msg  = {type = {'array', [03], 'i8'}, value = [686900]},
+  main = {type = {'function', {argc = 'i32'}, 'i32'},
+          link = 'main',
+          body = @vlamg. @vlamp. 'R' (@vlamr. {
+            entry =
+              let c = 'icmp' {'sgt', 'i32', p.argc, [01000000]} in
+              'R' (@vlamq. {
+                if c then q.say else r.done,
+                say = let u = g.puts {s = g.msg} in r.done
+              }),
+            done = [00000000]
+          })} }
+\end{Verbatim}
+  Its translation:
+  \begin{Verbatim}[xleftmargin=2em]
+@msg = internal constant [3 x i8] c"hi\00"
+
+declare i32 @puts(ptr)
+
+define i32 @main(i32 %p.argc) {
+r.entry:
+  %c = icmp sgt i32 %p.argc, 1
+  br i1 %c, label %q.say, label %r.done
+q.say:
+  %u = call i32 @puts(ptr @msg)
+  br label %r.done
+r.done:
+  ret i32 0
+}
+\end{Verbatim}
+  \begin{subpoints}
+  \item $\mathit{puts}$ is a declaration, so it becomes $\kw{declare}$; $\mathit{msg}$ is an internal constant, so
+    $\kw{internal}$; $\mathit{main}$ has the $\mathit{link}$ $\str{main}$.
+  \item The nested region adds no block for its field $0$: $\kw{icmp}$ and $\kw{br\ i1}$ stay in $r.\mathit{entry}$, and $\mathit{say}$
+    becomes the block $q.\mathit{say}$.
+  \item $\kw{if}\ c\ \kw{then}\ q.\mathit{say}\ \kw{else}\ r.\mathit{done}$ is the branch $\{r.\mathit{done}, q.\mathit{say}\}\ c$, so arm $1$, $q.\mathit{say}$, is
+    taken when $c$ is true.
+  \end{subpoints}
+\end{points}
+
+%% ── Related Work ─────────────────────────────────────────────────────
+
+\section{Related Work}\label{sec:related}
+
+\paragraph{Call-by-value and confluence.}
+Oymomo's core is Plotkin's call-by-value $\lambda_v$~\cite{plotkin1975}, whose
+$\beta_v$ rule substitutes only values. Confluence of reduction anywhere
+follows the Church--Rosser tradition~\cite{churchrosser1936}, here by the
+parallel-reduction method of Tait and Martin-L\"of as presented by
+Takahashi~\cite{takahashi1995}. Opcodes play the part of $\delta$-rules:
+Mitschke showed that adding built-in functions on closed normal arguments keeps
+a confluent calculus confluent~\cite{barendregt1984}, and oymomo's rule that an
+operand be closed and normal is that condition. Records with projection are the
+usual ones~\cite{pierce2002}; oymomo adds indexing by position and a default
+arm, which make a struct a multi-way branch.
+
+\paragraph{A-normal form and SSA.}
+A-normal form was introduced by Flanagan, Sabry, Duba and
+Felleisen~\cite{flanagan1993} as the direct-style counterpart of
+continuation-passing style. Kelsey~\cite{kelsey1995} and Appel~\cite{appel1998}
+observed that SSA is functional programming: a block is a function, a jump is a
+tail call, and dominance is lexical scope. Kennedy~\cite{kennedy2007} and Maurer
+et al.~\cite{maurer2017} use second-class continuations and join points so a
+functional intermediate language can say ``jump'' rather than ``call''.
+Oymomo's regions are in this line: a region is a group of labeled blocks bound
+by one $\lambda$, a jump is a path into it, and nesting gives dominance. Unlike
+those languages, oymomo never transforms a term into ANF. A term in ANF is
+already a normal form, so the calculus has no lifting rule and ANF is a shape
+the program is written in, not a pass.
+
+\paragraph{Compiler intermediate representations.}
+Oymomo's ingots are shaped for LLVM~\cite{lattner2004}, and an ingot could
+equally target another SSA form such as MLIR~\cite{lattner2021}. In those, a module is a data structure built and
+rewritten by passes outside the IR. In oymomo, an ingot is an ordinary term: the
+code that builds it, merges it with others or fills its holes is reduction in the
+same calculus, and confluence (\pref{p:confluent}) makes that combination
+order-independent. CompCert~\cite{leroy2009} verifies a whole compiler; oymomo's
+Lean proofs cover only the calculus (confluence, the strategy and ANF), not the
+translation to LLVM.
+
+\paragraph{Layers and stages.}
+The layering $t_1 : t_2$ comes from the $\theta$-calculus~\cite{bazar2026theta},
+where a term can hold any number of layers and an unlayering operation inspects
+them. Oymomo keeps two layers, drops unlayering, and separates before any
+reduction, so each layer is an ordinary term. Multi-stage
+calculi~\cite{davies2001} and two-level type theory~\cite{kovacs2022} also give
+one program several levels, but a level there can build and run another's code;
+oymomo's two layers never read each other.
+
+%% ── References ──────────────────────────────────────────────────────
+
+\begin{thebibliography}{99}
+
+\bibitem{appel1998}
+A.~W. Appel.
+SSA is functional programming.
+\textit{ACM SIGPLAN Notices}, 33(4):17--20, 1998.
+
+\bibitem{barendregt1984}
+H.~P. Barendregt.
+\textit{The Lambda Calculus: Its Syntax and Semantics}.
+Revised edition, North-Holland, 1984.
+
+\bibitem{bazar2026theta}
+O.~Bazar.
+The $\theta$-calculus: Unifying type systems through layered computation.
+Preprint, 2026.
+
+\bibitem{churchrosser1936}
+A.~Church and J.~B. Rosser.
+Some properties of conversion.
+\textit{Transactions of the American Mathematical Society}, 39(3):472--482, 1936.
+
+\bibitem{davies2001}
+R.~Davies and F.~Pfenning.
+A modal analysis of staged computation.
+\textit{Journal of the ACM}, 48(3):555--604, 2001.
+
+\bibitem{flanagan1993}
+C.~Flanagan, A.~Sabry, B.~F. Duba, and M.~Felleisen.
+The essence of compiling with continuations.
+In \textit{Programming Language Design and Implementation (PLDI)},
+pages 237--247. ACM, 1993.
+
+\bibitem{kelsey1995}
+R.~A. Kelsey.
+A correspondence between continuation passing style and static single
+assignment form.
+In \textit{Workshop on Intermediate Representations (IR)},
+\textit{ACM SIGPLAN Notices}, 30(3):13--22, 1995.
+
+\bibitem{kennedy2007}
+A.~Kennedy.
+Compiling with continuations, continued.
+In \textit{International Conference on Functional Programming (ICFP)},
+pages 177--190. ACM, 2007.
+
+\bibitem{kovacs2022}
+A.~Kov\'{a}cs.
+Staged compilation with two-level type theory.
+\textit{Proceedings of the ACM on Programming Languages}, 6(ICFP), 2022.
+
+\bibitem{lattner2004}
+C.~Lattner and V.~Adve.
+LLVM: A compilation framework for lifelong program analysis and
+transformation.
+In \textit{Code Generation and Optimization (CGO)}, pages 75--86. IEEE, 2004.
+
+\bibitem{lattner2021}
+C.~Lattner, M.~Amini, U.~Bondhugula, A.~Cohen, A.~Davis, J.~Pienaar,
+R.~Riddle, T.~Shpeisman, N.~Vasilache, and O.~Zinenko.
+MLIR: Scaling compiler infrastructure for domain specific computation.
+In \textit{Code Generation and Optimization (CGO)}, pages 2--14. IEEE, 2021.
+
+\bibitem{leroy2009}
+X.~Leroy.
+Formal verification of a realistic compiler.
+\textit{Communications of the ACM}, 52(7):107--115, 2009.
+
+\bibitem{maurer2017}
+L.~Maurer, P.~Downen, Z.~M. Ariola, and S.~Peyton~Jones.
+Compiling without continuations.
+In \textit{Programming Language Design and Implementation (PLDI)},
+pages 482--494. ACM, 2017.
+
+\bibitem{moura2021}
+L.~de~Moura and S.~Ullrich.
+The Lean 4 theorem prover and programming language.
+In \textit{Automated Deduction (CADE-28)}, LNCS 12699, pages 625--635.
+Springer, 2021.
+
+\bibitem{oymoproofs}
+O.~Bazar.
+Oymomo Lean 4 proofs.
+\url{https://github.com/tapl-org/tapl/tree/main/oymo-py/proofs}, 2026.
+
+\bibitem{pierce2002}
+B.~C. Pierce.
+\textit{Types and Programming Languages}.
+MIT Press, 2002.
+
+\bibitem{plotkin1975}
+G.~D. Plotkin.
+Call-by-name, call-by-value and the $\lambda$-calculus.
+\textit{Theoretical Computer Science}, 1(2):125--159, 1975.
+
+\bibitem{takahashi1995}
+M.~Takahashi.
+Parallel reductions in $\lambda$-calculus.
+\textit{Information and Computation}, 118(1):120--127, 1995.
+
+\end{thebibliography}
+
+\end{document}
